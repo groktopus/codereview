@@ -169,7 +169,7 @@ jobs:
           if subprocess.run(['git', '-C', store, 'check-ref-format', base_ref_full], check=False, timeout=10).returncode:
               raise SystemExit('target_base_ref_invalid')
           git('git', '-C', store, 'fetch', '--no-tags', '--depth=1', url,
-              f'+{base_ref_full}:refs/pr/base', timeout=120)
+              f'+{base_sha}:refs/pr/base', timeout=120)
           if git('git', '-C', store, 'rev-parse', 'refs/pr/head') != head_sha:
               raise SystemExit('fetched_target_head_mismatch')
           if git('git', '-C', store, 'rev-parse', 'refs/pr/base') != base_sha:

@@ -1,4 +1,5 @@
 import re
+import subprocess
 from pathlib import Path
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-publish.yml"
@@ -162,6 +163,57 @@ def test_production_analysis_creates_redirect_parent_before_cli_starts():
     assert "mkdir -p artifacts" in commands
     assert commands.index("mkdir -p artifacts") < commands.index("pr-review review")
     assert commands.index("mkdir -p artifacts") < commands.index("> artifacts/review-result.json")
+
+
+def test_production_analysis_fetches_immutable_pr_base_after_api_identity_check(tmp_path):
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = source.split("- name: Validate pinned source and PR identity, then acquire bare target objects", 1)[1]
+    script = step.split("        run: |", 1)[1].split("      - name:", 1)[0]
+
+    assert "if current['base_sha'] != base_sha or current['head_sha'] != head_sha:" in script
+    assert script.index("if current['base_sha'] != base_sha or current['head_sha'] != head_sha:") < script.index(
+        "git('git', 'init', '--bare', store)"
+    )
+    assert "f'+{base_sha}:refs/pr/base'" in script
+    assert "f'+{base_ref_full}:refs/pr/base'" not in script
+
+    def git(*args):
+        return subprocess.run(
+            ["git", *map(str, args)], check=True, capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+
+    work = tmp_path / "work"
+    remote = tmp_path / "target.git"
+    store = tmp_path / "review.git"
+    work.mkdir()
+    git("init", work)
+    git("-C", work, "config", "user.email", "review-fixture@example.invalid")
+    git("-C", work, "config", "user.name", "Review fixture")
+    (work / "source.txt").write_text("PR base\n", encoding="utf-8")
+    git("-C", work, "add", "source.txt")
+    git("-C", work, "commit", "-m", "PR base")
+    base_sha = git("-C", work, "rev-parse", "HEAD")
+
+    git("init", "--bare", remote)
+    git("init", "--bare", store)
+    git("-C", work, "push", remote, "HEAD:refs/heads/main")
+    (work / "source.txt").write_text("advanced main\n", encoding="utf-8")
+    git("-C", work, "commit", "-am", "Advance main")
+    git("-C", work, "push", remote, "HEAD:refs/heads/main")
+    advanced_main = git("--git-dir", remote, "rev-parse", "refs/heads/main")
+    assert advanced_main != base_sha
+
+    git(
+        "-C",
+        store,
+        "fetch",
+        "--no-tags",
+        "--depth=1",
+        remote.as_uri(),
+        f"+{base_sha}:refs/pr/base",
+    )
+    assert git("--git-dir", store, "rev-parse", "refs/pr/base") == base_sha
+    assert git("--git-dir", remote, "rev-parse", "refs/heads/main") == advanced_main
 
 
 def test_historical_free_model_workflow_remains_separate_from_production_provider_config():
