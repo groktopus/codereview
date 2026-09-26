@@ -543,6 +543,16 @@ def test_provider_free_baseline_is_incomplete_and_has_not_started_semantic_scope
     assert result["findings"] == []
 
 
+def test_unknown_required_lens_fails_before_provider_dispatch_or_result_creation(tmp_path):
+    provider = EmptyProvider()
+
+    with pytest.raises(ValueError, match="unsupported lens"):
+        run(tmp_path, snap=make_snapshot(), prof=profile(("correctnes",)), provider=provider)
+
+    assert provider.calls == 0
+    assert not (tmp_path / "r1.json").exists()
+
+
 def _add_trusted_policy(snapshot, text):
     evidence_id = "policy:agents"
     snapshot["evidence"][evidence_id] = {

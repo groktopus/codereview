@@ -20,6 +20,51 @@ _SECURITY_TERMS = (
     "credential",
     "access_control",
 )
+_LENS_LIST_FIELDS = (
+    "required_lenses",
+    "default_lenses",
+    "docs_lenses",
+    "documentation_lenses",
+    "security_lenses",
+)
+
+
+def validate_profile_lenses(profile: dict) -> None:
+    """Reject malformed or unsupported configured review lenses.
+
+    These fields define required review scope. Silently skipping an unknown
+    value can erase obligations and make an empty plan appear complete.
+    Validate every configured alias, including fields not selected by a
+    particular unit route, so dormant typos cannot become active later.
+    """
+    allowed = set(_ALL_LENSES)
+
+    def validate_lens_list(value: Any, field: str) -> None:
+        if not isinstance(value, list):
+            raise ValueError(f"profile {field} must be a list of supported lenses")
+        if any(not isinstance(lens, str) or lens not in allowed for lens in value):
+            raise ValueError(f"profile {field} contains an unsupported lens")
+
+    for field in _LENS_LIST_FIELDS:
+        if field in profile:
+            validate_lens_list(profile[field], field)
+
+    rules = profile.get("risk_rules", [])
+    if not isinstance(rules, list):
+        raise ValueError("profile risk_rules must be a list")
+    for index, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            raise ValueError(f"profile risk_rules[{index}] must be an object")
+        if "lenses" in rule:
+            validate_lens_list(rule["lenses"], f"risk_rules[{index}].lenses")
+
+    criteria = profile.get("review_criteria", {})
+    if not isinstance(criteria, dict):
+        raise ValueError("profile review_criteria must be an object keyed by supported lenses")
+    if any(not isinstance(lens, str) or lens not in allowed for lens in criteria):
+        raise ValueError("profile review_criteria contains an unsupported lens")
+    if any(not isinstance(value, str) for value in criteria.values()):
+        raise ValueError("profile review_criteria values must be strings")
 
 
 def allow_empty_approve(profile: dict) -> bool:
@@ -214,6 +259,7 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
     if not isinstance(snapshot, dict) or not isinstance(profile, dict):
         raise ValueError("snapshot and profile must be objects")
     allow_empty_approve(profile)
+    validate_profile_lenses(profile)
     context_selection = validate_context_selection(profile)
     requested = str(mode).upper()
     if requested not in {*_MODE_ORDER, "AUTO"}:

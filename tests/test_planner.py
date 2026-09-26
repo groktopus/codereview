@@ -1,3 +1,8 @@
+import json
+from pathlib import Path
+
+import pytest
+
 from pr_review_harness.planner import plan_review
 
 
@@ -127,3 +132,64 @@ def test_optional_missing_context_does_not_force_deep_docs_review():
     required = plan_review(snapshot, {"version": "v1", "docs_lenses": ["correctness"]})
     assert required["mode"] == "DEEP"
     assert any(item["obligation_kind"] == "REQUIRED_CONTEXT" for item in required["coverage_obligations"])
+
+
+@pytest.mark.parametrize(
+    "profile_override",
+    [
+        {"required_lenses": ["correctnes"]},
+        {"default_lenses": ["correctnes"]},
+        {"docs_lenses": ["correctnes"]},
+        {"documentation_lenses": ["correctnes"]},
+        {"security_lenses": ["correctnes"]},
+        {"risk_rules": [{"patterns": ["src/*"], "lenses": ["correctnes"]}]},
+        {"review_criteria": {"correctnes": "Review callers."}},
+    ],
+)
+def test_unknown_lenses_in_any_configured_profile_field_fail_preflight(profile_override):
+    profile = {"version": "p1", **profile_override}
+    with pytest.raises(ValueError, match="unsupported lens"):
+        plan_review(snapshot([unit("u", "src/a.py")]), profile)
+
+
+def test_empty_specialist_lenses_preserve_check_only_profiles():
+    plan = plan_review(
+        snapshot([unit("u", "src/a.py")]),
+        {
+            "version": "p1",
+            "required_lenses": [],
+            "required_checks": [{"id": "build", "patterns": ["src/*"]}],
+        },
+    )
+
+    assert [item["obligation_kind"] for item in plan["coverage_obligations"]] == ["PROJECT_CHECK"]
+
+
+@pytest.mark.parametrize(
+    "profile_override",
+    [
+        {"required_lenses": "correctness"},
+        {"required_lenses": ["correctness", None]},
+        {"docs_lenses": None},
+        {"risk_rules": "not-a-list"},
+        {"risk_rules": ["not-an-object"]},
+        {"risk_rules": [{"lenses": "security"}]},
+        {"risk_rules": [{"lenses": ["security", 1]}]},
+        {"review_criteria": None},
+        {"review_criteria": {"correctness": 7}},
+    ],
+)
+def test_malformed_configured_lens_fields_fail_preflight(profile_override):
+    profile = {"version": "p1", **profile_override}
+    with pytest.raises(ValueError):
+        plan_review(snapshot([unit("u", "src/a.py")]), profile)
+
+
+@pytest.mark.parametrize("name", ["generic.json", "slopsearx.json"])
+def test_repository_profiles_keep_their_supported_lens_configuration(name):
+    profile_path = Path(__file__).parents[1] / "profiles" / name
+    configured_profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    plan = plan_review(snapshot([unit("u", "src/a.py")]), configured_profile)
+
+    assert plan["policy_valid"] is True
+    assert any(item["obligation_kind"] == "CHANGED_UNIT_LENS" for item in plan["coverage_obligations"])
