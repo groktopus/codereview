@@ -88,7 +88,12 @@ jobs:
       base_sha: ${{ github.event.pull_request.base.sha }}
       head_sha: ${{ github.event.pull_request.head.sha }}
     secrets:
-      NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+      JEV_MODEL: ${{ secrets.JEV_MODEL }}
+      JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
       HARNESS_READ_TOKEN: ${{ secrets.HARNESS_READ_TOKEN }}
 ```
 
@@ -96,12 +101,12 @@ Before enabling the caller:
 
 1. Review the workflow and profile from the protected base branch.
 2. Verify the reusable workflow `uses:` revision and `harness_sha` are the same reviewed full commit SHA. The workflow checks their syntax before checkout and checks the checked-out `HEAD` before installing or importing it.
-3. Set `NOUS_API_KEY` as a repository Actions secret. The workflow uses a fixed allowlisted free test model after fetching a bounded, fresh model catalog and verifying its current price. The test model is not a production model selection.
+3. Configure the six required provider secrets (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `JEV_BASE_URL`, `JEV_MODEL`, and `JEV_API_KEY`) in the caller repository's Actions settings. The workflow materializes private, short-lived provider configuration from those values; it does not fetch a model catalog. See [Deployment configuration](DEPLOYMENT-CONFIGURATION.md) for endpoint format, secret handling, and the selected deployment defaults. The separate [manual historical model comparison](#manual-historical-model-comparison) retains the fixed free-model/catalog procedure.
 4. Keep caller and reusable-workflow permissions at read-only. It requires `contents: read`, `checks: read`, and `pull-requests: read`; it does not receive write permission.
 
 The workflow verifies the current PR through the caller's read-only GitHub token, fetches the base ref and `refs/pull/<number>/head` into a bare object store, checks both object IDs against the supplied event identities, and passes a synthetic minimal event to the CLI. It never checks out the PR head or runs its hooks, tests, builds, scripts, or actions. A moved ref or failed API read stops or leaves evidence incomplete. The current bare-fetch adapter supports public target repositories; private target acquisition needs a separately reviewed read-only credential adapter.
 
-The workflow uploads reports and catalog provenance as an artifact retained for seven days. Reports can contain source excerpts and model output. Restrict artifact access according to repository policy and download or retain results only when authorized. A failed run may still upload partial diagnostics; check the workflow status and result disposition.
+The workflow uploads reports as an artifact retained for seven days. Reports can contain source excerpts and model output. Restrict artifact access according to repository policy and download or retain results only when authorized. A failed run may still upload partial diagnostics; check the workflow status and result disposition.
 
 The reusable workflow is inactive until a trusted target-repository caller explicitly invokes it. Invocation authorizes read-only model requests and source transmission to the configured provider, but does not authorize posting results. Publication remains disabled in the CLI and no publishing token is granted.
 
@@ -120,7 +125,7 @@ The resulting manifest is compatibility and harness-operation evidence only. It 
 | `review_runtime_failed` / exit 1 | Inspect the persisted result/checkpoint and task-level safe diagnostics. A failed task stays incomplete; resume only against the same run identity and immutable input. |
 | `STALE` | The PR head changed while review ran. Start a new run for the current event. Never reuse the old report as current evidence. |
 | required check `UNKNOWN` | Check identity, GitHub App ID, run completion, repository, SHA, and captured timestamps. Missing/untrusted evidence cannot satisfy the binding. |
-| provider key, catalog, or API unavailable | Do not retry by switching silently to a paid model. Preserve the failed/incomplete evidence and rerun only after the configured test path is restored. |
+| production provider configuration or API unavailable | Verify the six caller secrets and configured endpoints without printing secret values. Preserve the failed/incomplete evidence and rerun only after the configured path is restored. For the separate historical free-model comparison, a missing key or stale/unavailable catalog means no model call; do not switch silently to a paid model. |
 | canceled Actions run | GitHub cancels superseded PR runs. Use the artifact from the newest current-head run; partial output is not a completed review. |
 
 Recovery does not need destructive cleanup: disable the `REVIEW_ANALYSIS_ENABLED` variable, preserve existing artifacts, and use the prior review process. Leave publication disabled. No rollback rehearsal or live Actions run is claimed by this implementation.
