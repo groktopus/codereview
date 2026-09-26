@@ -1,0 +1,13 @@
+# PR Review Harness — production delivery
+
+User authority: 2026-09-26, continue end to end toward a clean professional production-ready replacement for Droid's code-review function, with Luna-pinned execution and root oversight. Preserve all six milestones and original design invariants. Work on feat/production-review in this isolated checkout; existing durable prototype and all prior evidence remain intact.
+
+The user-approved production scope supersedes the pilot-only feature restriction: implement bounded evidence retrieval, external check ingestion, review publication interfaces, packaging, operations, and replacement evaluation. Default effects remain READ_ONLY. Do not post reviews/comments/messages, change SlopSearX configuration, disable Droid, create/publish external releases, merge, or spend against a new provider/account without explicit applicable authorization. Build and verify concrete artifacts before requesting any final deployment decision. No auto-merge or code repair.
+
+Root owns planning, contract decisions, integration, evidence, release judgment and coordination. Luna-pinned workers execute in disjoint owned files, communicate interfaces before changing consumers, and do not commit/push. Root owns source-control/persistence. Respect unrelated work; never edit Agent Skills or application repositories as part of this implementation.
+
+Models return bounded semantic data and candidates. Deterministic code owns context retrieval, tasks, stages, budgets, retries, termination, disposition and effects. Do not prompt workflow. Unknown, partial, invalid, stale or missing required evidence cannot become a clean approval. Known supported blockers survive partial coverage and synthesis. Model agreement/probability is not truth or calibrated approval.
+
+No target code/hooks/tests execute in credentialed analysis. If isolated check execution is introduced, it requires a separate secretless disposable process/container and explicit bounded resource/network/filesystem controls. Prefer SHA-bound existing check evidence first. Git commands use fixed argument arrays and immutable objects; no shell interpolation. Profiles and operational policies are external trusted inputs. Never expose credentials in prompts, logs, reports or fixtures.
+
+Use actual entry-point tests and representative boundary/failure probes. Preserve invalid/rejected output provenance, budget/cost accounting, immutable identity and historical freshness distinction. Retain prior experiment failures. No production or replacement claim until the requirement-by-requirement audit proves it; no goal completion while release/adoption requirements remain unmet.

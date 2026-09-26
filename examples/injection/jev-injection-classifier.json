@@ -1,0 +1,9 @@
+{
+  "kind": "typesafe",
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "model": "jev-1.13.0",
+  "primitive": "choice-injection-v1",
+  "api_key_env": "TYPESAFE_API_KEY",
+  "timeout_seconds": 20,
+  "max_response_bytes": 16000
+}

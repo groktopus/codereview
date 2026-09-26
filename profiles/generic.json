@@ -1,0 +1,62 @@
+{
+  "version": "generic-production-v2",
+  "context_paths": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "required_lenses": [
+    "correctness",
+    "tests",
+    "maintainability"
+  ],
+  "docs_lenses": [
+    "correctness"
+  ],
+  "risk_rules": [
+    {
+      "patterns": [
+        "*auth*",
+        "*security*",
+        ".github/*"
+      ],
+      "min_mode": "FOCUSED",
+      "lenses": [
+        "security"
+      ],
+      "reason": "Potential security boundary, requires investigation."
+    }
+  ],
+  "generated_patterns": [],
+  "required_checks": [],
+  "allow_empty_approval": true,
+  "effect_policy": "READ_ONLY",
+  "review_criteria": {
+    "correctness": "Review intended changed behavior against base/head and supplied contracts: failure paths, exception handling, state consistency, concurrency, replay/recovery, API compatibility and callers. Separate observed facts from assumptions. Flag concrete introduced or re-exposed regressions; do not attribute unrelated base defects to this change. Ask for missing critical context as a typed gap.",
+    "tests": "Assess whether changed tests independently assert behavior, negative and boundary cases, failure/recovery paths and relevant contracts. A mock or test assertion is not execution evidence; never claim tests ran. Cosmetic coverage percentages and tautological tests do not establish behavioral correctness. Missing test suggestions are nonblocking unless concrete material risk or trusted policy makes them required.",
+    "maintainability": "Honor trusted project conventions and architecture boundaries. Consider cohesive responsibilities, coupling, complexity, clarity and operational failure visibility with concrete consequences. Generic book/style preferences and mechanical smell counts alone do not justify blockers. Keep actionable suggestions proportional to the change.",
+    "design": "Assess explicit contracts, module responsibilities, abstraction leakage, dependencies and caller compatibility using supplied project context; generic preference alone is not a blocker.",
+    "security": "Explicitly inspect authentication and authorization, fail-closed policy, mixed request atomicity, source/control/sink paths, input handling, secrets exposure and trust-boundary changes. Substantiate plausible reach and consequence with actual code evidence; static alerts and absent context are not proof. A diff review is not application-wide security certification.",
+    "performance": "Assess plausible complexity, resource bounds, shared-state races and backpressure with concrete workloads from supplied evidence. Do not invent measured timings, costs or regressions.",
+    "project_specific": "Apply only trusted project rules and their consequences; report unsupported or missing rule evidence rather than inventing requirements."
+  },
+  "trusted_policy_paths": [
+    "AGENTS.md"
+  ],
+  "retrieval_context_patterns": [
+    "AGENTS.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    "src/*",
+    "lib/*",
+    "app/*",
+    "tests/*",
+    "test/*",
+    "docs/*",
+    "pyproject.toml",
+    "package.json",
+    "go.mod",
+    "Cargo.toml",
+    "*.csproj",
+    ".github/workflows/*"
+  ]
+}

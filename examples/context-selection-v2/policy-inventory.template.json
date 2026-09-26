@@ -1,0 +1,79 @@
+{
+  "schema_version": "context-policy-inventory.v1",
+  "template_only": true,
+  "status": "UNPOPULATED_TEMPLATE",
+  "identity": {
+    "repository": null,
+    "profile_version": null,
+    "profile_sha256": null,
+    "base_sha": null,
+    "extractor_id": null,
+    "extractor_version": null
+  },
+  "obligations": [],
+  "policy_sources": [],
+  "clauses": [],
+  "applicability_trace": [],
+  "record_templates": {
+    "obligation": {
+      "obligation_id": null,
+      "obligation_kind": null,
+      "required": null,
+      "scope_unit_ids": [],
+      "lens": null,
+      "check_binding_id": null
+    },
+    "policy_source": {
+      "source_id": null,
+      "path": null,
+      "trust_source_profile_field": null,
+      "trust_class": null,
+      "source_side": "BASE",
+      "source_revision": null,
+      "git_object_format": null,
+      "git_object_id": null,
+      "full_source_sha256": null,
+      "selector_engine_fingerprint": null,
+      "extractor_status": null,
+      "gap_reason": null
+    },
+    "clause": {
+      "clause_id": null,
+      "lineage_id": null,
+      "source_id": null,
+      "selector_id": null,
+      "extract_kind": null,
+      "heading_path": [],
+      "occurrence": null,
+      "byte_range": {
+        "start_inclusive": null,
+        "end_exclusive": null
+      },
+      "line_range": {
+        "start_inclusive": null,
+        "end_inclusive": null
+      },
+      "clause_bytes_sha256": null,
+      "extraction_status": null,
+      "gap_reason": null
+    },
+    "applicability_trace_row": {
+      "obligation_id": null,
+      "clause_id": null,
+      "state": null,
+      "rule_id": null,
+      "rule_version": null,
+      "basis_evidence_ids": [],
+      "reason_code": null
+    }
+  },
+  "value_contract": {
+    "trust_class": ["trusted_policy"],
+    "source_side": ["BASE"],
+    "git_object_format": ["sha1", "sha256"],
+    "extractor_status": ["COMPLETE", "GAP"],
+    "extraction_status": ["EXTRACTED", "GAP"],
+    "applicability_state": ["APPLICABLE", "NOT_APPLICABLE", "UNRESOLVED"],
+    "applicability_rule_requirement": "NOT_APPLICABLE requires a deterministic rule_id, rule_version, and basis_evidence_ids; ambiguity is UNRESOLVED."
+  }
+}

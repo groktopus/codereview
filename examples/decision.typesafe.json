@@ -1,0 +1,8 @@
+{
+  "kind": "typesafe",
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "api_key_env": "TYPESAFE_API_KEY",
+  "model": "jev-1.13.0",
+  "primitive": "choice-risk",
+  "timeout_seconds": 20
+}

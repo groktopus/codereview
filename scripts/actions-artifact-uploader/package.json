@@ -1,0 +1,11 @@
+{
+  "name": "pr-review-actions-artifact-uploader",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@actions/artifact": "6.2.1"
+  }
+}

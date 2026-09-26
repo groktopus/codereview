@@ -1,0 +1,200 @@
+{
+  "schema_version": "1.0",
+  "repository": "magnus919/SlopSearX",
+  "pull_request_number": 464,
+  "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+  "captured_at": "2026-09-26T16:41:04.611965+00:00",
+  "complete": true,
+  "runs": [
+    {
+      "id": 106621259357,
+      "name": "droid",
+      "status": "completed",
+      "conclusion": "skipped",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-22T04:57:06Z"
+    },
+    {
+      "id": 106621240913,
+      "name": "droid",
+      "status": "completed",
+      "conclusion": "skipped",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-22T04:57:06Z"
+    },
+    {
+      "id": 106562000305,
+      "name": "CodeQL",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 57789,
+      "completed_at": "2026-09-21T23:49:53Z"
+    },
+    {
+      "id": 106561856190,
+      "name": "droid",
+      "status": "completed",
+      "conclusion": "skipped",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:49:11Z"
+    },
+    {
+      "id": 106561819957,
+      "name": "droid",
+      "status": "completed",
+      "conclusion": "skipped",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:48:55Z"
+    },
+    {
+      "id": 106561794711,
+      "name": "portal-contract",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:50:39Z"
+    },
+    {
+      "id": 106561794677,
+      "name": "monitoring-rules",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:50:06Z"
+    },
+    {
+      "id": 106561794644,
+      "name": "test (3.13)",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:52:36Z"
+    },
+    {
+      "id": 106561794572,
+      "name": "valkey-integration",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:50:46Z"
+    },
+    {
+      "id": 106561794528,
+      "name": "test (3.12)",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:52:37Z"
+    },
+    {
+      "id": 106561794505,
+      "name": "duplicate-detection",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:50:19Z"
+    },
+    {
+      "id": 106561794489,
+      "name": "quality",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:50:21Z"
+    },
+    {
+      "id": 106561794483,
+      "name": "portal-browser",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:50:49Z"
+    },
+    {
+      "id": 106561794465,
+      "name": "searxng-api-contract",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:49:54Z"
+    },
+    {
+      "id": 106561794407,
+      "name": "jev-optional-modes (enhanced, 1, ci-synthetic-key)",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:49:31Z"
+    },
+    {
+      "id": 106561794397,
+      "name": "jev-optional-modes (keyless, 0)",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:49:22Z"
+    },
+    {
+      "id": 106561794187,
+      "name": "analysis",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:49:50Z"
+    },
+    {
+      "id": 106561793116,
+      "name": "droid-review",
+      "status": "completed",
+      "conclusion": "failure",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-22T04:57:20Z"
+    },
+    {
+      "id": 106561792847,
+      "name": "build-and-push",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:50:10Z"
+    },
+    {
+      "id": 106561792203,
+      "name": "analyze",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "app_id": 15368,
+      "completed_at": "2026-09-21T23:49:59Z"
+    }
+  ],
+  "fixture_provenance": {
+    "description": "Minimized public GitHub Check Runs capture; preserves all 20 run identities and terminal-status fields used by the binding test.",
+    "source_capture_sha256": "989e65b14d1a43f37b4abaaf2be55b49c3b07ecf50d3e786eb99ff3f22f0450b",
+    "source_artifact": "artifacts/check-discovery/pr464-check-evidence.json",
+    "redactions": [
+      "details_url",
+      "external_id",
+      "raw response metadata not used by the binding contract"
+    ]
+  }
+}

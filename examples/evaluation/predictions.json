@@ -1,0 +1,46 @@
+{
+  "contract_version": "review-evaluation-predictions.v1",
+  "corpus_id": "slopsearx-pr-discovery",
+  "dataset_version": "2026-09-26.1",
+  "runs": [
+    {
+      "case_id": "slopsearx-pr-464",
+      "arm": "droid",
+      "run_id": "droid-review-comment-4068557444",
+      "identity": {
+        "case_id": "slopsearx-pr-464",
+        "family_id": "slopsearx-pr-464-discovery",
+        "split": "development",
+        "repository": {
+          "owner": "magnus919",
+          "name": "SlopSearX"
+        },
+        "snapshot_id": "snap-c54e437de81bc6a7e9ae5d6a",
+        "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
+        "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+        "profile": {
+          "profile_id": "slopsearx",
+          "version": "slopsearx-production-v2",
+          "sha256": "17733a8d319bd83fdfa258e8e136acca4c51b0ad144e11f94f5daa085f44260e"
+        },
+        "source_manifest": {
+          "manifest_id": "comparison-discovery-pr-464-review-comments",
+          "sha256": "8ac2409a4633f19f35894f909b4c96598f5c7dfb0c8a793e25898d16a300fd71"
+        }
+      },
+      "status": "incomplete",
+      "disposition": "UNKNOWN",
+      "findings": [
+        {
+          "finding_id": "droid-inline-4068557444",
+          "materiality": "UNKNOWN",
+          "introducedness": "UNKNOWN",
+          "evidence_refs": [
+            "droid-comment-4068557444"
+          ]
+        }
+      ],
+      "detector_result": "NOT_RUN"
+    }
+  ]
+}
