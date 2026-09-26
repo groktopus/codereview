@@ -27,6 +27,14 @@ _LENS_LIST_FIELDS = (
     "documentation_lenses",
     "security_lenses",
 )
+_POSSIBLE_CODE_EXAMPLE = re.compile(
+    r"(?im)^[ \t]{0,3}(?:`{3,}|~{3,})"
+    r"|^ {4,}\S"
+    r"|^[ \t]*\.\.[ \t]+(?:code(?:-block)?|sourcecode|literalinclude|parsed-literal)::"
+    r"|^[ \t]*<(?:pre|code)\b"
+    r"|^[ \t]*(?:>>>|\$[ \t]+|PS>[ \t]+)\S"
+    r"|::[ \t]*(?:\n[ \t]*\n)[ \t]+\S"
+)
 
 
 def validate_profile_lenses(profile: dict) -> None:
@@ -243,11 +251,109 @@ def _unit_risk(unit: dict, profile: dict) -> set[str]:
 
 
 def _is_docs_only(unit: dict, profile: dict) -> bool:
+    path = str(unit.get("path", ""))
+    classifications = profile.get("classifications", {})
+    if isinstance(classifications, dict) and path in classifications:
+        return classifications[path] == "documentation"
     if unit.get("kind") in {"documentation", "docs", "prose"}:
         return True
-    path = str(unit.get("path", "")).lower()
+    path = path.lower()
     patterns = profile.get("documentation_paths", [r"(^|/)(docs?/|.*\.md$|.*\.rst$|.*\.txt$)"])
     return any(_matches(p, path) for p in patterns if isinstance(p, str))
+
+
+def _complete_evidence(snapshot: dict, unit: dict, source_kind: str, path: str, revision: str) -> dict | None:
+    """Return one complete, identity-bound evidence item for a document side."""
+    evidence = snapshot.get("evidence", {})
+    if not isinstance(evidence, dict):
+        return None
+    matches = [
+        evidence[eid]
+        for eid in unit.get("evidence_ids", [])
+        if isinstance(eid, str)
+        and isinstance(evidence.get(eid), dict)
+        and evidence[eid].get("source_kind") == source_kind
+        and evidence[eid].get("path") == path
+        and evidence[eid].get("source_revision") == revision
+        and evidence[eid].get("snapshot_id") == snapshot.get("snapshot_id")
+    ]
+    if len(matches) != 1:
+        return None
+    item = matches[0]
+    content = item.get("content")
+    if (
+        not isinstance(content, str)
+        or item.get("content_truncated") is not False
+        or not isinstance(item.get("content_hash"), str)
+        or hashlib.sha256(content.encode("utf-8")).hexdigest() != item.get("content_hash")
+    ):
+        return None
+    if source_kind in {"base_file", "head_file"}:
+        size = item.get("source_object_size_bytes")
+        if isinstance(size, bool) or not isinstance(size, int) or size != len(content.encode("utf-8")):
+            return None
+        if not isinstance(item.get("source_object_id"), str) or not item["source_object_id"]:
+            return None
+    return item
+
+
+def _mandatory_policy_path(path: str, profile: dict) -> bool:
+    selection = profile.get("context_selection")
+    mandatory = selection.get("mandatory_policy_paths", []) if isinstance(selection, dict) else []
+    return isinstance(mandatory, list) and any(
+        isinstance(pattern, str) and _matches(pattern, path) for pattern in mandatory
+    )
+
+
+def _verified_prose_document(snapshot: dict, unit: dict) -> bool:
+    """Certify only complete documentation evidence without code-example blocks.
+
+    The bounded snapshot already limits the total evidence bytes. This scan is
+    linear in the captured diff and full file blobs; uncertain or incomplete
+    snapshots simply cannot take the LIGHT route.
+    """
+    change_type = unit.get("change_type")
+    if change_type not in {"add", "delete", "modify", "rename"}:
+        change_type = {
+            "added": "add",
+            "deleted": "delete",
+            "modified": "modify",
+            "renamed": "rename",
+        }.get(unit.get("change"))
+    path = unit.get("path")
+    old_path = unit.get("old_path") or path
+    base_sha = snapshot.get("base_sha")
+    head_sha = snapshot.get("head_sha")
+    snapshot_id = snapshot.get("snapshot_id")
+    if not all(isinstance(value, str) and value for value in (path, base_sha, head_sha, snapshot_id)):
+        return False
+    diff = _complete_evidence(snapshot, unit, "diff", path, head_sha)
+    if diff is None:
+        return False
+    source_sides = {
+        "add": (("head_file", path, head_sha),),
+        "delete": (("base_file", old_path, base_sha),),
+        "modify": (("base_file", old_path, base_sha), ("head_file", path, head_sha)),
+        "rename": (("base_file", old_path, base_sha), ("head_file", path, head_sha)),
+    }.get(change_type)
+    if source_sides is None:
+        return False
+    items = [diff]
+    for source_kind, source_path, revision in source_sides:
+        item = _complete_evidence(snapshot, unit, source_kind, source_path, revision)
+        if item is None:
+            return False
+        items.append(item)
+    contents = [item["content"] for item in items[1:]]
+    diff_lines = []
+    for line in diff["content"].splitlines():
+        if line.startswith(("+++", "---")):
+            continue
+        if line.startswith(("+", "-", " ")):
+            line = line[1:]
+        diff_lines.append(line)
+    contents.append("\n".join(diff_lines))
+    return not any(_POSSIBLE_CODE_EXAMPLE.search(content) for content in contents)
 
 
 def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
@@ -328,7 +434,16 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
             for r in profile.get("risk_rules", []) or []
             if isinstance(r, dict) and r.get("reason", "profile_risk_rule").lower() in risks
         ]
-        if _is_docs_only(unit, profile) and not risks and unit.get("kind") not in {"unknown", "binary", "generated"}:
+        docs_only = _is_docs_only(unit, profile)
+        prose_only = docs_only and _verified_prose_document(snapshot, unit)
+        policy_path = _mandatory_policy_path(str(unit.get("path", "")), profile)
+        if (
+            prose_only
+            and not risks
+            and not is_generated
+            and not policy_path
+            and unit.get("kind") not in {"unknown", "binary", "generated"}
+        ):
             unit_floor, lenses = (
                 "LIGHT",
                 list(
@@ -352,6 +467,22 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                 ),
             )
             reasons.append(f"{uid}:risk_or_unknown_context_floor")
+        elif docs_only:
+            unit_floor = "FOCUSED"
+            lenses = list(
+                profile.get(
+                    "required_lenses",
+                    profile.get("default_lenses", ["correctness", "tests", "design", "maintainability"]),
+                )
+            )
+            reason = (
+                "docs_prose_only_unverified_focused_floor"
+                if not prose_only
+                else "docs_mandatory_policy_path_focused_floor"
+                if policy_path
+                else "docs_profile_risk_focused_floor"
+            )
+            reasons.append(f"{uid}:{reason}")
         else:
             unit_floor = "FOCUSED" if unit.get("kind") in {"human_code", "config", "test"} else "FOCUSED"
             lenses = list(
