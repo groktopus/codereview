@@ -202,6 +202,7 @@ jobs:
           PROFILE: ${{ inputs.target_repository == 'magnus919/SlopSearX' && 'profiles/slopsearx.json' || 'profiles/generic.json' }}
           OBJECT_STORE: ${{ runner.temp }}/target.git
         run: |
+          mkdir -p artifacts
           pr-review review \
             --repo "$OBJECT_STORE" \
             --event-file "$GITHUB_EVENT_PATH" \

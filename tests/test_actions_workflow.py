@@ -154,6 +154,16 @@ def test_production_analysis_uses_generated_configs_without_catalog_or_target_ex
     assert "fetched_target_base_mismatch" in source
 
 
+def test_production_analysis_creates_redirect_parent_before_cli_starts():
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    review_step = source.split("- name: Produce a bounded read-only report", 1)[1]
+    commands = review_step.split("        run: |", 1)[1].split("      - uses:", 1)[0]
+
+    assert "mkdir -p artifacts" in commands
+    assert commands.index("mkdir -p artifacts") < commands.index("pr-review review")
+    assert commands.index("mkdir -p artifacts") < commands.index("> artifacts/review-result.json")
+
+
 def test_historical_free_model_workflow_remains_separate_from_production_provider_config():
     source = TEST_WORKFLOW.read_text(encoding="utf-8")
     assert "NOUS_API_KEY" in source
