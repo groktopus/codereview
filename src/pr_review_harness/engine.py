@@ -1683,7 +1683,37 @@ def run_review(
                             status="SUCCEEDED" if assessment.get("outcome") != "UNCERTAIN" else "INVALID",
                         )
                 except Exception as exc:
-                    assessment = {"outcome": "UNCERTAIN", "reason": type(exc).__name__}
+                    if isinstance(exc, BudgetExhausted):
+                        budget_code = str(exc)
+                        safe_error_code = (
+                            budget_code
+                            if budget_code
+                            in {
+                                "CONTEXT_BYTE_BUDGET_EXHAUSTED",
+                                "CONTEXT_RETRIEVAL_BUDGET_EXHAUSTED",
+                                "CONTEXT_RETRIEVAL_BYTE_LIMIT_EXCEEDED",
+                                "DEADLINE_EXHAUSTED",
+                                "FOLLOWUP_TASK_BUDGET_EXHAUSTED",
+                                "INPUT_BYTE_LIMIT_EXCEEDED",
+                                "MONETARY_BOUND_UNAVAILABLE",
+                                "MONETARY_BUDGET_EXHAUSTED",
+                                "OUTPUT_BYTE_BUDGET_EXHAUSTED",
+                                "OUTPUT_BYTE_LIMIT_EXCEEDED",
+                                "PROVIDER_CALL_BUDGET_EXHAUSTED",
+                            }
+                            else type(exc).__name__
+                        )
+                    else:
+                        safe_error_code = type(exc).__name__
+                    assessment = {
+                        "outcome": "UNCERTAIN",
+                        "reason": type(exc).__name__,
+                        "error_code": safe_error_code,
+                    }
+                    # Persist the failure on the finding even when reservation
+                    # fails before a provider result or adjudication record exists.
+                    # UNCERTAIN is deliberately unresolved and cannot support a blocker.
+                    semantic_result = assessment
                     remote_meta = getattr(exc, "meta", {})
                     semantic_usage = remote_meta.get("usage", {}) if isinstance(remote_meta, dict) else {}
                     semantic_provenance = {"error_meta": remote_meta} if remote_meta else {}

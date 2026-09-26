@@ -288,6 +288,21 @@ class InvalidRoleEvidenceProvider(FindingProvider):
         return response
 
 
+class SecretShapedEstimateFailureProvider(FindingProvider):
+    def estimate_call(self, task_kind, task, evidence, limits):
+        if task_kind == "SEMANTIC_ADJUDICATION":
+            error = RuntimeError("reservation failed")
+            error.code = "sk-example-secret-shaped-value"
+            raise error
+        return {
+            "provider_calls": 1,
+            "input_bytes": 0,
+            "max_output_bytes": limits["max_output_bytes_per_task"],
+            "reservation_kind": "unknown",
+            "deadline_seconds": limits["deadline_seconds"],
+        }
+
+
 class LiarProvider(EmptyProvider):
     def review(self, task, evidence, limits):
         return {
@@ -938,6 +953,33 @@ def test_evidence_linked_semantic_blocker_is_preserved_in_report(tmp_path):
     assert "caller receives an invalid result" in report
     assert "[diff:u0](./src/m0.py#L1)" in report
     assert report.count("## ") == 4
+
+
+def test_valid_candidate_records_typed_adjudication_reservation_failure_as_unresolved(tmp_path):
+    limits = {**LIMITS, "max_output_bytes": LIMITS["max_output_bytes_per_task"]}
+    result = run(tmp_path, provider=FindingProvider(), limits=limits)
+
+    candidate = next(row for row in result["ledger"]["candidate_records"] if row["validation_state"] == "VALID")
+    finding = next(row for row in result["findings"] if row["candidate_id"] == candidate["candidate_id"])
+    assert finding["semantic_assessment"] == {
+        "outcome": "UNCERTAIN",
+        "reason": "BudgetExhausted",
+        "error_code": "OUTPUT_BYTE_BUDGET_EXHAUSTED",
+    }
+    assert finding["status"] == "NEEDS_EVIDENCE"
+    assert finding["blocking_class"] == "UNRESOLVED"
+    assert result["disposition"] == "INCOMPLETE"
+    assert not result["ledger"].get("adjudications")
+
+
+def test_unrecognized_adjudication_error_code_is_not_copied_into_result(tmp_path):
+    result = run(tmp_path, provider=SecretShapedEstimateFailureProvider())
+    finding = result["findings"][0]
+
+    assert finding["semantic_assessment"]["outcome"] == "UNCERTAIN"
+    assert finding["semantic_assessment"]["error_code"] == "RuntimeError"
+    assert finding["blocking_class"] == "UNRESOLVED"
+    assert "sk-example-secret-shaped-value" not in json.dumps(result)
 
 
 @pytest.mark.parametrize("max_calls,expected_v3_attempts", [(3, 2), (2, 1)])

@@ -12,6 +12,78 @@ import threading
 import time
 from typing import Any, Callable
 
+from .contracts import (
+    ADJUDICATION_V1,
+    ADJUDICATION_V2,
+    ADJUDICATION_V3,
+    SPECIALIST_V1,
+    SPECIALIST_V2,
+    SPECIALIST_V3,
+    SPECIALIST_V4,
+)
+
+_PROVIDER_CONTRACT_VERSIONS = frozenset(
+    {
+        ADJUDICATION_V1,
+        ADJUDICATION_V2,
+        ADJUDICATION_V3,
+        SPECIALIST_V1,
+        SPECIALIST_V2,
+        SPECIALIST_V3,
+        SPECIALIST_V4,
+    }
+)
+_MAX_PROVIDER_RESPONSE_BYTES = 64 * 1024 * 1024 + 1
+_MAX_PROVIDER_ELAPSED_MS = 24 * 60 * 60 * 1000
+
+
+def _safe_provider_metadata(meta: dict, output_limit: int) -> dict:
+    """Keep only bounded provider diagnostics across the isolated-process boundary."""
+    approved = {
+        "request_id",
+        "elapsed_seconds",
+        "usage",
+        "actual_output_bytes",
+    }
+    safe = {key: value for key, value in meta.items() if key in approved}
+    sources = [meta]
+    provenance = meta.get("provenance")
+    if isinstance(provenance, dict):
+        sources.append(provenance)
+
+    for source in sources:
+        for key in ("request_hash", "response_hash"):
+            value = source.get(key)
+            if isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value):
+                safe[key] = value
+
+        status = source.get("http_status")
+        if type(status) is int and 100 <= status <= 599:
+            safe["http_status"] = status
+
+        response_bytes = source.get("response_bytes")
+        if type(response_bytes) is int and 0 <= response_bytes <= _MAX_PROVIDER_RESPONSE_BYTES:
+            safe["response_bytes"] = response_bytes
+
+        truncated = source.get("output_truncated")
+        if type(truncated) is bool:
+            safe["output_truncated"] = truncated
+
+        elapsed_ms = source.get("elapsed_ms")
+        if type(elapsed_ms) is int and 0 <= elapsed_ms <= _MAX_PROVIDER_ELAPSED_MS:
+            safe["elapsed_ms"] = elapsed_ms
+        elif type(elapsed_ms) is float and math.isfinite(elapsed_ms) and 0 <= elapsed_ms <= _MAX_PROVIDER_ELAPSED_MS:
+            safe["elapsed_ms"] = elapsed_ms
+
+        contract_version = source.get("provider_contract_version")
+        if isinstance(contract_version, str) and contract_version in _PROVIDER_CONTRACT_VERSIONS:
+            safe["provider_contract_version"] = contract_version
+
+    actual_output_bytes = safe.get("actual_output_bytes")
+    if type(actual_output_bytes) is not int or not 0 <= actual_output_bytes <= _MAX_PROVIDER_RESPONSE_BYTES:
+        safe.pop("actual_output_bytes", None)
+    return safe
+
 
 def _canonical(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
@@ -131,7 +203,7 @@ class BudgetLedger:
                 {
                     "provider_calls": 0,
                     "input_bytes": byte_ceiling,
-                    "max_output_bytes": min(byte_ceiling, int(self.limits["max_output_bytes_per_task"])),
+                    "max_output_bytes": 0,
                     "max_cost_microunits": 0,
                     "reservation_kind": "operator_bound",
                 },
@@ -386,16 +458,17 @@ def _child_call(send_conn: Any, target: Any, method_name: str, args: tuple, outp
         response = getattr(target, method_name)(*args)
         if len(_canonical(response)) > output_limit:
             actual_output_bytes = len(_canonical(response))
+            response_meta = {
+                "usage": response.get("usage", {}) if isinstance(response, dict) else {},
+                "provenance": response.get("provenance", {}) if isinstance(response, dict) else {},
+                "actual_output_bytes": actual_output_bytes,
+            }
             send_conn.send(
                 (
                     "error",
                     "OutputLimitError",
                     "OUTPUT_BYTE_LIMIT_EXCEEDED",
-                    {
-                        "usage": response.get("usage", {}) if isinstance(response, dict) else {},
-                        "provenance": response.get("provenance", {}) if isinstance(response, dict) else {},
-                        "actual_output_bytes": actual_output_bytes,
-                    },
+                    _safe_provider_metadata(response_meta, output_limit),
                     call_delta(),
                 )
             )
@@ -410,20 +483,7 @@ def _child_call(send_conn: Any, target: Any, method_name: str, args: tuple, outp
                 "error",
                 type(exc).__name__,
                 str(getattr(exc, "code", type(exc).__name__))[:120],
-                {
-                    k: v
-                    for k, v in meta.items()
-                    if k
-                    in {
-                        "request_hash",
-                        "response_hash",
-                        "http_status",
-                        "request_id",
-                        "elapsed_seconds",
-                        "usage",
-                        "actual_output_bytes",
-                    }
-                },
+                _safe_provider_metadata(meta, output_limit),
                 call_delta(),
             )
         )
