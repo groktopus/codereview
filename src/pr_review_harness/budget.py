@@ -249,15 +249,27 @@ class BudgetLedger:
                 if prior != comparable:
                     raise ValueError("conflicting settlement replay")
                 return
-            if output_bytes is not None and output_bytes > reservation.get("max_output_bytes", 0):
-                self.state.setdefault("budget_breaches", []).append(
-                    {
-                        "key": key,
-                        "reason": "OUTPUT_RESERVATION_OVERRUN",
-                        "actual": output_bytes,
-                        "reserved": reservation.get("max_output_bytes", 0),
-                    }
-                )
+            if output_bytes is not None:
+                if reservation.get("kind") == "context_retrieval":
+                    retrieval_cap = reservation.get("input_bytes", 0)
+                    if output_bytes > retrieval_cap:
+                        self.state.setdefault("budget_breaches", []).append(
+                            {
+                                "key": key,
+                                "reason": "CONTEXT_RETRIEVAL_RESERVATION_OVERRUN",
+                                "actual": output_bytes,
+                                "reserved": retrieval_cap,
+                            }
+                        )
+                elif output_bytes > reservation.get("max_output_bytes", 0):
+                    self.state.setdefault("budget_breaches", []).append(
+                        {
+                            "key": key,
+                            "reason": "OUTPUT_RESERVATION_OVERRUN",
+                            "actual": output_bytes,
+                            "reserved": reservation.get("max_output_bytes", 0),
+                        }
+                    )
             billed_cost = settlement["billed_cost_microunits"]
             cap = reservation.get("max_cost_microunits")
             if (

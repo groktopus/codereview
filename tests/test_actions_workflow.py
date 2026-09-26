@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-publish.yml"
+ANALYSIS_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-analysis.yml"
+TEST_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/review-commits.yml"
 OPERATIONS = Path(__file__).parents[1] / "docs/OPERATIONS.md"
 
 
@@ -108,3 +110,52 @@ def test_workflow_does_not_checkout_or_execute_upstream_pr_code():
     assert "npm ci --ignore-scripts --no-audit --no-fund" in source
     assert "uses: ./scripts/actions-artifact-uploader" in source
     assert "python -m pr_review_harness.actions_runtime" not in source
+
+
+def test_production_analysis_binds_all_six_provider_values_from_trusted_secrets():
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    secret_block = source.split("    secrets:", 1)[1].split("\npermissions:", 1)[0]
+    names = (
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "JEV_BASE_URL",
+        "JEV_MODEL",
+        "JEV_API_KEY",
+    )
+
+    for name in names:
+        assert f"      {name}:\n        required: true" in secret_block
+        assert f"{name}: ${{{{ secrets.{name} }}}}" in source
+    assert "inputs.llm_" not in source
+    assert "inputs.jev_" not in source
+    assert "github.event." not in source.split("Materialize private provider configuration", 1)[1]
+
+
+def test_production_analysis_uses_generated_configs_without_catalog_or_target_execution():
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    config_step = source.split("- name: Materialize private provider configuration", 1)[1].split(
+        "- name: Produce a bounded read-only report", 1
+    )[0]
+    review_step = source.split("- name: Produce a bounded read-only report", 1)[1]
+
+    assert "scripts/provider_config_from_env.py" in config_step
+    assert '"$RUNNER_TEMP/pr-review-provider-config"' in config_step
+    assert '--provider-config "$RUNNER_TEMP/pr-review-provider-config/provider.json"' in review_step
+    assert '--decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json"' in review_step
+    assert "NOUS_API_KEY" not in source
+    assert "model-catalog" not in source
+    assert "examples/provider.nous-test" not in source
+    assert "pull-requests: read" in source
+    assert "pull-requests: write" not in source
+    assert "pull_request:" not in source
+    assert "refs/pull/" in source
+    assert "fetched_target_head_mismatch" in source
+    assert "fetched_target_base_mismatch" in source
+
+
+def test_historical_free_model_workflow_remains_separate_from_production_provider_config():
+    source = TEST_WORKFLOW.read_text(encoding="utf-8")
+    assert "NOUS_API_KEY" in source
+    assert "model-catalog.json" in source
+    assert "provider.nous-test" not in source

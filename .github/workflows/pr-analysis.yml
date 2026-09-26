@@ -32,7 +32,17 @@ on:
         required: true
         type: string
     secrets:
-      NOUS_API_KEY:
+      LLM_BASE_URL:
+        required: true
+      LLM_MODEL:
+        required: true
+      LLM_API_KEY:
+        required: true
+      JEV_BASE_URL:
+        required: true
+      JEV_MODEL:
+        required: true
+      JEV_API_KEY:
         required: true
       HARNESS_READ_TOKEN:
         required: false
@@ -168,56 +178,18 @@ jobs:
           event = {'number': number, 'pull_request': {'base': {'sha': base_sha}, 'head': {'sha': head_sha}}}
           Path(os.environ['EVENT_OUTPUT']).write_text(json.dumps(event), encoding='utf-8')
           PY
-      - name: Fetch and verify the current free test-model catalog
+      - name: Materialize private provider configuration from trusted secrets
         env:
-          NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+          JEV_MODEL: ${{ secrets.JEV_MODEL }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
         run: |
-          mkdir -p artifacts/catalog
-          python - <<'PY'
-          import json, os
-          from datetime import datetime, timezone
-          from urllib.error import URLError
-          from urllib.request import HTTPRedirectHandler, Request, build_opener
-
-          endpoint = 'https://inference-api.nousresearch.com/v1/models'
-          token = os.environ.get('NOUS_API_KEY')
-          if not token:
-              raise SystemExit('analysis_provider_credential_unavailable')
-
-          class NoRedirect(HTTPRedirectHandler):
-              def redirect_request(self, req, fp, code, msg, headers, newurl):
-                  return None
-
-          try:
-              response = build_opener(NoRedirect).open(
-                  Request(endpoint, headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'}),
-                  timeout=20,
-              )
-              with response:
-                  if response.status != 200 or response.geturl() != endpoint:
-                      raise SystemExit('analysis_model_catalog_rejected')
-                  raw = response.read(20_000_001)
-          except (OSError, URLError):
-              raise SystemExit('analysis_model_catalog_unavailable') from None
-          if len(raw) > 20_000_000:
-              raise SystemExit('analysis_model_catalog_exceeds_bound')
-          try:
-              catalog = json.loads(raw)
-          except json.JSONDecodeError:
-              raise SystemExit('analysis_model_catalog_invalid') from None
-          with open('artifacts/catalog/model-catalog.json', 'w', encoding='utf-8') as stream:
-              json.dump({
-                  'source': endpoint,
-                  'retrieved_at': datetime.now(timezone.utc).isoformat(),
-                  'catalog': catalog,
-              }, stream, sort_keys=True, separators=(',', ':'))
-              stream.write('\n')
-          PY
-          PYTHONPATH=scripts python - <<'PY'
-          from pathlib import Path
-          from run_test_matrix import verify_model_catalog
-          verify_model_catalog(Path('artifacts/catalog/model-catalog.json'), ['solar'])
-          PY
+          python scripts/provider_config_from_env.py \
+            --output-dir "$RUNNER_TEMP/pr-review-provider-config" \
+            --json > "$RUNNER_TEMP/pr-review-provider-config-paths.json"
       - name: Produce a bounded read-only report from the bare target object store
         env:
           GITHUB_EVENT_PATH: ${{ runner.temp }}/pr-event.json
@@ -225,7 +197,8 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_SERVER_URL: https://github.com
           GH_TOKEN: ${{ github.token }}
-          NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           PROFILE: ${{ inputs.target_repository == 'magnus919/SlopSearX' && 'profiles/slopsearx.json' || 'profiles/generic.json' }}
           OBJECT_STORE: ${{ runner.temp }}/target.git
         run: |
@@ -233,7 +206,8 @@ jobs:
             --repo "$OBJECT_STORE" \
             --event-file "$GITHUB_EVENT_PATH" \
             --profile "$PROFILE" \
-            --provider-config examples/provider.nous-test-solar.json \
+            --provider-config "$RUNNER_TEMP/pr-review-provider-config/provider.json" \
+            --decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json" \
             --output artifacts/review \
             --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
             --mode AUTO \

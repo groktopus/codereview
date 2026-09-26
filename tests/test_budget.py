@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import time
@@ -10,16 +11,15 @@ from pr_review_harness.contracts import ADJUDICATION_V3, SPECIALIST_V4
 
 
 class SpawnsDescendant:
-    def __init__(self, pid_file: str, marker_file: str, ready_file: str, heartbeat_file: str):
+    def __init__(self, pid_file: str, ready_file: str, heartbeat_file: str):
         self.pid_file = pid_file
-        self.marker_file = marker_file
         self.ready_file = ready_file
         self.heartbeat_file = heartbeat_file
 
     def __call__(self):
         script = (
             "import pathlib,signal,time; "
-            f"signal.signal(signal.SIGTERM,lambda *_:pathlib.Path({self.marker_file!r}).write_text('terminated')); "
+            "signal.signal(signal.SIGTERM,lambda *_:None); "
             f"pathlib.Path({self.ready_file!r}).write_text('ready'); "
             f"p=pathlib.Path({self.heartbeat_file!r}); "
             "exec('while True:\\n n=int(p.read_text())+1 if p.exists() else 1\\n p.write_text(str(n))\\n time.sleep(0.01)')"
@@ -30,6 +30,34 @@ class SpawnsDescendant:
         while not Path(self.ready_file).exists() and time.monotonic() < deadline:
             time.sleep(0.01)
         time.sleep(10)
+
+
+def _process_state(pid: int) -> str:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return "X"
+    except PermissionError:
+        return "UNKNOWN"
+    proc_stat = Path(f"/proc/{pid}/stat")
+    try:
+        raw = proc_stat.read_text(encoding="ascii")
+        return raw.rsplit(")", 1)[1].strip().split()[0]
+    except OSError:
+        pass
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=1,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "UNKNOWN"
+    if result.returncode != 0 or not result.stdout.strip():
+        return "UNKNOWN"
+    return result.stdout.strip().split()[0][0]
 
 
 LIMITS = {
@@ -138,6 +166,34 @@ def test_context_retrieval_reserves_input_but_not_provider_output_capacity():
     assert summary["context_retrievals_reserved"] == 2
     assert summary["context_bytes_reserved"] == 66_036
     assert summary["output_bytes_reserved"] == 163_840
+
+
+def test_context_retrieval_settlement_uses_input_cap_while_provider_output_uses_output_cap():
+    limits = {**LIMITS, "max_context_retrievals": 2}
+    budget = BudgetLedger(limits, {}, deadline_epoch=time.time() + 10)
+    budget.reserve_retrieval("gap-ok", 100)
+    budget.settle("gap-ok", output_bytes=80, usage={}, status="SUCCEEDED")
+    assert budget.summary()["budget_breaches"] == []
+
+    budget.reserve_retrieval("gap-overrun", 100)
+    budget.settle("gap-overrun", output_bytes=101, usage={}, status="SUCCEEDED")
+    budget.reserve(
+        "provider-call",
+        {
+            "provider_calls": 1,
+            "input_bytes": 10,
+            "max_output_bytes": 100,
+            "reservation_kind": "operator_bound",
+            "max_cost_microunits": 10,
+        },
+    )
+    budget.settle("provider-call", output_bytes=101, usage={}, status="SUCCEEDED")
+
+    breaches = budget.summary()["budget_breaches"]
+    assert [(row["key"], row["reason"]) for row in breaches] == [
+        ("gap-overrun", "CONTEXT_RETRIEVAL_RESERVATION_OVERRUN"),
+        ("provider-call", "OUTPUT_RESERVATION_OVERRUN"),
+    ]
 
 
 def test_isolation_preserves_typed_provider_failure_diagnostics():
@@ -282,11 +338,10 @@ def test_provider_billing_overrun_is_detected_against_reservation_and_run_cap():
 
 def test_deadline_cancellation_terminates_adapter_descendant_process_group(tmp_path):
     pid_file = tmp_path / "child.pid"
-    marker_file = tmp_path / "child.terminated"
     ready_file = tmp_path / "child.ready"
     heartbeat_file = tmp_path / "child.heartbeat"
     invocation = IsolatedInvocation(
-        SpawnsDescendant(str(pid_file), str(marker_file), str(ready_file), str(heartbeat_file)),
+        SpawnsDescendant(str(pid_file), str(ready_file), str(heartbeat_file)),
         "__call__",
         (),
         deadline_seconds=1.5,
@@ -298,7 +353,11 @@ def test_deadline_cancellation_terminates_adapter_descendant_process_group(tmp_p
     with pytest.raises(IsolatedCallError):
         invocation.result()
     assert ready_file.exists(), "descendant never reached its ready state"
-    assert marker_file.exists(), "descendant process did not receive group cancellation"
+    child_pid = int(pid_file.read_text())
+    process_deadline = time.monotonic() + 1
+    while _process_state(child_pid) not in {"Z", "X"} and time.monotonic() < process_deadline:
+        time.sleep(0.01)
+    assert _process_state(child_pid) in {"Z", "X"}, "descendant remained alive after process-group cancellation"
     before = heartbeat_file.read_text()
     time.sleep(0.08)
     assert heartbeat_file.read_text() == before, "descendant continued running after cancellation"

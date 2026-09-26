@@ -634,5 +634,97 @@ class ProviderBoundaryTests(unittest.TestCase):
             make_provider({"kind": "openai", "base_url": self.base_url, "model": "m", "api_key": "not-a-real-secret"})
 
 
+class InMemoryNativeResponse:
+    def __init__(self, body: bytes):
+        from io import BytesIO
+
+        self._body = BytesIO(body)
+        self.status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def read1(self, size: int) -> bytes:
+        return self._body.read(size)
+
+
+class JevModelResolutionTests(unittest.TestCase):
+    api_key = "offline-fake-provider-key"
+    limits = {
+        "max_input_bytes_per_task": 20_000,
+        "max_output_bytes_per_task": 4096,
+        "max_output_tokens": 50,
+        "deadline_seconds": 1,
+    }
+    _missing = object()
+
+    def _envelope(self, model):
+        envelope = {
+            "answers": {
+                "review_claim": {
+                    "type": "choice",
+                    "choice": "uncertain",
+                    "probabilities": {"low": 0.1, "security_sensitive": 0.1, "uncertain": 0.8},
+                    "confidence": 0.8,
+                }
+            }
+        }
+        if model is not self._missing:
+            envelope["model"] = model
+        return json.dumps(envelope).encode("utf-8")
+
+    def _assess(self, configured_model, reported_model):
+        provider = DecisionProvider(
+            {
+                "kind": "typesafe",
+                "endpoint": "https://typesafe.example.invalid/v1/systemone",
+                "model": configured_model,
+                "api_key_env": "OFFLINE_JEV_KEY",
+                "primitive": "choice-risk",
+            }
+        )
+        with (
+            patch.dict(os.environ, {"OFFLINE_JEV_KEY": self.api_key}, clear=False),
+            patch(
+                "pr_review_harness.providers._HTTP_OPENER.open",
+                return_value=InMemoryNativeResponse(self._envelope(reported_model)),
+            ) as open_request,
+        ):
+            result = provider.assess("Classify this bounded claim.", "bounded evidence", self.limits)
+        return result, open_request.call_args.args[0]
+
+    def test_latest_alias_accepts_versioned_report_and_keeps_both_identities(self):
+        result, request = self._assess("jev-latest", "jev-1.13.0")
+        self.assertEqual(json.loads(request.data)["model"], "jev-latest")
+        self.assertEqual(result["provenance"]["configured_model_id"], "jev-latest")
+        self.assertEqual(result["provenance"]["provider_model_id"], "jev-1.13.0")
+        self.assertEqual(result["provenance"]["model_identity_source"], "endpoint_reported")
+
+    def test_latest_alias_requires_a_versioned_jev_report(self):
+        cases = (
+            (self._missing, "model_identity_missing"),
+            ("jev-latest", "model_identity_mismatch"),
+            ("other-provider/model-1", "model_identity_mismatch"),
+            ("jev-canary", "model_identity_mismatch"),
+        )
+        for reported_model, error_code in cases:
+            with self.subTest(reported_model=reported_model):
+                with self.assertRaisesRegex(ProviderError, error_code):
+                    self._assess("jev-latest", reported_model)
+
+    def test_pinned_jev_version_still_rejects_a_different_reported_version(self):
+        with self.assertRaisesRegex(ProviderError, "model_identity_mismatch"):
+            self._assess("jev-1.13.0", "jev-1.14.0")
+
+    def test_pinned_jev_model_keeps_existing_missing_response_identity_behavior(self):
+        result, _request = self._assess("jev-1.13.0", self._missing)
+        self.assertEqual(result["provenance"]["configured_model_id"], "jev-1.13.0")
+        self.assertIsNone(result["provenance"]["provider_model_id"])
+        self.assertEqual(result["provenance"]["model_identity_source"], "operator_configured")
+
+
 if __name__ == "__main__":
     unittest.main()

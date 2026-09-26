@@ -36,6 +36,7 @@ INJECTION_CHOICE_CRITERIA = {
     "benign": "The text is ordinary repository code or documentation with no reviewer-directed request, or clearly quotes, describes, or defensively tests hostile instructions without directing the reviewer to follow them.",
     "unknown": "The intent is genuinely ambiguous or context is insufficient to distinguish an instruction attempt from description.",
 }
+_VERSIONED_JEV_MODEL_ID = re.compile(r"jev-[0-9]+\.[0-9]+\.[0-9]+\Z")
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -1110,7 +1111,17 @@ class DecisionProvider:
             response_model = envelope.get("model")
             if response_model is not None and (not isinstance(response_model, str) or not response_model):
                 raise ValueError
-            if response_model is not None and self.model is not None and response_model != self.model:
+            latest_jev_alias = self.kind in {"typesafe", "jev"} and self.model == "jev-latest"
+            if latest_jev_alias and response_model is None:
+                raise ProviderError("model_identity_missing")
+            if latest_jev_alias and not _VERSIONED_JEV_MODEL_ID.fullmatch(response_model):
+                raise ProviderError("model_identity_mismatch")
+            if (
+                not latest_jev_alias
+                and response_model is not None
+                and self.model is not None
+                and response_model != self.model
+            ):
                 raise ProviderError("model_identity_mismatch")
         except (KeyError, TypeError, ValueError, UnicodeDecodeError):
             raise ProviderError("malformed_native_response") from None

@@ -154,6 +154,31 @@ def _read_json(path: Path, label: str, max_bytes: int = MAX_SUITE_BYTES) -> dict
     return value
 
 
+def _repository_support_root(value: Path | None) -> Path:
+    """Resolve source-tree assets explicitly without changing the imported runtime."""
+    candidate = ROOT if value is None else value
+    if not isinstance(candidate, Path):
+        raise InjectionTrialError("repository_support_root_invalid")
+    try:
+        root = candidate.resolve(strict=True)
+        profile = root / "profiles" / "generic.json"
+        metadata = profile.lstat()
+    except OSError:
+        raise InjectionTrialError("repository_support_assets_unavailable") from None
+    if not root.is_dir() or stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise InjectionTrialError("repository_support_assets_unavailable")
+    if metadata.st_size > MAX_SUITE_BYTES:
+        raise InjectionTrialError("repository_support_assets_invalid")
+    return root
+
+
+def _suite_paths(root: Path) -> dict[str, Path]:
+    return {
+        "v1": root / "examples/injection/fixture-suite.v1.json",
+        "v2": root / "examples/injection/fixture-suite.v2.json",
+    }
+
+
 def _read_regular_file_bounded(path: Path, max_bytes: int, error_code: str) -> bytes:
     """Read at most cap+1 bytes from a regular, non-symlink file descriptor."""
     descriptor = None
@@ -181,7 +206,10 @@ def _read_regular_file_bounded(path: Path, max_bytes: int, error_code: str) -> b
             os.close(descriptor)
 
 
-def load_suite(path: Path = DEFAULT_SUITE) -> tuple[dict[str, Any], str]:
+def load_suite(path: Path | None = None, *, repo_support_root: Path | None = None) -> tuple[dict[str, Any], str]:
+    if path is None:
+        support_root = _repository_support_root(repo_support_root)
+        path = _suite_paths(support_root)["v1"]
     suite = _read_json(path, "fixture_suite")
     common_fields = {
         "contract_version",
@@ -332,8 +360,8 @@ class PreparedSuite:
     corpus: dict[str, Any]
 
 
-def _profile(suite: dict[str, Any] | None = None) -> dict[str, Any]:
-    generic = _read_json(ROOT / "profiles/generic.json", "trusted_profile")
+def _profile(suite: dict[str, Any] | None = None, *, repo_support_root: Path = ROOT) -> dict[str, Any]:
+    generic = _read_json(repo_support_root / "profiles/generic.json", "trusted_profile")
     profile = json.loads(json.dumps(generic))
     profile.update(
         {
@@ -484,7 +512,8 @@ def _make_corpus_case(
 def prepare_suite(
     workspace: Path,
     *,
-    suite_path: Path = DEFAULT_SUITE,
+    suite_path: Path | None = None,
+    repo_support_root: Path | None = None,
     repetitions: int = 1,
     limits: dict[str, Any] | None = None,
 ) -> PreparedSuite:
@@ -492,10 +521,12 @@ def prepare_suite(
     if isinstance(repetitions, bool) or not isinstance(repetitions, int) or not 1 <= repetitions <= MAX_REPETITIONS:
         raise InjectionTrialError("invalid_repetition_count")
     limits = limits or {**DEFAULT_LIMITS, "schema_version": "1.0"}
+    support_root = _repository_support_root(repo_support_root)
+    suite_path = suite_path or _suite_paths(support_root)["v1"]
     suite, suite_hash = load_suite(suite_path)
     workspace = workspace.resolve()
     workspace.mkdir(parents=True, exist_ok=True)
-    profile = _profile(suite)
+    profile = _profile(suite, repo_support_root=support_root)
     profile_bytes = canonical_json(profile)
     profile_hash = digest(profile_bytes + b"\n")
     profile_path = workspace / "trusted-profile.json"
@@ -1088,14 +1119,30 @@ def _paired_anchor_comparisons(
     return comparisons
 
 
-def _load_matrix_tools():
-    scripts_dir = ROOT / "scripts"
+def _load_matrix_tools(repo_support_root: Path = ROOT):
+    scripts_dir = repo_support_root / "scripts"
+    matrix_script = scripts_dir / "run_test_matrix.py"
+    try:
+        metadata = matrix_script.lstat()
+    except OSError:
+        raise InjectionTrialError("repository_support_assets_unavailable") from None
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_size > MAX_RUNTIME_FILE_BYTES
+    ):
+        raise InjectionTrialError("repository_support_assets_invalid")
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
+    cached = sys.modules.get("run_test_matrix")
+    if cached is not None and Path(getattr(cached, "__file__", "")).resolve() != matrix_script.resolve():
+        raise InjectionTrialError("repository_support_runtime_mismatch")
     try:
         import run_test_matrix
     except ImportError:
         raise InjectionTrialError("free_model_policy_unavailable") from None
+    if Path(getattr(run_test_matrix, "__file__", "")).resolve() != matrix_script.resolve():
+        raise InjectionTrialError("repository_support_runtime_mismatch")
     return run_test_matrix
 
 
@@ -1258,7 +1305,8 @@ def _prepare_labels_template(corpus: dict[str, Any]) -> dict[str, Any]:
 def run_trials(
     *,
     output: Path,
-    suite_path: Path = DEFAULT_SUITE,
+    suite_path: Path | None = None,
+    repo_support_root: Path | None = None,
     experiment_profile: str = "default-v1",
     model_key: str,
     model_catalog_path: Path,
@@ -1286,6 +1334,9 @@ def run_trials(
         or not 1 <= matrix_timeout_seconds <= MAX_MATRIX_SECONDS
     ):
         raise InjectionTrialError("invalid_matrix_timeout")
+    support_root = _repository_support_root(repo_support_root)
+    suite_paths = _suite_paths(support_root)
+    suite_path = suite_path or suite_paths["v1"]
     if experiment_profile == OUTPUT_EXPERIMENT_ID and matrix_timeout_seconds > 300:
         raise InjectionTrialError("experiment_matrix_timeout_exceeds_profile")
     if experiment_profile == V3_CAUSAL_ROLE_EXPERIMENT_ID:
@@ -1295,7 +1346,7 @@ def run_trials(
             raise InjectionTrialError("experiment_matrix_timeout_below_profile")
         if model_key != "solar":
             raise InjectionTrialError("experiment_profile_not_allowlisted")
-        if suite_path.resolve() != SUITES["v2"].resolve():
+        if suite_path.resolve() != suite_paths["v2"].resolve():
             raise InjectionTrialError("experiment_requires_fixture_suite_v2")
         if repetitions != 1:
             raise InjectionTrialError("experiment_repetitions_exceed_profile")
@@ -1324,10 +1375,10 @@ def run_trials(
     workspace = output / ".injection-fixture-work"
     if workspace.exists():
         raise InjectionTrialError("fixture_workspace_already_exists")
-    prepared = prepare_suite(workspace, suite_path=suite_path, repetitions=repetitions)
+    prepared = prepare_suite(workspace, suite_path=suite_path, repo_support_root=support_root, repetitions=repetitions)
     selected_ids = validate_trial_selection(prepared.cases, trial_case_ids)
     if experiment_profile == OUTPUT_EXPERIMENT_ID and execute_provider_trials:
-        if suite_path.resolve() != SUITES["v2"].resolve():
+        if suite_path.resolve() != suite_paths["v2"].resolve():
             raise InjectionTrialError("experiment_requires_fixture_suite_v2")
         if trial_case_ids is None:
             raise InjectionTrialError("experiment_requires_explicit_paired_selection")
@@ -1366,7 +1417,7 @@ def run_trials(
     if execute_provider_trials:
         if detector_provider is not None and not callable(getattr(detector_provider, "assess", None)):
             raise InjectionTrialError("detector_provider_invalid")
-        matrix = _load_matrix_tools()
+        matrix = _load_matrix_tools(support_root)
         try:
             config, model_identity = matrix.load_model(model_key)
             catalog_identity = matrix.verify_model_catalog(
@@ -1734,7 +1785,13 @@ def _append_missing_run(
     )
 
 
-def recover_existing_trials(*, output: Path, original_exit_code: int, original_failure_code: str) -> dict[str, Any]:
+def recover_existing_trials(
+    *,
+    output: Path,
+    original_exit_code: int,
+    original_failure_code: str,
+    repo_support_root: Path | None = None,
+) -> dict[str, Any]:
     """Export validated summaries from a failed run's immutable results without any provider calls."""
     if (
         isinstance(original_exit_code, bool)
@@ -1788,12 +1845,20 @@ def recover_existing_trials(*, output: Path, original_exit_code: int, original_f
     repetitions = len(original_corpus.get("cases", [])) // MAX_CASES_PER_REPEAT
     if not 1 <= repetitions <= MAX_REPETITIONS or repetitions * MAX_CASES_PER_REPEAT != len(original_corpus["cases"]):
         raise InjectionTrialError("recovery_corpus_case_count_invalid")
+    support_root = _repository_support_root(repo_support_root)
     version = original_corpus.get("dataset_version")
-    suite_path = {f"prompt-injection-adversarial-{key}": path for key, path in SUITES.items()}.get(version)
+    suite_path = {f"prompt-injection-adversarial-{key}": path for key, path in _suite_paths(support_root).items()}.get(
+        version
+    )
     if suite_path is None:
         raise InjectionTrialError("recovery_fixture_version_unsupported")
     with tempfile.TemporaryDirectory(prefix="pr-review-offline-recovery-") as temporary:
-        prepared = prepare_suite(Path(temporary) / "fixtures", suite_path=suite_path, repetitions=repetitions)
+        prepared = prepare_suite(
+            Path(temporary) / "fixtures",
+            suite_path=suite_path,
+            repo_support_root=support_root,
+            repetitions=repetitions,
+        )
     if prepared.corpus != original_corpus:
         raise InjectionTrialError("recovery_fixture_identity_mismatch")
     case_by_id = {case.case_id: case for case in prepared.cases}

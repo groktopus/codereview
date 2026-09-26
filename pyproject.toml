@@ -23,7 +23,7 @@ pr-review = "pr_review_harness.cli:main"
 where = ["src"]
 
 [project.optional-dependencies]
-dev = ["build>=1.2,<2", "pytest>=8", "ruff>=0.9"]
+dev = ["build>=1.2,<2", "pytest>=8", "ruff>=0.9", "setuptools>=68"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

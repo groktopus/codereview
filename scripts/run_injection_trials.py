@@ -103,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
                 output=args.output,
                 original_exit_code=args.original_exit_code,
                 original_failure_code=args.original_failure_code,
+                repo_support_root=ROOT,
             )
         except InjectionTrialError as exc:
             print(
@@ -142,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         outcome = run_trials(
             output=args.output,
             suite_path=ROOT / "examples/injection" / f"fixture-suite.{args.fixture_suite}.json",
+            repo_support_root=ROOT,
             experiment_profile=args.experiment_profile,
             model_key=args.model,
             model_catalog_path=args.model_catalog or Path(""),

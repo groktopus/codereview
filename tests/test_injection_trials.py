@@ -32,13 +32,17 @@ from pr_review_harness.injection_trials import (
 )
 from pr_review_harness.providers import INJECTION_CHOICE_CRITERIA, INJECTION_CHOICE_QUESTION
 
+SOURCE_ROOT = Path(__file__).resolve().parents[1]
+SUITE_V1 = SOURCE_ROOT / "examples/injection/fixture-suite.v1.json"
+SUITE_V2 = SOURCE_ROOT / "examples/injection/fixture-suite.v2.json"
+
 
 class InjectionTrialTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="injection-trials-test-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.prepared = prepare_suite(self.root / "fixtures")
+        self.prepared = prepare_suite(self.root / "fixtures", suite_path=SUITE_V1, repo_support_root=SOURCE_ROOT)
         self.by_id = {case.case_id: case for case in self.prepared.cases}
 
     def test_versioned_output_experiment_changes_only_finite_output_caps(self):
@@ -82,7 +86,6 @@ class InjectionTrialTests(unittest.TestCase):
             _experiment_limits(V3_CAUSAL_ROLE_EXPERIMENT_ID, "solar", 301)
 
     def test_v3_profile_rejects_missing_expanded_or_repeated_selection_before_preparing(self):
-        import pr_review_harness.injection_trials as trials
 
         exact = ["r1-control", "r1-code-comment-attack", "r1-code-comment-benign"]
         invalid_cases = [
@@ -98,7 +101,8 @@ class InjectionTrialTests(unittest.TestCase):
                 with self.assertRaisesRegex(InjectionTrialError, error):
                     run_trials(
                         output=output,
-                        suite_path=trials.SUITES["v2"],
+                        repo_support_root=SOURCE_ROOT,
+                        suite_path=SUITE_V2,
                         experiment_profile=V3_CAUSAL_ROLE_EXPERIMENT_ID,
                         model_key="solar",
                         model_catalog_path=self.root / "not-read-catalog.json",
@@ -114,7 +118,8 @@ class InjectionTrialTests(unittest.TestCase):
         with self.assertRaisesRegex(InjectionTrialError, "experiment_detector_not_included_in_matrix_budget"):
             run_trials(
                 output=self.root / "v3-invalid-detector",
-                suite_path=trials.SUITES["v2"],
+                repo_support_root=SOURCE_ROOT,
+                suite_path=SUITE_V2,
                 experiment_profile=V3_CAUSAL_ROLE_EXPERIMENT_ID,
                 model_key="solar",
                 model_catalog_path=self.root / "not-read-catalog.json",
@@ -130,7 +135,8 @@ class InjectionTrialTests(unittest.TestCase):
         with self.assertRaisesRegex(InjectionTrialError, "experiment_requires_fixture_suite_v2"):
             run_trials(
                 output=self.root / "v3-invalid-suite",
-                suite_path=trials.SUITES["v1"],
+                repo_support_root=SOURCE_ROOT,
+                suite_path=SUITE_V1,
                 experiment_profile=V3_CAUSAL_ROLE_EXPERIMENT_ID,
                 model_key="solar",
                 model_catalog_path=self.root / "not-read-catalog.json",
@@ -144,7 +150,8 @@ class InjectionTrialTests(unittest.TestCase):
         with self.assertRaisesRegex(InjectionTrialError, "experiment_matrix_timeout_exceeds_profile"):
             run_trials(
                 output=self.root / "v3-invalid-matrix-cap",
-                suite_path=trials.SUITES["v2"],
+                repo_support_root=SOURCE_ROOT,
+                suite_path=SUITE_V2,
                 experiment_profile=V3_CAUSAL_ROLE_EXPERIMENT_ID,
                 model_key="solar",
                 model_catalog_path=self.root / "not-read-catalog.json",
@@ -158,7 +165,8 @@ class InjectionTrialTests(unittest.TestCase):
         with self.assertRaisesRegex(InjectionTrialError, "experiment_matrix_timeout_below_profile"):
             run_trials(
                 output=self.root / "v3-insufficient-matrix-cap",
-                suite_path=trials.SUITES["v2"],
+                repo_support_root=SOURCE_ROOT,
+                suite_path=SUITE_V2,
                 experiment_profile=V3_CAUSAL_ROLE_EXPERIMENT_ID,
                 model_key="solar",
                 model_catalog_path=self.root / "not-read-catalog.json",
@@ -171,6 +179,7 @@ class InjectionTrialTests(unittest.TestCase):
             )
 
     def test_fixture_pairs_keep_auth_behavior_and_findings_anchors_dynamically(self):
+        self.assertEqual(self.prepared.suite_sha256, digest(SUITE_V1.read_bytes()))
         hashes = {case.behavior_sha256 for case in self.prepared.cases}
         self.assertEqual(len(hashes), 1)
         self.assertEqual(len(self.prepared.corpus["cases"]), 9)
@@ -187,9 +196,21 @@ class InjectionTrialTests(unittest.TestCase):
         _static_ast_digest(source_as_data)
         self.assertFalse(marker.exists())
 
+    def test_preparation_rejects_missing_source_support_assets_clearly(self):
+        with self.assertRaisesRegex(InjectionTrialError, "repository_support_assets_unavailable"):
+            prepare_suite(self.root / "no-support-assets", repo_support_root=self.root)
+
+    def test_matrix_tool_cache_must_match_explicit_repository_root(self):
+        import pr_review_harness.injection_trials as trials
+
+        wrong_module = SimpleNamespace(__file__=str(self.root / "unrelated" / "run_test_matrix.py"))
+        with patch.dict(sys.modules, {"run_test_matrix": wrong_module}):
+            with self.assertRaisesRegex(InjectionTrialError, "repository_support_runtime_mismatch"):
+                trials._load_matrix_tools(SOURCE_ROOT)
+
     def test_v2_adds_unchanged_base_caller_and_authored_access_contract(self):
         suite_path = Path(__file__).resolve().parents[1] / "examples/injection/fixture-suite.v2.json"
-        prepared = prepare_suite(self.root / "fixtures-v2", suite_path=suite_path)
+        prepared = prepare_suite(self.root / "fixtures-v2", suite_path=suite_path, repo_support_root=SOURCE_ROOT)
         self.assertEqual(prepared.corpus["dataset_version"], "prompt-injection-adversarial-v2")
         self.assertEqual(len({case.behavior_sha256 for case in prepared.cases}), 1)
         for case in prepared.cases:
@@ -218,7 +239,7 @@ class InjectionTrialTests(unittest.TestCase):
 
     def test_v2_profile_works_through_provider_free_normal_cli(self):
         suite_path = Path(__file__).resolve().parents[1] / "examples/injection/fixture-suite.v2.json"
-        prepared = prepare_suite(self.root / "normal-cli-v2", suite_path=suite_path)
+        prepared = prepare_suite(self.root / "normal-cli-v2", suite_path=suite_path, repo_support_root=SOURCE_ROOT)
         case = next(item for item in prepared.cases if item.case_id == "r1-control")
         limits_path = self.root / "limits.json"
         limits_path.write_text(
@@ -588,6 +609,7 @@ class InjectionTrialTests(unittest.TestCase):
         ):
             run_trials(
                 output=output,
+                repo_support_root=SOURCE_ROOT,
                 model_key="solar",
                 model_catalog_path=self.root / "unused-catalog.json",
                 cli_executable=cli,
@@ -614,6 +636,7 @@ class InjectionTrialTests(unittest.TestCase):
             output=output,
             original_exit_code=1,
             original_failure_code="detector_result_on_non_attack_case",
+            repo_support_root=SOURCE_ROOT,
         )
         self.assertEqual(recovered["status"], "RECOVERED_OFFLINE")
         self.assertEqual(recovered["provider_calls"], 0)
@@ -633,7 +656,12 @@ class InjectionTrialTests(unittest.TestCase):
             stream.truncate(16 * 1024 * 1024 + 1)
         (oversized / "trials.jsonl").write_text("{}\n", encoding="utf-8")
         with self.assertRaisesRegex(InjectionTrialError, "recovery_corpus_exceeds_bound_or_invalid_file"):
-            recover_existing_trials(output=oversized, original_exit_code=1, original_failure_code="interrupted")
+            recover_existing_trials(
+                output=oversized,
+                original_exit_code=1,
+                original_failure_code="interrupted",
+                repo_support_root=SOURCE_ROOT,
+            )
 
         linked = self.root / "symlink-recovery"
         linked.mkdir()
@@ -642,7 +670,9 @@ class InjectionTrialTests(unittest.TestCase):
         (linked / "corpus.json").symlink_to(target)
         (linked / "trials.jsonl").write_text("{}\n", encoding="utf-8")
         with self.assertRaisesRegex(InjectionTrialError, "recovery_corpus_exceeds_bound_or_invalid_file"):
-            recover_existing_trials(output=linked, original_exit_code=1, original_failure_code="interrupted")
+            recover_existing_trials(
+                output=linked, original_exit_code=1, original_failure_code="interrupted", repo_support_root=SOURCE_ROOT
+            )
 
     def test_experiment_profile_materializes_hashed_provider_caps_without_live_calls(self):
         import pr_review_harness.injection_trials as trials
@@ -733,7 +763,8 @@ class InjectionTrialTests(unittest.TestCase):
         ):
             run_trials(
                 output=output,
-                suite_path=trials.SUITES["v2"],
+                repo_support_root=SOURCE_ROOT,
+                suite_path=SUITE_V2,
                 experiment_profile=OUTPUT_EXPERIMENT_ID,
                 model_key="solar",
                 model_catalog_path=self.root / "unused-catalog.json",
@@ -853,7 +884,8 @@ class InjectionTrialTests(unittest.TestCase):
         ):
             run_trials(
                 output=output,
-                suite_path=trials.SUITES["v2"],
+                repo_support_root=SOURCE_ROOT,
+                suite_path=SUITE_V2,
                 experiment_profile=V3_CAUSAL_ROLE_EXPERIMENT_ID,
                 model_key="solar",
                 model_catalog_path=self.root / "unused-catalog.json",
