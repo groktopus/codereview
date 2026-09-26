@@ -1,0 +1,106 @@
+name: Manual free-model historical comparison
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_model:
+        description: 'Select exactly one allowlisted free test model; never a production-model selection'
+        required: true
+        type: choice
+        options:
+          - solar
+          - stepfun
+      sample:
+        description: 'Frozen historical sample'
+        required: true
+        type: choice
+        default: historical-pilot-v1
+        options:
+          - historical-pilot-v1
+
+permissions:
+  contents: read
+
+jobs:
+  comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - run: python -m pip install .
+      - name: Acquire the fixed pilot history into a bare object store
+        run: |
+          git clone --bare -- https://github.com/magnus919/SlopSearX.git "$RUNNER_TEMP/slopsearx.git"
+      - name: Capture a fresh bounded model catalog response
+        env:
+          NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+        run: |
+          mkdir -p artifacts/test-matrix
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from urllib.error import URLError
+          from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+          endpoint = 'https://inference-api.nousresearch.com/v1/models'
+          token = os.environ.get('NOUS_API_KEY')
+          if not token:
+              raise SystemExit('NOUS_API_KEY is not configured')
+
+          class NoRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = build_opener(NoRedirect)
+          request = Request(endpoint, headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'})
+          try:
+              with opener.open(request, timeout=20) as response:
+                  if response.status != 200 or response.geturl() != endpoint:
+                      raise SystemExit('model catalog endpoint rejected')
+                  raw = response.read(20_000_001)
+          except (OSError, URLError):
+              raise SystemExit('model catalog unavailable') from None
+          if len(raw) > 20_000_000:
+              raise SystemExit('model catalog exceeds size bound')
+          try:
+              catalog = json.loads(raw)
+          except json.JSONDecodeError:
+              raise SystemExit('model catalog is invalid JSON') from None
+          document = {
+              'source': endpoint,
+              'retrieved_at': datetime.now(timezone.utc).isoformat(),
+              'catalog': catalog,
+          }
+          with open('artifacts/test-matrix/model-catalog.json', 'w', encoding='utf-8') as output:
+              json.dump(document, output, sort_keys=True, separators=(',', ':'))
+              output.write('\n')
+          PY
+      - name: Run one explicitly selected model on the frozen six-pair sample
+        env:
+          NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+          TEST_MODEL: ${{ inputs.test_model }}
+          TEST_SAMPLE: ${{ inputs.sample }}
+          PILOT_REPOSITORY: ${{ runner.temp }}/slopsearx.git
+        run: |
+          python scripts/run_test_matrix.py \
+            --sample "$TEST_SAMPLE" \
+            --repo "$PILOT_REPOSITORY" \
+            --model "$TEST_MODEL" \
+            --model-catalog artifacts/test-matrix/model-catalog.json \
+            --model-catalog-max-age-seconds 86400 \
+            --run-timeout-seconds 180 \
+            --matrix-timeout-seconds 1300 \
+            --cli-executable "$(command -v pr-review)" \
+            --output artifacts/test-matrix
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: historical-free-model-evidence-${{ inputs.test_model }}
+          path: artifacts/test-matrix/
+          if-no-files-found: warn
+          retention-days: 30

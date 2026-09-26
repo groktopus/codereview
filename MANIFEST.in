@@ -1,0 +1,13 @@
+include README.md
+include pyproject.toml
+recursive-include docs *.md
+recursive-include scripts *.py
+include scripts/actions-artifact-uploader/action.yml
+include scripts/actions-artifact-uploader/canary.mjs
+include scripts/actions-artifact-uploader/upload.mjs
+include scripts/actions-artifact-uploader/package.json
+include scripts/actions-artifact-uploader/package-lock.json
+recursive-include examples *.json
+recursive-include profiles *.json
+recursive-include .github/workflows *.yml
+include tests/fixtures/pr464-check-evidence.json

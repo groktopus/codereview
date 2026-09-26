@@ -1,0 +1,247 @@
+name: Reusable read-only pull request analysis
+
+on:
+  workflow_call:
+    inputs:
+      harness_repository:
+        description: 'Trusted harness repository, reviewed separately from the target'
+        required: true
+        type: string
+      harness_sha:
+        description: 'Full immutable 40-character commit SHA of trusted harness code and profiles'
+        required: true
+        type: string
+      target_repository:
+        description: 'Target owner/repository'
+        required: true
+        type: string
+      pull_request_number:
+        description: 'Pull request number in the target repository'
+        required: true
+        type: number
+      base_ref:
+        description: 'Target base branch name from the trusted PR event'
+        required: true
+        type: string
+      base_sha:
+        description: 'Target base commit SHA from the trusted PR event'
+        required: true
+        type: string
+      head_sha:
+        description: 'Target PR head commit SHA from the trusted PR event'
+        required: true
+        type: string
+    secrets:
+      NOUS_API_KEY:
+        required: true
+      HARNESS_READ_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+concurrency:
+  group: pr-analysis-${{ inputs.target_repository }}-${{ inputs.pull_request_number }}
+  cancel-in-progress: true
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Reject mutable or malformed harness and target identities before checkout
+        env:
+          HARNESS_REPOSITORY: ${{ inputs.harness_repository }}
+          HARNESS_SHA: ${{ inputs.harness_sha }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          BASE_REF: ${{ inputs.base_ref }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', os.environ['HARNESS_REPOSITORY']):
+              raise SystemExit('harness_repository_invalid')
+          if not re.fullmatch(r'[0-9a-f]{40}', os.environ['HARNESS_SHA']):
+              raise SystemExit('harness_revision_must_be_full_immutable_sha')
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', os.environ['TARGET_REPOSITORY']):
+              raise SystemExit('target_repository_invalid')
+          if not os.environ['PR_NUMBER'].isdigit() or int(os.environ['PR_NUMBER']) < 1:
+              raise SystemExit('pull_request_number_invalid')
+          base_ref = os.environ['BASE_REF']
+          if not base_ref or len(base_ref.encode('utf-8')) > 200:
+              raise SystemExit('target_base_ref_invalid')
+          checked_ref = subprocess.run(
+              ['git', 'check-ref-format', 'refs/heads/' + base_ref],
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, check=False,
+          )
+          if checked_ref.returncode:
+              raise SystemExit('target_base_ref_invalid')
+          if not re.fullmatch(r'[0-9a-f]{40}', os.environ['BASE_SHA']):
+              raise SystemExit('target_base_identity_invalid')
+          if not re.fullmatch(r'[0-9a-f]{40}', os.environ['HEAD_SHA']):
+              raise SystemExit('target_head_identity_invalid')
+          PY
+      - name: Check out the separately pinned trusted harness and profiles
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ inputs.harness_repository }}
+          ref: ${{ inputs.harness_sha }}
+          token: ${{ secrets.HARNESS_READ_TOKEN || github.token }}
+          persist-credentials: false
+      - name: Verify exact harness commit before installing or importing it
+        env:
+          EXPECTED_HARNESS_SHA: ${{ inputs.harness_sha }}
+        run: |
+          ACTUAL_HARNESS_SHA="$(git rev-parse HEAD)"
+          if [ "$ACTUAL_HARNESS_SHA" != "$EXPECTED_HARNESS_SHA" ]; then
+            echo 'checked_out_harness_revision_mismatch' >&2
+            exit 1
+          fi
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - run: python -m pip install .
+      - name: Validate pinned source and PR identity, then acquire bare target objects
+        env:
+          HARNESS_SHA: ${{ inputs.harness_sha }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          BASE_REF: ${{ inputs.base_ref }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          OBJECT_STORE: ${{ runner.temp }}/target.git
+          EVENT_OUTPUT: ${{ runner.temp }}/pr-event.json
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          from pr_review_harness.github import GitHubPRAdapter
+
+          def git(*args, timeout=30):
+              return subprocess.run(args, check=True, text=True, capture_output=True, timeout=timeout).stdout.strip()
+
+          harness_sha = os.environ['HARNESS_SHA']
+          target = os.environ['TARGET_REPOSITORY']
+          number = int(os.environ['PR_NUMBER'])
+          base_ref = os.environ['BASE_REF']
+          base_sha = os.environ['BASE_SHA']
+          head_sha = os.environ['HEAD_SHA']
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', os.environ.get('GITHUB_REPOSITORY', '')):
+              raise SystemExit('caller_repository_invalid')
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', target):
+              raise SystemExit('target_repository_invalid')
+          if not re.fullmatch(r'[0-9a-f]{40}', harness_sha):
+              raise SystemExit('harness_revision_must_be_full_sha')
+          if any(not re.fullmatch(r'[0-9a-f]{40}', sha) for sha in (base_sha, head_sha)):
+              raise SystemExit('target_revision_invalid')
+          if number < 1 or not base_ref:
+              raise SystemExit('pull_request_identity_invalid')
+          if git('git', 'rev-parse', 'HEAD') != harness_sha:
+              raise SystemExit('checked_out_harness_revision_mismatch')
+
+          current = GitHubPRAdapter().pull_request(target, number)
+          if current.get('state') != 'open' or current.get('draft') is True:
+              raise SystemExit('target_pull_request_not_open_ready')
+          if current['base_sha'] != base_sha or current['head_sha'] != head_sha:
+              raise SystemExit('target_pull_request_revision_mismatch')
+
+          store = os.environ['OBJECT_STORE']
+          git('git', 'init', '--bare', store)
+          url = 'https://github.com/' + target + '.git'
+          git('git', '-C', store, 'fetch', '--no-tags', '--depth=1', url,
+              f'+refs/pull/{number}/head:refs/pr/head', timeout=120)
+          base_ref_full = 'refs/heads/' + base_ref
+          if subprocess.run(['git', '-C', store, 'check-ref-format', base_ref_full], check=False, timeout=10).returncode:
+              raise SystemExit('target_base_ref_invalid')
+          git('git', '-C', store, 'fetch', '--no-tags', '--depth=1', url,
+              f'+{base_ref_full}:refs/pr/base', timeout=120)
+          if git('git', '-C', store, 'rev-parse', 'refs/pr/head') != head_sha:
+              raise SystemExit('fetched_target_head_mismatch')
+          if git('git', '-C', store, 'rev-parse', 'refs/pr/base') != base_sha:
+              raise SystemExit('fetched_target_base_mismatch')
+
+          event = {'number': number, 'pull_request': {'base': {'sha': base_sha}, 'head': {'sha': head_sha}}}
+          Path(os.environ['EVENT_OUTPUT']).write_text(json.dumps(event), encoding='utf-8')
+          PY
+      - name: Fetch and verify the current free test-model catalog
+        env:
+          NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+        run: |
+          mkdir -p artifacts/catalog
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from urllib.error import URLError
+          from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+          endpoint = 'https://inference-api.nousresearch.com/v1/models'
+          token = os.environ.get('NOUS_API_KEY')
+          if not token:
+              raise SystemExit('analysis_provider_credential_unavailable')
+
+          class NoRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          try:
+              response = build_opener(NoRedirect).open(
+                  Request(endpoint, headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'}),
+                  timeout=20,
+              )
+              with response:
+                  if response.status != 200 or response.geturl() != endpoint:
+                      raise SystemExit('analysis_model_catalog_rejected')
+                  raw = response.read(20_000_001)
+          except (OSError, URLError):
+              raise SystemExit('analysis_model_catalog_unavailable') from None
+          if len(raw) > 20_000_000:
+              raise SystemExit('analysis_model_catalog_exceeds_bound')
+          try:
+              catalog = json.loads(raw)
+          except json.JSONDecodeError:
+              raise SystemExit('analysis_model_catalog_invalid') from None
+          with open('artifacts/catalog/model-catalog.json', 'w', encoding='utf-8') as stream:
+              json.dump({
+                  'source': endpoint,
+                  'retrieved_at': datetime.now(timezone.utc).isoformat(),
+                  'catalog': catalog,
+              }, stream, sort_keys=True, separators=(',', ':'))
+              stream.write('\n')
+          PY
+          PYTHONPATH=scripts python - <<'PY'
+          from pathlib import Path
+          from run_test_matrix import verify_model_catalog
+          verify_model_catalog(Path('artifacts/catalog/model-catalog.json'), ['solar'])
+          PY
+      - name: Produce a bounded read-only report from the bare target object store
+        env:
+          GITHUB_EVENT_PATH: ${{ runner.temp }}/pr-event.json
+          GITHUB_REPOSITORY: ${{ inputs.target_repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: https://github.com
+          GH_TOKEN: ${{ github.token }}
+          NOUS_API_KEY: ${{ secrets.NOUS_API_KEY }}
+          PROFILE: ${{ inputs.target_repository == 'magnus919/SlopSearX' && 'profiles/slopsearx.json' || 'profiles/generic.json' }}
+          OBJECT_STORE: ${{ runner.temp }}/target.git
+        run: |
+          pr-review review \
+            --repo "$OBJECT_STORE" \
+            --event-file "$GITHUB_EVENT_PATH" \
+            --profile "$PROFILE" \
+            --provider-config examples/provider.nous-test-solar.json \
+            --output artifacts/review \
+            --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
+            --mode AUTO \
+            --json > artifacts/review-result.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7

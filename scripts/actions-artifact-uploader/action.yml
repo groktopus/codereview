@@ -1,0 +1,5 @@
+name: PR review read-only publication canary
+description: Verifies read-only run and PR bindings and uploads a bounded canary receipt.
+runs:
+  using: node24
+  main: canary.mjs

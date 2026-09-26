@@ -1,0 +1,8 @@
+{
+  "kind": "systemone_laya",
+  "endpoint_env": "LAYA_BASE_URL",
+  "endpoint_path": "/v1/systemone",
+  "api_key_env": "LAYA_API_KEY",
+  "primitive": "choice-risk",
+  "timeout_seconds": 15
+}

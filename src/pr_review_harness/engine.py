@@ -1,0 +1,2178 @@
+"""Bounded deterministic execution, reconciliation, ledgering, and reporting."""
+
+from __future__ import annotations
+
+import fnmatch
+import hashlib
+import json
+import math
+import os
+import re
+import tempfile
+import threading
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from . import contracts as review_contracts
+from .budget import BudgetExhausted, BudgetLedger, IsolatedInvocation, isolated_call
+from .planner import allow_empty_approve
+from .reconcile import consolidate_findings, stable_candidate_id, validate_location
+from .report import render_report as _render_report
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _canonical(value: Any) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def _hash(value: Any) -> str:
+    return hashlib.sha256(_canonical(value)).hexdigest()
+
+
+_ADJUDICATION_V3 = review_contracts.ADJUDICATION_V3
+_ADJUDICATION_RUBRIC = review_contracts.ADJUDICATION_RUBRIC_VERSION
+_CAUSAL_ROLES = review_contracts.CAUSAL_ROLE_NAMES
+_CAUSAL_SUPPORT = set(review_contracts.CAUSAL_SUPPORT_VALUES)
+_MAX_CAUSAL_ASSESSMENT_BYTES = review_contracts.MAX_CAUSAL_ASSESSMENT_BYTES
+_MAX_CAUSAL_ROLE_EVIDENCE_REFS = review_contracts.MAX_CAUSAL_ROLE_EVIDENCE_REFS
+_MAX_CAUSAL_ROLE_EVIDENCE_REF_BYTES = 256
+
+
+def _validated_v3_causal_roles(
+    assessment: Any,
+    delivered_evidence: list[dict],
+    evidence_map: dict,
+    snapshot_id: str,
+    provider_identity: Any,
+    semantic_provenance: Any,
+) -> tuple[bool, set[str]]:
+    """Check normalized v3 role claims against the exact adjudication input."""
+    if (
+        not isinstance(assessment, dict)
+        or assessment.get("contract_version") != _ADJUDICATION_V3
+        or assessment.get("source_contract_version") != _ADJUDICATION_V3
+    ):
+        return False, set()
+    provider_details = provider_identity.get("provider") if isinstance(provider_identity, dict) else None
+    if (
+        not isinstance(provider_details, dict)
+        or provider_details.get("adjudication_rubric_version") != _ADJUDICATION_RUBRIC
+        or not isinstance(semantic_provenance, dict)
+        or semantic_provenance.get("provider_rubric_version") != _ADJUDICATION_RUBRIC
+    ):
+        return False, set()
+    roles = assessment.get("causal_roles")
+    if not isinstance(roles, dict) or set(roles) != set(_CAUSAL_ROLES):
+        return False, set()
+    delivered_ids = {
+        item.get("evidence_id")
+        for item in delivered_evidence
+        if isinstance(item, dict) and isinstance(item.get("evidence_id"), str)
+    }
+    referenced: set[str] = set()
+    for role_name in _CAUSAL_ROLES:
+        role = roles.get(role_name)
+        if (
+            not isinstance(role, dict)
+            or set(role) != {"support", "assessment", "evidence_refs"}
+            or role.get("support") not in _CAUSAL_SUPPORT
+        ):
+            return False, set()
+        statement = role.get("assessment")
+        if not isinstance(statement, str) or not statement.strip():
+            return False, set()
+        try:
+            if len(statement.encode("utf-8")) > _MAX_CAUSAL_ASSESSMENT_BYTES:
+                return False, set()
+        except UnicodeEncodeError:
+            return False, set()
+        refs = role.get("evidence_refs")
+        if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+            return False, set()
+        if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
+            return False, set()
+        for ref in refs:
+            if not isinstance(ref, str) or ref not in delivered_ids:
+                return False, set()
+            try:
+                if len(ref.encode("utf-8")) > _MAX_CAUSAL_ROLE_EVIDENCE_REF_BYTES:
+                    return False, set()
+            except UnicodeEncodeError:
+                return False, set()
+            record = evidence_map.get(ref)
+            if (
+                not isinstance(record, dict)
+                or record.get("evidence_id") != ref
+                or record.get("snapshot_id") != snapshot_id
+            ):
+                return False, set()
+            referenced.add(ref)
+    return True, referenced
+
+
+def _core_contract_hash() -> str:
+    """Fingerprint execution and normalization rules into every resume identity."""
+    root = Path(__file__).resolve().parent
+    names = ("engine.py", "planner.py", "providers.py", "contracts.py", "reconcile.py", "budget.py")
+    return _hash({name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in names})
+
+
+def _bounded_freshness(check: Any, timeout: float) -> dict:
+    if timeout <= 0:
+        raise TimeoutError("DEADLINE_EXHAUSTED")
+    invocation = IsolatedInvocation(check, "__call__", (), deadline_seconds=timeout, output_limit=8192)
+    while not invocation.poll():
+        time.sleep(0.005)
+    result = invocation.result()
+    if not isinstance(result, dict):
+        raise ValueError("invalid freshness result")
+    return result
+
+
+def _atomic_write(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+
+
+def validate_limits(limits: dict) -> None:
+    """Reject unbounded or malformed budgets before any provider call."""
+    if not isinstance(limits, dict):
+        raise ValueError("limits must be an object")
+    required = {
+        "deadline_seconds": (float, 0, None),
+        "max_concurrent_scopes": (int, 1, None),
+        "max_provider_calls": (int, 1, None),
+        "max_retries_per_task": (int, 0, None),
+        "max_context_bytes": (int, 1, None),
+        "max_input_bytes_per_task": (int, 1, None),
+        "max_output_bytes_per_task": (int, 1, None),
+        "max_output_bytes": (int, 1, None),
+        "max_context_retrievals": (int, 0, None),
+        "max_followup_tasks": (int, 0, None),
+    }
+    missing = [key for key in required if key not in limits]
+    if missing:
+        raise ValueError("missing finite limits: " + ", ".join(missing))
+    for key, (kind, low, _) in required.items():
+        value = limits[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float) if kind is float else int):
+            raise ValueError(f"invalid limit: {key}")
+        if key == "deadline_seconds":
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"invalid limit: {key}")
+        elif value < low:
+            raise ValueError(f"invalid limit: {key}")
+    if limits.get("max_cost_microunits") is not None:
+        if (
+            isinstance(limits["max_cost_microunits"], bool)
+            or not isinstance(limits["max_cost_microunits"], int)
+            or limits["max_cost_microunits"] < 1
+        ):
+            raise ValueError("invalid limit: max_cost_microunits")
+
+
+def _provider_identity(provider: Any, decision_provider: Any) -> Any:
+    def identity(obj: Any) -> Any:
+        if obj is None:
+            return None
+        value = getattr(obj, "identity", None)
+        if callable(value):
+            value = value()
+        return (
+            value
+            if isinstance(value, (str, int, float, bool, dict, list, type(None)))
+            else {"type": type(obj).__name__}
+        )
+
+    return {"provider": identity(provider), "decision_provider": identity(decision_provider)}
+
+
+def _evidence_for(task: dict, snapshot: dict, limit: int) -> list[dict]:
+    evidence = snapshot.get("evidence", {})
+    ids = list(task.get("evidence_ids", []))
+    result = []
+    total = 0
+    for eid in ids:
+        item = evidence.get(eid) if isinstance(evidence, dict) else None
+        if not isinstance(item, dict):
+            continue
+        encoded = _canonical(item)
+        total += len(encoded)
+        result.append(dict(item))
+    # Snapshot builders may embed evidence on each inventory item.
+    if not result:
+        wanted = set(task.get("unit_ids", task.get("scope_unit_ids", [])))
+        for unit in snapshot.get("inventory", []):
+            if unit.get("unit_id") in wanted:
+                item = {
+                    "evidence_id": f"unit:{unit['unit_id']}",
+                    "path": unit.get("path"),
+                    "content": unit.get("diff", ""),
+                    "source_kind": "diff",
+                    "trust": "untrusted_pr_content",
+                    "snapshot_id": snapshot.get("snapshot_id"),
+                }
+                encoded = _canonical(item)
+                total += len(encoded)
+                result.append(item)
+    return result
+
+
+def _unwrap(response: Any) -> tuple[dict, dict, dict]:
+    if not isinstance(response, dict):
+        raise ValueError("invalid_result")
+    if "payload" in response:
+        payload, usage, provenance = response["payload"], response.get("usage", {}), response.get("provenance", {})
+    else:
+        payload, usage, provenance = response, {}, {}
+    if not isinstance(payload, dict) or not isinstance(usage, dict) or not isinstance(provenance, dict):
+        raise ValueError("invalid_result")
+    return payload, usage, provenance
+
+
+def safe_provider_error(exc: Exception) -> str | None:
+    from .providers import ProviderError
+
+    if isinstance(exc, ProviderError) and re.fullmatch(r"[a-z0-9_]{1,100}", exc.code):
+        return exc.code
+    return None
+
+
+def _stable_finding_id(run_id: str, candidate: dict) -> str:
+    return "finding-" + _hash({"run_id": run_id, "candidate": candidate})[:16]
+
+
+def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
+    findings = result["findings"]
+    blockers = [f for f in findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"]
+    if blockers:
+        return "REQUEST_CHANGES"
+    required_incomplete = (
+        result["coverage_state"] != "COMPLETE"
+        or not policy_valid
+        or any(f.get("blocking_class") == "UNRESOLVED" for f in findings)
+        or bool(result.get("budget", {}).get("budget_breaches"))
+    )
+    if required_incomplete or result["freshness"] != "CURRENT":
+        return "INCOMPLETE"
+    if findings:
+        return "COMMENT"
+    return "APPROVE" if allow_empty_approve else "COMMENT"
+
+
+def run_review(
+    snapshot: dict,
+    plan: dict,
+    profile: dict,
+    provider: Any,
+    decision_provider: Any,
+    limits: dict,
+    output_dir: str,
+    run_id: str,
+    resume: bool = False,
+    freshness_check: Any = None,
+    context_retriever: Any = None,
+    check_adapter: Any = None,
+) -> dict:
+    """Run bounded provider tasks and persist an integrity-checked review result.
+
+    This controller never executes reviewed code. A lack of provider capability
+    yields explicit NOT_STARTED coverage; it cannot be interpreted as no findings.
+    """
+    validate_limits(limits)
+    if (
+        not run_id
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", run_id)
+        or ".." in run_id
+        or not isinstance(snapshot, dict)
+        or not isinstance(plan, dict)
+        or not isinstance(profile, dict)
+    ):
+        raise ValueError("run_id, snapshot, plan, and profile are required")
+    approval_authority = allow_empty_approve(profile)
+    if plan.get("snapshot_id") not in (None, snapshot.get("snapshot_id")):
+        raise ValueError("plan snapshot mismatch")
+    tasks = plan.get("tasks")
+    obligations = plan.get("coverage_obligations")
+    if not isinstance(tasks, list) or not isinstance(obligations, list):
+        raise ValueError("plan requires tasks and coverage_obligations")
+    output_path = Path(output_dir).resolve() / f"{run_id}.json"
+    provider_identity = _provider_identity(provider, decision_provider)
+    request_basis = {
+        "snapshot": snapshot,
+        "plan": plan,
+        "profile": profile,
+        "limits": limits,
+        "provider": provider_identity,
+        "run_id": run_id,
+        "core_contract_hash": _core_contract_hash(),
+    }
+    request_hash = _hash(request_basis)
+    deadline_epoch = time.time() + float(limits["deadline_seconds"])
+    ledger = {
+        "ledger_version": "0.2",
+        "request_hash": request_hash,
+        "events": [],
+        "outputs": {},
+        "candidate_records": [],
+        "budget": {"reservations": {}, "settlements": {}, "context_retrievals": 0, "followup_tasks": 0},
+        "deadline_epoch": deadline_epoch,
+        "identity": {
+            "snapshot_id": snapshot.get("snapshot_id"),
+            "profile_version": profile.get("version", profile.get("profile_version")),
+            "question_versions": sorted({str(t.get("question_version", "0.1")) for t in tasks}),
+            "provider_identity_hash": _hash(provider_identity),
+            "plan_hash": _hash(plan),
+            "core_contract_hash": _core_contract_hash(),
+        },
+    }
+    if output_path.exists():
+        if not resume:
+            raise ValueError("run_id already exists; resume explicitly")
+        try:
+            saved = json.loads(output_path.read_text(encoding="utf-8"))
+            ledger = saved["ledger"]
+            if saved.get("request_hash") != request_hash or ledger.get("request_hash") != request_hash:
+                raise ValueError("resume request mismatch")
+            if _hash({k: v for k, v in saved.items() if k != "result_hash"}) != saved.get("result_hash"):
+                raise ValueError("resume result integrity mismatch")
+            if any(
+                _hash({k: v for k, v in event.items() if k != "event_hash"}) != event.get("event_hash")
+                for event in ledger.get("events", [])
+            ):
+                raise ValueError("resume ledger integrity mismatch")
+            if ledger.get("identity", {}).get("snapshot_id") not in (None, snapshot.get("snapshot_id")):
+                raise ValueError("resume snapshot identity mismatch")
+            if saved.get("completed_at"):
+                if callable(freshness_check):
+                    try:
+                        check = _bounded_freshness(freshness_check, 5.0)
+                        if isinstance(check, dict) and check.get("freshness") in {"CURRENT", "STALE", "UNKNOWN"}:
+                            saved["freshness"] = check["freshness"]
+                            saved["freshness_details"] = {
+                                "expected_head_sha": snapshot.get("head_sha"),
+                                **{k: v for k, v in check.items() if k != "freshness"},
+                            }
+                        else:
+                            saved["freshness"] = "UNKNOWN"
+                            saved["freshness_details"] = {
+                                "expected_head_sha": snapshot.get("head_sha"),
+                                "observed_head_sha": None,
+                            }
+                        saved["disposition"] = _reduce(
+                            saved,
+                            saved.get("allow_empty_approve") is True,
+                            saved.get("policy_valid", False),
+                        )
+                        saved["completed_at"] = _now()
+                        saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
+                        _atomic_write(output_path, _canonical(saved) + b"\n")
+                    except Exception:
+                        saved["freshness"] = "UNKNOWN"
+                        saved["freshness_details"] = {
+                            "expected_head_sha": snapshot.get("head_sha"),
+                            "observed_head_sha": None,
+                            "freshness_check_error": True,
+                        }
+                        saved["disposition"] = _reduce(
+                            saved,
+                            saved.get("allow_empty_approve") is True,
+                            saved.get("policy_valid", False),
+                        )
+                        saved["completed_at"] = _now()
+                        saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
+                        _atomic_write(output_path, _canonical(saved) + b"\n")
+                elif snapshot.get("freshness_basis") != "HISTORICAL_SNAPSHOT":
+                    saved["freshness"] = "UNKNOWN"
+                    saved["freshness_details"] = {
+                        "expected_head_sha": snapshot.get("head_sha"),
+                        "observed_head_sha": None,
+                    }
+                    saved["disposition"] = _reduce(
+                        saved,
+                        saved.get("allow_empty_approve") is True,
+                        saved.get("policy_valid", False),
+                    )
+                    saved["completed_at"] = _now()
+                    saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
+                    _atomic_write(output_path, _canonical(saved) + b"\n")
+                return saved
+        except (KeyError, OSError, json.JSONDecodeError) as exc:
+            raise ValueError("resume ledger invalid") from exc
+    else:
+        event = {"event": "RUN_STARTED", "at": _now()}
+        event["event_hash"] = _hash(event)
+        ledger["events"].append(event)
+
+    # Dynamic follow-up requests and retrieved immutable evidence are part of
+    # the durable run state, while request identity remains the original
+    # snapshot+plan+profile contract.
+    snapshot = {**snapshot, "evidence": dict(snapshot.get("evidence", {}))}
+    retrieved_context = ledger.get("retrieved_context", {})
+    if isinstance(retrieved_context, dict):
+        for entry in retrieved_context.values():
+            if isinstance(entry, dict):
+                for evidence in entry.get("evidence", []):
+                    if isinstance(evidence, dict) and isinstance(evidence.get("evidence_id"), str):
+                        snapshot["evidence"][evidence["evidence_id"]] = evidence
+    if isinstance(ledger.get("dynamic_tasks"), list):
+        tasks = list(tasks) + [t for t in ledger["dynamic_tasks"] if isinstance(t, dict)]
+    if isinstance(ledger.get("dynamic_obligations"), list):
+        obligations = list(obligations) + [o for o in ledger["dynamic_obligations"] if isinstance(o, dict)]
+
+    deadline_epoch = float(ledger.get("deadline_epoch", deadline_epoch))
+    state_lock = threading.RLock()
+
+    def checkpoint(terminal: bool = False) -> None:
+        with state_lock:
+            payload = {
+                "run_id": run_id,
+                "request_hash": request_hash,
+                "completed_at": _now() if terminal else None,
+                "ledger": ledger,
+                "task_results": ledger.get("outputs", {}),
+            }
+            payload["result_hash"] = _hash(payload)
+            _atomic_write(output_path, _canonical(payload) + b"\n")
+
+    budget = BudgetLedger(limits, ledger.setdefault("budget", {}), persist=checkpoint, deadline_epoch=deadline_epoch)
+    # A process crash after reservation is an uncertain paid attempt. Settle it
+    # as unknown and never reuse its idempotency key for another dispatch.
+    for reservation_key, reservation in list(budget.state["reservations"].items()):
+        if reservation.get("provider_calls", 0) > 0 and reservation_key not in budget.state["settlements"]:
+            budget.settle(reservation_key, output_bytes=None, usage={}, status="INTERRUPTED_UNKNOWN")
+            ledger.setdefault("invocations", []).append(
+                {
+                    "reservation_key": reservation_key,
+                    "status": "INTERRUPTED_UNKNOWN",
+                    "at": _now(),
+                }
+            )
+
+    task_by_id = {}
+    for task in tasks:
+        if not isinstance(task, dict) or not task.get("task_id") or not task.get("obligation_id"):
+            raise ValueError("invalid planned task")
+        if task["task_id"] in task_by_id:
+            raise ValueError("duplicate task_id")
+        task_by_id[task["task_id"]] = task
+    obligation_by_id = {
+        o.get("obligation_id"): o for o in obligations if isinstance(o, dict) and o.get("obligation_id")
+    }
+    if len(obligation_by_id) != len(obligations):
+        raise ValueError("invalid or duplicate coverage obligation")
+    for task in tasks:
+        if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
+            raise ValueError("task references unknown obligation")
+
+    # Split an oversized specialist batch deterministically by inventory order.
+    # Each unit keeps its own required obligation IDs, so omitted units cannot
+    # inherit another chunk's successful result.
+    def review_input_size(task: dict, evidence: list[dict]) -> int:
+        measure = getattr(provider, "review_input_bytes", None)
+        if callable(measure) and task.get("task_kind") == "SPECIALIST_FINDINGS":
+            # Reserve extra room for chunk metadata added after grouping.
+            return measure(task, evidence, limits) + 1024
+        return sum(len(_canonical(item)) for item in evidence)
+
+    unit_order = {u.get("unit_id"): i for i, u in enumerate(snapshot.get("inventory", [])) if isinstance(u, dict)}
+    split_tasks = []
+    split_skips = {}
+    input_ceiling = int(limits["max_input_bytes_per_task"])
+    for task in tasks:
+        unit_ids = list(task.get("unit_ids", task.get("scope_unit_ids", [])))
+        if task.get("task_kind") != "SPECIALIST_FINDINGS":
+            split_tasks.append(task)
+            continue
+        unit_obligations = {
+            oid: list(obligation_by_id[oid].get("scope_unit_ids", []))
+            for oid in task.get("obligation_ids", [task["obligation_id"]])
+        }
+        task_evidence_ids = set(task.get("evidence_ids", []))
+        all_context_ids = list(task.get("base_context_ids") or snapshot.get("trusted_context_refs", []))
+        required_context_ids = list(dict.fromkeys(task.get("required_context_ids", [])))
+        # A required reference is authoritative even if an inconsistent task
+        # omitted it from base_context_ids. Do not turn that inconsistency into
+        # optional or silently absent context.
+        all_context_ids = list(dict.fromkeys(all_context_ids + required_context_ids))
+        context_ids = [eid for eid in all_context_ids if eid in task_evidence_ids]
+        context_id_set = set(context_ids)
+        task_evidence = snapshot.get("evidence", {})
+
+        def skip_unit(uid: str, error_code: str, required_omissions: list[str] | None = None) -> None:
+            obligation_ids = [oid for oid, units in unit_obligations.items() if uid in units]
+            key = _hash({"task": task["task_id"], "unit": uid})[:20]
+            existing = split_skips.get(key, {})
+            split_skips[key] = {
+                "task_id": task["task_id"],
+                "unit_id": uid,
+                "obligation_ids": list(dict.fromkeys(existing.get("obligation_ids", []) + obligation_ids)),
+                "status": "SKIPPED",
+                "error_code": error_code,
+                "required_context_omissions": list(
+                    dict.fromkeys(existing.get("required_context_omissions", []) + (required_omissions or []))
+                ),
+                "attempts": 0,
+            }
+
+        missing_required = [
+            eid
+            for eid in required_context_ids
+            if eid not in task_evidence_ids
+            or not isinstance(task_evidence, dict)
+            or not isinstance(task_evidence.get(eid), dict)
+            or task_evidence[eid].get("evidence_id") != eid
+            or task_evidence[eid].get("snapshot_id") != snapshot.get("snapshot_id")
+        ]
+        if missing_required:
+            for uid in unit_ids:
+                skip_unit(uid, "REQUIRED_CONTEXT_MISSING", missing_required)
+            continue
+
+        batches, current, current_ids, current_obs, current_required = [], [], [], [], []
+
+        def batch_task(units: list[str], ids: list[str], required: list[str]) -> dict:
+            required = list(dict.fromkeys(required))
+            return {
+                **task,
+                "unit_ids": units,
+                "scope_unit_ids": units,
+                "evidence_ids": list(dict.fromkeys(ids + required)),
+                "base_context_ids": required,
+                "required_context_ids": required,
+            }
+
+        for uid in sorted(unit_ids, key=lambda u: unit_order.get(u, 10**9)):
+            unit = next((u for u in snapshot.get("inventory", []) if u.get("unit_id") == uid), {})
+            if profile.get("context_selection"):
+                # The planner narrows each unit to its bound diff/window set.
+                # Keep that exact set during batching; inventory.evidence_ids
+                # also contains whole-file captures that the selector excludes.
+                unit_review_ids = unit.get("review_context_evidence_ids", unit.get("evidence_ids", []))
+            else:
+                # Preserve historical profile behavior, including older
+                # snapshots without the selector-specific inventory field.
+                unit_review_ids = unit.get("evidence_ids", [])
+            unit_evidence_ids = set(unit_review_ids)
+            ids = [
+                eid for eid in task.get("evidence_ids", []) if eid in unit_evidence_ids and eid not in context_id_set
+            ]
+            unit_size = review_input_size(
+                batch_task([uid], ids, []),
+                _evidence_for(batch_task([uid], ids, []), snapshot, input_ceiling),
+            )
+            if unit_size > input_ceiling:
+                skip_unit(uid, "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT")
+                continue
+
+            unit_required = list(required_context_ids)
+            required_task = batch_task([uid], ids, unit_required)
+            required_size = review_input_size(required_task, _evidence_for(required_task, snapshot, input_ceiling))
+            if required_size > input_ceiling:
+                skip_unit(uid, "UNIT_REQUIRED_CONTEXT_EXCEEDS_INPUT_LIMIT", unit_required)
+                continue
+
+            candidate_units = current + [uid]
+            candidate_ids = current_ids + ids
+            candidate_required = list(dict.fromkeys(current_required + unit_required))
+            candidate_task = batch_task(candidate_units, candidate_ids, candidate_required)
+            cur_size = review_input_size(candidate_task, _evidence_for(candidate_task, snapshot, input_ceiling))
+            if current and cur_size > input_ceiling:
+                batches.append((current, current_ids, current_obs, current_required))
+                current, current_ids, current_obs, current_required = [], [], [], []
+            current.append(uid)
+            current_ids.extend(ids)
+            current_required.extend(unit_required)
+            current_obs.extend(oid for oid, units in unit_obligations.items() if uid in units)
+        if current:
+            batches.append((current, current_ids, current_obs, current_required))
+        for index, (units, ids, oids, mandatory_ids) in enumerate(batches, 1):
+            chosen_context = list(dict.fromkeys(mandatory_ids))
+            omitted_context = []
+
+            def finalized_batch(selected_context: list[str], omitted_ids: list[str]) -> dict:
+                return {
+                    **task,
+                    "task_id": f"{task['task_id']}:chunk-{index}",
+                    "unit_ids": units,
+                    "scope_unit_ids": units,
+                    "evidence_ids": list(dict.fromkeys(ids + selected_context)),
+                    "base_context_ids": selected_context,
+                    "required_context_ids": list(dict.fromkeys(mandatory_ids)),
+                    "context_omissions": omitted_ids,
+                    "required_context_omissions": [],
+                    "obligation_id": oids[0],
+                    "obligation_ids": list(dict.fromkeys(oids)),
+                }
+
+            for eid in context_ids:
+                if eid in set(chosen_context):
+                    continue
+                optional_task = finalized_batch(chosen_context + [eid], omitted_context)
+                size = review_input_size(optional_task, _evidence_for(optional_task, snapshot, input_ceiling))
+                (chosen_context if size <= input_ceiling else omitted_context).append(eid)
+            final_task = finalized_batch(chosen_context, omitted_context)
+            final_size = review_input_size(final_task, _evidence_for(final_task, snapshot, input_ceiling))
+            if final_size > input_ceiling:
+                for uid in units:
+                    skip_unit(uid, "UNIT_REQUIRED_CONTEXT_EXCEEDS_INPUT_LIMIT", list(dict.fromkeys(mandatory_ids)))
+                continue
+            split_tasks.append(final_task)
+    tasks = split_tasks
+    call_lock = threading.Lock()
+    task_results = dict(ledger.get("outputs", {}))
+    for key, value in split_skips.items():
+        task_results[key] = value
+    pending = [
+        t for t in tasks if t["task_id"] not in task_results or task_results[t["task_id"]].get("status") != "SUCCEEDED"
+    ]
+    evidence_cache = {t["task_id"]: _evidence_for(t, snapshot, int(limits["max_input_bytes_per_task"])) for t in tasks}
+
+    def remaining_call_limits() -> dict:
+        return {**limits, "deadline_seconds": max(0.0, budget.remaining_seconds())}
+
+    def call_estimate(target: Any, task_kind: str, task: dict, evidence: list[dict], fallback_size: int) -> dict:
+        estimator = getattr(target, "estimate_call", None)
+        if callable(estimator):
+            estimate = estimator(task_kind, task, evidence, remaining_call_limits())
+            if not isinstance(estimate, dict):
+                raise ValueError("provider estimate_call must return an object")
+            estimate = dict(estimate)
+        else:
+            estimate = {
+                "provider_calls": 1,
+                "input_bytes": fallback_size,
+                "max_output_bytes": int(limits["max_output_bytes_per_task"]),
+                "reservation_kind": "unknown",
+            }
+        estimate["provider_calls"] = estimate.get("provider_calls", 1)
+        estimate["input_bytes"] = estimate.get("input_bytes", fallback_size)
+        estimate["max_output_bytes"] = estimate.get("max_output_bytes", int(limits["max_output_bytes_per_task"]))
+        estimate["deadline_seconds"] = min(
+            float(estimate.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
+            remaining_call_limits()["deadline_seconds"],
+        )
+        if limits.get("max_cost_microunits") is not None and estimate.get("reservation_kind") != "operator_bound":
+            raise ValueError(
+                "configured monetary budget reservation is unsupported without an operator-bound per-call quote"
+            )
+        return estimate
+
+    def reserve_provider_call(
+        key: str, target: Any, task_kind: str, task: dict, evidence: list[dict], fallback_size: int
+    ) -> dict:
+        estimate = call_estimate(target, task_kind, task, evidence, fallback_size)
+        return budget.reserve(key, estimate)
+
+    def validated_check_evidence(task: dict, payload: dict) -> list[str]:
+        """Bind deterministic-check outputs to the exact ingested evidence.
+
+        Check adapters receive the immutable snapshot, but a task is authorized
+        to consume only the evidence for its own configured binding. Preserve
+        those validated references in the task and coverage ledgers; never let
+        a check adapter claim evidence from another binding or snapshot.
+        """
+        binding_id = task.get("check_binding_id")
+        if not isinstance(binding_id, str) or not binding_id:
+            raise ValueError("check_binding_missing")
+        if payload.get("check_id") != task.get("check_id"):
+            raise ValueError("check_identity_mismatch")
+
+        result_map = snapshot.get("external_check_results", {})
+        evidence_map = snapshot.get("evidence", {})
+        if not isinstance(result_map, dict) or not isinstance(evidence_map, dict):
+            raise ValueError("check_evidence_index_invalid")
+        external_result = result_map.get(binding_id)
+        expected_refs: list[str] = []
+        expected_outcome = "UNKNOWN"
+        if isinstance(external_result, dict):
+            outcome = external_result.get("outcome", "UNKNOWN")
+            if outcome not in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}:
+                raise ValueError("check_evidence_outcome_invalid")
+            expected_outcome = outcome
+            evidence_id = external_result.get("evidence_id")
+            if evidence_id is not None:
+                if not isinstance(evidence_id, str) or not evidence_id:
+                    raise ValueError("check_evidence_reference_invalid")
+                item = evidence_map.get(evidence_id)
+                if not isinstance(item, dict):
+                    raise ValueError("check_evidence_missing")
+                content_hash = item.get("content_hash")
+                unsigned_item = {
+                    key: value
+                    for key, value in item.items()
+                    if key not in {"content_hash", "evidence_id", "source_kind", "trust"}
+                }
+                evidence_outcome = (
+                    "PASS"
+                    if item.get("status") == "completed" and item.get("conclusion") == "success"
+                    else "FINDINGS"
+                    if item.get("status") == "completed"
+                    and item.get("conclusion")
+                    in {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}
+                    else "UNKNOWN"
+                )
+                if (
+                    item.get("evidence_id") != evidence_id
+                    or item.get("binding_id") != binding_id
+                    or item.get("source_kind") != "github_check_run"
+                    or item.get("trust") != "generated_result"
+                    or item.get("repository") != snapshot.get("repository")
+                    or item.get("pull_request_number") != snapshot.get("pull_request_number")
+                    or item.get("head_sha") != snapshot.get("head_sha")
+                    or evidence_outcome != outcome
+                    or not isinstance(content_hash, str)
+                    or _hash(unsigned_item) != content_hash
+                    or evidence_id != "check-" + content_hash[:24]
+                ):
+                    raise ValueError("check_evidence_binding_invalid")
+                expected_refs = [evidence_id]
+        if expected_outcome in {"PASS", "FINDINGS"} and not expected_refs:
+            raise ValueError("conclusive_check_without_evidence")
+
+        references = payload.get("evidence_refs")
+        if (
+            payload.get("outcome") != expected_outcome
+            or not isinstance(references, list)
+            or any(not isinstance(ref, str) for ref in references)
+            or references != expected_refs
+        ):
+            raise ValueError("check_result_evidence_mismatch")
+        return expected_refs
+
+    if limits.get("max_cost_microunits") is not None:
+        for planned_task in tasks:
+            target = check_adapter if planned_task.get("task_kind") == "DETERMINISTIC_CHECK" else provider
+            if target is None:
+                continue
+            evidence = evidence_cache[planned_task["task_id"]]
+            quote = call_estimate(
+                target,
+                planned_task.get("task_kind", "SPECIALIST_FINDINGS"),
+                planned_task,
+                evidence,
+                review_input_size(planned_task, evidence),
+            )
+            if quote.get("reservation_kind") != "operator_bound":
+                raise ValueError("configured monetary budget requires operator-bound per-call reservations")
+        if decision_provider is not None and callable(getattr(decision_provider, "assess", None)):
+            quote = call_estimate(decision_provider, "SYSTEM_ONE_ASSESSMENT", {}, [], 0)
+            if quote.get("reservation_kind") != "operator_bound":
+                raise ValueError("configured monetary budget requires operator-bound per-call reservations")
+
+    def start_attempt(task: dict, attempt_index: int) -> dict:
+        task_id = task["task_id"]
+        evidence = evidence_cache[task_id]
+        kind = task.get("task_kind", "SPECIALIST_FINDINGS")
+        is_check = kind == "DETERMINISTIC_CHECK"
+        target = check_adapter if is_check else provider
+        method = "__call__" if is_check else "review"
+        if target is None or not callable(target if is_check else getattr(target, "review", None)):
+            return {
+                "task_id": task_id,
+                "status": "SKIPPED",
+                "error_code": "CHECK_ADAPTER_UNAVAILABLE" if is_check else "PROVIDER_UNAVAILABLE",
+                "attempts": attempt_index,
+            }
+        required_size = review_input_size(task, evidence)
+        if required_size > int(limits["max_input_bytes_per_task"]):
+            return {
+                "task_id": task_id,
+                "status": "SKIPPED",
+                "error_code": "INPUT_BYTE_LIMIT_EXCEEDED",
+                "attempts": attempt_index,
+            }
+        reservation_key = f"{task_id}:{'check' if is_check else 'review'}:{attempt_index}"
+        try:
+            reservation = reserve_provider_call(
+                reservation_key,
+                target,
+                kind,
+                task,
+                evidence,
+                len(_canonical({"task": task, "evidence": evidence})) if is_check else required_size,
+            )
+        except BudgetExhausted as exc:
+            return {
+                "task_id": task_id,
+                "status": "SKIPPED",
+                "error_code": str(exc),
+                "input_hash": _hash(evidence),
+                "attempts": attempt_index,
+            }
+        except ValueError as exc:
+            return {
+                "task_id": task_id,
+                "status": "INVALID",
+                "error_code": "INVALID_PROVIDER_ESTIMATE",
+                "error_summary": type(exc).__name__,
+                "attempts": attempt_index,
+            }
+        invocation_limits = {**remaining_call_limits(), "attempt_index": attempt_index}
+        args = (task, snapshot, profile, invocation_limits) if is_check else (task, evidence, invocation_limits)
+        try:
+            invocation = IsolatedInvocation(
+                target,
+                method,
+                args,
+                deadline_seconds=min(
+                    float(reservation.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
+                    remaining_call_limits()["deadline_seconds"],
+                ),
+                output_limit=int(reservation["max_output_bytes"]),
+            )
+        except Exception as exc:
+            try:
+                budget.settle(reservation_key, output_bytes=None, usage={}, status="FAILED")
+            except (ValueError, KeyError):
+                pass
+            return {
+                "task_id": task_id,
+                "status": "FAILED",
+                "error_code": "WORKER_START_FAILED",
+                "error_summary": type(exc).__name__,
+                "attempts": attempt_index + 1,
+                "input_hash": _hash(evidence),
+            }
+        return {
+            "task": task,
+            "task_id": task_id,
+            "kind": kind,
+            "is_check": is_check,
+            "target": target,
+            "reservation_key": reservation_key,
+            "reservation": reservation,
+            "invocation": invocation,
+            "evidence": evidence,
+            "attempt_index": attempt_index,
+            "started_at": _now(),
+        }
+
+    def finish_attempt(prepared: dict) -> dict:
+        task = prepared["task"]
+        task_id = prepared["task_id"]
+        evidence = prepared["evidence"]
+        key = prepared["reservation_key"]
+        invocation = prepared["invocation"]
+        try:
+            response = invocation.result()
+            payload, usage, provenance = _unwrap(response)
+            if len(_canonical(response)) > int(prepared["reservation"]["max_output_bytes"]):
+                raise ValueError("output_limit")
+            check_input_evidence_ids = None
+            if prepared["is_check"]:
+                if payload.get("outcome") not in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}:
+                    raise ValueError("invalid_check")
+                check_input_evidence_ids = validated_check_evidence(task, payload)
+            elif not all(
+                isinstance(payload.get(name), list)
+                for name in ("finding_candidates", "context_gap_proposals", "coverage_notes")
+            ):
+                raise ValueError("invalid_specialist_result")
+            else:
+                quarantined = list(payload.get("quarantined_items", []))
+                for field in ("specific_strengths", "future_guidance"):
+                    rows = payload.get(field, [])
+                    if not isinstance(rows, list):
+                        raise ValueError("invalid_specialist_notes")
+                    accepted = []
+                    for index, note in enumerate(rows):
+                        valid = (
+                            isinstance(note, dict)
+                            and set(note) == {"unit_id", "title", "observation", "detail", "evidence_refs"}
+                            and note.get("unit_id") in set(task.get("unit_ids", []))
+                            and all(
+                                isinstance(note.get(name), str)
+                                and note[name].strip()
+                                and len(note[name].encode("utf-8")) <= (256 if name == "title" else 2000)
+                                for name in ("title", "observation", "detail")
+                            )
+                            and isinstance(note.get("evidence_refs"), list)
+                            and 1 <= len(note["evidence_refs"]) <= 20
+                            and all(isinstance(ref, str) for ref in note["evidence_refs"])
+                            and set(note["evidence_refs"]).issubset(
+                                {item.get("evidence_id") for item in evidence if item.get("evidence_id")}
+                            )
+                        )
+                        if valid:
+                            accepted.append(note)
+                        else:
+                            quarantined.append(
+                                {
+                                    "kind": field,
+                                    "index": index,
+                                    "reason_code": "invalid_report_note",
+                                    "item_hash": _hash(note),
+                                }
+                            )
+                    payload[field] = accepted
+                payload["quarantined_items"] = quarantined
+            budget.settle(key, output_bytes=len(_canonical(response)), usage=usage, status="SUCCEEDED")
+            return {
+                "task_id": task_id,
+                "task_kind": prepared["kind"],
+                "lens": task.get("lens"),
+                "unit_ids": list(task.get("unit_ids", [])),
+                "status": "SUCCEEDED",
+                "input_hash": _hash(
+                    {
+                        "evidence": _hash(evidence),
+                        "snapshot_hash": snapshot.get("snapshot_hash"),
+                        "check_binding_id": task.get("check_binding_id"),
+                        "check_evidence_ids": check_input_evidence_ids,
+                    }
+                    if prepared["is_check"]
+                    else evidence
+                ),
+                "input_evidence_ids": check_input_evidence_ids
+                if prepared["is_check"]
+                else [item.get("evidence_id") for item in evidence if item.get("evidence_id")],
+                "output_hash": _hash(payload),
+                "payload": payload,
+                "quarantined_items": list(payload.get("quarantined_items", [])),
+                "source_contract_version": payload.get("source_contract_version"),
+                "usage": usage,
+                "provenance": provenance,
+                "attempts": prepared["attempt_index"] + 1,
+                "context_omissions": list(task.get("context_omissions", [])),
+                "required_context_omissions": list(task.get("required_context_omissions", [])),
+                "started_at": prepared["started_at"],
+                "finished_at": _now(),
+            }
+        except Exception as exc:
+            meta = getattr(exc, "meta", {})
+            usage = meta.get("usage", {}) if isinstance(meta, dict) else {}
+            try:
+                budget.settle(
+                    key,
+                    output_bytes=meta.get("actual_output_bytes") if isinstance(meta, dict) else None,
+                    usage=usage,
+                    status="INVALID" if isinstance(exc, ValueError) else "FAILED",
+                )
+            except (ValueError, KeyError):
+                pass
+            return {
+                "task_id": task_id,
+                "task_kind": task.get("task_kind"),
+                "lens": task.get("lens"),
+                "unit_ids": list(task.get("unit_ids", [])),
+                "status": "INVALID"
+                if isinstance(exc, ValueError) or getattr(exc, "remote_type", "") == "OutputLimitError"
+                else "TIMED_OUT"
+                if getattr(exc, "remote_type", "") == "TimeoutError"
+                else "FAILED",
+                "error_code": "INVALID_PROVIDER_RESULT" if isinstance(exc, ValueError) else str(exc)[:120],
+                "error_summary": type(exc).__name__,
+                "provider_error_meta": meta if isinstance(meta, dict) else {},
+                "input_hash": _hash(evidence),
+                "input_evidence_ids": []
+                if prepared["is_check"]
+                else [item.get("evidence_id") for item in evidence if item.get("evidence_id")],
+                "attempts": prepared["attempt_index"] + 1,
+                "started_at": prepared["started_at"],
+                "finished_at": _now(),
+            }
+
+    max_workers = int(limits["max_concurrent_scopes"])
+    max_context = int(limits["max_context_bytes"])
+    used_context = 0
+    ledger["outputs"] = task_results
+    ledger["planned_tasks"] = [t["task_id"] for t in tasks]
+    checkpoint()
+
+    queue: list[tuple[dict, int]] = []
+    for task in pending:
+        old = task_results.get(task["task_id"], {})
+        attempts_done = int(old.get("attempts", 0)) if isinstance(old, dict) else 0
+        prefix = task["task_id"] + ":"
+        reserved_attempts = [
+            int(key.rsplit(":", 1)[-1]) + 1
+            for key in budget.state["reservations"]
+            if key.startswith(prefix)
+            and key.rsplit(":", 1)[0].endswith((":review", ":check"))
+            and key.rsplit(":", 1)[-1].isdigit()
+        ]
+        attempts_done = max([attempts_done, *reserved_attempts])
+        if attempts_done < 1 + int(limits["max_retries_per_task"]):
+            queue.append((task, attempts_done))
+        elif attempts_done and task["task_id"] not in task_results:
+            task_results[task["task_id"]] = {
+                "task_id": task["task_id"],
+                "task_kind": task.get("task_kind"),
+                "lens": task.get("lens"),
+                "unit_ids": list(task.get("unit_ids", [])),
+                "status": "FAILED",
+                "error_code": "INTERRUPTED_UNKNOWN",
+                "input_evidence_ids": [],
+                "attempts": attempts_done,
+            }
+    active: dict[int, dict] = {}
+
+    def record_task_outcome(task: dict, outcome: dict, reservation_key: str | None = None) -> None:
+        with state_lock:
+            task_results[task["task_id"]] = outcome
+            ledger["outputs"] = task_results
+            if reservation_key:
+                ledger.setdefault("invocations", []).append(
+                    {
+                        "reservation_key": reservation_key,
+                        "task_id": task["task_id"],
+                        "status": outcome.get("status"),
+                        "input_hash": outcome.get("input_hash"),
+                        "output_hash": outcome.get("output_hash"),
+                        "provider_error_meta": outcome.get("provider_error_meta", {}),
+                        "attempt": outcome.get("attempts"),
+                        "at": outcome.get("finished_at", _now()),
+                    }
+                )
+            checkpoint()
+
+    while queue or active:
+        while queue and len(active) < max_workers and budget.remaining_seconds() > 0:
+            task, attempt_index = queue.pop(0)
+            evidence = evidence_cache[task["task_id"]]
+            estimated_size = review_input_size(task, evidence)
+            if used_context + estimated_size > max_context:
+                record_task_outcome(
+                    task,
+                    {
+                        "task_id": task["task_id"],
+                        "status": "SKIPPED",
+                        "error_code": "RUN_CONTEXT_BUDGET_EXHAUSTED",
+                        "attempts": attempt_index,
+                    },
+                )
+                continue
+            prepared = start_attempt(task, attempt_index)
+            if "invocation" not in prepared:
+                record_task_outcome(task, prepared)
+                continue
+            used_context += int(prepared["reservation"].get("input_bytes", estimated_size))
+            active[id(prepared["invocation"])] = prepared
+
+        completed_ids = []
+        for active_key, prepared in list(active.items()):
+            invocation = prepared["invocation"]
+            if invocation.poll():
+                outcome = finish_attempt(prepared)
+                completed_ids.append(active_key)
+                attempt_index = prepared["attempt_index"]
+                if (
+                    outcome.get("status") in {"FAILED", "INVALID", "TIMED_OUT"}
+                    and attempt_index < int(limits["max_retries_per_task"])
+                    and budget.remaining_seconds() > 0
+                ):
+                    queue.append((prepared["task"], attempt_index + 1))
+                    with state_lock:
+                        ledger.setdefault("invocations", []).append(
+                            {
+                                "reservation_key": prepared["reservation_key"],
+                                "task_id": prepared["task_id"],
+                                "status": outcome.get("status"),
+                                "provider_error_meta": outcome.get("provider_error_meta", {}),
+                                "attempt": attempt_index + 1,
+                                "at": _now(),
+                            }
+                        )
+                        checkpoint()
+                else:
+                    record_task_outcome(prepared["task"], outcome, prepared["reservation_key"])
+        for key in completed_ids:
+            active.pop(key, None)
+
+        if budget.remaining_seconds() <= 0:
+            for prepared in active.values():
+                prepared["invocation"].cancel()
+                outcome = {
+                    "task_id": prepared["task_id"],
+                    "status": "TIMED_OUT",
+                    "error_code": "DEADLINE_EXCEEDED",
+                    "error_summary": "TimeoutError",
+                    "input_hash": _hash(prepared["evidence"]),
+                    "attempts": prepared["attempt_index"] + 1,
+                    "finished_at": _now(),
+                }
+                try:
+                    budget.settle(prepared["reservation_key"], output_bytes=None, usage={}, status="TIMED_OUT")
+                except (ValueError, KeyError):
+                    pass
+                record_task_outcome(prepared["task"], outcome, prepared["reservation_key"])
+            active.clear()
+            for task, attempt_index in queue:
+                record_task_outcome(
+                    task,
+                    {
+                        "task_id": task["task_id"],
+                        "status": "SKIPPED",
+                        "error_code": "DEADLINE_EXHAUSTED",
+                        "attempts": attempt_index,
+                    },
+                )
+            queue.clear()
+        elif not completed_ids and active:
+            time.sleep(0.005)
+
+    ledger["outputs"] = task_results
+    checkpoint()
+
+    findings: list[dict] = list(ledger.get("findings", []))
+    context_gaps: list[dict] = list(ledger.get("context_gaps", []))
+    existing_gap_ids = {gap.get("proposal_id") for gap in context_gaps if isinstance(gap, dict)}
+    for task in tasks:
+        for evidence_id in task.get("required_context_omissions", []):
+            gap_id = f"{task['task_id']}:required-context-omission:{evidence_id}"
+            if gap_id in existing_gap_ids:
+                continue
+            evidence_item = snapshot.get("evidence", {}).get(evidence_id, {})
+            context_gaps.append(
+                {
+                    "task_id": task["task_id"],
+                    "proposal_id": gap_id,
+                    "status": "VALID_UNRESOLVED",
+                    "reason_code": "REQUIRED_CONTEXT_OMITTED_BY_INPUT_LIMIT",
+                    "path": evidence_item.get("path"),
+                    "evidence_id": evidence_id,
+                    "affected_obligation_ids": list(task.get("obligation_ids", [task.get("obligation_id")])),
+                    "affected_unit_ids": list(task.get("unit_ids", [])),
+                    "required_lens": task.get("lens"),
+                }
+            )
+            existing_gap_ids.add(gap_id)
+    gap_obligations: dict[str, list[str]] = {}
+    for gap in context_gaps:
+        if gap.get("status") == "RESOLVED_BY_FOLLOWUP":
+            continue
+        for oid in gap.get("affected_obligation_ids", []):
+            gap_obligations.setdefault(oid, []).append(gap["proposal_id"])
+    known_ids = {f.get("finding_id") for f in findings}
+    evidence_map = snapshot.get("evidence", {}) if isinstance(snapshot.get("evidence", {}), dict) else {}
+    unit_map = {u.get("unit_id"): u for u in snapshot.get("inventory", []) if isinstance(u, dict)}
+
+    def run_followup(task: dict, evidence: list[dict]) -> dict:
+        task_id = task["task_id"]
+        evidence_cache[task_id] = evidence
+        max_attempts = 1 + int(limits["max_retries_per_task"])
+        outcome: dict = {"task_id": task_id, "status": "SKIPPED", "error_code": "DEADLINE_EXHAUSTED", "attempts": 0}
+        attempt_prefix = task_id + ":review:"
+        prior_attempts = [
+            int(key[len(attempt_prefix) :]) + 1
+            for key in budget.state["reservations"]
+            if key.startswith(attempt_prefix) and key[len(attempt_prefix) :].isdigit()
+        ]
+        for attempt in range(max(prior_attempts, default=0), max_attempts):
+            if budget.remaining_seconds() <= 0:
+                break
+            prepared = start_attempt(task, attempt)
+            if "invocation" not in prepared:
+                outcome = prepared
+                break
+            invocation = prepared["invocation"]
+            while not invocation.poll() and budget.remaining_seconds() > 0:
+                time.sleep(0.005)
+            if invocation.poll():
+                outcome = finish_attempt(prepared)
+            else:
+                invocation.cancel()
+                try:
+                    budget.settle(prepared["reservation_key"], output_bytes=None, usage={}, status="TIMED_OUT")
+                except (ValueError, KeyError):
+                    pass
+                outcome = {
+                    "task_id": task_id,
+                    "task_kind": task.get("task_kind"),
+                    "status": "TIMED_OUT",
+                    "error_code": "DEADLINE_EXHAUSTED",
+                    "attempts": attempt + 1,
+                    "input_evidence_ids": [item.get("evidence_id") for item in evidence if item.get("evidence_id")],
+                    "input_hash": _hash(evidence),
+                }
+            record_task_outcome(task, outcome, prepared["reservation_key"])
+            if outcome.get("status") == "SUCCEEDED" or attempt + 1 >= max_attempts:
+                break
+        return outcome
+
+    for task in tasks:
+        result = task_results.get(task["task_id"], {})
+        if result.get("status") != "SUCCEEDED" or task["task_id"] in ledger.get("reconciled_tasks", []):
+            continue
+        payload = result.get("payload", {})
+        task_units = set(task.get("unit_ids", task.get("scope_unit_ids", [])))
+        for index, proposal in enumerate(payload.get("context_gap_proposals", [])):
+            record = {"task_id": task["task_id"], "proposal_id": f"{task['task_id']}:gap:{index}", "proposal": proposal}
+            valid = isinstance(proposal, dict) and proposal.get("evidence_kind") in {
+                "caller",
+                "implementation",
+                "test",
+                "configuration",
+                "contract",
+                "trust_boundary",
+                "provenance",
+                "other",
+            }
+            target = proposal.get("target", {}) if isinstance(proposal, dict) else {}
+            if (
+                not isinstance(target, dict)
+                or set(target) != {"target_unit_id", "target_path", "target_symbol"}
+                or sum(bool(target.get(k)) for k in target) != 1
+            ):
+                valid = False
+            target_unit = (
+                target.get("target_unit_id")
+                if isinstance(target, dict) and isinstance(target.get("target_unit_id"), str)
+                else None
+            )
+            if target_unit is None and isinstance(target, dict) and target.get("target_path"):
+                candidates = [uid for uid in task_units if unit_map.get(uid, {}).get("path") == target["target_path"]]
+                target_unit = candidates[0] if len(candidates) == 1 else None
+            lens = (
+                proposal.get("required_lens")
+                if isinstance(proposal, dict) and isinstance(proposal.get("required_lens"), str)
+                else None
+            )
+            refs = proposal.get("related_evidence_ids", []) if isinstance(proposal, dict) else []
+            valid_target = bool(
+                isinstance(target, dict)
+                and all(target.get(k) is None or isinstance(target.get(k), str) for k in target)
+                and (
+                    target_unit
+                    or target.get("target_symbol")
+                    or (
+                        isinstance(target.get("target_path"), str)
+                        and target["target_path"]
+                        and not target["target_path"].startswith("/")
+                        and ".." not in target["target_path"].split("/")
+                    )
+                )
+            )
+            valid = bool(
+                valid
+                and valid_target
+                and lens
+                in {"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"}
+                and isinstance(proposal.get("rationale"), str)
+                and proposal.get("rationale")
+                and isinstance(refs, list)
+                and all(isinstance(ref, str) for ref in refs)
+                and set(refs).issubset(set(task.get("evidence_ids", [])))
+                and refs
+            )
+            record["status"] = "VALID_UNRESOLVED" if valid else "INVALID"
+            record["resolved_unit_id"] = target_unit if valid else None
+            target_obligations = [
+                oid
+                for oid in task.get("obligation_ids", [task["obligation_id"]])
+                if lens is None or obligation_by_id[oid].get("lens") == lens
+            ]
+            record["affected_obligation_ids"] = target_obligations or task.get(
+                "obligation_ids", [task["obligation_id"]]
+            )
+            prior_index = next(
+                (i for i, existing in enumerate(context_gaps) if existing.get("proposal_id") == record["proposal_id"]),
+                None,
+            )
+            if prior_index is None:
+                context_gaps.append(record)
+            else:
+                context_gaps[prior_index].update(record)
+            if valid and callable(context_retriever) and ":followup:" not in task["task_id"]:
+                retrieval_key = f"{record['proposal_id']}:context-retrieval"
+                reserved_bytes = max(
+                    0,
+                    min(
+                        int(limits["max_input_bytes_per_task"]),
+                        int(limits["max_output_bytes_per_task"]),
+                        int(limits["max_context_bytes"]) - budget.summary()["context_bytes_reserved"],
+                    ),
+                )
+                retrieved = None
+                try:
+                    if reserved_bytes <= 0:
+                        raise BudgetExhausted("CONTEXT_BYTE_BUDGET_EXHAUSTED")
+                    budget.reserve_retrieval(retrieval_key, reserved_bytes)
+                    cached = ledger.get("retrieved_context", {}).get(record["proposal_id"])
+                    if isinstance(cached, dict):
+                        retrieved = cached.get("result")
+                        fetched = cached.get("evidence", [])
+                    else:
+                        retrieval_limits = {
+                            **remaining_call_limits(),
+                            "max_bytes": reserved_bytes,
+                            "max_retrieval_bytes": reserved_bytes,
+                            "context_bytes_remaining": reserved_bytes,
+                        }
+                        invocation = IsolatedInvocation(
+                            context_retriever,
+                            "__call__",
+                            (
+                                snapshot,
+                                profile,
+                                {**proposal, "_proposal_id": record["proposal_id"], "_task_id": task["task_id"]},
+                                retrieval_limits,
+                            ),
+                            deadline_seconds=budget.remaining_seconds(),
+                            output_limit=int(limits["max_output_bytes_per_task"]),
+                        )
+                        while not invocation.poll() and budget.remaining_seconds() > 0:
+                            time.sleep(0.005)
+                        if invocation.poll():
+                            retrieved = invocation.result()
+                        else:
+                            invocation.cancel()
+                            raise BudgetExhausted("DEADLINE_EXHAUSTED")
+                        fetched = retrieved.get("evidence", []) if isinstance(retrieved, dict) else []
+                        if isinstance(fetched, dict):
+                            fetched = [fetched]
+                        elif fetched is None:
+                            fetched = []
+                    if not isinstance(retrieved, dict) or retrieved.get("status") not in {
+                        "RESOLVED",
+                        "PARTIAL",
+                        "UNRESOLVED",
+                    }:
+                        raise ValueError("invalid_context_retrieval_result")
+                    if not isinstance(fetched, list):
+                        raise ValueError("invalid_context_retrieval_evidence")
+                    target_path = target.get("target_path") if isinstance(target, dict) else None
+                    patterns = profile.get("retrieval_context_patterns") or profile.get("context_paths") or []
+                    if not isinstance(patterns, list):
+                        patterns = []
+                    verified, byte_count = [], 0
+                    for item in fetched:
+                        if not isinstance(item, dict):
+                            raise ValueError("invalid_context_retrieval_evidence")
+                        content = item.get("content")
+                        path = item.get("path")
+                        if not isinstance(content, str) or not isinstance(path, str):
+                            raise ValueError("invalid_context_retrieval_evidence")
+                        raw_bytes = content.encode("utf-8")
+                        byte_count += len(raw_bytes)
+                        if (
+                            item.get("snapshot_id") != snapshot.get("snapshot_id")
+                            or item.get("trust") not in {"repository_evidence", "trusted_policy"}
+                            or item.get("source_kind") != "repository_file"
+                            or item.get("source_revision") not in {snapshot.get("base_sha"), snapshot.get("head_sha")}
+                            or not isinstance(item.get("content_hash"), str)
+                            or hashlib.sha256(raw_bytes).hexdigest() != item.get("content_hash")
+                            or not isinstance(item.get("evidence_id"), str)
+                            or item.get("evidence_id")
+                            != "ev-"
+                            + hashlib.sha256(
+                                _canonical(
+                                    {
+                                        "snapshot_id": snapshot.get("snapshot_id"),
+                                        "revision": item.get("source_revision"),
+                                        "path": path,
+                                        "hash": item.get("content_hash"),
+                                    }
+                                )
+                            ).hexdigest()[:24]
+                            or item.get("proposal_id") not in (None, record["proposal_id"])
+                            or item.get("task_id") not in (None, task["task_id"])
+                            or not any(fnmatch.fnmatchcase(path, pat) for pat in patterns if isinstance(pat, str))
+                            or (target_path and path != target_path)
+                        ):
+                            raise ValueError("context_retrieval_evidence_binding_failed")
+                        verified.append(item)
+                    if byte_count > reserved_bytes:
+                        raise BudgetExhausted("CONTEXT_RETRIEVAL_BYTE_LIMIT_EXCEEDED")
+                    budget.settle(retrieval_key, output_bytes=byte_count, usage={}, status=retrieved["status"])
+                    record["retrieval_status"] = retrieved["status"]
+                    record["retrieval_reason"] = retrieved.get("reason")
+                    record["retrieved_evidence_ids"] = [item["evidence_id"] for item in verified]
+                    record["retrieved_bytes"] = byte_count
+                    if not isinstance(cached, dict):
+                        ledger.setdefault("retrieved_context", {})[record["proposal_id"]] = {
+                            "result": retrieved,
+                            "evidence": verified,
+                        }
+                    for item in verified:
+                        evidence_map[item["evidence_id"]] = item
+                    checkpoint()
+                except Exception as exc:
+                    record["retrieval_status"] = "UNRESOLVED"
+                    record["retrieval_reason"] = str(exc)[:120]
+                    try:
+                        if (
+                            retrieval_key in ledger["budget"]["reservations"]
+                            and retrieval_key not in ledger["budget"]["settlements"]
+                        ):
+                            budget.settle(retrieval_key, output_bytes=None, usage={}, status="FAILED")
+                    except (ValueError, KeyError):
+                        pass
+
+                if retrieved and retrieved.get("status") == "RESOLVED" and record.get("retrieved_evidence_ids"):
+                    followup_id = f"{task['task_id']}:followup:{index}"
+                    followup_obligation_id = f"context:{record['proposal_id']}"
+                    followup_task = {
+                        **task,
+                        "task_id": followup_id,
+                        "obligation_id": followup_obligation_id,
+                        "obligation_ids": [followup_obligation_id],
+                        "unit_ids": [target_unit] if target_unit else list(task_units),
+                        "scope_unit_ids": [target_unit] if target_unit else list(task_units),
+                        "evidence_ids": list(
+                            dict.fromkeys(list(task.get("evidence_ids", [])) + record["retrieved_evidence_ids"])
+                        ),
+                        "context_gap_followup_for": record["proposal_id"],
+                        "lens": lens,
+                    }
+                    followup_evidence = [
+                        *evidence_cache.get(task["task_id"], []),
+                        *(evidence_map[eid] for eid in record["retrieved_evidence_ids"]),
+                    ]
+                    try:
+                        budget.reserve_followup(followup_id)
+                        obligation = {
+                            "obligation_id": followup_obligation_id,
+                            "obligation_kind": "REQUIRED_CONTEXT",
+                            "required": True,
+                            "scope_unit_ids": followup_task["unit_ids"],
+                            "lens": lens,
+                            "parent_obligation_ids": list(record["affected_obligation_ids"]),
+                            "context_gap_id": record["proposal_id"],
+                            "retrieved_evidence_ids": list(record["retrieved_evidence_ids"]),
+                        }
+                        obligation_by_id[followup_obligation_id] = obligation
+                        if not any(o.get("obligation_id") == followup_obligation_id for o in obligations):
+                            obligations.append(obligation)
+                        prior_task = next((t for t in tasks if t.get("task_id") == followup_id), None)
+                        if prior_task is None:
+                            tasks.append(followup_task)
+                            ledger.setdefault("dynamic_tasks", []).append(followup_task)
+                        else:
+                            followup_task = prior_task
+                        checkpoint()
+                        followup_result = task_results.get(followup_id)
+                        if not isinstance(followup_result, dict):
+                            followup_result = run_followup(followup_task, followup_evidence)
+                        notes = followup_result.get("payload", {}).get("coverage_notes", [])
+                        covered = any(
+                            isinstance(note, dict)
+                            and note.get("unit_id") in set(followup_task["unit_ids"])
+                            and note.get("state") == "COVERED"
+                            and note.get("coverage_basis") == "STATIC_REVIEW"
+                            and set(note.get("evidence_refs", [])) & set(record["retrieved_evidence_ids"])
+                            and set(note.get("evidence_refs", [])).issubset(
+                                set(followup_result.get("input_evidence_ids", []))
+                            )
+                            for note in notes
+                        )
+                        if covered:
+                            record["status"] = "RESOLVED_BY_FOLLOWUP"
+                            record["followup_task_id"] = followup_id
+                        else:
+                            record["status"] = "VALID_UNRESOLVED"
+                            record["followup_task_id"] = followup_id
+                    except (BudgetExhausted, ValueError) as exc:
+                        record["followup_error"] = str(exc)[:120]
+
+            # The final gap map is rebuilt after all persisted/new proposals are reconciled.
+        for index, raw in enumerate(payload.get("finding_candidates", [])):
+            candidate_id = _hash({"task_id": task["task_id"], "index": index, "raw": raw})[:24]
+            if not isinstance(raw, dict):
+                ledger.setdefault("candidate_records", []).append(
+                    {
+                        "candidate_id": candidate_id,
+                        "task_id": task["task_id"],
+                        "validation_state": "INVALID",
+                        "validation_reason": "candidate_not_object",
+                        "raw_hash": _hash(raw),
+                    }
+                )
+                continue
+            candidate = dict(raw)
+            candidate["candidate_id"] = candidate_id
+            candidate["task_id"] = task["task_id"]
+            candidate["snapshot_id"] = snapshot.get("snapshot_id")
+            task_units = set(task.get("unit_ids", task.get("scope_unit_ids", [])))
+            refs = candidate.get("evidence_refs", [])
+            supplied_ids = set(task.get("evidence_ids", []))
+            valid_refs = [ref for ref in refs if isinstance(ref, str) and ref in supplied_ids and ref in evidence_map]
+            location_valid, location, line, uid = validate_location(candidate, None, task_units, unit_map)
+            if location.get("kind") == "file" and unit_map.get(uid):
+                anchor = unit_map[uid].get("file_level_location")
+                anchor_id = anchor.get("evidence_id") if isinstance(anchor, dict) else None
+                anchor_hash = anchor.get("evidence_hash") if isinstance(anchor, dict) else None
+                anchor_record = evidence_map.get(anchor_id) if isinstance(anchor_id, str) else None
+                anchor_side = anchor.get("side") if isinstance(anchor, dict) else None
+                expected_revision = snapshot.get("base_sha") if anchor_side == "BASE" else snapshot.get("head_sha")
+                expected_source_kind = "base_file" if anchor_side == "BASE" else "head_file"
+                anchor_valid = bool(
+                    isinstance(anchor, dict)
+                    and anchor.get("kind") == "file"
+                    and anchor_side in {"BASE", "HEAD"}
+                    and isinstance(anchor_id, str)
+                    and isinstance(anchor_hash, str)
+                    and re.fullmatch(r"[0-9a-f]{64}", anchor_hash)
+                    and anchor_id in set(unit_map[uid].get("evidence_ids", []))
+                    and anchor_id in supplied_ids
+                    and anchor_id in valid_refs
+                    and isinstance(anchor_record, dict)
+                    and anchor_record.get("evidence_id") == anchor_id
+                    and anchor_record.get("path") == anchor.get("path")
+                    and anchor_record.get("source_revision") == expected_revision
+                    and anchor_record.get("source_kind") == expected_source_kind
+                    and anchor_record.get("snapshot_id") == snapshot.get("snapshot_id")
+                    and anchor_record.get("content_hash") == anchor_hash
+                    and anchor_record.get("content_truncated") is False
+                )
+                location_valid = location_valid and anchor_valid
+            candidate["location"] = location
+            candidate["unit_id"] = uid
+            unit = unit_map.get(uid)
+            structurally_valid = bool(
+                unit
+                and uid in task_units
+                and candidate.get("observation")
+                and candidate.get("consequence")
+                and candidate.get("rule_or_contract")
+                and refs
+                and len(valid_refs) == len(refs)
+                and location_valid
+            )
+            candidate["validation_state"] = "VALID" if structurally_valid else "NEEDS_CONTEXT"
+            candidate["validation_reason"] = (
+                "snapshot_location_and_evidence_validated"
+                if structurally_valid
+                else "location_or_evidence_not_validated"
+            )
+            fid = stable_candidate_id(snapshot.get("snapshot_id", ""), candidate)
+            ledger.setdefault("candidate_records", []).append(
+                {
+                    "candidate_id": candidate_id,
+                    "finding_id": fid,
+                    "task_id": task["task_id"],
+                    "snapshot_id": snapshot.get("snapshot_id"),
+                    "validation_state": candidate["validation_state"],
+                    "validation_reason": candidate["validation_reason"],
+                    "raw": candidate,
+                }
+            )
+            known_ids.add(fid)
+            assessment = None
+            semantic_result = None
+            reservation_key = None
+            causal_roles_valid = False
+            semantic_role_refs: set[str] = set()
+            if structurally_valid and provider is not None and callable(getattr(provider, "adjudicate", None)):
+                try:
+                    adjudication_evidence = evidence_cache[task["task_id"]]
+                    candidate_hash = _hash(candidate)
+                    adjudication_input_hash = _hash(
+                        {
+                            "candidate": candidate,
+                            "evidence": adjudication_evidence,
+                            "semantic_contract_version": _ADJUDICATION_V3,
+                            "semantic_rubric_version": _ADJUDICATION_RUBRIC,
+                            "provider_identity_hash": _hash(provider_identity),
+                        }
+                    )
+                    cached_assessment = ledger.get("adjudications", {}).get(candidate_id)
+                    cached_payload = (
+                        cached_assessment.get("assessment") if isinstance(cached_assessment, dict) else None
+                    )
+                    cached_provenance = (
+                        cached_assessment.get("provenance") if isinstance(cached_assessment, dict) else None
+                    )
+                    reused_assessment = bool(
+                        isinstance(cached_assessment, dict)
+                        and cached_assessment.get("candidate_hash") == candidate_hash
+                        and cached_assessment.get("input_hash") == adjudication_input_hash
+                        and isinstance(cached_payload, dict)
+                        and cached_payload.get("contract_version") == _ADJUDICATION_V3
+                        and cached_payload.get("source_contract_version") == _ADJUDICATION_V3
+                        and isinstance(cached_provenance, dict)
+                        and cached_provenance.get("provider_rubric_version") == _ADJUDICATION_RUBRIC
+                    )
+                    if reused_assessment:
+                        assessment = cached_assessment["assessment"]
+                        semantic_usage = cached_assessment.get("usage", {})
+                        semantic_provenance = cached_assessment.get("provenance", {})
+                    else:
+                        prefix = (
+                            f"{task['task_id']}:adjudicate:{_ADJUDICATION_V3}:{_ADJUDICATION_RUBRIC}:"
+                            f"{candidate_id}:attempt:"
+                        )
+                        attempts = [
+                            int(key[len(prefix) :])
+                            for key in budget.state["reservations"]
+                            if key.startswith(prefix) and key[len(prefix) :].isdigit()
+                        ]
+                        adjudication_attempt = max(attempts, default=-1) + 1
+                        reservation_key = f"{prefix}{adjudication_attempt}"
+                        reservation = reserve_provider_call(
+                            reservation_key,
+                            provider,
+                            "SEMANTIC_ADJUDICATION",
+                            {**task, "candidate": candidate},
+                            adjudication_evidence,
+                            len(_canonical({"candidate": candidate, "evidence": adjudication_evidence})),
+                        )
+                        response = isolated_call(
+                            provider,
+                            "adjudicate",
+                            (candidate, adjudication_evidence, remaining_call_limits()),
+                            deadline_seconds=min(
+                                float(reservation.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
+                                remaining_call_limits()["deadline_seconds"],
+                            ),
+                            output_limit=int(reservation["max_output_bytes"]),
+                            lock=call_lock,
+                        )
+                        assessment, semantic_usage, semantic_provenance = _unwrap(response)
+                    assessment_refs = assessment.get("evidence_refs", [])
+                    delivered_ids = {
+                        item.get("evidence_id")
+                        for item in adjudication_evidence
+                        if isinstance(item, dict) and isinstance(item.get("evidence_id"), str)
+                    }
+                    support_keys = ("observation_support", "consequence_support", "rule_connection_support")
+                    if (
+                        assessment.get("outcome") not in {"SUPPORTED", "NOT_SUPPORTED", "UNCERTAIN", "CONTRADICTED"}
+                        or not isinstance(assessment_refs, list)
+                        or any(not isinstance(ref, str) or ref not in delivered_ids for ref in assessment_refs)
+                        or assessment.get("introducedness")
+                        not in {"INTRODUCED", "REEXPOSED", "PRE_EXISTING", "UNKNOWN"}
+                        or any(
+                            assessment.get(k) not in {"SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED"}
+                            for k in support_keys
+                        )
+                        or not isinstance(assessment.get("material_consequence"), bool)
+                        or (assessment.get("outcome") == "SUPPORTED" and not assessment_refs)
+                    ):
+                        assessment = {"outcome": "UNCERTAIN"}
+                    causal_roles_valid, semantic_role_refs = _validated_v3_causal_roles(
+                        assessment,
+                        adjudication_evidence,
+                        evidence_map,
+                        snapshot.get("snapshot_id"),
+                        provider_identity,
+                        semantic_provenance,
+                    )
+                    semantic_result = assessment
+                    if not reused_assessment:
+                        ledger.setdefault("adjudications", {})[candidate_id] = {
+                            "candidate_hash": candidate_hash,
+                            "input_hash": adjudication_input_hash,
+                            "assessment": assessment,
+                            "usage": semantic_usage,
+                            "provenance": semantic_provenance,
+                            "reservation_key": reservation_key,
+                        }
+                        checkpoint()
+                        budget.settle(
+                            reservation_key,
+                            output_bytes=len(_canonical(response)),
+                            usage=semantic_usage,
+                            status="SUCCEEDED" if assessment.get("outcome") != "UNCERTAIN" else "INVALID",
+                        )
+                except Exception as exc:
+                    assessment = {"outcome": "UNCERTAIN", "reason": type(exc).__name__}
+                    remote_meta = getattr(exc, "meta", {})
+                    semantic_usage = remote_meta.get("usage", {}) if isinstance(remote_meta, dict) else {}
+                    semantic_provenance = {"error_meta": remote_meta} if remote_meta else {}
+                    if reservation_key is not None:
+                        try:
+                            budget.settle(
+                                reservation_key,
+                                output_bytes=remote_meta.get("actual_output_bytes")
+                                if isinstance(remote_meta, dict)
+                                else None,
+                                usage=semantic_usage,
+                                status="FAILED",
+                            )
+                        except (ValueError, KeyError):
+                            pass
+            else:
+                semantic_usage, semantic_provenance = {}, {}
+            introduced = (assessment or {}).get("introducedness", "UNKNOWN")
+            causal_roles = (assessment or {}).get("causal_roles", {})
+            causal_path_supported = bool(
+                causal_roles_valid and all(causal_roles[role].get("support") == "SUPPORTED" for role in _CAUSAL_ROLES)
+            )
+            claim_supported = (
+                structurally_valid
+                and assessment
+                and assessment.get("outcome") == "SUPPORTED"
+                and causal_path_supported
+                and all(
+                    assessment.get(key) == "SUPPORTED" for key in ("observation_support", "rule_connection_support")
+                )
+            )
+            claim_supported = bool(claim_supported and introduced in {"INTRODUCED", "REEXPOSED", "PRE_EXISTING"})
+            supported = bool(claim_supported and introduced in {"INTRODUCED", "REEXPOSED"})
+            materiality = (assessment or {}).get("material_consequence")
+            blocking = bool(supported and materiality is True and assessment.get("consequence_support") == "SUPPORTED")
+            unresolved = (
+                not structurally_valid
+                or assessment is None
+                or not causal_roles_valid
+                or not causal_path_supported
+                or assessment.get("outcome") in {"UNCERTAIN", "CONTRADICTED"}
+                or introduced == "UNKNOWN"
+                or (assessment.get("outcome") == "SUPPORTED" and (not claim_supported or materiality is None))
+            )
+            status = (
+                "ACCEPTED"
+                if claim_supported
+                else (
+                    "NEEDS_EVIDENCE"
+                    if not structurally_valid
+                    else "CONTRADICTED"
+                    if assessment and assessment.get("outcome") == "CONTRADICTED"
+                    else "UNSUPPORTED"
+                    if assessment and assessment.get("outcome") == "NOT_SUPPORTED"
+                    else "NEEDS_EVIDENCE"
+                )
+            )
+            location = dict(candidate.get("location", {})) if isinstance(candidate.get("location", {}), dict) else {}
+            path = location.get("path") or candidate.get("path") or (unit.get("path") if unit else None)
+            location["path"] = path
+            location["side"] = location.get("side", "HEAD")
+            if line is not None:
+                location["line"] = line
+            finding = {
+                "finding_id": fid,
+                "candidate_id": candidate_id,
+                "task_id": task["task_id"],
+                "snapshot_id": snapshot.get("snapshot_id"),
+                "unit_id": uid,
+                "location": location,
+                "path": path,
+                "title": str(candidate.get("title", "Unverified finding"))[:300],
+                "observation": str(candidate.get("observation", ""))[:2000],
+                "consequence": str(candidate.get("consequence", ""))[:2000],
+                "rule_or_contract": str(candidate.get("rule_or_contract", ""))[:1000],
+                "evidence_refs": sorted(set(valid_refs) | semantic_role_refs),
+                "status": status,
+                "severity": candidate.get("severity", "unknown"),
+                "introducedness": introduced,
+                "blocking_class": "BLOCKING" if blocking else "UNRESOLVED" if unresolved else "NON_BLOCKING",
+                "blocking_rationale": "Evidence and semantic assessment support a material changed behavior or trusted policy consequence."
+                if blocking
+                else "Not established as a blocker by the bounded evidence and policy rules.",
+                "semantic_assessment": semantic_result,
+                "semantic_usage": semantic_usage,
+                "semantic_provenance": semantic_provenance,
+            }
+            findings.append(finding)
+        ledger.setdefault("reconciled_tasks", []).append(task["task_id"])
+
+    findings = consolidate_findings(findings)
+    gap_obligations = {}
+    for gap in context_gaps:
+        if gap.get("status") != "RESOLVED_BY_FOLLOWUP":
+            for oid in gap.get("affected_obligation_ids", []):
+                gap_obligations.setdefault(oid, []).append(gap["proposal_id"])
+
+    coverage = []
+    for obligation_id, obligation in obligation_by_id.items():
+        related = [t for t in tasks if obligation_id in t.get("obligation_ids", [t["obligation_id"]])]
+        preflight_skips = [row for row in split_skips.values() if obligation_id in row.get("obligation_ids", [])]
+        results = [task_results.get(t["task_id"], {}) for t in related]
+        successful = bool(related) and not preflight_skips and all(r.get("status") == "SUCCEEDED" for r in results)
+        check_evidence_refs: set[str] = set()
+        check_result_evidence_invalid = False
+        if successful:
+            # No-finding success is a completed result. A check UNKNOWN/ERROR remains partial.
+            successful = all(r.get("payload", {}).get("outcome") not in {"UNKNOWN", "ERROR"} for r in results)
+            if any(
+                item.get("kind") not in {"specific_strengths", "future_guidance"}
+                for result_row in results
+                for item in result_row.get("quarantined_items", [])
+            ):
+                successful = False
+            if obligation.get("obligation_kind") == "CHANGED_UNIT_LENS":
+                scope_units = set(obligation.get("scope_unit_ids", []))
+                for task, task_result in zip(related, results):
+                    if task_result.get("status") != "SUCCEEDED":
+                        successful = False
+                        continue
+                    notes = task_result.get("payload", {}).get("coverage_notes", [])
+                    unit_evidence = {
+                        u.get("unit_id"): set(u.get("evidence_ids", []))
+                        for u in snapshot.get("inventory", [])
+                        if isinstance(u, dict)
+                    }
+                    covered = {
+                        n.get("unit_id")
+                        for n in notes
+                        if isinstance(n, dict)
+                        and n.get("state") == "COVERED"
+                        and n.get("coverage_basis") == "STATIC_REVIEW"
+                        and n.get("evidence_refs")
+                        and set(n.get("evidence_refs", [])).issubset(set(task_result.get("input_evidence_ids", [])))
+                        and set(n.get("evidence_refs", [])) & unit_evidence.get(n.get("unit_id"), set())
+                    }
+                    if not (set(task.get("unit_ids", [])) & scope_units) <= covered:
+                        successful = False
+                    if any(
+                        item.get("kind") not in {"specific_strengths", "future_guidance"}
+                        for item in task_result.get("quarantined_items", [])
+                    ):
+                        successful = False
+            if obligation.get("obligation_kind") == "REQUIRED_CONTEXT":
+                required_ids = set(obligation.get("retrieved_evidence_ids", []))
+                for task_result in results:
+                    notes = task_result.get("payload", {}).get("coverage_notes", [])
+                    evidence_ids = set(task_result.get("input_evidence_ids", []))
+                    covered = any(
+                        isinstance(note, dict)
+                        and note.get("state") == "COVERED"
+                        and note.get("coverage_basis") == "STATIC_REVIEW"
+                        and note.get("unit_id") in set(obligation.get("scope_unit_ids", []))
+                        and set(note.get("evidence_refs", [])) & required_ids
+                        and set(note.get("evidence_refs", [])).issubset(evidence_ids)
+                        for note in notes
+                    )
+                    if not covered or any(
+                        item.get("kind") not in {"specific_strengths", "future_guidance"}
+                        for item in task_result.get("quarantined_items", [])
+                    ):
+                        successful = False
+        if obligation.get("obligation_kind") == "PROJECT_CHECK":
+            expected_binding = obligation.get("check_binding_id")
+            for task, task_result in zip(related, results):
+                if task_result.get("status") != "SUCCEEDED":
+                    continue
+                try:
+                    refs = validated_check_evidence(task, task_result.get("payload", {}))
+                except (AttributeError, TypeError, ValueError):
+                    check_result_evidence_invalid = True
+                    continue
+                dispatched_refs = task_result.get("input_evidence_ids")
+                if (
+                    task.get("task_kind") != "DETERMINISTIC_CHECK"
+                    or task.get("check_binding_id") != expected_binding
+                    or not isinstance(dispatched_refs, list)
+                    or dispatched_refs != refs
+                ):
+                    check_result_evidence_invalid = True
+                    continue
+                check_evidence_refs.update(refs)
+            if check_result_evidence_invalid:
+                successful = False
+        state = (
+            "PARTIAL"
+            if gap_obligations.get(obligation_id)
+            else "COMPLETE"
+            if successful
+            else "PARTIAL"
+            if any(r.get("status") not in {None, "SKIPPED"} for r in results)
+            else "NOT_STARTED"
+        )
+        coverage.append(
+            {
+                "coverage_id": _hash({"run_id": run_id, "obligation": obligation_id})[:20],
+                "run_id": run_id,
+                "snapshot_id": snapshot.get("snapshot_id"),
+                **obligation,
+                "state": state,
+                "reason_code": "CONTEXT_GAP_UNRESOLVED"
+                if gap_obligations.get(obligation_id)
+                else "VALID_RESULT"
+                if successful
+                else "CHECK_RESULT_EVIDENCE_INVALID"
+                if check_result_evidence_invalid
+                else next(
+                    (r.get("error_code", "MISSING_RESULT") for r in results if r.get("status") != "SUCCEEDED"),
+                    next((row.get("error_code", "MISSING_RESULT") for row in preflight_skips), "MISSING_RESULT"),
+                ),
+                "context_gap_ids": gap_obligations.get(obligation_id, []),
+                "task_ids": list(
+                    dict.fromkeys(
+                        [t["task_id"] for t in related]
+                        + [row["task_id"] for row in preflight_skips if isinstance(row.get("task_id"), str)]
+                    )
+                ),
+                "evidence_refs": sorted(check_evidence_refs)
+                if obligation.get("obligation_kind") == "PROJECT_CHECK"
+                else sorted({eid for t in related for eid in t.get("evidence_ids", [])}),
+                "updated_at": _now(),
+            }
+        )
+    required_cov = [c for c in coverage if c.get("required", True)]
+    coverage_state = (
+        "COMPLETE"
+        if all(c["state"] == "COMPLETE" for c in required_cov)
+        else "NOT_STARTED"
+        if not any(c["state"] != "NOT_STARTED" for c in required_cov)
+        else "PARTIAL"
+    )
+    freshness = "UNKNOWN"
+    freshness_details = {"expected_head_sha": snapshot.get("head_sha"), "observed_head_sha": None}
+    if callable(freshness_check):
+        try:
+            check = _bounded_freshness(freshness_check, budget.remaining_seconds())
+            if isinstance(check, dict) and check.get("freshness") in {"CURRENT", "STALE", "UNKNOWN"}:
+                freshness = check["freshness"]
+                freshness_details.update({k: v for k, v in check.items() if k != "freshness"})
+        except Exception:
+            freshness = "UNKNOWN"
+    elif snapshot.get("freshness_basis") == "HISTORICAL_SNAPSHOT" and snapshot.get("snapshot_hash"):
+        freshness = "CURRENT"
+        freshness_details["freshness_basis"] = "HISTORICAL_SNAPSHOT"
+
+    blockers = [f for f in findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"]
+
+    def report_notes(field: str, detail_name: str) -> list[dict]:
+        notes: dict[str, dict] = {}
+        for task in tasks:
+            outcome = task_results.get(task["task_id"], {})
+            if outcome.get("status") != "SUCCEEDED":
+                continue
+            for note in outcome.get("payload", {}).get(field, []):
+                refs = list(note.get("evidence_refs", []))
+                basis = {
+                    "unit_id": note["unit_id"],
+                    "title": note["title"],
+                    "observation": note["observation"],
+                    "detail": note["detail"],
+                }
+                note_id = "note-" + _hash({"snapshot_id": snapshot.get("snapshot_id"), "kind": field, **basis})[:20]
+                item = notes.setdefault(
+                    note_id,
+                    {
+                        "finding_id": note_id,
+                        "note_id": note_id,
+                        "snapshot_id": snapshot.get("snapshot_id"),
+                        "unit_id": note["unit_id"],
+                        "title": note["title"],
+                        "observation": note["observation"],
+                        detail_name: note["detail"],
+                        "evidence_refs": [],
+                        "task_ids": [],
+                    },
+                )
+                item["evidence_refs"] = sorted(set(item["evidence_refs"]) | set(refs))
+                item["task_ids"] = sorted(set(item["task_ids"]) | {task["task_id"]})
+        return [notes[key] for key in sorted(notes)]
+
+    accepted_improvements = [
+        f for f in findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "NON_BLOCKING"
+    ]
+    report_sections = {
+        "blockers": [
+            {
+                "finding_id": f["finding_id"],
+                "snapshot_id": f.get("snapshot_id"),
+                "unit_id": f.get("unit_id"),
+                "title": f["title"],
+                "status": f["status"],
+                "path": f["path"],
+                "line": (f.get("location") or {}).get("line"),
+                "location": f.get("location"),
+                "observation": f["observation"],
+                "consequence": f["consequence"],
+                "rule_or_contract": f["rule_or_contract"],
+                "rationale": f["blocking_rationale"],
+                "evidence_refs": f["evidence_refs"],
+            }
+            for f in blockers
+        ],
+        "suggested_improvements": [
+            {
+                "finding_id": f["finding_id"],
+                "snapshot_id": f.get("snapshot_id"),
+                "unit_id": f.get("unit_id"),
+                "title": f["title"],
+                "status": f["status"],
+                "path": f["path"],
+                "line": (f.get("location") or {}).get("line"),
+                "location": f.get("location"),
+                "observation": f["observation"],
+                "consequence": f["consequence"],
+                "rule_or_contract": f["rule_or_contract"],
+                "rationale": f["blocking_rationale"],
+                "evidence_refs": f["evidence_refs"],
+            }
+            for f in accepted_improvements
+        ],
+        "specific_strengths": report_notes("specific_strengths", "why_it_matters"),
+        "future_guidance": report_notes("future_guidance", "guidance"),
+    }
+    result = {
+        "contract_version": "0.1",
+        "run_id": run_id,
+        "snapshot_id": snapshot.get("snapshot_id"),
+        "base_sha": snapshot.get("base_sha"),
+        "head_sha": snapshot.get("head_sha"),
+        "project_profile_version": profile.get(
+            "version",
+            profile.get("profile_version", snapshot.get("profile_version", snapshot.get("project_profile_version"))),
+        ),
+        "coverage_state": coverage_state,
+        "freshness": freshness,
+        "freshness_details": freshness_details,
+        "disposition": "INCOMPLETE",
+        "merge_eligibility": "NOT_EVALUATED",
+        "findings": findings,
+        "coverage_ledger": coverage,
+        "report_sections": report_sections,
+        "created_at": ledger.get("created_at", _now()),
+        "completed_at": _now(),
+        "provider_identity": provider_identity,
+        "repository": snapshot.get("repository"),
+        "pull_request_number": snapshot.get("pull_request_number"),
+        "repository_url": snapshot.get("repository_url"),
+        "budget": budget.summary(),
+        "task_results": task_results,
+        "policy_valid": bool(plan.get("policy_valid", False)),
+        "allow_empty_approve": approval_authority,
+        "context_gaps": context_gaps,
+        "snapshot_gaps": snapshot.get("gaps", []),
+        "routing_reasons": plan.get("routing_reasons", []),
+        "not_applicable": plan.get("not_applicable", []),
+        "evidence_index": {
+            eid: {
+                k: ev.get(k)
+                for k in (
+                    "path",
+                    "line_start",
+                    "line_end",
+                    "source_revision",
+                    "source_object_id",
+                    "source_object_format",
+                    "source_object_size_bytes",
+                    "content_truncated",
+                    "source_side",
+                    "source_kind",
+                    "content_hash",
+                    "trust",
+                    "source_url",
+                    "object_id",
+                    "byte_count",
+                )
+                if ev.get(k) is not None
+            }
+            for eid, ev in evidence_map.items()
+        },
+        "context_omissions": [
+            {"task_id": tid, "evidence_id": eid, "reason": "input_byte_limit"}
+            for tid, tr in task_results.items()
+            for eid in tr.get("context_omissions", [])
+        ],
+    }
+    result["disposition"] = _reduce(
+        result,
+        approval_authority,
+        result["policy_valid"],
+    )
+    advisory_assessment = {"status": "NOT_CONFIGURED"}
+    if decision_provider is not None and callable(getattr(decision_provider, "assess", None)):
+        advisory_attempt = (
+            max(
+                (
+                    int(key.rsplit(":", 1)[-1])
+                    for key in budget.state["reservations"]
+                    if key.startswith("system-one:advisory:") and key.rsplit(":", 1)[-1].isdigit()
+                ),
+                default=-1,
+            )
+            + 1
+        )
+        reservation_key = f"system-one:advisory:{advisory_attempt}"
+        try:
+            advisory_text = json.dumps(
+                {
+                    "mode": plan.get("mode"),
+                    "coverage_state": coverage_state,
+                    "required_scopes": len(required_cov),
+                    "finding_ids": [f["finding_id"] for f in findings],
+                    "routing_reasons": plan.get("routing_reasons", []),
+                },
+                sort_keys=True,
+            )
+            reservation = reserve_provider_call(
+                reservation_key,
+                decision_provider,
+                "SYSTEM_ONE_ASSESSMENT",
+                {"task_id": reservation_key},
+                [{"content": advisory_text}],
+                len(advisory_text.encode("utf-8")),
+            )
+            response = isolated_call(
+                decision_provider,
+                "assess",
+                (
+                    "Provide an advisory risk/context assessment of this bounded deterministic review summary. Do not decide disposition or clear findings.",
+                    advisory_text,
+                    remaining_call_limits(),
+                ),
+                deadline_seconds=min(
+                    float(reservation.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
+                    remaining_call_limits()["deadline_seconds"],
+                ),
+                output_limit=int(reservation["max_output_bytes"]),
+                lock=call_lock,
+            )
+            payload, usage, provenance = _unwrap(response)
+            budget.settle(reservation_key, output_bytes=len(_canonical(response)), usage=usage, status="SUCCEEDED")
+            advisory_assessment = {
+                "status": "RECEIVED",
+                "result": payload,
+                "usage": usage,
+                "provenance": provenance,
+            }
+        except BudgetExhausted as exc:
+            advisory_assessment = {"status": "NOT_RUN", "reason": str(exc)}
+        except Exception as exc:
+            meta = getattr(exc, "meta", {})
+            usage = meta.get("usage", {}) if isinstance(meta, dict) else {}
+            try:
+                budget.settle(
+                    reservation_key,
+                    output_bytes=meta.get("actual_output_bytes") if isinstance(meta, dict) else None,
+                    usage=usage,
+                    status="FAILED",
+                )
+            except (ValueError, KeyError):
+                pass
+            advisory_assessment = {
+                "status": "FAILED",
+                "error_code": type(exc).__name__,
+                "provider_error_meta": meta if isinstance(meta, dict) else {},
+                "usage": usage,
+            }
+    result["advisory_assessment"] = advisory_assessment
+    result["budget"] = budget.summary()
+    ledger["outputs"] = task_results
+    ledger["findings"] = findings
+    ledger["context_gaps"] = context_gaps
+    ledger["call_reservations"] = result["budget"]["provider_calls_reserved"]
+    ledger["created_at"] = result["created_at"]
+    for task_id, task_result in task_results.items():
+        event = {
+            "event": "TASK_RESULT",
+            "task_id": task_id,
+            "output_hash": task_result.get("output_hash"),
+            "status": task_result.get("status"),
+            "at": task_result.get("finished_at", _now()),
+        }
+        event["event_hash"] = _hash(event)
+        ledger["events"].append(event)
+    saved = {**result, "request_hash": request_hash, "ledger": ledger}
+    saved["result_hash"] = _hash(saved)
+    _atomic_write(output_path, _canonical(saved) + b"\n")
+    return saved
+
+
+def render_report(result: dict) -> str:
+    """Render the deterministic four-category report."""
+    return _render_report(result)

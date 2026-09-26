@@ -1,0 +1,372 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import time
+from dataclasses import replace
+
+import pytest
+
+from pr_review_harness.claim_assessment import (
+    ClaimAssessmentAdapter,
+    ClaimAssessmentError,
+)
+
+BASE_SHA = "a" * 40
+HEAD_SHA = "b" * 40
+
+
+def _candidate() -> dict:
+    return {
+        "candidate_id": "candidate-17",
+        "title": "Missing validation",
+        "observation": "The new handler forwards an unchecked value.",
+        "consequence": "A malformed value may raise an exception.",
+        "rule_or_contract": "The handler input contract requires validation.",
+        "evidence_refs": ["ev-head"],
+    }
+
+
+def _evidence(evidence_id="ev-head", side="HEAD", content="handler forwards value") -> dict:
+    return {
+        "evidence_id": evidence_id,
+        "source_kind": "repository_file",
+        "content": content,
+        "content_hash": hashlib.sha256(content.encode()).hexdigest(),
+        "trust": "repository_evidence",
+        "path": "src/handler.py",
+        "source_revision": BASE_SHA if side == "BASE" else HEAD_SHA if side == "HEAD" else "c" * 40,
+        "snapshot_id": "snapshot-1",
+        "line": 12,
+    }
+
+
+def _identity() -> dict:
+    return {
+        "snapshot_id": "snapshot-1",
+        "snapshot_hash": "1" * 64,
+        "profile_id": "profile-v1",
+        "profile_hash": "2" * 64,
+        "base_sha": BASE_SHA,
+        "head_sha": HEAD_SHA,
+    }
+
+
+def _limits(**changes) -> dict:
+    return {
+        "max_input_bytes_per_task": 60_000,
+        "max_output_bytes_per_task": 50_000,
+        "deadline_seconds": 2,
+        **changes,
+    }
+
+
+def _envelope(request_bytes: bytes, *, omit=(), invalid=(), model="jev-1.13.0") -> bytes:
+    request = json.loads(request_bytes)
+    answers = {}
+    for question_id, question in request["questions"].items():
+        if question_id in omit:
+            continue
+        options = question["criteria"]
+        keys = list(options)
+        if question_id in invalid:
+            answers[question_id] = {"type": "choice", "choice": keys[0], "probabilities": {}, "confidence": 0.8}
+            continue
+        probabilities = {key: 0.0 for key in keys}
+        probabilities[keys[0]] = 1.0
+        answers[question_id] = {
+            "type": "choice",
+            "choice": keys[0],
+            "probabilities": probabilities,
+            "confidence": 1.0,
+        }
+    return json.dumps(
+        {"model": model, "request_id": "req-1", "answers": answers, "usage": {"input_tokens": 10, "output_tokens": 5}}
+    ).encode()
+
+
+def _adapter(call):
+    return ClaimAssessmentAdapter(call, "jev-latest")
+
+
+def test_serialized_native_choice_request_binds_candidate_and_exact_evidence_refs():
+    captured = {}
+
+    def call(raw, deadline, cap):
+        captured.update(request=json.loads(raw), deadline=deadline, cap=cap)
+        return _envelope(raw)
+
+    result = _adapter(call).assess(_candidate(), [_evidence()], _identity(), _limits())
+    request = captured["request"]
+    assert request["model"] == "jev-latest"
+    assert request["state"]["assessment_identity"] == _identity()
+    assert len(request["questions"]) == 5
+    assert {q["type"] for q in request["questions"].values()} == {"choice"}
+    assert set(request["state"]) == {"assessment_identity", "candidate", "cited_evidence"}
+    assert [item["evidence_id"] for item in request["state"]["cited_evidence"]] == ["ev-head"]
+    assert "jev-latest" == result["provenance"]["configured_model_id"]
+    assert "jev-1.13.0" == result["provenance"]["provider_model_id"]
+    assert result["status"] == "COMPLETE"
+    assert result["assessments"]["introducedness"]["status"] == "NOT_SHOWN"
+    assert result["assessments"]["observation_support"]["interpretation"] == "advisory_uncalibrated"
+    assert result["usage"] == {"known": True, "input_tokens": 10, "output_tokens": 5}
+
+
+@pytest.mark.parametrize("source_kind", ["diff", "base_file", "head_file", "profile_context"])
+def test_native_claim_contract_preserves_snapshot_collector_source_kinds(source_kind):
+    evidence = _evidence()
+    evidence["source_kind"] = source_kind
+    prepared = _adapter(lambda *_args: b"").prepare(_candidate(), [evidence], _identity(), _limits())
+    request = json.loads(prepared.request_bytes)
+    assert request["state"]["cited_evidence"][0]["source_kind"] == source_kind
+    assert request["state"]["cited_evidence"][0]["evidence_id"] == "ev-head"
+
+
+def test_prepared_request_is_reusable_for_exact_byte_reservation_and_dispatch():
+    calls = []
+
+    def call(raw, _deadline, _cap):
+        calls.append(raw)
+        return _envelope(raw)
+
+    adapter = _adapter(call)
+    prepared = adapter.prepare(_candidate(), [_evidence()], _identity(), _limits(max_input_bytes_per_task=64))
+    assert isinstance(prepared.request_bytes, bytes)
+    assert prepared.question_hash
+    with pytest.raises(ClaimAssessmentError, match="request_exceeds_limit"):
+        adapter.assess_prepared(prepared, _limits(max_input_bytes_per_task=64))
+    assert calls == []
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["provenance"]["request_hash"] == hashlib.sha256(prepared.request_bytes).hexdigest()
+    assert calls == [prepared.request_bytes]
+
+
+def test_tampered_prepared_bytes_are_rejected_before_dispatch():
+    called = False
+
+    def call(*_args):
+        nonlocal called
+        called = True
+        return b"{}"
+
+    adapter = _adapter(call)
+    prepared = adapter.prepare(_candidate(), [_evidence()], _identity(), _limits())
+    tampered = replace(prepared, request_bytes=prepared.request_bytes + b" ")
+    with pytest.raises(ClaimAssessmentError, match="invalid_prepared_assessment"):
+        adapter.assess_prepared(tampered, _limits())
+    assert not called
+
+
+def test_question_ids_are_bound_to_candidate_and_dimension():
+    requests = []
+
+    def call(raw, _deadline, _cap):
+        requests.append(json.loads(raw))
+        return _envelope(raw)
+
+    adapter = _adapter(call)
+    first = _candidate()
+    second = {**first, "candidate_id": "candidate-18"}
+    adapter.assess(first, [_evidence()], _identity(), _limits())
+    adapter.assess(second, [_evidence()], _identity(), _limits())
+    first_ids = set(requests[0]["questions"])
+    second_ids = set(requests[1]["questions"])
+    assert len(first_ids) == 5 and len(second_ids) == 5
+    assert first_ids.isdisjoint(second_ids)
+
+
+def test_introducedness_uses_separate_question_only_with_both_revision_sides():
+    candidate = {**_candidate(), "evidence_refs": ["ev-base", "ev-head"]}
+    seen = {}
+
+    def call(raw, _deadline, _cap):
+        seen["request"] = json.loads(raw)
+        return _envelope(raw)
+
+    result = _adapter(call).assess(
+        candidate, [_evidence("ev-base", "BASE", "old value"), _evidence()], _identity(), _limits()
+    )
+    assert len(seen["request"]["questions"]) == 6
+    assert result["assessments"]["introducedness"]["status"] == "ANSWERED"
+    assert result["assessments"]["introducedness"]["question_id"] in seen["request"]["questions"]
+
+
+def test_side_labels_without_exact_revision_and_snapshot_binding_do_not_enable_introducedness():
+    candidate = {**_candidate(), "evidence_refs": ["ev-base", "ev-head"]}
+    # `side` labels alone are untrusted; only exact immutable revisions count.
+    evidence = [
+        {**_evidence("ev-base", "OTHER", "old value"), "side": "BASE"},
+        {**_evidence("ev-head", "OTHER"), "side": "HEAD"},
+    ]
+    called = {}
+
+    def call(raw, _deadline, _cap):
+        called["request"] = json.loads(raw)
+        return _envelope(raw)
+
+    result = _adapter(call).assess(candidate, evidence, _identity(), _limits())
+    assert len(called["request"]["questions"]) == 5
+    assert result["assessments"]["introducedness"]["status"] == "NOT_SHOWN"
+    with pytest.raises(ClaimAssessmentError, match="evidence_snapshot_mismatch"):
+        _adapter(call).assess(_candidate(), [_evidence() | {"snapshot_id": "other-snapshot"}], _identity(), _limits())
+
+
+def test_invalid_question_is_quarantined_while_valid_siblings_survive():
+    bad_id = None
+
+    def call(raw, _deadline, _cap):
+        nonlocal bad_id
+        bad_id = next(iter(json.loads(raw)["questions"]))
+        return _envelope(raw, invalid={bad_id})
+
+    result = _adapter(call).assess(_candidate(), [_evidence()], _identity(), _limits())
+    states = [item["status"] for item in result["assessments"].values()]
+    assert states.count("INVALID") == 1
+    assert states.count("ANSWERED") == 4
+    invalid = next(item for item in result["assessments"].values() if item["status"] == "INVALID")
+    assert invalid["invalid_answer_hash"]
+    assert invalid["probabilities"] is None
+    assert result["status"] == "PARTIAL"
+
+
+def test_native_choice_distribution_accepts_a_top_probability_tie_but_not_a_lower_choice():
+    def call_with_tie(raw, _deadline, _cap):
+        envelope = json.loads(_envelope(raw))
+        answer = next(iter(envelope["answers"].values()))
+        keys = list(answer["probabilities"])
+        answer["choice"] = keys[0]
+        answer["probabilities"] = {key: 0.5 if key in keys[:2] else 0.0 for key in keys}
+        answer["confidence"] = 0.5
+        return json.dumps(envelope).encode()
+
+    tied = _adapter(call_with_tie).assess(_candidate(), [_evidence()], _identity(), _limits())
+    assert sum(item["status"] == "ANSWERED" for item in tied["assessments"].values()) == 5
+
+    def call_lower_choice(raw, _deadline, _cap):
+        envelope = json.loads(_envelope(raw))
+        answer = next(iter(envelope["answers"].values()))
+        keys = list(answer["probabilities"])
+        answer["choice"] = keys[1]
+        answer["probabilities"] = {key: 0.0 for key in keys}
+        answer["probabilities"][keys[0]] = 1.0
+        answer["confidence"] = 1.0
+        return json.dumps(envelope).encode()
+
+    lower = _adapter(call_lower_choice).assess(_candidate(), [_evidence()], _identity(), _limits())
+    assert sum(item["status"] == "INVALID" for item in lower["assessments"].values()) == 1
+
+
+def test_missing_question_is_explicitly_omitted_and_probability_shape_is_validated():
+    omitted_id = None
+
+    def call(raw, _deadline, _cap):
+        nonlocal omitted_id
+        omitted_id = next(iter(json.loads(raw)["questions"]))
+        return _envelope(raw, omit={omitted_id})
+
+    result = _adapter(call).assess(_candidate(), [_evidence()], _identity(), _limits())
+    omitted = next(item for item in result["assessments"].values() if item["question_id"] == omitted_id)
+    assert omitted["status"] == "OMITTED"
+    assert omitted["error_code"] == "answer_omitted"
+    assert result["status"] == "PARTIAL"
+
+
+def test_unexpected_questions_are_hashed_not_retained():
+    def call(raw, _deadline, _cap):
+        envelope = json.loads(_envelope(raw))
+        envelope["answers"]["extra"] = {"private": "discard this"}
+        return json.dumps(envelope).encode()
+
+    result = _adapter(call).assess(_candidate(), [_evidence()], _identity(), _limits())
+    assert result["status"] == "COMPLETE"
+    assert result["provenance"]["unexpected_answer_count"] == 1
+    assert len(result["provenance"]["unexpected_answers"][0]["answer_hash"]) == 64
+    assert "discard this" not in repr(result)
+
+
+@pytest.mark.parametrize("raw", [b'{"answers":{"x":1,"x":2}}', b'{"answers":NaN}', b"not-json"])
+def test_malformed_json_fails_with_response_hash_without_raw_body(raw):
+    result = _adapter(lambda *_args: raw).assess(_candidate(), [_evidence()], _identity(), _limits())
+    assert result["status"] == "FAILED"
+    assert all(item["status"] == "FAILED" or item["status"] == "NOT_SHOWN" for item in result["assessments"].values())
+    assert result["provenance"]["response_hash"] == hashlib.sha256(raw).hexdigest()
+    assert "not-json" not in repr(result)
+
+
+def test_excessively_nested_json_is_rejected_with_bounded_failure():
+    raw = b'{"answers":{},"extra":' + b"[" * 1000 + b"0" + b"]" * 1000 + b"}"
+    result = _adapter(lambda *_args: raw).assess(_candidate(), [_evidence()], _identity(), _limits())
+    assert result["status"] == "FAILED"
+    assert all(item["status"] == "FAILED" or item["status"] == "NOT_SHOWN" for item in result["assessments"].values())
+
+
+@pytest.mark.parametrize("field", ["confidence", "probability"])
+def test_huge_json_integer_in_native_answer_is_quarantined(field):
+    def call(raw, _deadline, _cap):
+        envelope = json.loads(_envelope(raw))
+        question_id = next(iter(envelope["answers"]))
+        answer = envelope["answers"][question_id]
+        if field == "confidence":
+            answer["confidence"] = 10**1000
+        else:
+            choice = answer["choice"]
+            answer["probabilities"][choice] = 10**1000
+        return json.dumps(envelope).encode()
+
+    result = _adapter(call).assess(_candidate(), [_evidence()], _identity(), _limits())
+    invalid = [item for item in result["assessments"].values() if item["status"] == "INVALID"]
+    assert len(invalid) == 1
+    assert invalid[0]["error_code"] == "invalid_choice_answer"
+    assert invalid[0]["invalid_answer_hash"]
+
+
+def test_evidence_closure_and_content_hash_are_checked_before_transport():
+    called = False
+
+    def call(*_args):
+        nonlocal called
+        called = True
+        return b"{}"
+
+    with pytest.raises(ClaimAssessmentError, match="candidate_evidence_reference_missing"):
+        _adapter(call).assess(_candidate(), [], _identity(), _limits())
+    with pytest.raises(ClaimAssessmentError, match="evidence_content_hash_mismatch"):
+        _adapter(call).assess(_candidate(), [{**_evidence(), "content_hash": "0" * 64}], _identity(), _limits())
+    assert not called
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [
+        ("max_input_bytes_per_task", True, "invalid_input_byte_limit"),
+        ("max_output_bytes_per_task", 0, "invalid_output_byte_limit"),
+        ("deadline_seconds", float("inf"), "invalid_deadline"),
+    ],
+)
+def test_finite_limits_reject_invalid_values(field, value, code):
+    with pytest.raises(ClaimAssessmentError, match=code):
+        _adapter(lambda *_args: b"{}").assess(_candidate(), [_evidence()], _identity(), _limits(**{field: value}))
+
+
+def test_request_cap_is_enforced_before_transport():
+    called = False
+
+    def call(*_args):
+        nonlocal called
+        called = True
+        return b"{}"
+
+    with pytest.raises(ClaimAssessmentError, match="request_exceeds_limit"):
+        _adapter(call).assess(_candidate(), [_evidence()], _identity(), _limits(max_input_bytes_per_task=64))
+    assert not called
+
+
+def test_slow_noncooperative_transport_is_reported_failed_after_deadline():
+    def call(raw, _deadline, _cap):
+        time.sleep(0.02)
+        return _envelope(raw)
+
+    result = _adapter(call).assess(_candidate(), [_evidence()], _identity(), _limits(deadline_seconds=0.005))
+    assert result["status"] == "FAILED"
+    assert all(item["status"] == "FAILED" or item["status"] == "NOT_SHOWN" for item in result["assessments"].values())
+    assert result["elapsed_ms"] >= 5

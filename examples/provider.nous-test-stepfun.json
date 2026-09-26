@@ -1,0 +1,11 @@
+{
+  "kind": "openai",
+  "base_url": "https://inference-api.nousresearch.com/v1",
+  "model": "stepfun/step-3.7-flash:free",
+  "api_key_env": "NOUS_API_KEY",
+  "timeout_seconds": 75,
+  "input_price_per_million": 0,
+  "output_price_per_million": 0,
+  "max_response_bytes": 16000,
+  "max_output_tokens": 1800
+}
