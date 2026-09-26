@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
-from pr_review_harness.claim_assessment import _questions
-from pr_review_harness.claim_transport import ClaimTransport
+from pr_review_harness.claim_assessment import PRIMARY_ASSESSMENT_CONTRACT_VERSION, _questions
+from pr_review_harness.claim_transport import ClaimTransport, _parse_request
 from pr_review_harness.providers import ProviderError
 
 
@@ -198,6 +198,99 @@ def test_transport_rejects_inline_credentials_and_nonloopback_custom_endpoint(se
         _transport(endpoint, unexpected="value")
     with pytest.raises(ProviderError, match="invalid_deadline"):
         _transport(endpoint, timeout_seconds=10**1000)
+
+
+def test_operator_decision_config_accepts_generic_https_root_prefix_only_via_factory():
+    config = {
+        "kind": "typesafe",
+        "endpoint": "https://gateway.example/api/native/systemone",
+        "model": "jev-latest",
+        "api_key_env": "JEV_API_KEY",
+    }
+    transport = ClaimTransport.from_decision_config(config)
+    assert transport.endpoint == config["endpoint"]
+    assert transport.model == "jev-latest"
+    assert transport.api_key_env == "JEV_API_KEY"
+    assert transport.identity["endpoint_trust"] == "trusted_operator_decision_config"
+    with pytest.raises(ProviderError, match="unsupported_native_endpoint"):
+        _transport(config["endpoint"])
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://gateway.example/api/native/systemone",
+        "https://user:pass@gateway.example/api/native/systemone",
+        "https://gateway.example/api/native/systemone?token=x",
+        "https://gateway.example/api/native/systemone#frag",
+        "https://gateway.example/systemone-extra",
+        "https://gateway.example:bad/api/native/systemone",
+    ],
+)
+def test_operator_decision_config_rejects_unsafe_or_nonroute_endpoints(endpoint):
+    with pytest.raises(ProviderError):
+        ClaimTransport.from_decision_config(
+            {"kind": "typesafe", "endpoint": endpoint, "model": "jev-latest", "api_key_env": "JEV_API_KEY"}
+        )
+
+
+def test_operator_decision_config_accepts_explicit_loopback_http_for_tests():
+    transport = ClaimTransport.from_decision_config(
+        {
+            "kind": "typesafe",
+            "endpoint": "http://127.0.0.1:8123/custom/systemone",
+            "model": "jev-latest",
+            "api_key_env": "JEV_API_KEY",
+        }
+    )
+    assert transport.endpoint == "http://127.0.0.1:8123/custom/systemone"
+
+
+def test_operator_decision_config_requires_exact_materializer_schema():
+    with pytest.raises(ProviderError, match="invalid_decision_config"):
+        ClaimTransport.from_decision_config(
+            {"kind": "typesafe", "endpoint": "https://gateway.example/systemone", "model": "jev-latest"}
+        )
+    with pytest.raises(ProviderError, match="unsupported_claim_transport_config"):
+        ClaimTransport.from_decision_config(
+            {
+                "kind": "openai",
+                "endpoint": "https://gateway.example/systemone",
+                "model": "jev-latest",
+                "api_key_env": "JEV_API_KEY",
+            }
+        )
+
+
+def test_transport_accepts_v2_primary_assessment_as_distinct_bound_context():
+    request = json.loads(_request())
+    request["state"]["assessment_contract_version"] = PRIMARY_ASSESSMENT_CONTRACT_VERSION
+    request["state"]["primary_assessment"] = {
+        "contract_version": "semantic-adjudication.v3",
+        "source_contract_version": "semantic-adjudication.v3",
+        "outcome": "SUPPORTED",
+        "observation_support": "SUPPORTED",
+        "consequence_support": "NOT_ESTABLISHED",
+        "rule_connection_support": "SUPPORTED",
+        "introducedness": "INTRODUCED",
+        "evidence_refs": ["ev-head"],
+        "assumptions": [],
+        "uncertainties": [],
+        "summary": "Primary model assessment.",
+        "material_consequence": False,
+        "causal_roles": {
+            role: {"support": "SUPPORTED", "assessment": f"{role} assessment", "evidence_refs": ["ev-head"]}
+            for role in ("behavior", "consumer", "impact")
+        },
+    }
+    request["questions"] = _questions("c1", False, PRIMARY_ASSESSMENT_CONTRACT_VERSION)[0]
+    raw = json.dumps(request, separators=(",", ":")).encode()
+    assert _parse_request(raw)["state"]["assessment_contract_version"] == PRIMARY_ASSESSMENT_CONTRACT_VERSION
+
+    request["state"]["primary_assessment"]["evidence_refs"] = ["unknown-evidence"]
+    tampered = json.dumps(request, separators=(",", ":")).encode()
+    with pytest.raises(ProviderError, match="invalid_primary_assessment"):
+        _parse_request(tampered)
 
 
 def test_missing_credential_fails_before_network_dispatch(servers):

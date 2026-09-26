@@ -61,6 +61,32 @@ def _limits(**changes) -> dict:
     }
 
 
+def _primary_assessment() -> dict:
+    refs = ["ev-head"]
+    return {
+        "contract_version": "semantic-adjudication.v3",
+        "source_contract_version": "semantic-adjudication.v3",
+        "outcome": "SUPPORTED",
+        "observation_support": "SUPPORTED",
+        "consequence_support": "NOT_ESTABLISHED",
+        "rule_connection_support": "SUPPORTED",
+        "introducedness": "INTRODUCED",
+        "evidence_refs": refs,
+        "assumptions": [],
+        "uncertainties": [],
+        "summary": "Primary model assessment summary.",
+        "material_consequence": False,
+        "causal_roles": {
+            role: {
+                "support": "SUPPORTED",
+                "assessment": f"Primary {role} assessment.",
+                "evidence_refs": refs,
+            }
+            for role in ("behavior", "consumer", "impact")
+        },
+    }
+
+
 def _envelope(request_bytes: bytes, *, omit=(), invalid=(), model="jev-1.13.0") -> bytes:
     request = json.loads(request_bytes)
     answers = {}
@@ -110,6 +136,111 @@ def test_serialized_native_choice_request_binds_candidate_and_exact_evidence_ref
     assert result["assessments"]["introducedness"]["status"] == "NOT_SHOWN"
     assert result["assessments"]["observation_support"]["interpretation"] == "advisory_uncalibrated"
     assert result["usage"] == {"known": True, "input_tokens": 10, "output_tokens": 5}
+
+
+def test_v2_binds_primary_generated_assessment_separately_and_preserves_v1_contract():
+    captured = {}
+
+    def call(raw, _deadline, _cap):
+        captured["raw"] = raw
+        return _envelope(raw)
+
+    adapter = _adapter(call)
+    primary = _primary_assessment()
+    prepared = adapter.prepare(_candidate(), [_evidence()], _identity(), _limits(), primary_assessment=primary)
+    request = json.loads(prepared.request_bytes)
+    assert prepared.contract_version == "claim-assessment.2"
+    assert request["state"]["assessment_contract_version"] == "claim-assessment.2"
+    assert request["state"]["primary_assessment"] == primary
+    assert request["state"]["candidate"] != request["state"]["primary_assessment"]
+    assert len(request["questions"]) == 5
+    assert (
+        prepared.primary_assessment_hash
+        == hashlib.sha256(
+            json.dumps(primary, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["contract_version"] == "claim-assessment.2"
+    assert result["decision"] == "ADVISORY_ONLY"
+    assert result["provenance"]["primary_assessment_hash"] == prepared.primary_assessment_hash
+    assert captured["raw"] == prepared.request_bytes
+
+
+def test_v2_rejects_primary_assessment_with_evidence_refs_outside_candidate_scope():
+    primary = _primary_assessment()
+    primary["causal_roles"]["consumer"]["evidence_refs"] = ["not-delivered"]
+    with pytest.raises(ClaimAssessmentError, match="invalid_primary_assessment_evidence_refs"):
+        _adapter(lambda *_args: b"").prepare(
+            _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=primary
+        )
+
+
+def test_v2_prepared_primary_hash_is_checked_before_dispatch():
+    called = False
+
+    def call(*_args):
+        nonlocal called
+        called = True
+        return b"{}"
+
+    adapter = _adapter(call)
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    tampered = replace(prepared, primary_assessment_hash="0" * 64)
+    with pytest.raises(ClaimAssessmentError, match="invalid_prepared_assessment"):
+        adapter.assess_prepared(tampered, _limits())
+    assert not called
+
+
+@pytest.mark.parametrize(
+    ("response_model", "error_code"),
+    [("jev-other", "model_identity_mismatch"), (None, "model_identity_missing")],
+)
+def test_v2_requires_validated_endpoint_model_identity(response_model, error_code):
+    def call(raw, _deadline, _cap):
+        body = _envelope(raw, model=response_model) if response_model is not None else _envelope(raw)
+        if response_model is None:
+            envelope = json.loads(body)
+            envelope.pop("model")
+            body = json.dumps(envelope).encode()
+        return body
+
+    adapter = _adapter(call)
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["status"] == "FAILED"
+    assert result["provenance"]["error_code"] == error_code
+    assert all(item["status"] in {"FAILED", "NOT_SHOWN"} for item in result["assessments"].values())
+    assert not any(item["status"] == "ANSWERED" for item in result["assessments"].values())
+    if response_model is not None:
+        assert "provider_model_id" not in result["provenance"]
+        assert "invalid_provider_model_id_hash" in result["provenance"]
+
+
+def test_v2_latest_alias_accepts_only_versioned_jev_reported_model():
+    adapter = _adapter(lambda raw, _deadline, _cap: _envelope(raw, model="jev-1.13.0"))
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["status"] == "COMPLETE"
+    assert result["provenance"]["provider_model_id"] == "jev-1.13.0"
+    assert result["provenance"]["model_identity_source"] == "endpoint_reported_validated"
+
+
+def test_v2_pinned_model_requires_exact_endpoint_report():
+    adapter = ClaimAssessmentAdapter(lambda raw, _deadline, _cap: _envelope(raw, model="jev-1.14.0"), "jev-1.13.0")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["status"] == "FAILED"
+    assert result["provenance"]["error_code"] == "model_identity_mismatch"
+    assert "provider_model_id" not in result["provenance"]
 
 
 @pytest.mark.parametrize("source_kind", ["diff", "base_file", "head_file", "profile_context"])
