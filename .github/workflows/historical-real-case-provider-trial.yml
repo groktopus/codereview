@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: groktopus/codereview
-          ref: 54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215
+          ref: 607825028044890ba939000449e3d6df655ec3f3
           path: trusted-runtime
           persist-credentials: false
 

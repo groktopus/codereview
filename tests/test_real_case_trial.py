@@ -45,8 +45,8 @@ def test_frozen_case_manifest_binds_profiles_checks_and_exact_primary_demands():
     assert [case["expected_primary_count"] for case in cases] == [10, 27, 10]
     assert [case["expected_primary_serialized_input_bytes"] for case in cases] == [870_424, 2_206_107, 885_733]
     assert len(trial.RUNTIME_MODULE_INVENTORY) == 28
-    assert trial.RUNTIME_SHA == "54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215"
-    assert trial.RUNTIME_MODULE_TREE_SHA256 == "86b4f0c82bbf3e4c01f38dff07d3dd93de31d14d6791683b95988c4c5ca04f5d"
+    assert trial.RUNTIME_SHA == "607825028044890ba939000449e3d6df655ec3f3"
+    assert trial.RUNTIME_MODULE_TREE_SHA256 == "465fd21781221b01188f08fbbeece9457cc58e08025d9827845de427ac9a67d1"
     limits = trial.limits_for(64)
     assert limits["max_snapshot_context_bytes"] == 300_000
     assert limits["max_context_bytes"] == 8_000_000

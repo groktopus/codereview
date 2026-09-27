@@ -481,7 +481,10 @@ def test_real_claim_adapter_and_loopback_transport_bind_candidate_primary_and_re
             }
         )
         assessor = ClaimAssessmentAdapter(transport, "jev-latest")
-        result = _run(tmp_path, assessor=assessor, cap=1)
+        # The core's valid task allowance is larger than the native System One
+        # wire cap; the adapter must validate the actual serialized request.
+        limits = {**LIMITS, "max_input_bytes_per_task": 128_000}
+        result = _run(tmp_path, assessor=assessor, cap=1, limits=limits)
     finally:
         server.shutdown()
         server.server_close()
@@ -496,11 +499,56 @@ def test_real_claim_adapter_and_loopback_transport_bind_candidate_primary_and_re
     assert [item["evidence_id"] for item in state["cited_evidence"]] == ["diff:u0"]
     row = result["claim_assessments"][0]
     assert row["status"] == "COMPLETE"
+    assert 0 < len(ClaimChoiceHandler.seen[0]) <= 64_000
+    assert row["input_bytes_reserved"] == len(ClaimChoiceHandler.seen[0])
+    assert row["request_hash"] == hashlib.sha256(ClaimChoiceHandler.seen[0]).hexdigest()
     assert row["response_valid"] is True
     assert row["provenance_valid"] is True
     assert row["provenance"]["primary_assessment_hash"] == row["primary_assessment_hash"]
     assert row["candidate_hash"] == row["provenance"]["candidate_hash"]
     assert row["assessments"]["introducedness"]["status"] == "NOT_SHOWN"
+
+
+def test_real_claim_adapter_rejects_caller_overage_before_reservation(tmp_path, monkeypatch):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ClaimChoiceHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    ClaimChoiceHandler.seen = []
+    thread.start()
+    monkeypatch.setenv("CLAIM_ENGINE_TEST_KEY", ClaimChoiceHandler.token)
+    try:
+        transport = ClaimTransport(
+            {
+                "endpoint": f"http://127.0.0.1:{server.server_port}/v1/systemone",
+                "api_key_env": "CLAIM_ENGINE_TEST_KEY",
+                "model": "jev-latest",
+                "timeout_seconds": 2,
+                "max_request_bytes": 64_000,
+                "max_response_bytes": 64_000,
+            }
+        )
+        assessor = ClaimAssessmentAdapter(transport, "jev-latest")
+        large_limits = {**LIMITS, "max_input_bytes_per_task": 128_000}
+        measured = _run(tmp_path / "measure", assessor=assessor, cap=1, limits=large_limits)
+        exact_request_bytes = len(ClaimChoiceHandler.seen[0])
+        assert measured["claim_assessments"][0]["status"] == "COMPLETE"
+
+        ClaimChoiceHandler.seen = []
+        # Derive the lower ceiling from the exact successfully dispatched body
+        # produced by this same fixture; one byte under must reject locally.
+        limits = {**large_limits, "max_input_bytes_per_task": exact_request_bytes - 1}
+        result = _run(tmp_path / "over", assessor=assessor, cap=1, limits=limits)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    row = result["claim_assessments"][0]
+    reservations = result["ledger"]["budget"]["reservations"]
+    assert row["status"] == "FAILED"
+    assert row["error_code"] == "request_exceeds_limit"
+    assert row["reservation_key"] is None
+    assert not any(item.get("kind") == "claim_assessment" for item in reservations.values())
+    assert ClaimChoiceHandler.seen == []
 
 
 def test_complete_claim_result_requires_bound_provenance_and_all_answers(tmp_path):

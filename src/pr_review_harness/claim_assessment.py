@@ -215,7 +215,10 @@ def _limits(limits: Mapping[str, Any]) -> tuple[int, int, float]:
     input_bytes = limits.get("max_input_bytes_per_task")
     output_bytes = limits.get("max_output_bytes_per_task")
     deadline = limits.get("deadline_seconds")
-    if not _is_positive_int(input_bytes) or input_bytes > _MAX_REQUEST_BYTES:
+    # This is the caller's per-task ceiling, not the native transport's hard
+    # request limit. The exact prepared body is checked against both ceilings
+    # after serialization so a larger overall workflow cap remains valid.
+    if not _is_positive_int(input_bytes):
         raise ClaimAssessmentError("invalid_input_byte_limit")
     if not _is_positive_int(output_bytes) or output_bytes > _MAX_RESPONSE_BYTES:
         raise ClaimAssessmentError("invalid_output_byte_limit")
@@ -697,8 +700,10 @@ class ClaimAssessmentAdapter:
             or not isinstance(limits, Mapping)
         ):
             raise ClaimAssessmentError("invalid_prepared_assessment")
-        _input_cap, _output_cap, requested_deadline = _limits(limits)
+        input_cap, _output_cap, requested_deadline = _limits(limits)
         self._validate_prepared(prepared)
+        if len(prepared.request_bytes) > input_cap:
+            raise ClaimAssessmentError("request_exceeds_limit")
         estimator = getattr(self.native_call, "estimate_call", None)
         if not callable(estimator):
             raise ClaimAssessmentError("claim_transport_estimator_required")
@@ -748,7 +753,7 @@ class ClaimAssessmentAdapter:
         if not isinstance(candidate, Mapping) or not isinstance(identity, Mapping) or not isinstance(limits, Mapping):
             raise ClaimAssessmentError("invalid_assessment_input")
         _validate_identity(identity)
-        _input_cap, _output_cap, _deadline_seconds = _limits(limits)
+        input_cap, _output_cap, _deadline_seconds = _limits(limits)
         extra_refs = _primary_reference_ids(primary_assessment) if primary_assessment is not None else []
         state, has_revision_pair, cited_refs = _candidate_state(candidate, evidence, identity, extra_refs)
         contract_version = CONTRACT_VERSION
@@ -772,6 +777,8 @@ class ClaimAssessmentAdapter:
         request_bytes = _canonical(request)
         if len(request_bytes) > _MAX_REQUEST_BYTES:
             raise ClaimAssessmentError("request_exceeds_intrinsic_limit")
+        if len(request_bytes) > input_cap:
+            raise ClaimAssessmentError("request_exceeds_limit")
         return PreparedClaimAssessment(
             contract_version=contract_version,
             request_bytes=request_bytes,
