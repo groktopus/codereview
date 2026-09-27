@@ -496,7 +496,9 @@ def _effect_fixture_sources(created: Path, renamed: Path, child_file: Path, port
         f"first = pathlib.Path({str(created)!r}); second = pathlib.Path({str(renamed)!r})\n"
         "first.write_text('fixture')\n"
         "first.rename(second)\n"
-        f"client = socket.create_connection(('127.0.0.1', {port}), timeout=2); client.close()\n"
+        # Keep the client socket in blocking mode so the traced connect itself
+        # reports completion. The observer's outer deadline bounds this fixture.
+        f"client = socket.socket(socket.AF_INET, socket.SOCK_STREAM); client.connect(('127.0.0.1', {port})); client.close()\n"
         f"child_source = {child_source!r}\n"
         "subprocess.Popen([sys.executable, '-c', child_source])\n"
         "print('{\"status\":\"ok\"}')\n"
