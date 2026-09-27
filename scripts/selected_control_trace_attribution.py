@@ -1652,7 +1652,18 @@ def _transport_arm_projection(arm: dict[str, Any]) -> dict[str, Any]:
         "normalized_transport_config_sha256",
         "run_id", "event_mode", "event_identity", "task_ids", "snapshot_id", "snapshot_hash",
     )
-    return {key: arm.get(key) for key in fields}
+    projected = {key: arm.get(key) for key in fields}
+    # Keep transport receipts on the validator's closed three-field contract.
+    # The shared projection retains chunk accounting for other consumers, but
+    # those internal counters are not part of this receipt schema.
+    task_rows = projected.get("primary_task_statuses")
+    if isinstance(task_rows, list):
+        projected["primary_task_statuses"] = [
+            {key: value for key, value in row.items() if key in {"task_id", "lens", "status"}}
+            if isinstance(row, dict) else row
+            for row in task_rows
+        ]
+    return projected
 
 
 def _diagnostic_checkout_identity() -> dict[str, Any]:

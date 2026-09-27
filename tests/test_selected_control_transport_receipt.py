@@ -14,6 +14,7 @@ import pytest
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+import selected_control_trace_attribution as diagnostic  # noqa: E402
 import validate_selected_control_transport_receipt as receipt_validator  # noqa: E402
 
 
@@ -102,6 +103,62 @@ def _retained_cardinality_arm(transport: str, state: str = "COMPLETE"):
 
 
 _arm = _retained_cardinality_arm
+
+
+def test_actual_task_status_projector_roundtrips_through_transport_projection_and_validator():
+    planned = [
+        {"task_id": "synthetic-task-1", "lens": "correctness"},
+        {"task_id": "synthetic-task-2", "lens": "security"},
+        {"task_id": "synthetic-task-3", "lens": "tests"},
+    ]
+    durable = {
+        "task_results": {
+            "synthetic-task-1:chunk-1": {"status": "SUCCEEDED"},
+            "synthetic-task-1:chunk-2": {"status": "SUCCEEDED"},
+            "synthetic-task-2": {"status": "SUCCEEDED"},
+        }
+    }
+    emitted_rows, unexpected = diagnostic._project_task_statuses(durable, planned)
+    assert emitted_rows is not None and unexpected == 0
+    assert emitted_rows[0]["chunk_count"] == 2
+    assert emitted_rows[0]["completed_chunks"] == 2
+
+    arm = _retained_cardinality_arm("HTTP_LOOPBACK_FAKE", "INCOMPLETE")
+    arm["primary_task_statuses"] = emitted_rows
+    projected = diagnostic._transport_arm_projection(arm)
+    projected["state"] = "INCOMPLETE"
+    assert projected["primary_task_statuses"] == [
+        {"task_id": "synthetic-task-1", "lens": "correctness", "status": "SUCCEEDED"},
+        {"task_id": "synthetic-task-2", "lens": "security", "status": "SUCCEEDED"},
+        {"task_id": "synthetic-task-3", "lens": "tests", "status": "MISSING_RESULT"},
+    ]
+    receipt_validator._arm(projected, "HTTP_LOOPBACK_FAKE")
+
+
+@pytest.mark.parametrize(
+    "mutation,code",
+    [
+        (lambda rows: rows[0].pop("task_id"), "arm_task_fields_invalid"),
+        (lambda rows: rows[0].pop("status"), "arm_task_fields_invalid"),
+        (lambda rows: rows[0].update(status="UNTRUSTED_PRIVATE_TEXT"), "arm_task_status_invalid"),
+    ],
+)
+def test_actual_task_projection_malformed_identity_or_status_fails_strict_arm_validation(mutation, code):
+    planned = [
+        {"task_id": "synthetic-task-1", "lens": "correctness"},
+        {"task_id": "synthetic-task-2", "lens": "security"},
+        {"task_id": "synthetic-task-3", "lens": "tests"},
+    ]
+    durable = {"task_results": {task["task_id"]: {"status": "SUCCEEDED"} for task in planned}}
+    rows, unexpected = diagnostic._project_task_statuses(durable, planned)
+    assert rows is not None and unexpected == 0
+    mutation(rows)
+    arm = _retained_cardinality_arm("HTTP_LOOPBACK_FAKE", "INCOMPLETE")
+    arm["primary_task_statuses"] = rows
+    projected = diagnostic._transport_arm_projection(arm)
+    projected["state"] = "INCOMPLETE"
+    with pytest.raises(ValueError, match=code):
+        receipt_validator._arm(projected, "HTTP_LOOPBACK_FAKE")
 
 
 def _valid_receipt():
@@ -537,6 +594,13 @@ def test_actual_installed_cli_transport_emitter_roundtrips_through_strict_valida
     }, result.get("rejection_code")
     assert validation.returncode == 0
     assert completed.returncode == (0 if emitted["pair_state"] == "COMPLETE" else 2)
+    print(json.dumps({
+        "contract_version": "transport-roundtrip-regression.v1",
+        "trusted_source_sha": source_identity,
+        "validated_pair_state": emitted["pair_state"],
+        "emitter_cli_exit": completed.returncode,
+        "receipt_validation": result["status"],
+    }, sort_keys=True))
 
 
 def test_workflow_always_uploads_safe_fallback_then_fails_when_receipt_was_rejected():
