@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import external_effect_observer as observer
+from scripts.effect_observer_smoke import _failure_summary, _prepare_environment
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -39,12 +40,18 @@ def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "if repeat:\n"
         " if os.environ.get('OBSERVER_TEST_TRACE_REPEAT_KIND') == 'file':\n"
         "  payload = b'[pid 4242] execve(0x0, 0x0, 0x0) = 0x0\\n' + b'[pid 5] openat(AT_FDCWD, \"' + b'x' * 550 + b'\", O_RDONLY) = 3\\n'\n"
+        " elif os.environ.get('OBSERVER_TEST_TRACE_REPEAT_KIND') == 'metadata':\n"
+        "  payload = b'[pid 5] newfstatat(AT_FDCWD, \"x\", {st_mode=S_IFREG}, 0) = 0\\n'\n"
         " else:\n"
         "  payload = b'[pid 4242] execve(0x0, 0x0, 0x0) = 0x0\\n' + b'[pid 5] clone(' + b'1' * 600 + b') = 6\\n'\n"
         " repeat -= 1\n"
         " while repeat:\n"
         "  n = os.write(fd, payload)\n"
         "  repeat -= 1\n"
+        "if os.environ.get('OBSERVER_TEST_TRACE_REPEAT_KIND') == 'metadata':\n"
+        " payload = b'[pid 5] newfstatat(AT_FDCWD, \"x\", {st_mode=S_IFREG}, 0) = 0\\n' + root_event + bytes.fromhex(os.environ.get('OBSERVER_TEST_TRACE_HEX', ''))\n"
+        "elif not int(os.environ.get('OBSERVER_TEST_TRACE_REPEAT', '0')):\n"
+        " payload = root_event + bytes.fromhex(os.environ.get('OBSERVER_TEST_TRACE_HEX', ''))\n"
         "view = memoryview(payload)\n"
         "while view:\n"
         " view = view[os.write(fd, view):]\n"
@@ -89,6 +96,7 @@ def test_observations_keep_only_typed_fields_and_hash_raw_paths(tmp_path, monkey
     result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
 
     observation = result["observer"]
+    assert observation["observer_id"] == "linux-strace-syscall-observer.v2"
     encoded = json.dumps(result, sort_keys=True)
     assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
     assert observation["overall_state"] == "UNKNOWN"
@@ -144,7 +152,6 @@ def test_unparseable_trace_is_unknown_and_bounds_cli_launch(tmp_path, monkeypatc
 
 def test_trace_byte_cap_forces_unknown(tmp_path, monkeypatch):
     _fake_strace(tmp_path, monkeypatch)
-    monkeypatch.setattr(observer, "TRACE_MAX_EVENTS", 10_000)
     env = {
         **os.environ,
         "OBSERVER_TEST_TRACE_REPEAT": "5000",
@@ -156,6 +163,172 @@ def test_trace_byte_cap_forces_unknown(tmp_path, monkeypatch):
     assert result["observer"]["reason"] == "trace_byte_cap_exceeded"
     assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE", result
     assert result["cli_result"] is None
+
+
+def test_noisy_prepare_volume_is_aggregated_with_late_effect_buckets(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    late = (
+        b'[pid 6] rename("/tmp/LATE_PRIVATE_PATH", "/tmp/LATE_PRIVATE_PATH.new") = 0\n'
+        b'[pid 6] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("203.0.113.8")}, 16) = 0\n'
+        b'[pid 7] execve(0x0, 0x0, 0x0) = 0x0\n'
+    )
+    env = {
+        **os.environ,
+        "OBSERVER_TEST_TRACE_REPEAT": "2100",
+        "OBSERVER_TEST_TRACE_REPEAT_KIND": "metadata",
+        "OBSERVER_TEST_TRACE_HEX": late.hex(),
+    }
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    observed = result["observer"]
+    assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
+    assert observed["coverage"] == "SCOPED_COMPLETE"
+    assert observed["observer_id"] == "linux-strace-syscall-observer.v2"
+    assert observed["overall_state"] == "UNKNOWN"
+    assert observed["event_count"] == 2104
+    assert observed["event_sample_count"] == observer.TRACE_MAX_EVENT_EXEMPLARS
+    assert observed["event_sample_truncated"] is True
+    assert observed["event_aggregates_complete"] is True
+    counts = {(item["syscall"], item["outcome"]): item["count"] for item in observed["event_aggregates"]}
+    assert sum(item["count"] for item in observed["event_aggregates"]) == observed["event_count"]
+    assert counts[("newfstatat", "SUCCESS")] == 2100
+    assert counts[("rename", "SUCCESS")] == 1
+    assert counts[("connect", "SUCCESS")] == 1
+    assert counts[("execve", "SUCCESS")] == 2
+    serialized = json.dumps(result, sort_keys=True)
+    assert "LATE_PRIVATE_PATH" not in serialized
+
+
+def test_aggregate_bucket_cap_fails_closed(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    trace = b"".join(
+        f"[pid 8] syscall{index}() = 0\n".encode()
+        for index in range(observer.TRACE_MAX_AGGREGATE_BUCKETS)
+    )
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    assert result["observer"]["reason"] == "trace_aggregate_bucket_cap_exceeded"
+    assert result["observer"]["coverage"] == "INCOMPLETE"
+    assert result["observer"]["event_aggregates_complete"] is False
+    assert result["observer"]["event_count"] == observer.TRACE_MAX_AGGREGATE_BUCKETS + 1
+    assert sum(item["count"] for item in result["observer"]["event_aggregates"]) == observer.TRACE_MAX_AGGREGATE_BUCKETS
+    assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE"
+    assert result["cli_result"] is None
+
+
+def test_resumed_socket_and_process_calls_keep_safe_pending_metadata(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    trace = (
+        b'[pid 51] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("127.0.0.1")}, 16 <unfinished ...>\n'
+        b'[pid 51] <... connect resumed>) = 0\n'
+        b'[pid 52] clone(0x1, 0, 0, 0, 0 <unfinished ...>\n'
+        b'[pid 52] <... clone resumed>) = 53\n'
+    )
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    observed = result["observer"]
+    aggregates = observed["event_aggregates"]
+    assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
+    assert observed["coverage"] == "SCOPED_COMPLETE"
+    assert observed["event_aggregates_complete"] is True
+    assert sum(item["count"] for item in aggregates) == observed["event_count"]
+    assert any(
+        item["operation"] == "socket_endpoint_syscall"
+        and item["syscall"] == "connect"
+        and item["outcome"] == "SUCCESS"
+        and item["destination_class"] == "loopback"
+        and item["trace_state"] == "RESUMED"
+        for item in aggregates
+    )
+    assert any(
+        item["operation"] == "process_lifecycle_syscall"
+        and item["syscall"] == "clone"
+        and item["outcome"] == "SUCCESS"
+        and item["result_class"] == "positive"
+        and item["trace_state"] == "RESUMED"
+        for item in aggregates
+    )
+
+
+def test_pending_call_metadata_has_a_finite_fail_closed_cap(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    trace = b"".join(
+        f'[pid {pid}] connect(3, {{sa_family=AF_INET, sin_addr=inet_addr("127.0.0.1")}}, 16 <unfinished ...>\n'.encode()
+        for pid in range(1, observer.TRACE_MAX_PENDING_CALLS + 2)
+    )
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    assert result["observer"]["reason"] == "trace_pending_call_cap_exceeded"
+    assert result["observer"]["coverage"] == "INCOMPLETE"
+    assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE"
+    assert result["cli_result"] is None
+
+
+def test_resumed_process_creation_counts_toward_cap(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    calls = []
+    for pid in range(10, 10 + observer.MAX_PROCESS_CREATIONS + 1):
+        calls.append(f"[pid {pid}] clone(0x1 <unfinished ...>\n")
+        calls.append(f"[pid {pid}] <... clone resumed>) = {pid + 1}\n")
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": "".join(calls).encode().hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    assert result["observer"]["reason"] == "process_creation_cap_exceeded"
+    assert result["observer"]["coverage"] == "INCOMPLETE"
+    assert result["invocation"]["run_status"] == "OBSERVER_PROCESS_CAP_EXCEEDED"
+    assert result["cli_result"] is None
+
+
+def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
+    sentinel = "synthetic-canary-never-send"
+    summary = _failure_summary(
+        {
+            "observer": {"observer_id": observer.OBSERVER_ID, "reason": sentinel, "coverage": {sentinel: sentinel}, "event_count": 4, "trace_bytes": 128},
+            "invocation": {"run_status": sentinel, "exit_code": 1, "cli_error_code": sentinel},
+            "cli_result": {"status": sentinel, "error": sentinel, "no_provider_calls": False},
+        },
+        "prepare_contract_failed",
+    )
+    encoded = json.dumps(summary, sort_keys=True)
+    assert sentinel not in encoded
+    assert summary["observer_reason"] == "other"
+    assert summary["coverage"] == "UNKNOWN"
+    assert summary["invocation_status"] == "UNKNOWN"
+    assert summary["cli_status"] == "UNKNOWN"
+    assert summary["cli_error_code"] == "other"
+    assert summary["event_count"] == 4 and summary["trace_bytes"] == 128
+
+
+def test_prepare_smoke_environment_ignores_enclosing_actions_event():
+    source = {
+        "GITHUB_EVENT_PATH": "/runner/work/_temp/event.json",
+        "GITHUB_REPOSITORY": "owner/repository",
+        "GITHUB_RUN_ID": "123456",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "PATH": "/usr/bin",
+    }
+    env = _prepare_environment(source)
+    assert "GITHUB_EVENT_PATH" not in env
+    assert "GITHUB_REPOSITORY" not in env
+    assert "GITHUB_RUN_ID" not in env
+    assert env["GITHUB_SERVER_URL"] == source["GITHUB_SERVER_URL"]
+    assert env["PATH"] == source["PATH"]
+    assert env["OBSERVER_SMOKE_PROVIDER_KEY"] == "synthetic-canary-never-send"
+    assert source["GITHUB_EVENT_PATH"] == "/runner/work/_temp/event.json"
+
+
+def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    canary = "SENSITIVE_CLI_STDOUT_CANARY"
+    script = tmp_path / "failed_cli.py"
+    script.write_text(
+        "import json, sys; print(json.dumps({'error':'invalid_arguments','exit_code':2,'payload':'SENSITIVE_CLI_STDOUT_CANARY'})); sys.exit(2)\n",
+        encoding="utf-8",
+    )
+    result = observer.observe_cli([sys.executable, str(script)], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=5)
+    assert result["invocation"]["run_status"] == "CLI_FAILED"
+    assert result["invocation"]["exit_code"] == 2
+    assert result["invocation"]["cli_error_code"] == "invalid_arguments"
+    assert result["cli_result"] is None
+    assert canary not in json.dumps(result, sort_keys=True)
 
 
 def test_unterminated_trace_line_cap_fails_closed(tmp_path, monkeypatch):
@@ -242,15 +415,44 @@ def test_real_strace_observes_file_names_connect_and_child_after_parent_exit(tmp
         server.close()
         for connection in accepted:
             connection.close()
-    events = result["observer"]["events"]
-    assert result["observer"]["overall_state"] == "UNKNOWN"
-    assert result["observer"]["coverage"] == "SCOPED_COMPLETE"
+    observation = result["observer"]
+    assert observation["overall_state"] == "UNKNOWN"
+    assert observation["coverage"] == "SCOPED_COMPLETE"
+    assert observation["event_aggregates_complete"] is True
+    assert observation["event_sample_truncated"] is True
     assert result["invocation"]["run_status"] == "CLI_COMPLETED"
-    assert any(item.get("syscall") in {"open", "openat", "creat"} and item.get("outcome") == "SUCCESS" for item in events)
-    assert any(item.get("syscall", "").startswith("rename") and item.get("outcome") == "SUCCESS" for item in events)
-    assert any(item.get("syscall") == "connect" and item.get("destination_class") == "loopback" for item in events)
-    assert sum(item.get("syscall") in {"execve", "execveat"} for item in events) >= 2
-    assert renamed.exists() and child_file.exists()
+    aggregates = observation["event_aggregates"]
+    assert sum(item["count"] for item in aggregates) == observation["event_count"]
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["operation"] == "file_name_syscall"
+        and item["syscall"] in {"open", "openat", "creat"}
+        and item["outcome"] == "SUCCESS"
+        and item["path_scope"] == "case_workdir"
+    ) > 0
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["operation"] == "file_name_syscall"
+        and item["syscall"].startswith("rename")
+        and item["outcome"] == "SUCCESS"
+        and item["path_scope"] == "case_workdir"
+    ) > 0
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["syscall"] == "connect"
+        and item["outcome"] == "SUCCESS"
+        and item["destination_class"] == "loopback"
+    ) > 0
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["syscall"] in {"execve", "execveat"} and item["outcome"] == "SUCCESS"
+    ) >= 2
+    assert not created.exists() and renamed.is_file() and child_file.is_file()
+    assert len(accepted) == 1
 
 
 def test_process_creation_cap_terminates_owned_observer_tree(tmp_path, monkeypatch):
@@ -294,7 +496,9 @@ def _effect_fixture_sources(created: Path, renamed: Path, child_file: Path, port
         f"first = pathlib.Path({str(created)!r}); second = pathlib.Path({str(renamed)!r})\n"
         "first.write_text('fixture')\n"
         "first.rename(second)\n"
-        f"client = socket.create_connection(('127.0.0.1', {port}), timeout=2); client.close()\n"
+        # Keep the client socket in blocking mode so the traced connect itself
+        # reports completion. The observer's outer deadline bounds this fixture.
+        f"client = socket.socket(socket.AF_INET, socket.SOCK_STREAM); client.connect(('127.0.0.1', {port})); client.close()\n"
         f"child_source = {child_source!r}\n"
         "subprocess.Popen([sys.executable, '-c', child_source])\n"
         "print('{\"status\":\"ok\"}')\n"

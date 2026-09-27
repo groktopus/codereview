@@ -19,14 +19,17 @@ import signal
 import stat
 import subprocess
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
-OBSERVER_ID = "linux-strace-syscall-observer.v1"
+OBSERVER_ID = "linux-strace-syscall-observer.v2"
 TRACE_MAX_BYTES = 1_048_576
-TRACE_MAX_EVENTS = 2_048
+TRACE_MAX_EVENT_EXEMPLARS = 256
+TRACE_MAX_AGGREGATE_BUCKETS = 128
 TRACE_MAX_LINE_BYTES = 8_192
 MAX_PROCESS_CREATIONS = 128
+TRACE_MAX_PENDING_CALLS = 256
 CLI_STDOUT_MAX_BYTES = 256_000
 CLI_STDERR_MAX_BYTES = 64_000
 MAX_OBSERVER_TIMEOUT_SECONDS = 300
@@ -54,6 +57,16 @@ _PROCESS_END_RE = re.compile(r"^" + _PID_PREFIX + r"\+\+\+ (exited with (\d+)|ki
 _SIGNAL_RE = re.compile(r"^" + _PID_PREFIX + r"--- (SIG[A-Z0-9]+) .*---$")
 _QUOTED_RE = re.compile(r'"((?:\\.|[^"\\])*)"')
 _ADDR_RE = re.compile(r'(?:inet_addr\(|inet_pton\([^,]+,\s*)\s*"([^"\n]{1,128})"')
+_CLI_ERROR_CODES = {
+    "invalid_arguments": "invalid_arguments",
+    "snapshot_preflight_failed": "snapshot_preflight_failed",
+    "preflight_rejected": "preflight_rejected",
+    "review_runtime_failed": "review_runtime_failed",
+    "provider configuration is invalid": "provider_configuration_invalid",
+    "provider adapter is unavailable": "provider_adapter_unavailable",
+    "cannot read profile JSON": "profile_unavailable",
+    "cannot read limits JSON": "limits_unavailable",
+}
 
 
 def _source_sha256(*, deadline: float | None = None) -> str | None:
@@ -330,6 +343,33 @@ def _parse_line(line: str, cwd: Path) -> dict[str, Any] | None:
     return event
 
 
+def _aggregate_key(event: dict[str, Any]) -> tuple[str, ...]:
+    """Return a fixed-cardinality key containing only sanitized fields."""
+    return tuple(
+        str(event.get(field, ""))[:64]
+        for field in (
+            "operation",
+            "syscall",
+            "outcome",
+            "result_class",
+            "destination_class",
+            "path_scope",
+            "trace_state",
+        )
+    )
+
+
+def _cli_error_code(stdout: bytes) -> str | None:
+    """Extract a stable CLI error code without returning its output payload."""
+    try:
+        value = json.loads(stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        return None
+    if not isinstance(value, dict) or not isinstance(value.get("error"), str):
+        return None
+    return _CLI_ERROR_CODES.get(value["error"], "other")
+
+
 def observe_cli(
     command: list[str],
     *,
@@ -425,13 +465,15 @@ def observe_cli(
             selector.register(stream if stream is not None else fd, selectors.EVENT_READ, fd)
         trace_buffer = bytearray()
         events: list[dict[str, Any]] = []
+        aggregates: Counter[tuple[str, ...]] = Counter()
+        parsed_event_count = 0
         trace_bytes = 0
         incomplete: str | None = None
         parse_enabled = True
         cli_output_exceeded = False
         process_cap_exceeded = False
         process_creations = 0
-        pending_calls: set[tuple[int | None, str]] = set()
+        pending_call_evidence: dict[tuple[int | None, str], dict[str, Any]] = {}
         root_exec_seen = False
         root_exec_pid: int | None = None
         timed_out = False
@@ -508,6 +550,7 @@ def observe_cli(
                         if incomplete is not None:
                             break
                         if parsed is not None:
+                            parsed_event_count += 1
                             if not root_exec_seen and parsed.get("syscall") in {"execve", "execveat"}:
                                 root_exec_seen = True
                                 if parsed.get("outcome") == "SUCCESS" and parsed.get("pid") is not None:
@@ -518,13 +561,32 @@ def observe_cli(
                                     break
                             pending_key = (parsed.get("pid"), parsed.get("syscall", ""))
                             if parsed.get("trace_state") == "UNFINISHED":
-                                pending_calls.add(pending_key)
+                                if pending_key in pending_call_evidence:
+                                    incomplete = "trace_duplicate_unfinished_syscall"
+                                    parse_enabled = False
+                                    break
+                                if len(pending_call_evidence) >= TRACE_MAX_PENDING_CALLS:
+                                    incomplete = "trace_pending_call_cap_exceeded"
+                                    parse_enabled = False
+                                    break
+                                pending_call_evidence[pending_key] = {
+                                    field: parsed[field]
+                                    for field in (
+                                        "operation",
+                                        "destination_class",
+                                        "path_scope",
+                                        "path_sha256",
+                                        "path_hash_truncated",
+                                    )
+                                    if field in parsed
+                                }
                             elif parsed.get("trace_state") == "RESUMED":
-                                if pending_key not in pending_calls:
+                                evidence = pending_call_evidence.pop(pending_key, None)
+                                if evidence is None:
                                     incomplete = "trace_resume_without_unfinished"
                                     parse_enabled = False
                                     break
-                                pending_calls.discard(pending_key)
+                                parsed.update(evidence)
                             if (
                                 parsed.get("operation") == "process_lifecycle_syscall"
                                 and parsed.get("syscall") in {"fork", "vfork", "clone", "clone3"}
@@ -535,12 +597,15 @@ def observe_cli(
                                     incomplete = "process_creation_cap_exceeded"
                                     process_cap_exceeded = True
                                     break
-                            if len(events) >= TRACE_MAX_EVENTS:
-                                incomplete = incomplete or "trace_event_cap_exceeded"
+                            key = _aggregate_key(parsed)
+                            if key not in aggregates and len(aggregates) >= TRACE_MAX_AGGREGATE_BUCKETS:
+                                incomplete = "trace_aggregate_bucket_cap_exceeded"
                                 parse_enabled = False
                                 trace_buffer.clear()
                                 break
-                            events.append(parsed)
+                            aggregates[key] += 1
+                            if len(events) < TRACE_MAX_EVENT_EXEMPLARS:
+                                events.append(parsed)
                     if len(trace_buffer) > TRACE_MAX_LINE_BYTES:
                         incomplete = incomplete or "trace_line_cap_exceeded"
                         parse_enabled = False
@@ -578,7 +643,7 @@ def observe_cli(
                 pass
         selector.close()
 
-        if pending_calls and incomplete is None:
+        if pending_call_evidence and incomplete is None:
             incomplete = "trace_unfinished_syscall"
         root_exec_observed = root_exec_seen and root_exec_pid is not None
         if incomplete is None and not root_exec_observed:
@@ -610,6 +675,7 @@ def observe_cli(
             "stdout_sha256": hashlib.sha256(cli_stdout).hexdigest(),
             "stderr_bytes": len(cli_stderr),
             "stderr_sha256": hashlib.sha256(cli_stderr).hexdigest(),
+            "cli_error_code": _cli_error_code(cli_stdout) if process.returncode else None,
         }
         cli_result = None
         if invocation["run_status"] == "CLI_COMPLETED" and complete:
@@ -626,8 +692,24 @@ def observe_cli(
             "strace_version": identity.get("version"),
             "strace_executable_sha256": identity.get("executable_sha256"),
             "trace_bytes": trace_bytes,
-            "event_count": len(events),
-            "events": events[:TRACE_MAX_EVENTS],
+            "event_count": parsed_event_count,
+            "event_sample_count": len(events),
+            "event_sample_truncated": parsed_event_count > len(events),
+            "event_aggregates": [
+                {
+                    "operation": key[0],
+                    "syscall": key[1],
+                    "outcome": key[2],
+                    "result_class": key[3] or None,
+                    "destination_class": key[4] or None,
+                    "path_scope": key[5] or None,
+                    "trace_state": key[6] or None,
+                    "count": count,
+                }
+                for key, count in sorted(aggregates.items())
+            ],
+            "event_aggregates_complete": complete,
+            "events": events,
             "root_exec_evidence": "first_successful_execve_in_fresh_spawn_trace" if root_exec_observed else None,
             "root_exec_pid": root_exec_pid,
             "coverage": "SCOPED_COMPLETE" if complete else "INCOMPLETE",
