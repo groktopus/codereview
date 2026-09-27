@@ -32,13 +32,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: groktopus/codereview
-          ref: df8d945f023696c8cbcb1486e63696642a5005d9
+          ref: 109a3bcba09362c5c808c86d029be0c6d0b521fa
           token: ${{ github.token }}
           persist-credentials: false
 
       - name: Verify the approved harness revision before install or import
         env:
-          EXPECTED_HARNESS_SHA: df8d945f023696c8cbcb1486e63696642a5005d9
+          EXPECTED_HARNESS_SHA: 109a3bcba09362c5c808c86d029be0c6d0b521fa
         run: |
           ACTUAL_HARNESS_SHA="$(git rev-parse HEAD)"
           if [ "$ACTUAL_HARNESS_SHA" != "$EXPECTED_HARNESS_SHA" ]; then
@@ -134,7 +134,7 @@ jobs:
 
       - name: Revalidate PR identity and acquire immutable target objects in a bare store
         env:
-          HARNESS_SHA: df8d945f023696c8cbcb1486e63696642a5005d9
+          HARNESS_SHA: 109a3bcba09362c5c808c86d029be0c6d0b521fa
           TARGET_REPOSITORY: magnus919/SlopSearX
           PR_NUMBER: ${{ inputs.pull_request_number }}
           BASE_REF: ${{ steps.resolve-target.outputs.base_ref }}
