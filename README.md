@@ -6,28 +6,42 @@ The harness owns review depth, scopes, budgets, coverage, freshness, and disposi
 
 ## Try it
 
-Python 3.11+ and Git are required. GitHub PR mode also requires the `gh` CLI authenticated with read-only access to pull requests and checks.
+Python 3.11+ and Git are required. GitHub PR mode also requires the `gh` CLI authenticated with read-only access to pull requests and checks. For a local review, install the CLI and create a provider config that references an environment variable; never put a key value in the file or command line:
 
 ```sh
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install .
+python3 -m pip install .
 pr-review --help
-export NOUS_API_KEY='your inference key'
-git clone --bare https://github.com/magnus919/SlopSearX.git /tmp/slopsearx.git
-pr-review recent --repo /tmp/slopsearx.git --count 2 \
-  --profile profiles/slopsearx.json \
-  --provider-config examples/provider.nous.json \
-  --output artifacts/reviews --json
+cat > provider.json <<'JSON'
+{
+  "kind": "openai_compatible",
+  "provider_id": "operator_openai_compatible",
+  "base_url": "https://api.example.com/v1",
+  "model": "your-model",
+  "api_key_env": "LLM_API_KEY"
+}
+JSON
+# Load LLM_API_KEY from your local secret manager/environment before running.
+pr-review review --repo /path/to/bare-or-local-repo \
+  --base BASE_SHA --head HEAD_SHA --profile profiles/generic.json \
+  --provider-config provider.json --output artifacts/review
 ```
 
-Each run saves JSON and Markdown. A terminal `INCOMPLETE` result is a successful report operation, not a passed review. Read disposition, coverage, freshness basis, unresolved gaps, and task status together. Historical snapshots never establish the current status of a live PR.
+The review is read-only and does not run target code, tests, or builds. Each run saves JSON and Markdown. `INCOMPLETE` is a report result, not a passed review; read disposition, coverage, freshness, unresolved gaps, and task status together. Historical snapshots do not establish a live PR's current status.
 
 ## Provider configuration
 
-The reusable analysis workflow accepts `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `JEV_BASE_URL`, `JEV_MODEL`, and `JEV_API_KEY` only as required trusted `workflow_call` secrets. A pull request cannot choose either destination or model. The first intended inference deployment is NousPortal, but the endpoint and model are operator-configured; the Jev endpoint and model are operator-configured as well. Only the two `*_API_KEY` values are authentication credentials. Store keys in the deployment secret store, never in provider JSON or command-line arguments. The quick-start command above remains a separate historical `NOUS_API_KEY` test configuration.
+The reusable workflow accepts `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `JEV_BASE_URL`, `JEV_MODEL`, and `JEV_API_KEY` as required trusted `workflow_call` secrets. A pull request cannot choose either destination or model. These are generic operator-selected OpenAI-compatible and native Jev endpoints/models; NousPortal is an intended deployment, not a required provider. Only the two `*_API_KEY` values are credentials. Store them in a secret manager, never in provider JSON or command-line arguments.
 
-The `scripts/provider_config_from_env.py` helper validates the six values and writes separate private provider and decision config files. It keeps key values out of the JSON and prints only config paths. The LLM API root may use a provider-specific path; the adapter appends `/chat/completions`. The native Jev API root may use a provider-specific path; the adapter appends `/systemone`. Remote HTTP is rejected; loopback HTTP is allowed for local adapters. The reusable workflow now invokes this helper and passes both generated files to the CLI, but no hosted provider run has verified runtime connectivity or review quality. The historical free-model workflow remains separate. See [Deployment configuration](docs/DEPLOYMENT-CONFIGURATION.md) for the exact generated config shape and boundaries.
+On a CI runner, for the reusable workflow's six-secret configuration, run this after loading those variables from its secret store; the helper makes no provider requests and prints only config paths:
+
+```sh
+python3 scripts/provider_config_from_env.py \
+  --output-dir "$RUNNER_TEMP/pr-review-provider-config" --json
+```
+
+Pass the returned paths as `--provider-config` and `--decision-config`. The LLM API root may include a provider-specific path; the adapter appends `/chat/completions`. The Jev root may include a provider-specific path; the adapter appends `/systemone`. Remote HTTP is rejected; loopback HTTP is allowed for local adapters. Direct CLI use can omit `--decision-config` to disable Jev advisory calls; per-candidate claim assessments also remain disabled by default (`--max-claim-assessments 0`) and require a decision config to enable. `--prepare-only` measures exact primary requests without provider dispatch, but needs a provider config for exact serialization; unlike `--dry-run`, it reads and plans the immutable source. See [Deployment configuration](docs/DEPLOYMENT-CONFIGURATION.md) for config boundaries. The historical free-model workflow remains separate.
 
 For a particular change use `pr-review review --repo REPO --base SHA --head SHA` with the same profile/provider/output options. `--dry-run` previews arguments without reading credentials or contacting providers. For another project, start from `profiles/generic.json` and explicitly review its context, risk rules, lenses, and required checks. Profile files are trusted operator inputs.
 
