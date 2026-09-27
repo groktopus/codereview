@@ -127,12 +127,14 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
 
     candidate = state["candidate"]
     candidate_fields = {"candidate_id", "title", "observation", "consequence", "rule_or_contract"}
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
+        candidate_fields.add("evidence_refs")
     if not isinstance(candidate, dict) or set(candidate) != candidate_fields:
         raise ProviderError("invalid_claim_candidate")
     candidate_id = candidate["candidate_id"]
     if not isinstance(candidate_id, str) or not candidate_id.strip() or len(candidate_id) > 256:
         raise ProviderError("invalid_claim_candidate")
-    for key in candidate_fields - {"candidate_id"}:
+    for key in candidate_fields - {"candidate_id", "evidence_refs"}:
         if (
             not isinstance(candidate[key], str)
             or not candidate[key].strip()
@@ -219,6 +221,16 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
             revisions.add(revision)
     if len(set(evidence_ids)) != len(evidence_ids):
         raise ProviderError("invalid_claim_evidence")
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
+        candidate_refs = candidate.get("evidence_refs")
+        if (
+            not isinstance(candidate_refs, list)
+            or not candidate_refs
+            or any(not isinstance(ref, str) or not ref.strip() or len(ref) > 256 for ref in candidate_refs)
+            or len(set(candidate_refs)) != len(candidate_refs)
+            or any(ref not in evidence_ids for ref in candidate_refs)
+        ):
+            raise ProviderError("invalid_claim_evidence")
     expected_questions, _ids = _questions(
         candidate_id,
         revisions == {identity["base_sha"], identity["head_sha"]},

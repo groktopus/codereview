@@ -265,6 +265,7 @@ def test_operator_decision_config_requires_exact_materializer_schema():
 def test_transport_accepts_v2_primary_assessment_as_distinct_bound_context():
     request = json.loads(_request())
     request["state"]["assessment_contract_version"] = PRIMARY_ASSESSMENT_CONTRACT_VERSION
+    request["state"]["candidate"]["evidence_refs"] = ["ev-head"]
     request["state"]["primary_assessment"] = {
         "contract_version": "semantic-adjudication.v3",
         "source_contract_version": "semantic-adjudication.v3",
@@ -291,6 +292,35 @@ def test_transport_accepts_v2_primary_assessment_as_distinct_bound_context():
     tampered = json.dumps(request, separators=(",", ":")).encode()
     with pytest.raises(ProviderError, match="invalid_primary_assessment"):
         _parse_request(tampered)
+
+
+def test_transport_rejects_unhashable_candidate_evidence_ref_as_provider_error():
+    request = json.loads(_request())
+    request["state"]["assessment_contract_version"] = PRIMARY_ASSESSMENT_CONTRACT_VERSION
+    request["state"]["candidate"]["evidence_refs"] = [{"not": "a reference"}]
+    request["state"]["primary_assessment"] = {
+        "contract_version": "semantic-adjudication.v3",
+        "source_contract_version": "semantic-adjudication.v3",
+        "outcome": "UNCERTAIN",
+        "observation_support": "NOT_ESTABLISHED",
+        "consequence_support": "NOT_ESTABLISHED",
+        "rule_connection_support": "NOT_ESTABLISHED",
+        "introducedness": "UNKNOWN",
+        "evidence_refs": [],
+        "assumptions": [],
+        "uncertainties": [],
+        "summary": "No evidence refs were supplied.",
+        "material_consequence": False,
+        "causal_roles": {
+            role: {"support": "NOT_ESTABLISHED", "assessment": "Unknown.", "evidence_refs": []}
+            for role in ("behavior", "consumer", "impact")
+        },
+    }
+    request["questions"] = _questions("c1", False, PRIMARY_ASSESSMENT_CONTRACT_VERSION)[0]
+    raw = json.dumps(request, separators=(",", ":")).encode()
+
+    with pytest.raises(ProviderError, match="invalid_claim_evidence"):
+        _parse_request(raw)
 
 
 def test_missing_credential_fails_before_network_dispatch(servers):
