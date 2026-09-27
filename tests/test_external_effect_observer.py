@@ -323,6 +323,22 @@ def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
     assert summary["event_count"] == 4 and summary["trace_bytes"] == 128
 
 
+@pytest.mark.parametrize(
+    "error_code",
+    ["invalid_review_request", "run_id_already_exists", "resume_state_invalid"],
+)
+def test_prepare_smoke_retains_typed_preflight_diagnostic(error_code):
+    summary = _failure_summary(
+        {
+            "observer": {"observer_id": observer.OBSERVER_ID, "reason": "observer_unavailable"},
+            "invocation": {"run_status": "CLI_FAILED", "exit_code": 2, "cli_error_code": error_code},
+            "cli_result": None,
+        },
+        "prepare_contract_failed",
+    )
+    assert summary["cli_error_code"] == error_code
+
+
 def test_prepare_smoke_environment_ignores_enclosing_actions_event():
     source = {
         "GITHUB_EVENT_PATH": "/runner/work/_temp/event.json",
@@ -615,18 +631,29 @@ def test_fake_provider_supports_bounded_delayed_success_without_changing_default
         default_server.server_close()
 
 
-def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ("error_code", "expected_code"),
+    [
+        ("invalid_arguments", "invalid_arguments"),
+        ("invalid_review_request", "invalid_review_request"),
+        ("run_id_already_exists", "run_id_already_exists"),
+        ("resume_state_invalid", "resume_state_invalid"),
+        ("SENSITIVE_CLI_STDOUT_CANARY", "other"),
+    ],
+)
+def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch, error_code, expected_code):
     _fake_strace(tmp_path, monkeypatch)
     canary = "SENSITIVE_CLI_STDOUT_CANARY"
     script = tmp_path / "failed_cli.py"
     script.write_text(
-        "import json, sys; print(json.dumps({'error':'invalid_arguments','exit_code':2,'payload':'SENSITIVE_CLI_STDOUT_CANARY'})); sys.exit(2)\n",
+        "import json, sys; "
+        f"print(json.dumps({{'error':{error_code!r},'exit_code':2,'payload':{canary!r}}})); sys.exit(2)\n",
         encoding="utf-8",
     )
     result = observer.observe_cli([sys.executable, str(script)], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=5)
     assert result["invocation"]["run_status"] == "CLI_FAILED"
     assert result["invocation"]["exit_code"] == 2
-    assert result["invocation"]["cli_error_code"] == "invalid_arguments"
+    assert result["invocation"]["cli_error_code"] == expected_code
     assert result["cli_result"] is None
     assert canary not in json.dumps(result, sort_keys=True)
 

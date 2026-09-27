@@ -47,6 +47,7 @@ _REHEARSAL_ARTIFACT_NAMES = frozenset(
     for extension in ("json", "md")
 )
 _FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_]{0,79}$")
+_PROFILE_DRIFT_PREFLIGHT_CODES = frozenset({"preflight_rejected", "resume_state_invalid"})
 
 
 class RehearsalError(RuntimeError):
@@ -224,6 +225,51 @@ def _hash_file(path: Path) -> str:
         while block := stream.read(64 * 1024):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _validate_profile_drift_rejection(
+    drift: dict[str, Any],
+    *,
+    checkpoint_path: Path,
+    checkpoint_sha256: str,
+    calls_before: int,
+    calls_after: int,
+) -> str:
+    """Accept known preflight contracts only and prove this attempt had no side effect."""
+    error_code = drift.get("error") if isinstance(drift, dict) else None
+    exit_code = drift.get("exit_code") if isinstance(drift, dict) else None
+    if (
+        exit_code != 2
+        or not isinstance(exit_code, int)
+        or isinstance(exit_code, bool)
+        or not isinstance(error_code, str)
+        or error_code not in _PROFILE_DRIFT_PREFLIGHT_CODES
+    ):
+        raise RehearsalError("profile_drift_not_rejected")
+    if calls_after != calls_before:
+        raise RehearsalError("profile_drift_dispatched_provider")
+    try:
+        mode = checkpoint_path.lstat().st_mode
+        if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+            raise RehearsalError("profile_drift_checkpoint_mutated")
+        if _hash_file(checkpoint_path) != checkpoint_sha256:
+            raise RehearsalError("profile_drift_checkpoint_mutated")
+    except OSError:
+        raise RehearsalError("profile_drift_checkpoint_unavailable") from None
+    return error_code
+
+
+def _profile_drift_row(error_code: str, *, calls_before: int, calls_after: int, checkpoint_sha256: str) -> dict[str, Any]:
+    """Build evidence from counts captured around the rejected attempt only."""
+    return {
+        "scenario": "profile_drift",
+        "status": "rejected_before_dispatch",
+        "error_code": error_code,
+        "fake_provider_calls_before": calls_before,
+        "fake_provider_calls_after": calls_after,
+        "checkpoint_sha256": checkpoint_sha256,
+        "checkpoint_unchanged": True,
+    }
 
 
 def _collect_artifacts(source: Path, destination: Path) -> dict[str, Any]:
@@ -981,6 +1027,7 @@ def _run_rehearsal_body(
                 if not partial_path.is_file():
                     raise RehearsalError("interrupted_checkpoint_missing")
                 partial = json.loads(partial_path.read_text(encoding="utf-8"))
+                partial_sha256 = _hash_file(partial_path)
                 reservations = partial.get("ledger", {}).get("budget", {}).get("reservations", {})
                 settlements = partial.get("ledger", {}).get("budget", {}).get("settlements", {})
                 interrupted_reservations = [key for key in reservations if key not in settlements]
@@ -993,6 +1040,7 @@ def _run_rehearsal_body(
                 changed_profile = json.loads(original_profile)
                 changed_profile["review_criteria"] = {"correctness": "changed trusted profile"}
                 profile.write_text(json.dumps(changed_profile, sort_keys=True) + "\n", encoding="utf-8")
+                drift_calls_before = len(state.calls)
                 drift = _run_cli(
                     Path(installed["cli"]),
                     _cli_args(repo, base, head, profile, limits, provider_config, output, interrupted_id, resume=True),
@@ -1001,10 +1049,14 @@ def _run_rehearsal_body(
                     expected_exit=2,
                     deadline_at=deadline_at,
                 )
-                if not str(drift.get("error", "")).startswith("preflight_rejected"):
-                    raise RehearsalError("profile_drift_not_rejected")
-                if len(state.calls) != 2:
-                    raise RehearsalError("profile_drift_dispatched_provider")
+                drift_calls_after = len(state.calls)
+                profile_drift_error = _validate_profile_drift_rejection(
+                    drift,
+                    checkpoint_path=partial_path,
+                    checkpoint_sha256=partial_sha256,
+                    calls_before=drift_calls_before,
+                    calls_after=drift_calls_after,
+                )
                 profile.write_bytes(original_profile)
                 state.configure(["success", "success"])
                 resume_call_count = len(state.calls)
@@ -1043,11 +1095,12 @@ def _run_rehearsal_body(
                 final_row["interrupted_fake_request_log"] = interrupted_request_log
                 rows.append(final_row)
                 rows.append(
-                    {
-                        "scenario": "profile_drift",
-                        "status": "rejected_before_dispatch",
-                        "error_code": "preflight_rejected",
-                    }
+                    _profile_drift_row(
+                        profile_drift_error,
+                        calls_before=drift_calls_before,
+                        calls_after=drift_calls_after,
+                        checkpoint_sha256=partial_sha256,
+                    )
                 )
 
                 # A terminal historical run can be safely re-opened; it makes no current GitHub claim.
