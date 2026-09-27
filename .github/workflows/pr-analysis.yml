@@ -178,6 +178,81 @@ jobs:
           event = {'number': number, 'pull_request': {'base': {'sha': base_sha}, 'head': {'sha': head_sha}}}
           Path(os.environ['EVENT_OUTPUT']).write_text(json.dumps(event), encoding='utf-8')
           PY
+      - name: Validate generated PR event against the pinned analysis identity
+        env:
+          PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json
+          EXPECTED_PR_NUMBER: ${{ inputs.pull_request_number }}
+          EXPECTED_BASE_SHA: ${{ inputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import stat
+
+          MAX_EVENT_BYTES = 16_384
+
+          def reject_duplicates(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError("duplicate_json_key")
+                  result[key] = value
+              return result
+
+          def reject_constant(_value):
+              raise ValueError("nonstandard_json_constant")
+
+          def fail():
+              raise SystemExit("generated_pull_request_event_invalid")
+
+          def main():
+              number_text = os.environ.get("EXPECTED_PR_NUMBER", "")
+              base_sha = os.environ.get("EXPECTED_BASE_SHA", "")
+              head_sha = os.environ.get("EXPECTED_HEAD_SHA", "")
+              if not re.fullmatch(r"[1-9][0-9]{0,8}", number_text):
+                  fail()
+              if not re.fullmatch(r"[0-9a-f]{40}", base_sha) or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+                  fail()
+              try:
+                  descriptor = os.open(os.environ["PR_EVENT_PATH"], os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+                  with os.fdopen(descriptor, "rb") as stream:
+                      if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                          fail()
+                      raw = stream.read(MAX_EVENT_BYTES + 1)
+              except (KeyError, OSError):
+                  fail()
+              if len(raw) > MAX_EVENT_BYTES:
+                  fail()
+              try:
+                  document = json.loads(
+                      raw.decode("utf-8"),
+                      object_pairs_hook=reject_duplicates,
+                      parse_constant=reject_constant,
+                  )
+              except (UnicodeDecodeError, ValueError, json.JSONDecodeError, RecursionError):
+                  fail()
+              if not isinstance(document, dict) or set(document) != {"number", "pull_request"}:
+                  fail()
+              number = document.get("number")
+              if isinstance(number, bool) or not isinstance(number, int) or number != int(number_text):
+                  fail()
+              pull_request = document.get("pull_request")
+              if not isinstance(pull_request, dict) or set(pull_request) != {"base", "head"}:
+                  fail()
+              base = pull_request.get("base")
+              head = pull_request.get("head")
+              if not isinstance(base, dict) or set(base) != {"sha"}:
+                  fail()
+              if not isinstance(head, dict) or set(head) != {"sha"}:
+                  fail()
+              if base.get("sha") != base_sha or head.get("sha") != head_sha:
+                  fail()
+
+          if __name__ == "__main__":
+              main()
+          PY
       - name: Materialize private provider configuration from trusted secrets
         env:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
@@ -192,10 +267,8 @@ jobs:
             --json > "$RUNNER_TEMP/pr-review-provider-config-paths.json"
       - name: Produce a bounded read-only report from the bare target object store
         env:
-          GITHUB_EVENT_PATH: ${{ runner.temp }}/pr-event.json
-          GITHUB_REPOSITORY: ${{ inputs.target_repository }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-          GITHUB_SERVER_URL: https://github.com
+          PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
           GH_TOKEN: ${{ github.token }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
@@ -203,9 +276,9 @@ jobs:
           OBJECT_STORE: ${{ runner.temp }}/target.git
         run: |
           mkdir -p artifacts
-          pr-review review \
+          env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review \
             --repo "$OBJECT_STORE" \
-            --event-file "$GITHUB_EVENT_PATH" \
+            --event-file "$PR_EVENT_PATH" \
             --profile "$PROFILE" \
             --provider-config "$RUNNER_TEMP/pr-review-provider-config/provider.json" \
             --decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json" \

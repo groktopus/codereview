@@ -377,13 +377,18 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
     direct_command = direct_review.split("        run: |\n", 1)[1]
     direct_command = direct_command.replace(
         "env GITHUB_REPOSITORY=magnus919/SlopSearX pr-review review",
-        "pr-review review",
+        'env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review',
         1,
-    ).replace('--event-file "$PR_EVENT_PATH"', '--event-file "$GITHUB_EVENT_PATH"', 1)
-    assert direct_command.rstrip() == reusable_review.split("        run: |\n", 1)[1].rstrip()
+    )
+    reusable_command = reusable_review.split("        run: |\n", 1)[1]
+    assert direct_command.rstrip() == reusable_command.rstrip()
     assert "PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json" in direct_review
     assert "env GITHUB_REPOSITORY=magnus919/SlopSearX pr-review review" in direct_review
     assert '--event-file "$PR_EVENT_PATH"' in direct_review
+    assert "PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json" in reusable_review
+    assert "TARGET_REPOSITORY: ${{ inputs.target_repository }}" in reusable_review
+    assert 'env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review' in reusable_command
+    assert '--event-file "$PR_EVENT_PATH"' in reusable_command
     assert "PROFILE: profiles/slopsearx.json" in direct_review
     assert "--mode AUTO" in direct_review
     assert "--json > artifacts/review-result.json" in direct_review
