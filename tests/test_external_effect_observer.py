@@ -13,7 +13,13 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import external_effect_observer as observer
-from scripts.effect_observer_smoke import _failure_summary, _prepare_environment, _validate_full_review
+from scripts.effect_observer_smoke import (
+    _bounded_full_review_failure,
+    _failure_summary,
+    _full_review_failure_code,
+    _prepare_environment,
+    _validate_full_review,
+)
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -411,6 +417,59 @@ def test_full_review_smoke_rejects_incomplete_or_unexercised_evidence(failure):
         target_marker_exists=failure == "executed",
     )
     assert summary is None
+
+
+def test_full_review_failure_diagnostic_uses_stable_codes_and_no_payload_fields():
+    sentinel = "UNTRUSTED_PROVIDER_OR_SOURCE_CONTENT_5f8a"
+    result, observation, invocation, calls = _full_review_contract_fixture()
+    result["task_results"]["task-security"]["lens"] = sentinel
+    result["disposition"] = sentinel
+    observation.update(
+        {
+            "reason": sentinel,
+            "coverage": "INCOMPLETE",
+            "trace_bytes": observer.TRACE_MAX_BYTES + 1,
+            "event_count": True,
+        }
+    )
+    code = _full_review_failure_code(
+        result, observation, invocation, calls, target_marker_exists=False
+    )
+    assert code == "observer_scope_or_trace_incomplete"
+    summary = _bounded_full_review_failure(
+        code, result, observation, invocation, calls, target_marker_exists=False
+    )
+    encoded = json.dumps(summary, sort_keys=True)
+    assert sentinel not in encoded
+    assert summary["failure_stage"] == "observer_scope_or_trace_incomplete"
+    assert summary["observer_reason"] == "other"
+    assert summary["observer_event_count"] is None
+    assert summary["observer_trace_bytes"] == observer.TRACE_MAX_BYTES + 1
+    assert summary["observed_task_lenses"] == ["correctness", "maintainability", "tests"]
+    assert summary["unknown_task_lens_count"] == 1
+
+
+def test_full_review_diagnostic_fails_closed_on_malformed_payload_and_envelope():
+    sentinel = "UNTRUSTED_PAYLOAD_62aa"
+    result, observation, invocation, calls = _full_review_contract_fixture()
+    result["task_results"]["task-security"]["payload"] = [sentinel]
+    code = _full_review_failure_code(
+        result, None, None, calls, target_marker_exists=False  # type: ignore[arg-type]
+    )
+    assert code == "observer_scope_or_trace_incomplete"
+
+    result, observation, invocation, calls = _full_review_contract_fixture()
+    result["task_results"]["task-security"]["payload"] = [sentinel]
+    observation["coverage"] = "SCOPED_COMPLETE"
+    summary = _bounded_full_review_failure(
+        sentinel, result, observation, invocation, calls, target_marker_exists=False
+    )
+    encoded = json.dumps(summary, sort_keys=True)
+    assert sentinel not in encoded
+    assert summary["failure_stage"] == "unknown_failure"
+    assert _full_review_failure_code(
+        result, observation, invocation, calls, target_marker_exists=False
+    ) == "task_payload_schema_invalid"
 
 
 def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):

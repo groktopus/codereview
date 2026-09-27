@@ -75,6 +75,34 @@ _OBSERVER_REASONS = {
     "root_exec_or_trace_incomplete",
     "trace_trailing_bytes",
 }
+_FULL_REVIEW_FAILURE_CODES = {
+    "observer_scope_or_trace_incomplete",
+    "cli_invocation_not_completed",
+    "target_execution_marker_detected",
+    "cli_result_unavailable",
+    "required_task_count_mismatch",
+    "task_result_schema_invalid",
+    "task_lens_invalid",
+    "required_lens_set_mismatch",
+    "task_not_succeeded_once",
+    "coverage_not_complete",
+    "coverage_row_incomplete",
+    "coverage_lens_invalid",
+    "coverage_lens_set_mismatch",
+    "coverage_required_flag_missing",
+    "terminal_disposition_not_allowed",
+    "freshness_status_invalid",
+    "fake_provider_call_count_mismatch",
+    "fake_provider_response_status_mismatch",
+    "task_payload_schema_invalid",
+    "candidate_adjudication_unexpectedly_exercised",
+    "budget_or_cost_contract_mismatch",
+    "recovery_fixture_import_failed",
+    "fake_provider_key_exposed",
+    "durable_result_missing_or_mismatched",
+    "summary_projection_failed",
+    "fixture_or_result_processing_failed",
+}
 _ACTION_EVENT_ENV = ("GITHUB_EVENT_PATH", "GITHUB_REPOSITORY", "GITHUB_RUN_ID")
 
 
@@ -130,77 +158,16 @@ def _validate_full_review(
     target_marker_exists: bool,
 ) -> dict[str, object] | None:
     """Project only finite, typed evidence from one synthetic normal review."""
-    required_lenses = {"correctness", "tests", "security", "maintainability"}
-    tasks = result.get("task_results")
-    if not isinstance(tasks, dict) or len(tasks) != len(required_lenses):
+    if _full_review_failure_code(
+        result, observation, invocation, provider_calls, target_marker_exists=target_marker_exists
+    ) is not None:
         return None
-    if any(not isinstance(task, dict) for task in tasks.values()):
-        return None
-    if {task.get("lens") for task in tasks.values()} != required_lenses:
-        return None
-    if any(task.get("status") != "SUCCEEDED" or task.get("attempts") != 1 for task in tasks.values()):
-        return None
-    coverage = result.get("coverage_ledger")
-    if (
-        result.get("coverage_state") != "COMPLETE"
-        or not isinstance(coverage, list)
-        or not coverage
-        or any(not isinstance(item, dict) or item.get("state") != "COMPLETE" for item in coverage)
-        or any(not isinstance(item.get("lens"), str) for item in coverage if isinstance(item, dict))
-        or {item.get("lens") for item in coverage} != required_lenses
-        or any(item.get("required") is not True for item in coverage)
-    ):
-        return None
-    disposition = result.get("disposition")
-    if (
-        not isinstance(disposition, str)
-        or disposition not in {"COMMENT", "INCOMPLETE"}
-        or result.get("allow_empty_approve") is not False
-    ):
-        return None
-    freshness = result.get("freshness")
-    if not isinstance(freshness, str) or freshness not in {"CURRENT", "STALE", "UNKNOWN"}:
-        return None
-    if (
-        len(provider_calls) != len(required_lenses)
-        or any(
-            not isinstance(call, dict)
-            or call.get("behavior") != "success"
-            or call.get("path") != "/v1/chat/completions"
-            for call in provider_calls
-        )
-        or observation.get("observer_id") != "linux-strace-syscall-observer.v3"
-        or observation.get("coverage") != "SCOPED_COMPLETE"
-        or observation.get("event_aggregates_complete") is not True
-        or not isinstance(observation.get("event_count"), int)
-        or observation.get("event_count", 0) <= 0
-        or not isinstance(observation.get("trace_bytes"), int)
-        or not 0 < observation["trace_bytes"] <= TRACE_MAX_BYTES
-        or invocation.get("run_status") != "CLI_COMPLETED"
-        or invocation.get("exit_code") != 0
-        or target_marker_exists
-    ):
-        return None
-    candidate_count = sum(
-        len(task.get("payload", {}).get("finding_candidates", []))
-        for task in tasks.values()
-        if isinstance(task.get("payload"), dict)
-        and isinstance(task.get("payload", {}).get("finding_candidates", []), list)
-    )
-    if candidate_count != 0:
-        return None
+    tasks = result["task_results"]
+    disposition = result["disposition"]
+    freshness = result["freshness"]
     budget = result.get("budget")
-    if (
-        not isinstance(budget, dict)
-        or budget.get("provider_calls_reserved") != len(required_lenses)
-        or budget.get("provider_calls_limit") != 8
-        or budget.get("output_bytes_reserved") != 32_000
-        or budget.get("output_bytes_limit") != 32_000
-        or budget.get("cost") != "UNKNOWN"
-        or budget.get("cost_billing_known") is not False
-        or budget.get("budget_breaches") != []
-    ):
-        return None
+    required_lenses = {"correctness", "tests", "security", "maintainability"}
+    assert isinstance(budget, dict)
     return {
         "status": "NORMAL_REVIEW_COMPLETED",
         "coverage_state": "COMPLETE",
@@ -224,7 +191,178 @@ def _validate_full_review(
     }
 
 
-def _full_review_smoke(cli: Path) -> dict[str, object] | None:
+def _full_review_failure_code(
+    result: dict | None,
+    observation: dict,
+    invocation: dict,
+    provider_calls: list[dict],
+    *,
+    target_marker_exists: bool,
+) -> str | None:
+    """Return the first stable failed stage without exposing payloads or logs."""
+    observation = observation if isinstance(observation, dict) else {}
+    invocation = invocation if isinstance(invocation, dict) else {}
+    provider_calls = provider_calls if isinstance(provider_calls, list) else []
+    if (
+        observation.get("observer_id") != "linux-strace-syscall-observer.v3"
+        or observation.get("coverage") != "SCOPED_COMPLETE"
+        or observation.get("event_aggregates_complete") is not True
+        or not isinstance(observation.get("event_count"), int)
+        or isinstance(observation.get("event_count"), bool)
+        or observation.get("event_count", 0) <= 0
+        or not isinstance(observation.get("trace_bytes"), int)
+        or isinstance(observation.get("trace_bytes"), bool)
+        or not 0 < observation["trace_bytes"] <= TRACE_MAX_BYTES
+    ):
+        return "observer_scope_or_trace_incomplete"
+    if invocation.get("run_status") != "CLI_COMPLETED" or invocation.get("exit_code") != 0:
+        return "cli_invocation_not_completed"
+    if target_marker_exists:
+        return "target_execution_marker_detected"
+    if not isinstance(result, dict):
+        return "cli_result_unavailable"
+    required_lenses = {"correctness", "tests", "security", "maintainability"}
+    tasks = result.get("task_results")
+    if not isinstance(tasks, dict) or len(tasks) != len(required_lenses):
+        return "required_task_count_mismatch"
+    if any(not isinstance(task, dict) for task in tasks.values()):
+        return "task_result_schema_invalid"
+    known_lenses = {"correctness", "tests", "security", "maintainability"}
+    if any(not isinstance(task.get("lens"), str) for task in tasks.values()):
+        return "task_lens_invalid"
+    if {task.get("lens") for task in tasks.values()} != known_lenses:
+        return "required_lens_set_mismatch"
+    if any(task.get("status") != "SUCCEEDED" or task.get("attempts") != 1 for task in tasks.values()):
+        return "task_not_succeeded_once"
+    coverage = result.get("coverage_ledger")
+    if result.get("coverage_state") != "COMPLETE" or not isinstance(coverage, list) or not coverage:
+        return "coverage_not_complete"
+    if any(not isinstance(item, dict) or item.get("state") != "COMPLETE" for item in coverage):
+        return "coverage_row_incomplete"
+    if any(not isinstance(item.get("lens"), str) for item in coverage if isinstance(item, dict)):
+        return "coverage_lens_invalid"
+    if {item.get("lens") for item in coverage} != required_lenses:
+        return "coverage_lens_set_mismatch"
+    if any(item.get("required") is not True for item in coverage):
+        return "coverage_required_flag_missing"
+    disposition = result.get("disposition")
+    if (
+        not isinstance(disposition, str)
+        or disposition not in {"COMMENT", "INCOMPLETE"}
+        or result.get("allow_empty_approve") is not False
+    ):
+        return "terminal_disposition_not_allowed"
+    freshness = result.get("freshness")
+    if not isinstance(freshness, str) or freshness not in {"CURRENT", "STALE", "UNKNOWN"}:
+        return "freshness_status_invalid"
+    if len(provider_calls) != len(required_lenses):
+        return "fake_provider_call_count_mismatch"
+    if any(
+        not isinstance(call, dict)
+        or call.get("behavior") != "success"
+        or call.get("path") != "/v1/chat/completions"
+        for call in provider_calls
+    ):
+        return "fake_provider_response_status_mismatch"
+    candidate_count = 0
+    for task in tasks.values():
+        payload = task.get("payload")
+        if not isinstance(payload, dict):
+            return "task_payload_schema_invalid"
+        candidates = payload.get("finding_candidates", [])
+        if not isinstance(candidates, list):
+            return "task_payload_schema_invalid"
+        candidate_count += len(candidates)
+    if candidate_count != 0:
+        return "candidate_adjudication_unexpectedly_exercised"
+    budget = result.get("budget")
+    if (
+        not isinstance(budget, dict)
+        or budget.get("provider_calls_reserved") != len(required_lenses)
+        or budget.get("provider_calls_limit") != 8
+        or budget.get("output_bytes_reserved") != 32_000
+        or budget.get("output_bytes_limit") != 32_000
+        or budget.get("cost") != "UNKNOWN"
+        or budget.get("cost_billing_known") is not False
+        or budget.get("budget_breaches") != []
+    ):
+        return "budget_or_cost_contract_mismatch"
+    return None
+
+
+def _bounded_full_review_failure(
+    failure_code: str,
+    result: dict | None,
+    observation: dict,
+    invocation: dict,
+    provider_calls: list[dict],
+    *,
+    target_marker_exists: bool,
+) -> dict[str, object]:
+    """Keep only stable enums, bounded counts, and byte counters for CI triage."""
+    observation = observation if isinstance(observation, dict) else {}
+    invocation = invocation if isinstance(invocation, dict) else {}
+    provider_calls = provider_calls if isinstance(provider_calls, list) else []
+    allowed_dispositions = {"APPROVE", "COMMENT", "REQUEST_CHANGES", "INCOMPLETE"}
+    allowed_freshness = {"CURRENT", "STALE", "UNKNOWN"}
+    tasks = result.get("task_results", {}) if isinstance(result, dict) else {}
+    coverage = result.get("coverage_ledger", []) if isinstance(result, dict) else []
+    budget = result.get("budget", {}) if isinstance(result, dict) else {}
+    safe_task_rows = [item for item in tasks.values() if isinstance(item, dict)] if isinstance(tasks, dict) else []
+    safe_coverage_rows = [item for item in coverage if isinstance(item, dict)] if isinstance(coverage, list) else []
+    observer_reason = observation.get("reason")
+    invocation_status = invocation.get("run_status")
+    return {
+        "status": "NORMAL_REVIEW_FAILED",
+        "failure_stage": failure_code if failure_code in _FULL_REVIEW_FAILURE_CODES else "unknown_failure",
+        "observer_coverage": observation.get("coverage")
+        if isinstance(observation.get("coverage"), str)
+        and observation.get("coverage") in {"SCOPED_COMPLETE", "INCOMPLETE", "UNKNOWN"}
+        else "UNKNOWN",
+        "observer_reason": observer_reason if isinstance(observer_reason, str) and observer_reason in _OBSERVER_REASONS else "other",
+        "observer_event_count": observation.get("event_count") if isinstance(observation.get("event_count"), int) and not isinstance(observation.get("event_count"), bool) else None,
+        "observer_aggregates_complete": observation.get("event_aggregates_complete") if isinstance(observation.get("event_aggregates_complete"), bool) else None,
+        "observer_trace_bytes": observation.get("trace_bytes") if isinstance(observation.get("trace_bytes"), int) and not isinstance(observation.get("trace_bytes"), bool) else None,
+        "invocation_status": invocation_status if isinstance(invocation_status, str) and invocation_status in _RUN_STATUSES else "UNKNOWN",
+        "cli_exit_code": invocation.get("exit_code") if isinstance(invocation.get("exit_code"), int) and not isinstance(invocation.get("exit_code"), bool) else None,
+        "cli_result_available": isinstance(result, dict),
+        "task_result_rows": len(safe_task_rows),
+        "succeeded_task_rows": sum(item.get("status") == "SUCCEEDED" for item in safe_task_rows),
+        "observed_task_lenses": sorted(
+            {
+                item.get("lens")
+                for item in safe_task_rows
+                if isinstance(item.get("lens"), str)
+                and item.get("lens") in {"correctness", "tests", "security", "maintainability"}
+            }
+        ),
+        "unknown_task_lens_count": sum(
+            not isinstance(item.get("lens"), str)
+            or item.get("lens") not in {"correctness", "tests", "security", "maintainability"}
+            for item in safe_task_rows
+        ),
+        "coverage_state": result.get("coverage_state") if isinstance(result, dict) and isinstance(result.get("coverage_state"), str) and result.get("coverage_state") in {"COMPLETE", "PARTIAL", "NOT_STARTED", "UNKNOWN"} else "UNKNOWN",
+        "coverage_rows": len(safe_coverage_rows),
+        "complete_coverage_rows": sum(item.get("state") == "COMPLETE" for item in safe_coverage_rows),
+        "disposition": result.get("disposition")
+        if isinstance(result, dict)
+        and isinstance(result.get("disposition"), str)
+        and result.get("disposition") in allowed_dispositions
+        else "UNKNOWN",
+        "freshness": result.get("freshness")
+        if isinstance(result, dict)
+        and isinstance(result.get("freshness"), str)
+        and result.get("freshness") in allowed_freshness
+        else "UNKNOWN",
+        "fake_provider_calls": len(provider_calls),
+        "successful_fake_calls": sum(isinstance(item, dict) and item.get("behavior") == "success" for item in provider_calls),
+        "provider_calls_reserved": budget.get("provider_calls_reserved") if isinstance(budget, dict) and isinstance(budget.get("provider_calls_reserved"), int) and not isinstance(budget.get("provider_calls_reserved"), bool) else None,
+        "output_bytes_reserved": budget.get("output_bytes_reserved") if isinstance(budget, dict) and isinstance(budget.get("output_bytes_reserved"), int) and not isinstance(budget.get("output_bytes_reserved"), bool) else None,
+        "target_execution_marker_present": target_marker_exists,
+    }
+
+
+def _full_review_smoke(cli: Path) -> dict[str, object]:
     """Run the installed CLI normally against the existing loopback fake."""
     sys.path.insert(0, str(ROOT))
     try:
@@ -241,7 +379,9 @@ def _full_review_smoke(cli: Path) -> dict[str, object] | None:
             _git as fixture_git,
         )
     except ImportError:
-        return None
+        return _bounded_full_review_failure(
+            "recovery_fixture_import_failed", None, {}, {}, [], target_marker_exists=False
+        )
 
     with tempfile.TemporaryDirectory(prefix="effect-observer-review-") as temporary:
         root = Path(temporary).resolve()
@@ -305,27 +445,61 @@ def _full_review_smoke(cli: Path) -> dict[str, object] | None:
                 timeout_seconds=30,
             )
             result = observed.get("cli_result")
-            if not isinstance(result, dict):
-                return None
+            observation = observed.get("observer", {})
+            invocation = observed.get("invocation", {})
+            observation = observation if isinstance(observation, dict) else {}
+            invocation = invocation if isinstance(invocation, dict) else {}
+            durable = None
             durable_path = output / f"{run_id}.json"
-            if not durable_path.is_file():
-                return None
-            durable = json.loads(durable_path.read_text(encoding="utf-8"))
+            if durable_path.is_file():
+                durable = json.loads(durable_path.read_text(encoding="utf-8"))
             if FAKE_API_KEY in json.dumps([observed, durable], sort_keys=True):
-                return None
-            # The stdout projection and durable engine result must agree on the
-            # core terminal fields; neither is printed from this temporary run.
-            if any(result.get(key) != durable.get(key) for key in ("coverage_state", "disposition", "freshness")):
-                return None
-            return _validate_full_review(
-                result,
-                observed.get("observer", {}),
-                observed.get("invocation", {}),
+                return _bounded_full_review_failure(
+                    "fake_provider_key_exposed", result if isinstance(result, dict) else None,
+                    observation, invocation, state.calls,
+                    target_marker_exists=marker.exists(),
+                )
+            if isinstance(result, dict) and (
+                not isinstance(durable, dict)
+                or any(result.get(key) != durable.get(key) for key in ("coverage_state", "disposition", "freshness"))
+            ):
+                return _bounded_full_review_failure(
+                    "durable_result_missing_or_mismatched", result if isinstance(result, dict) else None,
+                    observation, invocation, state.calls,
+                    target_marker_exists=marker.exists(),
+                )
+            failure_code = _full_review_failure_code(
+                result if isinstance(result, dict) else None,
+                observation,
+                invocation,
                 state.calls,
                 target_marker_exists=marker.exists(),
             )
+            if failure_code is not None:
+                return _bounded_full_review_failure(
+                    failure_code,
+                    result if isinstance(result, dict) else None,
+                    observation,
+                    invocation,
+                    state.calls,
+                    target_marker_exists=marker.exists(),
+                )
+            summary = _validate_full_review(
+                result,
+                observation,
+                invocation,
+                state.calls,
+                target_marker_exists=marker.exists(),
+            )
+            return summary or _bounded_full_review_failure(
+                "summary_projection_failed", result, observation, invocation, state.calls,
+                target_marker_exists=marker.exists(),
+            )
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
-            return None
+            return _bounded_full_review_failure(
+                "fixture_or_result_processing_failed", None, {}, {}, state.calls,
+                target_marker_exists=(root / "target-executed").exists(),
+            )
         finally:
             if server is not None:
                 server.shutdown()
@@ -434,12 +608,12 @@ def main() -> int:
         "no_target_code_execution": cli_result["no_target_code_execution"],
     }
     full_review = _full_review_smoke(cli)
-    if full_review is None:
+    if full_review.get("status") != "NORMAL_REVIEW_COMPLETED":
         print(
             json.dumps(
                 {
                     "smoke": "INSTALLED_CLI_FULL_REVIEW_FAILED",
-                    "failure": "full_review_contract_failed",
+                    "failure": full_review,
                     "prepare_smoke": "COMPLETED",
                 },
                 sort_keys=True,
