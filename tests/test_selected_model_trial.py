@@ -65,7 +65,7 @@ def _assessment_row(candidate_id="cand-1"):
         "provider_id": "typesafe",
         "configured_model_id": "jev-latest",
         "provider_model_id": "jev-1.13.0",
-        "model_identity_source": "endpoint_reported",
+        "model_identity_source": "endpoint_reported_validated",
         "snapshot_id": "snap-1",
         "snapshot_hash": "a" * 64,
         "profile_id": "fixture-v2",
@@ -113,12 +113,24 @@ def _result(rows):
     }
     return {
         "snapshot_id": "snap-1",
-        "snapshot_hash": "a" * 64,
         "base_sha": "1" * 40,
         "head_sha": "2" * 40,
+        "project_profile_version": "fixture-v2",
         "disposition": "INCOMPLETE",
         "coverage_state": "PARTIAL",
-        "candidate_records": [{"candidate_id": "cand-1", "validation_state": "VALID", "raw": candidate}],
+        "request_hash": "8" * 64,
+        "ledger": {
+            "request_hash": "8" * 64,
+            "identity": {"snapshot_id": "snap-1", "profile_version": "fixture-v2"},
+            "candidate_records": [
+                {
+                    "candidate_id": "cand-1",
+                    "snapshot_id": "snap-1",
+                    "validation_state": "VALID",
+                    "raw": candidate,
+                }
+            ],
+        },
         "findings": [
             {
                 "candidate_id": "cand-1",
@@ -135,27 +147,78 @@ def _result(rows):
     }
 
 
+def _seal_result(result):
+    result["result_hash"] = trial._safe_hash(result)
+    return result
+
+
 def test_projection_handles_empty_claim_rows_and_preserves_git_sha_lengths():
     case = _case()
     projected, valid = trial._safe_assessment_rows([])
     assert projected == []
     assert valid
 
+    raw = _seal_result(_result([]))
     row = trial._case_result_summary(
-        _result([]), case, {"result_sha256": "a" * 64}, raw_output_secret_match=False, canary_match=False
+        raw,
+        case,
+        {"result_sha256": "a" * 64},
+        raw_output_secret_match=False,
+        canary_match=False,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
     )
     assert row["result_identity_match"] is True
+    assert row["result_integrity_valid"] is True
+    assert row["candidate_count"] == 1
+    assert row["snapshot_hash"] is None
+    assert row["snapshot_content_binding"] == "UNKNOWN_NO_CLAIM_PROVENANCE"
     assert row["base_sha"] == "1" * 40
     assert row["head_sha"] == "2" * 40
+
+
+def test_projection_rejects_tampered_durable_result_and_header_identity():
+    case = _case()
+    raw = _seal_result(_result([]))
+    raw["disposition"] = "APPROVE"
+    projected = trial._case_result_summary(
+        raw,
+        case,
+        {"result_sha256": "a" * 64},
+        raw_output_secret_match=False,
+        canary_match=False,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+    assert projected["result_integrity_valid"] is False
+    assert projected["result_identity_match"] is False
+    assert projected["claim_projection_valid"] is False
+
+    raw = _seal_result(_result([]))
+    raw["ledger"]["identity"]["profile_version"] = "different-profile"
+    raw["result_hash"] = trial._safe_hash({key: value for key, value in raw.items() if key != "result_hash"})
+    projected = trial._case_result_summary(
+        raw,
+        case,
+        {"result_sha256": "a" * 64},
+        raw_output_secret_match=False,
+        canary_match=False,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+    assert projected["result_integrity_valid"] is True
+    assert projected["result_identity_match"] is False
+    assert projected["claim_projection_valid"] is False
 
 
 def test_projection_preserves_multiple_valid_rows_without_promoting_model_identity():
     case = _case()
     raw = _result([_assessment_row("cand-1"), _assessment_row("cand-2")])
     # The second claim can be identity-valid while lacking the fixture anchor.
-    raw["candidate_records"].append(
+    raw["ledger"]["candidate_records"].append(
         {
             "candidate_id": "cand-2",
+            "snapshot_id": "snap-1",
             "validation_state": "VALID",
             "raw": {
                 "unit_id": "unit-2",
@@ -189,6 +252,57 @@ def test_projection_preserves_multiple_valid_rows_without_promoting_model_identi
     assert rows[1]["anchor_binding"] == "NO_MATCH"
 
 
+def test_claim_identity_mismatch_is_not_overwritten_by_valid_model_provenance():
+    row = _assessment_row()
+    row["provenance"]["snapshot_hash"] = "f" * 64
+    rows, valid = trial._safe_assessment_rows([row])
+    assert valid
+    assert not trial._validate_claim_bindings(
+        rows,
+        result=_result([row]),
+        case=_case(),
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+    assert rows[0]["identity_binding"] == "NO_MATCH"
+
+
+@pytest.mark.parametrize("assessment_refs", [[], ["ev-1"], ["ev-2", "ev-1"]])
+def test_claim_dimension_evidence_refs_must_exactly_match_prepared_list(assessment_refs):
+    row = _assessment_row()
+    row["evidence_refs"] = ["ev-1", "ev-2"]
+    row["assessments"]["observation_support"]["evidence_refs"] = assessment_refs
+    raw = _result([row])
+    raw["evidence_index"]["ev-2"] = {"path": "docs/policy.md"}
+    projected, valid_projection = trial._safe_assessment_rows([row])
+    assert valid_projection
+    assert not trial._validate_claim_bindings(
+        projected,
+        result=raw,
+        case=_case(),
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+    assert projected[0]["evidence_binding"] == "NO_MATCH"
+
+
+def test_not_run_claim_rows_do_not_claim_content_hash_binding():
+    raw = _result([{"candidate_id": "cand-1", "contract_version": "claim-assessment.2", "status": "NOT_RUN"}])
+    projected = trial._case_result_summary(
+        _seal_result(raw),
+        _case(),
+        {"result_sha256": "a" * 64},
+        raw_output_secret_match=False,
+        canary_match=False,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+    assert projected["claim_projection_valid"] is True
+    assert projected["claim_assessments"][0]["status"] == "NOT_RUN"
+    assert projected["snapshot_content_binding"] == "UNKNOWN_NO_CLAIM_PROVENANCE"
+    assert projected["profile_content_binding"] == "UNKNOWN_NO_CLAIM_PROVENANCE"
+
+
 def test_projection_quarantines_wrong_identity_and_malformed_choice_without_dropping_siblings():
     valid = _assessment_row("cand-1")
     wrong = _assessment_row("cand-2")
@@ -200,9 +314,10 @@ def test_projection_quarantines_wrong_identity_and_malformed_choice_without_drop
     assert rows[0]["status"] == "COMPLETE"
     assert rows[1]["assessments"]["observation_support"]["choice"] is None
     result = _result([valid, wrong])
-    result["candidate_records"].append(
+    result["ledger"]["candidate_records"].append(
         {
             "candidate_id": "cand-2",
+            "snapshot_id": "snap-1",
             "validation_state": "VALID",
             "raw": {
                 "unit_id": "unit-1",
@@ -219,6 +334,42 @@ def test_projection_quarantines_wrong_identity_and_malformed_choice_without_drop
         rows, result=result, case=_case(), expected_profile_id="fixture-v2", expected_profile_hash="b" * 64
     )
     assert rows[1]["identity_binding"] == "NO_MATCH"
+
+
+@pytest.mark.parametrize(
+    ("identity_source", "reported_model", "expected_anchor_line", "dimension_refs"),
+    [
+        ("endpoint_reported", "jev-1.13.0", 12, ["ev-1"]),
+        ("endpoint_reported_validated", "jev-1.13.0", 13, ["ev-1"]),
+        ("endpoint_reported_validated", "jev-1.13.0", 12, ["missing-evidence"]),
+    ],
+)
+def test_claim_binding_rejects_unvalidated_model_anchor_drift_and_missing_refs(
+    identity_source, reported_model, expected_anchor_line, dimension_refs
+):
+    case = _case()
+    row = _assessment_row()
+    row["provenance"]["model_identity_source"] = identity_source
+    row["provenance"]["provider_model_id"] = reported_model
+    row["assessments"]["observation_support"]["evidence_refs"] = dimension_refs
+    raw = _result([row])
+    raw["ledger"]["candidate_records"][0]["raw"]["location"]["line"] = expected_anchor_line
+    projected, valid_projection = trial._safe_assessment_rows([row])
+    assert valid_projection
+    bound = trial._validate_claim_bindings(
+        projected,
+        result=raw,
+        case=case,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+    assert not bound
+    if identity_source != "endpoint_reported_validated":
+        assert projected[0]["identity_binding"] == "NO_MATCH"
+    if expected_anchor_line != case.anchor["line"]:
+        assert projected[0]["anchor_binding"] == "NO_MATCH"
+    if dimension_refs != ["ev-1"]:
+        assert projected[0]["evidence_binding"] == "NO_MATCH"
 
 
 def test_malformed_row_is_retained_as_a_hash_only_failure():

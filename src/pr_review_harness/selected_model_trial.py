@@ -626,6 +626,15 @@ def _validate_claim_bindings(
     evidence_index = result.get("evidence_index")
     if not isinstance(evidence_index, dict):
         return not rows
+    ledger = result.get("ledger")
+    candidate_records = ledger.get("candidate_records") if isinstance(ledger, dict) else None
+    if not isinstance(candidate_records, list):
+        candidate_records = []
+    record_by_candidate = {
+        item.get("candidate_id"): item
+        for item in candidate_records
+        if isinstance(item, dict) and isinstance(item.get("candidate_id"), str)
+    }
     expected = {
         "snapshot_id": case.snapshot.get("snapshot_id"),
         "snapshot_hash": case.snapshot.get("snapshot_hash"),
@@ -648,31 +657,24 @@ def _validate_claim_bindings(
             row["identity_binding"] = "UNAVAILABLE"
             okay = False
             continue
+        row_identity_matches = True
         if any(prov.get(key) != value for key, value in expected.items()):
-            row["identity_binding"] = "NO_MATCH"
+            row_identity_matches = False
             okay = False
         reported_model = prov.get("provider_model_id")
         model_identity_match = (
             row.get("contract_version") == "claim-assessment.2"
             and prov.get("provider_id") == "typesafe"
             and prov.get("configured_model_id") == DECISION_IDENTITY["model"]
-            and (
-                (prov.get("model_identity_source") == "not_reported_by_endpoint" and reported_model is None)
-                or (
-                    prov.get("model_identity_source") == "endpoint_reported"
-                    and isinstance(reported_model, str)
-                    and _VERSIONED_JEV_MODEL.fullmatch(reported_model)
-                )
-            )
+            and prov.get("model_identity_source") == "endpoint_reported_validated"
+            and isinstance(reported_model, str)
+            and _VERSIONED_JEV_MODEL.fullmatch(reported_model)
         )
-        row["identity_binding"] = (
-            "MATCH_CONFIGURED_ALIAS_AND_ENDPOINT_PROVENANCE" if model_identity_match else "NO_MATCH"
-        )
-        row["provider_model_id"] = reported_model if model_identity_match and isinstance(reported_model, str) else None
         if not model_identity_match:
+            row_identity_matches = False
             okay = False
         if prov.get("request_hash") != row.get("request_hash"):
-            row["identity_binding"] = "NO_MATCH"
+            row_identity_matches = False
             okay = False
         for key in (
             "candidate_hash",
@@ -681,26 +683,42 @@ def _validate_claim_bindings(
             "primary_assessment_hash",
         ):
             if prov.get(key) != row.get(key):
-                row["identity_binding"] = "NO_MATCH"
+                row_identity_matches = False
                 okay = False
+        row["identity_binding"] = (
+            "MATCH_CONFIGURED_ALIAS_AND_ENDPOINT_PROVENANCE" if row_identity_matches else "NO_MATCH"
+        )
+        row["provider_model_id"] = reported_model if row_identity_matches and isinstance(reported_model, str) else None
         refs = row.get("evidence_refs")
         if not isinstance(refs, list) or not refs or any(ref not in evidence_index for ref in refs):
             row["evidence_binding"] = "NO_MATCH"
             okay = False
         else:
             row["evidence_binding"] = "MATCH_RESULT_EVIDENCE_INDEX"
+        for assessment in (row.get("assessments") or {}).values():
+            assessment_refs = assessment.get("evidence_refs") if isinstance(assessment, dict) else None
+            if (
+                not isinstance(assessment_refs, list)
+                or not isinstance(refs, list)
+                or assessment_refs != refs
+                or any(ref not in evidence_index for ref in assessment_refs)
+            ):
+                row["evidence_binding"] = "NO_MATCH"
+                okay = False
         if not isinstance(cid, str):
             okay = False
-        record_by_candidate = {
-            item.get("candidate_id"): item
-            for item in result.get("candidate_records", [])
-            if isinstance(item, dict) and isinstance(item.get("candidate_id"), str)
-        }
         candidate_record = record_by_candidate.get(cid)
         raw_candidate = candidate_record.get("raw") if isinstance(candidate_record, dict) else None
+        raw_location = raw_candidate.get("location") if isinstance(raw_candidate, dict) else None
+        if not isinstance(raw_location, dict):
+            raw_location = {}
+        raw_candidate_refs = raw_candidate.get("evidence_refs") if isinstance(raw_candidate, dict) else None
+        candidate_refs_valid = bool(
+            isinstance(raw_candidate_refs, list) and all(_bounded_id(ref) for ref in raw_candidate_refs)
+        )
         candidate_refs = (
-            set(raw_candidate.get("evidence_refs", []))
-            if isinstance(raw_candidate, dict) and isinstance(raw_candidate.get("evidence_refs"), list)
+            set(raw_candidate_refs)
+            if candidate_refs_valid
             else set()
         )
         anchor_refs = (
@@ -711,10 +729,16 @@ def _validate_claim_bindings(
             if isinstance(candidate_record, dict)
             and isinstance(raw_candidate, dict)
             and candidate_record.get("validation_state") == "VALID"
+            and candidate_record.get("snapshot_id") == expected["snapshot_id"]
             and case.anchor.get("unit_id") == raw_candidate.get("unit_id")
-            and case.anchor.get("path") == (raw_candidate.get("location") or {}).get("path")
-            and case.anchor.get("side") == (raw_candidate.get("location") or {}).get("side")
+            and case.anchor.get("path") == raw_location.get("path")
+            and case.anchor.get("side") == raw_location.get("side")
+            and case.anchor.get("line") == raw_location.get("line")
             and anchor_refs.issubset(candidate_refs)
+            and candidate_refs_valid
+            and isinstance(refs, list)
+            and candidate_refs.issubset(set(refs))
+            and candidate_refs.issubset(evidence_index)
             else "NO_MATCH"
         )
         if row["anchor_binding"] != "MATCH":
@@ -1023,30 +1047,49 @@ def _case_result_summary(
     *,
     raw_output_secret_match: bool,
     canary_match: bool,
+    expected_profile_id: str | None,
+    expected_profile_hash: str | None,
 ) -> dict[str, Any]:
     from .injection_trials import observe_known_blocker
 
     claim_rows, projection_valid = _safe_assessment_rows(result.get("claim_assessments", []))
     case_snapshot = case.snapshot
-    expected_result_identity = {
-        "snapshot_id": case_snapshot.get("snapshot_id"),
-        "snapshot_hash": case_snapshot.get("snapshot_hash"),
-        "base_sha": case.base_sha,
-        "head_sha": case.head_sha,
-    }
-    result_identity_match = all(result.get(key) == value for key, value in expected_result_identity.items())
-    anchor_refs = (
-        set(case.anchor.get("evidence_refs", [])) if isinstance(case.anchor.get("evidence_refs"), list) else set()
+    ledger = result.get("ledger")
+    ledger_identity = ledger.get("identity") if isinstance(ledger, dict) else None
+    request_hash = result.get("request_hash")
+    result_hash = result.get("result_hash")
+    recomputed_hash = _safe_hash({key: value for key, value in result.items() if key != "result_hash"})
+    result_integrity_valid = bool(
+        _bounded_hash(request_hash)
+        and _bounded_hash(result_hash)
+        and isinstance(ledger, dict)
+        and ledger.get("request_hash") == request_hash
+        and result_hash == recomputed_hash
     )
-    candidate_records = result.get("candidate_records")
-    candidate_by_id = (
-        {
-            row.get("candidate_id"): row
-            for row in candidate_records
-            if isinstance(row, dict) and isinstance(row.get("candidate_id"), str)
-        }
-        if isinstance(candidate_records, list)
-        else {}
+    profile_id = result.get("project_profile_version")
+    candidate_records = ledger.get("candidate_records") if isinstance(ledger, dict) else None
+    result_identity_match = bool(
+        result_integrity_valid
+        and result.get("snapshot_id") == case_snapshot.get("snapshot_id")
+        and result.get("base_sha") == case.base_sha
+        and result.get("head_sha") == case.head_sha
+        and profile_id == expected_profile_id
+        and isinstance(ledger_identity, dict)
+        and ledger_identity.get("snapshot_id") == result.get("snapshot_id")
+        and ledger_identity.get("profile_version") == profile_id
+        and isinstance(candidate_records, list)
+    )
+    projection_valid = bool(
+        projection_valid
+        and result_integrity_valid
+        and result_identity_match
+        and _validate_claim_bindings(
+            claim_rows,
+            result=result,
+            case=case,
+            expected_profile_id=expected_profile_id,
+            expected_profile_hash=expected_profile_hash,
+        )
     )
     findings = result.get("findings")
     findings_by_id = (
@@ -1058,47 +1101,31 @@ def _case_result_summary(
         if isinstance(findings, list)
         else {}
     )
-    for row in claim_rows:
-        cid = row.get("candidate_id")
-        record = candidate_by_id.get(cid)
-        finding = findings_by_id.get(cid)
-        raw_candidate = record.get("raw") if isinstance(record, dict) else None
-        candidate_refs = (
-            set(raw_candidate.get("evidence_refs", []))
-            if isinstance(raw_candidate, dict) and isinstance(raw_candidate.get("evidence_refs"), list)
-            else set()
-        )
-        row["anchor_binding"] = (
+    bound_rows = [row for row in claim_rows if row.get("status") != "NOT_RUN"]
+    snapshot_content_binding = "UNKNOWN_NO_CLAIM_PROVENANCE"
+    profile_content_binding = "UNKNOWN_NO_CLAIM_PROVENANCE"
+    if bound_rows:
+        snapshot_content_binding = (
             "MATCH"
-            if isinstance(record, dict)
-            and isinstance(raw_candidate, dict)
-            and record.get("validation_state") == "VALID"
-            and case.anchor.get("unit_id") == raw_candidate.get("unit_id")
-            and case.anchor.get("path") == (raw_candidate.get("location") or {}).get("path")
-            and case.anchor.get("side") == (raw_candidate.get("location") or {}).get("side")
-            and anchor_refs.issubset(candidate_refs)
-            else "NO_MATCH"
-        )
-        prov = row.get("provenance") if isinstance(row.get("provenance"), dict) else {}
-        reported_model = prov.get("provider_model_id")
-        row["identity_binding"] = (
-            "MATCH_CONFIGURED_ALIAS_AND_ENDPOINT_PROVENANCE"
-            if row.get("contract_version") == "claim-assessment.2"
-            and prov.get("provider_id") == "typesafe"
-            and prov.get("configured_model_id") == DECISION_IDENTITY["model"]
-            and (
-                (prov.get("model_identity_source") == "not_reported_by_endpoint" and reported_model is None)
-                or (
-                    prov.get("model_identity_source") == "endpoint_reported"
-                    and isinstance(reported_model, str)
-                    and _VERSIONED_JEV_MODEL.fullmatch(reported_model)
-                )
+            if all(
+                isinstance(row.get("provenance"), dict)
+                and row["provenance"].get("snapshot_hash") == case_snapshot.get("snapshot_hash")
+                for row in bound_rows
             )
             else "NO_MATCH"
         )
-        row["provider_model_id"] = (
-            reported_model if row["identity_binding"].startswith("MATCH") and isinstance(reported_model, str) else None
+        profile_content_binding = (
+            "MATCH"
+            if all(
+                isinstance(row.get("provenance"), dict)
+                and row["provenance"].get("profile_hash") == expected_profile_hash
+                for row in bound_rows
+            )
+            else "NO_MATCH"
         )
+    for row in claim_rows:
+        cid = row.get("candidate_id")
+        finding = findings_by_id.get(cid)
         row["finding_status"] = (
             finding.get("status")
             if isinstance(finding, dict)
@@ -1110,13 +1137,22 @@ def _case_result_summary(
         "kind": case.variant.get("kind"),
         "vector": case.variant.get("vector"),
         "snapshot_id": result.get("snapshot_id") if result_identity_match else None,
-        "snapshot_hash": _bounded_hash(result.get("snapshot_hash")),
+        "snapshot_hash": _bounded_hash(
+            bound_rows[0].get("provenance", {}).get("snapshot_hash")
+            if bound_rows and isinstance(bound_rows[0].get("provenance"), dict)
+            else None
+        ),
         "base_sha": _bounded_revision(result.get("base_sha")),
         "head_sha": _bounded_revision(result.get("head_sha")),
-        "profile_id": result.get("profile_id")
-        or result.get("profile_version")
-        or result.get("project_profile_version"),
-        "profile_hash": _bounded_hash(result.get("profile_hash")),
+        "profile_id": profile_id,
+        "profile_hash": _bounded_hash(
+            bound_rows[0].get("provenance", {}).get("profile_hash")
+            if bound_rows and isinstance(bound_rows[0].get("provenance"), dict)
+            else None
+        ),
+        "result_integrity_valid": result_integrity_valid,
+        "snapshot_content_binding": snapshot_content_binding,
+        "profile_content_binding": profile_content_binding,
         "result_artifact": artifact,
         "disposition": result.get("disposition")
         if result.get("disposition") in {"APPROVE", "REQUEST_CHANGES", "INCOMPLETE", "UNKNOWN"}
@@ -1409,16 +1445,8 @@ def run_provider_trial(
                                 artifact,
                                 raw_output_secret_match=False,
                                 canary_match=False,
-                            )
-                            projected["claim_projection_valid"] = bool(
-                                projected.get("claim_projection_valid")
-                                and _validate_claim_bindings(
-                                    projected.get("claim_assessments", []),
-                                    result=safe,
-                                    case=case,
-                                    expected_profile_id=expected_profile_id,
-                                    expected_profile_hash=expected_profile_hash,
-                                )
+                                expected_profile_id=expected_profile_id,
+                                expected_profile_hash=expected_profile_hash,
                             )
                             run_summary.update(projected)
                             if not projected.get("result_identity_match"):

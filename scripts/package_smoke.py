@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str], expected: int = 0) -> subprocess.CompletedProcess[str]:
@@ -50,6 +51,8 @@ def smoke(cli: Path) -> dict[str, str]:
     scripts_dir = Path(sys.prefix) / ("Scripts" if os.name == "nt" else "bin")
     if cli.parent != scripts_dir.resolve():
         raise RuntimeError("installed_cli_not_in_current_environment")
+    from pr_review_harness.selected_model_trial import _case_result_summary
+
     with tempfile.TemporaryDirectory(prefix="pr-review-wheel-smoke-") as temp:
         root = Path(temp).resolve()
         env = dict(os.environ)
@@ -134,11 +137,45 @@ def smoke(cli: Path) -> dict[str, str]:
             raise RuntimeError("installed_cli_provider_free_report_missing")
         if not artifact.resolve().is_relative_to(root) or not report.resolve().is_relative_to(root):
             raise RuntimeError("installed_cli_wrote_outside_smoke_directory")
+        durable_result = json.loads(artifact.read_text(encoding="utf-8"))
+        smoke_case = SimpleNamespace(
+            case_id="installed-wheel-provider-free-smoke",
+            variant={"kind": "provider_free_smoke", "vector": None},
+            snapshot={"snapshot_id": durable_result.get("snapshot_id"), "snapshot_hash": None},
+            base_sha=base,
+            head_sha=head,
+            anchor={
+                "label_id": "no-oracle-package-smoke",
+                "oracle_sha256": "0" * 64,
+                "unit_id": "not-an-observed-unit",
+                "path": "sample.py",
+                "side": "HEAD",
+                "line": 1,
+                "evidence_refs": [],
+            },
+        )
+        projected = _case_result_summary(
+            durable_result,
+            smoke_case,
+            {"result_sha256": "0" * 64, "result_bytes": artifact.stat().st_size},
+            raw_output_secret_match=False,
+            canary_match=False,
+            expected_profile_id=durable_result.get("project_profile_version"),
+            expected_profile_hash=None,
+        )
+        if not projected["result_integrity_valid"] or not projected["result_identity_match"]:
+            raise RuntimeError("installed_cli_durable_result_projection_invalid")
+        if not projected["claim_projection_valid"]:
+            raise RuntimeError("installed_cli_empty_claim_projection_invalid")
+        if projected["snapshot_content_binding"] != "UNKNOWN_NO_CLAIM_PROVENANCE":
+            raise RuntimeError("installed_cli_snapshot_provenance_overstated")
         return {
             "status": "passed",
             "python": sys.version.split()[0],
             "cli": str(cli),
             "provider_free_disposition": str(result.get("disposition", result.get("status", "UNKNOWN"))),
+            "durable_result_projection": "passed",
+            "claim_content_provenance": projected["snapshot_content_binding"],
         }
 
 
