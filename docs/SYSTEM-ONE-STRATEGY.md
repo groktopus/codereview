@@ -1,6 +1,6 @@
 # System One decision strategy
 
-Status: owner-directed inference-plus-classifier architecture; native claim-assessment integration and its quality evaluation are still pending. Existing native risk and injection adapters are advisory. The owner asked how Jev will be used strategically; this document preserves the answer as hypotheses to evaluate, not capabilities already proven. Jev is the initial decision-provider candidate. Keep typed decision contracts vendor-neutral so supported alternatives can be compared honestly.
+Status: owner-directed inference-plus-classifier architecture. Candidate-bound native claim assessment is implemented as an opt-in shadow stage ([contract and behavior](CLAIM-ASSESSMENT-ADVISORY.md)); its CLI cap defaults to zero, and the observed PR 477 pilot did not exercise it. Its quality remains unvalidated. The pilot's aggregate Jev advisory is distinct from per-constituent assessment. The standalone native risk and injection adapters are advisory as well. This document records the intended strategy and evaluation hypotheses, not proven review quality. Jev is the initial decision-provider candidate; keep typed contracts vendor-neutral so supported alternatives can be compared honestly.
 
 ## Division of responsibility
 

@@ -2379,9 +2379,22 @@ def run_review(
         successful = bool(related) and not preflight_skips and all(r.get("status") == "SUCCEEDED" for r in results)
         check_evidence_refs: set[str] = set()
         check_result_evidence_invalid = False
+        check_result_unavailable = False
+        required_output_quarantined = any(
+            item.get("kind") not in {"specific_strengths", "future_guidance"}
+            for result_row in results
+            for item in result_row.get("quarantined_items", [])
+        )
+        required_context_not_covered = False
+        coverage_note_missing = False
+        coverage_note_evidence_invalid = False
+        partial_coverage_note = False
         if successful:
             # No-finding success is a completed result. A check UNKNOWN/ERROR remains partial.
             successful = all(r.get("payload", {}).get("outcome") not in {"UNKNOWN", "ERROR"} for r in results)
+            check_result_unavailable = obligation.get("obligation_kind") == "PROJECT_CHECK" and any(
+                r.get("payload", {}).get("outcome") in {"UNKNOWN", "ERROR"} for r in results
+            )
             if any(
                 item.get("kind") not in {"specific_strengths", "future_guidance"}
                 for result_row in results
@@ -2410,8 +2423,32 @@ def run_review(
                         and set(n.get("evidence_refs", [])).issubset(set(task_result.get("input_evidence_ids", [])))
                         and set(n.get("evidence_refs", [])) & unit_evidence.get(n.get("unit_id"), set())
                     }
-                    if not (set(task.get("unit_ids", [])) & scope_units) <= covered:
+                    missing_covered_units = (set(task.get("unit_ids", [])) & scope_units) - covered
+                    if missing_covered_units:
                         successful = False
+                        for unit_id in missing_covered_units:
+                            unit_notes = [
+                                note for note in notes if isinstance(note, dict) and note.get("unit_id") == unit_id
+                            ]
+                            if not unit_notes:
+                                coverage_note_missing = True
+                            else:
+                                input_evidence_ids = set(task_result.get("input_evidence_ids", []))
+                                unit_evidence_ids = unit_evidence.get(unit_id, set())
+                                for note in unit_notes:
+                                    refs = note.get("evidence_refs", [])
+                                    if note.get("state") in {"PARTIAL", "NOT_COVERED"}:
+                                        if refs and (
+                                            not set(refs).issubset(input_evidence_ids)
+                                            or not set(refs) & unit_evidence_ids
+                                        ):
+                                            coverage_note_evidence_invalid = True
+                                        else:
+                                            partial_coverage_note = True
+                                    elif note.get("state") == "COVERED":
+                                        coverage_note_evidence_invalid = True
+                                    else:
+                                        coverage_note_missing = True
                     if any(
                         item.get("kind") not in {"specific_strengths", "future_guidance"}
                         for item in task_result.get("quarantined_items", [])
@@ -2431,6 +2468,8 @@ def run_review(
                         and set(note.get("evidence_refs", [])).issubset(evidence_ids)
                         for note in notes
                     )
+                    if not covered:
+                        required_context_not_covered = True
                     if not covered or any(
                         item.get("kind") not in {"specific_strengths", "future_guidance"}
                         for item in task_result.get("quarantined_items", [])
@@ -2467,6 +2506,35 @@ def run_review(
             if any(r.get("status") not in {None, "SKIPPED"} for r in results)
             else "NOT_STARTED"
         )
+        failure_reason = next(
+            (result.get("error_code", "MISSING_RESULT") for result in results if result.get("status") != "SUCCEEDED"),
+            None,
+        )
+        skip_reason = next((row.get("error_code", "MISSING_RESULT") for row in preflight_skips), None)
+        if gap_obligations.get(obligation_id):
+            reason_code = "CONTEXT_GAP_UNRESOLVED"
+        elif successful:
+            reason_code = "VALID_RESULT"
+        elif check_result_evidence_invalid:
+            reason_code = "CHECK_RESULT_EVIDENCE_INVALID"
+        elif failure_reason:
+            reason_code = failure_reason
+        elif skip_reason:
+            reason_code = skip_reason
+        elif required_output_quarantined:
+            reason_code = "REQUIRED_OUTPUT_QUARANTINED"
+        elif required_context_not_covered:
+            reason_code = "REQUIRED_CONTEXT_NOT_COVERED"
+        elif check_result_unavailable:
+            reason_code = "CHECK_RESULT_UNAVAILABLE"
+        elif coverage_note_evidence_invalid:
+            reason_code = "COVERAGE_NOTE_EVIDENCE_INVALID"
+        elif partial_coverage_note:
+            reason_code = "PARTIAL_REVIEW_COVERAGE"
+        elif coverage_note_missing:
+            reason_code = "COVERAGE_NOTE_MISSING"
+        else:
+            reason_code = "MISSING_RESULT"
         coverage.append(
             {
                 "coverage_id": _hash({"run_id": run_id, "obligation": obligation_id})[:20],
@@ -2474,16 +2542,7 @@ def run_review(
                 "snapshot_id": snapshot.get("snapshot_id"),
                 **obligation,
                 "state": state,
-                "reason_code": "CONTEXT_GAP_UNRESOLVED"
-                if gap_obligations.get(obligation_id)
-                else "VALID_RESULT"
-                if successful
-                else "CHECK_RESULT_EVIDENCE_INVALID"
-                if check_result_evidence_invalid
-                else next(
-                    (r.get("error_code", "MISSING_RESULT") for r in results if r.get("status") != "SUCCEEDED"),
-                    next((row.get("error_code", "MISSING_RESULT") for row in preflight_skips), "MISSING_RESULT"),
-                ),
+                "reason_code": reason_code,
                 "context_gap_ids": gap_obligations.get(obligation_id, []),
                 "task_ids": list(
                     dict.fromkeys(

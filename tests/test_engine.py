@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import os
@@ -320,6 +321,52 @@ class LiarProvider(EmptyProvider):
                 }
             ],
         }
+
+
+class CoverageNotesProvider(EmptyProvider):
+    def __init__(self, state="PARTIAL", reasons=None, refs_override=None, omit=False):
+        super().__init__()
+        self.state = state
+        self.reasons = reasons or {}
+        self.refs_override = refs_override
+        self.omit = omit
+
+    def review(self, task, evidence, limits):
+        self.calls += 1
+        notes = []
+        if not self.omit:
+            for unit_id in task["unit_ids"]:
+                notes.append(
+                    {
+                        "unit_id": unit_id,
+                        "state": self.state,
+                        "reason_code": self.reasons.get(
+                            task["task_id"], self.reasons.get(unit_id, "LIMITED_CHANGED_SCOPE_EVIDENCE")
+                        ),
+                        "evidence_refs": self.refs_override.get(unit_id, list(task["evidence_ids"]))
+                        if isinstance(self.refs_override, dict)
+                        else list(task["evidence_ids"]),
+                        "coverage_basis": "STATIC_REVIEW",
+                    }
+                )
+        return {
+            "finding_candidates": [],
+            "context_gap_proposals": [],
+            "coverage_notes": notes,
+        }
+
+
+class FailedCoverageProvider(EmptyProvider):
+    def review(self, task, evidence, limits):
+        raise RuntimeError("provider attempt failed")
+
+
+class PartialFindingProvider(FindingProvider):
+    def review(self, task, evidence, limits):
+        result = super().review(task, evidence, limits)
+        result["coverage_notes"][0]["state"] = "PARTIAL"
+        result["coverage_notes"][0]["reason_code"] = "NO_TEST_SOURCE_SUPPLIED"
+        return result
 
 
 class GapProvider(EmptyProvider):
@@ -799,6 +846,90 @@ def test_valid_empty_result_is_coverage_complete_and_not_a_missing_task(tmp_path
     assert "None recorded." in render_report(result)
 
 
+def test_accepted_partial_coverage_has_truthful_deterministic_reason_and_keeps_incomplete(tmp_path):
+    result = run(tmp_path, provider=CoverageNotesProvider())
+    row = result["coverage_ledger"][0]
+    assert row["state"] == "PARTIAL"
+    assert row["reason_code"] == "PARTIAL_REVIEW_COVERAGE"
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["disposition"] == "INCOMPLETE"
+
+
+def test_missing_coverage_note_is_distinct_from_an_accepted_partial_note(tmp_path):
+    result = run(tmp_path, provider=CoverageNotesProvider(omit=True))
+    row = result["coverage_ledger"][0]
+    assert row["state"] == "PARTIAL"
+    assert row["reason_code"] == "COVERAGE_NOTE_MISSING"
+    assert result["disposition"] == "INCOMPLETE"
+
+
+def test_failed_provider_call_reason_is_preserved_over_coverage_fallback(tmp_path):
+    result = run(tmp_path, provider=FailedCoverageProvider())
+    row = result["coverage_ledger"][0]
+    task_result = next(iter(result["task_results"].values()))
+    assert task_result["status"] == "FAILED"
+    assert row["state"] == "PARTIAL"
+    assert row["reason_code"] == task_result["error_code"]
+    assert row["reason_code"] != "MISSING_RESULT"
+
+
+def test_cross_unit_coverage_evidence_is_not_reported_as_valid_partial(tmp_path):
+    snapshot = make_snapshot(units=2)
+    plan = plan_review(snapshot, profile())
+    # Force one dispatched task to cite only the other unit's evidence.
+    provider = CoverageNotesProvider(
+        state="COVERED",
+        refs_override={"u0": ["diff:u1"], "u1": ["diff:u0"]},
+    )
+    result = run_review(snapshot, plan, profile(), provider, None, LIMITS, str(tmp_path), "cross-unit-coverage")
+    rows = [row for row in result["coverage_ledger"] if row["obligation_kind"] == "CHANGED_UNIT_LENS"]
+    assert len(rows) == 2
+    assert all(row["state"] == "PARTIAL" for row in rows)
+    assert all(row["reason_code"] == "COVERAGE_NOTE_EVIDENCE_INVALID" for row in rows)
+    assert "Specialist reported partial coverage" not in render_report(result)
+
+
+def test_partial_reason_is_stable_across_task_order_and_blocker_is_preserved(tmp_path):
+    snapshot = make_snapshot()
+    prof = profile()
+    plan = plan_review(snapshot, prof)
+    original = plan["tasks"][0]
+    first, second = copy.deepcopy(original), copy.deepcopy(original)
+    first["task_id"], second["task_id"] = "partial-a", "partial-b"
+    plan["tasks"] = [first, second]
+    reasons = {"partial-a": "LIMITED_CHANGED_SCOPE_EVIDENCE", "partial-b": "NO_TEST_SOURCE_SUPPLIED"}
+    forward = run_review(
+        snapshot,
+        plan,
+        prof,
+        CoverageNotesProvider(reasons=reasons),
+        None,
+        LIMITS,
+        str(tmp_path / "forward"),
+        "partial-order-a",
+    )
+    plan["tasks"] = [second, first]
+    reverse = run_review(
+        snapshot,
+        plan,
+        prof,
+        CoverageNotesProvider(reasons=reasons),
+        None,
+        LIMITS,
+        str(tmp_path / "reverse"),
+        "partial-order-b",
+    )
+    assert forward["coverage_ledger"][0]["reason_code"] == "PARTIAL_REVIEW_COVERAGE"
+    assert reverse["coverage_ledger"][0]["reason_code"] == "PARTIAL_REVIEW_COVERAGE"
+    assert render_report(forward).count("Specialist reported partial coverage:") == 1
+    assert render_report(reverse).count("Specialist reported partial coverage:") == 1
+
+    blocked = run(tmp_path / "blocker", provider=PartialFindingProvider())
+    assert blocked["disposition"] == "REQUEST_CHANGES"
+    assert blocked["coverage_state"] == "PARTIAL"
+    assert any(item["blocking_class"] == "BLOCKING" and item["status"] == "ACCEPTED" for item in blocked["findings"])
+
+
 def selected_review_fixture():
     snapshot = make_snapshot(units=2)
     policy = {
@@ -917,6 +1048,7 @@ def test_coverage_note_cannot_claim_units_using_unsupplied_evidence(tmp_path):
     result = run(tmp_path, provider=LiarProvider())
     assert result["coverage_state"] == "PARTIAL"
     assert result["disposition"] == "INCOMPLETE"
+    assert result["coverage_ledger"][0]["reason_code"] == "COVERAGE_NOTE_EVIDENCE_INVALID"
 
 
 def test_valid_required_context_gap_is_preserved_and_prevents_clean_approval(tmp_path):
