@@ -3,7 +3,9 @@
 
 This is a secretless loopback diagnostic, not a model-quality or live-HTTPS
 equivalence test. It uses the normal installed CLI and a parser wrapper that
-retains only fixed syscall/path-class counts and byte totals, never observed paths.
+retains fixed syscall counts and byte totals. Lexical path classes are available
+only where the observer input exposes a path (currently openat); raw-argument
+newfstatat rows remain explicitly unknown. No observed paths are retained.
 """
 
 from __future__ import annotations
@@ -76,6 +78,10 @@ _RESUMED_TARGET_SYSCALL = re.compile(
 _DIRFD_AND_PATH = re.compile(
     r"^\s*(AT_FDCWD|-?[0-9]+)\s*,\s*(\"(?:\\.|[^\"\\])*\")(?=\s*,)"
 )
+_RAW_HEX = r"0x[0-9a-fA-F]{1,16}"
+_RAW_NEWFSTATAT_LINE = re.compile(
+    rf"^\s*{_RAW_HEX}\s*,\s*{_RAW_HEX}\s*,\s*{_RAW_HEX}\s*,\s*{_RAW_HEX}\s*\)\s+=\s+{_RAW_HEX}\s*$"
+)
 _SYSTEM_PATH_ROOTS = (
     "/usr", "/lib", "/lib64", "/etc", "/proc", "/dev", "/var", "/run",
     "/opt", "/System", "/Library", "/Applications",
@@ -83,7 +89,7 @@ _SYSTEM_PATH_ROOTS = (
 _FILE_PATH_CLASSES = (
     "CASE_WORKDIR", "CLI_ENVIRONMENT", "REPO_SUPPORT", "TEMP_ROOT", "SYSTEM_ROOT",
     "OTHER_ABSOLUTE", "UNKNOWN_RELATIVE", "UNKNOWN_SYNTAX", "UNKNOWN_UNFINISHED",
-    "UNKNOWN_RESUMED", "UNKNOWN_ELLIPSIS_AMBIGUOUS",
+    "UNKNOWN_RESUMED", "UNKNOWN_ELLIPSIS_AMBIGUOUS", "UNKNOWN_RAW_ARGUMENTS",
 )
 _TRUSTED_PATH_ROOT_CLASSES = frozenset(
     {"CASE_WORKDIR", "CLI_ENVIRONMENT", "REPO_SUPPORT", "TEMP_ROOT", "SYSTEM_ROOT"}
@@ -113,6 +119,8 @@ def _path_class_for_line(line: str, syscall: str, roots: tuple[tuple[str, str], 
     if not match or match.group(1) != syscall:
         return "UNKNOWN_SYNTAX"
     args = match.group(2)
+    if syscall == "newfstatat":
+        return "UNKNOWN_RAW_ARGUMENTS" if _RAW_NEWFSTATAT_LINE.fullmatch(args) else "UNKNOWN_SYNTAX"
     parsed = _DIRFD_AND_PATH.match(args)
     if parsed is None:
         return "UNKNOWN_SYNTAX"
@@ -288,6 +296,10 @@ def _file_path_projection(attributor: _LineAttributor, *, complete_trace: bool) 
         "state": "COMPLETE" if complete_trace and reconciliation else "PARTIAL",
         "state_meaning": "numeric_line_and_byte_accounting_complete_unknown_classes_are_valid",
         "basis": "lexical_path_namespace_only_no_symlink_fd_or_pid_cwd_resolution",
+        "path_argument_visibility": {
+            "openat": "path_visible_and_lexically_classified",
+            "newfstatat": "raw_hex_arguments_path_unavailable",
+        },
         "line_bytes": "decoded_utf8_line_bytes_plus_observed_newline_byte",
         "lines_by_syscall_class": counts,
         "bytes_by_syscall_class": byte_counts,
@@ -810,6 +822,10 @@ def run(
                 "file_path_attribution": {
                     "state": "UNKNOWN",
                     "basis": "lexical_path_namespace_only_no_symlink_fd_or_pid_cwd_resolution",
+                    "path_argument_visibility": {
+                        "openat": "path_visible_and_lexically_classified",
+                        "newfstatat": "raw_hex_arguments_path_unavailable",
+                    },
                     "line_bytes": "decoded_utf8_line_bytes_plus_observed_newline_byte",
                     "lines_by_syscall_class": {},
                     "bytes_by_syscall_class": {},
