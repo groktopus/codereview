@@ -116,7 +116,7 @@ jobs:
       harness_repository: groktopus/codereview
       harness_sha: 8052da90c269815ef6235a4fa7517c67b4ee6a65
       target_repository: magnus919/SlopSearX
-      pull_request_number: ${{ inputs.pull_request_number }}
+      pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
       base_ref: ${{ needs.resolve-target.outputs.base_ref }}
       base_sha: ${{ needs.resolve-target.outputs.base_sha }}
       head_sha: ${{ needs.resolve-target.outputs.head_sha }}

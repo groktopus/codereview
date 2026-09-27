@@ -97,6 +97,7 @@ def test_pilot_calls_immutable_harness_and_passes_only_named_provider_secrets():
     assert uses_match.group(1) == sha_match.group(1) == PIN
     assert "harness_repository: groktopus/codereview" in call
     assert "target_repository: magnus919/SlopSearX" in call
+    assert "pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}" in call
     secret_block = call.split("    secrets:\n", 1)[1]
     for name in SECRETS:
         assert f"      {name}: ${{{{ secrets.{name} }}}}" in secret_block
