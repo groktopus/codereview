@@ -180,6 +180,38 @@ def test_verify_runtime_accepts_only_pinned_revision_and_installed_module_proof(
     assert proof["module_inventory"] == list(trial.RUNTIME_MODULE_INVENTORY)
 
 
+def test_v2_runtime_verification_uses_its_own_fixed_revision_and_module_tree(tmp_path, monkeypatch):
+    from scripts import prepare_real_case_batch
+
+    runtime = tmp_path / "runtime"
+    package = runtime / "src" / "pr_review_harness"
+    package.mkdir(parents=True)
+    for name in trial.RUNTIME_MODULE_INVENTORY:
+        (package / name).write_text("# isolated synthetic module\n")
+    assert trial.runtime_identity("specialist-input-v2") == (
+        trial.V2_RUNTIME_SHA,
+        trial.V2_RUNTIME_MODULE_TREE_SHA256,
+    )
+    monkeypatch.setattr(trial, "git_command", lambda *args, **kwargs: trial.V2_RUNTIME_SHA)
+    _patch_installed_module_proof(
+        monkeypatch,
+        prepare_real_case_batch,
+        lambda cli, source: {
+            "module_file_count": 28,
+            "module_tree_sha256": trial.V2_RUNTIME_MODULE_TREE_SHA256,
+            "installed_matches_source": True,
+        },
+    )
+    proof = trial.verify_runtime(tmp_path / "cli", runtime, "specialist-input-v2")
+    assert proof["runtime_revision"] == trial.V2_RUNTIME_SHA
+    assert proof["input_contract"] == "specialist-input-v2"
+    assert proof["module_tree_sha256"] == trial.V2_RUNTIME_MODULE_TREE_SHA256
+
+    monkeypatch.setattr(trial, "git_command", lambda *args, **kwargs: trial.RUNTIME_SHA)
+    with pytest.raises(trial.TrialError, match="trusted_runtime_revision_mismatch"):
+        trial.verify_runtime(tmp_path / "cli", runtime, "specialist-input-v2")
+
+
 @pytest.mark.parametrize(
     ("revision", "proof", "inventory_mutation", "expected"),
     [
@@ -1190,6 +1222,205 @@ def test_expired_deadline_starts_neither_git_fetch_nor_cli_call(tmp_path, monkey
             0.0,
         )
     assert invoked == []
+
+
+def test_v2_plan_is_a_separate_opt_in_and_round_trips_compact_primary_receipts():
+    _v1_document, v1_cases = trial.load_locked_cases()
+    _v2_document, v2_cases = trial.load_locked_cases("specialist-input-v2")
+    assert len(v1_cases) == len(v2_cases) == 3
+    assert [case["case_id"] for case in v2_cases] == ["PR-457", "PR-463", "PR-464"]
+    assert sum(case["expected_scope_count"] for case in v2_cases) == 124
+    assert sum(case["expected_primary_count"] for case in v2_cases) == 47
+    assert sum(case["expected_primary_serialized_input_bytes"] for case in v2_cases) == 4_002_927
+    assert trial.V2_ARTIFACT_MANIFEST_CAP == 4_000_000
+    assert trial.V2_ARTIFACT_SUMMARY_CAP == 128_000
+    assert all(case["input_contract"] == "specialist-input.v2" for case in v2_cases)
+    assert all("input_contract" not in case for case in v1_cases)
+
+    case = v2_cases[0]
+    descriptors = case["expected_primary_request_descriptors"]
+    prepared = {
+        "value": {
+            "snapshot": {"snapshot_hash": case["snapshot_hash"]},
+            "primary_requests": descriptors,
+        }
+    }
+    receipts = trial.primary_receipts(prepared, "specialist-input-v2")
+    assert receipts["schema"] == "specialist-input-v2-primary-receipts.v1"
+    assert len(receipts["requests"]) == case["expected_primary_count"]
+    assert all("evidence_bindings" not in row for row in receipts["requests"])
+    for row, expected in zip(receipts["requests"], descriptors, strict=True):
+        expanded = dict(row)
+        expanded["evidence_bindings"] = [receipts["evidence_index"][key] for key in row["evidence_ids"]]
+        expanded.pop("snapshot_hash")
+        assert expanded == expected
+
+
+def test_v2_plan_reader_rejects_duplicate_json_keys_and_unknown_manifest_fields(tmp_path, monkeypatch):
+    duplicate = tmp_path / "duplicate.json"
+    duplicate.write_text('{"schema":"one","schema":"two"}', encoding="utf-8")
+    monkeypatch.setattr(trial, "V2_PLAN_PATH", duplicate)
+    with pytest.raises(trial.TrialError, match="v2_plan_manifest_invalid"):
+        trial.read_v2_plan()
+
+    source = trial.ROOT / "docs/real-case-trial-v2/manifest.json"
+    plan = json.loads(source.read_text(encoding="utf-8"))
+    plan["unrecognized"] = True
+    encoded = canonical(plan)
+    altered = tmp_path / "altered.json"
+    altered.write_bytes(encoded)
+    monkeypatch.setattr(trial, "V2_PLAN_PATH", altered)
+    monkeypatch.setattr(trial, "V2_PLAN_SHA256", digest(encoded))
+    with pytest.raises(trial.TrialError, match="v2_plan_manifest_shape_invalid"):
+        trial.load_locked_cases("specialist-input-v2")
+
+
+def _minimal_v2_case_and_prepared(binding_evidence_ids=("ev-own",)):
+    evidence_projection = []
+    snapshot_hash = "snapshot-v2-test"
+    profile_sha = "a" * 64
+    provider_sha = "b" * 64
+    base_sha = "c" * 40
+    head_sha = "d" * 40
+    obligations = [
+        {
+            "obligation_id": "obligation-1",
+            "obligation_kind": "changed_unit",
+            "lens": "correctness",
+            "check_binding_id": "check-1",
+            "scope_unit_ids": ["unit-1"],
+        }
+    ]
+    projected_obligations = [dict(obligations[0])]
+    primary = [
+        {
+            "task_id": "task-1:chunk-1",
+            "lens": "correctness",
+            "unit_ids": ["unit-1"],
+            "obligation_ids": ["obligation-1"],
+            "evidence_ids": ["ev-own"],
+            "input_bytes": 100,
+            "input_sha256": "e" * 64,
+            "admitted": True,
+            "output_bytes_cap": 16000,
+            "output_tokens_cap": 1800,
+            "request_input_contract": "specialist-input.v2",
+            "unit_evidence_bindings": [
+                {
+                    "unit_id": "unit-1",
+                    "binding_status": "VERIFIED",
+                    "evidence_ids": list(binding_evidence_ids),
+                }
+            ],
+            "evidence_bindings": [],
+        }
+    ]
+    case = {
+        "case_id": "PR-test",
+        "base_sha": base_sha,
+        "head_sha": head_sha,
+        "snapshot_hash": snapshot_hash,
+        "evidence_index_sha256": digest(canonical(evidence_projection)),
+        "profile_sha256": profile_sha,
+        "profile_version": "fixture-profile-v1",
+        "primary_provider_identity_sha256": provider_sha,
+        "expected_scope_count": 1,
+        "expected_scope_sha256": digest(canonical(projected_obligations)),
+        "expected_primary_count": 1,
+        "expected_primary_serialized_input_bytes": 100,
+        "expected_primary_request_descriptors": primary,
+        "expected_primary_descriptor_sha256": digest(canonical(primary)),
+    }
+    prepared = {
+        "value": {
+            "status": "PREPARED_ONLY",
+            "disposition": None,
+            "no_provider_calls": True,
+            "no_target_code_execution": True,
+            "snapshot": {
+                "base_sha": base_sha,
+                "head_sha": head_sha,
+                "snapshot_hash": snapshot_hash,
+                "evidence_index_sha256": case["evidence_index_sha256"],
+                "evidence_index": evidence_projection,
+                "profile_file_sha256": profile_sha,
+                "provider_identity_sha256": provider_sha,
+                "profile_version": "fixture-profile-v1",
+            },
+            "scope": {
+                "primary_scope_admission_complete": True,
+                "required_unadmitted_obligation_ids": [],
+                "planned_obligations": 1,
+                "coverage_obligations": obligations,
+            },
+            "primary_requests": primary,
+        }
+    }
+    return case, prepared
+
+
+def test_v2_prepare_accepts_bound_unit_and_rejects_forged_cross_unit_binding():
+    case, prepared = _minimal_v2_case_and_prepared()
+    trial.validate_prepare_v2(case, prepared, 128_000, 1)
+
+    forged_case, forged_prepared = _minimal_v2_case_and_prepared(("ev-other-unit",))
+    with pytest.raises(trial.TrialError, match="prepared_unit_evidence_binding_invalid"):
+        trial.validate_prepare_v2(forged_case, forged_prepared, 128_000, 1)
+
+
+def test_v2_provider_trial_preflights_prepare_before_any_provider_configuration(
+    tmp_path, monkeypatch, capsys
+):
+    _, cases = trial.load_locked_cases("specialist-input-v2")
+    case = next(row for row in cases if row["case_id"] == "PR-464")
+    calls = []
+    monkeypatch.setattr(trial, "verify_dispatch_context", lambda _root: None)
+    monkeypatch.setattr(trial, "verify_runtime", lambda *args: {"module_file_count": 28})
+    monkeypatch.setattr(trial, "_matrix_deadline", lambda _provider_run: trial.time.monotonic() + 10_000)
+    monkeypatch.setattr(trial, "selected_cases", lambda _mode, _cases: [case])
+    monkeypatch.setattr(trial, "load_locked_cases", lambda _contract: ({"baseline_plan_sha256": trial.V2_PLAN_SHA256}, cases))
+    monkeypatch.setattr(trial, "build_prepare_configs", lambda _path: (tmp_path / "provider.json", tmp_path / "decision.json"))
+    monkeypatch.setattr(
+        trial,
+        "acquire_bare_case",
+        lambda selected, *_args, **_kwargs: {
+            "patch_sha256": selected["patch_sha256"],
+            "isolated_object_count": 1,
+            "isolated_loose_object_count": 1,
+            "isolated_in_pack_object_count": 0,
+            "isolated_pack_kib": 0,
+        },
+    )
+
+    def fake_cli(*_args, **kwargs):
+        calls.append(_args[9])
+        return {"value": {}}
+
+    monkeypatch.setattr(trial, "run_cli", fake_cli)
+    monkeypatch.setattr(
+        trial,
+        "validate_prepare_v2",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(trial.TrialError("prepared_primary_descriptor_mismatch")),
+    )
+    monkeypatch.setattr(
+        trial,
+        "build_configs",
+        lambda *_args: pytest.fail("provider configuration must follow complete v2 preflight"),
+    )
+    target_bare = tmp_path / "target.git"
+    target_bare.mkdir()
+    artifact_dir = tmp_path / "artifacts"
+    result = trial.main(
+        [
+            "--mode", "staged-pr464", "--run-provider-trial", "--input-contract", "specialist-input-v2",
+            "--artifacts", str(artifact_dir), "--cli", str(trial.ROOT / "scripts/run_real_case_trial.py"),
+            "--runtime-source", str(trial.ROOT), "--target-bare", str(target_bare),
+        ]
+    )
+    assert result == 2
+    assert calls == [True]
+    output = json.loads(capsys.readouterr().out)
+    assert output == {"status": "FAILED", "error": "prepared_primary_descriptor_mismatch"}
 
 
 def test_main_failure_keeps_completed_row_and_marks_failed_and_unstarted_cases(tmp_path, monkeypatch, capsys):

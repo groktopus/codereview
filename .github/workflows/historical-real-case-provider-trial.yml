@@ -19,6 +19,14 @@ on:
         options:
           - staged-pr464
           - full-three-case
+      input_contract:
+        description: "Keep the historical v1 input by default, or explicitly select the frozen specialist-input v2 experiment"
+        required: true
+        type: choice
+        default: specialist-input-v1
+        options:
+          - specialist-input-v1
+          - specialist-input-v2
 
 permissions:
   contents: read
@@ -80,11 +88,35 @@ jobs:
               raise SystemExit("runner_revision_mismatch")
           PY
 
+      - name: Resolve only a fixed trusted runtime for the selected input contract
+        id: runtime-pins
+        env:
+          INPUT_CONTRACT: ${{ inputs.input_contract }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          pins = {
+              "specialist-input-v1": ("ed7aa8b82f8d0c8deee03b6f99d8f4f599529301", "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3", ""),
+              "specialist-input-v2": ("5873c3f1b297a96c49b78cbcb7be674ab70b3cea", "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4", "-v2"),
+          }
+          contract = os.environ.get("INPUT_CONTRACT", "")
+          selected = pins.get(contract)
+          if selected is None:
+              raise SystemExit("input_contract_invalid")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+              stream.write(f"contract={contract}\n")
+              stream.write(f"sha={selected[0]}\n")
+              stream.write(f"module_tree={selected[1]}\n")
+              stream.write(f"artifact_suffix={selected[2]}\n")
+          PY
+
       - name: Check out the frozen review runtime
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: groktopus/codereview
-          ref: ed7aa8b82f8d0c8deee03b6f99d8f4f599529301
+          ref: ${{ steps.runtime-pins.outputs.sha }}
           path: trusted-runtime
           persist-credentials: false
 
@@ -123,13 +155,15 @@ jobs:
         working-directory: trusted-runner
         env:
           TRIAL_SCOPE: ${{ inputs.scope }}
+          TRIAL_INPUT_CONTRACT: ${{ steps.runtime-pins.outputs.contract }}
+          ARTIFACT_SUFFIX: ${{ steps.runtime-pins.outputs.artifact_suffix }}
           RUNTIME_WHEEL_SHA256: ${{ steps.runtime-wheel.outputs.sha256 }}
           TRIAL_STARTED_EPOCH: ${{ steps.trial-start.outputs.epoch }}
         run: |
           set -euo pipefail
           python3 scripts/run_real_case_trial.py \
-            --mode "$TRIAL_SCOPE" --prepare-only \
-            --artifacts "$RUNNER_TEMP/historical-real-case-trial" \
+            --mode "$TRIAL_SCOPE" --prepare-only --input-contract "$TRIAL_INPUT_CONTRACT" \
+            --artifacts "$RUNNER_TEMP/historical-real-case-trial$ARTIFACT_SUFFIX" \
             --cli "$(command -v pr-review)" --runtime-source "$GITHUB_WORKSPACE/trusted-runtime"
 
       - name: Run the frozen provider trial
@@ -137,6 +171,8 @@ jobs:
         working-directory: trusted-runner
         env:
           TRIAL_SCOPE: ${{ inputs.scope }}
+          TRIAL_INPUT_CONTRACT: ${{ steps.runtime-pins.outputs.contract }}
+          ARTIFACT_SUFFIX: ${{ steps.runtime-pins.outputs.artifact_suffix }}
           RUNTIME_WHEEL_SHA256: ${{ steps.runtime-wheel.outputs.sha256 }}
           TRIAL_STARTED_EPOCH: ${{ steps.trial-start.outputs.epoch }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
@@ -148,14 +184,14 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/run_real_case_trial.py \
-            --mode "$TRIAL_SCOPE" --run-provider-trial \
-            --artifacts "$RUNNER_TEMP/historical-real-case-trial" \
+            --mode "$TRIAL_SCOPE" --run-provider-trial --input-contract "$TRIAL_INPUT_CONTRACT" \
+            --artifacts "$RUNNER_TEMP/historical-real-case-trial$ARTIFACT_SUFFIX" \
             --cli "$(command -v pr-review)" --runtime-source "$GITHUB_WORKSPACE/trusted-runtime"
 
       - name: Remove only private trial workspace data
         if: always()
         env:
-          TRIAL_ROOT: ${{ runner.temp }}/historical-real-case-trial
+          ARTIFACT_SUFFIX: ${{ steps.runtime-pins.outputs.artifact_suffix }}
         run: |
           python3 - <<'PY'
           import os
@@ -163,7 +199,7 @@ jobs:
           import stat
           from pathlib import Path
 
-          path = Path(os.environ["TRIAL_ROOT"])
+          path = Path(os.environ["RUNNER_TEMP"]) / f"historical-real-case-trial{os.environ['ARTIFACT_SUFFIX']}"
           try:
               info = path.lstat()
           except FileNotFoundError:
@@ -189,9 +225,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: historical-real-case-trial-${{ github.run_id }}
+          name: historical-real-case-trial-${{ github.run_id }}${{ steps.runtime-pins.outputs.artifact_suffix }}
           path: |
-            ${{ runner.temp }}/historical-real-case-trial/summary.json
-            ${{ runner.temp }}/historical-real-case-trial/manifest.json
+            ${{ runner.temp }}/historical-real-case-trial${{ steps.runtime-pins.outputs.artifact_suffix }}/summary.json
+            ${{ runner.temp }}/historical-real-case-trial${{ steps.runtime-pins.outputs.artifact_suffix }}/manifest.json
           if-no-files-found: warn
           retention-days: 7
