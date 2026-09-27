@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -777,34 +778,173 @@ def _project_identity(value: Any) -> dict[str, Any]:
 
 
 def _project_claim(value: Any) -> dict[str, Any]:
+    has_record = isinstance(value, dict)
     if not isinstance(value, dict):
-        return {"status": "NOT_RUN"}
-    result = {
-        key: value.get(key) for key in ("status", "reason_code", "contract_version", "projection_valid") if key in value
+        value = {"status": "NOT_RUN"}
+    raw_status = value.get("status")
+    row_status_valid = isinstance(raw_status, str) and raw_status in _CLAIM_ROW_STATUSES
+    status = raw_status if row_status_valid else "UNKNOWN"
+    contract_version = value.get("contract_version")
+    contract_valid = isinstance(contract_version, str) and contract_version in _CLAIM_CONTRACT_VERSIONS
+    candidate_id = _project_claim_id(value.get("candidate_id"))
+    identity_valid = not has_record or (row_status_valid and contract_valid and candidate_id != "UNKNOWN")
+    if not identity_valid:
+        status = "UNKNOWN"
+    result: dict[str, Any] = {
+        "status": status,
+        "candidate_id": candidate_id,
     }
+    if contract_valid:
+        result["contract_version"] = contract_version
+    reason_code = value.get("reason_code")
+    if isinstance(reason_code, str):
+        result["reason_code"] = reason_code if reason_code in _SAFE_CLAIM_REASON_CODES else "UNKNOWN"
     if "error_code" in value:
         error_code = value.get("error_code")
         result["error_code"] = error_code if isinstance(error_code, str) and error_code in _SAFE_CLAIM_ERROR_CODES else "UNKNOWN"
-    assessments = value.get("response_assessments")
-    if isinstance(assessments, dict):
-        result["dimensions"] = {
-            str(name)[:80]: {
-                key: item[key]
-                for key in ("status", "choice", "probability", "rationale", "evidence_refs", "reason_code")
-                if isinstance(item, dict) and key in item
-            }
-            for name, item in list(assessments.items())[:16]
-        }
+    assessments = value.get("assessments")
+    dimensions, projection_complete = _project_claim_dimensions(assessments)
+    result["dimensions"] = dimensions
+    result["dimension_projection_status"] = "COMPLETE" if projection_complete and identity_valid else "PARTIAL"
+    if status == "COMPLETE" and isinstance(assessments, dict) and any(
+        not isinstance(item, dict)
+        or item.get("status") not in {"ANSWERED", "NOT_SHOWN"}
+        or (item.get("status") == "NOT_SHOWN" and dimension != "introducedness")
+        for dimension, item in assessments.items()
+    ):
+        result["dimension_projection_status"] = "PARTIAL"
+    if isinstance(value.get("projection_valid"), bool):
+        result["projection_valid"] = value["projection_valid"]
     provenance = value.get("provenance")
     if isinstance(provenance, dict):
         result["identity"] = {
             key: provenance[key]
             for key in ("provider_id", "native_contract", "contract_version", "model_identity_source")
-            if isinstance(provenance.get(key), str)
+            if isinstance(provenance.get(key), str) and len(provenance[key]) <= 80
         }
         result["identity"]["provider_model_sha256"] = sha256(canonical(provenance.get("provider_model_id")))
-    result["candidate_id"] = value.get("candidate_id", "UNKNOWN")
     return result
+
+
+_CLAIM_ROW_STATUSES = frozenset(
+    {"COMPLETE", "PARTIAL", "FAILED", "NOT_RUN", "INTERRUPTED_UNKNOWN", "PREPARING", "RESERVED", "DISPATCHING"}
+)
+_CLAIM_CONTRACT_VERSIONS = frozenset({"claim-assessment.1", "claim-assessment.2"})
+_CLAIM_DIMENSION_CHOICES = {
+    "observation_support": frozenset({"SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED", "UNCERTAIN"}),
+    "consequence_support": frozenset({"SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED", "UNCERTAIN"}),
+    "rule_connection_support": frozenset({"SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED", "UNCERTAIN"}),
+    "materiality": frozenset({"MATERIAL", "NOT_MATERIAL", "NOT_ESTABLISHED", "UNCERTAIN"}),
+    "missing_context": frozenset({"MISSING_CONTEXT_IDENTIFIED", "NO_MISSING_CONTEXT_IDENTIFIED", "UNCERTAIN"}),
+    "introducedness": frozenset({"INTRODUCED", "REEXPOSED", "PRE_EXISTING", "UNKNOWN"}),
+}
+_CLAIM_ANSWER_STATUSES = frozenset({"NOT_RUN", "NOT_SHOWN", "ANSWERED", "OMITTED", "INVALID", "FAILED"})
+_CLAIM_DIMENSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}\Z")
+_CLAIM_DIMENSION_HASH = re.compile(r"[0-9a-f]{64}\Z")
+def _project_claim_id(value: Any) -> str:
+    return value if isinstance(value, str) and _CLAIM_DIMENSION_ID.fullmatch(value) else "UNKNOWN"
+
+
+def _project_claim_dimensions(value: Any) -> tuple[dict[str, Any], bool]:
+    source = value if isinstance(value, dict) else {}
+    complete = isinstance(value, dict) and set(source) == set(_CLAIM_DIMENSION_CHOICES)
+    projected: dict[str, Any] = {}
+    for dimension, choices in _CLAIM_DIMENSION_CHOICES.items():
+        item = source.get(dimension)
+        if not isinstance(item, dict):
+            projected[dimension] = {"status": "UNKNOWN"}
+            complete = False
+            continue
+        status = item.get("status")
+        if not isinstance(status, str) or status not in _CLAIM_ANSWER_STATUSES:
+            projected[dimension] = {"status": "UNKNOWN"}
+            complete = False
+            continue
+        question_id = item.get("question_id")
+        refs = item.get("evidence_refs")
+        safe_refs = (
+            refs
+            if isinstance(refs, list)
+            and len(refs) <= 100
+            and all(isinstance(ref, str) and _CLAIM_DIMENSION_ID.fullmatch(ref) for ref in refs)
+            else None
+        )
+        interpretation = item.get("interpretation")
+        safe_item: dict[str, Any] = {
+            "status": status,
+            "question_id": _project_claim_id(question_id),
+            "native_primitive": "Choice" if item.get("native_primitive") == "Choice" else None,
+            "interpretation": "advisory_uncalibrated" if interpretation == "advisory_uncalibrated" else None,
+            "choice": None,
+            "probabilities": None,
+            "confidence": None,
+            "evidence_refs": safe_refs if safe_refs is not None else [],
+        }
+        metadata_valid = (
+            safe_item["question_id"] != "UNKNOWN"
+            and safe_item["native_primitive"] is not None
+            and safe_item["interpretation"] is not None
+            and safe_refs is not None
+        )
+        if not metadata_valid:
+            safe_item["status"] = "UNKNOWN"
+            complete = False
+        if status == "NOT_SHOWN" and dimension != "introducedness":
+            safe_item["status"] = "UNKNOWN"
+            complete = False
+        if status == "ANSWERED" and metadata_valid:
+            choice = item.get("choice")
+            confidence = item.get("confidence")
+            probabilities = item.get("probabilities")
+            safe_probabilities = None
+            if (
+                isinstance(probabilities, dict)
+                and set(probabilities) == set(choices)
+                and all(
+                    isinstance(number, (int, float))
+                    and not isinstance(number, bool)
+                    and math.isfinite(number)
+                    and 0 <= number <= 1
+                    for number in probabilities.values()
+                )
+                and abs(sum(probabilities.values()) - 1.0) <= 0.02
+            ):
+                safe_probabilities = {key: float(probabilities[key]) for key in sorted(choices)}
+            if (
+                isinstance(choice, str)
+                and choice in choices
+                and safe_probabilities is not None
+                and safe_probabilities[choice] >= max(safe_probabilities.values()) - 1e-6
+                and isinstance(confidence, (int, float))
+                and not isinstance(confidence, bool)
+                and math.isfinite(confidence)
+                and 0 <= confidence <= 1
+            ):
+                safe_item.update(
+                    choice=choice,
+                    probabilities=safe_probabilities,
+                    confidence=float(confidence),
+                )
+            else:
+                safe_item["status"] = "UNKNOWN"
+                complete = False
+        error_code = item.get("error_code")
+        if error_code is not None:
+            safe_item["error_code"] = (
+                error_code
+                if isinstance(error_code, str)
+                and error_code in _SAFE_CLAIM_DIMENSION_ERROR_CODES
+                else "UNKNOWN"
+            )
+        invalid_hash = item.get("invalid_answer_hash")
+        if invalid_hash is not None:
+            safe_item["invalid_answer_hash"] = (
+                invalid_hash if isinstance(invalid_hash, str) and _CLAIM_DIMENSION_HASH.fullmatch(invalid_hash) else None
+            )
+            if safe_item["invalid_answer_hash"] is None:
+                complete = False
+        projected[dimension] = safe_item
+    return projected, complete
 
 
 _SAFE_CLAIM_ERROR_CODES = frozenset(
@@ -844,6 +984,40 @@ _SAFE_CLAIM_ERROR_CODES = frozenset(
         "question_limit_exceeded",
         "request_exceeds_intrinsic_limit",
         "request_exceeds_limit",
+    }
+)
+_SAFE_CLAIM_REASON_CODES = _SAFE_CLAIM_ERROR_CODES | frozenset(
+    {
+        "PRIMARY_CANDIDATE_INVALID",
+        "PRIMARY_ASSESSMENT_UNAVAILABLE",
+        "CANDIDATE_EVIDENCE_BINDING_INVALID",
+        "CLAIM_ASSESSMENT_CAP_EXHAUSTED",
+        "PRIOR_SHADOW_ATTEMPT_UNSETTLED",
+        "PRIOR_SHADOW_RESERVATION_EXISTS",
+        "SHADOW_DISPATCH_UNCERTAIN",
+        "RESPONSE_PROVENANCE_MISMATCH",
+        "RESPONSE_SCHEMA_INVALID",
+        "FRESHNESS_BUDGET_RESERVED",
+        "DEADLINE_EXHAUSTED",
+        "CONTEXT_BYTE_BUDGET_EXHAUSTED",
+        "INPUT_BYTE_LIMIT_EXCEEDED",
+        "MONETARY_BOUND_UNAVAILABLE",
+        "MONETARY_BUDGET_EXHAUSTED",
+        "OUTPUT_BYTE_BUDGET_EXHAUSTED",
+        "OUTPUT_BYTE_LIMIT_EXCEEDED",
+        "PROVIDER_CALL_BUDGET_EXHAUSTED",
+        "CLAIM_ASSESSMENT_BUDGET_UNAVAILABLE",
+    }
+)
+_SAFE_CLAIM_DIMENSION_ERROR_CODES = _SAFE_CLAIM_ERROR_CODES | frozenset(
+    {
+        "answer_omitted",
+        "base_head_evidence_not_provided",
+        "invalid_choice_answer",
+        "native_call_deadline_exceeded",
+        "native_call_failed",
+        "native_response_exceeds_limit",
+        "native_response_not_bytes",
     }
 )
 
