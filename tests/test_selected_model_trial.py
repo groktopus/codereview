@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from pr_review_harness import external_effect_observer
 from pr_review_harness import selected_model_trial as trial
 
 
@@ -21,6 +22,76 @@ from pr_review_harness import selected_model_trial as trial
 )
 def test_incomplete_external_observer_stops_later_cases(observation, should_stop):
     assert trial._external_observer_requires_stop(observation) is should_stop
+
+
+def test_unavailable_effect_observer_does_not_dispatch_cli_or_later_cases(tmp_path, monkeypatch):
+    repo = tmp_path / "fixture-repo"
+    repo.mkdir()
+    cli_marker = tmp_path / "cli-was-dispatched"
+    cli = tmp_path / "fake-cli"
+    cli.write_text(f"#!/bin/sh\ntouch {cli_marker}\n", encoding="utf-8")
+    cli.chmod(0o755)
+    source_fingerprint = {"file_hashes": {"src/pr_review_harness/selected_model_trial.py": "a" * 64}}
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text("{}", encoding="utf-8")
+    cases = []
+    for case_id in trial.CASE_IDS:
+        case = _case()
+        case.case_id = case_id
+        case.repo = repo
+        case.family_id = "fixture-family"
+        case.pair_case_id = None
+        case.behavior_sha256 = "b" * 64
+        cases.append(case)
+    suite_path = Path(__file__).resolve().parents[1] / "examples/injection/fixture-suite.v2.json"
+    prepared = SimpleNamespace(
+        profile_path=profile_path,
+        profile={"version": "fixture-v2"},
+        cases=cases,
+        suite_sha256=hashlib.sha256(suite_path.read_bytes()).hexdigest(),
+    )
+
+    class Matrix:
+        def source_fingerprint(self):
+            return source_fingerprint
+
+    monkeypatch.setattr(trial, "_environment_configs", lambda *_args, **_kwargs: (trial.PRIMARY_IDENTITY, trial.DECISION_IDENTITY))
+    monkeypatch.setattr(trial, "_config_identity", lambda path, *, expected, decision: (expected, "c" * 64))
+    monkeypatch.setattr(
+        trial,
+        "_suite_and_runtime",
+        lambda *_args: (prepared, {"cli_path": str(cli), "source_fingerprint": source_fingerprint}),
+    )
+    monkeypatch.setattr(trial, "_load_matrix_tools", lambda _root: Matrix())
+    monkeypatch.setattr(
+        trial,
+        "_trial_input_identity",
+        lambda *_args, **_kwargs: {"runner_sources": {}, "generated_profile": {}, "limits": {}, "provider_config": {}, "decision_config": {}},
+    )
+    monkeypatch.setattr(external_effect_observer.platform, "system", lambda: "Darwin")
+
+    result = trial.run_provider_trial(
+        output=tmp_path / "trial-output",
+        cli_executable=cli,
+        provider_config=tmp_path / "provider.json",
+        decision_config=tmp_path / "decision.json",
+        repo_support_root=Path(__file__).resolve().parents[1],
+        environ={
+            "LLM_BASE_URL": trial.PRIMARY_IDENTITY["base_url"],
+            "LLM_MODEL": trial.PRIMARY_IDENTITY["model"],
+            "LLM_API_KEY": "test-primary-key",
+            "JEV_BASE_URL": trial.DECISION_IDENTITY["endpoint"],
+            "JEV_MODEL": trial.DECISION_IDENTITY["model"],
+            "JEV_API_KEY": "test-decision-key",
+        },
+        observe_effects=True,
+    )
+
+    assert not cli_marker.exists()
+    assert [row["case_id"] for row in result["cases"]] == list(trial.CASE_IDS)
+    assert result["cases"][0]["run_status"] == "OBSERVER_UNAVAILABLE"
+    assert [row["run_status"] for row in result["cases"][1:]] == ["NOT_RUN_AFTER_EARLIER_STOP"] * 2
+    assert result["status"] == "INCOMPLETE"
 
 
 def _case():
