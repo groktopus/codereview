@@ -10,6 +10,7 @@ import os
 import signal
 import threading
 import time
+from multiprocessing.connection import wait as wait_connections
 from typing import Any, Callable
 
 from .contracts import (
@@ -353,6 +354,14 @@ class IsolatedCallError(RuntimeError):
         self.meta = meta or {}
 
 
+def _bounded_wait_timeout(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        raise ValueError("invalid readiness wait timeout")
+    return float(value)
+
+
 class IsolatedInvocation:
     """One spawn-isolated, killable provider invocation managed by the controller."""
 
@@ -410,6 +419,27 @@ class IsolatedInvocation:
             self._finished = True
             return True
         return False
+
+    @property
+    def remaining_seconds(self) -> float:
+        """Return the remaining hard deadline for this child invocation."""
+        return max(0.0, self._deadline - time.monotonic())
+
+    def wait_handles(self) -> tuple[Any, ...]:
+        """Return the result pipe and child sentinel used for readiness waits."""
+        if self._finished:
+            return ()
+        return self._recv, self._process.sentinel
+
+    def wait_for_ready(self, timeout: float | None = None) -> bool:
+        """Block until this child sends/closes its pipe or exits, up to its deadline."""
+        timeout = _bounded_wait_timeout(timeout)
+        handles = self.wait_handles()
+        if not handles:
+            return True
+        remaining = self.remaining_seconds
+        wait_seconds = remaining if timeout is None else min(max(0.0, timeout), remaining)
+        return bool(wait_connections(handles, timeout=wait_seconds))
 
     def _stop(self) -> None:
         # The worker calls setsid before invoking an adapter. Its subprocesses
@@ -517,5 +547,29 @@ def isolated_call(
         target, method_name, args, deadline_seconds=deadline_seconds, output_limit=output_limit
     )
     while not invocation.poll():
-        time.sleep(min(0.01, max(0.0, invocation._deadline - time.monotonic())))
+        invocation.wait_for_ready()
     return invocation.result()
+
+
+def wait_for_any(invocations: list[IsolatedInvocation], timeout: float | None = None) -> list[IsolatedInvocation]:
+    """Wait for any active child pipe/sentinel, bounded by the nearest deadline."""
+    timeout = _bounded_wait_timeout(timeout)
+    active = [invocation for invocation in invocations if invocation.wait_handles()]
+    if not active:
+        return []
+    handles: list[Any] = []
+    owners: dict[Any, IsolatedInvocation] = {}
+    for invocation in active:
+        for handle in invocation.wait_handles():
+            handles.append(handle)
+            owners[handle] = invocation
+    now = time.monotonic()
+    nearest_deadline_remaining = max(0.0, min(invocation._deadline for invocation in active) - now)
+    wait_seconds = (
+        nearest_deadline_remaining
+        if timeout is None
+        else min(timeout, nearest_deadline_remaining)
+    )
+    ready = set(wait_connections(handles, timeout=wait_seconds))
+    ready_ids = {id(owners[handle]) for handle in ready if handle in owners}
+    return [invocation for invocation in active if id(invocation) in ready_ids]
