@@ -172,6 +172,7 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
             "diff",
             "base_file",
             "head_file",
+            "source_window",
             "profile_context",
             "repository_file",
             "test_result",

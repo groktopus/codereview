@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -23,6 +25,7 @@ from pr_review_harness.claim_assessment import (
 from pr_review_harness.claim_transport import ClaimTransport
 from pr_review_harness.engine import run_review
 from pr_review_harness.planner import plan_review
+from pr_review_harness.snapshot import collect_snapshot
 
 BASE = "b" * 40
 HEAD = "c" * 40
@@ -91,16 +94,27 @@ class PrimaryProvider:
         "adjudication_rubric_version": "causal-roles.behavior-consumer-impact.v1",
     }
 
-    def __init__(self, outcome: str = "NOT_SUPPORTED"):
+    def __init__(self, outcome: str = "NOT_SUPPORTED", evidence_ref: str | None = None):
         self.outcome = outcome
+        self.evidence_ref = evidence_ref
 
     def review(self, task: dict, evidence: list[dict], limits: dict) -> dict:
         evidence_id = task["evidence_ids"][0]
+        candidate_path = "src/auth.py"
+        candidate_line = 1
+        if self.evidence_ref is not None:
+            selected = next(item for item in evidence if item["evidence_id"] == self.evidence_ref)
+            evidence_id = self.evidence_ref
+            candidate_path = selected["path"]
+            candidate_line = selected.get("line", selected.get("line_start", 1))
+            ranges = selected.get("changed_line_ranges")
+            if isinstance(ranges, list) and ranges and isinstance(ranges[0], list):
+                candidate_line = ranges[0][0]
         return {
             "finding_candidates": [
                 {
-                    "path": "src/auth.py",
-                    "line": 1,
+                    "path": candidate_path,
+                    "line": candidate_line,
                     "title": "Fixture candidate — café",
                     "observation": "The changed predicate admits the request.",
                     "consequence": "A caller can reach a protected operation.",
@@ -404,15 +418,27 @@ class ClaimChoiceHandler(BaseHTTPRequestHandler):
         pass
 
 
-def _run(tmp_path, *, assessor=None, cap=0, limits=None, freshness=None, run_id="r1", resume=False):
-    snapshot = _snapshot()
-    profile = _profile()
+def _run(
+    tmp_path,
+    *,
+    assessor=None,
+    cap=0,
+    limits=None,
+    freshness=None,
+    run_id="r1",
+    resume=False,
+    snapshot=None,
+    profile=None,
+    primary=None,
+):
+    snapshot = snapshot or _snapshot()
+    profile = profile or _profile()
     plan = plan_review(snapshot, profile, "AUTO")
     return run_review(
         snapshot,
         plan,
         profile,
-        PrimaryProvider(),
+        primary or PrimaryProvider(),
         None,
         limits or LIMITS,
         str(tmp_path),
@@ -422,6 +448,87 @@ def _run(tmp_path, *, assessor=None, cap=0, limits=None, freshness=None, run_id=
         claim_assessor=assessor,
         max_claim_assessments=cap,
     )
+
+
+def _source_window_case(tmp_path):
+    repo = tmp_path / "source-window-repo"
+    repo.mkdir()
+    git_env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": str(tmp_path),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            env=git_env,
+        ).stdout.strip()
+
+    git("init")
+    git("config", "user.email", "fixture@example.invalid")
+    git("config", "user.name", "Fixture")
+    (repo / "AGENTS.md").write_text("trusted base rules\n")
+    (repo / "docs").mkdir()
+    (repo / "docs/contract.md").write_text("Protected operations require authorization.\n")
+    (repo / "app.py").write_text(
+        "def authorize(request):\n    audit(request)\n    normalize(request)\n    return False\n    finish()\n"
+    )
+    git("add", "AGENTS.md", "docs/contract.md", "app.py")
+    git("-c", "core.hooksPath=/dev/null", "commit", "-m", "base")
+    base = git("rev-parse", "HEAD")
+    (repo / "app.py").write_text(
+        "def authorize(request):\n    audit(request)\n    normalize(request)\n    return True\n    finish()\n"
+    )
+    git("add", "app.py")
+    git("-c", "core.hooksPath=/dev/null", "commit", "-m", "change")
+    head = git("rev-parse", "HEAD")
+    profile = {
+        "version": "context-selection-test-v3",
+        "context_paths": ["AGENTS.md", "docs/contract.md"],
+        "trusted_policy_paths": ["AGENTS.md"],
+        "retrieval_context_patterns": ["AGENTS.md", "docs/contract.md"],
+        "required_lenses": ["correctness"],
+        "context_selection": {
+            "version": "context-selection.v1",
+            "mandatory_policy_paths": ["AGENTS.md"],
+            "max_total_context_bytes": 4096,
+            "window": {
+                "before_lines": 1,
+                "after_lines": 1,
+                "max_bytes": 1024,
+                "max_windows_per_unit": 4,
+                "max_scan_bytes": 4096,
+            },
+            "bindings": [
+                {
+                    "unit_patterns": ["app.py"],
+                    "lenses": ["correctness"],
+                    "context_paths": ["docs/contract.md"],
+                    "max_context_bytes": 2048,
+                }
+            ],
+        },
+    }
+    snapshot = collect_snapshot(str(repo), base, head, profile, {"max_context_bytes": 20_000})
+    unit = next(item for item in snapshot["inventory"] if item["path"] == "app.py")
+    window = next(
+        snapshot["evidence"][evidence_id]
+        for evidence_id in unit["review_context_evidence_ids"]
+        if snapshot["evidence"][evidence_id].get("source_kind") == "source_window"
+        and snapshot["evidence"][evidence_id].get("source_side") == "HEAD"
+    )
+    assert window["line_start"] == 3
+    assert window["line_end"] == 5
+    assert len(window["content"].splitlines()) < len((repo / "app.py").read_text().splitlines())
+    return snapshot, profile, window
 
 
 def test_disabled_shadow_preserves_legacy_identity_and_result_shape(tmp_path):
@@ -507,6 +614,60 @@ def test_real_claim_adapter_and_loopback_transport_bind_candidate_primary_and_re
     assert row["provenance"]["primary_assessment_hash"] == row["primary_assessment_hash"]
     assert row["candidate_hash"] == row["provenance"]["candidate_hash"]
     assert row["assessments"]["introducedness"]["status"] == "NOT_SHOWN"
+
+
+def test_context_selected_head_source_window_reaches_claim_transport_with_exact_binding(tmp_path, monkeypatch):
+    snapshot, profile, window = _source_window_case(tmp_path)
+    plan = plan_review(snapshot, profile, "AUTO")
+    correctness_tasks = [task for task in plan["tasks"] if task.get("lens") == "correctness"]
+    assert any(window["evidence_id"] in task["evidence_ids"] for task in correctness_tasks)
+    assert window["source_kind"] == "source_window"
+    assert window["source_side"] == "HEAD"
+    assert window["source_revision"] == snapshot["head_sha"]
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ClaimChoiceHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    ClaimChoiceHandler.seen = []
+    thread.start()
+    monkeypatch.setenv("CLAIM_ENGINE_TEST_KEY", ClaimChoiceHandler.token)
+    try:
+        transport = ClaimTransport(
+            {
+                "endpoint": f"http://127.0.0.1:{server.server_port}/v1/systemone",
+                "api_key_env": "CLAIM_ENGINE_TEST_KEY",
+                "model": "jev-latest",
+                "timeout_seconds": 2,
+                "max_request_bytes": 64_000,
+                "max_response_bytes": 64_000,
+            }
+        )
+        result = _run(
+            tmp_path / "run",
+            assessor=ClaimAssessmentAdapter(transport, "jev-latest"),
+            cap=1,
+            limits={**LIMITS, "max_input_bytes_per_task": 128_000},
+            snapshot=snapshot,
+            profile=profile,
+            primary=PrimaryProvider(evidence_ref=window["evidence_id"]),
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert len(ClaimChoiceHandler.seen) == 1
+    request = json.loads(ClaimChoiceHandler.seen[0])
+    state = request["state"]
+    cited = next(
+        item for item in state["cited_evidence"] if item["evidence_id"] == window["evidence_id"]
+    )
+    assert cited["source_kind"] == "source_window"
+    assert cited["content"] == window["content"]
+    assert cited["content_hash"] == window["content_hash"]
+    assert cited["side"] == "HEAD"
+    assert cited["source_revision"] == snapshot["head_sha"]
+    assert cited["path"] == window["path"] == "app.py"
+    assert result["claim_assessments"][0]["status"] == "COMPLETE"
 
 
 def test_real_claim_adapter_rejects_caller_overage_before_reservation(tmp_path, monkeypatch):

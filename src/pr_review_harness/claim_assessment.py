@@ -319,6 +319,7 @@ def _candidate_state(
             "diff",
             "base_file",
             "head_file",
+            "source_window",
             "profile_context",
             "repository_file",
             "test_result",

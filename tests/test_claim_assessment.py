@@ -453,7 +453,7 @@ def test_v2_pinned_model_requires_exact_endpoint_report():
     assert "provider_model_id" not in result["provenance"]
 
 
-@pytest.mark.parametrize("source_kind", ["diff", "base_file", "head_file", "profile_context"])
+@pytest.mark.parametrize("source_kind", ["diff", "base_file", "head_file", "source_window", "profile_context"])
 def test_native_claim_contract_preserves_snapshot_collector_source_kinds(source_kind):
     evidence = _evidence()
     evidence["source_kind"] = source_kind
@@ -461,6 +461,20 @@ def test_native_claim_contract_preserves_snapshot_collector_source_kinds(source_
     request = json.loads(prepared.request_bytes)
     assert request["state"]["cited_evidence"][0]["source_kind"] == source_kind
     assert request["state"]["cited_evidence"][0]["evidence_id"] == "ev-head"
+
+
+def test_native_claim_contract_rejects_unknown_source_kind_and_source_window_tampering():
+    adapter = _adapter(lambda *_args: pytest.fail("invalid evidence must not reach transport"))
+    unknown = _evidence()
+    unknown["source_kind"] = "invented_window"
+    with pytest.raises(ClaimAssessmentError, match="invalid_evidence_source_kind"):
+        adapter.prepare(_candidate(), [unknown], _identity(), _limits())
+
+    tampered = _evidence()
+    tampered["source_kind"] = "source_window"
+    tampered["content"] += "tampered"
+    with pytest.raises(ClaimAssessmentError, match="evidence_content_hash_mismatch"):
+        adapter.prepare(_candidate(), [tampered], _identity(), _limits())
 
 
 def test_larger_caller_ceiling_is_applied_to_exact_prepared_body():
