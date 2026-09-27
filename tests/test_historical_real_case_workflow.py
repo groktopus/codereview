@@ -49,7 +49,7 @@ def test_only_sanitized_outputs_are_uploaded_and_trial_time_is_bounded():
     assert '--mode "$TRIAL_SCOPE"' in text
 
 
-def test_runtime_pin_resolver_selects_only_exact_v1_or_v2_identities(tmp_path):
+def test_runtime_pin_resolver_selects_only_exact_trusted_input_contract_identities(tmp_path):
     text = WORKFLOW.read_text()
     marker = "      - name: Resolve only a fixed trusted runtime for the selected input contract"
     block = text.split(marker, maxsplit=1)[1].split("      - name:", maxsplit=1)[0]
@@ -66,6 +66,11 @@ def test_runtime_pin_resolver_selects_only_exact_v1_or_v2_identities(tmp_path):
             trial.V2_RUNTIME_SHA,
             trial.V2_RUNTIME_MODULE_TREE_SHA256,
             "-v2",
+        ),
+        trial.CONTEXT_FOLLOWUP_SELECTOR: (
+            trial.CONTEXT_FOLLOWUP_RUNTIME_SHA,
+            trial.CONTEXT_FOLLOWUP_MODULE_TREE_SHA256,
+            "-context-followup-v1",
         ),
     }
     for contract, (revision, tree, suffix) in expected.items():
@@ -94,10 +99,15 @@ def test_runtime_pin_resolver_selects_only_exact_v1_or_v2_identities(tmp_path):
                 "historical-real-case-trial",
                 "historical-real-case-trial-123",
             )
-        else:
+        elif contract == "specialist-input-v2":
             assert (artifact_path, artifact_name) == (
                 "historical-real-case-trial-v2",
                 "historical-real-case-trial-123-v2",
+            )
+        else:
+            assert (artifact_path, artifact_name) == (
+                "historical-real-case-trial-context-followup-v1",
+                "historical-real-case-trial-123-context-followup-v1",
             )
 
     output = tmp_path / "invalid.out"
@@ -111,8 +121,8 @@ def test_runtime_pin_resolver_selects_only_exact_v1_or_v2_identities(tmp_path):
     assert result.returncode != 0
     assert not output.exists()
 
-    # V1 keeps the original operator-facing paths and artifact name; v2 gets
-    # only the fixed suffix emitted by the trusted enum resolver.
+    # V1 keeps the original operator-facing paths and artifact name; each
+    # experiment gets only the fixed suffix emitted by the trusted resolver.
     assert 'historical-real-case-trial$ARTIFACT_SUFFIX' in text
     assert 'historical-real-case-trial-${{ github.run_id }}${{ steps.runtime-pins.outputs.artifact_suffix }}' in text
     assert "historical-real-case-trial-v2" not in text
