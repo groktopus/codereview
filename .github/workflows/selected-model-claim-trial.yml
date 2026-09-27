@@ -19,13 +19,13 @@ jobs:
         with:
           repository: groktopus/codereview
           # Reviewed immutable runner commit; keep in sync with EXPECTED_RUNNER_SHA below.
-          ref: b62dece014880474b532ac9dd73f2bcddc86c77f
+          ref: b1c2f9fed50d7cdcc7333d1f626b7c4bafe7412a
           path: trusted-runner
           persist-credentials: false
 
       - name: Verify the exact trusted source revision before build or import
         env:
-          EXPECTED_RUNNER_SHA: b62dece014880474b532ac9dd73f2bcddc86c77f
+          EXPECTED_RUNNER_SHA: b1c2f9fed50d7cdcc7333d1f626b7c4bafe7412a
           RUNNER_SOURCE: ${{ github.workspace }}/trusted-runner
         run: |
           python3 - <<'PY'
