@@ -31,7 +31,13 @@ def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         " print('  --kill-on-exit       kill tracees when strace exits')\n"
         " raise SystemExit(0)\n"
         "if os.environ.get('OBSERVER_TEST_PID_FILE'):\n"
-        " open(os.environ['OBSERVER_TEST_PID_FILE'], 'w').write(str(os.getpid()))\n"
+        " pid_path = os.environ['OBSERVER_TEST_PID_FILE']\n"
+        " ready_path = pid_path + '.ready-tmp'\n"
+        " with open(ready_path, 'w', encoding='ascii') as pid_stream:\n"
+        "  pid_stream.write(str(os.getpid()))\n"
+        "  pid_stream.flush()\n"
+        "  os.fsync(pid_stream.fileno())\n"
+        " os.replace(ready_path, pid_path)\n"
         "out = sys.argv[sys.argv.index('-o') + 1]\n"
         "fd = int(out.rsplit('/', 1)[1])\n"
         "root_event = b'' if os.environ.get('OBSERVER_TEST_NO_ROOT_EXEC') else b'[pid 4242] execve(0x0, 0x0, 0x0) = 0x0\\n'\n"
@@ -577,7 +583,11 @@ def test_keyboard_interrupt_kills_owned_tracer_and_closes_selector_fds(tmp_path,
         with pytest.raises(OSError):
             os.fstat(fd)
     assert pid_path.exists()
-    pid = int(pid_path.read_text(encoding="ascii"))
+    pid_text = pid_path.read_text(encoding="ascii")
+    assert pid_text.isdecimal(), "fake tracer readiness file must contain a complete PID"
+    pid = int(pid_text)
+    assert pid > 0
+    assert not pid_path.with_name(pid_path.name + ".ready-tmp").exists()
     with pytest.raises(ProcessLookupError):
         os.kill(pid, 0)
 
