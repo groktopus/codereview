@@ -56,6 +56,23 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Set up the pinned readiness artifact bridge runtime
+        if: inputs.phase == 'run-a'
+        timeout-minutes: 2
+        uses: actions/setup-node@1e60f620b9541d83c2a0d7bbbd10743a27a4e3d6 # v4
+        with:
+          node-version: '24'
+
+      - name: Install only the locked official artifact client
+        if: inputs.phase == 'run-a'
+        working-directory: scripts/actions-artifact-uploader
+        timeout-minutes: 2
+        env:
+          ACTIONS_RUNTIME_TOKEN: ''
+          ACTIONS_RESULTS_URL: ''
+          ACTIONS_RUNTIME_URL: ''
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Build a bounded wheel with the project-declared isolated build backend
         if: inputs.phase == 'run-a'
         timeout-minutes: 2
@@ -73,15 +90,16 @@ jobs:
               env_file.write('RECOVERY_WHEEL=' + str(wheels[0].resolve()) + '\n')
           PY
 
-      - name: Run A — stage a durable checkpoint and wait for whole-run cancellation
+      - name: Run A — publish readiness while the fake request remains held
         if: inputs.phase == 'run-a'
         timeout-minutes: 9
-        run: |
-          python scripts/hosted_recovery_rehearsal.py run-a \
-            --root "$RUNNER_TEMP/hosted-recovery-run-a" \
-            --stage "$RUNNER_TEMP/hosted-recovery-stage" \
-            --source-root "$GITHUB_WORKSPACE" \
-            --wheel "$RECOVERY_WHEEL"
+        uses: ./scripts/actions-artifact-uploader
+        with:
+          mode: hosted-recovery-run-a
+          root: ${{ runner.temp }}/hosted-recovery-run-a
+          stage: ${{ runner.temp }}/hosted-recovery-stage
+          source_root: ${{ github.workspace }}
+          wheel: ${{ env.RECOVERY_WHEEL }}
 
       - name: Retain Run A checkpoint, source wheel and identity manifest after cancellation
         if: always() && inputs.phase == 'run-a'

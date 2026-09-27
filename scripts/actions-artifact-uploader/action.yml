@@ -1,5 +1,22 @@
 name: PR review read-only publication canary
 description: Verifies read-only run and PR bindings and uploads a bounded canary receipt.
+inputs:
+  mode:
+    description: Select the read-only canary or bounded secretless hosted recovery runner.
+    required: false
+    default: canary
+  root:
+    description: Run A temporary root under RUNNER_TEMP.
+    required: false
+  stage:
+    description: Run A artifact staging directory under RUNNER_TEMP.
+    required: false
+  source_root:
+    description: Exact checked-out workspace.
+    required: false
+  wheel:
+    description: Original bounded wheel under RUNNER_TEMP.
+    required: false
 runs:
   using: node24
   main: canary.mjs
