@@ -12,8 +12,10 @@ from scripts import run_real_case_trial as trial
 from scripts.provider_config_from_env import configurations_from_environment
 
 sys.path.insert(0, str(trial.ROOT / "src"))
-from pr_review_harness.claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES
+from pr_review_harness.claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES, ClaimAssessmentAdapter
 from pr_review_harness.claim_transport import ClaimTransport
+from pr_review_harness.engine import run_review
+from pr_review_harness.planner import plan_review
 from pr_review_harness.providers import load_provider_config, make_decision_provider, make_provider
 
 
@@ -23,6 +25,104 @@ def canonical(value):
 
 def digest(value):
     return hashlib.sha256(value).hexdigest()
+
+
+class _NativeChoiceFixture:
+    identity = {"kind": "offline-test-native-choice"}
+
+    def __init__(self, probability_total: float = 1.0):
+        self.probability_total = probability_total
+
+    def estimate_call(self, request_bytes, limits):
+        return {
+            "provider_calls": 1,
+            "input_bytes": len(request_bytes),
+            "max_output_bytes": limits["max_output_bytes_per_task"],
+            "deadline_seconds": limits["deadline_seconds"],
+        }
+
+    def __call__(self, request_bytes, _deadline, _cap):
+        request = json.loads(request_bytes)
+        answers = {}
+        for question_id, question in request["questions"].items():
+            choices = list(question["criteria"])
+            selected = choices[0]
+            answers[question_id] = {
+                "type": "choice",
+                "choice": selected,
+                "probabilities": {choice: self.probability_total if choice == selected else 0.0 for choice in choices},
+                "confidence": 0.75,
+            }
+        return json.dumps(
+            {
+                "model": "jev-1.13.0",
+                "request_id": "projection-fixture",
+                "answers": answers,
+                "usage": {"input_tokens": 12, "output_tokens": 7},
+            }
+        ).encode()
+
+
+class _ProjectionPrimary:
+    identity = {
+        "kind": "offline-test-primary",
+        "model": "fixture-primary",
+        "adjudication_rubric_version": "causal-roles.behavior-consumer-impact.v1",
+    }
+
+    def review(self, task, evidence, _limits):
+        evidence_id = task["evidence_ids"][0]
+        return {
+            "finding_candidates": [
+                {
+                    "path": "src/auth.py",
+                    "line": 1,
+                    "title": "Fixture finding",
+                    "observation": "A changed predicate permits the request.",
+                    "consequence": "A protected operation may be reached.",
+                    "rule_or_contract": "Protected operations require authorization.",
+                    "severity": "high",
+                    "reasoning_kind": "inferred",
+                    "introducedness": "INTRODUCED",
+                    "evidence_refs": [evidence_id],
+                }
+            ],
+            "context_gap_proposals": [],
+            "coverage_notes": [
+                {
+                    "unit_id": task["unit_ids"][0],
+                    "state": "COVERED",
+                    "reason_code": "REVIEWED",
+                    "evidence_refs": [evidence_id],
+                    "coverage_basis": "STATIC_REVIEW",
+                }
+            ],
+        }
+
+    def adjudicate(self, candidate, _evidence, _limits):
+        refs = candidate["evidence_refs"]
+        return {
+            "contract_version": "semantic-adjudication.v3",
+            "source_contract_version": "semantic-adjudication.v3",
+            "outcome": "NOT_SUPPORTED",
+            "observation_support": "NOT_ESTABLISHED",
+            "consequence_support": "NOT_ESTABLISHED",
+            "rule_connection_support": "NOT_ESTABLISHED",
+            "introducedness": "UNKNOWN",
+            "assumptions": [],
+            "uncertainties": [],
+            "summary": "The fixture does not establish this claim.",
+            "evidence_refs": refs,
+            "causal_roles": {
+                role: {
+                    "support": "NOT_ESTABLISHED",
+                    "assessment": "The fixture does not establish this link.",
+                    "evidence_refs": [],
+                }
+                for role in ("behavior", "consumer", "impact")
+            },
+            "material_consequence": False,
+        }
 
 
 def _patch_installed_module_proof(monkeypatch, module, replacement):
@@ -370,8 +470,23 @@ def test_candidate_projection_preserves_bounded_narrative_and_evidence_binding()
             {
                 "candidate_id": candidate_id,
                 "status": "COMPLETE",
-                "response_assessments": {
-                    "grounding": {"status": "ANSWERED", "choice": "supported", "rationale": "linked evidence"}
+                "contract_version": "claim-assessment.2",
+                "assessments": {
+                    dimension: {
+                        "question_id": f"question-{dimension}",
+                        "status": "ANSWERED",
+                        "native_primitive": "Choice",
+                        "choice": sorted(choices)[0],
+                        "probabilities": {
+                            choice: float(choice == sorted(choices)[0]) for choice in choices
+                        },
+                        "confidence": 0.75,
+                        "evidence_refs": ["ev-1"],
+                        "interpretation": "advisory_uncalibrated",
+                        "invalid_answer_hash": None,
+                        "error_code": None,
+                    }
+                    for dimension, choices in trial._CLAIM_DIMENSION_CHOICES.items()
                 },
             }
         ],
@@ -398,6 +513,7 @@ def test_candidate_projection_preserves_bounded_narrative_and_evidence_binding()
     )
     assert projected["candidates"][0]["observation"] == "The route omits the guard."
     assert projected["candidates"][0]["recommendation"]["blocking_class"] == "BLOCKING"
+    assert projected["candidates"][0]["claim_assessment"]["dimension_projection_status"] == "COMPLETE"
     assert projected["evidence_index"]["ev-1"]["path"] == "x.py"
     assert "endpoint_id" not in projected["provider_identity"]
     assert projected["advisory_assessment"]["identity"]["provider_model_sha256"]
@@ -649,16 +765,216 @@ def test_private_configuration_contains_only_credential_references(tmp_path, mon
     assert trial.EXPECTED_LLM_MODEL in scan_values
 
 
+def test_native_choice_dimensions_survive_engine_storage_and_trial_projection(tmp_path):
+    base_sha, head_sha = "a" * 40, "b" * 40
+    content = "-    return False\n+    return True"
+    evidence_id = "diff:u0"
+    snapshot = {
+        "snapshot_id": "snapshot-projection",
+        "snapshot_hash": "c" * 64,
+        "base_sha": base_sha,
+        "head_sha": head_sha,
+        "profile_version": "profile-projection-v1",
+        "freshness_basis": "HISTORICAL_SNAPSHOT",
+        "inventory": [
+            {
+                "unit_id": "u0",
+                "path": "src/auth.py",
+                "kind": "human_code",
+                "change": "modified",
+                "diff": content,
+                "changed_lines": [[1, 1]],
+                "evidence_ids": [evidence_id],
+            }
+        ],
+        "evidence": {
+            evidence_id: {
+                "evidence_id": evidence_id,
+                "snapshot_id": "snapshot-projection",
+                "path": "src/auth.py",
+                "line_start": 1,
+                "line_end": 1,
+                "source_revision": head_sha,
+                "content": content,
+                "content_hash": digest(content.encode()),
+                "source_kind": "diff",
+                "trust": "untrusted_pr_content",
+            }
+        },
+        "gaps": [],
+    }
+    profile = {
+        "version": "profile-projection-v1",
+        "required_lenses": ["correctness"],
+        "allow_empty_approval": True,
+    }
+    limits = {
+        "deadline_seconds": 30,
+        "max_concurrent_scopes": 1,
+        "max_provider_calls": 8,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 120_000,
+        "max_input_bytes_per_task": 45_000,
+        "max_output_bytes_per_task": 16_000,
+        "max_output_bytes": 192_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+    plan = plan_review(snapshot, profile, "AUTO")
+    durable = run_review(
+        snapshot,
+        plan,
+        profile,
+        _ProjectionPrimary(),
+        None,
+        limits,
+        str(tmp_path / "result"),
+        "projection-test",
+        claim_assessor=ClaimAssessmentAdapter(_NativeChoiceFixture(probability_total=0.99), "jev-latest"),
+        max_claim_assessments=1,
+    )
+
+    stored_row = durable["claim_assessments"][0]
+    assert stored_row["status"] == "COMPLETE"
+    assert "assessments" in stored_row
+    assert "response_assessments" not in stored_row
+    projected = trial.project_case(
+        {"case_id": "fixture", "pull_request_number": 1, "base_sha": base_sha, "head_sha": head_sha},
+        durable,
+        [],
+    )
+    claim = projected["candidates"][0]["claim_assessment"]
+    assert claim["status"] == "COMPLETE"
+    assert claim["dimension_projection_status"] == "COMPLETE"
+    assert set(claim["dimensions"]) == set(trial._CLAIM_DIMENSION_CHOICES)
+    for dimension, item in claim["dimensions"].items():
+        assert item["native_primitive"] == "Choice"
+        assert item["interpretation"] == "advisory_uncalibrated"
+        assert item["evidence_refs"] == [evidence_id]
+        if dimension == "introducedness":
+            assert item["status"] == "NOT_SHOWN"
+            assert item["choice"] is None
+            assert item["error_code"] == "base_head_evidence_not_provided"
+        else:
+            assert item["status"] == "ANSWERED"
+            assert item["choice"] in trial._CLAIM_DIMENSION_CHOICES[dimension]
+            assert item["confidence"] == 0.75
+            assert sum(item["probabilities"].values()) == pytest.approx(0.99)
+        assert "rationale" not in item
+
+
+def test_claim_dimension_projection_keeps_missing_failed_and_invalid_answers_unknown_or_typed():
+    not_run = trial._project_claim(None)
+    assert not_run["status"] == "NOT_RUN"
+    assert not_run["dimension_projection_status"] == "PARTIAL"
+    assert all(item == {"status": "UNKNOWN"} for item in not_run["dimensions"].values())
+
+    missing = trial._project_claim({"status": "FAILED", "candidate_id": "candidate-1"})
+    assert missing["status"] == "UNKNOWN"
+    assert missing["dimension_projection_status"] == "PARTIAL"
+    assert all(item == {"status": "UNKNOWN"} for item in missing["dimensions"].values())
+
+    dimension = "observation_support"
+    expected = trial._CLAIM_DIMENSION_CHOICES[dimension]
+    valid = {
+        "status": "ANSWERED",
+        "question_id": "question-observation",
+        "native_primitive": "Choice",
+        "interpretation": "advisory_uncalibrated",
+        "choice": "SUPPORTED",
+        "probabilities": {choice: float(choice == "SUPPORTED") for choice in expected},
+        "confidence": 0.8,
+        "evidence_refs": ["ev-head"],
+        "error_code": None,
+    }
+    failed = {**valid, "status": "FAILED", "choice": None, "probabilities": None, "confidence": None,
+              "error_code": "malformed_native_response"}
+    omitted = {**valid, "status": "OMITTED", "choice": None, "probabilities": None, "confidence": None,
+               "error_code": "answer_omitted"}
+    invalid = {**valid, "choice": "credential-canary", "confidence": True}
+    result = trial._project_claim_dimensions({dimension: valid, "consequence_support": failed, "rule_connection_support": omitted, "materiality": invalid})
+    projected, complete = result
+    assert complete is False
+    assert projected[dimension]["choice"] == "SUPPORTED"
+    assert projected["consequence_support"]["status"] == "FAILED"
+    assert projected["consequence_support"]["error_code"] == "malformed_native_response"
+    assert projected["rule_connection_support"]["status"] == "OMITTED"
+    assert projected["rule_connection_support"]["error_code"] == "answer_omitted"
+    assert projected["materiality"]["status"] == "UNKNOWN"
+    assert "credential-canary" not in json.dumps(projected)
+    assert projected["missing_context"]["status"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("bad_contract", (["claim-assessment.2"], {"value": "claim-assessment.2"}, None))
+def test_claim_projection_rejects_malformed_contract_identity_without_crashing(bad_contract):
+    projected = trial._project_claim(
+        {
+            "status": "COMPLETE",
+            "candidate_id": "candidate-1",
+            "contract_version": bad_contract,
+            "assessments": {},
+        }
+    )
+    assert projected["status"] == "UNKNOWN"
+    assert projected["dimension_projection_status"] == "PARTIAL"
+    assert "contract_version" not in projected
+
+
+@pytest.mark.parametrize(
+    "field,invalid_value",
+    [
+        ("interpretation", None),
+        ("interpretation", "calibrated"),
+        ("question_id", {"private": "id"}),
+        ("native_primitive", "FreeText"),
+        ("evidence_refs", ["credential-canary!"]),
+    ],
+)
+def test_invalid_dimension_metadata_clears_answer_and_marks_projection_partial(field, invalid_value):
+    dimension = "observation_support"
+    choices = trial._CLAIM_DIMENSION_CHOICES[dimension]
+    valid = {
+        "status": "ANSWERED",
+        "question_id": "question-observation",
+        "native_primitive": "Choice",
+        "interpretation": "advisory_uncalibrated",
+        "choice": "SUPPORTED",
+        "probabilities": {choice: float(choice == "SUPPORTED") for choice in choices},
+        "confidence": 0.8,
+        "evidence_refs": ["ev-head"],
+    }
+    valid[field] = invalid_value
+    projected, complete = trial._project_claim_dimensions({dimension: valid})
+    item = projected[dimension]
+    assert complete is False
+    assert item["status"] == "UNKNOWN"
+    assert item["choice"] is None
+    assert item["probabilities"] is None
+    assert item["confidence"] is None
+    if field == "interpretation":
+        assert item["interpretation"] is None
+    assert "credential-canary" not in json.dumps(projected)
+
+
 def test_claim_error_projection_is_additive_finite_and_canary_safe():
     assert trial._SAFE_CLAIM_ERROR_CODES == CLAIM_ASSESSMENT_ERROR_CODES
     legacy = trial._project_claim({"status": "FAILED", "reason_code": "ClaimAssessmentError"})
-    assert legacy == {"status": "FAILED", "reason_code": "ClaimAssessmentError", "candidate_id": "UNKNOWN"}
+    assert legacy["status"] == "UNKNOWN"
+    assert legacy["reason_code"] == "UNKNOWN"
+    assert legacy["candidate_id"] == "UNKNOWN"
+    assert legacy["dimension_projection_status"] == "PARTIAL"
 
     safe = trial._project_claim(
-        {"status": "FAILED", "reason_code": "ClaimAssessmentError", "error_code": "invalid_prepared_assessment"}
+        {
+            "status": "FAILED",
+            "candidate_id": "candidate-1",
+            "contract_version": "claim-assessment.2",
+            "reason_code": "ClaimAssessmentError",
+            "error_code": "invalid_prepared_assessment",
+        }
     )
     assert safe["status"] == "FAILED"
-    assert safe["reason_code"] == "ClaimAssessmentError"
+    assert safe["reason_code"] == "UNKNOWN"
     assert safe["error_code"] == "invalid_prepared_assessment"
 
     for invalid in (True, -1, "private-canary \"credential-value\"", "not_a_claim_error"):
