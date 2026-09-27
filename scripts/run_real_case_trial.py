@@ -782,6 +782,9 @@ def _project_claim(value: Any) -> dict[str, Any]:
     result = {
         key: value.get(key) for key in ("status", "reason_code", "contract_version", "projection_valid") if key in value
     }
+    if "error_code" in value:
+        error_code = value.get("error_code")
+        result["error_code"] = error_code if isinstance(error_code, str) and error_code in _SAFE_CLAIM_ERROR_CODES else "UNKNOWN"
     assessments = value.get("response_assessments")
     if isinstance(assessments, dict):
         result["dimensions"] = {
@@ -802,6 +805,47 @@ def _project_claim(value: Any) -> dict[str, Any]:
         result["identity"]["provider_model_sha256"] = sha256(canonical(provenance.get("provider_model_id")))
     result["candidate_id"] = value.get("candidate_id", "UNKNOWN")
     return result
+
+
+_SAFE_CLAIM_ERROR_CODES = frozenset(
+    {
+        "candidate_evidence_reference_missing",
+        "claim_transport_estimator_required",
+        "configured_model_required",
+        "duplicate_evidence_id",
+        "evidence_content_hash_mismatch",
+        "evidence_snapshot_mismatch",
+        "invalid_assessment_identity",
+        "invalid_assessment_identity_fields",
+        "invalid_assessment_identity_hash",
+        "invalid_assessment_input",
+        "invalid_candidate_evidence_refs",
+        "invalid_candidate_fields",
+        "invalid_candidate_id",
+        "invalid_candidate_text",
+        "invalid_claim_transport_estimate",
+        "invalid_deadline",
+        "invalid_evidence_collection",
+        "invalid_evidence_content",
+        "invalid_evidence_item",
+        "invalid_evidence_source_kind",
+        "invalid_evidence_trust",
+        "invalid_input_byte_limit",
+        "invalid_output_byte_limit",
+        "invalid_prepared_assessment",
+        "invalid_primary_assessment_causal_roles",
+        "invalid_primary_assessment_contract",
+        "invalid_primary_assessment_evidence_refs",
+        "invalid_primary_assessment_fields",
+        "invalid_primary_assessment_value",
+        "invalid_revision_identity",
+        "malformed_native_response",
+        "native_transport_required",
+        "question_limit_exceeded",
+        "request_exceeds_intrinsic_limit",
+        "request_exceeds_limit",
+    }
+)
 
 
 def _project_semantic_assessment(value: Any) -> dict[str, Any]:

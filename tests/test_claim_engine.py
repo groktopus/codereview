@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import threading
@@ -13,8 +14,12 @@ from pathlib import Path
 import pytest
 
 import pr_review_harness.engine as engine_module
-from pr_review_harness.budget import BudgetExhausted
-from pr_review_harness.claim_assessment import ClaimAssessmentAdapter
+from pr_review_harness.budget import BudgetExhausted, IsolatedCallError
+from pr_review_harness.claim_assessment import (
+    CLAIM_ASSESSMENT_ERROR_CODES,
+    ClaimAssessmentAdapter,
+    ClaimAssessmentError,
+)
 from pr_review_harness.claim_transport import ClaimTransport
 from pr_review_harness.engine import run_review
 from pr_review_harness.planner import plan_review
@@ -315,6 +320,25 @@ class FakeClaimAssessor:
         }
 
 
+class LocalClaimPreparationError(FakeClaimAssessor):
+    def prepare(self, *args, **kwargs):
+        raise ClaimAssessmentError("invalid_prepared_assessment")
+
+
+class WrappedClaimDispatchError(FakeClaimAssessor):
+    def assess_prepared(self, prepared: Prepared, limits: dict) -> dict:
+        raise ClaimAssessmentError("invalid_assessment_identity_hash")
+
+
+class UnknownClaimCodeError(FakeClaimAssessor):
+    def prepare(self, *args, **kwargs):
+        raise ClaimAssessmentError('private-canary "credential-value"')
+
+
+class DerivedClaimAssessmentError(ClaimAssessmentError):
+    pass
+
+
 class Freshness:
     def __init__(
         self,
@@ -380,7 +404,7 @@ class ClaimChoiceHandler(BaseHTTPRequestHandler):
         pass
 
 
-def _run(tmp_path, *, assessor=None, cap=0, limits=None, freshness=None, run_id="r1"):
+def _run(tmp_path, *, assessor=None, cap=0, limits=None, freshness=None, run_id="r1", resume=False):
     snapshot = _snapshot()
     profile = _profile()
     plan = plan_review(snapshot, profile, "AUTO")
@@ -393,6 +417,7 @@ def _run(tmp_path, *, assessor=None, cap=0, limits=None, freshness=None, run_id=
         limits or LIMITS,
         str(tmp_path),
         run_id,
+        resume=resume,
         freshness_check=freshness,
         claim_assessor=assessor,
         max_claim_assessments=cap,
@@ -584,6 +609,62 @@ def test_shadow_failure_preserves_primary_and_oversized_ipc_fails_closed(tmp_pat
             "reserved": LIMITS["max_output_bytes_per_task"],
         }
     ]
+
+
+def test_local_claim_error_code_is_allowlisted_without_changing_status_or_reservation(tmp_path):
+    result = _run(tmp_path, assessor=LocalClaimPreparationError(), cap=1)
+    row = result["claim_assessments"][0]
+    assert row["status"] == "FAILED"
+    assert row["reason_code"] == "ClaimAssessmentError"
+    assert row["error_code"] == "invalid_prepared_assessment"
+    assert row.get("reservation_key") is None
+    assert result["budget"]["cost"] == "UNKNOWN"
+    resumed = _run(tmp_path, assessor=LocalClaimPreparationError(), cap=1, resume=True)
+    assert resumed["claim_assessments"][0]["status"] == "FAILED"
+    assert resumed["claim_assessments"][0]["error_code"] == "invalid_prepared_assessment"
+
+
+def test_wrapped_claim_error_code_requires_exact_remote_type_and_known_message(tmp_path):
+    result = _run(tmp_path, assessor=WrappedClaimDispatchError(), cap=1)
+    row = result["claim_assessments"][0]
+    assert row["status"] == "FAILED"
+    assert row["reason_code"] == "IsolatedCallError"
+    assert row["error_code"] == "invalid_assessment_identity_hash"
+
+
+def test_unknown_local_claim_error_code_is_generic_and_never_persists_canary(tmp_path):
+    marker = 'private-canary "credential-value"'
+    result = _run(tmp_path, assessor=UnknownClaimCodeError(), cap=1)
+    row = result["claim_assessments"][0]
+    saved = (tmp_path / "r1.json").read_text(encoding="utf-8")
+    assert row["status"] == "FAILED"
+    assert row["reason_code"] == "ClaimAssessmentError"
+    assert row["error_code"] == "UNKNOWN"
+    assert marker not in saved
+
+
+def test_finite_claim_error_codes_cover_every_literal_engine_contract_code():
+    source = Path(engine_module.__file__).with_name("claim_assessment.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    observed = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "ClaimAssessmentError":
+            assert node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)
+            observed.add(node.args[0].value)
+    assert observed == CLAIM_ASSESSMENT_ERROR_CODES
+
+
+def test_wrapped_error_code_requires_allowlisted_message_and_exact_remote_type():
+    assert engine_module._safe_claim_error_code(
+        IsolatedCallError("ClaimAssessmentError", "invalid_prepared_assessment")
+    ) == "invalid_prepared_assessment"
+    assert engine_module._safe_claim_error_code(
+        IsolatedCallError("ClaimAssessmentError", 'private-canary "credential-value"')
+    ) == "UNKNOWN"
+    assert engine_module._safe_claim_error_code(
+        IsolatedCallError("ValueError", "invalid_prepared_assessment")
+    ) == "UNKNOWN"
+    assert engine_module._safe_claim_error_code(DerivedClaimAssessmentError("invalid_prepared_assessment")) == "UNKNOWN"
 
 
 def test_enabled_claim_configuration_is_bound_to_resume_identity(tmp_path):
