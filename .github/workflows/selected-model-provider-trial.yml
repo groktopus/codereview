@@ -1,0 +1,165 @@
+name: Selected-model synthetic claim provider trial
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selected-model-provider-trial
+  cancel-in-progress: false
+
+jobs:
+  trial:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the trusted runner at a full immutable revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: groktopus/codereview
+          ref: b62dece014880474b532ac9dd73f2bcddc86c77f
+          path: trusted-runner
+          persist-credentials: false
+
+      - name: Verify the exact trusted source revision before build or import
+        env:
+          EXPECTED_RUNNER_SHA: b62dece014880474b532ac9dd73f2bcddc86c77f
+          RUNNER_SOURCE: ${{ github.workspace }}/trusted-runner
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          expected = os.environ.get("EXPECTED_RUNNER_SHA", "")
+          source = os.environ.get("RUNNER_SOURCE", "")
+          if not re.fullmatch(r"[0-9a-f]{40}", expected) or not source:
+              raise SystemExit("trusted_runner_identity_invalid")
+          try:
+              result = subprocess.run(
+                  ["git", "-C", source, "rev-parse", "HEAD"],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+                  timeout=10,
+              )
+          except (OSError, subprocess.TimeoutExpired):
+              raise SystemExit("trusted_runner_revision_unavailable") from None
+          if result.returncode or result.stdout.strip() != expected:
+              raise SystemExit("trusted_runner_revision_mismatch")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Build the wheel from the verified trusted source
+        working-directory: trusted-runner
+        run: |
+          mkdir -p "$RUNNER_TEMP/selected-model-wheelhouse"
+          python -m pip wheel --no-deps \
+            --wheel-dir "$RUNNER_TEMP/selected-model-wheelhouse" .
+
+      - name: Install the verified wheel
+        env:
+          WHEELHOUSE: ${{ runner.temp }}/selected-model-wheelhouse
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          wheels = list(Path(os.environ["WHEELHOUSE"]).glob("*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit("trusted_runner_wheel_count_invalid")
+          try:
+              result = subprocess.run(
+                  [sys.executable, "-m", "pip", "install", "--no-deps", str(wheels[0])],
+                  check=False,
+                  timeout=180,
+              )
+          except (OSError, subprocess.TimeoutExpired):
+              raise SystemExit("trusted_runner_install_failed") from None
+          if result.returncode:
+              raise SystemExit("trusted_runner_install_failed")
+          PY
+
+      - name: Run the fixed provider trial with private temporary configs
+        working-directory: trusted-runner
+        env:
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+          JEV_MODEL: ${{ secrets.JEV_MODEL }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+        run: |
+          set -euo pipefail
+          private_config_dir="$RUNNER_TEMP/selected-model-provider-config"
+          trial_output_dir="$RUNNER_TEMP/selected-model-provider-trial"
+          python scripts/provider_config_from_env.py \
+            --output-dir "$private_config_dir" --json >/dev/null
+          python scripts/run_selected_model_trial.py \
+            --run-provider-trial \
+            --output "$trial_output_dir" \
+            --cli-executable "$(command -v pr-review)" \
+            --provider-config "$private_config_dir/provider.json" \
+            --decision-config "$private_config_dir/decision.json" >/dev/null
+
+      - name: Remove only the private configs created for this run
+        if: always()
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import stat
+          from pathlib import Path
+
+          try:
+              runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+              config_dir = runner_temp / "selected-model-provider-config"
+              directory_stat = config_dir.lstat()
+          except FileNotFoundError:
+              raise SystemExit(0)
+          except OSError:
+              raise SystemExit("provider_config_cleanup_failed") from None
+          if stat.S_ISLNK(directory_stat.st_mode) or not stat.S_ISDIR(directory_stat.st_mode):
+              raise SystemExit("provider_config_cleanup_failed")
+          for name in ("provider.json", "decision.json"):
+              path = config_dir / name
+              try:
+                  metadata = path.lstat()
+              except FileNotFoundError:
+                  continue
+              except OSError:
+                  raise SystemExit("provider_config_cleanup_failed") from None
+              if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                  raise SystemExit("provider_config_cleanup_failed")
+              try:
+                  path.unlink()
+              except OSError:
+                  raise SystemExit("provider_config_cleanup_failed") from None
+          try:
+              config_dir.rmdir()
+          except OSError:
+              raise SystemExit("provider_config_cleanup_failed") from None
+          PY
+
+      - name: Upload only the sanitized summary and manifest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: selected-model-provider-trial-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/selected-model-provider-trial/summary.json
+            ${{ runner.temp }}/selected-model-provider-trial/manifest.json
+          if-no-files-found: warn
+          retention-days: 7
