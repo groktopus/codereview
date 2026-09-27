@@ -728,6 +728,17 @@ def project_case(case: dict[str, Any], durable: dict[str, Any], secrets: list[st
     evidence_index = durable.get("evidence_index")
     if not isinstance(evidence_index, dict):
         evidence_index = {}
+    profile = None
+    profile_path = case.get("profile_path")
+    if isinstance(profile_path, str) and _safe_relative(profile_path):
+        candidate = INPUT_ROOT / profile_path
+        if (
+            candidate.is_file()
+            and not candidate.is_symlink()
+            and sha256(candidate.read_bytes()) == case.get("profile_sha256")
+        ):
+            profile = read_json(candidate)
+    task_outputs = durable.get("task_results") if isinstance(durable.get("task_results"), dict) else {}
     projection = {
         "case_id": case["case_id"],
         "historical_only": True,
@@ -745,8 +756,8 @@ def project_case(case: dict[str, Any], durable: dict[str, Any], secrets: list[st
         "advisory_assessment": _project_jev(jev),
         "budget": _project_budget(durable.get("budget")),
         "coverage_ledger": _project_coverage(durable.get("coverage_ledger")),
-        "context_gaps": _project_gaps(durable.get("context_gaps")),
-        "snapshot_gaps": _project_gaps(durable.get("snapshot_gaps")),
+        "context_gaps": _project_gaps(durable.get("context_gaps"), profile, task_outputs),
+        "snapshot_gaps": _project_snapshot_gaps(durable.get("snapshot_gaps")),
         "evidence_index": _project_evidence_index(evidence_index, candidates),
     }
     _scan(projection, secrets)
@@ -881,7 +892,116 @@ def _project_coverage(value: Any) -> list[dict[str, Any]]:
     return [{key: row[key] for key in fields if key in row} for row in value[:200] if isinstance(row, dict)]
 
 
-def _project_gaps(value: Any) -> list[dict[str, Any]]:
+_SAFE_RETRIEVAL_REASONS = {
+    "symbol_lookup_not_in_allowlist_contract",
+    "target_unit_not_in_snapshot",
+    "target_path_invalid",
+    "target_path_not_allowlisted",
+    "context_budget_exhausted",
+    "binary_context_not_retrieved",
+    "CONTEXT_BYTE_BUDGET_EXHAUSTED",
+    "CONTEXT_RETRIEVAL_BUDGET_EXHAUSTED",
+    "DEADLINE_EXHAUSTED",
+    "FOLLOWUP_TASK_BUDGET_EXHAUSTED",
+    "FRESHNESS_BUDGET_RESERVED",
+    "INPUT_BYTE_LIMIT_EXCEEDED",
+    "MONETARY_BOUND_UNAVAILABLE",
+    "MONETARY_BUDGET_EXHAUSTED",
+    "OUTPUT_BYTE_BUDGET_EXHAUSTED",
+    "OUTPUT_BYTE_LIMIT_EXCEEDED",
+    "PROVIDER_CALL_BUDGET_EXHAUSTED",
+    "CONTEXT_RETRIEVAL_BYTE_LIMIT_EXCEEDED",
+    "invalid_context_retrieval_result",
+    "invalid_context_retrieval_evidence",
+    "context_retrieval_evidence_binding_failed",
+}
+
+
+def _project_gaps(
+    value: Any, profile: dict[str, Any] | None = None, task_outputs: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    output_by_id = task_outputs if isinstance(task_outputs, dict) else {}
+    output_statuses = {"SUCCEEDED", "FAILED", "TIMED_OUT", "SKIPPED", "INTERRUPTED_UNKNOWN"}
+    patterns = None
+    if isinstance(profile, dict):
+        raw_patterns = profile.get("retrieval_context_patterns") or profile.get("context_paths")
+        if isinstance(raw_patterns, str):
+            patterns = [raw_patterns]
+        elif isinstance(raw_patterns, list) and all(isinstance(item, str) for item in raw_patterns):
+            patterns = raw_patterns
+    projected = []
+    for row in value[:200]:
+        if not isinstance(row, dict):
+            continue
+        item = {
+            key: row[key]
+            for key in ("proposal_id", "status", "reason_code", "affected_obligation_ids", "affected_unit_ids", "required_lens")
+            if key in row
+        }
+        proposal = row.get("proposal") if isinstance(row.get("proposal"), dict) else {}
+        target = proposal.get("target") if isinstance(proposal.get("target"), dict) else {}
+        target_keys = [key for key in ("target_unit_id", "target_path", "target_symbol") if target.get(key)]
+        target_class = {"target_unit_id": "UNIT", "target_path": "PATH", "target_symbol": "SYMBOL"}.get(
+            target_keys[0] if len(target_keys) == 1 else "", "UNKNOWN"
+        )
+        allowlist_match: bool | str = "UNKNOWN"
+        if target_class == "PATH" and patterns is not None:
+            import fnmatch
+
+            path = target.get("target_path")
+            allowlist_match = bool(
+                isinstance(path, str) and any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+            )
+        reason = row.get("retrieval_reason")
+        if "retrieval_reason" in row and reason is None:
+            reason_code = "NONE"
+        else:
+            reason_code = reason if isinstance(reason, str) and reason in _SAFE_RETRIEVAL_REASONS else "UNKNOWN"
+        retrieval_status = row.get("retrieval_status")
+        if retrieval_status not in {"RESOLVED", "PARTIAL", "UNRESOLVED"}:
+            retrieval_status = "UNKNOWN"
+        retrieved_bytes = row.get("retrieved_bytes")
+        if isinstance(retrieved_bytes, bool) or not isinstance(retrieved_bytes, int) or retrieved_bytes < 0:
+            retrieved_bytes = "UNKNOWN"
+        evidence_ids = row.get("retrieved_evidence_ids")
+        evidence_count = len(evidence_ids) if isinstance(evidence_ids, list) and all(
+            isinstance(ref, str) for ref in evidence_ids
+        ) else "UNKNOWN"
+        followup_id = row.get("followup_task_id")
+        followup_error = row.get("followup_error")
+        followup_status = "NOT_SHOWN"
+        followup_reason = "NOT_SHOWN"
+        if isinstance(followup_id, str):
+            outcome = output_by_id.get(followup_id)
+            status = outcome.get("status") if isinstance(outcome, dict) else None
+            followup_status = status if status in output_statuses else "UNKNOWN"
+            if followup_status in {"FAILED", "TIMED_OUT", "SKIPPED", "INTERRUPTED_UNKNOWN"}:
+                code = outcome.get("error_code") if isinstance(outcome, dict) else None
+                followup_reason = code if isinstance(code, str) and code in _SAFE_RETRIEVAL_REASONS else "UNKNOWN"
+            elif followup_status == "SUCCEEDED":
+                followup_reason = "NONE"
+            else:
+                followup_reason = "UNKNOWN"
+        elif isinstance(followup_error, str):
+            followup_status = "NOT_ADMITTED_OR_UNKNOWN"
+            followup_reason = followup_error if followup_error in _SAFE_RETRIEVAL_REASONS else "UNKNOWN"
+        item["diagnostic"] = {
+            "target_class": target_class,
+            "profile_allowlist_match": allowlist_match,
+            "retrieval_status": retrieval_status,
+            "retrieval_reason_code": reason_code,
+            "retrieved_bytes": retrieved_bytes,
+            "retrieved_evidence_count": evidence_count,
+            "followup_status": followup_status,
+            "followup_reason_code": followup_reason,
+        }
+        projected.append(item)
+    return projected
+
+
+def _project_snapshot_gaps(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
     fields = (
@@ -893,13 +1013,20 @@ def _project_gaps(value: Any) -> list[dict[str, Any]]:
         "affected_obligation_ids",
         "affected_unit_ids",
         "required_lens",
-        "target",
-        "rationale",
-        "reason",
         "required",
         "retrievable",
     )
-    return [{key: row[key] for key in fields if key in row} for row in value[:200] if isinstance(row, dict)]
+    known_reasons = {"context_truncated", "not_bound_by_context_selection"}
+    projected = []
+    for row in value[:200]:
+        if not isinstance(row, dict):
+            continue
+        item = {key: row[key] for key in fields if key in row}
+        reason = row.get("reason")
+        if "reason" in row:
+            item["reason"] = reason if isinstance(reason, str) and reason in known_reasons else "UNKNOWN"
+        projected.append(item)
+    return projected
 
 
 def _project_evidence_index(value: dict[str, Any], candidates: list[dict[str, Any]]) -> dict[str, Any]:
