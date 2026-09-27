@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import stat
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +74,29 @@ PATH_CLASSES = {
 }
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
+VALIDATION_DIAGNOSTIC_CODES = frozenset({
+    "receipt_fields_invalid", "receipt_hash_invalid", "trace_state_invalid", "trace_count_invalid",
+    "trace_syscalls_invalid", "trace_syscall_count_invalid", "complete_trace_accounting_mismatch",
+    "trace_path_fields_invalid", "trace_path_basis_invalid", "trace_path_state_invalid",
+    "trace_path_visibility_invalid", "trace_path_counts_invalid", "trace_path_class_counts_invalid",
+    "trace_path_count_invalid", "trace_path_target_fields_invalid", "trace_path_target_count_invalid",
+    "trace_path_total_mismatch", "arm_fields_invalid", "arm_state_invalid", "skipped_arm_fields_invalid",
+    "arm_observer_mode_invalid", "arm_observer_coverage_invalid", "arm_cli_result_presence_invalid",
+    "arm_coverage_state_invalid", "arm_native_advisory_status_invalid", "arm_claim_statuses_invalid",
+    "complete_arm_actual_criteria_mismatch", "arm_task_ids_invalid", "arm_task_statuses_invalid",
+    "arm_task_lens_invalid", "arm_task_status_invalid", "payload_fields_invalid", "payload_size_invalid",
+    "expected_source_sha_invalid", "receipt_file_invalid", "receipt_contract_invalid",
+    "receipt_source_identity_mismatch", "diagnostic_script_dirty", "diagnostic_script_hash_mismatch",
+    "runtime_module_identity_mismatch", "receipt_trace_budget_mismatch", "receipt_cli_budget_mismatch",
+    "receipt_syscall_scope_mismatch", "receipt_tls_safety_mismatch", "receipt_effect_scope_mismatch",
+    "receipt_run_identity_mismatch", "receipt_task_scope_mismatch", "receipt_case_identity_invalid",
+    "receipt_arms_invalid", "tls_without_complete_http", "arm_identity_binding_mismatch",
+    "complete_pair_arm_mismatch", "complete_pair_comparison_missing", "complete_pair_payload_mismatch",
+    "complete_pair_config_mismatch", "receipt_pair_state_invalid", "comparison_fields_invalid",
+    "comparison_boolean_invalid", "comparison_trace_bytes_invalid", "comparison_syscall_delta_invalid",
+    "comparison_trace_arithmetic_mismatch", "comparison_syscall_arithmetic_mismatch",
+    "complete_pair_comparison_false", "receipt_secret_or_pem_detected",
+})
 
 
 def _keys(value: Any, expected: set[str], code: str) -> None:
@@ -328,12 +352,43 @@ def validate_receipt(path: Path, source_root: Path, expected_sha: str) -> dict[s
     return row
 
 
-def main() -> int:
+def _validation_diagnostic(path: Path, source_root: Path, expected_sha: str) -> dict[str, Any]:
+    """Return a small closed diagnostic; never expose parser or exception text."""
+    try:
+        validate_receipt(path, source_root, expected_sha)
+    except json.JSONDecodeError:
+        return {"contract_version": "transport-receipt-validation.v1", "status": "REJECTED", "rejection_code": "receipt_json_invalid"}
+    except UnicodeDecodeError:
+        return {"contract_version": "transport-receipt-validation.v1", "status": "REJECTED", "rejection_code": "receipt_encoding_invalid"}
+    except OSError:
+        return {"contract_version": "transport-receipt-validation.v1", "status": "REJECTED", "rejection_code": "receipt_io_error"}
+    except ValueError as exc:
+        code = exc.args[0] if exc.args and type(exc.args[0]) is str else None
+        if type(code) is not str or code not in VALIDATION_DIAGNOSTIC_CODES:
+            code = "validator_internal_unknown"
+        return {"contract_version": "transport-receipt-validation.v1", "status": "REJECTED", "rejection_code": code}
+    except (KeyError, TypeError):
+        return {"contract_version": "transport-receipt-validation.v1", "status": "REJECTED", "rejection_code": "validator_internal_unknown"}
+    except Exception:
+        return {"contract_version": "transport-receipt-validation.v1", "status": "REJECTED", "rejection_code": "validator_internal_unknown"}
+    return {"contract_version": "transport-receipt-validation.v1", "status": "ACCEPTED", "rejection_code": None}
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("receipt", type=Path)
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--expected-sha", required=True)
-    args = parser.parse_args()
+    parser.add_argument("--diagnostic-json", action="store_true", help="emit only a bounded typed validation result")
+    args = parser.parse_args(argv)
+    if args.diagnostic_json:
+        result = _validation_diagnostic(args.receipt, args.source_root, args.expected_sha)
+        encoded = (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+        if len(encoded) > 512:
+            result = {"contract_version": "transport-receipt-validation.v1", "status": "REJECTED", "rejection_code": "validator_internal_unknown"}
+            encoded = (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+        sys.stdout.buffer.write(encoded)
+        return 0 if result["status"] == "ACCEPTED" else 1
     try:
         validate_receipt(args.receipt, args.source_root, args.expected_sha)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError, KeyError, TypeError):
