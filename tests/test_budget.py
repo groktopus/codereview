@@ -6,7 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from pr_review_harness.budget import BudgetExhausted, BudgetLedger, IsolatedCallError, IsolatedInvocation
+from pr_review_harness.budget import (
+    BudgetExhausted,
+    BudgetLedger,
+    IsolatedCallError,
+    IsolatedInvocation,
+    isolated_call,
+    wait_for_any,
+)
 from pr_review_harness.contracts import ADJUDICATION_V3, SPECIALIST_V4
 
 
@@ -174,6 +181,134 @@ class ReturnsOversizedProviderResponse:
             },
             "padding": "x" * 1000,
         }
+
+
+class ReturnsAfterDelay:
+    def __init__(self, delay: float):
+        self.delay = delay
+
+    def __call__(self):
+        time.sleep(self.delay)
+        return {"completed": True}
+
+
+class ExitsWithoutResponse:
+    def __call__(self):
+        os._exit(0)
+
+
+class WaitsForRelease:
+    def __init__(self, started_file: str, release_file: str):
+        self.started_file = started_file
+        self.release_file = release_file
+
+    def __call__(self):
+        Path(self.started_file).write_text("started", encoding="ascii")
+        deadline = time.monotonic() + 5
+        while not Path(self.release_file).exists() and time.monotonic() < deadline:
+            time.sleep(0.005)
+        return {"slow": True}
+
+
+def test_isolated_call_waits_for_ready_pipe_without_polling():
+    calls = 0
+    original_poll = IsolatedInvocation.poll
+
+    def count_poll(invocation):
+        nonlocal calls
+        calls += 1
+        return original_poll(invocation)
+
+    IsolatedInvocation.poll = count_poll
+    try:
+        result = isolated_call(ReturnsAfterDelay(0.2), "__call__", (), deadline_seconds=2, output_limit=1024)
+    finally:
+        IsolatedInvocation.poll = original_poll
+
+    assert result == {"completed": True}
+    assert calls <= 3
+
+
+def test_readiness_wakes_on_pipe_eof_when_worker_exits_without_result():
+    invocation = IsolatedInvocation(ExitsWithoutResponse(), "__call__", (), deadline_seconds=2, output_limit=1024)
+    try:
+        assert invocation.wait_for_ready(timeout=2)
+        with pytest.raises(IsolatedCallError) as caught:
+            invocation.result()
+        assert caught.value.remote_type == "WorkerExit"
+    finally:
+        invocation.cancel()
+
+
+def test_readiness_timeout_marks_invocation_timed_out():
+    invocation = IsolatedInvocation(ReturnsAfterDelay(10), "__call__", (), deadline_seconds=0.1, output_limit=1024)
+    try:
+        assert not invocation.wait_for_ready(timeout=1)
+        with pytest.raises(IsolatedCallError) as caught:
+            invocation.result()
+        assert caught.value.remote_type == "TimeoutError"
+        assert invocation.wait_handles() == ()
+    finally:
+        invocation.cancel()
+
+
+def test_cancel_after_readiness_timeout_cleans_child_handles():
+    invocation = IsolatedInvocation(ReturnsAfterDelay(10), "__call__", (), deadline_seconds=5, output_limit=1024)
+    try:
+        assert not invocation.wait_for_ready(timeout=0.02)
+        invocation.cancel()
+        with pytest.raises(IsolatedCallError) as caught:
+            invocation.result()
+        assert caught.value.remote_type == "Cancelled"
+        assert invocation.wait_handles() == ()
+    finally:
+        invocation.cancel()
+
+
+def test_wait_any_returns_the_fast_ready_worker_before_a_blocked_worker(tmp_path):
+    started = tmp_path / "slow-started"
+    release = tmp_path / "slow-release"
+    slow = IsolatedInvocation(
+        WaitsForRelease(str(started), str(release)), "__call__", (), deadline_seconds=5, output_limit=1024
+    )
+    startup_deadline = time.monotonic() + 3
+    while not started.exists() and time.monotonic() < startup_deadline:
+        time.sleep(0.01)
+    fast = None
+    try:
+        assert started.exists(), "slow worker did not start"
+        fast = IsolatedInvocation(ReturnsAfterDelay(0), "__call__", (), deadline_seconds=3, output_limit=1024)
+        ready = wait_for_any([slow, fast], timeout=2)
+        assert fast in ready
+        assert slow not in ready
+        assert fast.result() == {"completed": True}
+
+        release.write_text("release", encoding="ascii")
+        assert slow.wait_for_ready(timeout=2)
+        assert slow.result() == {"slow": True}
+    finally:
+        release.write_text("release", encoding="ascii")
+        slow.cancel()
+        if fast is not None:
+            fast.cancel()
+
+
+@pytest.mark.parametrize("timeout", [True, -1, float("nan"), float("inf"), "1"])
+def test_readiness_wait_rejects_invalid_timeout(timeout):
+    with pytest.raises(ValueError, match="invalid readiness wait timeout"):
+        wait_for_any([], timeout=timeout)
+
+
+def test_finished_invocation_has_no_stale_wait_handles():
+    invocation = IsolatedInvocation(ReturnsAfterDelay(0), "__call__", (), deadline_seconds=2, output_limit=1024)
+    try:
+        assert invocation.wait_for_ready(timeout=2)
+        assert invocation.result() == {"completed": True}
+        assert invocation.wait_handles() == ()
+        assert invocation.wait_for_ready()
+        assert wait_for_any([invocation], timeout=1) == []
+    finally:
+        invocation.cancel()
 
 
 def _isolated_provider_error(meta):

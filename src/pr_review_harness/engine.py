@@ -17,7 +17,14 @@ from pathlib import Path
 from typing import Any
 
 from . import contracts as review_contracts
-from .budget import BudgetExhausted, BudgetLedger, IsolatedCallError, IsolatedInvocation, isolated_call
+from .budget import (
+    BudgetExhausted,
+    BudgetLedger,
+    IsolatedCallError,
+    IsolatedInvocation,
+    isolated_call,
+    wait_for_any,
+)
 from .claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES, ClaimAssessmentError
 from .planner import allow_empty_approve
 from .reconcile import consolidate_findings, stable_candidate_id, validate_location
@@ -148,7 +155,7 @@ def _bounded_freshness(check: Any, timeout: float) -> dict:
         raise TimeoutError("DEADLINE_EXHAUSTED")
     invocation = IsolatedInvocation(check, "__call__", (), deadline_seconds=timeout, output_limit=8192)
     while not invocation.poll():
-        time.sleep(0.005)
+        invocation.wait_for_ready()
     result = invocation.result()
     if not isinstance(result, dict):
         raise ValueError("invalid freshness result")
@@ -1273,7 +1280,10 @@ def run_review(
                 )
             queue.clear()
         elif not completed_ids and active:
-            time.sleep(0.005)
+            wait_for_any(
+                [prepared["invocation"] for prepared in active.values()],
+                timeout=budget.remaining_seconds(),
+            )
 
     ledger["outputs"] = task_results
     checkpoint()
@@ -1331,7 +1341,7 @@ def run_review(
                 break
             invocation = prepared["invocation"]
             while not invocation.poll() and budget.remaining_seconds() > 0:
-                time.sleep(0.005)
+                invocation.wait_for_ready(timeout=budget.remaining_seconds())
             if invocation.poll():
                 outcome = finish_attempt(prepared)
             else:
@@ -1477,7 +1487,7 @@ def run_review(
                             output_limit=int(limits["max_output_bytes_per_task"]),
                         )
                         while not invocation.poll() and budget.remaining_seconds() > 0:
-                            time.sleep(0.005)
+                            invocation.wait_for_ready(timeout=budget.remaining_seconds())
                         if invocation.poll():
                             retrieved = invocation.result()
                         else:

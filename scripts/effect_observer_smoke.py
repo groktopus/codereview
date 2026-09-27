@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import sysconfig
@@ -144,6 +145,21 @@ _TASK_ERROR_CODES = {
 }
 _ACTION_EVENT_ENV = ("GITHUB_EVENT_PATH", "GITHUB_REPOSITORY", "GITHUB_RUN_ID")
 FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS = 5.0
+LONG_WAIT_PROVIDER_DELAY_SECONDS = 75.0
+LONG_WAIT_PROVIDER_TIMEOUT_SECONDS = 120.0
+LONG_WAIT_ENGINE_DEADLINE_SECONDS = 150
+LONG_WAIT_OBSERVER_TIMEOUT_SECONDS = 180.0
+_SAFE_TRACE_SYSCALLS = frozenset(
+    {
+        "access", "arch_prctl", "brk", "chdir", "chmod", "clone", "clone3", "close", "connect",
+        "dup3", "execve", "exit_group", "fcntl", "fstat", "futex", "getcwd", "getdents64",
+        "getegid", "geteuid", "getgid", "getrandom", "getuid", "ioctl", "lseek", "madvise",
+        "mmap", "mprotect", "mkdirat", "nanosleep", "newfstatat", "openat", "pipe2", "poll",
+        "ppoll", "prlimit64", "read", "readlink", "recvfrom", "renameat", "rt_sigaction",
+        "rt_sigprocmask", "rt_sigreturn", "rseq", "sendto", "set_robust_list", "socket", "statx",
+        "unlinkat", "uname", "vfork", "wait4", "waitid", "write",
+    }
+)
 
 
 def _prepare_environment(source: dict[str, str]) -> dict[str, str]:
@@ -189,12 +205,20 @@ def _git(repo: Path, *args: str) -> str:
     return completed.stdout.strip()
 
 
-def _set_full_review_fake_provider_timeout(provider_config: Path) -> None:
+def _set_full_review_fake_provider_timeout(
+    provider_config: Path, timeout_seconds: float = FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS
+) -> None:
     """Keep the normal-review fake usable under tracing, below its engine deadline."""
     config = json.loads(provider_config.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         raise ValueError("provider_config_invalid")
-    config["timeout_seconds"] = FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or not 0 < timeout_seconds < float("inf")
+    ):
+        raise ValueError("provider_timeout_invalid")
+    config["timeout_seconds"] = float(timeout_seconds)
     provider_config.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -237,6 +261,53 @@ def _validate_full_review(
         "event_count": observation["event_count"],
         "trace_bytes": observation["trace_bytes"],
         "trace_byte_cap": TRACE_MAX_BYTES,
+        "event_aggregates_complete": observation["event_aggregates_complete"],
+        "event_counts_by_syscall": _safe_syscall_counts(
+            observation.get("event_aggregates"),
+            complete=observation.get("event_aggregates_complete") is True,
+        ),
+        "observer_source_sha256": observation.get("source_sha256")
+        if isinstance(observation.get("source_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", observation["source_sha256"])
+        else "UNKNOWN",
+        "strace_version": observation.get("strace_version")
+        if isinstance(observation.get("strace_version"), str)
+        and re.fullmatch(r"[A-Za-z0-9 ._+-]{1,80}", observation["strace_version"])
+        else "UNKNOWN",
+        "strace_executable_sha256": observation.get("strace_executable_sha256")
+        if isinstance(observation.get("strace_executable_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", observation["strace_executable_sha256"])
+        else "UNKNOWN",
+    }
+
+
+def _safe_syscall_counts(aggregates: object, *, complete: bool) -> dict[str, object]:
+    """Project aggregate counters without copying trace paths or arbitrary labels."""
+    counts = {name: 0 for name in sorted(_SAFE_TRACE_SYSCALLS)}
+    unknown_rows = 0
+    if not isinstance(aggregates, list):
+        return {"state": "UNKNOWN", "aggregates_complete": complete, "counts": counts, "unknown_rows": None}
+    for row in aggregates:
+        if not isinstance(row, dict):
+            unknown_rows += 1
+            continue
+        syscall = row.get("syscall")
+        count = row.get("count")
+        if (
+            isinstance(syscall, str)
+            and syscall in counts
+            and isinstance(count, int)
+            and not isinstance(count, bool)
+            and count >= 0
+        ):
+            counts[syscall] += count
+        else:
+            unknown_rows += 1
+    return {
+        "state": "SAFE_PROJECTION" if complete and unknown_rows == 0 else "PARTIAL_PROJECTION",
+        "aggregates_complete": complete,
+        "counts": counts,
+        "unknown_rows": unknown_rows,
     }
 
 
@@ -412,6 +483,22 @@ def _bounded_full_review_failure(
         "observer_event_count": observation.get("event_count") if isinstance(observation.get("event_count"), int) and not isinstance(observation.get("event_count"), bool) else None,
         "observer_aggregates_complete": observation.get("event_aggregates_complete") if isinstance(observation.get("event_aggregates_complete"), bool) else None,
         "observer_trace_bytes": observation.get("trace_bytes") if isinstance(observation.get("trace_bytes"), int) and not isinstance(observation.get("trace_bytes"), bool) else None,
+        "observer_source_sha256": observation.get("source_sha256")
+        if isinstance(observation.get("source_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", observation["source_sha256"])
+        else "UNKNOWN",
+        "strace_version": observation.get("strace_version")
+        if isinstance(observation.get("strace_version"), str)
+        and re.fullmatch(r"[A-Za-z0-9 ._+-]{1,80}", observation["strace_version"])
+        else "UNKNOWN",
+        "strace_executable_sha256": observation.get("strace_executable_sha256")
+        if isinstance(observation.get("strace_executable_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", observation["strace_executable_sha256"])
+        else "UNKNOWN",
+        "event_counts_by_syscall": _safe_syscall_counts(
+            observation.get("event_aggregates"),
+            complete=observation.get("event_aggregates_complete") is True,
+        ),
         "invocation_status": invocation_status if isinstance(invocation_status, str) and invocation_status in _RUN_STATUSES else "UNKNOWN",
         "cli_exit_code": invocation.get("exit_code") if isinstance(invocation.get("exit_code"), int) and not isinstance(invocation.get("exit_code"), bool) else None,
         "cli_result_available": isinstance(result, dict),
@@ -457,8 +544,31 @@ def _bounded_full_review_failure(
     }
 
 
-def _full_review_smoke(cli: Path) -> dict[str, object]:
+def _full_review_smoke(
+    cli: Path,
+    *,
+    response_delay_seconds: float = 0.0,
+    engine_deadline_seconds: int = 20,
+    provider_timeout_seconds: float = FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS,
+    observer_timeout_seconds: float = 30.0,
+) -> dict[str, object]:
     """Run the installed CLI normally against the existing loopback fake."""
+    if (
+        isinstance(response_delay_seconds, bool)
+        or not isinstance(response_delay_seconds, (int, float))
+        or not 0 <= response_delay_seconds < float("inf")
+        or isinstance(engine_deadline_seconds, bool)
+        or not isinstance(engine_deadline_seconds, int)
+        or engine_deadline_seconds < 1
+        or isinstance(provider_timeout_seconds, bool)
+        or not isinstance(provider_timeout_seconds, (int, float))
+        or not 0 < provider_timeout_seconds < float("inf")
+        or isinstance(observer_timeout_seconds, bool)
+        or not isinstance(observer_timeout_seconds, (int, float))
+        or not 0 < observer_timeout_seconds < float("inf")
+        or not response_delay_seconds < provider_timeout_seconds < engine_deadline_seconds < observer_timeout_seconds
+    ):
+        return _bounded_full_review_failure("smoke_deadline_config_invalid", None, {}, {}, [], target_marker_exists=False)
     sys.path.insert(0, str(ROOT))
     try:
         from scripts.run_recovery_rehearsal import (
@@ -482,19 +592,19 @@ def _full_review_smoke(cli: Path) -> dict[str, object]:
         root = Path(temporary).resolve()
         home = root / "home"
         home.mkdir()
-        deadline = time.monotonic() + 25
+        deadline = time.monotonic() + engine_deadline_seconds + 5
         state = _FakeProviderState()
         state.configure(["success"] * 8)
         server = None
         thread = None
         try:
-            server = _FakeProvider(state)
+            server = _FakeProvider(state, response_delay_seconds=response_delay_seconds)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             repo, base, _initial_head, profile, limits, provider_config = _write_fixture(
                 root, server.endpoint, deadline
             )
-            _set_full_review_fake_provider_timeout(provider_config)
+            _set_full_review_fake_provider_timeout(provider_config, provider_timeout_seconds)
 
             profile_value = json.loads(profile.read_text(encoding="utf-8"))
             profile_value["required_lenses"] = ["correctness", "tests", "security", "maintainability"]
@@ -503,7 +613,7 @@ def _full_review_smoke(cli: Path) -> dict[str, object]:
             limits_value = _limits()
             limits_value.update(
                 {
-                    "deadline_seconds": 20,
+                    "deadline_seconds": engine_deadline_seconds,
                     "max_concurrent_scopes": 4,
                     "max_provider_calls": 8,
                     "max_context_bytes": 128_000,
@@ -538,7 +648,7 @@ def _full_review_smoke(cli: Path) -> dict[str, object]:
                 ],
                 cwd=root,
                 env=env,
-                timeout_seconds=30,
+                timeout_seconds=observer_timeout_seconds,
             )
             result = observed.get("cli_result")
             observation = observed.get("observer", {})
@@ -587,6 +697,11 @@ def _full_review_smoke(cli: Path) -> dict[str, object]:
                 state.calls,
                 target_marker_exists=marker.exists(),
             )
+            if summary is not None:
+                summary["fake_response_delay_seconds"] = float(response_delay_seconds)
+                summary["engine_deadline_seconds"] = engine_deadline_seconds
+                summary["provider_timeout_seconds"] = float(provider_timeout_seconds)
+                summary["observer_timeout_seconds"] = float(observer_timeout_seconds)
             return summary or _bounded_full_review_failure(
                 "summary_projection_failed", result, observation, invocation, state.calls,
                 target_marker_exists=marker.exists(),

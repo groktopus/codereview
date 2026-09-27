@@ -137,6 +137,7 @@ class _ProviderHandler(BaseHTTPRequestHandler):
     state: _FakeProviderState
     api_key: str
     stall_seconds: float
+    response_delay_seconds: float
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
         length = int(self.headers.get("Content-Length", "0"))
@@ -162,6 +163,8 @@ class _ProviderHandler(BaseHTTPRequestHandler):
             body = b'{"error":"synthetic failure"}'
             self.send_response(503)
         elif behavior == "success":
+            if self.response_delay_seconds:
+                time.sleep(self.response_delay_seconds)
             body = json.dumps(
                 {
                     "id": f"local-rehearsal-{call_no}",
@@ -190,12 +193,23 @@ class _ProviderHandler(BaseHTTPRequestHandler):
 class _FakeProvider(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, state: _FakeProviderState) -> None:
+    def __init__(self, state: _FakeProviderState, *, response_delay_seconds: float = 0.0) -> None:
+        if (
+            isinstance(response_delay_seconds, bool)
+            or not isinstance(response_delay_seconds, (int, float))
+            or not 0 <= response_delay_seconds < float("inf")
+        ):
+            raise ValueError("invalid synthetic response delay")
         self.state = state
         handler = type(
             "RecoveryProviderHandler",
             (_ProviderHandler,),
-            {"state": state, "api_key": FAKE_API_KEY, "stall_seconds": 4.0},
+            {
+                "state": state,
+                "api_key": FAKE_API_KEY,
+                "stall_seconds": 4.0,
+                "response_delay_seconds": float(response_delay_seconds),
+            },
         )
         super().__init__(("127.0.0.1", 0), handler)
 

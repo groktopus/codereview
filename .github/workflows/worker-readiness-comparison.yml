@@ -1,0 +1,468 @@
+name: Linux worker readiness comparison
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/worker-readiness-comparison.yml'
+      - 'scripts/effect_observer_long_wait_smoke.py'
+      - 'scripts/effect_observer_smoke.py'
+      - 'scripts/run_recovery_rehearsal.py'
+      - 'src/pr_review_harness/**'
+      - 'pyproject.toml'
+      - 'tests/test_worker_readiness_comparison_workflow.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-readiness-comparison-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    if: github.repository == 'groktopus/codereview' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == 'groktopus/codereview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      BASELINE_SHA: 94d35b43d6441e412e3c6123d354c5e78d6c12e9
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+      BASELINE_SOURCE: ${{ github.workspace }}/baseline-source
+      CANDIDATE_SOURCE: ${{ github.workspace }}/candidate-source
+
+    steps:
+      - name: Check out the fixed trusted baseline
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        timeout-minutes: 2
+        with:
+          repository: groktopus/codereview
+          ref: 94d35b43d6441e412e3c6123d354c5e78d6c12e9
+          path: baseline-source
+          persist-credentials: false
+
+      - name: Check out the exact pull request head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        timeout-minutes: 2
+        with:
+          repository: groktopus/codereview
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate-source
+          persist-credentials: false
+
+      - name: Set up isolated build Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Set fixed per-run temporary paths
+        run: |
+          set -euo pipefail
+          {
+            echo "ARTIFACT_DIR=$RUNNER_TEMP/worker-readiness-comparison"
+            echo "BASELINE_WHEELHOUSE=$RUNNER_TEMP/worker-readiness-baseline-wheel"
+            echo "CANDIDATE_WHEELHOUSE=$RUNNER_TEMP/worker-readiness-candidate-wheel"
+            echo "BASELINE_VENV=$RUNNER_TEMP/worker-readiness-baseline-venv"
+            echo "CANDIDATE_VENV=$RUNNER_TEMP/worker-readiness-candidate-venv"
+            echo "PROBE_PYTHON=$(python -c 'import sys; print(sys.executable)')"
+          } >> "$GITHUB_ENV"
+
+      - name: Install the bounded Linux syscall observer dependency
+        timeout-minutes: 2
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes strace
+
+      - name: Verify both source pins and build independent wheels
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_DIR" "$BASELINE_WHEELHOUSE" "$CANDIDATE_WHEELHOUSE"
+          test "$(git -C "$BASELINE_SOURCE" rev-parse HEAD)" = "$BASELINE_SHA"
+          test "$(git -C "$CANDIDATE_SOURCE" rev-parse HEAD)" = "$CANDIDATE_SHA"
+          python -m pip wheel --no-deps --wheel-dir "$BASELINE_WHEELHOUSE" "$BASELINE_SOURCE"
+          python -m pip wheel --no-deps --wheel-dir "$CANDIDATE_WHEELHOUSE" "$CANDIDATE_SOURCE"
+          python -m venv "$BASELINE_VENV"
+          python -m venv "$CANDIDATE_VENV"
+          "$BASELINE_VENV/bin/python" -m pip install --no-deps --no-index "$BASELINE_WHEELHOUSE"/*.whl
+          "$CANDIDATE_VENV/bin/python" -m pip install --no-deps --no-index "$CANDIDATE_WHEELHOUSE"/*.whl
+
+      - name: Record bounded source, wheel, and installed-module identities before probes
+        timeout-minutes: 1
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          artifact_dir = Path(os.environ["ARTIFACT_DIR"])
+          records = {}
+          for label in ("BASELINE", "CANDIDATE"):
+              source = Path(os.environ[f"{label}_SOURCE"])
+              wheelhouse = Path(os.environ[f"{label}_WHEELHOUSE"])
+              venv = Path(os.environ[f"{label}_VENV"])
+              expected = os.environ[f"{label}_SHA"]
+              actual = subprocess.run(
+                  ["git", "-C", str(source), "rev-parse", "HEAD"],
+                  check=True, capture_output=True, text=True, timeout=10,
+              ).stdout.strip()
+              if not re.fullmatch(r"[0-9a-f]{40}", expected) or actual != expected:
+                  raise SystemExit("source_pin_mismatch")
+              wheels = sorted(wheelhouse.glob("*.whl"))
+              if len(wheels) != 1 or wheels[0].stat().st_size > 16 * 1024 * 1024:
+                  raise SystemExit("wheel_inventory_invalid")
+              package_source = source / "src" / "pr_review_harness"
+              source_modules = {
+                  path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in sorted(package_source.glob("*.py")) if path.is_file()
+              }
+              if len(source_modules) != 28:
+                  raise SystemExit("source_module_count_invalid")
+              code = (
+                  "import hashlib,json,pr_review_harness, pathlib; "
+                  "p=pathlib.Path(pr_review_harness.__file__).parent; "
+                  "print(json.dumps({x.name:hashlib.sha256(x.read_bytes()).hexdigest() "
+                  "for x in sorted(p.glob('*.py')) if x.is_file()},sort_keys=True))"
+              )
+              completed = subprocess.run(
+                  [str(venv / "bin" / "python"), "-c", code],
+                  check=True, capture_output=True, text=True, timeout=15,
+                  cwd=artifact_dir,
+                  env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(artifact_dir)},
+              )
+              installed_modules = json.loads(completed.stdout)
+              if source_modules != installed_modules:
+                  raise SystemExit("installed_module_inventory_mismatch")
+              records[label.lower()] = {
+                  "source_sha": actual,
+                  "source_module_count": len(source_modules),
+                  "source_module_sha256": source_modules,
+                  "wheel_sha256": hashlib.sha256(wheels[0].read_bytes()).hexdigest(),
+                  "wheel_bytes": wheels[0].stat().st_size,
+                  "installed_module_count": len(installed_modules),
+                  "installed_module_sha256": installed_modules,
+              }
+          observer_name = "external_effect_observer.py"
+          if records["baseline"]["source_module_sha256"].get(observer_name) != records["candidate"]["source_module_sha256"].get(observer_name):
+              raise SystemExit("observer_runtime_source_changed")
+          if not records["candidate"]["source_module_sha256"].get(observer_name):
+              raise SystemExit("observer_runtime_source_missing")
+          fixture = Path(os.environ["CANDIDATE_SOURCE"]) / "scripts" / "effect_observer_long_wait_smoke.py"
+          if not fixture.is_file() or fixture.stat().st_size > 64 * 1024:
+              raise SystemExit("candidate_fixture_size_invalid")
+          candidate_python = Path(os.environ["CANDIDATE_VENV"]) / "bin" / "python"
+          observer_code = (
+              "import json; from pr_review_harness.external_effect_observer import "
+              "OBSERVER_ID,SYSCALL_SCOPE,TRACE_MAX_BYTES; "
+              "print(json.dumps({'observer_id':OBSERVER_ID,'syscall_scope':SYSCALL_SCOPE,"
+              "'trace_byte_cap':TRACE_MAX_BYTES},sort_keys=True))"
+          )
+          observer_identity = subprocess.run(
+                  [str(candidate_python), "-c", observer_code],
+                  check=True, capture_output=True, text=True, timeout=15,
+                  cwd=artifact_dir,
+                  env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(artifact_dir)},
+          )
+          observer_contract = json.loads(observer_identity.stdout)
+          expected_scope = ["%process", "%file", "socket", "connect", "bind", "listen", "accept", "accept4", "shutdown"]
+          if (
+              observer_contract.get("observer_id") != "linux-strace-syscall-observer.v3"
+              or observer_contract.get("syscall_scope") != expected_scope
+              or observer_contract.get("trace_byte_cap") != 1_048_576
+          ):
+              raise SystemExit("observer_contract_changed")
+          payload = {
+              "schema_version": 1,
+              "baseline_sha": os.environ["BASELINE_SHA"],
+              "candidate_sha": os.environ["CANDIDATE_SHA"],
+              "source_and_wheel_identity_verified": True,
+              "modules_per_runtime": 28,
+              "observer_id": observer_contract["observer_id"],
+              "observer_source_sha256": records["candidate"]["source_module_sha256"][observer_name],
+              "syscall_scope": expected_scope,
+              "trace_byte_cap": 1_048_576,
+              "fixture_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
+              "matched_fixture_same_scope": True,
+              "probes_started": False,
+              "runtimes": records,
+          }
+          output = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
+          if len(output.encode()) > 128 * 1024:
+              raise SystemExit("identity_receipt_limit_exceeded")
+          (artifact_dir / "identity.json").write_text(output, encoding="utf-8")
+          PY
+
+      - name: Run the identical bounded loopback fixture against both installed CLIs
+        timeout-minutes: 7
+        env:
+          LONG_WAIT_FIXTURE: ${{ github.workspace }}/candidate-source/scripts/effect_observer_long_wait_smoke.py
+          BASELINE_CLI: ${{ runner.temp }}/worker-readiness-baseline-venv/bin/pr-review
+          CANDIDATE_CLI: ${{ runner.temp }}/worker-readiness-candidate-venv/bin/pr-review
+        run: |
+          sudo unshare --net -- env -i \
+            ARTIFACT_DIR="$ARTIFACT_DIR" \
+            LONG_WAIT_FIXTURE="$LONG_WAIT_FIXTURE" \
+            BASELINE_CLI="$BASELINE_CLI" \
+            CANDIDATE_CLI="$CANDIDATE_CLI" \
+            HOME="$ARTIFACT_DIR" \
+            PATH="$PATH" \
+            "$PROBE_PYTHON" - <<'PY'
+          import hashlib
+          import json
+          import os
+          import selectors
+          import signal
+          import subprocess
+          import sys
+          import time
+          from pathlib import Path
+
+          output_dir = Path(os.environ["ARTIFACT_DIR"])
+          output_dir.mkdir(parents=True, exist_ok=True)
+          identity_path = output_dir / "identity.json"
+          identity = json.loads(identity_path.read_text(encoding="utf-8"))
+          try:
+              namespace_loopback = subprocess.run(
+                  ["ip", "link", "set", "lo", "up"], check=False, capture_output=True, timeout=5,
+              )
+          except (OSError, subprocess.TimeoutExpired):
+              namespace_loopback = None
+          if namespace_loopback is None or namespace_loopback.returncode != 0:
+              (output_dir / "comparison.json").write_text(
+                  json.dumps({"schema_version": 1, "comparison": "FAIL", "failure": "isolated_loopback_unavailable", "probes_started": False}, sort_keys=True, separators=(",", ":")) + "\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit("isolated_loopback_unavailable")
+          identity["probes_started"] = True
+          identity_path.write_text(json.dumps(identity, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+          max_output = 128 * 1024
+          max_report = 128 * 1024
+          probe_timeout = 185
+          fixture = os.environ["LONG_WAIT_FIXTURE"]
+          expected_fixture_sha = identity.get("fixture_sha256")
+          base_env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(output_dir), "TMPDIR": str(output_dir), "LANG": "C.UTF-8", "PYTHONNOUSERSITE": "1"}
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError("duplicate_json_key")
+                  result[key] = value
+              return result
+
+          def run_probe(label: str, cli: str) -> tuple[dict, int | None]:
+              try:
+                  fixture_sha = hashlib.sha256(Path(fixture).read_bytes()).hexdigest()
+              except OSError:
+                  fixture_sha = None
+              if fixture_sha != expected_fixture_sha:
+                  report = {"schema_version": 1, "label": label, "runner_status": "FIXTURE_HASH_MISMATCH",
+                            "return_code": None, "elapsed_ms": 0, "stdout_bytes": 0}
+                  (output_dir / f"{label}.json").write_text(
+                      json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+                  return report, None
+              command = [sys.executable, fixture, "--cli", cli]
+              started = time.monotonic()
+              try:
+                  process = subprocess.Popen(
+                      command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                      cwd=output_dir, env=base_env, start_new_session=True,
+                  )
+              except OSError:
+                  report = {"schema_version": 1, "label": label, "runner_status": "SPAWN_FAILED",
+                            "return_code": None, "elapsed_ms": int((time.monotonic() - started) * 1000),
+                            "stdout_bytes": 0}
+                  (output_dir / f"{label}.json").write_text(
+                      json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+                  return report, None
+              captured = bytearray()
+              status = "COMPLETED"
+              selector = selectors.DefaultSelector()
+              assert process.stdout is not None
+              selector.register(process.stdout, selectors.EVENT_READ)
+              deadline = started + probe_timeout
+              try:
+                  while True:
+                      remaining = deadline - time.monotonic()
+                      if remaining <= 0:
+                          status = "TIMEOUT"
+                          break
+                      events = selector.select(min(remaining, 1.0))
+                      if not events:
+                          if process.poll() is not None:
+                              break
+                          continue
+                      chunk = os.read(process.stdout.fileno(), 8192)
+                      if not chunk:
+                          break
+                      captured.extend(chunk)
+                      if len(captured) > max_output:
+                          status = "OUTPUT_LIMIT_EXCEEDED"
+                          break
+              finally:
+                  selector.close()
+              if status != "COMPLETED":
+                  try:
+                      os.killpg(process.pid, signal.SIGKILL)
+                  except ProcessLookupError:
+                      pass
+              try:
+                  return_code = process.wait(timeout=5)
+              except subprocess.TimeoutExpired:
+                  try:
+                      os.killpg(process.pid, signal.SIGKILL)
+                  except ProcessLookupError:
+                      pass
+                  process.kill()
+                  return_code = process.wait(timeout=5)
+                  status = "PROCESS_REAP_FAILED" if status == "COMPLETED" else status
+              report = {"schema_version": 1, "label": label, "runner_status": status,
+                        "return_code": return_code, "elapsed_ms": int((time.monotonic() - started) * 1000),
+                        "stdout_bytes": len(captured)}
+              if status == "COMPLETED":
+                  try:
+                      parsed = json.loads(captured, object_pairs_hook=reject_duplicate_keys)
+                  except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                      parsed = None
+                  if isinstance(parsed, dict):
+                      report["probe"] = parsed
+                  else:
+                      report["runner_status"] = "INVALID_SUMMARY"
+              target = output_dir / f"{label}.json"
+              encoded = json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
+              if len(encoded.encode()) > max_report:
+                  report = {"schema_version": 1, "label": label, "runner_status": "SUMMARY_LIMIT_EXCEEDED",
+                            "return_code": return_code, "elapsed_ms": int((time.monotonic() - started) * 1000),
+                            "stdout_bytes": len(captured)}
+                  encoded = json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
+              target.write_text(encoded, encoding="utf-8")
+              return report, return_code
+
+          baseline, _ = run_probe("baseline", os.environ["BASELINE_CLI"])
+          candidate, _ = run_probe("candidate", os.environ["CANDIDATE_CLI"])
+
+          def result(report):
+              probe = report.get("probe")
+              value = probe.get("result") if isinstance(probe, dict) else None
+              return probe, value if isinstance(value, dict) else None
+
+          def complete(report):
+              probe, value = result(report)
+              return bool(
+                  report.get("runner_status") == "COMPLETED"
+                  and report.get("return_code") == 0
+                  and isinstance(probe, dict)
+                  and probe.get("status") == "COMPLETED"
+                  and value is not None
+                  and value.get("status") == "NORMAL_REVIEW_COMPLETED"
+                  and value.get("coverage_state") == "COMPLETE"
+                  and value.get("completed_tasks") == 4
+                  and value.get("provider_calls") == 4
+                  and value.get("retries") == 0
+                  and value.get("freshness") == "CURRENT"
+                  and value.get("disposition") == "COMMENT"
+                  and value.get("observer_coverage") == "SCOPED_COMPLETE"
+                  and value.get("event_aggregates_complete") is True
+                  and value.get("trace_byte_cap") == 1_048_576
+                  and probe.get("provider_endpoint_kind") == "LOOPBACK_FAKE"
+                  and probe.get("external_provider_dispatch_requested") is False
+                  and probe.get("observer_id") == identity["observer_id"]
+                  and probe.get("observer_source_sha256") == identity["observer_source_sha256"]
+                  and probe.get("syscall_scope") == identity["syscall_scope"]
+                  and probe.get("trace_byte_cap") == identity["trace_byte_cap"]
+                  and probe.get("target_execution_marker_present") is False
+                  and isinstance(value.get("trace_bytes"), int)
+                  and not isinstance(value.get("trace_bytes"), bool)
+                  and 0 < value["trace_bytes"] <= 1_048_576
+                  and value.get("target_code_execution") is False
+              )
+
+          def valid_baseline_cap_failure(report):
+              probe, value = result(report)
+              if report.get("runner_status") != "COMPLETED" or not isinstance(probe, dict) or not isinstance(value, dict):
+                  return False
+              bytes_seen = value.get("observer_trace_bytes")
+              return bool(
+                  probe.get("status") == "FAILED_OR_INCOMPLETE"
+                  and probe.get("provider_endpoint_kind") == "LOOPBACK_FAKE"
+                  and probe.get("external_provider_dispatch_requested") is False
+                  and probe.get("observer_id") == identity["observer_id"]
+                  and probe.get("observer_source_sha256") == identity["observer_source_sha256"]
+                  and probe.get("syscall_scope") == identity["syscall_scope"]
+                  and probe.get("trace_byte_cap") == identity["trace_byte_cap"]
+                  and report.get("return_code") == 1
+                  and value.get("status") == "NORMAL_REVIEW_FAILED"
+                  and value.get("failure_stage") == "observer_scope_or_trace_incomplete"
+                  and value.get("observer_coverage") == "INCOMPLETE"
+                  and value.get("observer_reason") == "trace_byte_cap_exceeded"
+                  and isinstance(bytes_seen, int) and not isinstance(bytes_seen, bool)
+                  and 0 < bytes_seen <= 1_048_576
+                  and value.get("target_execution_marker_present") is False
+                  and isinstance(value.get("fake_provider_calls"), int)
+                  and not isinstance(value.get("fake_provider_calls"), bool)
+                  and 0 <= value["fake_provider_calls"] <= 8
+              )
+
+          baseline_valid = complete(baseline) or valid_baseline_cap_failure(baseline)
+          candidate_valid = complete(candidate)
+          def marker_state(report):
+              probe, value = result(report)
+              markers = [
+                  probe.get("target_execution_marker_present") if isinstance(probe, dict) else None,
+                  value.get("target_execution_marker_present") if isinstance(value, dict) else None,
+                  value.get("target_code_execution") if isinstance(value, dict) else None,
+              ]
+              known = [item for item in markers if isinstance(item, bool)]
+              if any(item is True for item in known):
+                  return True
+              if known and all(item is False for item in known):
+                  return False
+              return None
+
+          markers = [marker_state(baseline), marker_state(candidate)]
+          target_marker_state = (
+              "PRESENT" if any(item is True for item in markers)
+              else "ABSENT" if all(item is False for item in markers)
+              else "UNKNOWN"
+          )
+          external_dispatch_state = (
+              False if all(
+                  isinstance(report.get("probe"), dict)
+                  and report["probe"].get("external_provider_dispatch_requested") is False
+                  for report in (baseline, candidate)
+              ) else "UNKNOWN"
+          )
+          final = {
+              "schema_version": 1,
+              "fixture_comparison": "same_candidate_fixture_and_scope_not_byte_identical_generated_git_input",
+              "baseline_outcome": "COMPLETED" if complete(baseline) else "TYPED_TRACE_CAP_FAILURE" if valid_baseline_cap_failure(baseline) else "INVALID_OR_INCOMPLETE",
+              "candidate_outcome": "NORMAL_REVIEW_COMPLETED" if candidate_valid else "INVALID_OR_INCOMPLETE",
+              "comparison": "PASS" if baseline_valid and candidate_valid else "FAIL",
+              "baseline_trace_byte_cap": 1_048_576,
+              "candidate_trace_byte_cap": 1_048_576,
+              "external_provider_dispatch_requested": external_dispatch_state,
+              "target_execution_marker": target_marker_state,
+              "publication_requested": False,
+          }
+          (output_dir / "comparison.json").write_text(json.dumps(final, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+          if final["comparison"] != "PASS":
+              raise SystemExit("worker_readiness_comparison_failed")
+          PY
+
+      - name: Retain bounded comparison receipts regardless of outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: worker-readiness-comparison-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/worker-readiness-comparison/identity.json
+            ${{ runner.temp }}/worker-readiness-comparison/baseline.json
+            ${{ runner.temp }}/worker-readiness-comparison/candidate.json
+            ${{ runner.temp }}/worker-readiness-comparison/comparison.json
+          if-no-files-found: warn
+          retention-days: 7

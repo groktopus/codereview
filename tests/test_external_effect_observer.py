@@ -8,21 +8,28 @@ import socket
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 import pytest
 
 from pr_review_harness import external_effect_observer as observer
 from scripts.effect_observer_smoke import (
+    _SAFE_TRACE_SYSCALLS,
     FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS,
+    LONG_WAIT_ENGINE_DEADLINE_SECONDS,
+    LONG_WAIT_OBSERVER_TIMEOUT_SECONDS,
+    LONG_WAIT_PROVIDER_DELAY_SECONDS,
+    LONG_WAIT_PROVIDER_TIMEOUT_SECONDS,
     _bounded_full_review_failure,
     _failure_summary,
     _full_review_failure_code,
     _prepare_environment,
+    _safe_syscall_counts,
     _set_full_review_fake_provider_timeout,
     _validate_full_review,
 )
-from scripts.run_recovery_rehearsal import PROVIDER_TIMEOUT_SECONDS
+from scripts.run_recovery_rehearsal import FAKE_API_KEY, PROVIDER_TIMEOUT_SECONDS, _FakeProvider, _FakeProviderState
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -396,7 +403,37 @@ def test_full_review_smoke_requires_typed_complete_normal_path():
         "event_count": 42,
         "trace_bytes": 2048,
         "trace_byte_cap": observer.TRACE_MAX_BYTES,
+        "event_aggregates_complete": True,
+        "event_counts_by_syscall": {
+            "state": "UNKNOWN",
+            "aggregates_complete": True,
+            "counts": {name: 0 for name in sorted(_SAFE_TRACE_SYSCALLS)},
+            "unknown_rows": None,
+        },
+        "observer_source_sha256": "UNKNOWN",
+        "strace_version": "UNKNOWN",
+        "strace_executable_sha256": "UNKNOWN",
     }
+
+
+def test_full_review_summary_retains_actual_strace_version_and_safe_counters():
+    result, observation, invocation, calls = _full_review_contract_fixture()
+    observation.update(
+        {
+            "strace_version": "strace -- version 6.8",
+            "source_sha256": "a" * 64,
+            "strace_executable_sha256": "b" * 64,
+            "event_aggregates": [{"syscall": "wait4", "count": 7}],
+        }
+    )
+    summary = _validate_full_review(result, observation, invocation, calls, target_marker_exists=False)
+    assert summary is not None
+    assert summary["strace_version"] == "strace -- version 6.8"
+    assert summary["observer_source_sha256"] == "a" * 64
+    assert summary["strace_executable_sha256"] == "b" * 64
+    counters = summary["event_counts_by_syscall"]
+    assert counters["state"] == "SAFE_PROJECTION"
+    assert counters["counts"]["wait4"] == 7
 
 
 @pytest.mark.parametrize("failure", ["calls", "lens", "coverage", "candidate", "executed", "trace_cap"])
@@ -509,6 +546,73 @@ def test_full_review_smoke_uses_five_second_fake_timeout_without_changing_recove
     }
     assert FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS == 5.0
     assert FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS < 20.0
+
+
+def test_long_fake_wait_profile_keeps_caps_and_has_finite_deadline_headroom():
+    assert LONG_WAIT_PROVIDER_DELAY_SECONDS == 75.0
+    assert (
+        LONG_WAIT_PROVIDER_DELAY_SECONDS
+        < LONG_WAIT_PROVIDER_TIMEOUT_SECONDS
+        < LONG_WAIT_ENGINE_DEADLINE_SECONDS
+        < LONG_WAIT_OBSERVER_TIMEOUT_SECONDS
+        <= 270
+    )
+    assert observer.TRACE_MAX_BYTES == 1_048_576
+
+
+def test_safe_syscall_projection_handles_partial_aggregates_and_untrusted_labels():
+    projected = _safe_syscall_counts(
+        [
+            {"syscall": "wait4", "count": 3},
+            {"syscall": ["not", "hashable"], "count": 9},
+            {"syscall": "future_syscall", "count": 4},
+        ],
+        complete=False,
+    )
+    assert projected["state"] == "PARTIAL_PROJECTION"
+    assert projected["aggregates_complete"] is False
+    assert projected["counts"]["wait4"] == 3
+    assert projected["unknown_rows"] == 2
+    assert "future_syscall" not in json.dumps(projected)
+
+
+def test_fake_provider_supports_bounded_delayed_success_without_changing_default():
+    state = _FakeProviderState()
+    state.configure(["success"])
+    try:
+        server = _FakeProvider(state, response_delay_seconds=0.05)
+    except PermissionError:
+        pytest.skip("environment does not permit loopback listener")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request_body = json.dumps(
+            {"messages": [{}, {"content": json.dumps({"task": {"unit_ids": []}, "evidence": []})}]}
+        ).encode()
+        request = urllib.request.Request(
+            f"{server.endpoint}/chat/completions",
+            data=request_body,
+            headers={"Authorization": f"Bearer {FAKE_API_KEY}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        start = time.monotonic()
+        with urllib.request.urlopen(request, timeout=2) as response:
+            assert response.status == 200
+            assert json.load(response)["model"] == "local-rehearsal-model"
+        assert time.monotonic() - start >= 0.045
+        assert state.calls == [{"path": "/v1/chat/completions", "behavior": "success"}]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
+
+    default_state = _FakeProviderState()
+    default_state.configure(["success"])
+    default_server = _FakeProvider(default_state)
+    try:
+        assert default_server.RequestHandlerClass.response_delay_seconds == 0.0
+    finally:
+        default_server.server_close()
 
 
 def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):
