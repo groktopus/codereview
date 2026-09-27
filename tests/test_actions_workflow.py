@@ -11,6 +11,8 @@ import pytest
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-publish.yml"
 ANALYSIS_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-analysis.yml"
 TEST_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/review-commits.yml"
+RECOVERY_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/hosted-recovery-rehearsal.yml"
+SETUP_NODE_V4_PIN = "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020"
 OPERATIONS = Path(__file__).parents[1] / "docs/OPERATIONS.md"
 
 
@@ -145,7 +147,17 @@ def test_publication_workflow_is_hard_disabled_read_only_and_uses_protected_revi
     assert "checkout@" in source
     assert "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in source
     assert "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065" in source
-    assert "actions/setup-node@1e60f620b9541d83c2a0d7bbbd10743a27a4e3d6" in source
+    assert SETUP_NODE_V4_PIN in source
+
+
+def test_hosted_recovery_uses_verified_setup_node_v4_pin_and_keeps_node24():
+    source = RECOVERY_WORKFLOW.read_text(encoding="utf-8")
+    setup_step = source.split("- name: Set up the pinned readiness artifact bridge runtime", 1)[1].split(
+        "- name: Install only the locked official artifact client", 1
+    )[0]
+    assert SETUP_NODE_V4_PIN in setup_step
+    assert "node-version: '24'" in setup_step
+    assert "actions/setup-node@1e60f620b9541d83c2a0d7bbbd10743a27a4e3d6" not in source
 
 
 def test_runtime_secret_is_not_exposed_to_package_install_step():
