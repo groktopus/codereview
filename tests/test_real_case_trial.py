@@ -39,12 +39,85 @@ def test_frozen_case_manifest_binds_profiles_checks_and_exact_primary_demands():
     assert [case["expected_primary_count"] for case in cases] == [10, 27, 10]
     assert [case["expected_primary_serialized_input_bytes"] for case in cases] == [870_424, 2_206_107, 885_733]
     assert len(trial.RUNTIME_MODULE_INVENTORY) == 28
+    assert trial.RUNTIME_SHA == "54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215"
+    assert trial.RUNTIME_MODULE_TREE_SHA256 == "86b4f0c82bbf3e4c01f38dff07d3dd93de31d14d6791683b95988c4c5ca04f5d"
     limits = trial.limits_for(64)
     assert limits["max_snapshot_context_bytes"] == 300_000
     assert limits["max_context_bytes"] == 8_000_000
     assert limits["max_input_bytes_per_task"] == 128_000
     assert all(case["expected_scope_count"] > 0 for case in cases)
     assert document["baseline_plan_sha256"] == "5c98ea8d66723bae0092c16dd062cdc77640d6912da3ae90dde7ec5fc805baef"
+
+
+def test_verify_runtime_accepts_only_pinned_revision_and_installed_module_proof(tmp_path, monkeypatch):
+    from scripts import prepare_real_case_batch
+
+    runtime = tmp_path / "runtime"
+    package = runtime / "src" / "pr_review_harness"
+    package.mkdir(parents=True)
+    for name in trial.RUNTIME_MODULE_INVENTORY:
+        (package / name).write_text("# isolated synthetic module\n")
+    monkeypatch.setattr(trial, "git_command", lambda *args, **kwargs: trial.RUNTIME_SHA)
+    monkeypatch.setattr(
+        prepare_real_case_batch,
+        "installed_module_proof",
+        lambda cli, source: {
+            "module_file_count": 28,
+            "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256,
+            "installed_matches_source": True,
+        },
+    )
+
+    proof = trial.verify_runtime(tmp_path / "cli", runtime)
+
+    assert proof["installed_matches_source"] is True
+    assert proof["module_inventory"] == list(trial.RUNTIME_MODULE_INVENTORY)
+
+
+@pytest.mark.parametrize(
+    ("revision", "proof", "inventory_mutation", "expected"),
+    [
+        ("0" * 40, {"module_file_count": 28, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256}, False, "trusted_runtime_revision_mismatch"),
+        (trial.RUNTIME_SHA, {"module_file_count": 27, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256}, False, "installed_runtime_identity_mismatch"),
+        (trial.RUNTIME_SHA, {"module_file_count": 28, "module_tree_sha256": "0" * 64}, False, "installed_runtime_identity_mismatch"),
+        (trial.RUNTIME_SHA, {"module_file_count": 28, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256}, True, "installed_runtime_inventory_mismatch"),
+    ],
+)
+def test_verify_runtime_rejects_wrong_revision_tree_count_or_inventory(
+    tmp_path, monkeypatch, revision, proof, inventory_mutation, expected
+):
+    from scripts import prepare_real_case_batch
+
+    runtime = tmp_path / "runtime"
+    package = runtime / "src" / "pr_review_harness"
+    package.mkdir(parents=True)
+    for name in trial.RUNTIME_MODULE_INVENTORY:
+        (package / name).write_text("# isolated synthetic module\n")
+    if inventory_mutation:
+        (package / trial.RUNTIME_MODULE_INVENTORY[0]).unlink()
+    monkeypatch.setattr(trial, "git_command", lambda *args, **kwargs: revision)
+    monkeypatch.setattr(prepare_real_case_batch, "installed_module_proof", lambda cli, source: proof)
+
+    with pytest.raises(trial.TrialError, match=expected):
+        trial.verify_runtime(tmp_path / "cli", runtime)
+
+
+def test_verify_runtime_fails_closed_when_installed_package_proof_rejects(tmp_path, monkeypatch):
+    from scripts import prepare_real_case_batch
+
+    runtime = tmp_path / "runtime"
+    package = runtime / "src" / "pr_review_harness"
+    package.mkdir(parents=True)
+    for name in trial.RUNTIME_MODULE_INVENTORY:
+        (package / name).write_text("# isolated synthetic module\n")
+    monkeypatch.setattr(trial, "git_command", lambda *args, **kwargs: trial.RUNTIME_SHA)
+
+    def rejected_proof(cli, source):
+        raise ValueError("installed_package_source_hash_mismatch")
+
+    monkeypatch.setattr(prepare_real_case_batch, "installed_module_proof", rejected_proof)
+    with pytest.raises(ValueError, match="installed_package_source_hash_mismatch"):
+        trial.verify_runtime(tmp_path / "cli", runtime)
 
 
 def test_case_manifest_rejects_modified_frozen_profile(tmp_path, monkeypatch):
