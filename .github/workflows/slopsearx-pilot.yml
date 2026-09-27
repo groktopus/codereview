@@ -52,9 +52,9 @@ jobs:
       base_sha: '0000000000000000000000000000000000000000'
       head_sha: '1111111111111111111111111111111111111111'
     secrets:
-      LLM_BASE_URL: https://example.invalid
-      LLM_MODEL: probe
-      LLM_API_KEY: not-a-credential
-      JEV_BASE_URL: https://example.invalid
-      JEV_MODEL: probe
-      JEV_API_KEY: not-a-credential
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+      JEV_MODEL: ${{ secrets.JEV_MODEL }}
+      JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
