@@ -72,3 +72,21 @@ jobs:
           python -m venv "$WHEEL_ENV"
           "$WHEEL_ENV/bin/python" -m pip install "$DIST_DIR"/*.whl
           "$WHEEL_ENV/bin/python" scripts/package_smoke.py --cli "$WHEEL_ENV/bin/pr-review"
+      - name: Run installed CLI recovery rehearsal with local fakes
+        env:
+          WHEEL_ENV: ${{ runner.temp }}/pr-review-wheel
+          RECOVERY_OUTPUT_DIR: ${{ runner.temp }}/pr-review-recovery-${{ matrix.python-version }}
+        run: >-
+          "$WHEEL_ENV/bin/python" scripts/run_recovery_rehearsal.py
+          --cli "$WHEEL_ENV/bin/pr-review"
+          --output-dir "$RECOVERY_OUTPUT_DIR"
+      - name: Retain bounded recovery rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-review-recovery-${{ github.run_id }}-${{ matrix.python-version }}
+          path: |
+            ${{ runner.temp }}/pr-review-recovery-${{ matrix.python-version }}/recovery-rehearsal-summary.json
+            ${{ runner.temp }}/pr-review-recovery-${{ matrix.python-version }}/artifacts/
+          if-no-files-found: warn
+          retention-days: 7
