@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -131,6 +132,11 @@ def render_report(result: dict) -> str:
             lines.append(
                 f"- {safe(row.get('obligation_id'))}: {safe(row.get('state'))} ({safe(row.get('reason_code'))})"
             )
+            reasons = _specialist_partial_reasons(row, result.get("task_results", {}))
+            if reasons:
+                lines.append(
+                    f"  Specialist reported partial coverage: {', '.join(safe(reason) for reason in reasons)}."
+                )
         if len(unresolved) > 8:
             lines.append(f"- {len(unresolved) - 8} more unresolved obligations are retained in the durable result.")
     for entry in result.get("not_applicable", []):
@@ -146,3 +152,60 @@ def render_report(result: dict) -> str:
             f"{unresolved_findings} unverified claims remain in the durable result and are not presented as recommendations."
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _specialist_partial_reasons(row: dict, task_results: Any) -> list[str]:
+    """Return a few bounded source reason codes as advisory report text only."""
+    if (
+        row.get("state") != "PARTIAL"
+        or row.get("obligation_kind") != "CHANGED_UNIT_LENS"
+        or row.get("reason_code") != "PARTIAL_REVIEW_COVERAGE"
+        or not isinstance(task_results, dict)
+    ):
+        return []
+    scope_units = row.get("scope_unit_ids")
+    task_ids = row.get("task_ids")
+    if (
+        not isinstance(scope_units, list)
+        or len(scope_units) > 64
+        or any(not isinstance(unit, str) for unit in scope_units)
+        or not isinstance(task_ids, list)
+        or len(task_ids) > 64
+        or any(not isinstance(task_id, str) for task_id in task_ids)
+    ):
+        return []
+    reasons: set[str] = set()
+    for task_id in task_ids:
+        task = task_results.get(task_id)
+        if not isinstance(task, dict) or task.get("status") != "SUCCEEDED":
+            continue
+        payload = task.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        notes = payload.get("coverage_notes")
+        if not isinstance(notes, list):
+            continue
+        dispatched = task.get("input_evidence_ids")
+        dispatched_ids = (
+            set(dispatched) if isinstance(dispatched, list) and all(isinstance(x, str) for x in dispatched) else set()
+        )
+        for note in notes[:64]:
+            if (
+                not isinstance(note, dict)
+                or note.get("unit_id") not in scope_units
+                or note.get("state") not in {"PARTIAL", "NOT_COVERED"}
+                or note.get("coverage_basis") != "STATIC_REVIEW"
+            ):
+                continue
+            refs = note.get("evidence_refs")
+            reason = note.get("reason_code")
+            if (
+                isinstance(refs, list)
+                and refs
+                and all(isinstance(ref, str) and ref in dispatched_ids for ref in refs)
+                and isinstance(reason, str)
+                and len(reason) <= 128
+                and re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", reason)
+            ):
+                reasons.add(reason)
+    return sorted(reasons)[:3]

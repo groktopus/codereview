@@ -123,11 +123,11 @@ def test_same_name_duplicate_reruns_and_naive_timestamps_fail_closed():
         make_check_runs_document("owner/repo", 7, HEAD, [run], captured_at="2026-09-26T12:01:00")
 
 
-def test_slopsearx_v4_has_separate_exact_pr464_check_bindings():
+def test_slopsearx_v5_keeps_separate_exact_pr464_check_bindings():
     root = Path(__file__).resolve().parents[1]
     profile = json.loads((root / "profiles/slopsearx.json").read_text())
     document = json.loads((root / "tests/fixtures/pr464-check-evidence.json").read_text())
-    assert profile["version"] == "slopsearx-production-v4-context-selection"
+    assert profile["version"] == "slopsearx-production-v5-dependency-context"
     assert len(document["runs"]) == 20
     assert document["fixture_provenance"]["source_capture_sha256"] == (
         "989e65b14d1a43f37b4abaaf2be55b49c3b07ecf50d3e786eb99ff3f22f0450b"

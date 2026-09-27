@@ -1,15 +1,21 @@
 {
-  "version": "slopsearx-production-v4-context-selection",
+  "version": "slopsearx-production-v5-dependency-context",
   "repository": "magnus919/SlopSearX",
   "context_paths": [
     "AGENTS.md",
     "CONTRIBUTING.md",
     "pyproject.toml",
+    "Dockerfile",
+    ".github/workflows/ci.yml",
+    "tests/test_mcp_gateway.py",
     "slopsearx/mcp/security.py",
     "slopsearx/mcp/oauth.py",
     "slopsearx/filters.py",
     "slopsearx/config.py"
   ],
+  "classifications": {
+    "requirements-dev.txt": "config"
+  },
   "context_selection": {
     "version": "context-selection.v1",
     "mandatory_policy_paths": [
@@ -91,6 +97,41 @@
           "slopsearx/filters.py"
         ],
         "max_context_bytes": 11000
+      },
+      {
+        "unit_patterns": [
+          "requirements*.txt",
+          "uv.lock",
+          "pyproject.toml",
+          "Dockerfile"
+        ],
+        "lenses": [
+          "security",
+          "correctness"
+        ],
+        "context_paths": [
+          "pyproject.toml",
+          "Dockerfile",
+          ".github/workflows/ci.yml"
+        ],
+        "max_context_bytes": 16000
+      },
+      {
+        "unit_patterns": [
+          "requirements*.txt",
+          "uv.lock",
+          "pyproject.toml",
+          "Dockerfile"
+        ],
+        "lenses": [
+          "tests"
+        ],
+        "context_paths": [
+          "pyproject.toml",
+          ".github/workflows/ci.yml",
+          "tests/test_mcp_gateway.py"
+        ],
+        "max_context_bytes": 22000
       }
     ]
   },
@@ -129,6 +170,21 @@
         "correctness"
       ],
       "reason": "Credential/deployment/CI configuration crosses an operational trust boundary."
+    },
+    {
+      "patterns": [
+        "requirements*.txt",
+        "uv.lock",
+        "pyproject.toml",
+        "Dockerfile"
+      ],
+      "min_mode": "FOCUSED",
+      "lenses": [
+        "security",
+        "correctness",
+        "tests"
+      ],
+      "reason": "Dependency and image-install changes affect the software supply chain and deployed runtime compatibility."
     },
     {
       "patterns": [
