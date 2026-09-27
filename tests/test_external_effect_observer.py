@@ -222,15 +222,7 @@ def test_real_strace_observes_file_names_connect_and_child_after_parent_exit(tmp
     renamed = tmp_path / "effect-after-rename.marker"
     child_file = tmp_path / "child-after-parent-exit.marker"
     port = server.getsockname()[1]
-    script = (
-        "import pathlib, socket, subprocess, sys\n"
-        f"first = pathlib.Path({str(created)!r}); second = pathlib.Path({str(renamed)!r})\n"
-        "first.write_text('fixture')\n"
-        "first.rename(second)\n"
-        f"client = socket.create_connection(('127.0.0.1', {port}), timeout=2); client.close()\n"
-        f"subprocess.Popen([sys.executable, '-c', 'import pathlib,time; time.sleep(0.2); pathlib.Path({str(child_file)!r}).write_text(\"late\")'])\n"
-        "print('{\"status\":\"ok\"}')\n"
-    )
+    script, _child_source = _effect_fixture_sources(created, renamed, child_file, port)
     try:
         result = observer.observe_cli([sys.executable, "-c", script], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=8)
         accept_thread.join(timeout=5)
@@ -277,6 +269,33 @@ def test_hash_file_rejects_symlink_and_fifo_without_opening_them(tmp_path):
     assert observer._hash_file(str(link)) is None
     assert observer._hash_file(str(fifo)) is None
     assert len(observer._hash_file(str(target)) or "") == 64
+
+
+def _effect_fixture_sources(created: Path, renamed: Path, child_file: Path, port: int) -> tuple[str, str]:
+    child_source = (
+        "import pathlib, time\n"
+        "time.sleep(0.2)\n"
+        f"pathlib.Path({str(child_file)!r}).write_text('late')\n"
+    )
+    parent_source = (
+        "import pathlib, socket, subprocess, sys\n"
+        f"first = pathlib.Path({str(created)!r}); second = pathlib.Path({str(renamed)!r})\n"
+        "first.write_text('fixture')\n"
+        "first.rename(second)\n"
+        f"client = socket.create_connection(('127.0.0.1', {port}), timeout=2); client.close()\n"
+        f"child_source = {child_source!r}\n"
+        "subprocess.Popen([sys.executable, '-c', child_source])\n"
+        "print('{\"status\":\"ok\"}')\n"
+    )
+    return parent_source, child_source
+
+
+def test_linux_effect_fixture_sources_compile_on_all_platforms(tmp_path):
+    parent_source, child_source = _effect_fixture_sources(
+        tmp_path / "created", tmp_path / "renamed", tmp_path / "child", 43123
+    )
+    compile(parent_source, "linux_effect_parent_fixture.py", "exec")
+    compile(child_source, "linux_effect_child_fixture.py", "exec")
 
 
 def test_parse_trace_paths_never_resolves_symlinks(tmp_path):
