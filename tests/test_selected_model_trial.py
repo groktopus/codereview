@@ -10,6 +10,19 @@ import pytest
 from pr_review_harness import selected_model_trial as trial
 
 
+@pytest.mark.parametrize(
+    ("observation", "should_stop"),
+    [
+        ({"coverage": "SCOPED_COMPLETE"}, False),
+        ({"coverage": "INCOMPLETE"}, True),
+        ({"coverage": "UNKNOWN"}, True),
+        (None, True),
+    ],
+)
+def test_incomplete_external_observer_stops_later_cases(observation, should_stop):
+    assert trial._external_observer_requires_stop(observation) is should_stop
+
+
 def _case():
     snapshot = {
         "snapshot_id": "snap-1",
@@ -657,6 +670,7 @@ def test_prepare_only_stops_before_next_case_when_nonselected_source_changes(tmp
     root = tmp_path / "support"
     for relative in (
         "src/pr_review_harness/selected_model_trial.py",
+        "src/pr_review_harness/external_effect_observer.py",
         "src/pr_review_harness/injection_trials.py",
         "src/pr_review_harness/nonselected_module.py",
         "scripts/run_selected_model_trial.py",

@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .claim_assessment import _DIMENSIONS as _CLAIM_CHOICES
+from .external_effect_observer import CLEANUP_GRACE_SECONDS, OBSERVER_ID, observe_cli
 from .injection_trials import (
     MAX_RESULT_BYTES,
     InjectionTrialError,
@@ -220,6 +221,7 @@ def _hash_file_bounded(path: Path, *, cap: int = MAX_SOURCE_IDENTITY_BYTES) -> d
 def _runner_source_identity(root: Path) -> dict[str, Any]:
     paths = (
         "src/pr_review_harness/selected_model_trial.py",
+        "src/pr_review_harness/external_effect_observer.py",
         "src/pr_review_harness/injection_trials.py",
         "scripts/run_selected_model_trial.py",
         "scripts/provider_config_from_env.py",
@@ -374,6 +376,11 @@ def _bounded_id(value: Any) -> str | None:
 
 def _bounded_hash(value: Any) -> str | None:
     return value if isinstance(value, str) and _SHA256.fullmatch(value) else None
+
+
+def _external_observer_requires_stop(observation: Any) -> bool:
+    """Stop before another case when the opt-in trace is incomplete."""
+    return not isinstance(observation, dict) or observation.get("coverage") != "SCOPED_COMPLETE"
 
 
 def _bounded_revision(value: Any) -> str | None:
@@ -1337,6 +1344,7 @@ def run_provider_trial(
     repo_support_root: Path | None = None,
     environ: dict[str, str] | None = None,
     invoke=None,
+    observe_effects: bool = False,
 ) -> dict[str, Any]:
     """Run exactly the three frozen cases with the selected trusted model pair."""
     env_source = dict(os.environ if environ is None else environ)
@@ -1398,7 +1406,7 @@ def run_provider_trial(
                     case_results.append({"case_id": case.case_id, "run_status": "SUITE_SOURCE_CHANGED_STOP"})
                     break
                 remaining_matrix = matrix_deadline - time.monotonic()
-                if remaining_matrix <= 0:
+                if remaining_matrix <= (CLEANUP_GRACE_SECONDS if observe_effects else 0):
                     case_results.append({"case_id": case.case_id, "run_status": "MATRIX_DEADLINE_EXHAUSTED"})
                     continue
                 run_dir = work / "cli-output" / case.case_id
@@ -1412,12 +1420,27 @@ def run_provider_trial(
                     decision_config,
                     dry_run=False,
                 )
-                row = invoke(
-                    command,
-                    cwd=work,
-                    env=child_env,
-                    timeout_seconds=min(RUN_TIMEOUT_SECONDS, remaining_matrix),
-                )
+                if observe_effects:
+                    observed = observe_cli(
+                        command,
+                        cwd=work,
+                        env=child_env,
+                        timeout_seconds=min(RUN_TIMEOUT_SECONDS, remaining_matrix - CLEANUP_GRACE_SECONDS),
+                    )
+                    row = observed.get("invocation", {})
+                    if isinstance(row, dict) and observed.get("cli_result") is not None:
+                        # Keep raw CLI JSON in process memory only; the persisted
+                        # invocation contains bounded hashes and typed metadata.
+                        row = {**row, "cli_result": observed["cli_result"]}
+                    external_observation = observed.get("observer", {})
+                else:
+                    row = invoke(
+                        command,
+                        cwd=work,
+                        env=child_env,
+                        timeout_seconds=min(RUN_TIMEOUT_SECONDS, remaining_matrix),
+                    )
+                    external_observation = None
                 inputs_changed_during_run = (
                     _load_matrix_tools(root).source_fingerprint() != source_fingerprint
                     or _trial_input_identity(
@@ -1456,6 +1479,8 @@ def run_provider_trial(
                         "target_execution": "NOT_REQUESTED_BY_RUNNER",
                     },
                 }
+                if observe_effects:
+                    run_summary["external_effect_observer"] = external_observation
                 if inputs_changed_during_run:
                     run_summary["run_status"] = "SOURCE_OR_CONFIG_CHANGED_DURING_RUN"
                     if status == "CLI_COMPLETED" and isinstance(result, dict):
@@ -1572,6 +1597,8 @@ def run_provider_trial(
                                 break
                     shutil.rmtree(run_dir, ignore_errors=True)
                 case_results.append(run_summary)
+                if observe_effects and _external_observer_requires_stop(external_observation):
+                    break
             if len(case_results) < len(CASE_IDS):
                 completed_ids = {item.get("case_id") for item in case_results}
                 for case_id in CASE_IDS:
@@ -1612,11 +1639,16 @@ def run_provider_trial(
                 "billing": "UNKNOWN_UNLESS_AUTHORITATIVE_USAGE_REPORTED",
                 "effect_observer": {
                     "environment_canary_sha256": hashlib.sha256(canary.encode("ascii")).hexdigest(),
+                    "requested": observe_effects,
+                    "observer_id": OBSERVER_ID if observe_effects else None,
+                    "overall_state": "UNKNOWN",
+                    "overall_state_reason": "scoped_syscall_observations_do_not_establish_absence_of_effects",
+                    "record_scope": "installed_cli_and_traced_descendants_only",
+                    "target_execution": "NOT_REQUESTED_BY_RUNNER",
                     "process_descendant_telemetry": "UNKNOWN",
                     "network_destination_telemetry": "UNKNOWN",
                     "filesystem_side_effect_telemetry": "UNKNOWN",
                     "publication_capability_passed": False,
-                    "target_execution": "NOT_REQUESTED_BY_RUNNER",
                 },
             }
             manifest_hash = _write_json(result_dir / "manifest.json", manifest)
