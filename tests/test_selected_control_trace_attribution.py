@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ssl
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -677,3 +678,217 @@ def test_server_write_receipt_is_recorded_only_after_write_and_flush(fail_at):
             diagnostic._write_json_response(Handler(), {"ok": True}, "native_claim")
         assert counters["server_response_writes_completed"] == 0
         assert counters["native_claim_response_writes_completed"] == 0
+
+
+def _complete_transport_arm(transport, *, trace_bytes=500_000):
+    stages = {
+        name: 1
+        for name in (
+            "primary_correctness_received", "primary_security_received", "primary_tests_received",
+            "semantic_adjudication_received", "native_claim_received", "native_summary_received",
+            "primary_correctness_response_writes_completed", "primary_security_response_writes_completed",
+            "primary_tests_response_writes_completed", "semantic_adjudication_response_writes_completed",
+            "native_claim_response_writes_completed", "native_summary_response_writes_completed",
+        )
+    }
+    return {
+        "configured_transport": "HTTPS_LOOPBACK_FAKE" if transport == "https" else "HTTP_LOOPBACK_FAKE",
+        "runtime_tree_sha256": "1" * 64,
+        "runtime_source_commit": "2" * 40,
+        "runtime_source_tree_dirty": False,
+        "runtime_module_hashes": {f"pr_review_harness/m{i}.py": "3" * 64 for i in range(28)},
+        "diagnostic_script_sha256": "4" * 64,
+        "fixture_suite_sha256": "5" * 64,
+        "generated_profile_sha256": "6" * 64,
+        "limits_sha256": "7" * 64,
+        "base_sha": "8" * 40,
+        "head_sha": "9" * 40,
+        "snapshot_id": "snap-fixed",
+        "snapshot_hash": "a" * 64,
+        "task_lenses": ["correctness", "security", "tests"],
+        "run_id": "r1-control",
+        "event_mode": "LOCAL_EXPLICIT_BASE_HEAD_NO_GITHUB_EVENT",
+        "event_identity": None,
+        "task_ids": ["task-1", "task-2", "task-3"],
+        "primary_task_statuses": [
+            {"task_id": f"task-{i}", "lens": lens, "status": "SUCCEEDED"}
+            for i, lens in enumerate(("correctness", "security", "tests"), 1)
+        ],
+        "observer_id": "linux-strace-syscall-observer.v3",
+        "observer_source_sha256": "b" * 64,
+        "strace_version": "strace -- version test",
+        "strace_executable_sha256": "c" * 64,
+        "syscall_scope": list(diagnostic.observer.SYSCALL_SCOPE),
+        "trace_cap_bytes": diagnostic.observer.TRACE_MAX_BYTES,
+        "observer_mode": "LINUX_STRACE",
+        "observer_coverage": "SCOPED_COMPLETE",
+        "observer_reason": None,
+        "trace_attribution": {"state": "COMPLETE", "trace_bytes": trace_bytes,
+                              "bytes_by_syscall": {"openat": trace_bytes - 100, "connect": 100}},
+        "protocol_exchange_state": "SERVER_WRITES_SETTLED",
+        "protocol_stage_counts": stages,
+        "http_requests_received": 6,
+        "server_response_writes_completed": 6,
+        "fake_server_handlers_settled": True,
+        "fake_server_active_handlers_at_snapshot": 0,
+        "synthetic_protocol_path_state": "COMPLETE",
+        "coverage_state": "COMPLETE",
+        "claim_assessment_statuses": ["COMPLETE"],
+        "native_advisory_status": "RECEIVED",
+        "cli_invocation_status": "CLI_COMPLETED",
+        "cli_exit_code": 0,
+        "cli_result_present": True,
+        "candidate_count": 1,
+        "unexpected_task_result_count": 0,
+        "transport_payload_hashes": {
+            stage: {
+                "request_bytes": 100,
+                "request_sha256": "d" * 64,
+                "response_bytes": 80,
+                "response_sha256": "e" * 64,
+            }
+            for stage in ("primary_correctness", "primary_security", "primary_tests",
+                          "semantic_adjudication", "native_claim", "native_summary")
+        },
+        "provider_config_sha256": "f" * 64 if transport == "http" else "0" * 64,
+        "decision_config_sha256": "a" * 64 if transport == "http" else "b" * 64,
+        "normalized_transport_config_sha256": "c" * 64,
+    }
+
+
+def _mock_transport_pair_inputs(monkeypatch, tmp_path, run_arms):
+    monkeypatch.setattr(diagnostic, "CASE_IDS", ("r1-control",))
+    cli = tmp_path / "pr-review"
+    cli.write_text("synthetic-test-only\n", encoding="utf-8")
+    cli.chmod(0o700)
+    profile = tmp_path / "profile.json"
+    profile.write_text("{}\n", encoding="utf-8")
+    case = SimpleNamespace(
+        case_id="r1-control", snapshot={"snapshot_id": "snap-fixed", "snapshot_hash": "a" * 64},
+        base_sha="8" * 40, head_sha="9" * 40,
+    )
+    prepared = SimpleNamespace(suite_sha256="5" * 64, profile_path=profile, profile={}, cases=(case,))
+    module_files = {f"src/pr_review_harness/m{i}.py": "3" * 64 for i in range(28)}
+    monkeypatch.setattr(diagnostic, "_runtime_provenance", lambda *_: {
+        "runtime_tree_sha256": "1" * 64,
+        "source_fingerprint": {"git_revision": "2" * 40, "working_tree_dirty": False, "file_hashes": module_files},
+    })
+    monkeypatch.setattr(diagnostic, "_diagnostic_checkout_identity", lambda: {
+        "diagnostic_head_sha": "4" * 40, "diagnostic_script_sha256": "5" * 64,
+        "diagnostic_script_differs_from_head": True,
+    })
+    monkeypatch.setattr(diagnostic, "prepare_suite", lambda *_args, **_kwargs: prepared)
+    monkeypatch.setattr(diagnostic, "plan_review", lambda *_args: {
+        "tasks": [{"task_id": f"task-{i}", "lens": lens}
+                  for i, lens in enumerate(("correctness", "security", "tests"), 1)]
+    })
+    cert = tmp_path / "ca.pem"
+    key = tmp_path / "key.pem"
+    cert.write_text("synthetic cert placeholder\n", encoding="utf-8")
+    key.write_text("synthetic private key placeholder\n", encoding="utf-8")
+    monkeypatch.setattr(diagnostic, "_write_loopback_certificate", lambda _root: (cert, key, "6" * 64))
+    monkeypatch.setattr(diagnostic, "_transport_server_context", lambda *_: object())
+    calls = []
+
+    def fake_run(_cli, **kwargs):
+        calls.append(kwargs)
+        return run_arms[kwargs["_transport"]]
+
+    monkeypatch.setattr(diagnostic, "run", fake_run)
+    return cli, prepared, calls
+
+
+def test_transport_pair_stops_before_tls_when_http_baseline_is_incomplete(monkeypatch, tmp_path):
+    monkeypatch.setattr(diagnostic.sys, "platform", "linux")
+    http = _complete_transport_arm("http", trace_bytes=diagnostic.observer.TRACE_MAX_BYTES)
+    cli, prepared, calls = _mock_transport_pair_inputs(
+        monkeypatch, tmp_path, {"http": http, "https": _complete_transport_arm("https")}
+    )
+    result = diagnostic.run_transport_pair(cli, workdir=tmp_path)
+    assert result["pair_state"] == "INCOMPLETE"
+    assert result["reason"] == "HTTP_BASELINE_INCOMPLETE_TLS_NOT_RUN"
+    assert len(calls) == 1 and calls[0]["_transport"] == "http"
+    assert calls[0]["_prepared"] is prepared
+    assert result["arms"][1]["state"] == "NOT_RUN_HTTP_BASELINE_INCOMPLETE"
+
+
+def test_transport_pair_rejects_incomplete_observer_even_when_trace_is_below_cap():
+    arm = _complete_transport_arm("http", trace_bytes=510_000)
+    arm["observer_reason"] = "observer_cleanup_incomplete"
+    assert not diagnostic._transport_pair_complete(arm)
+
+
+def test_transport_pair_reuses_exact_prepared_case_and_requires_matching_body_hashes(monkeypatch, tmp_path):
+    monkeypatch.setattr(diagnostic.sys, "platform", "linux")
+    http = _complete_transport_arm("http", trace_bytes=510_000)
+    https = _complete_transport_arm("https", trace_bytes=525_000)
+    cli, prepared, calls = _mock_transport_pair_inputs(monkeypatch, tmp_path, {"http": http, "https": https})
+    result = diagnostic.run_transport_pair(cli, workdir=tmp_path)
+    assert result["pair_state"] == "COMPLETE"
+    assert result["run_id"] == "r1-control"
+    assert result["event_mode"] == "LOCAL_EXPLICIT_BASE_HEAD_NO_GITHUB_EVENT"
+    assert result["task_ids"] == ["task-1", "task-2", "task-3"]
+    assert result["comparison"]["trace_bytes_delta_https_minus_http"] == 15_000
+    assert len(calls) == 2 and [call["_transport"] for call in calls] == ["http", "https"]
+    assert all(call["_prepared"] is prepared for call in calls)
+    assert calls[0]["_environment_override"] == calls[1]["_environment_override"]
+    assert calls[0]["_ssl_context"] is None and calls[1]["_ssl_context"] is not None
+
+    https["transport_payload_hashes"] = {**https["transport_payload_hashes"], "native_claim": {"request_sha256": "f" * 64}}
+    result = diagnostic.run_transport_pair(cli, workdir=tmp_path)
+    assert result["pair_state"] == "INCOMPLETE"
+    assert result["comparison"] is None
+
+
+def test_transport_pair_requires_verified_local_tls_certificate_and_explicit_failure(tmp_path, monkeypatch):
+    if diagnostic.shutil.which("openssl") is None:
+        pytest.skip("openssl unavailable for the local TLS fixture")
+    cert, key, cert_hash = diagnostic._write_loopback_certificate(tmp_path)
+    assert cert_hash == diagnostic.hashlib.sha256(cert.read_bytes()).hexdigest()
+    assert key.stat().st_mode & 0o777 == 0o600
+    server_context = diagnostic._transport_server_context(cert, key)
+    client_context = ssl.create_default_context(cafile=str(cert))
+    client_in, client_out = ssl.MemoryBIO(), ssl.MemoryBIO()
+    server_in, server_out = ssl.MemoryBIO(), ssl.MemoryBIO()
+    client = client_context.wrap_bio(
+        client_in, client_out, server_side=False, server_hostname="127.0.0.1"
+    )
+    server = server_context.wrap_bio(server_in, server_out, server_side=True)
+    client_done = server_done = False
+    for _ in range(20):
+        for endpoint, outgoing, opposite_incoming in (
+            (client, client_out, server_in),
+            (server, server_out, client_in),
+        ):
+            if endpoint is client and client_done or endpoint is server and server_done:
+                continue
+            try:
+                endpoint.do_handshake()
+                if endpoint is client:
+                    client_done = True
+                else:
+                    server_done = True
+            except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                pass
+            pending = outgoing.read()
+            if pending:
+                opposite_incoming.write(pending)
+        if client_done and server_done:
+            break
+    assert client_done and server_done
+    assert client.getpeercert().get("subjectAltName")
+
+    monkeypatch.setattr(diagnostic.shutil, "which", lambda _name: None)
+    with pytest.raises(RuntimeError, match="transport_tls_openssl_unavailable"):
+        diagnostic._write_loopback_certificate(tmp_path / "no-openssl")
+
+
+def test_transport_pair_cli_is_opt_in_and_mutually_exclusive(monkeypatch, capsys):
+    monkeypatch.setattr(diagnostic, "run_transport_pair", lambda *_args, **_kwargs: {"pair_state": "COMPLETE"})
+    assert diagnostic.main(["--cli", "/unused", "--transport-pair"]) == 0
+    row = json.loads(capsys.readouterr().out)
+    assert row == {"pair_state": "COMPLETE"}
+    with pytest.raises(SystemExit):
+        diagnostic.main(["--cli", "/unused", "--transport-pair", "--candidate-cardinality-pair"])
+    assert diagnostic.main(["--cli", "/unused", "--transport-pair", "--no-observer"]) == 2
+    assert json.loads(capsys.readouterr().out)["error_type"] == "ValueError"

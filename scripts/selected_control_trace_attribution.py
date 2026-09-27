@@ -15,10 +15,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import ssl
+import subprocess
 import sys
 import tempfile
 import threading
 import time
+import urllib.parse
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -38,6 +42,7 @@ from pr_review_harness.injection_trials import invoke_cli_bounded, prepare_suite
 from pr_review_harness.planner import plan_review  # noqa: E402
 from pr_review_harness.selected_model_trial import (  # noqa: E402
     CASE_IDS,
+    MAX_CLAIM_ASSESSMENTS_PER_RUN,
     _command,
     _limits,
     _runtime_provenance,
@@ -47,6 +52,7 @@ from pr_review_harness.selected_model_trial import (  # noqa: E402
 MAX_HTTP_REQUEST_BYTES = 64_000
 MAX_HTTP_RESPONSE_BYTES = 32_768
 MAX_SUMMARY_BYTES = 65_536
+TRANSPORT_PAIR_DEADLINE_SECONDS = 660
 DIAGNOSTIC_CONTRACT_VERSION = "selected-control-trace-attribution.v4"
 CARDINALITY_PAIR_CONTRACT_VERSION = "selected-control-candidate-cardinality-pair.v2"
 FAKE_PROVIDER_KEY = "loopback-only-synthetic-key"
@@ -358,6 +364,7 @@ def _write_json_response(
     _increment(handler.server.counters, f"{response_stage}_response_writes_completed")
     if getattr(handler.server, "measure_payload_bytes", False):
         _increment_by(handler.server.counters, f"response_body_bytes_{response_stage}", len(encoded))
+        handler.server.record_payload(response_stage, "response", len(encoded), hashlib.sha256(encoded).hexdigest())
     return True
 
 
@@ -372,6 +379,7 @@ def _request_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     if len(raw) != length:
         raise ValueError("request_truncated")
     handler._diagnostic_request_body_bytes = length
+    handler._diagnostic_request_body_sha256 = hashlib.sha256(raw).hexdigest()
     value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("request_not_object")
@@ -586,14 +594,28 @@ class _FakeServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
 
-    def __init__(self, address):
+    def __init__(self, address, *, ssl_context: ssl.SSLContext | None = None):
         self.counters = _CallCounters()
         self.primary_response_delay_seconds = 0.0
         self.candidate_cardinality = 1
         self.measure_payload_bytes = False
+        self.payload_hashes: dict[str, dict[str, Any]] = {}
         self._active_handlers = 0
         self._idle_condition = threading.Condition()
         super().__init__(address, self.handler_type())
+        if ssl_context is not None:
+            self.socket = ssl_context.wrap_socket(self.socket, server_side=True)
+
+    def record_payload(self, stage: str, direction: str, size: int, digest: str) -> None:
+        if direction not in {"request", "response"} or not isinstance(stage, str):
+            raise ValueError("payload_receipt_invalid")
+        with self.counters.lock:
+            row = self.payload_hashes.setdefault(stage, {})
+            if direction in row:
+                row[direction + "_duplicate_count"] = row.get(direction + "_duplicate_count", 0) + 1
+                return
+            row[direction + "_bytes"] = size
+            row[direction + "_sha256"] = digest
 
     def handler_started(self) -> None:
         with self._idle_condition:
@@ -666,6 +688,12 @@ class _FakeServer(ThreadingHTTPServer):
                             counters,
                             f"request_body_bytes_{response_stage}",
                             self._diagnostic_request_body_bytes,
+                        )
+                        self.server.record_payload(
+                            response_stage,
+                            "request",
+                            self._diagnostic_request_body_bytes,
+                            self._diagnostic_request_body_sha256,
                         )
                     delay = self.server.primary_response_delay_seconds if response_stage.startswith("primary_") else 0.0
                     if delay:
@@ -1189,6 +1217,13 @@ def run(
     workdir: Path | None = None,
     observe: bool = True,
     primary_response_delay_seconds: float = 0.0,
+    _prepared: Any | None = None,
+    _work_root: Path | None = None,
+    _output_name: str = "cli-output",
+    _transport: str = "http",
+    _ssl_context: ssl.SSLContext | None = None,
+    _ssl_cert_file: Path | None = None,
+    _environment_override: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if (
         isinstance(primary_response_delay_seconds, bool)
@@ -1196,6 +1231,22 @@ def run(
         or not 0 <= primary_response_delay_seconds <= 15
     ):
         raise ValueError("primary_response_delay_invalid")
+    if _transport not in {"http", "https"} or _output_name not in {
+        "cli-output", "cli-output-http", "cli-output-https"
+    }:
+        raise ValueError("transport_arm_configuration_invalid")
+    if (_transport == "https") != (_ssl_context is not None):
+        raise ValueError("transport_tls_context_mismatch")
+    if _ssl_cert_file is not None and (
+        _ssl_cert_file.is_symlink() or not _ssl_cert_file.is_file()
+        or _ssl_cert_file.stat().st_size > 65_536
+    ):
+        raise ValueError("transport_trust_input_invalid")
+    if _environment_override is not None:
+        expected_env = _environment()
+        expected_env["SSL_CERT_FILE"] = str(_ssl_cert_file) if _ssl_cert_file is not None else expected_env.get("SSL_CERT_FILE", "")
+        if _environment_override != expected_env:
+            raise ValueError("transport_environment_not_isolated")
     cli = cli.resolve(strict=True)
     runtime = _runtime_provenance(cli, ROOT)
     fingerprint = runtime.get("source_fingerprint", {})
@@ -1210,17 +1261,20 @@ def run(
     }
     if not runtime_modules:
         raise RuntimeError("runtime_module_inventory_missing")
-    work_root = Path(tempfile.mkdtemp(prefix="selected-control-trace-", dir=workdir))
-    os.chmod(work_root, 0o700)
-    server = _FakeServer(("127.0.0.1", 0))
+    owns_work_root = _work_root is None
+    work_root = Path(tempfile.mkdtemp(prefix="selected-control-trace-", dir=workdir)) if owns_work_root else _work_root
+    assert work_root is not None
+    if owns_work_root:
+        os.chmod(work_root, 0o700)
+    server = _FakeServer(("127.0.0.1", 0), ssl_context=_ssl_context)
+    server.measure_payload_bytes = _environment_override is not None
     server.primary_response_delay_seconds = float(primary_response_delay_seconds)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     try:
         thread.start()
         port = server.server_address[1]
-        fixture_root = work_root / "fixture-suite"
-        prepared = prepare_suite(
-            fixture_root,
+        prepared = _prepared or prepare_suite(
+            work_root / "fixture-suite",
             suite_path=ROOT / "examples/injection/fixture-suite.v2.json",
             repo_support_root=ROOT,
             repetitions=1,
@@ -1238,12 +1292,12 @@ def run(
         limits_path = work_root / "limits.json"
         provider_path = work_root / "provider.json"
         decision_path = work_root / "decision.json"
-        output_path = work_root / "cli-output"
+        output_path = work_root / _output_name
         _write_limits(limits_path)
         provider_path.write_text(
             json.dumps(
                 {"kind": "openai_compatible", "provider_id": "operator_openai_compatible",
-                 "base_url": f"http://127.0.0.1:{port}/v1", "model": FAKE_MODEL,
+                 "base_url": f"{_transport}://127.0.0.1:{port}/v1", "model": FAKE_MODEL,
                  "api_key_env": "LLM_API_KEY"},
                 sort_keys=True,
             ) + "\n",
@@ -1251,7 +1305,7 @@ def run(
         )
         decision_path.write_text(
             json.dumps(
-                {"kind": "typesafe", "endpoint": f"http://127.0.0.1:{port}/v1/systemone",
+                {"kind": "typesafe", "endpoint": f"{_transport}://127.0.0.1:{port}/v1/systemone",
                  "model": JEV_ALIAS, "api_key_env": "JEV_API_KEY"},
                 sort_keys=True,
             ) + "\n",
@@ -1263,17 +1317,18 @@ def run(
         command = _command(
             cli, case, profile_path, limits_path, output_path, provider_path, decision_path, dry_run=False
         )
+        child_env = _environment_override if _environment_override is not None else _environment()
         if observe and sys.platform.startswith("linux"):
             observed, attribution = _attributed_observation(
                 command,
                 cwd=work_root,
-                env=_environment(),
+                env=child_env,
                 timeout=300,
                 roots=_path_roots(cli=cli, work_root=work_root, repo_support=ROOT),
             )
             observer_mode = "LINUX_STRACE"
         else:
-            observed = invoke_cli_bounded(command, cwd=work_root, env=_environment(), timeout_seconds=300)
+            observed = invoke_cli_bounded(command, cwd=work_root, env=child_env, timeout_seconds=300)
             attribution = {
                 "state": "UNKNOWN",
                 "trace_bytes": None,
@@ -1367,7 +1422,7 @@ def run(
             and candidate_count == 1
             else "INCOMPLETE"
         )
-        return {
+        result = {
             "contract_version": DIAGNOSTIC_CONTRACT_VERSION,
             "fixture_case": "r1-control",
             "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
@@ -1417,19 +1472,421 @@ def run(
             "claim_assessment_rows": len(claim_rows) if isinstance(claim_rows, list) else None,
             "claim_assessment_statuses": claim_statuses,
             "native_advisory_status": advisory_status,
-            "configured_transport": "HTTP_LOOPBACK_FAKE",
+            "configured_transport": "HTTPS_LOOPBACK_FAKE" if _transport == "https" else "HTTP_LOOPBACK_FAKE",
             "provider_adapter_defaults_preserved": True,
             "target_execution_requested": False,
             "reviewed_code_execution_observation": "UNKNOWN",
             "quality_or_https_trace_parity_claim": False,
         }
+        if _environment_override is not None:
+            result["transport_payload_hashes"] = {
+                stage: dict(sorted(values.items()))
+                for stage, values in sorted(server.payload_hashes.items())
+            }
+            provider_bytes = provider_path.read_bytes()
+            decision_bytes = decision_path.read_bytes()
+            provider_config = json.loads(provider_bytes)
+            decision_config = json.loads(decision_bytes)
+            normalized_provider = {
+                **provider_config,
+                "base_url": _normalized_loopback_endpoint(provider_config.get("base_url")),
+            }
+            normalized_decision = {
+                **decision_config,
+                "endpoint": _normalized_loopback_endpoint(decision_config.get("endpoint")),
+            }
+            normalized_config = {"provider": normalized_provider, "decision": normalized_decision}
+            result["provider_config_sha256"] = hashlib.sha256(provider_bytes).hexdigest()
+            result["decision_config_sha256"] = hashlib.sha256(decision_bytes).hexdigest()
+            result["normalized_transport_config_sha256"] = hashlib.sha256(canonical_json(normalized_config)).hexdigest()
+            result["run_id"] = case.case_id
+            result["event_mode"] = "LOCAL_EXPLICIT_BASE_HEAD_NO_GITHUB_EVENT"
+            result["event_identity"] = None
+            result["task_ids"] = [task.get("task_id") for task in plan.get("tasks", [])]
+        return result
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
-        # These inputs and the private durable result contain only synthetic data.
-        import shutil
+        if owns_work_root:
+            # These inputs and the private durable result contain only synthetic data.
+            shutil.rmtree(work_root, ignore_errors=True)
 
+
+def _write_loopback_certificate(work_root: Path) -> tuple[Path, Path, str]:
+    """Create a short-lived self-signed loopback CA/server certificate without shell use."""
+    openssl = shutil.which("openssl")
+    if not openssl:
+        raise RuntimeError("transport_tls_openssl_unavailable")
+    key_path = work_root / "loopback-private.key"
+    cert_path = work_root / "loopback-ca.pem"
+    try:
+        subprocess.run(
+            [
+                openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                "-keyout", str(key_path), "-out", str(cert_path), "-subj", "/CN=127.0.0.1",
+                "-addext", "subjectAltName=IP:127.0.0.1",
+                "-addext", "basicConstraints=critical,CA:TRUE",
+                "-addext", "keyUsage=critical,digitalSignature,keyCertSign,cRLSign",
+                "-addext", "extendedKeyUsage=serverAuth",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=True,
+            env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(work_root)},
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise RuntimeError("transport_tls_certificate_generation_failed") from None
+    for path in (key_path, cert_path):
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65_536:
+            raise RuntimeError("transport_tls_certificate_output_invalid")
+    os.chmod(key_path, 0o600)
+    os.chmod(cert_path, 0o600)
+    return cert_path, key_path, hashlib.sha256(cert_path.read_bytes()).hexdigest()
+
+
+def _normalized_loopback_endpoint(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("transport_endpoint_invalid")
+    parsed = urllib.parse.urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.hostname != "127.0.0.1"
+        or parsed.username or parsed.password or parsed.fragment
+        or parsed.port is None
+    ):
+        raise ValueError("transport_endpoint_invalid")
+    return urllib.parse.urlunsplit(("transport", "loopback", parsed.path, parsed.query, ""))
+
+
+def _transport_server_context(cert_path: Path, key_path: Path) -> ssl.SSLContext:
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
+    return context
+
+
+def _transport_pair_complete(arm: Any) -> bool:
+    if not isinstance(arm, dict):
+        return False
+    trace = arm.get("trace_attribution")
+    trace_bytes = trace.get("trace_bytes") if isinstance(trace, dict) else None
+    expected_stages = {
+        name: 1
+        for name in (
+            "primary_correctness_received", "primary_security_received", "primary_tests_received",
+            "semantic_adjudication_received", "native_claim_received", "native_summary_received",
+            "primary_correctness_response_writes_completed", "primary_security_response_writes_completed",
+            "primary_tests_response_writes_completed", "semantic_adjudication_response_writes_completed",
+            "native_claim_response_writes_completed", "native_summary_response_writes_completed",
+        )
+    }
+    return (
+        arm.get("observer_mode") == "LINUX_STRACE"
+        and arm.get("observer_coverage") == "SCOPED_COMPLETE"
+        and arm.get("observer_reason") is None
+        and isinstance(trace, dict)
+        and trace.get("state") == "COMPLETE"
+        and isinstance(trace_bytes, int)
+        and not isinstance(trace_bytes, bool)
+        and 0 <= trace_bytes < observer.TRACE_MAX_BYTES
+        and arm.get("protocol_exchange_state") == "SERVER_WRITES_SETTLED"
+        and arm.get("protocol_stage_counts") == expected_stages
+        and arm.get("http_requests_received") == 6
+        and arm.get("server_response_writes_completed") == 6
+        and arm.get("fake_server_handlers_settled") is True
+        and arm.get("fake_server_active_handlers_at_snapshot") == 0
+        and arm.get("synthetic_protocol_path_state") == "COMPLETE"
+        and arm.get("coverage_state") == "COMPLETE"
+        and arm.get("claim_assessment_statuses") == ["COMPLETE"]
+        and arm.get("native_advisory_status") == "RECEIVED"
+        and isinstance(arm.get("primary_task_statuses"), list)
+        and len(arm["primary_task_statuses"]) == 3
+        and all(
+            isinstance(task, dict) and task.get("status") == "SUCCEEDED"
+            for task in arm["primary_task_statuses"]
+        )
+        and arm.get("cli_invocation_status") == "CLI_COMPLETED"
+        and arm.get("cli_exit_code") == 0
+        and arm.get("cli_result_present") is True
+        and arm.get("candidate_count") == 1
+        and arm.get("unexpected_task_result_count") == 0
+        and _transport_payload_identity_complete(arm.get("transport_payload_hashes"))
+    )
+
+
+def _transport_payload_identity_complete(value: Any) -> bool:
+    stages = {
+        "primary_correctness", "primary_security", "primary_tests",
+        "semantic_adjudication", "native_claim", "native_summary",
+    }
+    if not isinstance(value, dict) or set(value) != stages:
+        return False
+    for row in value.values():
+        if not isinstance(row, dict) or set(row) != {
+            "request_bytes", "request_sha256", "response_bytes", "response_sha256"
+        }:
+            return False
+        for size_key, cap in (("request_bytes", MAX_HTTP_REQUEST_BYTES), ("response_bytes", MAX_HTTP_RESPONSE_BYTES)):
+            size = row.get(size_key)
+            if isinstance(size, bool) or not isinstance(size, int) or not 0 < size <= cap:
+                return False
+        for hash_key in ("request_sha256", "response_sha256"):
+            digest = row.get(hash_key)
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                return False
+    return True
+
+
+def _transport_arm_projection(arm: dict[str, Any]) -> dict[str, Any]:
+    fields = (
+        "configured_transport", "trace_attribution", "observer_mode", "observer_coverage", "observer_reason",
+        "protocol_exchange_state", "protocol_stage_counts", "http_requests_received",
+        "server_response_writes_completed", "fake_server_handlers_settled",
+        "fake_server_active_handlers_at_snapshot", "synthetic_protocol_path_state", "primary_task_statuses",
+        "cli_invocation_status", "cli_exit_code", "cli_result_present", "coverage_state",
+        "claim_assessment_statuses", "native_advisory_status", "candidate_count", "unexpected_task_result_count",
+        "transport_payload_hashes", "provider_config_sha256", "decision_config_sha256",
+        "normalized_transport_config_sha256",
+        "run_id", "event_mode", "event_identity", "task_ids", "snapshot_id", "snapshot_hash",
+    )
+    return {key: arm.get(key) for key in fields}
+
+
+def _diagnostic_checkout_identity() -> dict[str, Any]:
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5, check=True,
+        ).stdout.decode("ascii").strip()
+        dirty_result = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--quiet", "HEAD", "--", "scripts/selected_control_trace_attribution.py"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise RuntimeError("diagnostic_source_identity_unavailable") from None
+    if not re.fullmatch(r"[0-9a-f]{40}", head) or dirty_result.returncode not in {0, 1}:
+        raise RuntimeError("diagnostic_source_identity_invalid")
+    return {
+        "diagnostic_head_sha": head,
+        "diagnostic_script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "diagnostic_script_differs_from_head": dirty_result.returncode == 1,
+    }
+
+
+def run_transport_pair(
+    cli: Path,
+    *,
+    workdir: Path | None = None,
+    observe: bool = True,
+) -> dict[str, Any]:
+    """Run one fixed HTTP control; try one TLS arm only after complete HTTP evidence."""
+    started = time.monotonic()
+    deadline = started + TRANSPORT_PAIR_DEADLINE_SECONDS
+    if not observe or not sys.platform.startswith("linux"):
+        raise ValueError("transport_pair_requires_linux_observer")
+    cli = cli.resolve(strict=True)
+    runtime = _runtime_provenance(cli, ROOT)
+    fingerprint = runtime.get("source_fingerprint", {})
+    source_hashes = fingerprint.get("file_hashes", {}) if isinstance(fingerprint, dict) else {}
+    module_hashes = {
+        name.removeprefix("src/"): digest
+        for name, digest in sorted(source_hashes.items())
+        if isinstance(name, str) and name.startswith("src/pr_review_harness/")
+        and name.endswith(".py") and isinstance(digest, str)
+    }
+    if len(module_hashes) != 28:
+        raise RuntimeError("runtime_module_inventory_invalid")
+    checkout_identity = _diagnostic_checkout_identity()
+    work_root = Path(tempfile.mkdtemp(prefix="selected-control-transport-", dir=workdir))
+    os.chmod(work_root, 0o700)
+    try:
+        prepared = prepare_suite(
+            work_root / "fixture-suite",
+            suite_path=ROOT / "examples/injection/fixture-suite.v2.json",
+            repo_support_root=ROOT,
+            repetitions=1,
+            limits=_limits(),
+        )
+        selected_case_ids = tuple(case.case_id for case in prepared.cases if case.case_id in CASE_IDS)
+        if selected_case_ids != CASE_IDS:
+            raise RuntimeError("fixed_case_order_mismatch")
+        case = next(case for case in prepared.cases if case.case_id == "r1-control")
+        plan = plan_review(case.snapshot, prepared.profile, "AUTO")
+        tasks = plan.get("tasks") if isinstance(plan, dict) else None
+        lenses = [task.get("lens") for task in tasks] if isinstance(tasks, list) else []
+        if len(lenses) != 3 or set(lenses) != {"correctness", "security", "tests"}:
+            raise RuntimeError("fixed_control_scope_mismatch")
+        cert_path, key_path, cert_sha256 = _write_loopback_certificate(work_root)
+        child_env = _environment()
+        child_env["SSL_CERT_FILE"] = str(cert_path)
+        common = {
+            "workdir": workdir,
+            "observe": True,
+            "primary_response_delay_seconds": 0.0,
+            "_prepared": prepared,
+            "_work_root": work_root,
+            "_ssl_cert_file": cert_path,
+            "_environment_override": child_env,
+        }
+        if deadline - time.monotonic() <= 600 + observer.CLEANUP_GRACE_SECONDS:
+            return {
+                "contract_version": "selected-control-transport-pair.v1",
+                "pair_state": "INCOMPLETE",
+                "reason": "PAIR_SETUP_EXHAUSTED_ARM_BUDGET",
+                **checkout_identity,
+                "runtime_source_commit": fingerprint.get("git_revision") if isinstance(fingerprint, dict) else None,
+                "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
+                "runtime_module_count": len(module_hashes),
+                "fixture_suite_sha256": prepared.suite_sha256,
+                "generated_profile_sha256": hashlib.sha256(prepared.profile_path.read_bytes()).hexdigest(),
+                "run_id": case.case_id,
+                "event_mode": "LOCAL_EXPLICIT_BASE_HEAD_NO_GITHUB_EVENT",
+                "snapshot_id": case.snapshot.get("snapshot_id"),
+                "snapshot_hash": case.snapshot.get("snapshot_hash"),
+                "task_ids": [task.get("task_id") for task in tasks],
+                "arms": [
+                    {"configured_transport": "HTTP_LOOPBACK_FAKE", "state": "NOT_RUN_PAIR_DEADLINE"},
+                    {"configured_transport": "HTTPS_LOOPBACK_FAKE", "state": "NOT_RUN_PAIR_DEADLINE"},
+                ],
+                "tls_private_material_in_receipt": False,
+                "external_provider_dispatch_requested": False,
+                "target_execution_requested": False,
+                "quality_or_https_trace_parity_claim": False,
+            }
+        http_arm = run(
+            cli,
+            _output_name="cli-output-http",
+            _transport="http",
+            _ssl_context=None,
+            **common,
+        )
+        arms = [{"state": "COMPLETE" if _transport_pair_complete(http_arm) else "INCOMPLETE",
+                 **_transport_arm_projection(http_arm)}]
+        if not _transport_pair_complete(http_arm):
+            arms.append({"configured_transport": "HTTPS_LOOPBACK_FAKE", "state": "NOT_RUN_HTTP_BASELINE_INCOMPLETE"})
+            return {
+                "contract_version": "selected-control-transport-pair.v1",
+                "pair_state": "INCOMPLETE",
+                "reason": "HTTP_BASELINE_INCOMPLETE_TLS_NOT_RUN",
+                **checkout_identity,
+                "runtime_source_commit": fingerprint.get("git_revision") if isinstance(fingerprint, dict) else None,
+                "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
+                "runtime_module_count": len(module_hashes),
+                "runtime_module_hashes": module_hashes,
+                "fixture_suite_sha256": prepared.suite_sha256,
+                "generated_profile_sha256": hashlib.sha256(prepared.profile_path.read_bytes()).hexdigest(),
+                "base_sha": case.base_sha,
+                "head_sha": case.head_sha,
+                "run_id": case.case_id,
+                "event_mode": "LOCAL_EXPLICIT_BASE_HEAD_NO_GITHUB_EVENT",
+                "snapshot_id": case.snapshot.get("snapshot_id"),
+                "snapshot_hash": case.snapshot.get("snapshot_hash"),
+                "task_ids": [task.get("task_id") for task in tasks],
+                "observer_id": observer.OBSERVER_ID,
+                "syscall_scope": observer.SYSCALL_SCOPE,
+                "trace_cap_bytes": observer.TRACE_MAX_BYTES,
+                "arms": arms,
+                "tls_private_material_in_receipt": False,
+                "external_provider_dispatch_requested": False,
+                "target_execution_requested": False,
+                "quality_or_https_trace_parity_claim": False,
+                "live_failure_cause_claim": False,
+            }
+        remaining = deadline - time.monotonic()
+        if remaining <= 300 + observer.CLEANUP_GRACE_SECONDS:
+            arms.append({"configured_transport": "HTTPS_LOOPBACK_FAKE", "state": "NOT_RUN_PAIR_DEADLINE"})
+            pair_state = "INCOMPLETE"
+            reason = "PAIR_DEADLINE_EXHAUSTED"
+            https_arm = None
+        else:
+            tls_context = _transport_server_context(cert_path, key_path)
+            https_arm = run(
+                cli,
+                _output_name="cli-output-https",
+                _transport="https",
+                _ssl_context=tls_context,
+                **common,
+            )
+            arms.append({"state": "COMPLETE" if _transport_pair_complete(https_arm) else "INCOMPLETE",
+                         **_transport_arm_projection(https_arm)})
+            shared_fields = (
+                "runtime_tree_sha256", "runtime_source_commit", "runtime_source_tree_dirty",
+                "runtime_module_hashes", "diagnostic_script_sha256", "fixture_suite_sha256",
+                "generated_profile_sha256", "limits_sha256", "base_sha", "head_sha",
+                "snapshot_id", "snapshot_hash", "task_lenses", "run_id", "event_mode",
+                "event_identity", "task_ids", "primary_task_statuses", "observer_id",
+                "observer_source_sha256", "strace_version", "strace_executable_sha256",
+                "syscall_scope", "trace_cap_bytes",
+            )
+            input_identity_match = all(http_arm.get(key) == https_arm.get(key) for key in shared_fields)
+            body_identity_match = http_arm.get("transport_payload_hashes") == https_arm.get("transport_payload_hashes")
+            normalized_config_match = http_arm.get("normalized_transport_config_sha256") == https_arm.get("normalized_transport_config_sha256")
+            both_complete = _transport_pair_complete(https_arm)
+            pair_state = "COMPLETE" if both_complete and input_identity_match and body_identity_match and normalized_config_match else "INCOMPLETE"
+            reason = None if pair_state == "COMPLETE" else "TLS_ARM_OR_IDENTITY_INCOMPLETE"
+        comparison = None
+        if https_arm is not None and pair_state == "COMPLETE":
+            http_trace = http_arm.get("trace_attribution", {})
+            tls_trace = https_arm.get("trace_attribution", {})
+            http_syscall_bytes = http_trace.get("bytes_by_syscall", {})
+            tls_syscall_bytes = tls_trace.get("bytes_by_syscall", {})
+            comparison = {
+                "input_identity_match": input_identity_match,
+                "request_response_body_hashes_match": body_identity_match,
+                "normalized_endpoint_config_match": normalized_config_match,
+                "http_trace_bytes": http_trace.get("trace_bytes"),
+                "https_trace_bytes": tls_trace.get("trace_bytes"),
+                "trace_bytes_delta_https_minus_http": tls_trace.get("trace_bytes", 0) - http_trace.get("trace_bytes", 0),
+                "trace_bytes_by_syscall_delta_https_minus_http": {
+                    label: tls_syscall_bytes.get(label, 0) - http_syscall_bytes.get(label, 0)
+                    for label in sorted(set(http_syscall_bytes) | set(tls_syscall_bytes))
+                },
+            }
+        return {
+            "contract_version": "selected-control-transport-pair.v1",
+            "pair_state": pair_state,
+            "reason": reason,
+            **checkout_identity,
+            "runtime_source_commit": fingerprint.get("git_revision") if isinstance(fingerprint, dict) else None,
+            "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
+            "runtime_module_count": len(module_hashes),
+            "runtime_module_hashes": module_hashes,
+            "fixture_suite_sha256": prepared.suite_sha256,
+            "generated_profile_sha256": hashlib.sha256(prepared.profile_path.read_bytes()).hexdigest(),
+            "base_sha": case.base_sha,
+            "head_sha": case.head_sha,
+            "run_id": case.case_id,
+            "event_mode": "LOCAL_EXPLICIT_BASE_HEAD_NO_GITHUB_EVENT",
+            "snapshot_id": case.snapshot.get("snapshot_id"),
+            "snapshot_hash": case.snapshot.get("snapshot_hash"),
+            "task_ids": [task.get("task_id") for task in tasks],
+            "task_lenses": lenses,
+            "observer_id": observer.OBSERVER_ID,
+            "observer_source_sha256": observer._source_sha256(),
+            "syscall_scope": observer.SYSCALL_SCOPE,
+            "trace_cap_bytes": observer.TRACE_MAX_BYTES,
+            "limits": {key: _limits().get(key) for key in (
+                "max_provider_calls", "max_retries_per_task", "max_input_bytes_per_task",
+                "max_output_bytes_per_task", "deadline_seconds",
+            )} | {"max_claim_assessments_per_run": MAX_CLAIM_ASSESSMENTS_PER_RUN},
+            "observer_timeout_seconds_per_arm": 300,
+            "pair_deadline_seconds": TRANSPORT_PAIR_DEADLINE_SECONDS,
+            "primary_response_delay_seconds": 0,
+            "tls_ca_sha256": cert_sha256,
+            "tls_private_material_in_receipt": False,
+            "tls_verification_disabled": False,
+            "arms": arms,
+            "comparison": comparison,
+            "external_provider_dispatch_requested": False,
+            "target_execution_requested": False,
+            "quality_or_https_trace_parity_claim": False,
+            "live_failure_cause_claim": False,
+        }
+    finally:
         shutil.rmtree(work_root, ignore_errors=True)
 
 
@@ -1707,16 +2164,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cli", type=Path, required=True, help="exact installed pr-review executable")
     parser.add_argument("--workdir", type=Path, help="optional parent for private temporary fixture files")
     parser.add_argument("--no-observer", action="store_true", help="run the normal CLI without syscall attribution")
-    parser.add_argument(
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
         "--candidate-cardinality-pair",
         action="store_true",
         help="run paired one- and two-candidate synthetic control arms on one prepared snapshot",
+    )
+    modes.add_argument(
+        "--transport-pair",
+        action="store_true",
+        help="run one fixed HTTP control and a single TLS arm only if its complete trace is eligible",
     )
     parser.add_argument("--primary-response-delay-seconds", type=float, default=0.0,
                         help="optional delay for primary specialist responses only (0..15 seconds; native responses remain immediate)")
     args = parser.parse_args(argv)
     try:
-        if args.candidate_cardinality_pair:
+        if args.transport_pair:
+            if args.primary_response_delay_seconds != 0 or args.no_observer:
+                raise ValueError("transport_pair_rejects_delay_or_missing_observer")
+            result = run_transport_pair(args.cli, workdir=args.workdir, observe=True)
+        elif args.candidate_cardinality_pair:
             if args.primary_response_delay_seconds != 0:
                 raise ValueError("cardinality_pair_rejects_response_delay")
             result = run_candidate_cardinality_pair(
@@ -1735,7 +2202,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.buffer.write(encoded)
         completed = (
             result.get("pair_state") == "COMPLETE"
-            if args.candidate_cardinality_pair
+            if args.candidate_cardinality_pair or args.transport_pair
             else result.get("cli_invocation_status") == "CLI_COMPLETED"
         )
         return 0 if within_limit and completed else 2
