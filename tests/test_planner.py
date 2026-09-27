@@ -61,10 +61,22 @@ def test_profile_check_with_no_matching_path_is_explicitly_not_applicable():
         {
             "obligation_id": "check:portal",
             "obligation_kind": "PROJECT_CHECK",
-            "reason": "portal",
+            "reason": "configured_path_patterns_did_not_match",
+            "profile_rationale": "portal",
             "state": "NOT_APPLICABLE",
         }
     ]
+
+
+def test_slopsearx_lockfile_does_not_match_portal_check_paths():
+    profile = json.loads((Path(__file__).resolve().parents[1] / "profiles/slopsearx.json").read_text())
+    plan = plan_review(snapshot([unit("requirements", "requirements-dev.txt", "configuration")]), profile)
+    assert {row["obligation_id"] for row in plan["not_applicable"]} == {
+        "check:portal-impact-evidence",
+        "check:portal-browser-evidence",
+    }
+    assert all(row["reason"] == "configured_path_patterns_did_not_match" for row in plan["not_applicable"])
+    assert all(row["profile_rationale"].startswith("Base AGENTS requires portal impact") for row in plan["not_applicable"])
 
 
 def test_unknown_and_unclassified_change_cannot_be_routed_light():

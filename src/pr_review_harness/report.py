@@ -140,7 +140,11 @@ def render_report(result: dict) -> str:
         if len(unresolved) > 8:
             lines.append(f"- {len(unresolved) - 8} more unresolved obligations are retained in the durable result.")
     for entry in result.get("not_applicable", []):
-        lines.append(f"- {safe(entry.get('obligation_id'))}: NOT_APPLICABLE ({safe(entry.get('reason'))})")
+        line = f"- {safe(entry.get('obligation_id'))}: NOT_APPLICABLE ({safe(entry.get('reason'))})"
+        rationale = entry.get("profile_rationale")
+        if rationale:
+            line += f"; profile rationale: {safe(rationale)}"
+        lines.append(line)
     for gap in result.get("context_gaps", []):
         proposal = gap.get("proposal", {})
         lines.append(

@@ -251,6 +251,20 @@ def test_engine_check_coverage_preserves_actual_ingested_binding_evidence(tmp_pa
         assert rows[binding_id]["evidence_refs"] == [evidence_id]
 
 
+def test_matching_required_check_with_missing_evidence_is_unknown_and_partial(tmp_path):
+    snapshot, profile, plan, limits = _fixture_engine_inputs()
+    snapshot["external_check_results"] = {}
+
+    result = _run_engine(snapshot, profile, plan, limits, tmp_path)
+
+    check_rows = [row for row in result["coverage_ledger"] if row["obligation_kind"] == "PROJECT_CHECK"]
+    assert len(check_rows) == 2
+    assert all(row["state"] == "PARTIAL" for row in check_rows)
+    assert all(row["reason_code"] == "CHECK_RESULT_UNAVAILABLE" for row in check_rows)
+    assert all(row["evidence_refs"] == [] for row in check_rows)
+    assert result["coverage_state"] == "PARTIAL"
+
+
 @pytest.mark.parametrize("mismatch", ["cross_binding", "missing_snapshot_evidence", "missing_reference"])
 def test_engine_check_coverage_rejects_unbound_or_missing_ingested_evidence(tmp_path, mismatch):
     snapshot, profile, plan, limits = _fixture_engine_inputs()
