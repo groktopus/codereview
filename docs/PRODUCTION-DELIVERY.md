@@ -2,6 +2,8 @@
 
 Authority: the owner's 2026-09-26 instruction to deliver end to end using Luna-pinned execution. This extends `docs/design/SPEC.md`; it retains its 39 acceptance criteria (AC-001–AC-039), 12 nonfunctional requirements (NFR-001–NFR-012), six milestones, and unresolved owner decisions.
 
+For the newer dated evidence snapshot, see [CURRENT-STATUS.md](CURRENT-STATUS.md). The historical checkpoints below remain preserved and are not a claim about the current candidate.
+
 **Current decision: not accepted as a Droid replacement.** A hosted read-only reusable PR 477 invocation completed on caller `a7247e5` and callee `8052da9`, but ended `PARTIAL` / `INCOMPLETE`. A later three-case selected-model trial (run 36300274410) exercised per-candidate Jev assessment: all six claim rows completed and candidate bindings matched, while coverage remained PARTIAL and known-blocker semantic adjudication remained UNKNOWN. Hosted installed-wheel recovery rehearsals also completed on PR19 and PR20. These observations establish exercised paths, not review quality, accuracy, publication readiness, or a cutover basis. The observed historical baseline for this evidence set is commit `782bcbdaccf9a2ae11e63b85a92d87752dda8599`; it is not a self-identification of the current edited candidate. See [`PILOT-EVIDENCE.md`](PILOT-EVIDENCE.md) for the run artifacts and [`CURRENT-ACCEPTANCE-TRACE.md`](CURRENT-ACCEPTANCE-TRACE.md) for all 39 ACs, 12 NFRs, and six milestones.
 
 ## Required milestones and proof
