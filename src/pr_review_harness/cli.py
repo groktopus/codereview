@@ -58,6 +58,7 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--event-file", help="GitHub Actions pull_request event JSON (read only)")
     review.add_argument("--effect-policy", choices=["READ_ONLY", "PUBLISH_REVIEW"], default="READ_ONLY")
     review.add_argument("--dry-run", action="store_true")
+    review.add_argument("--prepare-only", action="store_true", help="snapshot and size exact primary requests without provider dispatch")
     review.add_argument(
         "--max-claim-assessments",
         type=int,
@@ -592,6 +593,176 @@ def _run_one(
     except ImportError as exc:
         raise RuntimeError("review core is unavailable") from exc
     plan = plan_review(snapshot, profile, args.mode)
+    if getattr(args, "prepare_only", False):
+        from . import contracts
+        from .engine import _evidence_for, prepare_plan_tasks
+
+        if provider is None or not callable(getattr(provider, "serialize_review_request", None)):
+            raise ValueError("prepare-only requires an exact request serializer")
+        prepared_tasks, skipped = prepare_plan_tasks(snapshot, plan, profile, limits, provider)
+        primary = []
+        for task in prepared_tasks:
+            if task.get("task_kind") != "SPECIALIST_FINDINGS":
+                continue
+            evidence = _evidence_for(task, snapshot, limits["max_input_bytes_per_task"])
+            body = provider.serialize_review_request(task, evidence, limits)
+            primary.append({
+                "task_id": task["task_id"],
+                "lens": task.get("lens"),
+                "unit_ids": list(task.get("unit_ids", [])),
+                "obligation_ids": list(task.get("obligation_ids", [task.get("obligation_id")])),
+                "evidence_ids": [item.get("evidence_id") for item in evidence],
+                "evidence_bindings": [
+                    {
+                        "evidence_id": item.get("evidence_id"),
+                        "path": item.get("path"),
+                        "source_revision": item.get("source_revision"),
+                        "content_hash": item.get("content_hash"),
+                        "source_kind": item.get("source_kind"),
+                        "trust": item.get("trust"),
+                        "content_bytes": len(item.get("content", "").encode("utf-8")) if isinstance(item.get("content"), str) else None,
+                    }
+                    for item in evidence
+                ],
+                "required_context_ids": list(task.get("required_context_ids", [])),
+                "context_omissions": list(task.get("context_omissions", [])),
+                "required_context_omissions": list(task.get("required_context_omissions", [])),
+                "input_bytes": len(body),
+                "input_sha256": _sha256(body),
+                "admitted": len(body) <= limits["max_input_bytes_per_task"],
+                "output_bytes_cap": min(provider.max_response_bytes, limits["max_output_bytes_per_task"]),
+                "output_tokens_cap": min(provider.max_output_tokens, limits["max_output_tokens"]),
+            })
+        primary_calls = len(primary)
+        summary_slots = 1 if decision_provider is not None else 0
+        claim_slots = max_claim_assessments
+        followup_slots = limits.get("max_followup_tasks", 0)
+        semantic_adjudication_supported = (
+            callable(getattr(provider, "adjudicate", None))
+            and "SEMANTIC_ADJUDICATION" in provider.identity.get("supported_primitives", [])
+        )
+        candidate_adjudication_slots = (
+            primary_calls * min(provider.max_output_items, contracts.MAX_ITEMS)
+            if semantic_adjudication_supported else 0
+        )
+        remaining_call_slots_after_primary = max(0, limits["max_provider_calls"] - primary_calls)
+        unit_ids = [u.get("unit_id") for u in snapshot.get("inventory", []) if isinstance(u, dict)]
+        required_unit_count = len(set(unit_ids))
+        covered_units = {uid for task in prepared_tasks if task.get("task_kind") == "SPECIALIST_FINDINGS" for uid in task.get("unit_ids", [])}
+        admitted_obligation_ids = sorted({oid for task in prepared_tasks for oid in task.get("obligation_ids", [task.get("obligation_id")]) if oid})
+        all_obligation_ids = sorted(o.get("obligation_id") for o in plan.get("coverage_obligations", []) if isinstance(o, dict) and o.get("obligation_id"))
+        required_unadmitted = sorted(
+            o.get("obligation_id") for o in plan.get("coverage_obligations", [])
+            if isinstance(o, dict) and o.get("required") is True and o.get("obligation_id") not in admitted_obligation_ids
+        )
+        primary_scope_complete = not required_unadmitted
+        primary_request_bytes = sum(request["input_bytes"] for request in primary)
+        primary_context_fits = primary_request_bytes <= limits["max_context_bytes"]
+        report = {
+            "command": "review",
+            "status": "PREPARED_ONLY",
+            "disposition": None,
+            "snapshot": {
+                "snapshot_id": snapshot.get("snapshot_id"),
+                "snapshot_hash": snapshot.get("snapshot_hash"),
+                "evidence_index_sha256": _sha256(json.dumps(
+                    [
+                        {"evidence_id": eid, "content_hash": item.get("content_hash"), "path": item.get("path"), "source_revision": item.get("source_revision")}
+                        for eid, item in sorted(snapshot.get("evidence", {}).items()) if isinstance(item, dict)
+                    ], sort_keys=True, separators=(",", ":")
+                ).encode()),
+                "evidence_index": [
+                    {
+                        "evidence_id": eid,
+                        "content_hash": item.get("content_hash"),
+                        "path": item.get("path"),
+                        "source_revision": item.get("source_revision"),
+                        "source_kind": item.get("source_kind"),
+                        "trust": item.get("trust"),
+                        "content_bytes": len(item.get("content", "").encode("utf-8")) if isinstance(item.get("content"), str) else None,
+                    }
+                    for eid, item in sorted(snapshot.get("evidence", {}).items()) if isinstance(item, dict)
+                ],
+                "base_sha": snapshot.get("base_sha"),
+                "head_sha": snapshot.get("head_sha"),
+                "profile_version": profile.get("version", profile.get("profile_version")),
+                "profile_file_sha256": _sha256(Path(args.profile).read_bytes()),
+                "limits_sha256": _sha256(Path(args.limits).read_bytes()) if args.limits else None,
+                "provider_identity_sha256": _sha256(json.dumps(provider.identity, sort_keys=True, separators=(",", ":")).encode()),
+            },
+            "scope": {
+                "inventory_units": required_unit_count,
+                "planned_obligations": len(plan.get("coverage_obligations", [])),
+                "coverage_obligations": plan.get("coverage_obligations", []),
+                "planned_tasks": len(plan.get("tasks", [])),
+                "planned_task_scopes": [
+                    {
+                        "task_id": task.get("task_id"),
+                        "task_kind": task.get("task_kind"),
+                        "lens": task.get("lens"),
+                        "unit_ids": list(task.get("unit_ids", [])),
+                        "obligation_ids": list(task.get("obligation_ids", [task.get("obligation_id")])),
+                        "required_context_ids": list(task.get("required_context_ids", [])),
+                        "evidence_ids": list(task.get("evidence_ids", [])),
+                    }
+                    for task in plan.get("tasks", []) if isinstance(task, dict)
+                ],
+                "admitted_primary_tasks": len(primary),
+                "admitted_obligation_ids": admitted_obligation_ids,
+                "unadmitted_obligation_ids": sorted(set(all_obligation_ids) - set(admitted_obligation_ids)),
+                "required_unadmitted_obligation_ids": required_unadmitted,
+                "primary_scope_admission_complete": primary_scope_complete,
+                "units_assigned_to_admitted_primary_tasks": len(covered_units),
+                "uncovered_or_unadmitted_units": sorted(set(unit_ids) - covered_units),
+                "skipped_units": list(skipped.values()),
+                "required_context_gaps": [g for g in snapshot.get("gaps", []) if isinstance(g, dict) and g.get("required") is True],
+                "optional_context_gaps": [g for g in snapshot.get("gaps", []) if isinstance(g, dict) and g.get("required") is not True],
+            },
+            "primary_requests": primary,
+            "capacity": {
+                "configured_max_provider_calls": limits["max_provider_calls"],
+                "configured_max_context_bytes": limits["max_context_bytes"],
+                "exact_primary_call_demand": primary_calls,
+                "exact_primary_serialized_input_bytes": primary_request_bytes,
+                "primary_serialized_input_bytes_fit_context_cap": primary_context_fits,
+                "configured_summary_advisory_call_slots": summary_slots,
+                "configured_claim_assessment_call_slots": claim_slots,
+                "configured_followup_task_slots": followup_slots,
+                "semantic_adjudication_supported_by_primary_provider": semantic_adjudication_supported,
+                "semantic_adjudication_calls_per_structurally_valid_candidate": 1,
+                "candidate_count_for_semantic_adjudication": "UNKNOWN_UNTIL_PRIMARY_RESULTS",
+                "max_candidate_items_per_primary_response": min(provider.max_output_items, contracts.MAX_ITEMS),
+                "candidate_adjudication_candidate_upper_bound_before_call_cap": candidate_adjudication_slots,
+                "remaining_global_call_slots_after_primary": remaining_call_slots_after_primary,
+                "max_semantic_adjudication_calls_if_no_other_stage_uses_remaining_slots": min(
+                    candidate_adjudication_slots, remaining_call_slots_after_primary
+                ),
+                "candidate_and_summary_request_sizes": "UNKNOWN_UNTIL_PRIMARY_RESULTS",
+                "configured_optional_stage_slots_excluding_candidate_adjudication": summary_slots + claim_slots + followup_slots,
+                "runtime_call_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
+                "overall_capacity": (
+                    "PRIMARY_SCOPE_NOT_ADMITTED" if not primary_scope_complete
+                    else "PRIMARY_CALL_DEMAND_EXCEEDS_CAP" if primary_calls > limits["max_provider_calls"]
+                    else "PRIMARY_CONTEXT_DEMAND_EXCEEDS_CAP" if not primary_context_fits
+                    else "UNKNOWN_RUNTIME_DEMAND_WITHIN_CAPPED_LEDGER"
+                ),
+                "fits_call_cap": None,
+                "status": (
+                    "PRIMARY_SCOPE_NOT_ADMITTED" if not primary_scope_complete
+                    else "PRIMARY_DEMAND_EXCEEDS_CALL_CAP" if primary_calls > limits["max_provider_calls"]
+                    else "PRIMARY_CONTEXT_DEMAND_EXCEEDS_CAP" if not primary_context_fits
+                    else "DYNAMIC_STAGE_DEMAND_UNKNOWN"
+                ),
+            },
+            "checks": {
+                "historical_check_identity": historical_check_identity,
+                "check_evidence_hash": snapshot.get("external_check_evidence_hash"),
+                "check_results": snapshot.get("external_check_results", []),
+            },
+            "no_provider_calls": True,
+            "no_target_code_execution": True,
+        }
+        return report
     output_dir = str(Path(args.output))
     review_kwargs = {}
     if claim_assessor is not None and max_claim_assessments > 0:
@@ -791,6 +962,13 @@ def main(argv=None) -> int:
         if getattr(args, "effect_policy", "READ_ONLY") != "READ_ONLY":
             raise ValueError("PUBLISH_REVIEW is disabled")
         claim_cap = _claim_assessment_cap(args)
+        if getattr(args, "prepare_only", False):
+            if args.command != "review" or args.dry_run:
+                raise ValueError("--prepare-only is available only for a non-dry-run review")
+            if args.github_pr or args.event_file or os.environ.get("GITHUB_EVENT_PATH"):
+                raise ValueError("--prepare-only requires explicit historical revisions without a GitHub event")
+            if not args.provider_config:
+                raise ValueError("--prepare-only requires --provider-config for exact request sizing")
         if args.dry_run:
             if args.command == "recent" and not 1 <= args.count <= 100:
                 raise ValueError("count must be between 1 and 100")

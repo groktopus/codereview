@@ -31,6 +31,8 @@ The `scripts/provider_config_from_env.py` helper validates the six values and wr
 
 For a particular change use `pr-review review --repo REPO --base SHA --head SHA` with the same profile/provider/output options. `--dry-run` previews arguments without reading credentials or contacting providers. For another project, start from `profiles/generic.json` and explicitly review its context, risk rules, lenses, and required checks. Profile files are trusted operator inputs.
 
+For an immutable historical pair, `review --prepare-only` snapshots and plans the review, then serializes the exact primary specialist requests without dispatching them. It records request sizes and hashes, admitted and unadmitted obligations, and context gaps; it does not return a review disposition, read provider key values, or contact any provider. This differs from `--dry-run`, which only previews resolved arguments and revisions. Primary request bytes and primary call count are exact for that snapshot. Calls to semantic adjudication depend on emitted candidates, and summary, follow-up, and claim-assessment work is separately dynamic, so total runtime demand remains unknown.
+
 `pr-review publish` validates a sealed result against repository/disposition policy and prints the exact review body without GitHub reads or a local effect store. Live publication is unavailable; `--authorize-publish` fails closed. See the [publication preview migration](docs/CLI-PUBLISH-PREVIEW-MIGRATION.md). No production write has been verified.
 
 For reproducible packaging checks, build a wheel and run the installed entry point from outside the checkout:
