@@ -16,6 +16,16 @@ def _case():
         "snapshot_hash": "a" * 64,
         "base_sha": "1" * 40,
         "head_sha": "2" * 40,
+        "inventory": [
+            {
+                "unit_id": "unit-1",
+                "path": "src/auth.py",
+                "change_type": "modify",
+                "changed_lines": [[1, 12]],
+                "old_line_ranges": [],
+                "evidence_ids": ["ev-1"],
+            }
+        ],
     }
     anchor = {
         "label_id": "label-1",
@@ -125,6 +135,7 @@ def _result(rows):
             "candidate_records": [
                 {
                     "candidate_id": "cand-1",
+                    "finding_id": "finding-1",
                     "snapshot_id": "snap-1",
                     "validation_state": "VALID",
                     "raw": candidate,
@@ -211,19 +222,33 @@ def test_projection_rejects_tampered_durable_result_and_header_identity():
     assert projected["claim_projection_valid"] is False
 
 
-def test_projection_preserves_multiple_valid_rows_without_promoting_model_identity():
+def test_projection_preserves_valid_off_oracle_candidate_without_calling_it_the_known_blocker():
     case = _case()
     raw = _result([_assessment_row("cand-1"), _assessment_row("cand-2")])
-    # The second claim can be identity-valid while lacking the fixture anchor.
+    case.snapshot["inventory"].append(
+        {
+            "unit_id": "unit-2",
+            "path": "src/other.py",
+            "change_type": "modify",
+            "changed_lines": [[1, 3]],
+            "old_line_ranges": [],
+            "evidence_ids": ["ev-2"],
+        }
+    )
+    raw["evidence_index"]["ev-2"] = {"path": "src/other.py"}
+    raw["claim_assessments"][1]["evidence_refs"] = ["ev-2"]
+    for assessment in raw["claim_assessments"][1]["assessments"].values():
+        assessment["evidence_refs"] = ["ev-2"]
     raw["ledger"]["candidate_records"].append(
         {
             "candidate_id": "cand-2",
+            "finding_id": "finding-2",
             "snapshot_id": "snap-1",
             "validation_state": "VALID",
             "raw": {
                 "unit_id": "unit-2",
-                "location": {"path": "src/other.py", "side": "HEAD"},
-                "evidence_refs": ["ev-1"],
+                "location": {"kind": "line", "path": "src/other.py", "side": "HEAD", "line": 3},
+                "evidence_refs": ["ev-2"],
                 "title": "Other change",
                 "observation": "Separate bounded observation.",
                 "consequence": "Separate stated consequence.",
@@ -244,12 +269,154 @@ def test_projection_preserves_multiple_valid_rows_without_promoting_model_identi
         expected_profile_id="fixture-v2",
         expected_profile_hash="b" * 64,
     )
-    assert not bound
+    assert bound
     assert rows[0]["identity_binding"] == "MATCH_CONFIGURED_ALIAS_AND_ENDPOINT_PROVENANCE"
     assert rows[0]["provider_model_id"] == "jev-1.13.0"
+    assert rows[0]["candidate_binding"] == "MATCH"
     assert rows[0]["anchor_binding"] == "MATCH"
     assert rows[0]["candidate"]["observation"].startswith("The route clears")
+    assert rows[1]["identity_binding"] == "MATCH_CONFIGURED_ALIAS_AND_ENDPOINT_PROVENANCE"
+    assert rows[1]["evidence_binding"] == "MATCH_RESULT_EVIDENCE_INDEX"
+    assert rows[1]["candidate_binding"] == "MATCH"
+    assert rows[1]["candidate_binding_reason"] == "candidate_changed_unit_location_and_evidence_bound"
+    assert rows[1]["candidate_unit_id"] == "unit-2"
+    assert rows[1]["candidate_location"] == {
+        "kind": "line",
+        "path": "src/other.py",
+        "side": "HEAD",
+        "line": 3,
+    }
+    assert rows[1]["candidate_finding_id"] == "finding-2"
+    assert rows[1]["candidate_evidence_refs"] == ["ev-2"]
     assert rows[1]["anchor_binding"] == "NO_MATCH"
+    assert rows[1]["anchor_binding_reason"] == "oracle_unit_mismatch"
+
+
+def test_valid_file_anchor_is_projected_separately_from_line_oracle():
+    case = _case()
+    case.snapshot["inventory"][0]["file_level_location"] = {
+        "kind": "file",
+        "path": "src/auth.py",
+        "side": "HEAD",
+        "evidence_id": "ev-file",
+        "evidence_hash": "f" * 64,
+    }
+    case.snapshot["inventory"][0]["evidence_ids"].append("ev-file")
+    row = _assessment_row("cand-1")
+    row["evidence_refs"] = ["ev-1", "ev-file"]
+    for assessment in row["assessments"].values():
+        assessment["evidence_refs"] = ["ev-1", "ev-file"]
+    raw = _result([row])
+    candidate = raw["ledger"]["candidate_records"][0]
+    candidate["raw"]["location"] = {"kind": "file", "path": "src/auth.py", "side": "HEAD"}
+    candidate["raw"]["evidence_refs"] = ["ev-1", "ev-file"]
+    raw["evidence_index"]["ev-file"] = {"path": "src/auth.py"}
+
+    rows, row_valid = trial._safe_assessment_rows([row])
+    assert row_valid
+    bound = trial._validate_claim_bindings(
+        rows,
+        result=raw,
+        case=case,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+
+    assert bound
+    assert rows[0]["candidate_binding"] == "MATCH"
+    assert rows[0]["candidate_location"] == {"kind": "file", "path": "src/auth.py", "side": "HEAD"}
+    assert rows[0]["candidate_evidence_refs"] == ["ev-1", "ev-file"]
+    assert rows[0]["anchor_binding"] == "NO_MATCH"
+    assert rows[0]["anchor_binding_reason"] == "oracle_line_mismatch"
+
+
+def test_valid_off_oracle_candidate_keeps_projection_valid_but_observer_does_not_match_anchor():
+    case = _case()
+    row = _assessment_row("cand-1")
+    raw = _result([row])
+    raw["ledger"]["candidate_records"][0]["raw"]["location"]["line"] = 1
+    raw["coverage_state"] = "COMPLETE"
+    raw["coverage_ledger"] = [
+        {
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "unit_id": "unit-1",
+            "lens": lens,
+            "required": True,
+            "state": "COMPLETE",
+        }
+        for lens in ("correctness", "security")
+    ]
+    raw["task_results"] = {}
+    _seal_result(raw)
+
+    projected = trial._case_result_summary(
+        raw,
+        case,
+        {"result_sha256": raw["result_hash"]},
+        raw_output_secret_match=False,
+        canary_match=False,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+
+    assert projected["claim_projection_valid"] is True
+    assert projected["claim_assessments"][0]["candidate_binding"] == "MATCH"
+    assert projected["claim_assessments"][0]["candidate_location"]["line"] == 1
+    assert projected["claim_assessments"][0]["anchor_binding"] == "NO_MATCH"
+    assert projected["claim_assessments"][0]["anchor_binding_reason"] == "oracle_line_mismatch"
+    assert projected["known_blocker_observation"]["state"] == "NO_ANCHOR_MATCH_WITH_COMPLETE_COVERAGE"
+    assert projected["known_blocker_observation"]["accepted_finding_ids"] == []
+
+
+@pytest.mark.parametrize(
+    ("location", "candidate_refs", "indexed_refs", "expected_reason"),
+    [
+        (
+            {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 99},
+            ["ev-1"],
+            ["ev-1"],
+            "candidate_location_not_bound_to_changed_unit",
+        ),
+        (
+            {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 12},
+            ["missing-evidence"],
+            ["ev-1", "missing-evidence"],
+            "candidate_evidence_not_cited_by_claim",
+        ),
+        (
+            {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 12},
+            ["ev-other"],
+            ["ev-1", "ev-other"],
+            "candidate_evidence_not_bound_to_changed_unit",
+        ),
+    ],
+)
+def test_invalid_candidate_location_or_omitted_claim_evidence_still_fails_closed(
+    location, candidate_refs, indexed_refs, expected_reason
+):
+    case = _case()
+    row = _assessment_row("cand-1")
+    if expected_reason == "candidate_evidence_not_bound_to_changed_unit":
+        row["evidence_refs"] = candidate_refs
+        for assessment in row["assessments"].values():
+            assessment["evidence_refs"] = candidate_refs
+    raw = _result([row])
+    raw["evidence_index"].update({ref: {"path": "src/auth.py"} for ref in indexed_refs})
+    candidate = raw["ledger"]["candidate_records"][0]
+    candidate["raw"]["location"] = location
+    candidate["raw"]["evidence_refs"] = candidate_refs
+    rows, row_valid = trial._safe_assessment_rows([row])
+    assert row_valid
+    bound = trial._validate_claim_bindings(
+        rows,
+        result=raw,
+        case=case,
+        expected_profile_id="fixture-v2",
+        expected_profile_hash="b" * 64,
+    )
+    assert not bound
+    assert rows[0]["candidate_binding"] == "NO_MATCH"
+    assert rows[0]["candidate_binding_reason"] == expected_reason
 
 
 def test_claim_identity_mismatch_is_not_overwritten_by_valid_model_provenance():
@@ -367,7 +534,8 @@ def test_claim_binding_rejects_unvalidated_model_anchor_drift_and_missing_refs(
     if identity_source != "endpoint_reported_validated":
         assert projected[0]["identity_binding"] == "NO_MATCH"
     if expected_anchor_line != case.anchor["line"]:
-        assert projected[0]["anchor_binding"] == "NO_MATCH"
+        assert projected[0]["candidate_binding"] == "NO_MATCH"
+        assert projected[0]["anchor_binding"] == "NOT_EVALUATED"
     if dimension_refs != ["ev-1"]:
         assert projected[0]["evidence_binding"] == "NO_MATCH"
 
