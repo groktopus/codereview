@@ -59,6 +59,8 @@ _OBSERVER_REASONS = {
     "trace_parse_failed",
     "root_exec_launch_not_proven",
     "trace_resume_without_unfinished",
+    "trace_duplicate_unfinished_syscall",
+    "trace_pending_call_cap_exceeded",
     "process_creation_cap_exceeded",
     "trace_aggregate_bucket_cap_exceeded",
     "run_timeout",
@@ -67,6 +69,16 @@ _OBSERVER_REASONS = {
     "root_exec_or_trace_incomplete",
     "trace_trailing_bytes",
 }
+_ACTION_EVENT_ENV = ("GITHUB_EVENT_PATH", "GITHUB_REPOSITORY", "GITHUB_RUN_ID")
+
+
+def _prepare_environment(source: dict[str, str]) -> dict[str, str]:
+    """Keep the smoke on its explicit synthetic revisions, outside Actions event selection."""
+    env = dict(source)
+    for key in _ACTION_EVENT_ENV:
+        env.pop(key, None)
+    env["OBSERVER_SMOKE_PROVIDER_KEY"] = "synthetic-canary-never-send"
+    return env
 
 
 def _failure_summary(result: dict, failure: str) -> dict[str, object]:
@@ -143,8 +155,7 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
-        env = dict(os.environ)
-        env["OBSERVER_SMOKE_PROVIDER_KEY"] = "synthetic-canary-never-send"
+        env = _prepare_environment(dict(os.environ))
         result = observe_cli(
             [
                 str(cli),

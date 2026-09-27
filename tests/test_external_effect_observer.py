@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import external_effect_observer as observer
-from scripts.effect_observer_smoke import _failure_summary
+from scripts.effect_observer_smoke import _failure_summary, _prepare_environment
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -215,6 +215,68 @@ def test_aggregate_bucket_cap_fails_closed(tmp_path, monkeypatch):
     assert result["cli_result"] is None
 
 
+def test_resumed_socket_and_process_calls_keep_safe_pending_metadata(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    trace = (
+        b'[pid 51] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("127.0.0.1")}, 16 <unfinished ...>\n'
+        b'[pid 51] <... connect resumed>) = 0\n'
+        b'[pid 52] clone(0x1, 0, 0, 0, 0 <unfinished ...>\n'
+        b'[pid 52] <... clone resumed>) = 53\n'
+    )
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    observed = result["observer"]
+    aggregates = observed["event_aggregates"]
+    assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
+    assert observed["coverage"] == "SCOPED_COMPLETE"
+    assert observed["event_aggregates_complete"] is True
+    assert sum(item["count"] for item in aggregates) == observed["event_count"]
+    assert any(
+        item["operation"] == "socket_endpoint_syscall"
+        and item["syscall"] == "connect"
+        and item["outcome"] == "SUCCESS"
+        and item["destination_class"] == "loopback"
+        and item["trace_state"] == "RESUMED"
+        for item in aggregates
+    )
+    assert any(
+        item["operation"] == "process_lifecycle_syscall"
+        and item["syscall"] == "clone"
+        and item["outcome"] == "SUCCESS"
+        and item["result_class"] == "positive"
+        and item["trace_state"] == "RESUMED"
+        for item in aggregates
+    )
+
+
+def test_pending_call_metadata_has_a_finite_fail_closed_cap(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    trace = b"".join(
+        f'[pid {pid}] connect(3, {{sa_family=AF_INET, sin_addr=inet_addr("127.0.0.1")}}, 16 <unfinished ...>\n'.encode()
+        for pid in range(1, observer.TRACE_MAX_PENDING_CALLS + 2)
+    )
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    assert result["observer"]["reason"] == "trace_pending_call_cap_exceeded"
+    assert result["observer"]["coverage"] == "INCOMPLETE"
+    assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE"
+    assert result["cli_result"] is None
+
+
+def test_resumed_process_creation_counts_toward_cap(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    calls = []
+    for pid in range(10, 10 + observer.MAX_PROCESS_CREATIONS + 1):
+        calls.append(f"[pid {pid}] clone(0x1 <unfinished ...>\n")
+        calls.append(f"[pid {pid}] <... clone resumed>) = {pid + 1}\n")
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": "".join(calls).encode().hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    assert result["observer"]["reason"] == "process_creation_cap_exceeded"
+    assert result["observer"]["coverage"] == "INCOMPLETE"
+    assert result["invocation"]["run_status"] == "OBSERVER_PROCESS_CAP_EXCEEDED"
+    assert result["cli_result"] is None
+
+
 def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
     sentinel = "synthetic-canary-never-send"
     summary = _failure_summary(
@@ -233,6 +295,24 @@ def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
     assert summary["cli_status"] == "UNKNOWN"
     assert summary["cli_error_code"] == "other"
     assert summary["event_count"] == 4 and summary["trace_bytes"] == 128
+
+
+def test_prepare_smoke_environment_ignores_enclosing_actions_event():
+    source = {
+        "GITHUB_EVENT_PATH": "/runner/work/_temp/event.json",
+        "GITHUB_REPOSITORY": "owner/repository",
+        "GITHUB_RUN_ID": "123456",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "PATH": "/usr/bin",
+    }
+    env = _prepare_environment(source)
+    assert "GITHUB_EVENT_PATH" not in env
+    assert "GITHUB_REPOSITORY" not in env
+    assert "GITHUB_RUN_ID" not in env
+    assert env["GITHUB_SERVER_URL"] == source["GITHUB_SERVER_URL"]
+    assert env["PATH"] == source["PATH"]
+    assert env["OBSERVER_SMOKE_PROVIDER_KEY"] == "synthetic-canary-never-send"
+    assert source["GITHUB_EVENT_PATH"] == "/runner/work/_temp/event.json"
 
 
 def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):

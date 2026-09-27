@@ -21,6 +21,13 @@ limits prevent complete aggregation, coverage is `INCOMPLETE`, aggregates are
 marked incomplete, and the observer withholds the CLI result from the opted-in
 caller.
 
+Unfinished syscall correlation retains at most 256 entries keyed by process ID
+and syscall name. Each entry contains only already-sanitized operation,
+destination class, and path evidence fields. A resumed syscall inherits that
+safe classification and its returned outcome; duplicate, unmatched, or
+over-limit correlations fail closed as incomplete. No raw trace fragment is
+retained for correlation.
+
 For a nonzero CLI exit, the invocation may include a `cli_error_code` selected
 from stable public error categories. The observer keeps the CLI result withheld
 and never returns raw stdout or stderr.

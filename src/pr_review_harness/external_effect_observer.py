@@ -29,6 +29,7 @@ TRACE_MAX_EVENT_EXEMPLARS = 256
 TRACE_MAX_AGGREGATE_BUCKETS = 128
 TRACE_MAX_LINE_BYTES = 8_192
 MAX_PROCESS_CREATIONS = 128
+TRACE_MAX_PENDING_CALLS = 256
 CLI_STDOUT_MAX_BYTES = 256_000
 CLI_STDERR_MAX_BYTES = 64_000
 MAX_OBSERVER_TIMEOUT_SECONDS = 300
@@ -472,7 +473,7 @@ def observe_cli(
         cli_output_exceeded = False
         process_cap_exceeded = False
         process_creations = 0
-        pending_calls: set[tuple[int | None, str]] = set()
+        pending_call_evidence: dict[tuple[int | None, str], dict[str, Any]] = {}
         root_exec_seen = False
         root_exec_pid: int | None = None
         timed_out = False
@@ -560,13 +561,32 @@ def observe_cli(
                                     break
                             pending_key = (parsed.get("pid"), parsed.get("syscall", ""))
                             if parsed.get("trace_state") == "UNFINISHED":
-                                pending_calls.add(pending_key)
+                                if pending_key in pending_call_evidence:
+                                    incomplete = "trace_duplicate_unfinished_syscall"
+                                    parse_enabled = False
+                                    break
+                                if len(pending_call_evidence) >= TRACE_MAX_PENDING_CALLS:
+                                    incomplete = "trace_pending_call_cap_exceeded"
+                                    parse_enabled = False
+                                    break
+                                pending_call_evidence[pending_key] = {
+                                    field: parsed[field]
+                                    for field in (
+                                        "operation",
+                                        "destination_class",
+                                        "path_scope",
+                                        "path_sha256",
+                                        "path_hash_truncated",
+                                    )
+                                    if field in parsed
+                                }
                             elif parsed.get("trace_state") == "RESUMED":
-                                if pending_key not in pending_calls:
+                                evidence = pending_call_evidence.pop(pending_key, None)
+                                if evidence is None:
                                     incomplete = "trace_resume_without_unfinished"
                                     parse_enabled = False
                                     break
-                                pending_calls.discard(pending_key)
+                                parsed.update(evidence)
                             if (
                                 parsed.get("operation") == "process_lifecycle_syscall"
                                 and parsed.get("syscall") in {"fork", "vfork", "clone", "clone3"}
@@ -623,7 +643,7 @@ def observe_cli(
                 pass
         selector.close()
 
-        if pending_calls and incomplete is None:
+        if pending_call_evidence and incomplete is None:
             incomplete = "trace_unfinished_syscall"
         root_exec_observed = root_exec_seen and root_exec_pid is not None
         if incomplete is None and not root_exec_observed:
