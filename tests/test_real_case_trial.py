@@ -360,6 +360,134 @@ def test_projection_scan_accepts_clean_nested_metadata():
     assert trial._scan(projection, ["private-secret"]) == trial.canonical(projection)
 
 
+def test_context_gap_projection_exposes_only_typed_bounded_diagnostics():
+    gaps = [
+        {
+            "proposal_id": "task:gap:0",
+            "status": "VALID_UNRESOLVED",
+            "affected_obligation_ids": ["ob-1"],
+            "proposal": {
+                "target": {"target_path": "src/core.py"},
+                "rationale": "private rationale must not be projected",
+            },
+            "retrieval_status": "UNRESOLVED",
+            "retrieval_reason": "target_path_not_allowlisted",
+            "retrieved_bytes": 0,
+            "retrieved_evidence_ids": [],
+            "followup_error": "CONTEXT_BYTE_BUDGET_EXHAUSTED",
+        },
+        {
+            "proposal_id": "task:gap:1",
+            "status": "VALID_UNRESOLVED",
+            "proposal": {"target": {"target_symbol": "private_symbol"}, "rationale": "private text"},
+            "retrieval_status": "UNRESOLVED",
+            "retrieval_reason": 'exception echoed "private key"',
+            "retrieved_bytes": -1,
+            "followup_task_id": "followup-1",
+        },
+    ]
+    result = trial._project_gaps(
+        gaps,
+        {"retrieval_context_patterns": ["docs/*.md"]},
+        {"followup-1": {"status": "SKIPPED", "error_code": "DEADLINE_EXHAUSTED"}},
+    )
+    assert result[0]["diagnostic"] == {
+        "target_class": "PATH",
+        "profile_allowlist_match": False,
+        "retrieval_status": "UNRESOLVED",
+        "retrieval_reason_code": "target_path_not_allowlisted",
+        "retrieved_bytes": 0,
+        "retrieved_evidence_count": 0,
+        "followup_status": "NOT_ADMITTED_OR_UNKNOWN",
+        "followup_reason_code": "CONTEXT_BYTE_BUDGET_EXHAUSTED",
+    }
+    assert result[1]["diagnostic"] == {
+        "target_class": "SYMBOL",
+        "profile_allowlist_match": "UNKNOWN",
+        "retrieval_status": "UNRESOLVED",
+        "retrieval_reason_code": "UNKNOWN",
+        "retrieved_bytes": "UNKNOWN",
+        "retrieved_evidence_count": "UNKNOWN",
+        "followup_status": "SKIPPED",
+        "followup_reason_code": "DEADLINE_EXHAUSTED",
+    }
+    serialized = json.dumps(result)
+    for private_text in (
+        "src/core.py",
+        "private_symbol",
+        "private rationale",
+        "private text",
+        "exception echoed",
+        "private key",
+    ):
+        assert private_text not in serialized
+
+
+def test_context_gap_projection_keeps_missing_diagnostics_unknown():
+    result = trial._project_gaps([{"proposal_id": "gap-unknown", "status": "VALID_UNRESOLVED"}])
+    assert result[0]["diagnostic"] == {
+        "target_class": "UNKNOWN",
+        "profile_allowlist_match": "UNKNOWN",
+        "retrieval_status": "UNKNOWN",
+        "retrieval_reason_code": "UNKNOWN",
+        "retrieved_bytes": "UNKNOWN",
+        "retrieved_evidence_count": "UNKNOWN",
+        "followup_status": "NOT_SHOWN",
+        "followup_reason_code": "NOT_SHOWN",
+    }
+
+
+def test_project_case_reads_engine_task_results_and_keeps_absent_outcome_unknown():
+    _, cases = trial.load_locked_cases()
+    case = next(item for item in cases if item["case_id"] == "PR-464")
+    gap = {
+        "proposal_id": "task:gap:0",
+        "status": "VALID_UNRESOLVED",
+        "proposal": {"target": {"target_path": "docs/contract.md"}, "rationale": "private"},
+        "retrieval_status": "RESOLVED",
+        "retrieval_reason": None,
+        "retrieved_bytes": 128,
+        "retrieved_evidence_ids": ["ev-1"],
+        "followup_task_id": "task:followup:0",
+    }
+    durable = {
+        "findings": [],
+        "ledger": {"candidate_records": []},
+        "claim_assessments": [],
+        "context_gaps": [gap],
+        "task_results": {"task:followup:0": {"task_id": "task:followup:0", "status": "SKIPPED", "error_code": "PROVIDER_CALL_BUDGET_EXHAUSTED"}},
+    }
+    projected = trial.project_case(case, durable, [])
+    diagnostic = projected["context_gaps"][0]["diagnostic"]
+    assert diagnostic["profile_allowlist_match"] is True
+    assert diagnostic["followup_status"] == "SKIPPED"
+    assert diagnostic["followup_reason_code"] == "PROVIDER_CALL_BUDGET_EXHAUSTED"
+    assert diagnostic["retrieval_reason_code"] == "NONE"
+
+    durable["task_results"] = {}
+    projected = trial.project_case(case, durable, [])
+    diagnostic = projected["context_gaps"][0]["diagnostic"]
+    assert diagnostic["followup_status"] == "UNKNOWN"
+    assert diagnostic["followup_reason_code"] == "UNKNOWN"
+
+
+def test_snapshot_gap_projection_preserves_only_known_reasons():
+    projected = trial._project_snapshot_gaps(
+        [
+            {"path": "README.md", "reason": "context_truncated"},
+            {"path": "docs/ENGINE_ADAPTERS.md", "reason": "not_bound_by_context_selection"},
+            {"path": "private.txt", "reason": 'exception echoed "private canary"', "rationale": "private"},
+        ]
+    )
+    assert [row["reason"] for row in projected] == [
+        "context_truncated",
+        "not_bound_by_context_selection",
+        "UNKNOWN",
+    ]
+    assert "rationale" not in projected[2]
+    assert "private canary" not in json.dumps(projected)
+
+
 def test_prepare_only_workspace_may_be_absent_but_required_result_cleanup_stays_fail_closed(tmp_path):
     result = tmp_path / "case" / "result"
     prepared = tmp_path / "case" / "prepared"
