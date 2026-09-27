@@ -28,6 +28,14 @@ INPUT_ROOT = ROOT / "docs" / "real-case-trial-v1"
 CASES_SHA256 = "702a83e0c1456a8881416b5767eeda1aa9aac711ff51a68aecd0b609593f594b"
 RUNTIME_SHA = "ed7aa8b82f8d0c8deee03b6f99d8f4f599529301"
 RUNTIME_MODULE_TREE_SHA256 = "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3"
+V2_RUNTIME_SHA = "5873c3f1b297a96c49b78cbcb7be674ab70b3cea"
+V2_RUNTIME_MODULE_TREE_SHA256 = "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4"
+V2_WHEEL_SHA256 = "4e3dff00930ed5a430a622eb840151f583710d4a29d200f6bb13765106a94be3"
+V2_PREPARATION_MANIFEST_SHA256 = "c83715789fbb1892c6fddcd380d0506bec73f2b75304b1f80e8c310f7c297270"
+V2_PREPARATION_VERIFICATION_SHA256 = "86594df8c3dd0a5b2c1c12b1c87fa2b667307065e87bc77a7d0c8c67cedbce82"
+V2_PLAN_PATH = ROOT / "docs" / "real-case-trial-v2" / "manifest.json"
+V2_PLAN_SHA256 = "b8958c589fc49d7beeb4e3b5530c0c99d385bd40cee8b124cdf395090a0c3322"
+INPUT_CONTRACTS = ("specialist-input-v1", "specialist-input-v2")
 RUNTIME_MODULE_INVENTORY = (
     "__init__.py",
     "__main__.py",
@@ -70,6 +78,8 @@ IDENTITY_ENV_NAMES = ("LLM_BASE_URL", "LLM_MODEL", "JEV_BASE_URL", "JEV_MODEL")
 TRIAL_ENV_NAMES = IDENTITY_ENV_NAMES + SECRET_NAMES
 OUTPUT_CAP = 1_000_000
 STDERR_CAP = 128_000
+V2_ARTIFACT_SUMMARY_CAP = 128_000
+V2_ARTIFACT_MANIFEST_CAP = 4_000_000
 CASE_SECONDS = 660
 MATRIX_SECONDS = 1980
 CASE_CLEANUP_RESERVE_SECONDS = 15
@@ -101,6 +111,31 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def read_v2_plan() -> dict[str, Any]:
+    """Read the compact v2 plan with a strict duplicate-key and size bound."""
+    try:
+        if V2_PLAN_PATH.is_symlink() or not V2_PLAN_PATH.is_file() or V2_PLAN_PATH.stat().st_size > 128_000:
+            raise TrialError("v2_plan_manifest_limit_exceeded")
+        raw = V2_PLAN_PATH.read_bytes()
+
+        def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_json_key")
+                result[key] = value
+            return result
+
+        value = json.loads(raw.decode("utf-8", errors="strict"), object_pairs_hook=unique_object)
+    except TrialError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+        raise TrialError("v2_plan_manifest_invalid") from None
+    if not isinstance(value, dict):
+        raise TrialError("v2_plan_manifest_invalid")
+    return value
+
+
 def read_result(path: Path) -> dict[str, Any]:
     try:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > 8_000_000:
@@ -115,7 +150,7 @@ def _safe_relative(value: str) -> bool:
     return bool(value) and not path.is_absolute() and ".." not in path.parts and "\\" not in value
 
 
-def load_locked_cases() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _load_locked_cases_v1() -> tuple[dict[str, Any], list[dict[str, Any]]]:
     cases_path = INPUT_ROOT / "cases.json"
     raw = cases_path.read_bytes()
     if sha256(raw) != CASES_SHA256:
@@ -144,6 +179,173 @@ def load_locked_cases() -> tuple[dict[str, Any], list[dict[str, Any]]]:
         ):
             raise TrialError("fixed_revision_invalid")
     return document, cases
+
+
+def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Load one immutable input-contract plan; v1 remains the default."""
+    if input_contract == "specialist-input-v1":
+        return _load_locked_cases_v1()
+    if input_contract != "specialist-input-v2":
+        raise TrialError("input_contract_invalid")
+
+    v1_document, v1_cases = _load_locked_cases_v1()
+    raw = V2_PLAN_PATH.read_bytes()
+    if sha256(raw) != V2_PLAN_SHA256:
+        raise TrialError("v2_plan_manifest_hash_mismatch")
+    plan = read_v2_plan()
+    plan_fields = {
+        "schema", "input_contract", "response_contract", "status", "runtime_revision",
+        "runtime_module_tree_sha256", "runtime_module_file_count", "local_preparation_wheel_sha256",
+        "preparation_manifest_sha256", "independent_preparation_verification_sha256",
+        "case_input_manifest_v1_sha256", "limits", "max_claim_assessments_per_case",
+        "max_retries_per_task", "selectors", "cases", "required_obligations_total",
+        "primary_requests_total", "primary_serialized_input_bytes_total", "interpretation",
+        "projection_limitations",
+    }
+    if set(plan) != plan_fields:
+        raise TrialError("v2_plan_manifest_shape_invalid")
+    if (
+        plan.get("schema") != "historical-real-case-input-plan.v2"
+        or plan.get("input_contract") != "specialist-input.v2"
+        or plan.get("response_contract") != "specialist-findings.v4"
+        or plan.get("runtime_revision") != V2_RUNTIME_SHA
+        or plan.get("runtime_module_tree_sha256") != V2_RUNTIME_MODULE_TREE_SHA256
+        or plan.get("runtime_module_file_count") != len(RUNTIME_MODULE_INVENTORY)
+        or plan.get("local_preparation_wheel_sha256") != V2_WHEEL_SHA256
+        or plan.get("preparation_manifest_sha256") != V2_PREPARATION_MANIFEST_SHA256
+        or plan.get("independent_preparation_verification_sha256") != V2_PREPARATION_VERIFICATION_SHA256
+        or plan.get("status") != "FROZEN_PROVIDER_FREE_PREPARATION"
+        or plan.get("case_input_manifest_v1_sha256") != CASES_SHA256
+        or plan.get("max_claim_assessments_per_case") != 4
+        or plan.get("max_retries_per_task") != 0
+        or plan.get("selectors") != ["staged-pr464", "full-three-case"]
+        or plan.get("primary_requests_total") != 47
+        or plan.get("required_obligations_total") != 124
+        or plan.get("primary_serialized_input_bytes_total") != 4_002_927
+        or plan.get("limits") != limits_for(64)
+    ):
+        raise TrialError("v2_plan_manifest_identity_mismatch")
+    v2_cases = plan.get("cases")
+    if not isinstance(v2_cases, list) or [row.get("case_id") for row in v2_cases if isinstance(row, dict)] != [
+        case["case_id"] for case in v1_cases
+    ]:
+        raise TrialError("v2_case_set_mismatch")
+
+    merged: list[dict[str, Any]] = []
+    for v1_case, v2_case in zip(v1_cases, v2_cases, strict=True):
+        case_fields = {
+            "case_id", "base_sha", "head_sha", "mode", "profile_sha256", "checks_sha256",
+            "snapshot_hash", "evidence_index_sha256", "scope_count", "scope_sha256",
+            "v1_primary_requests", "v1_primary_bytes", "primary_request_count",
+            "primary_serialized_input_bytes", "primary_descriptor_sha256", "evidence_index",
+            "primary_requests",
+        }
+        if not isinstance(v2_case, dict) or set(v2_case) != case_fields:
+            raise TrialError("v2_case_shape_invalid")
+        if (
+            v2_case.get("base_sha") != v1_case.get("base_sha")
+            or v2_case.get("head_sha") != v1_case.get("head_sha")
+            or v2_case.get("mode") != v1_case.get("mode")
+            or v2_case.get("profile_sha256") != v1_case.get("profile_sha256")
+            or v2_case.get("checks_sha256") != v1_case.get("checks_sha256")
+            or v2_case.get("scope_count") != v1_case.get("expected_scope_count")
+            or v2_case.get("scope_sha256") != v1_case.get("expected_scope_sha256")
+            or v2_case.get("v1_primary_requests") != v1_case.get("expected_primary_count")
+            or v2_case.get("v1_primary_bytes") != v1_case.get("expected_primary_serialized_input_bytes")
+        ):
+            raise TrialError("v2_case_identity_mismatch")
+        evidence_index = v2_case.get("evidence_index")
+        descriptors = v2_case.get("primary_requests")
+        if not isinstance(evidence_index, dict) or not isinstance(descriptors, list):
+            raise TrialError("v2_request_plan_invalid")
+        evidence_fields = {
+            "evidence_id", "path", "source_revision", "content_hash", "source_kind", "trust", "content_bytes"
+        }
+        for evidence_id, evidence in evidence_index.items():
+            if (
+                not isinstance(evidence_id, str)
+                or not isinstance(evidence, dict)
+                or set(evidence) != evidence_fields
+                or evidence.get("evidence_id") != evidence_id
+                or not isinstance(evidence.get("content_bytes"), int)
+                or isinstance(evidence.get("content_bytes"), bool)
+                or evidence["content_bytes"] < 0
+            ):
+                raise TrialError("v2_evidence_index_shape_invalid")
+        full_descriptors: list[dict[str, Any]] = []
+        request_fields = {
+            "task_id", "lens", "unit_ids", "obligation_ids", "evidence_ids", "required_context_ids",
+            "context_omissions", "required_context_omissions", "input_bytes", "input_sha256", "admitted",
+            "output_bytes_cap", "output_tokens_cap", "request_input_contract", "unit_evidence_bindings",
+        }
+        for descriptor in descriptors:
+            if not isinstance(descriptor, dict) or set(descriptor) != request_fields:
+                raise TrialError("v2_request_plan_invalid")
+            evidence_ids = descriptor.get("evidence_ids")
+            if (
+                not isinstance(evidence_ids, list)
+                or any(not isinstance(evidence_id, str) or evidence_id not in evidence_index for evidence_id in evidence_ids)
+                or len(evidence_ids) != len(set(evidence_ids))
+            ):
+                raise TrialError("v2_request_evidence_index_invalid")
+            binding_rows = descriptor.get("unit_evidence_bindings")
+            unit_ids = descriptor.get("unit_ids")
+            if not isinstance(binding_rows, list) or not isinstance(unit_ids, list):
+                raise TrialError("v2_request_binding_shape_invalid")
+            if [row.get("unit_id") for row in binding_rows if isinstance(row, dict)] != unit_ids:
+                raise TrialError("v2_request_binding_shape_invalid")
+            for binding in binding_rows:
+                if (
+                    not isinstance(binding, dict)
+                    or set(binding) != {"unit_id", "binding_status", "evidence_ids"}
+                    or binding.get("binding_status") not in {"VERIFIED", "UNKNOWN"}
+                    or not isinstance(binding.get("evidence_ids"), list)
+                    or any(not isinstance(evidence_id, str) for evidence_id in binding["evidence_ids"])
+                    or not set(binding["evidence_ids"]).issubset(evidence_ids)
+                    or (binding["binding_status"] == "UNKNOWN" and binding["evidence_ids"])
+                ):
+                    raise TrialError("v2_request_binding_shape_invalid")
+            request = dict(descriptor)
+            request["evidence_bindings"] = [evidence_index[evidence_id] for evidence_id in evidence_ids]
+            full_descriptors.append(request)
+        if (
+            len(full_descriptors) != v2_case.get("primary_request_count")
+            or v2_case.get("primary_request_count") != v1_case.get("expected_primary_count")
+            or sum(row.get("input_bytes", 0) for row in full_descriptors)
+            != v2_case.get("primary_serialized_input_bytes")
+            or v2_case.get("primary_serialized_input_bytes") > 8_000_000
+            or sha256(canonical(full_descriptors)) != v2_case.get("primary_descriptor_sha256")
+        ):
+            raise TrialError("v2_request_plan_digest_mismatch")
+        case = dict(v1_case)
+        case.update(
+            {
+                "expected_primary_count": v2_case["primary_request_count"],
+                "expected_primary_serialized_input_bytes": v2_case["primary_serialized_input_bytes"],
+                "expected_primary_descriptor_sha256": v2_case["primary_descriptor_sha256"],
+                "expected_primary_request_descriptors": full_descriptors,
+                "expected_evidence_index": evidence_index,
+                "input_contract": "specialist-input.v2",
+            }
+        )
+        merged.append(case)
+    if (
+        sum(case["expected_primary_count"] for case in merged) != 47
+        or sum(case["expected_primary_serialized_input_bytes"] for case in merged) != 4_002_927
+        or sum(case["expected_scope_count"] for case in merged) != 124
+    ):
+        raise TrialError("v2_plan_totals_mismatch")
+    document = dict(v1_document)
+    document.update(
+        {
+            "input_contract": "specialist-input.v2",
+            "baseline_plan_sha256": V2_PLAN_SHA256,
+            "runtime_revision": V2_RUNTIME_SHA,
+            "runtime_module_tree_sha256": V2_RUNTIME_MODULE_TREE_SHA256,
+            "preparation_manifest_sha256": plan["preparation_manifest_sha256"],
+        }
+    )
+    return document, merged
 
 
 def selected_cases(mode: str, cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -255,24 +457,37 @@ def limits_for(calls: int) -> dict[str, Any]:
     }
 
 
-def verify_runtime(cli: Path, runtime_source: Path) -> dict[str, Any]:
-    if not runtime_source.is_dir() or not re.fullmatch(r"[0-9a-f]{40}", RUNTIME_SHA):
+def runtime_identity(input_contract: str = "specialist-input-v1") -> tuple[str, str]:
+    if input_contract == "specialist-input-v1":
+        return RUNTIME_SHA, RUNTIME_MODULE_TREE_SHA256
+    if input_contract == "specialist-input-v2":
+        return V2_RUNTIME_SHA, V2_RUNTIME_MODULE_TREE_SHA256
+    raise TrialError("input_contract_invalid")
+
+
+def verify_runtime(
+    cli: Path, runtime_source: Path, input_contract: str = "specialist-input-v1"
+) -> dict[str, Any]:
+    expected_revision, expected_tree = runtime_identity(input_contract)
+    if not runtime_source.is_dir() or not re.fullmatch(r"[0-9a-f]{40}", expected_revision):
         raise TrialError("trusted_runtime_source_unavailable")
     try:
         from prepare_real_case_batch import installed_module_proof
     except ModuleNotFoundError:
         from scripts.prepare_real_case_batch import installed_module_proof
 
-    if git_command(["--no-lazy-fetch", "-C", str(runtime_source), "rev-parse", "HEAD"], timeout=10) != RUNTIME_SHA:
+    if git_command(["--no-lazy-fetch", "-C", str(runtime_source), "rev-parse", "HEAD"], timeout=10) != expected_revision:
         raise TrialError("trusted_runtime_revision_mismatch")
     proof = installed_module_proof(cli, runtime_source)
-    if proof.get("module_file_count") != 28 or proof.get("module_tree_sha256") != RUNTIME_MODULE_TREE_SHA256:
+    if proof.get("module_file_count") != 28 or proof.get("module_tree_sha256") != expected_tree:
         raise TrialError("installed_runtime_identity_mismatch")
     module_root = runtime_source / "src" / "pr_review_harness"
     inventory = sorted(path.relative_to(module_root).as_posix() for path in module_root.rglob("*.py") if path.is_file())
     if inventory != list(RUNTIME_MODULE_INVENTORY):
         raise TrialError("installed_runtime_inventory_mismatch")
     proof["module_inventory"] = inventory
+    proof["runtime_revision"] = expected_revision
+    proof["input_contract"] = input_contract
     return proof
 
 
@@ -627,9 +842,146 @@ def validate_prepare(case: dict[str, Any], prepared: dict[str, Any], overall_max
         raise TrialError("prepared_primary_descriptor_mismatch")
 
 
-def primary_receipts(prepared: dict[str, Any]) -> list[dict[str, Any]]:
+def validate_prepare_v2(
+    case: dict[str, Any], prepared: dict[str, Any], overall_max_bytes: int, call_cap: int
+) -> None:
+    """Require the exact frozen specialist-input.v2 descriptors before inference."""
+    value = prepared.get("value")
+    if not isinstance(value, dict):
+        raise TrialError("prepared_result_invalid")
+    snapshot = value.get("snapshot")
+    scope = value.get("scope")
+    primary = value.get("primary_requests")
+    if not isinstance(snapshot, dict) or not isinstance(scope, dict) or not isinstance(primary, list):
+        raise TrialError("prepared_result_invalid")
+    projected_evidence = snapshot.get("evidence_index")
+    if isinstance(projected_evidence, list):
+        projected_evidence = [
+            {key: row[key] for key in ("evidence_id", "content_hash", "path", "source_revision") if key in row}
+            for row in projected_evidence
+            if isinstance(row, dict)
+        ]
+        projected_evidence.sort(key=lambda row: str(row.get("evidence_id", "")))
+    else:
+        raise TrialError("prepared_evidence_index_missing")
+    obligations = scope.get("coverage_obligations")
+    projected_obligations = (
+        sorted(
+            (
+                {
+                    **{key: row.get(key) for key in ("obligation_id", "obligation_kind", "lens", "check_binding_id")},
+                    "scope_unit_ids": sorted(row.get("scope_unit_ids", []))
+                    if isinstance(row.get("scope_unit_ids"), list)
+                    else row.get("scope_unit_ids"),
+                }
+                for row in obligations
+                if isinstance(row, dict) and isinstance(row.get("obligation_id"), str)
+            ),
+            key=lambda row: row["obligation_id"],
+        )
+        if isinstance(obligations, list)
+        else None
+    )
+    if (
+        value.get("status") != "PREPARED_ONLY"
+        or value.get("disposition") is not None
+        or value.get("no_provider_calls") is not True
+        or value.get("no_target_code_execution") is not True
+        or snapshot.get("base_sha") != case["base_sha"]
+        or snapshot.get("head_sha") != case["head_sha"]
+        or snapshot.get("snapshot_hash") != case["snapshot_hash"]
+        or snapshot.get("evidence_index_sha256") != case["evidence_index_sha256"]
+        or snapshot.get("profile_file_sha256") != case["profile_sha256"]
+        or snapshot.get("provider_identity_sha256") != case["primary_provider_identity_sha256"]
+        or snapshot.get("profile_version") != case["profile_version"]
+        or sha256(canonical(projected_evidence)) != case["evidence_index_sha256"]
+    ):
+        raise TrialError("prepared_snapshot_identity_mismatch")
+    if (
+        scope.get("primary_scope_admission_complete") is not True
+        or scope.get("required_unadmitted_obligation_ids") != []
+        or scope.get("planned_obligations") != case["expected_scope_count"]
+        or projected_obligations is None
+        or len(projected_obligations) != case["expected_scope_count"]
+        or sha256(canonical(projected_obligations)) != case["expected_scope_sha256"]
+    ):
+        raise TrialError("prepared_scope_mismatch")
+    if (
+        len(primary) != case["expected_primary_count"]
+        or len(primary) > call_cap
+        or any(
+            isinstance(row, dict)
+            and (isinstance(row.get("input_bytes"), bool) or not isinstance(row.get("input_bytes"), int))
+            for row in primary
+        )
+        or any(not isinstance(row, dict) for row in primary)
+        or sum(row["input_bytes"] for row in primary) != case["expected_primary_serialized_input_bytes"]
+        or any(row["input_bytes"] > 128_000 or row.get("admitted") is not True for row in primary)
+        or sum(row["input_bytes"] for row in primary) > 8_000_000
+        or len(canonical(primary)) > overall_max_bytes
+    ):
+        raise TrialError("prepared_primary_caps_or_count_mismatch")
+    expected = case.get("expected_primary_request_descriptors")
+    if not isinstance(expected, list) or primary != expected:
+        raise TrialError("prepared_primary_descriptor_mismatch")
+    if sha256(canonical(primary)) != case["expected_primary_descriptor_sha256"]:
+        raise TrialError("prepared_primary_descriptor_mismatch")
+    for row in primary:
+        if row.get("request_input_contract") != "specialist-input.v2":
+            raise TrialError("prepared_input_contract_mismatch")
+        bindings = row.get("unit_evidence_bindings")
+        unit_ids = row.get("unit_ids")
+        delivered = row.get("evidence_ids")
+        if (
+            not isinstance(unit_ids, list)
+            or not isinstance(delivered, list)
+            or not isinstance(bindings, list)
+            or [binding.get("unit_id") for binding in bindings if isinstance(binding, dict)] != unit_ids
+        ):
+            raise TrialError("prepared_unit_evidence_binding_invalid")
+        for binding in bindings:
+            ids = binding.get("evidence_ids")
+            status = binding.get("binding_status")
+            if (
+                not isinstance(ids, list)
+                or status not in {"VERIFIED", "UNKNOWN"}
+                or any(not isinstance(evidence_id, str) for evidence_id in ids)
+                or not set(ids).issubset(delivered)
+                or (status == "UNKNOWN" and ids)
+            ):
+                raise TrialError("prepared_unit_evidence_binding_invalid")
+
+
+def primary_receipts(prepared: dict[str, Any], input_contract: str = "specialist-input-v1") -> Any:
     value = prepared["value"]
     snapshot = value["snapshot"]
+    if input_contract == "specialist-input-v2":
+        evidence_index: dict[str, dict[str, Any]] = {}
+        requests = []
+        for row in value["primary_requests"]:
+            request = {key: item for key, item in row.items() if key != "evidence_bindings"}
+            request["snapshot_hash"] = snapshot["snapshot_hash"]
+            bindings = row.get("evidence_bindings")
+            if not isinstance(bindings, list):
+                raise TrialError("v2_evidence_binding_receipt_invalid")
+            for binding in bindings:
+                if not isinstance(binding, dict) or not isinstance(binding.get("evidence_id"), str):
+                    raise TrialError("v2_evidence_binding_receipt_invalid")
+                evidence_id = binding["evidence_id"]
+                previous = evidence_index.get(evidence_id)
+                if previous is not None and previous != binding:
+                    raise TrialError("v2_evidence_binding_metadata_conflict")
+                evidence_index[evidence_id] = binding
+            if any(evidence_id not in evidence_index for evidence_id in row.get("evidence_ids", [])):
+                raise TrialError("v2_evidence_binding_receipt_incomplete")
+            requests.append(request)
+        return {
+            "schema": "specialist-input-v2-primary-receipts.v1",
+            "evidence_index": {key: evidence_index[key] for key in sorted(evidence_index)},
+            "requests": requests,
+        }
+    if input_contract != "specialist-input-v1":
+        raise TrialError("input_contract_invalid")
     return [
         {
             "task_id": row["task_id"],
@@ -643,6 +995,13 @@ def primary_receipts(prepared: dict[str, Any]) -> list[dict[str, Any]]:
         }
         for row in value["primary_requests"]
     ]
+
+
+def _primary_receipts_for_contract(prepared: dict[str, Any], input_contract: str) -> Any:
+    # Keep the historical v1 call shape stable for existing integrations.
+    if input_contract == "specialist-input-v1":
+        return primary_receipts(prepared)
+    return primary_receipts(prepared, input_contract)
 
 
 def _scan(value: Any, secrets: list[str], limit: int = OUTPUT_CAP) -> bytes:
@@ -1287,6 +1646,7 @@ def cleanup_optional_private(path: Path) -> None:
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--mode", choices=("staged-pr464", "full-three-case"), required=True)
+    result.add_argument("--input-contract", choices=INPUT_CONTRACTS, default="specialist-input-v1")
     run = result.add_mutually_exclusive_group(required=True)
     run.add_argument("--prepare-only", action="store_true")
     run.add_argument("--run-provider-trial", action="store_true")
@@ -1365,6 +1725,7 @@ def _write_failure_artifacts(
     provider_call_attempted: bool,
     secrets: list[str],
     matrix_elapsed: float,
+    input_contract: str = "specialist-input-v1",
 ) -> None:
     call_cap = 24 if mode == "staged-pr464" else 64
     provider_state = (
@@ -1375,10 +1736,10 @@ def _write_failure_artifacts(
         else "NO_PROVIDER_DISPATCH"
     )
     manifest = {
-        "schema": "historical-real-case-trial-manifest.v1",
+        "schema": "historical-real-case-trial-manifest.v2" if input_contract == "specialist-input-v2" else "historical-real-case-trial-manifest.v1",
         "runtime_provenance_version": "historical-real-case-runtime.v2",
         "limits_version": "historical-real-case-limits.v2",
-        "frozen_plan_manifest_sha256": FROZEN_PLAN_MANIFEST_SHA256,
+        "frozen_plan_manifest_sha256": V2_PLAN_SHA256 if input_contract == "specialist-input-v2" else FROZEN_PLAN_MANIFEST_SHA256,
         "status": "FAILED",
         "historical_only": True,
         "current_pr_state_checked": False,
@@ -1386,7 +1747,7 @@ def _write_failure_artifacts(
         "target_code_execution": False,
         "mode": mode,
         "failure": {"stage": stage, "code": code},
-        "runtime_revision": RUNTIME_SHA,
+        "runtime_revision": runtime_identity(input_contract)[0],
         "runtime_module_proof": runtime or "NOT_VERIFIED",
         "runner_revision": os.environ.get("GITHUB_SHA", "local-uncommitted"),
         "workflow_matrix_started_epoch": os.environ.get("TRIAL_STARTED_EPOCH", "NOT_AVAILABLE"),
@@ -1413,17 +1774,32 @@ def _write_failure_artifacts(
         "cases": rows,
         "elapsed_seconds": matrix_elapsed,
     }
+    if input_contract == "specialist-input-v2":
+        manifest["input_contract"] = input_contract
+        manifest["fixed_case_manifest_sha256"] = V2_PLAN_SHA256
+        manifest["runtime_module_tree_sha256"] = V2_RUNTIME_MODULE_TREE_SHA256
     _scan(manifest, secrets)
     if len(canonical(manifest)) > 4_000_000:
+        raise TrialError("sanitized_manifest_limit_exceeded")
+    if input_contract == "specialist-input-v2" and len(canonical(manifest)) > V2_ARTIFACT_MANIFEST_CAP:
         raise TrialError("sanitized_manifest_limit_exceeded")
     summary = {
         "schema": manifest["schema"],
         "status": "FAILED",
         "failure": manifest["failure"],
         "provider_execution_state": provider_state,
-        "cases": [{key: value for key, value in row.items() if key != "projection"} for row in rows],
+        "cases": [
+            {
+                key: value
+                for key, value in row.items()
+                if key != "projection" and not (input_contract == "specialist-input-v2" and key == "primary_request_receipts")
+            }
+            for row in rows
+        ],
     }
     _scan(summary, secrets, 128_000)
+    if input_contract == "specialist-input-v2" and len(canonical(summary)) > V2_ARTIFACT_SUMMARY_CAP:
+        raise TrialError("sanitized_summary_limit_exceeded")
     write_json(artifacts / "summary.json", summary)
     write_json(artifacts / "manifest.json", manifest)
 
@@ -1437,17 +1813,20 @@ def main(argv: list[str] | None = None) -> int:
     cases: list[dict[str, Any]] = []
     runtime: dict[str, Any] | None = None
     results: list[dict[str, Any]] = []
+    preflight_rows: list[dict[str, Any]] = []
+    prepared_v2_cases: dict[str, dict[str, Any]] = {}
     secrets: list[str] = []
     active_case_id: str | None = None
     stage = "preflight"
     provider_call_attempted = False
+    v2_provider_preflight = False
     try:
         matrix_deadline = _matrix_deadline(args.run_provider_trial)
         if args.run_provider_trial:
             stage = "dispatch_preflight"
             verify_dispatch_context(ROOT)
         stage = "fixed_input_validation"
-        document, all_cases = load_locked_cases()
+        document, all_cases = load_locked_cases(args.input_contract)
         cases = selected_cases(args.mode, all_cases)
         stage = "artifact_setup"
         if args.artifacts.exists() or args.artifacts.is_symlink():
@@ -1456,63 +1835,138 @@ def main(argv: list[str] | None = None) -> int:
         artifact_root_created = True
         os.chmod(args.artifacts, 0o700)
         stage = "runtime_identity_validation"
-        runtime = verify_runtime(args.cli.resolve(strict=True), args.runtime_source.resolve(strict=True))
+        if args.input_contract == "specialist-input-v1":
+            runtime = verify_runtime(args.cli.resolve(strict=True), args.runtime_source.resolve(strict=True))
+        else:
+            runtime = verify_runtime(args.cli.resolve(strict=True), args.runtime_source.resolve(strict=True), args.input_contract)
         output = args.artifacts / "private"
         private_root = output
         output.mkdir(mode=0o700)
-        if args.prepare_only:
+        v2_provider_preflight = args.input_contract == "specialist-input-v2" and args.run_provider_trial
+        if args.prepare_only or v2_provider_preflight:
             stage = "prepare_configuration"
             # Guard the workflow process environment so prepare-only cannot read provider credentials.
-            for name in SECRET_NAMES:
-                os.environ.pop(name, None)
+            if args.prepare_only:
+                for name in SECRET_NAMES:
+                    os.environ.pop(name, None)
             provider_path, decision_path = build_prepare_configs(output)
         else:
             stage = "provider_configuration"
             provider_path, decision_path, secrets = build_configs(output / "configs")
         effective_env = _clean_git_env()
         # The CLI receives only known provider credentials; GitHub event/context variables are excluded.
-        if not args.prepare_only:
+        if not args.prepare_only and not v2_provider_preflight:
             for name in ("LLM_API_KEY", "JEV_API_KEY"):
                 effective_env[name] = os.environ[name]
         projection_failure = False
         matrix_calls = 24 if args.mode == "staged-pr464" else 64
+        if v2_provider_preflight:
+            for case in cases:
+                active_case_id = case["case_id"]
+                case_started = time.monotonic()
+                case_deadline = min(case_started + CASE_SECONDS, matrix_deadline)
+                case_dir = output / case["case_id"]
+                case_dir.mkdir(mode=0o700)
+                bare = args.target_bare.resolve(strict=True) if args.target_bare else case_dir / "objects.git"
+                stage = "target_object_acquisition"
+                object_record = acquire_bare_case(
+                    case, bare, case_deadline, matrix_deadline,
+                    source_bare=bare if args.target_bare else None, auxiliary_dir=case_dir,
+                )
+                limits_path = case_dir / "limits.json"
+                write_json(limits_path, limits_for(matrix_calls))
+                profile_path = INPUT_ROOT / case["profile_path"]
+                checks_path = INPUT_ROOT / case["checks_path"]
+                stage = "prepare_cli"
+                prep = run_cli(
+                    args.cli, case, bare, profile_path, checks_path, provider_path, decision_path,
+                    limits_path, case_dir / "prepared", True, effective_env,
+                    _remaining(case_deadline, matrix_deadline),
+                )
+                validate_prepare_v2(case, prep, 8_000_000, matrix_calls)
+                prepared_v2_cases[case["case_id"]] = {
+                    "case_started": case_started,
+                    "case_deadline": case_deadline,
+                    "case_dir": case_dir,
+                    "bare": bare,
+                    "limits_path": limits_path,
+                    "object_record": object_record,
+                    "prep": prep,
+                }
+                preflight_rows.append({
+                    "case_id": case["case_id"],
+                    "status": "PREPARED_NOT_RUN",
+                    "scope_count": case["expected_scope_count"],
+                    "scope_sha256": case["expected_scope_sha256"],
+                    "primary_calls": case["expected_primary_count"],
+                    "primary_serialized_input_bytes": case["expected_primary_serialized_input_bytes"],
+                    "immutable_patch_sha256": object_record["patch_sha256"],
+                    "profile_sha256": case["profile_sha256"],
+                    "checks_sha256": case["checks_sha256"],
+                    "snapshot_hash": case["snapshot_hash"],
+                    "evidence_index_sha256": case["evidence_index_sha256"],
+                    "primary_descriptor_sha256": case["expected_primary_descriptor_sha256"],
+                    "primary_request_receipts": _primary_receipts_for_contract(prep, args.input_contract),
+                })
+                active_case_id = None
+            # No secret-bearing config or provider environment reaches the CLI
+            # until every selected v2 case has matched its frozen request plan.
+            stage = "provider_configuration"
+            provider_path, decision_path, secrets = build_configs(output / "configs")
+            for name in ("LLM_API_KEY", "JEV_API_KEY"):
+                effective_env[name] = os.environ[name]
         for case in cases:
             active_case_id = case["case_id"]
-            case_started = time.monotonic()
-            case_deadline = min(case_started + CASE_SECONDS, matrix_deadline)
-            _remaining(case_deadline, matrix_deadline)
-            case_dir = output / case["case_id"]
-            case_dir.mkdir(mode=0o700)
-            bare = args.target_bare.resolve(strict=True) if args.target_bare else case_dir / "objects.git"
-            stage = "target_object_acquisition"
-            object_record = acquire_bare_case(
-                case,
-                bare,
-                case_deadline,
-                matrix_deadline,
-                source_bare=bare if args.target_bare else None,
-                auxiliary_dir=case_dir,
-            )
-            limits_path = case_dir / "limits.json"
-            write_json(limits_path, limits_for(matrix_calls))
+            if v2_provider_preflight:
+                cached = prepared_v2_cases[case["case_id"]]
+                case_started = cached["case_started"]
+                case_deadline = cached["case_deadline"]
+                case_dir = cached["case_dir"]
+                bare = cached["bare"]
+                limits_path = cached["limits_path"]
+                object_record = cached["object_record"]
+                prep = cached["prep"]
+            else:
+                case_started = time.monotonic()
+                case_deadline = min(case_started + CASE_SECONDS, matrix_deadline)
+                _remaining(case_deadline, matrix_deadline)
+                case_dir = output / case["case_id"]
+                case_dir.mkdir(mode=0o700)
+                bare = args.target_bare.resolve(strict=True) if args.target_bare else case_dir / "objects.git"
+                stage = "target_object_acquisition"
+                object_record = acquire_bare_case(
+                    case,
+                    bare,
+                    case_deadline,
+                    matrix_deadline,
+                    source_bare=bare if args.target_bare else None,
+                    auxiliary_dir=case_dir,
+                )
+                limits_path = case_dir / "limits.json"
+                write_json(limits_path, limits_for(matrix_calls))
+                profile_path = INPUT_ROOT / case["profile_path"]
+                checks_path = INPUT_ROOT / case["checks_path"]
+                stage = "prepare_cli"
+                prep = run_cli(
+                    args.cli,
+                    case,
+                    bare,
+                    profile_path,
+                    checks_path,
+                    provider_path,
+                    decision_path,
+                    limits_path,
+                    case_dir / "prepared",
+                    True,
+                    effective_env,
+                    _remaining(case_deadline, matrix_deadline),
+                )
+                if args.input_contract == "specialist-input-v2":
+                    validate_prepare_v2(case, prep, 8_000_000, matrix_calls)
+                else:
+                    validate_prepare(case, prep, 8_000_000)
             profile_path = INPUT_ROOT / case["profile_path"]
             checks_path = INPUT_ROOT / case["checks_path"]
-            stage = "prepare_cli"
-            prep = run_cli(
-                args.cli,
-                case,
-                bare,
-                profile_path,
-                checks_path,
-                provider_path,
-                decision_path,
-                limits_path,
-                case_dir / "prepared",
-                True,
-                effective_env,
-                _remaining(case_deadline, matrix_deadline),
-            )
-            validate_prepare(case, prep, 8_000_000)
             if args.prepare_only:
                 prepared_row = {
                     "case_id": case["case_id"],
@@ -1527,7 +1981,7 @@ def main(argv: list[str] | None = None) -> int:
                     "snapshot_hash": case["snapshot_hash"],
                     "evidence_index_sha256": case["evidence_index_sha256"],
                     "primary_descriptor_sha256": case["expected_primary_descriptor_sha256"],
-                    "primary_request_receipts": primary_receipts(prep),
+                    "primary_request_receipts": _primary_receipts_for_contract(prep, args.input_contract),
                 }
                 _scan(prepared_row, secrets)
                 results.append(prepared_row)
@@ -1588,7 +2042,7 @@ def main(argv: list[str] | None = None) -> int:
                 "primary_calls": case["expected_primary_count"],
                 "primary_serialized_input_bytes": case["expected_primary_serialized_input_bytes"],
                 "primary_descriptor_sha256": case["expected_primary_descriptor_sha256"],
-                "primary_request_receipts": primary_receipts(prep),
+                "primary_request_receipts": _primary_receipts_for_contract(prep, args.input_contract),
                 "projection": projection,
             }
             _scan(row, secrets)
@@ -1609,10 +2063,10 @@ def main(argv: list[str] | None = None) -> int:
         if matrix_deadline - time.monotonic() <= MATRIX_CLEANUP_RESERVE_SECONDS:
             raise TrialError("matrix_deadline_exceeded")
         manifest = {
-            "schema": "historical-real-case-trial-manifest.v1",
+        "schema": "historical-real-case-trial-manifest.v2" if args.input_contract == "specialist-input-v2" else "historical-real-case-trial-manifest.v1",
             "runtime_provenance_version": "historical-real-case-runtime.v2",
             "limits_version": "historical-real-case-limits.v2",
-            "frozen_plan_manifest_sha256": FROZEN_PLAN_MANIFEST_SHA256,
+            "frozen_plan_manifest_sha256": V2_PLAN_SHA256 if args.input_contract == "specialist-input-v2" else FROZEN_PLAN_MANIFEST_SHA256,
             "status": "PREPARED_NOT_RUN"
             if args.prepare_only
             else "INCOMPLETE"
@@ -1623,12 +2077,12 @@ def main(argv: list[str] | None = None) -> int:
             "publication_enabled": False,
             "target_code_execution": False,
             "mode": args.mode,
-            "runtime_revision": RUNTIME_SHA,
+            "runtime_revision": runtime_identity(args.input_contract)[0],
             "runtime_wheel_sha256": os.environ.get("RUNTIME_WHEEL_SHA256", "UNKNOWN"),
             "runtime_module_proof": runtime,
             "runner_revision": os.environ.get("GITHUB_SHA", "local-uncommitted"),
             "workflow_matrix_started_epoch": os.environ.get("TRIAL_STARTED_EPOCH", "NOT_AVAILABLE"),
-            "fixed_case_manifest_sha256": CASES_SHA256,
+            "fixed_case_manifest_sha256": V2_PLAN_SHA256 if args.input_contract == "specialist-input-v2" else CASES_SHA256,
             "baseline_plan_sha256": document.get("baseline_plan_sha256"),
             "call_cap_per_case": matrix_calls,
             "call_cap_total_selected_cases": matrix_calls * len(cases),
@@ -1669,21 +2123,37 @@ def main(argv: list[str] | None = None) -> int:
                 3,
             ),
         }
+        if args.input_contract == "specialist-input-v2":
+            manifest["input_contract"] = args.input_contract
+            manifest["runtime_module_tree_sha256"] = V2_RUNTIME_MODULE_TREE_SHA256
+            manifest["serialized_artifact_caps"] = {
+                "manifest_json_bytes_max": V2_ARTIFACT_MANIFEST_CAP,
+                "summary_json_bytes_max": V2_ARTIFACT_SUMMARY_CAP,
+            }
         _scan(manifest, secrets)
         if len(canonical(manifest)) > 4_000_000:
             raise TrialError("sanitized_manifest_limit_exceeded")
-        cleanup_private(output)
-        private_root = None
         summary = {
             "schema": manifest["schema"],
             "status": manifest["status"],
             "cases": [
-                {key: value for key, value in item.items() if key != "projection"}
+                {
+                    key: value for key, value in item.items()
+                    if key != "projection"
+                    and not (args.input_contract == "specialist-input-v2" and key == "primary_request_receipts")
+                }
                 | ({"case_id": item["case_id"], "status": item["status"]} if "projection" in item else {})
                 for item in results
             ],
         }
         _scan(summary, secrets, 128_000)
+        if args.input_contract == "specialist-input-v2" and (
+            len(canonical(manifest)) > V2_ARTIFACT_MANIFEST_CAP
+            or len(canonical(summary)) > V2_ARTIFACT_SUMMARY_CAP
+        ):
+            raise TrialError("sanitized_artifact_limit_exceeded")
+        cleanup_private(output)
+        private_root = None
         write_json(args.artifacts / "summary.json", summary)
         write_json(args.artifacts / "manifest.json", manifest)
         print(json.dumps({"status": manifest["status"], "case_count": len(results)}, separators=(",", ":")))
@@ -1696,7 +2166,8 @@ def main(argv: list[str] | None = None) -> int:
                 cleanup_private(private_root)
             except (OSError, TrialError):
                 cleanup_succeeded = False
-        rows = _failure_rows(results, cases, active_case_id, stage, code)
+        failure_results = preflight_rows if v2_provider_preflight and not provider_call_attempted else results
+        rows = _failure_rows(failure_results, cases, active_case_id, stage, code)
         if artifact_root_created and cleanup_succeeded:
             try:
                 _write_failure_artifacts(
@@ -1711,6 +2182,7 @@ def main(argv: list[str] | None = None) -> int:
                     provider_call_attempted=provider_call_attempted,
                     secrets=secrets,
                     matrix_elapsed=round(time.monotonic() - started, 3),
+                    input_contract=args.input_contract,
                 )
             except (OSError, RuntimeError, TrialError):
                 pass
