@@ -383,7 +383,10 @@ def test_claim_dry_run_shows_enabled_cap_without_loading_config(tmp_path):
     assert value["decision_provider_configured"] is True
 
 
-def test_enabled_cli_uses_typesafe_decision_config_without_reading_credential(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("ambient_event_kind", ["push", "pull_request"])
+def test_enabled_cli_uses_typesafe_decision_config_without_reading_credential(
+    tmp_path, monkeypatch, capsys, ambient_event_kind
+):
     from pr_review_harness import cli
     from pr_review_harness.claim_assessment import ClaimAssessmentAdapter
 
@@ -401,6 +404,24 @@ def test_enabled_cli_uses_typesafe_decision_config_without_reading_credential(tm
         encoding="utf-8",
     )
     monkeypatch.delenv("CLAIM_TEST_TOKEN", raising=False)
+    ambient_event_path = tmp_path / "ambient-event.json"
+    ambient_event = (
+        {"ref": "refs/heads/main"}
+        if ambient_event_kind == "push"
+        else {
+            "number": 7,
+            "pull_request": {"base": {"sha": "b" * 40}, "head": {"sha": "c" * 40}},
+        }
+    )
+    ambient_event_path.write_text(json.dumps(ambient_event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(ambient_event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/project")
+    monkeypatch.setenv("GITHUB_RUN_ID", "workflow-run-7")
+    # This exercises a historical explicit-base/head CLI invocation. Do not
+    # let the host Actions event silently turn it into event-bound review.
+    monkeypatch.delenv("GITHUB_EVENT_PATH")
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    monkeypatch.delenv("GITHUB_RUN_ID")
     captured = {}
 
     def capture_run_one(*args):
@@ -431,6 +452,7 @@ def test_enabled_cli_uses_typesafe_decision_config_without_reading_credential(tm
     assert captured["args"][-2].configured_model == "jev-1.13.0"
     assert captured["args"][-2].native_call.api_key_env == "CLAIM_TEST_TOKEN"
     assert captured["args"][6].model == captured["args"][-2].configured_model
+    assert captured["args"][8] is None
     assert captured["args"][-1] == 2
     assert "CLAIM_TEST_TOKEN" not in capsys.readouterr().out
 
