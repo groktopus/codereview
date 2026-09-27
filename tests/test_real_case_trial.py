@@ -2051,7 +2051,12 @@ def test_v2_prepare_accepts_bound_unit_and_rejects_forged_cross_unit_binding():
 
 @pytest.mark.parametrize(
     "input_contract",
-    ["specialist-input-v2", trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR],
+    [
+        "specialist-input-v2",
+        trial.CONTEXT_FOLLOWUP_SELECTOR,
+        trial.CONTEXT_FOLLOWUP_V2_SELECTOR,
+        trial.CONTEXT_FOLLOWUP_V3_SELECTOR,
+    ],
 )
 def test_v2_family_provider_trial_preflights_prepare_before_any_provider_configuration(
     tmp_path, monkeypatch, capsys, input_contract
@@ -2140,7 +2145,10 @@ def _patch_three_case_context_preflight(tmp_path, monkeypatch, input_contract=tr
     return document, cases, calls, validations
 
 
-@pytest.mark.parametrize("input_contract", [trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR])
+@pytest.mark.parametrize(
+    "input_contract",
+    [trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR, trial.CONTEXT_FOLLOWUP_V3_SELECTOR],
+)
 def test_context_followup_full_matrix_preflights_all_cases_before_provider_configuration(
     tmp_path, monkeypatch, capsys, input_contract
 ):
@@ -2167,7 +2175,10 @@ def test_context_followup_full_matrix_preflights_all_cases_before_provider_confi
     assert json.loads(capsys.readouterr().out) == {"status": "FAILED", "error": "third_case_descriptor_mismatch"}
 
 
-@pytest.mark.parametrize("input_contract", [trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR])
+@pytest.mark.parametrize(
+    "input_contract",
+    [trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR, trial.CONTEXT_FOLLOWUP_V3_SELECTOR],
+)
 def test_context_followup_full_matrix_success_reaches_provider_configuration_only_after_three_prepares(
     tmp_path, monkeypatch, capsys, input_contract
 ):
