@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
+
+from pr_review_harness import external_effect_observer as observer
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github/workflows/selected-model-provider-trial.yml"
@@ -94,7 +100,8 @@ def test_trusted_runner_is_checked_out_and_verified_at_the_same_full_sha():
     assert f"EXPECTED_OBSERVER_SOURCE_SHA256: {OBSERVER_SOURCE_SHA256}" in preflight
     assert '[sys.executable, "-m", "pr_review_harness.external_effect_observer"]' in preflight
     assert 'identity.get("status") != "AVAILABLE"' in preflight
-    assert f'identity.get("observer_id") != "{OBSERVER_ID}"' in preflight
+    assert "from pr_review_harness.external_effect_observer import OBSERVER_ID" in preflight
+    assert f'OBSERVER_ID != "{OBSERVER_ID}"' in preflight
     assert 'identity.get("source_sha256") != os.environ.get("EXPECTED_OBSERVER_SOURCE_SHA256")' in preflight
     assert 'identity.get("kill_on_exit_supported") is not True' in preflight
     assert "secrets." not in preflight
@@ -103,6 +110,81 @@ def test_trusted_runner_is_checked_out_and_verified_at_the_same_full_sha():
     assert '"pip", "install", "--no-deps"' in install
     assert "--cli-executable \"$(command -v pr-review)\"" in trial
     assert "--observe-effects" in trial
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_returncode"),
+    [("valid", 0), ("observer_id", 1), ("source_hash", 1), ("capability", 1), ("status", 1)],
+)
+def test_embedded_preflight_accepts_actual_cli_shape_and_rejects_identity_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str, expected_returncode: int
+):
+    """Run the workflow's actual guard against the observer CLI's JSON contract.
+
+    The observer CLI reports preflight status/source/capability; observer ID is
+    an exported module constant rather than a field in its JSON response.
+    """
+    monkeypatch.setattr(observer.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(observer.shutil, "which", lambda name: "/usr/bin/strace")
+    monkeypatch.setattr(observer, "_source_sha256", lambda *, deadline=None: "a" * 64)
+    monkeypatch.setattr(observer, "_hash_file", lambda path, *, deadline=None: "b" * 64)
+    probes = iter(
+        [
+            (0, b"strace -- version 6.8\n", b""),
+            (0, b"  --kill-on-exit       kill tracees when strace exits\n", b""),
+        ]
+    )
+
+    def bounded_probe(argv, *, timeout, env):
+        return next(probes)
+
+    monkeypatch.setattr(observer, "_bounded_process", bounded_probe)
+    cli_identity = observer.preflight()
+    assert cli_identity["status"] == "AVAILABLE"
+
+    package = tmp_path / "pr_review_harness"
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "external_effect_observer.py").write_text(
+        "import json, os\n"
+        "OBSERVER_ID = os.environ.get('FAKE_OBSERVER_ID', 'linux-strace-syscall-observer.v2')\n"
+        "if __name__ == '__main__':\n"
+        " print(os.environ['FAKE_PREFLIGHT_JSON'])\n",
+        encoding="utf-8",
+    )
+    expected_identity = dict(cli_identity)
+    observer_id = OBSERVER_ID
+    if mutation == "observer_id":
+        observer_id = "linux-strace-syscall-observer.v1"
+    elif mutation == "source_hash":
+        expected_identity["source_sha256"] = "c" * 64
+    elif mutation == "capability":
+        expected_identity["kill_on_exit_supported"] = False
+    elif mutation == "status":
+        expected_identity["status"] = "UNKNOWN"
+    source_hash = cli_identity["source_sha256"]
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(tmp_path),
+        "EXPECTED_OBSERVER_SOURCE_SHA256": source_hash,
+        "FAKE_PREFLIGHT_JSON": json.dumps(expected_identity, sort_keys=True, separators=(",", ":")),
+        "FAKE_OBSERVER_ID": observer_id,
+    }
+
+    step = _step(_source(), "Preflight the bounded effect observer before provider configuration")
+    completed = subprocess.run(
+        [sys.executable, "-c", _python_block(step)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert completed.returncode == expected_returncode
+    report = json.loads(completed.stdout.splitlines()[-1])
+    assert report["observer_id"] == observer_id
+    assert report["source_sha256"] == expected_identity["source_sha256"]
 
 
 def test_only_one_bounded_step_receives_six_secrets_and_runs_helper_then_fixed_trial():

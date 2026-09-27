@@ -101,6 +101,7 @@ jobs:
           import os
           import subprocess
           import sys
+          from pr_review_harness.external_effect_observer import OBSERVER_ID
 
           try:
               result = subprocess.run(
@@ -113,10 +114,20 @@ jobs:
               identity = json.loads(result.stdout)
           except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
               raise SystemExit("effect_observer_preflight_unavailable") from None
+          report = {
+              "status": identity.get("status"),
+              "reason": identity.get("reason"),
+              "observer_id": OBSERVER_ID,
+              "source_sha256": identity.get("source_sha256"),
+              "version": identity.get("version"),
+              "executable_sha256": identity.get("executable_sha256"),
+              "kill_on_exit_supported": identity.get("kill_on_exit_supported"),
+          }
+          print(json.dumps(report, sort_keys=True, separators=(",", ":")))
           if (
               result.returncode
               or identity.get("status") != "AVAILABLE"
-              or identity.get("observer_id") != "linux-strace-syscall-observer.v2"
+              or OBSERVER_ID != "linux-strace-syscall-observer.v2"
               or identity.get("source_sha256") != os.environ.get("EXPECTED_OBSERVER_SOURCE_SHA256")
               or identity.get("kill_on_exit_supported") is not True
           ):
