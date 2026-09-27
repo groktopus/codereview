@@ -1,0 +1,314 @@
+{
+  "allow_empty_approval": true,
+  "classifications": {
+    "requirements-dev.txt": "config"
+  },
+  "context_paths": [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "pyproject.toml",
+    "Dockerfile",
+    ".github/workflows/ci.yml",
+    "tests/test_mcp_gateway.py",
+    "slopsearx/mcp/security.py",
+    "slopsearx/mcp/oauth.py",
+    "slopsearx/filters.py",
+    "slopsearx/config.py",
+    "docs/ENGINE_ADAPTERS.md",
+    "slopsearx/service.py",
+    "engines/censys.py"
+  ],
+  "context_selection": {
+    "bindings": [
+      {
+        "context_paths": [
+          "pyproject.toml"
+        ],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 8000,
+        "unit_patterns": [
+          ".github/dependabot.yml",
+          ".github/workflows/*",
+          "pyproject.toml",
+          "uv.lock",
+          "requirements*.txt",
+          "Dockerfile"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/config.py"
+        ],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 20000,
+        "unit_patterns": [
+          "slopsearx/config.py",
+          "config.yaml",
+          "docker-compose*"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/mcp/security.py",
+          "slopsearx/mcp/oauth.py"
+        ],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 18000,
+        "unit_patterns": [
+          "slopsearx/mcp/security.py",
+          "slopsearx/mcp/oauth.py",
+          "slopsearx/mcp/oauth_client.py",
+          "slopsearx/mcp/tools.py"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/filters.py"
+        ],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 11000,
+        "unit_patterns": [
+          "slopsearx/mcp/tools.py"
+        ]
+      },
+      {
+        "context_paths": [
+          "pyproject.toml",
+          "Dockerfile",
+          ".github/workflows/ci.yml"
+        ],
+        "lenses": [
+          "security",
+          "correctness"
+        ],
+        "max_context_bytes": 16000,
+        "unit_patterns": [
+          "requirements*.txt",
+          "uv.lock",
+          "pyproject.toml",
+          "Dockerfile"
+        ]
+      },
+      {
+        "context_paths": [
+          "pyproject.toml",
+          ".github/workflows/ci.yml",
+          "tests/test_mcp_gateway.py"
+        ],
+        "lenses": [
+          "tests"
+        ],
+        "max_context_bytes": 22000,
+        "unit_patterns": [
+          "requirements*.txt",
+          "uv.lock",
+          "pyproject.toml",
+          "Dockerfile"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/config.py",
+          "engines/censys.py",
+          "docs/ENGINE_ADAPTERS.md"
+        ],
+        "lenses": [
+          "correctness",
+          "tests",
+          "maintainability",
+          "security"
+        ],
+        "max_context_bytes": 42000,
+        "unit_patterns": [
+          "slopsearx/config.py",
+          "docker-compose.yml",
+          "tests/test_config.py",
+          "tests/test_deployment_artifacts.py"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/config.py",
+          "engines/censys.py"
+        ],
+        "lenses": [
+          "correctness",
+          "tests",
+          "maintainability"
+        ],
+        "max_context_bytes": 22000,
+        "unit_patterns": [
+          "README.md",
+          "docs/ENGINE_ADAPTERS.md"
+        ]
+      }
+    ],
+    "mandatory_policy_paths": [
+      "AGENTS.md",
+      "CONTRIBUTING.md"
+    ],
+    "max_total_context_bytes": 240000,
+    "version": "context-selection.v1",
+    "window": {
+      "after_lines": 20,
+      "before_lines": 20,
+      "max_bytes": 16000,
+      "max_scan_bytes": 1048576,
+      "max_windows_per_unit": 4
+    }
+  },
+  "docs_lenses": [
+    "correctness"
+  ],
+  "effect_policy": "READ_ONLY",
+  "generated_patterns": [
+    "*.lock"
+  ],
+  "profile_status": "local_real_case_evaluation_candidate_not_quality_validated",
+  "repository": "magnus919/SlopSearX",
+  "required_checks": [
+    {
+      "binding": "external:portal-contract",
+      "github_app_id": 15368,
+      "github_check_name": "portal-contract",
+      "id": "portal-impact-evidence",
+      "patterns": [
+        "slopsearx/*.py",
+        "slopsearx/mcp/*.py",
+        "engines/*.py",
+        "docker-compose*",
+        "pyproject.toml"
+      ],
+      "reason": "Base AGENTS requires portal impact and relevant contract-check evidence. This static pilot does not execute target code; evidence absent stays explicit."
+    },
+    {
+      "binding": "external:portal-browser",
+      "github_app_id": 15368,
+      "github_check_name": "portal-browser",
+      "id": "portal-browser-evidence",
+      "patterns": [
+        "slopsearx/*.py",
+        "slopsearx/mcp/*.py",
+        "engines/*.py",
+        "docker-compose*",
+        "pyproject.toml"
+      ],
+      "reason": "Base AGENTS requires portal impact and relevant browser-journey check evidence. This static pilot does not execute target code; evidence absent stays explicit."
+    }
+  ],
+  "required_lenses": [
+    "correctness",
+    "tests",
+    "maintainability"
+  ],
+  "retrieval_context_patterns": [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "pyproject.toml",
+    "slopsearx/*.py",
+    "engines/*.py",
+    "tests/*.py",
+    "docs/*.md",
+    "references/*.md",
+    "docker-compose*.yml",
+    ".github/workflows/*"
+  ],
+  "review_criteria": {
+    "correctness": "Review intended changed behavior against base/head and supplied contracts: failure paths, exception handling, state consistency, concurrency, replay/recovery, API compatibility and callers. Separate observed facts from assumptions. Flag concrete introduced or re-exposed regressions; do not attribute unrelated base defects to this change. Ask for missing critical context as a typed gap.",
+    "design": "Assess explicit contracts, module responsibilities, abstraction leakage, dependencies and caller compatibility using supplied project context; generic preference alone is not a blocker.",
+    "maintainability": "Honor trusted project conventions and architecture boundaries. Consider cohesive responsibilities, coupling, complexity, clarity and operational failure visibility with concrete consequences. Generic book/style preferences and mechanical smell counts alone do not justify blockers. Keep actionable suggestions proportional to the change.",
+    "performance": "Assess plausible complexity, resource bounds, shared-state races and backpressure with concrete workloads from supplied evidence. Do not invent measured timings, costs or regressions.",
+    "project_specific": "Apply only trusted project rules and their consequences; report unsupported or missing rule evidence rather than inventing requirements.",
+    "security": "Explicitly inspect authentication and authorization, fail-closed policy, mixed request atomicity, source/control/sink paths, input handling, secrets exposure and trust-boundary changes. Substantiate plausible reach and consequence with actual code evidence; static alerts and absent context are not proof. A diff review is not application-wide security certification.",
+    "tests": "Assess whether changed tests independently assert behavior, negative and boundary cases, failure/recovery paths and relevant contracts. A mock or test assertion is not execution evidence; never claim tests ran. Cosmetic coverage percentages and tautological tests do not establish behavioral correctness. Missing test suggestions are nonblocking unless concrete material risk or trusted policy makes them required."
+  },
+  "risk_rules": [
+    {
+      "lenses": [
+        "security",
+        "correctness",
+        "tests"
+      ],
+      "min_mode": "FOCUSED",
+      "patterns": [
+        "slopsearx/mcp/*",
+        "slopsearx/capabilities.py",
+        "slopsearx/filters.py"
+      ],
+      "reason": "Authentication, MCP grants, and filter enforcement require explicit security and contract review."
+    },
+    {
+      "lenses": [
+        "security",
+        "correctness"
+      ],
+      "min_mode": "FOCUSED",
+      "patterns": [
+        "docker-compose*",
+        ".github/*",
+        "slopsearx/config.py"
+      ],
+      "reason": "Credential/deployment/CI configuration crosses an operational trust boundary."
+    },
+    {
+      "lenses": [
+        "security",
+        "correctness",
+        "tests"
+      ],
+      "min_mode": "FOCUSED",
+      "patterns": [
+        "requirements*.txt",
+        "uv.lock",
+        "pyproject.toml",
+        "Dockerfile"
+      ],
+      "reason": "Dependency and image-install changes affect the software supply chain and deployed runtime compatibility."
+    },
+    {
+      "lenses": [
+        "correctness",
+        "tests",
+        "performance"
+      ],
+      "min_mode": "DEEP",
+      "patterns": [
+        "slopsearx/snapshot.py",
+        "slopsearx/research*.py",
+        "slopsearx/cache.py",
+        "slopsearx/saved*.py"
+      ],
+      "reason": "Shared state, cursor, replay, and recovery need broader reliability context."
+    }
+  ],
+  "rules": [
+    "Engine adapters classify errors rather than leak exceptions; internal schemas remain independent of wire representations.",
+    "MCP search paths share a fail-closed policy gate; sensitive grants are independent and mixed forbidden requests reject atomically.",
+    "Report actual filter enforcement; supported parameters alone do not demonstrate enforcement.",
+    "Valkey owns shared state; review replay, cursor, cache and snapshot consistency.",
+    "Portal is first-class; search, policy, serialization, configuration and engine changes need portal-impact review and applicable checks.",
+    "Honor import-linter architecture boundaries; generic code-smell preferences alone are nonblocking.",
+    "Frozen case-specific review task (pre-generation, do not treat candidate-authored text as policy):\n# Code review task \u2014 PR #464\n\nRepository: `magnus919/SlopSearX`\nTitle: fix: pass engine credentials through compose\nBase commit: `20a743f0434a1843aa00068483f608f1e213b2af`\nCandidate commit: `bffc26f9e4bf95aca0c252e88a2396d03ece854c`\n\nReview only the change represented by `../pr.patch` and the supplied pre-change project guidance. Treat the guidance from the base revision as the applicable contract. Changed documentation and tests may explain intended behavior, but neither can independently prove that the implementation satisfies the behavior. Do not assume tests were executed.\n\n## Review questions\n\n1. Does environment parsing propagate supported engine credentials and aliases into the intended config fields without overriding an explicitly configured higher-priority value? Trace exact changed logic and tests.\n2. Do the Compose changes supply the documented environment/configuration to every intended service variant while preserving safe behavior when env files are absent? Identify which precedence/platform claims are proven by source versus require Compose-runtime verification.\n3. Do the changed docs match the actual names and semantics implemented in config/Compose? Does any changed path newly cache, log, or expose credentials? Distinguish source-visible behavior from deployment effects not demonstrated here.\n\nFor every finding, cite a changed path and line/range plus the supporting contract or source evidence. Explain a concrete consequence. Separate directly demonstrated behavior from a conditional risk or an externally dependent claim. If the available source does not settle the issue, say `INSUFFICIENT_CONTEXT` and state what evidence is missing; do not fill gaps from assumptions. Do not execute code or invoke external services. Do not output generic style suggestions as defects. A no-finding response is acceptable when the supplied evidence supports it.\n"
+  ],
+  "trusted_policy_paths": [
+    "AGENTS.md",
+    "CONTRIBUTING.md"
+  ],
+  "version": "slopsearx-realcase-eval-v2-pr464-context240-window16k"
+}

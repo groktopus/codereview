@@ -1,0 +1,197 @@
+name: Historical SlopSearX provider trial
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Prepare without provider calls, or dispatch the provider trial"
+        required: true
+        type: choice
+        default: prepare-only
+        options:
+          - prepare-only
+          - provider-trial
+      scope:
+        description: "Run the staged PR-464 probe or the frozen three-case benchmark"
+        required: true
+        type: choice
+        default: staged-pr464
+        options:
+          - staged-pr464
+          - full-three-case
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical-real-case-provider-trial
+  cancel-in-progress: false
+
+jobs:
+  trial:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+    steps:
+      - name: Start the bounded matrix clock before checkout and setup
+        id: trial-start
+        run: |
+          python3 - <<'PY'
+          import os
+          import time
+          from pathlib import Path
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+              stream.write(f"epoch={int(time.time())}\n")
+          PY
+
+      - name: Check out the trusted runner at the dispatch revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: groktopus/codereview
+          ref: ${{ github.sha }}
+          path: trusted-runner
+          persist-credentials: false
+
+      - name: Verify the dispatch and runner source identity
+        working-directory: trusted-runner
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          expected = os.environ.get("EXPECTED_SHA", "")
+          if os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview":
+              raise SystemExit("dispatch_repository_invalid")
+          if os.environ.get("GITHUB_REF") != "refs/heads/main" or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
+              raise SystemExit("dispatch_context_invalid")
+          if not re.fullmatch(r"[0-9a-f]{40}", expected):
+              raise SystemExit("runner_sha_invalid")
+          result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10, check=False)
+          if result.returncode or result.stdout.strip() != expected:
+              raise SystemExit("runner_revision_mismatch")
+          PY
+
+      - name: Check out the frozen review runtime
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: groktopus/codereview
+          ref: 6bd412b6fb1477677700fa6e36b38e77075b1701
+          path: trusted-runtime
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      - name: Build and install the pinned runtime wheel
+        working-directory: trusted-runtime
+        id: runtime-wheel
+        run: |
+          python -m pip install --disable-pip-version-check "build>=1.2,<2"
+          mkdir -p "$RUNNER_TEMP/historical-trial-wheelhouse"
+          python -m build --wheel --outdir "$RUNNER_TEMP/historical-trial-wheelhouse" . >/dev/null
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          wheels = list(Path(os.environ["RUNNER_TEMP"]).glob("historical-trial-wheelhouse/*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit("pinned_runtime_wheel_count_invalid")
+          digest = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
+          result = subprocess.run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--no-deps", str(wheels[0])], timeout=180, check=False)
+          if result.returncode:
+              raise SystemExit("pinned_runtime_install_failed")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+              stream.write(f"sha256={digest}\n")
+          PY
+
+      - name: Run the provider-free exact preparation
+        if: inputs.action == 'prepare-only'
+        working-directory: trusted-runner
+        env:
+          TRIAL_SCOPE: ${{ inputs.scope }}
+          RUNTIME_WHEEL_SHA256: ${{ steps.runtime-wheel.outputs.sha256 }}
+          TRIAL_STARTED_EPOCH: ${{ steps.trial-start.outputs.epoch }}
+        run: |
+          set -euo pipefail
+          python3 scripts/run_real_case_trial.py \
+            --mode "$TRIAL_SCOPE" --prepare-only \
+            --artifacts "$RUNNER_TEMP/historical-real-case-trial" \
+            --cli "$(command -v pr-review)" --runtime-source "$GITHUB_WORKSPACE/trusted-runtime"
+
+      - name: Run the frozen provider trial
+        if: inputs.action == 'provider-trial'
+        working-directory: trusted-runner
+        env:
+          TRIAL_SCOPE: ${{ inputs.scope }}
+          RUNTIME_WHEEL_SHA256: ${{ steps.runtime-wheel.outputs.sha256 }}
+          TRIAL_STARTED_EPOCH: ${{ steps.trial-start.outputs.epoch }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+          JEV_MODEL: ${{ secrets.JEV_MODEL }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 scripts/run_real_case_trial.py \
+            --mode "$TRIAL_SCOPE" --run-provider-trial \
+            --artifacts "$RUNNER_TEMP/historical-real-case-trial" \
+            --cli "$(command -v pr-review)" --runtime-source "$GITHUB_WORKSPACE/trusted-runtime"
+
+      - name: Remove only private trial workspace data
+        if: always()
+        env:
+          TRIAL_ROOT: ${{ runner.temp }}/historical-real-case-trial
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          import stat
+          from pathlib import Path
+
+          path = Path(os.environ["TRIAL_ROOT"])
+          try:
+              info = path.lstat()
+          except FileNotFoundError:
+              raise SystemExit(0)
+          except OSError:
+              raise SystemExit("trial_workspace_cleanup_failed")
+          if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+              raise SystemExit("trial_workspace_cleanup_refused")
+          private = path / "private"
+          try:
+              private_info = private.lstat()
+          except FileNotFoundError:
+              private_info = None
+          except OSError:
+              raise SystemExit("trial_workspace_cleanup_failed")
+          if private_info is not None:
+              if stat.S_ISLNK(private_info.st_mode) or not stat.S_ISDIR(private_info.st_mode):
+                  raise SystemExit("trial_workspace_cleanup_refused")
+              shutil.rmtree(private)
+          PY
+
+      - name: Upload only the sanitized summary and manifest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: historical-real-case-trial-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/historical-real-case-trial/summary.json
+            ${{ runner.temp }}/historical-real-case-trial/manifest.json
+          if-no-files-found: warn
+          retention-days: 7
