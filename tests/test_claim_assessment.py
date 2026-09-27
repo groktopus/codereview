@@ -463,7 +463,7 @@ def test_native_claim_contract_preserves_snapshot_collector_source_kinds(source_
     assert request["state"]["cited_evidence"][0]["evidence_id"] == "ev-head"
 
 
-def test_prepared_request_is_reusable_for_exact_byte_reservation_and_dispatch():
+def test_larger_caller_ceiling_is_applied_to_exact_prepared_body():
     calls = []
 
     def call(raw, _deadline, _cap):
@@ -471,15 +471,79 @@ def test_prepared_request_is_reusable_for_exact_byte_reservation_and_dispatch():
         return _envelope(raw)
 
     adapter = _adapter(call)
-    prepared = adapter.prepare(_candidate(), [_evidence()], _identity(), _limits(max_input_bytes_per_task=64))
+    large_limits = _limits(max_input_bytes_per_task=128_000)
+    prepared = adapter.prepare(_candidate(), [_evidence()], _identity(), large_limits)
     assert isinstance(prepared.request_bytes, bytes)
+    assert len(prepared.request_bytes) <= 64_000
     assert prepared.question_hash
+    smaller_limits = _limits(max_input_bytes_per_task=len(prepared.request_bytes) - 1)
     with pytest.raises(ClaimAssessmentError, match="request_exceeds_limit"):
-        adapter.assess_prepared(prepared, _limits(max_input_bytes_per_task=64))
+        adapter.assess_prepared(prepared, smaller_limits)
     assert calls == []
-    result = adapter.assess_prepared(prepared, _limits())
+
+    result = adapter.assess_prepared(prepared, large_limits)
     assert result["provenance"]["request_hash"] == hashlib.sha256(prepared.request_bytes).hexdigest()
     assert calls == [prepared.request_bytes]
+
+
+def test_prepared_request_over_smaller_caller_ceiling_rejects_before_transport():
+    calls = []
+    adapter = _adapter(lambda raw, *_args: calls.append(raw) or _envelope(raw))
+    with pytest.raises(ClaimAssessmentError, match="request_exceeds_limit"):
+        adapter.prepare(_candidate(), [_evidence()], _identity(), _limits(max_input_bytes_per_task=64))
+    assert calls == []
+
+
+def test_estimate_rejects_exact_body_over_caller_ceiling_before_quote():
+    class EstimatingTransport:
+        def __init__(self):
+            self.quoted = False
+
+        def __call__(self, *_args):
+            return b"{}"
+
+        def estimate_call(self, request_bytes, limits):
+            self.quoted = True
+            return {
+                "provider_calls": 1,
+                "input_bytes": len(request_bytes),
+                "max_output_bytes": min(8_192, limits["max_output_bytes_per_task"]),
+                "deadline_seconds": 1,
+            }
+
+    transport = EstimatingTransport()
+    adapter = ClaimAssessmentAdapter(transport, "jev-latest")
+    prepared = adapter.prepare(
+        _candidate(),
+        [_evidence()],
+        _identity(),
+        _limits(max_input_bytes_per_task=128_000),
+        primary_assessment=_primary_assessment(),
+    )
+    exact_cap = len(prepared.request_bytes) - 1
+
+    with pytest.raises(ClaimAssessmentError, match="request_exceeds_limit"):
+        adapter.estimate_prepared(prepared, _limits(max_input_bytes_per_task=exact_cap))
+    assert transport.quoted is False
+
+
+def test_actual_prepared_request_over_native_cap_fails_without_truncation_or_transport():
+    calls = []
+    candidate = _candidate()
+    evidence = []
+    refs = []
+    for index in range(3):
+        evidence_id = f"ev-large-{index}"
+        content = (chr(ord("a") + index) * 23_000)
+        evidence.append(_evidence(evidence_id, "HEAD", content))
+        refs.append(evidence_id)
+    candidate["evidence_refs"] = refs
+
+    with pytest.raises(ClaimAssessmentError, match="request_exceeds_intrinsic_limit"):
+        _adapter(lambda raw, *_args: calls.append(raw) or _envelope(raw)).prepare(
+            candidate, evidence, _identity(), _limits(max_input_bytes_per_task=128_000)
+        )
+    assert calls == []
 
 
 def test_tampered_prepared_bytes_are_rejected_before_dispatch():
@@ -680,6 +744,8 @@ def test_evidence_closure_and_content_hash_are_checked_before_transport():
     ("field", "value", "code"),
     [
         ("max_input_bytes_per_task", True, "invalid_input_byte_limit"),
+        ("max_input_bytes_per_task", 0, "invalid_input_byte_limit"),
+        ("max_input_bytes_per_task", "128000", "invalid_input_byte_limit"),
         ("max_output_bytes_per_task", 0, "invalid_output_byte_limit"),
         ("deadline_seconds", float("inf"), "invalid_deadline"),
     ],
