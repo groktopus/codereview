@@ -462,6 +462,7 @@ class ContextFollowupProvider(EmptyProvider):
         self.marker = marker
 
     def review(self, task, evidence, limits):
+        self.calls += 1
         if self.marker is not None:
             Path(self.marker).write_text("called")
         unit = task["unit_ids"][0]
@@ -501,6 +502,26 @@ class ContextFollowupProvider(EmptyProvider):
                     "coverage_basis": "STATIC_REVIEW",
                 }
             ],
+        }
+
+
+class NestedGapContextFollowupProvider(ContextFollowupProvider):
+    def review(self, task, evidence, limits):
+        if not task.get("context_gap_followup_for"):
+            return super().review(task, evidence, limits)
+        self.calls += 1
+        unit = task["unit_ids"][0]
+        evidence_id = task["evidence_ids"][0]
+        return {
+            "finding_candidates": [],
+            "context_gap_proposals": [{
+                "evidence_kind": "caller",
+                "target": {"target_unit_id": unit, "target_path": None, "target_symbol": None},
+                "rationale": "Nested contract gap remains.",
+                "related_evidence_ids": [evidence_id],
+                "required_lens": task["lens"],
+            }],
+            "coverage_notes": [],
         }
 
 
@@ -1542,6 +1563,9 @@ def test_retrieval_requires_bounded_followup_that_cites_retrieved_evidence(tmp_p
     context_coverage = next(c for c in result["coverage_ledger"] if c["obligation_kind"] == "REQUIRED_CONTEXT")
     assert context_coverage["state"] == "COMPLETE"
     assert result["coverage_state"] == "COMPLETE"
+    assert context_coverage["reason_code"] == "VALID_RESULT"
+    assert result["disposition"] == "APPROVE"
+    assert result["budget"]["provider_calls_reserved"] == 2
     followup_id = next(task["task_id"] for task in result["ledger"]["dynamic_tasks"])
     metadata = result["ledger"]["planned_task_inputs"][followup_id]["context_followup"]
     assert metadata == result["task_results"][followup_id]["context_followup"]
@@ -1551,6 +1575,223 @@ def test_retrieval_requires_bounded_followup_that_cites_retrieved_evidence(tmp_p
     assert metadata["related_evidence_ids"] == ["diff:u0"]
     assert metadata["related_candidate_ids"] == []  # Supported legacy V1 gap normalization.
     assert "context_followup" not in result["ledger"]["planned_task_inputs"][metadata["parent_task_id"]]
+    assert context_coverage["closure_diagnostics"]["state"] == "OBSERVED"
+    assert context_coverage["closure_diagnostics"]["coverage_note_result"] == "COVERED"
+    assert context_coverage["closure_diagnostics"]["coverage_note_failure_counts"]["MATCH"] >= 1
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        (lambda note: None, "MATCH"),
+        (lambda note: note.update(state="PARTIAL"), "STATE_NOT_COVERED"),
+        (lambda note: note.update(coverage_basis="DYNAMIC_EXECUTION"), "BASIS_NOT_STATIC_REVIEW"),
+        (lambda note: note.update(unit_id="unit-outside"), "UNIT_OUT_OF_SCOPE"),
+        (lambda note: note.update(evidence_refs=["ev-other"]), "NO_RETRIEVED_EVIDENCE_REFERENCE"),
+        (lambda note: note.update(evidence_refs=["ev-required", "ev-not-dispatched"]), "REFERENCE_NOT_IN_TASK_INPUT"),
+    ],
+)
+def test_required_context_note_diagnostics_share_the_acceptance_predicate(mutation, expected_code):
+    note = {
+        "unit_id": "unit-1",
+        "state": "COVERED",
+        "coverage_basis": "STATIC_REVIEW",
+        "evidence_refs": ["ev-required"],
+    }
+    mutation(note)
+    covered, observation = engine_module._coverage_note_observation(
+        [note],
+        notes_present=True,
+        scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"],
+        task_input_evidence_ids=["ev-required"],
+    )
+    assert covered is (expected_code == "MATCH")
+    assert observation["state"] == "OBSERVED"
+    assert observation["failure_counts"][expected_code] == 1
+
+
+def test_required_context_note_diagnostics_keep_empty_missing_and_malformed_distinct():
+    empty, empty_observation = engine_module._coverage_note_observation(
+        [], notes_present=True, scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+    )
+    absent, absent_observation = engine_module._coverage_note_observation(
+        [], notes_present=False, scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+    )
+    malformed, malformed_observation = engine_module._coverage_note_observation(
+        ["private-note-canary"], notes_present=True, scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+    )
+    assert not empty and empty_observation["result"] == "NO_NOTES"
+    assert not absent and absent_observation["result"] == "UNKNOWN"
+    assert not malformed and malformed_observation["failure_counts"]["NOTE_NOT_OBJECT"] == 1
+    assert "private-note-canary" not in json.dumps(malformed_observation)
+
+    multiple = {
+        "unit_id": "unit-outside",
+        "state": "PARTIAL",
+        "coverage_basis": "DYNAMIC_EXECUTION",
+        "evidence_refs": ["ev-other"],
+    }
+    covered, multiple_observation = engine_module._coverage_note_observation(
+        [multiple, {
+            "unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW",
+            "evidence_refs": ["ev-required"],
+        }],
+        notes_present=True, scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+    )
+    assert covered and multiple_observation["result"] == "COVERED"
+    assert multiple_observation["failure_counts"]["STATE_NOT_COVERED"] == 1
+    assert multiple_observation["failure_counts"]["MATCH"] == 1
+
+    valid_first = {
+        "unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW",
+        "evidence_refs": ["ev-required"],
+    }
+    malformed_later = {**valid_first, "evidence_refs": [{"unhashable": "private"}]}
+    matched, short_circuited = engine_module._coverage_note_observation(
+        [valid_first, malformed_later], notes_present=True, scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+    )
+    assert matched and short_circuited["notes_unexamined_after_match_count"] == 1
+
+
+def test_required_context_note_first_failure_order_matches_each_existing_call_site():
+    note = {
+        "unit_id": "unit-outside", "state": "PARTIAL", "coverage_basis": "DYNAMIC_EXECUTION",
+        "evidence_refs": ["ev-other"],
+    }
+    common = {
+        "notes_present": True,
+        "scope_unit_ids": ["unit-1"],
+        "required_evidence_ids": ["ev-required"],
+        "task_input_evidence_ids": ["ev-required"],
+    }
+    final_match, final_observation = engine_module._coverage_note_observation(
+        [note], predicate_order="final_coverage", **common
+    )
+    followup_match, followup_observation = engine_module._coverage_note_observation(
+        [note], predicate_order="followup_resolution", **common
+    )
+    assert not final_match and not followup_match
+    assert final_observation["failure_counts"]["STATE_NOT_COVERED"] == 1
+    assert followup_observation["failure_counts"]["UNIT_OUT_OF_SCOPE"] == 1
+
+
+def test_required_context_shared_helper_matches_both_legacy_any_predicates():
+    scope = {"unit-1"}
+    required = {"ev-required"}
+    dispatched = {"ev-required", "ev-extra"}
+    note_rows = [
+        [],
+        ["not-an-object"],
+        [{"unit_id": "unit-1", "state": "PARTIAL", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]}],
+        [{"unit_id": "unit-outside", "state": "PARTIAL", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]}],
+        [{"unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-extra"]}],
+        [{"unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required", "ev-missing"]}],
+        [
+            {"unit_id": "unit-outside", "state": "PARTIAL", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]},
+            {"unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]},
+        ],
+    ]
+    for notes in note_rows:
+        legacy_followup = any(
+            isinstance(note, dict)
+            and note.get("unit_id") in scope
+            and note.get("state") == "COVERED"
+            and note.get("coverage_basis") == "STATIC_REVIEW"
+            and set(note.get("evidence_refs", [])) & required
+            and set(note.get("evidence_refs", [])).issubset(dispatched)
+            for note in notes
+        )
+        legacy_final = any(
+            isinstance(note, dict)
+            and note.get("state") == "COVERED"
+            and note.get("coverage_basis") == "STATIC_REVIEW"
+            and note.get("unit_id") in scope
+            and set(note.get("evidence_refs", [])) & required
+            and set(note.get("evidence_refs", [])).issubset(dispatched)
+            for note in notes
+        )
+        actual_followup, _ = engine_module._coverage_note_observation(
+            notes, notes_present=True, scope_unit_ids=scope,
+            required_evidence_ids=required, task_input_evidence_ids=dispatched,
+            predicate_order="followup_resolution",
+        )
+        actual_final, _ = engine_module._coverage_note_observation(
+            notes, notes_present=True, scope_unit_ids=scope,
+            required_evidence_ids=required, task_input_evidence_ids=dispatched,
+            predicate_order="final_coverage",
+        )
+        assert actual_followup is legacy_followup
+        assert actual_final is legacy_final
+
+
+def test_required_output_quarantine_diagnostic_preserves_current_required_kind_rule():
+    rows = [{
+        "quarantined_items": [
+            {"kind": "future_guidance", "index": 0},
+            {"kind": "coverage_notes", "index": 1, "item_hash": "secret-hash"},
+        ]
+    }]
+    required, observation = engine_module._required_output_quarantine_observation(rows)
+    legacy_required = any(
+        item.get("kind") not in {"specific_strengths", "future_guidance"}
+        for result_row in rows for item in result_row.get("quarantined_items", [])
+    )
+    assert required is legacy_required
+    assert required is True
+    assert observation["count"] == 1
+    assert observation["by_kind"]["coverage_notes"] == 1
+    assert "secret-hash" not in json.dumps(observation)
+    _, unknown_kind = engine_module._required_output_quarantine_observation([{
+        "quarantined_items": [{"kind": "future_guidance"}, {"kind": "new_unrecognized_kind"}],
+    }])
+    assert unknown_kind["count"] == 1
+    assert unknown_kind["by_kind"]["other_required_kind"] == 1
+    _, missing = engine_module._required_output_quarantine_observation([{}])
+    assert missing["state"] == "UNKNOWN"
+    assert missing["count"] == "UNKNOWN"
+    with pytest.raises(AttributeError):
+        engine_module._required_output_quarantine_observation([{"quarantined_items": ["malformed"]}])
+    early = {"quarantined_items": [
+        {"kind": "coverage_notes"},
+        "malformed-but-short-circuited-by-the-existing-any-predicate",
+    ]}
+    early_required, early_observation = engine_module._required_output_quarantine_observation([early])
+    assert early_required is True
+    assert early_observation["state"] == "UNKNOWN"
+    assert early_observation["count"] == "UNKNOWN"
+    multiple_required, multiple_observation = engine_module._required_output_quarantine_observation([{
+        "quarantined_items": [{"kind": "coverage_notes"}, {"kind": "context_gap_proposals"}],
+    }])
+    assert multiple_required is True
+    assert multiple_observation["count"] == "UNKNOWN"
+
+
+def test_nested_followup_gap_is_counted_without_changing_no_recursion_closure(tmp_path):
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    provider = NestedGapContextFollowupProvider()
+    result = run(
+        tmp_path,
+        prof=prof,
+        provider=provider,
+        context_retriever=ResolvedContextRetriever(),
+    )
+    followup_coverage = [
+        row for row in result["coverage_ledger"]
+        if row.get("obligation_kind") == "REQUIRED_CONTEXT" and row.get("context_gap_id")
+    ]
+    assert followup_coverage
+    assert all(row["state"] == "PARTIAL" for row in followup_coverage)
+    assert all(row["reason_code"] == "CONTEXT_GAP_UNRESOLVED" for row in followup_coverage)
+    assert result["disposition"] == "INCOMPLETE"
+    assert any(row["closure_diagnostics"]["unresolved_followup_gap_count"] >= 1 for row in followup_coverage)
+    assert result["budget"]["followup_tasks_reserved"] <= LIMITS["max_followup_tasks"]
+    assert result["budget"]["provider_calls_reserved"] == 2
 
 
 def test_adapter_normalized_v4_gap_can_authorize_bound_context_followup(tmp_path):

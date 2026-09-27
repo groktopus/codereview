@@ -43,6 +43,154 @@ def _hash(value: Any) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
 
 
+_REQUIRED_CONTEXT_NOTE_CODES = (
+    "NOTE_NOT_OBJECT",
+    "STATE_NOT_COVERED",
+    "BASIS_NOT_STATIC_REVIEW",
+    "UNIT_OUT_OF_SCOPE",
+    "NO_RETRIEVED_EVIDENCE_REFERENCE",
+    "REFERENCE_NOT_IN_TASK_INPUT",
+    "MATCH",
+    "NO_COVERAGE_NOTES",
+    "UNKNOWN",
+)
+_REQUIRED_OUTPUT_QUARANTINE_KINDS = (
+    "finding_candidates",
+    "context_gap_proposals",
+    "coverage_notes",
+    "other_required_kind",
+)
+
+
+def _required_context_note_match(
+    note: Any,
+    *,
+    scope_unit_ids: set[str],
+    required_evidence_ids: set[str],
+    task_input_evidence_ids: set[str],
+    predicate_order: str,
+) -> tuple[bool, str]:
+    """Evaluate and classify one note in its caller's existing predicate order."""
+    if not isinstance(note, dict):
+        return False, "NOTE_NOT_OBJECT"
+    checks = (
+        (("UNIT_OUT_OF_SCOPE", lambda: note.get("unit_id") in scope_unit_ids),
+         ("STATE_NOT_COVERED", lambda: note.get("state") == "COVERED"),
+         ("BASIS_NOT_STATIC_REVIEW", lambda: note.get("coverage_basis") == "STATIC_REVIEW"))
+        if predicate_order == "followup_resolution"
+        else (("STATE_NOT_COVERED", lambda: note.get("state") == "COVERED"),
+              ("BASIS_NOT_STATIC_REVIEW", lambda: note.get("coverage_basis") == "STATIC_REVIEW"),
+              ("UNIT_OUT_OF_SCOPE", lambda: note.get("unit_id") in scope_unit_ids))
+    )
+    if predicate_order not in {"followup_resolution", "final_coverage"}:
+        raise ValueError("required_context_predicate_order_invalid")
+    for code, passes in checks:
+        if not passes():
+            return False, code
+    refs = set(note.get("evidence_refs", []))
+    if not refs.intersection(required_evidence_ids):
+        return False, "NO_RETRIEVED_EVIDENCE_REFERENCE"
+    if not refs.issubset(task_input_evidence_ids):
+        return False, "REFERENCE_NOT_IN_TASK_INPUT"
+    return True, "MATCH"
+
+
+def _coverage_note_observation(
+    notes: Any,
+    *,
+    notes_present: bool,
+    scope_unit_ids: Any,
+    required_evidence_ids: Any,
+    task_input_evidence_ids: Any,
+    predicate_order: str = "final_coverage",
+) -> tuple[bool, dict[str, Any]]:
+    """Return the existing any-match decision and a bounded typed explanation."""
+    observable = (
+        notes_present
+        and isinstance(notes, list)
+        and len(notes) <= review_contracts.MAX_ITEMS
+        and isinstance(scope_unit_ids, (list, set, tuple))
+        and all(isinstance(value, str) for value in scope_unit_ids)
+        and isinstance(required_evidence_ids, (list, set, tuple))
+        and all(isinstance(value, str) for value in required_evidence_ids)
+        and isinstance(task_input_evidence_ids, (list, set, tuple))
+        and all(isinstance(value, str) for value in task_input_evidence_ids)
+    )
+    scope = set(scope_unit_ids) if isinstance(scope_unit_ids, (list, set, tuple)) else set()
+    required = set(required_evidence_ids) if isinstance(required_evidence_ids, (list, set, tuple)) else set()
+    inputs = set(task_input_evidence_ids) if isinstance(task_input_evidence_ids, (list, set, tuple)) else set()
+    matched = False
+    examined = 0
+    unexamined_after_match = 0
+    counts = {code: 0 for code in _REQUIRED_CONTEXT_NOTE_CODES}
+    if isinstance(notes, list):
+        for note in notes:
+            note_match, code = _required_context_note_match(
+                note,
+                scope_unit_ids=scope,
+                required_evidence_ids=required,
+                task_input_evidence_ids=inputs,
+                predicate_order=predicate_order,
+            )
+            examined += 1
+            matched = matched or note_match
+            counts[code] += 1
+            if note_match:
+                unexamined_after_match = len(notes) - examined
+                break
+        if not notes:
+            counts["NO_COVERAGE_NOTES"] = 1
+    result = (
+        "UNKNOWN"
+        if not observable
+        else "COVERED"
+        if matched
+        else "NO_COVERING_NOTE"
+        if notes
+        else "NO_NOTES"
+    )
+    return matched, {
+        "state": "OBSERVED" if observable else "UNKNOWN",
+        "result": result,
+        "note_count": len(notes) if observable else "UNKNOWN",
+        "notes_examined_count": examined if observable else "UNKNOWN",
+        "notes_unexamined_after_match_count": unexamined_after_match if observable else "UNKNOWN",
+        "failure_counts": counts if observable else "UNKNOWN",
+    }
+
+
+def _required_output_quarantine_observation(results: list[dict[str, Any]]) -> tuple[bool, dict[str, Any]]:
+    """Mirror the reducer's existing required-vs-advisory quarantine rule."""
+    counts = {kind: 0 for kind in _REQUIRED_OUTPUT_QUARANTINE_KINDS}
+    total = 0
+    observable = True
+    required_found = False
+    for result_index, result in enumerate(results):
+        if "quarantined_items" not in result:
+            observable = False
+        items = result.get("quarantined_items", [])
+        for index, item in enumerate(items):
+            kind = item.get("kind")
+            if kind in {"specific_strengths", "future_guidance"}:
+                continue
+            bucket = kind if isinstance(kind, str) and kind in counts else "other_required_kind"
+            if not isinstance(kind, str):
+                observable = False
+            counts[bucket] += 1
+            total += 1
+            required_found = True
+            if index + 1 < len(items) or result_index + 1 < len(results):
+                observable = False
+            break
+        if required_found:
+            break
+    return required_found, {
+        "state": "OBSERVED" if observable else "UNKNOWN",
+        "count": total if observable else "UNKNOWN",
+        "by_kind": counts if observable else "UNKNOWN",
+    }
+
+
 def _claim_adapter_bytes(value: Any) -> bytes:
     """Use the claim adapter's exact canonical JSON representation for bound hashes."""
     return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -2089,18 +2237,17 @@ def run_review(
                         followup_result = task_results.get(followup_id)
                         if not isinstance(followup_result, dict):
                             followup_result = run_followup(followup_task, followup_evidence)
-                        notes = followup_result.get("payload", {}).get("coverage_notes", [])
-                        covered = any(
-                            isinstance(note, dict)
-                            and note.get("unit_id") in set(followup_task["unit_ids"])
-                            and note.get("state") == "COVERED"
-                            and note.get("coverage_basis") == "STATIC_REVIEW"
-                            and set(note.get("evidence_refs", [])) & set(record["retrieved_evidence_ids"])
-                            and set(note.get("evidence_refs", [])).issubset(
-                                set(followup_result.get("input_evidence_ids", []))
-                            )
-                            for note in notes
+                        followup_payload = followup_result.get("payload", {})
+                        notes = followup_payload.get("coverage_notes", []) if isinstance(followup_payload, dict) else []
+                        covered, note_observation = _coverage_note_observation(
+                            notes,
+                            notes_present=isinstance(followup_payload, dict) and "coverage_notes" in followup_payload,
+                            scope_unit_ids=followup_task.get("unit_ids", []),
+                            required_evidence_ids=record.get("retrieved_evidence_ids", []),
+                            task_input_evidence_ids=followup_result.get("input_evidence_ids", []),
+                            predicate_order="followup_resolution",
                         )
+                        record["coverage_note_diagnostics"] = note_observation
                         if covered:
                             record["status"] = "RESOLVED_BY_FOLLOWUP"
                             record["followup_task_id"] = followup_id
@@ -2935,12 +3082,10 @@ def run_review(
         check_evidence_refs: set[str] = set()
         check_result_evidence_invalid = False
         check_result_unavailable = False
-        required_output_quarantined = any(
-            item.get("kind") not in {"specific_strengths", "future_guidance"}
-            for result_row in results
-            for item in result_row.get("quarantined_items", [])
-        )
+        required_output_quarantined, quarantine_observation = _required_output_quarantine_observation(results)
         required_context_not_covered = False
+        required_context_note_observations: list[dict[str, Any]] = []
+        required_context_note_matches: list[bool] = []
         coverage_note_missing = False
         coverage_note_evidence_invalid = False
         partial_coverage_note = False
@@ -2950,11 +3095,7 @@ def run_review(
             check_result_unavailable = obligation.get("obligation_kind") == "PROJECT_CHECK" and any(
                 r.get("payload", {}).get("outcome") in {"UNKNOWN", "ERROR"} for r in results
             )
-            if any(
-                item.get("kind") not in {"specific_strengths", "future_guidance"}
-                for result_row in results
-                for item in result_row.get("quarantined_items", [])
-            ):
+            if required_output_quarantined:
                 successful = False
             if obligation.get("obligation_kind") == "CHANGED_UNIT_LENS":
                 scope_units = set(obligation.get("scope_unit_ids", []))
@@ -3004,31 +3145,28 @@ def run_review(
                                         coverage_note_evidence_invalid = True
                                     else:
                                         coverage_note_missing = True
-                    if any(
-                        item.get("kind") not in {"specific_strengths", "future_guidance"}
-                        for item in task_result.get("quarantined_items", [])
-                    ):
+                    task_has_required_quarantine, _ = _required_output_quarantine_observation([task_result])
+                    if task_has_required_quarantine:
                         successful = False
             if obligation.get("obligation_kind") == "REQUIRED_CONTEXT":
                 required_ids = set(obligation.get("retrieved_evidence_ids", []))
                 for task_result in results:
-                    notes = task_result.get("payload", {}).get("coverage_notes", [])
-                    evidence_ids = set(task_result.get("input_evidence_ids", []))
-                    covered = any(
-                        isinstance(note, dict)
-                        and note.get("state") == "COVERED"
-                        and note.get("coverage_basis") == "STATIC_REVIEW"
-                        and note.get("unit_id") in set(obligation.get("scope_unit_ids", []))
-                        and set(note.get("evidence_refs", [])) & required_ids
-                        and set(note.get("evidence_refs", [])).issubset(evidence_ids)
-                        for note in notes
+                    payload = task_result.get("payload", {})
+                    notes = payload.get("coverage_notes", []) if isinstance(payload, dict) else []
+                    covered, note_observation = _coverage_note_observation(
+                        notes,
+                        notes_present=isinstance(payload, dict) and "coverage_notes" in payload,
+                        scope_unit_ids=obligation.get("scope_unit_ids", []),
+                        required_evidence_ids=required_ids,
+                        task_input_evidence_ids=task_result.get("input_evidence_ids", []),
+                        predicate_order="final_coverage",
                     )
+                    required_context_note_observations.append(note_observation)
+                    required_context_note_matches.append(covered)
                     if not covered:
                         required_context_not_covered = True
-                    if not covered or any(
-                        item.get("kind") not in {"specific_strengths", "future_guidance"}
-                        for item in task_result.get("quarantined_items", [])
-                    ):
+                    task_has_required_quarantine, _ = _required_output_quarantine_observation([task_result])
+                    if not covered or task_has_required_quarantine:
                         successful = False
         if obligation.get("obligation_kind") == "PROJECT_CHECK":
             expected_binding = obligation.get("check_binding_id")
@@ -3090,8 +3228,7 @@ def run_review(
             reason_code = "COVERAGE_NOTE_MISSING"
         else:
             reason_code = "MISSING_RESULT"
-        coverage.append(
-            {
+        coverage_row = {
                 "coverage_id": _hash({"run_id": run_id, "obligation": obligation_id})[:20],
                 "run_id": run_id,
                 "snapshot_id": snapshot.get("snapshot_id"),
@@ -3110,7 +3247,70 @@ def run_review(
                 else sorted({eid for t in related for eid in t.get("evidence_ids", [])}),
                 "updated_at": _now(),
             }
-        )
+        if obligation.get("obligation_kind") == "REQUIRED_CONTEXT":
+            note_observed = bool(required_context_note_observations) and all(
+                row.get("state") == "OBSERVED" for row in required_context_note_observations
+            )
+            note_counts: dict[str, int] | str = {code: 0 for code in _REQUIRED_CONTEXT_NOTE_CODES}
+            note_count: int | str = 0
+            notes_examined_count: int | str = 0
+            notes_unexamined_after_match_count: int | str = 0
+            if note_observed:
+                for observation in required_context_note_observations:
+                    counts = observation.get("failure_counts")
+                    if not isinstance(counts, dict):
+                        note_observed = False
+                        break
+                    note_count += observation["note_count"]
+                    notes_examined_count += observation["notes_examined_count"]
+                    notes_unexamined_after_match_count += observation["notes_unexamined_after_match_count"]
+                    for code in _REQUIRED_CONTEXT_NOTE_CODES:
+                        note_counts[code] += counts[code]
+            if not note_observed:
+                note_counts = "UNKNOWN"
+                note_count = "UNKNOWN"
+                notes_examined_count = "UNKNOWN"
+                notes_unexamined_after_match_count = "UNKNOWN"
+                coverage_note_result = "UNKNOWN"
+            elif required_context_note_matches and all(required_context_note_matches):
+                coverage_note_result = "COVERED"
+            elif note_count == 0:
+                coverage_note_result = "NO_NOTES"
+            else:
+                coverage_note_result = "NO_COVERING_NOTE"
+
+            unresolved_ids = gap_obligations.get(obligation_id, [])
+            unresolved_followup_count = 0
+            gap_observation_known = True
+            for gap_id in unresolved_ids:
+                linked = [gap for gap in context_gaps if isinstance(gap, dict) and gap.get("proposal_id") == gap_id]
+                if len(linked) != 1 or not isinstance(linked[0].get("task_id"), str):
+                    gap_observation_known = False
+                    continue
+                if ":followup:" in linked[0]["task_id"]:
+                    unresolved_followup_count += 1
+
+            closure_state = (
+                "OBSERVED"
+                if note_observed and quarantine_observation["state"] == "OBSERVED" and gap_observation_known
+                else "UNKNOWN"
+            )
+            coverage_row["closure_diagnostics"] = {
+                "schema": "required-context-closure-diagnostics.v1",
+                "state": closure_state,
+                "coverage_note_result": coverage_note_result,
+                "coverage_note_count": note_count,
+                "coverage_note_notes_examined_count": notes_examined_count,
+                "coverage_note_notes_unexamined_after_match_count": notes_unexamined_after_match_count,
+                "coverage_note_failure_counts": note_counts,
+                "required_output_quarantine_count": quarantine_observation["count"],
+                "required_output_quarantine_by_kind": quarantine_observation["by_kind"],
+                "unresolved_context_gap_count": len(unresolved_ids),
+                "unresolved_followup_gap_count": (
+                    unresolved_followup_count if gap_observation_known else "UNKNOWN"
+                ),
+            }
+        coverage.append(coverage_row)
     required_cov = [c for c in coverage if c.get("required", True)]
     coverage_state = (
         "COMPLETE"
