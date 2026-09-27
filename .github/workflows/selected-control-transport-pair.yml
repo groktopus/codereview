@@ -216,6 +216,8 @@ jobs:
               "comparison_boolean_invalid", "comparison_trace_bytes_invalid", "comparison_syscall_delta_invalid",
               "comparison_trace_arithmetic_mismatch", "comparison_syscall_arithmetic_mismatch",
               "complete_pair_comparison_false", "receipt_secret_or_pem_detected",
+              "trace_fields_invalid", "arm_stage_fields_invalid", "arm_task_fields_invalid",
+              "arm_payload_stages_invalid",
           }
           validation = None
           try:

@@ -437,6 +437,58 @@ def test_unknown_validator_exception_is_sanitized_in_machine_diagnostic(monkeypa
     assert json.loads(emitted)["rejection_code"] == "validator_internal_unknown"
 
 
+@pytest.mark.parametrize(
+    "code",
+    [
+        "trace_fields_invalid",
+        "arm_stage_fields_invalid",
+        "arm_task_fields_invalid",
+        "arm_payload_stages_invalid",
+    ],
+)
+def test_fixed_validator_codes_survive_bounded_diagnostic(monkeypatch, tmp_path, code):
+    monkeypatch.setattr(
+        receipt_validator,
+        "validate_receipt",
+        lambda *_args: (_ for _ in ()).throw(ValueError(code)),
+    )
+
+    result = receipt_validator._validation_diagnostic(tmp_path / "unused", ROOT, "a" * 40)
+
+    assert result == {
+        "contract_version": "transport-receipt-validation.v1",
+        "status": "REJECTED",
+        "rejection_code": code,
+    }
+
+
+def test_every_literal_validator_rejection_code_is_in_the_closed_diagnostic_allowlist():
+    source = (ROOT / "scripts/validate_selected_control_transport_receipt.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    fixed_codes = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
+            if (
+                isinstance(node.exc.func, ast.Name)
+                and node.exc.func.id == "ValueError"
+                and node.exc.args
+                and isinstance(node.exc.args[0], ast.Constant)
+                and isinstance(node.exc.args[0].value, str)
+            ):
+                fixed_codes.add(node.exc.args[0].value)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            code_arg = 2 if node.func.id == "_keys" else 1 if node.func.id == "_hash" else None
+            if (
+                code_arg is not None
+                and len(node.args) > code_arg
+                and isinstance(node.args[code_arg], ast.Constant)
+                and isinstance(node.args[code_arg].value, str)
+            ):
+                fixed_codes.add(node.args[code_arg].value)
+
+    assert fixed_codes <= receipt_validator.VALIDATION_DIAGNOSTIC_CODES
+
+
 @pytest.mark.skipif(
     os.environ.get("RUN_INSTALLED_LOOPBACK_TRANSPORT_VALIDATOR_TEST") != "1",
     reason="requires a separately opted-in Linux installed-CLI loopback pair run",
