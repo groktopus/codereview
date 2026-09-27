@@ -19,7 +19,7 @@ def test_historical_trial_workflow_is_manual_read_only_and_has_fixed_modes():
     assert "full-three-case" in text
     assert "github.ref == 'refs/heads/main'" in text
     assert f"ref: {trial.RUNTIME_SHA}" in text
-    assert trial.RUNTIME_MODULE_TREE_SHA256 == "465fd21781221b01188f08fbbeece9457cc58e08025d9827845de427ac9a67d1"
+    assert trial.RUNTIME_MODULE_TREE_SHA256 == "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3"
 
 
 def test_provider_secrets_are_only_mapped_to_the_explicit_run_step():
