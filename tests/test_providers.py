@@ -73,6 +73,41 @@ class RedirectSinkHandler(BaseHTTPRequestHandler):
 
 
 class RequestMeasurementWithoutNetworkTests(unittest.TestCase):
+    def test_v2_unit_bindings_are_measured_and_missing_map_fails_closed(self):
+        provider = OpenAIProvider(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "test-model",
+                "api_key_env": "TEST_PROVIDER_KEY",
+                "max_request_bytes": 20_000,
+            }
+        )
+        task = {
+            "task_id": "bound",
+            "unit_ids": ["u1"],
+            "evidence_ids": ["ev-1", "policy-1"],
+            "request_input_contract": "specialist-input.v2",
+            "unit_evidence_bindings": [
+                {"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}
+            ],
+        }
+        evidence = [{"evidence_id": "ev-1", "path": "src/a.py"}, {"evidence_id": "policy-1", "path": "AGENTS.md"}]
+        limits = {
+            "max_input_bytes_per_task": 20_000,
+            "max_output_bytes_per_task": 4096,
+            "max_output_tokens": 50,
+            "deadline_seconds": 1,
+        }
+        body = provider.serialize_review_request(task, evidence, limits)
+        self.assertEqual(len(body), provider.review_input_bytes(task, evidence, limits))
+        self.assertIn(b"specialist-input.v2", body)
+        self.assertIn(b"ev-1", body)
+
+        malformed = {**task, "unit_evidence_bindings": []}
+        with self.assertRaisesRegex(ProviderError, "invalid_unit_evidence_bindings"):
+            provider.serialize_review_request(malformed, evidence, limits)
+
     def test_measurement_can_exceed_transport_ceiling_but_dispatch_checks_both_caps_first(self):
         task = {"task_id": "size", "unit_ids": ["u1"]}
         evidence = [{"evidence_id": "ev-1", "content": 'quotes " and newlines\n' * 50}]

@@ -13,6 +13,7 @@ from pr_review_harness.engine import prepare_plan_tasks, render_report, run_revi
 from pr_review_harness.evidence import ContextRetriever
 from pr_review_harness.planner import plan_review
 from pr_review_harness.providers import OpenAIProvider
+from pr_review_harness.snapshot import collect_snapshot
 
 LIMITS = {
     "deadline_seconds": 2,
@@ -168,6 +169,64 @@ class SizingOnlyOpenAIProvider(OpenAIProvider):
             },
             "usage": {},
             "provenance": {"provider": "offline-serializer-test"},
+        }
+
+
+class BoundWireProvider(SizingOnlyOpenAIProvider):
+    """Exercise v2 through the engine and the real OpenAI-compatible serializer."""
+
+    def review(self, task, evidence, limits):
+        body = self.serialize_review_request(task, evidence, limits)
+        return {
+            "payload": {
+                "finding_candidates": [],
+                "context_gap_proposals": [],
+                "coverage_notes": [
+                    {
+                        "unit_id": unit_id,
+                        "state": "COVERED",
+                        "reason_code": "REVIEWED",
+                        "evidence_refs": [
+                            *next(row["evidence_ids"] for row in task["unit_evidence_bindings"] if row["unit_id"] == unit_id),
+                            *(eid for eid in task["evidence_ids"] if eid.startswith("policy:")),
+                        ],
+                        "coverage_basis": "STATIC_REVIEW",
+                    }
+                    for unit_id in task["unit_ids"]
+                ],
+                "specific_strengths": [],
+                "future_guidance": [],
+            },
+            "usage": {},
+            "provenance": {
+                "wire_bytes": len(body),
+                "measured_bytes": self.review_input_bytes(task, evidence, limits),
+                "task_bindings": task["unit_evidence_bindings"],
+            },
+        }
+
+
+class CrossUnitReferenceProvider(EmptyProvider):
+    def review(self, task, evidence, limits):
+        self.calls += 1
+        other = {"u0": "u1", "u1": "u0"}
+        return {
+            "payload": {
+                "finding_candidates": [],
+                "context_gap_proposals": [],
+                "coverage_notes": [
+                    {
+                        "unit_id": unit_id,
+                        "state": "COVERED",
+                        "reason_code": "REVIEWED",
+                        "evidence_refs": [f"diff:{other[unit_id]}"],
+                        "coverage_basis": "STATIC_REVIEW",
+                    }
+                    for unit_id in task["unit_ids"]
+                ],
+            },
+            "usage": {},
+            "provenance": {},
         }
 
 
@@ -398,7 +457,13 @@ class GapProvider(EmptyProvider):
 
 
 class ContextFollowupProvider(EmptyProvider):
+    def __init__(self, marker=None):
+        super().__init__()
+        self.marker = marker
+
     def review(self, task, evidence, limits):
+        if self.marker is not None:
+            Path(self.marker).write_text("called")
         unit = task["unit_ids"][0]
         if task.get("context_gap_followup_for"):
             refs = [item["evidence_id"] for item in evidence]
@@ -516,6 +581,14 @@ class ResolvedContextRetriever:
                 "truncated": False,
             },
         }
+
+
+class ExistingEvidenceContextRetriever:
+    def __init__(self, evidence):
+        self.evidence = evidence
+
+    def __call__(self, snapshot, profile, proposal, limits):
+        return {"status": "RESOLVED", "reason": None, "evidence": self.evidence}
 
 
 class OversizedContextRetriever:
@@ -649,7 +722,7 @@ def test_required_context_is_included_before_batch_admission_and_units_split(tmp
 
     def shaped_task(unit_ids, chunk):
         obligation_ids = [f"unit:{uid}:lens:correctness" for uid in unit_ids]
-        return {
+        task = {
             **base_task,
             "task_id": f"{base_task['task_id']}:chunk-{chunk}",
             "unit_ids": unit_ids,
@@ -662,6 +735,8 @@ def test_required_context_is_included_before_batch_admission_and_units_split(tmp
             "obligation_id": obligation_ids[0],
             "obligation_ids": obligation_ids,
         }
+        evidence = [snap["evidence"][eid] for eid in task["evidence_ids"]]
+        return engine_module._bind_specialist_input(task, snap, prof, evidence)
 
     def estimate(task, cap_for_payload):
         evidence = [snap["evidence"][eid] for eid in task["evidence_ids"]]
@@ -700,6 +775,197 @@ def test_required_context_is_included_before_batch_admission_and_units_split(tmp
         if obligation["obligation_kind"] == "CHANGED_UNIT_LENS":
             assert obligation["state"] == "COMPLETE"
             assert obligation["task_ids"]
+
+
+def test_engine_v2_binds_each_unit_and_allows_shared_policy_refs(tmp_path):
+    snap = make_snapshot(units=2)
+    policy_id = _add_trusted_policy(snap, "Shared policy is available to both units.\n")
+    prof = profile()
+    plan = plan_review(snap, prof)
+    plan["tasks"][0]["evidence_ids"].append(policy_id)
+    plan["tasks"][0]["base_context_ids"] = [policy_id]
+    provider = BoundWireProvider()
+
+    result = run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path), "bound-v2")
+    row = next(value for value in result["task_results"].values() if value.get("status") == "SUCCEEDED")
+    bindings = row["unit_evidence_bindings"]
+    assert row["request_input_contract"] == "specialist-input.v2"
+    assert bindings == [
+        {"unit_id": "u0", "binding_status": "VERIFIED", "evidence_ids": ["diff:u0"]},
+        {"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["diff:u1"]},
+    ]
+    assert row["provenance"]["task_bindings"] == bindings
+    assert row["provenance"]["wire_bytes"] == row["provenance"]["measured_bytes"]
+    assert result["coverage_state"] == "COMPLETE"
+
+
+def test_collector_to_engine_serializes_owned_windows_and_required_context(tmp_path):
+    bare, work = tmp_path / "objects.git", tmp_path / "work"
+
+    def git(path, *args):
+        return subprocess.run(
+            ["git", "-C", str(path), *args],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        ).stdout.strip()
+
+    subprocess.run(["git", "init", "--bare", str(bare)], check=True, capture_output=True, timeout=10)
+    subprocess.run(["git", "init", str(work)], check=True, capture_output=True, timeout=10)
+    git(work, "config", "user.email", "fixture@example.invalid")
+    git(work, "config", "user.name", "Unit Binding Fixture")
+    (work / "src").mkdir()
+    (work / "docs").mkdir()
+    (work / "AGENTS.md").write_text("Preserve evidence ownership in the review.\n")
+    (work / "docs/contract.md").write_text("Both functions return an integer.\n")
+    (work / "src/a.py").write_text("def alpha():\n    return 1\n")
+    (work / "src/b.py").write_text("def beta():\n    return 1\n")
+    git(work, "add", "AGENTS.md", "docs/contract.md", "src/a.py", "src/b.py")
+    subprocess.run(
+        ["git", "-C", str(work), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "base"],
+        check=True,
+        capture_output=True,
+        timeout=10,
+    )
+    base = git(work, "rev-parse", "HEAD")
+    (work / "src/a.py").write_text("def alpha():\n    return 2\n")
+    (work / "src/b.py").write_text("def beta():\n    return 2\n")
+    git(work, "add", "src/a.py", "src/b.py")
+    subprocess.run(
+        ["git", "-C", str(work), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "change"],
+        check=True,
+        capture_output=True,
+        timeout=10,
+    )
+    head = git(work, "rev-parse", "HEAD")
+    git(work, "remote", "add", "origin", str(bare))
+    subprocess.run(["git", "-C", str(work), "push", "origin", "HEAD:refs/heads/main"], check=True, capture_output=True, timeout=10)
+    prof = {
+        **profile(),
+        "context_paths": ["AGENTS.md", "docs/contract.md"],
+        "trusted_policy_paths": ["AGENTS.md"],
+        "retrieval_context_patterns": ["AGENTS.md", "docs/contract.md"],
+        "context_selection": {
+            "version": "context-selection.v1",
+                "mandatory_policy_paths": ["AGENTS.md"],
+            "max_total_context_bytes": 10_000,
+            "window": {
+                "before_lines": 0,
+                "after_lines": 0,
+                "max_bytes": 1_000,
+                "max_windows_per_unit": 1,
+                "max_scan_bytes": 10_000,
+            },
+            "bindings": [
+                {
+                    "unit_patterns": ["src/*.py"],
+                    "lenses": ["correctness"],
+                    "context_paths": ["docs/contract.md"],
+                    "max_context_bytes": 1_000,
+                }
+            ],
+        },
+    }
+    snap = collect_snapshot(
+        str(bare), base, head, prof, {"max_context_bytes": 100_000, "max_snapshot_context_bytes": 100_000}
+    )
+    plan = plan_review(snap, prof)
+    provider = BoundWireProvider()
+    result = run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path / "runs"), "collector-bindings")
+
+    inventory = {row["unit_id"]: set(row["evidence_ids"]) for row in snap["inventory"]}
+    windows = {item["evidence_id"] for item in snap["evidence"].values() if item.get("source_kind") == "source_window"}
+    whole_files = {
+        item["evidence_id"]
+        for item in snap["evidence"].values()
+        if item.get("source_kind") in {"base_file", "head_file"}
+    }
+    assert len(inventory) == 2 and windows
+    for row in result["task_results"].values():
+        assert row["status"] == "SUCCEEDED"
+        sent = set(row["input_evidence_ids"])
+        assert snap["trusted_context_refs"][0] in sent
+        assert row["provenance"]["wire_bytes"] == row["provenance"]["measured_bytes"]
+        assert not (sent & whole_files)
+        for binding in row["unit_evidence_bindings"]:
+            expected = inventory[binding["unit_id"]] & sent
+            assert set(binding["evidence_ids"]) == expected
+            assert set(binding["evidence_ids"]).issubset(sent)
+        assert set(row["input_evidence_ids"]) & windows
+    code_coverage = [row for row in result["coverage_ledger"] if row["obligation_kind"] == "CHANGED_UNIT_LENS"]
+    expected_code_obligations = sum(row["obligation_kind"] == "CHANGED_UNIT_LENS" for row in plan["coverage_obligations"])
+    assert len(code_coverage) == expected_code_obligations
+    assert all(row["state"] == "COMPLETE" for row in code_coverage)
+
+
+def test_engine_rejects_forged_cross_unit_binding_before_dispatch(tmp_path):
+    snap = make_snapshot(units=2)
+    prof = profile()
+    plan = plan_review(snap, prof)
+    task = plan["tasks"][0]
+    task["unit_evidence_bindings"] = [
+        {"unit_id": unit_id, "binding_status": "VERIFIED", "evidence_ids": [f"diff:{other_id}"]}
+        for unit_id, other_id in (("u0", "u1"), ("u1", "u0"))
+    ]
+    provider = EmptyProvider()
+    with pytest.raises(ValueError, match="engine_owned"):
+        run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path), "forged-binding")
+    assert provider.calls == 0
+    assert not (tmp_path / "forged-binding.json").exists()
+
+
+def test_missing_task_kind_uses_specialist_v2_and_explicit_unknown_kind_fails(tmp_path):
+    snap, prof = make_snapshot(), profile()
+    plan = plan_review(snap, prof)
+    plan["tasks"][0].pop("task_kind")
+    result = run_review(snap, plan, prof, EmptyProvider(), None, LIMITS, str(tmp_path), "default-kind")
+    assert next(iter(result["task_results"].values()))["request_input_contract"] == "specialist-input.v2"
+
+    bad_plan = plan_review(snap, prof)
+    bad_plan["tasks"][0]["task_kind"] = None
+    provider = EmptyProvider()
+    with pytest.raises(ValueError, match="invalid planned task kind"):
+        run_review(snap, bad_plan, prof, provider, None, LIMITS, str(tmp_path), "unknown-kind")
+    assert provider.calls == 0
+
+
+def test_cross_unit_only_coverage_refs_remain_invalid_after_dispatch(tmp_path):
+    snap, prof = make_snapshot(units=2), profile()
+    plan = plan_review(snap, prof)
+    result = run_review(snap, plan, prof, CrossUnitReferenceProvider(), None, LIMITS, str(tmp_path), "cross-ref")
+    assert next(iter(result["task_results"].values()))["status"] == "SUCCEEDED"
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["coverage_ledger"][0]["reason_code"] == "COVERAGE_NOTE_EVIDENCE_INVALID"
+
+
+def test_resume_rejects_changed_persisted_unit_binding_map(tmp_path):
+    provider = EmptyProvider()
+    snap, prof = make_snapshot(units=2), profile()
+    plan = plan_review(snap, prof)
+    run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path), "binding-resume")
+    path = tmp_path / "binding-resume.json"
+    payload = json.loads(path.read_text())
+    payload["ledger"]["planned_task_inputs"] = {}
+    payload["result_hash"] = engine_module._hash({key: value for key, value in payload.items() if key != "result_hash"})
+    path.write_text(json.dumps(payload))
+
+    calls = provider.calls
+    with pytest.raises(ValueError, match="planned input binding"):
+        run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path), "binding-resume", resume=True)
+    assert provider.calls == calls
+
+    second_id = "binding-output-resume"
+    run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path), second_id)
+    output_path = tmp_path / f"{second_id}.json"
+    saved = json.loads(output_path.read_text())
+    task_result = next(iter(saved["ledger"]["outputs"].values()))
+    task_result["unit_evidence_bindings"][0]["evidence_ids"] = []
+    saved["result_hash"] = engine_module._hash({key: value for key, value in saved.items() if key != "result_hash"})
+    output_path.write_text(json.dumps(saved))
+    with pytest.raises(ValueError, match="task input binding"):
+        run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path), second_id, resume=True)
 
 
 def test_oversized_initial_request_is_measured_then_split_below_unchanged_dispatch_caps():
@@ -835,10 +1101,23 @@ def test_unit_skips_when_required_context_cannot_fit_without_dispatch(tmp_path):
     prof = required_context_profile()
     plan = plan_review(snap, prof)
     assert plan["tasks"][0]["required_context_ids"] == [policy_id]
-    unit_only_size = len(json.dumps(snap["evidence"]["diff:u0"], sort_keys=True, separators=(",", ":")).encode())
-    required_size = unit_only_size + len(
-        json.dumps(snap["evidence"][policy_id], sort_keys=True, separators=(",", ":")).encode()
-    )
+    planned = plan["tasks"][0]
+
+    def request_size(evidence_ids, required_ids):
+        candidate = {
+            **planned,
+            "unit_ids": ["u0"],
+            "scope_unit_ids": ["u0"],
+            "evidence_ids": evidence_ids,
+            "base_context_ids": required_ids,
+            "required_context_ids": required_ids,
+        }
+        evidence = [snap["evidence"][eid] for eid in evidence_ids]
+        bound = engine_module._bind_specialist_input(candidate, snap, prof, evidence)
+        return len(engine_module._canonical({"task": bound, "evidence": evidence}))
+
+    unit_only_size = request_size(["diff:u0"], [])
+    required_size = request_size(["diff:u0", policy_id], [policy_id])
     assert unit_only_size < required_size
     cap = unit_only_size + 1
 
@@ -880,19 +1159,31 @@ def test_preflight_skip_keeps_shared_obligation_incomplete_after_sibling_succeed
     plan["coverage_obligations"] = [shared_obligation]
     task["obligation_ids"] = [first_obligation]
 
-    def evidence_size(ids):
-        return sum(
-            len(json.dumps(snap["evidence"][eid], sort_keys=True, separators=(",", ":")).encode()) for eid in ids
-        )
+    provider = SizingOnlyOpenAIProvider()
 
-    cap = evidence_size(["diff:u0", policy_id])
-    assert evidence_size(["diff:u1"]) < cap < evidence_size(["diff:u1", policy_id])
+    def sized_unit(unit_id):
+        candidate = {
+            **task,
+            "unit_ids": [unit_id],
+            "scope_unit_ids": [unit_id],
+            "evidence_ids": [f"diff:{unit_id}", policy_id],
+            "base_context_ids": [policy_id],
+            "required_context_ids": [policy_id],
+            "context_omissions": [],
+            "required_context_omissions": [],
+        }
+        evidence = [snap["evidence"][eid] for eid in candidate["evidence_ids"]]
+        candidate = engine_module._bind_specialist_input(candidate, snap, prof, evidence)
+        return provider.review_input_bytes(candidate, evidence, LIMITS) + 1024
+
+    cap = sized_unit("u0") + 32  # reserve room for the deterministic split task suffix
+    assert sized_unit("u1") > cap
 
     result = run_review(
         snap,
         plan,
         prof,
-        EmptyProvider(),
+        provider,
         None,
         {**LIMITS, "max_input_bytes_per_task": cap},
         str(tmp_path),
@@ -1141,6 +1432,8 @@ def test_selected_review_windows_survive_normal_batching_per_unit(tmp_path):
         task_id = row["task_ids"][0]
         output = result["ledger"]["outputs"][task_id]
         assert {"window:u0", "window:u1"}.issubset(output["input_evidence_ids"])
+        binding = next(row for row in output["unit_evidence_bindings"] if row["unit_id"] == unit_id)
+        assert binding["evidence_ids"] == [f"diff:{unit_id}"]
         note = next(note for note in output["payload"]["coverage_notes"] if note["unit_id"] == unit_id)
         assert f"window:{unit_id}" in note["evidence_refs"]
         assert f"window:{'u1' if unit_id == 'u0' else 'u0'}" not in note["evidence_refs"]
@@ -1210,6 +1503,93 @@ def test_retrieval_requires_bounded_followup_that_cites_retrieved_evidence(tmp_p
     context_coverage = next(c for c in result["coverage_ledger"] if c["obligation_kind"] == "REQUIRED_CONTEXT")
     assert context_coverage["state"] == "COMPLETE"
     assert result["coverage_state"] == "COMPLETE"
+
+
+def test_followup_deduplicates_repeated_identical_context_and_binds_v2(tmp_path):
+    snap, prof = make_snapshot(), {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    path, content = "docs/caller.md", "The caller expects a validated result.\n"
+    content_hash = hashlib.sha256(content.encode()).hexdigest()
+    evidence_id = "ev-" + hashlib.sha256(
+        json.dumps(
+            {"snapshot_id": snap["snapshot_id"], "revision": snap["base_sha"], "path": path, "hash": content_hash},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()[:24]
+    retrieved = {
+        "evidence_id": evidence_id,
+        "snapshot_id": snap["snapshot_id"],
+        "path": path,
+        "content": content,
+        "source_kind": "repository_file",
+        "source_revision": snap["base_sha"],
+        "content_hash": content_hash,
+        "trust": "repository_evidence",
+    }
+    snap["evidence"][evidence_id] = retrieved
+    plan = plan_review(snap, prof)
+    plan["tasks"][0]["evidence_ids"].append(evidence_id)
+    plan["tasks"][0]["base_context_ids"] = [evidence_id]
+    original_snapshot, original_plan = copy.deepcopy(snap), copy.deepcopy(plan)
+    output_dir = str(tmp_path)
+    result = run_review(
+        snap,
+        plan,
+        prof,
+        ContextFollowupProvider(),
+        None,
+        LIMITS,
+        output_dir,
+        "repeat-context",
+        context_retriever=ExistingEvidenceContextRetriever(retrieved),
+    )
+    assert snap == original_snapshot
+    assert plan == original_plan
+    followup = next(row for row in result["task_results"].values() if row.get("task_id", "").endswith(":followup:0"))
+    assert followup["status"] == "SUCCEEDED"
+    assert followup["request_input_contract"] == "specialist-input.v2"
+    assert len(followup["input_evidence_ids"]) == len(set(followup["input_evidence_ids"]))
+    assert evidence_id in followup["input_evidence_ids"]
+    reservations = result["budget"]["provider_calls_reserved"]
+    provider_marker = tmp_path / "resume-provider-called"
+    resume_provider = ContextFollowupProvider(marker=str(provider_marker))
+    resumed = run_review(
+        snap,
+        plan,
+        prof,
+        resume_provider,
+        None,
+        LIMITS,
+        output_dir,
+        "repeat-context",
+        resume=True,
+        context_retriever=ExistingEvidenceContextRetriever(retrieved),
+    )
+    assert resumed["budget"]["provider_calls_reserved"] == reservations
+    assert not provider_marker.exists()
+
+
+def test_repeated_evidence_id_requires_same_source_binding_but_ignores_proposal_annotations():
+    evidence = {
+        "evidence_id": "ev-1",
+        "snapshot_id": "snap",
+        "path": "src/a.py",
+        "source_revision": "a" * 40,
+        "source_kind": "source_window",
+        "source_side": "HEAD",
+        "source_object_id": "b" * 40,
+        "line_start": 4,
+        "line_end": 8,
+        "content_hash": "c" * 64,
+        "trust": "repository_evidence",
+        "content": "selected lines\n",
+    }
+    annotated = {**evidence, "proposal_id": "proposal-2", "task_id": "task-2", "required_lens": "tests"}
+    assert engine_module._merge_evidence_rows([evidence, annotated]) == [evidence]
+    with pytest.raises(ValueError, match="evidence_identity_conflict"):
+        engine_module._merge_evidence_rows([evidence, {**annotated, "source_side": "BASE"}])
+    with pytest.raises(ValueError, match="evidence_identity_conflict"):
+        engine_module._merge_evidence_rows([evidence, {**annotated, "line_start": 3}])
 
 
 def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatches_followup(tmp_path):

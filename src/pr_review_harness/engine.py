@@ -298,6 +298,101 @@ def _evidence_for(task: dict, snapshot: dict, limit: int) -> list[dict]:
     return result
 
 
+def _same_evidence_content(left: dict, right: dict) -> bool:
+    bound_fields = (
+        "evidence_id",
+        "snapshot_id",
+        "path",
+        "source_revision",
+        "content_hash",
+        "source_kind",
+        "source_side",
+        "source_object_id",
+        "line_start",
+        "line_end",
+        "trust",
+    )
+    return all(left.get(field) == right.get(field) for field in bound_fields) and (
+        "content" not in left or "content" not in right or left.get("content") == right.get("content")
+    )
+
+
+def _merge_evidence_rows(rows: list[dict]) -> list[dict]:
+    """Deduplicate repeated IDs only when their immutable content binding agrees."""
+    merged = []
+    by_id = {}
+    for item in rows:
+        evidence_id = item.get("evidence_id") if isinstance(item, dict) else None
+        if not isinstance(evidence_id, str) or not evidence_id:
+            raise ValueError("invalid_evidence_id")
+        existing = by_id.get(evidence_id)
+        if existing is not None:
+            if not _same_evidence_content(existing, item):
+                raise ValueError("evidence_identity_conflict")
+            continue
+        by_id[evidence_id] = item
+        merged.append(item)
+    return merged
+
+
+def _bind_specialist_input(task: dict, snapshot: dict, profile: dict, evidence: list[dict]) -> dict:
+    """Attach the trusted unit-local evidence relation to one measured request."""
+    if task.get("task_kind", "SPECIALIST_FINDINGS") != "SPECIALIST_FINDINGS":
+        return task
+    unit_ids = task.get("unit_ids", task.get("scope_unit_ids", []))
+    task_evidence_ids = task.get("evidence_ids", [])
+    if (
+        not isinstance(unit_ids, list)
+        or not unit_ids
+        or any(not isinstance(unit_id, str) or not unit_id for unit_id in unit_ids)
+        or len(unit_ids) != len(set(unit_ids))
+        or not isinstance(task_evidence_ids, list)
+        or any(not isinstance(evidence_id, str) or not evidence_id for evidence_id in task_evidence_ids)
+        or len(task_evidence_ids) != len(set(task_evidence_ids))
+    ):
+        raise ValueError("invalid_specialist_input_scope")
+    delivered = {
+        item.get("evidence_id")
+        for item in evidence
+        if isinstance(item, dict)
+        and isinstance(item.get("evidence_id"), str)
+        and item.get("snapshot_id") == snapshot.get("snapshot_id")
+    }
+    inventory = {
+        row.get("unit_id"): row
+        for row in snapshot.get("inventory", [])
+        if isinstance(row, dict) and isinstance(row.get("unit_id"), str)
+    }
+    bindings = []
+    for unit_id in unit_ids:
+        row = inventory.get(unit_id)
+        selected_ids = []
+        binding_status = "UNKNOWN"
+        if isinstance(row, dict):
+            source_ids = row.get("evidence_ids", [])
+            if not isinstance(source_ids, list) or any(not isinstance(value, str) for value in source_ids):
+                raise ValueError("invalid_specialist_unit_evidence")
+            selected_set = set(source_ids)
+            selected_ids = [evidence_id for evidence_id in task_evidence_ids if evidence_id in selected_set and evidence_id in delivered]
+            binding_status = "VERIFIED"
+        bindings.append({"unit_id": unit_id, "binding_status": binding_status, "evidence_ids": selected_ids})
+    return {
+        **task,
+        "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
+        "unit_evidence_bindings": bindings,
+    }
+
+
+def _validate_bound_specialist_input(task: dict, snapshot: dict, profile: dict, evidence: list[dict]) -> None:
+    """Reject persisted or caller-supplied mappings not derivable from trusted input."""
+    if task.get("request_input_contract") != review_contracts.SPECIALIST_INPUT_V2:
+        raise ValueError("invalid_specialist_input_contract")
+    source_task = {key: value for key, value in task.items() if key not in {"request_input_contract", "unit_evidence_bindings"}}
+    expected = _bind_specialist_input(source_task, snapshot, profile, evidence)
+    if task.get("unit_evidence_bindings") != expected["unit_evidence_bindings"]:
+        raise ValueError("invalid_specialist_unit_evidence_binding")
+
+
 def effective_task_input_ceiling(limits: dict, provider: Any) -> int:
     """Return the shared runtime/adapter ceiling for one primary request.
 
@@ -367,12 +462,20 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
     obligations = plan.get("coverage_obligations")
     if not isinstance(tasks, list) or not isinstance(obligations, list):
         raise ValueError("plan requires tasks and coverage_obligations")
+    obligations = list(obligations)
     task_by_id = {}
     for task in tasks:
         if not isinstance(task, dict) or not task.get("task_id") or not task.get("obligation_id"):
             raise ValueError("invalid planned task")
+        task_kind = task.get("task_kind", "SPECIALIST_FINDINGS")
+        if not isinstance(task_kind, str) or task_kind not in ("SPECIALIST_FINDINGS", "DETERMINISTIC_CHECK"):
+            raise ValueError("invalid planned task kind")
         if task["task_id"] in task_by_id:
             raise ValueError("duplicate task_id")
+        if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS" and (
+            "request_input_contract" in task or "unit_evidence_bindings" in task
+        ):
+            raise ValueError("planned_specialist_input_metadata_is_engine_owned")
         task_by_id[task["task_id"]] = task
     obligation_by_id = {
         o.get("obligation_id"): o for o in obligations if isinstance(o, dict) and o.get("obligation_id")
@@ -388,10 +491,10 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
     # inherit another chunk's successful result.
     def review_input_size(task: dict, evidence: list[dict]) -> int:
         measure = getattr(provider, "review_input_bytes", None)
-        if callable(measure) and task.get("task_kind") == "SPECIALIST_FINDINGS":
+        if callable(measure) and task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
             # Reserve extra room for chunk metadata added after grouping.
             return measure(task, evidence, limits) + 1024
-        return sum(len(_canonical(item)) for item in evidence)
+        return len(_canonical({"task": task, "evidence": evidence}))
 
     unit_order = {u.get("unit_id"): i for i, u in enumerate(snapshot.get("inventory", [])) if isinstance(u, dict)}
     split_tasks = []
@@ -399,7 +502,7 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
     input_ceiling = effective_task_input_ceiling(limits, provider)
     for task in tasks:
         unit_ids = list(task.get("unit_ids", task.get("scope_unit_ids", [])))
-        if task.get("task_kind") != "SPECIALIST_FINDINGS":
+        if task.get("task_kind", "SPECIALIST_FINDINGS") != "SPECIALIST_FINDINGS":
             split_tasks.append(task)
             continue
         unit_obligations = {
@@ -451,7 +554,7 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
 
         def batch_task(units: list[str], ids: list[str], required: list[str]) -> dict:
             required = list(dict.fromkeys(required))
-            return {
+            candidate = {
                 **task,
                 "unit_ids": units,
                 "scope_unit_ids": units,
@@ -459,6 +562,8 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
                 "base_context_ids": required,
                 "required_context_ids": required,
             }
+            evidence = _evidence_for(candidate, snapshot, input_ceiling)
+            return _bind_specialist_input(candidate, snapshot, profile, evidence)
 
         for uid in sorted(unit_ids, key=lambda u: unit_order.get(u, 10**9)):
             unit = next((u for u in snapshot.get("inventory", []) if u.get("unit_id") == uid), {})
@@ -475,10 +580,9 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
             ids = [
                 eid for eid in task.get("evidence_ids", []) if eid in unit_evidence_ids and eid not in context_id_set
             ]
-            unit_size = review_input_size(
-                batch_task([uid], ids, []),
-                _evidence_for(batch_task([uid], ids, []), snapshot, input_ceiling),
-            )
+            unit_task = batch_task([uid], ids, [])
+            unit_evidence = _evidence_for(unit_task, snapshot, input_ceiling)
+            unit_size = review_input_size(unit_task, unit_evidence)
             if unit_size > input_ceiling:
                 skip_unit(uid, "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT")
                 continue
@@ -509,7 +613,7 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
             omitted_context = []
 
             def finalized_batch(selected_context: list[str], omitted_ids: list[str]) -> dict:
-                return {
+                candidate = {
                     **task,
                     "task_id": f"{task['task_id']}:chunk-{index}",
                     "unit_ids": units,
@@ -522,6 +626,8 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
                     "obligation_id": oids[0],
                     "obligation_ids": list(dict.fromkeys(oids)),
                 }
+                evidence = _evidence_for(candidate, snapshot, input_ceiling)
+                return _bind_specialist_input(candidate, snapshot, profile, evidence)
 
             for eid in context_ids:
                 if eid in set(chosen_context):
@@ -593,6 +699,22 @@ def run_review(
     obligations = plan.get("coverage_obligations")
     if not isinstance(tasks, list) or not isinstance(obligations, list):
         raise ValueError("plan requires tasks and coverage_obligations")
+    obligations = list(obligations)
+    input_ceiling = effective_task_input_ceiling(limits, provider)
+    primary_tasks, split_skips = prepare_plan_tasks(
+        snapshot, {"tasks": tasks, "coverage_obligations": obligations}, profile, limits, provider
+    )
+    primary_task_inputs = [
+        {
+            "task_id": task["task_id"],
+            "task_kind": task.get("task_kind", "SPECIALIST_FINDINGS"),
+            "unit_ids": list(task.get("unit_ids", [])),
+            "evidence_ids": list(task.get("evidence_ids", [])),
+            "request_input_contract": task.get("request_input_contract"),
+            "unit_evidence_bindings": task.get("unit_evidence_bindings"),
+        }
+        for task in primary_tasks
+    ]
     output_path = Path(output_dir).resolve() / f"{run_id}.json"
     provider_identity = _provider_identity(provider, decision_provider)
     request_basis = {
@@ -602,6 +724,8 @@ def run_review(
         "limits": limits,
         "provider": provider_identity,
         "run_id": run_id,
+        "primary_task_inputs": primary_task_inputs,
+        "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
         "core_contract_hash": _core_contract_hash(),
     }
     if max_claim_assessments > 0:
@@ -627,6 +751,8 @@ def run_review(
             "question_versions": sorted({str(t.get("question_version", "0.1")) for t in tasks}),
             "provider_identity_hash": _hash(provider_identity),
             "plan_hash": _hash(plan),
+            "primary_task_inputs_hash": _hash(primary_task_inputs),
+            "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
             "core_contract_hash": _core_contract_hash(),
         },
     }
@@ -652,6 +778,41 @@ def run_review(
                 for event in ledger.get("events", [])
             ):
                 raise ValueError("resume ledger integrity mismatch")
+            saved_snapshot = {**snapshot, "evidence": dict(snapshot.get("evidence", {}))}
+            saved_retrieved_context = ledger.get("retrieved_context", {})
+            if isinstance(saved_retrieved_context, dict):
+                for entry in saved_retrieved_context.values():
+                    if isinstance(entry, dict):
+                        for item in entry.get("evidence", []):
+                            if isinstance(item, dict) and isinstance(item.get("evidence_id"), str):
+                                existing = saved_snapshot["evidence"].get(item["evidence_id"])
+                                if existing is not None and not _same_evidence_content(existing, item):
+                                    raise ValueError("resume evidence identity mismatch")
+                                saved_snapshot["evidence"].setdefault(item["evidence_id"], item)
+            saved_dynamic_tasks = [t for t in ledger.get("dynamic_tasks", []) if isinstance(t, dict)]
+            saved_input_provenance = {
+                task["task_id"]: {
+                    "request_input_contract": task.get("request_input_contract"),
+                    "unit_evidence_bindings": task.get("unit_evidence_bindings"),
+                }
+                for task in [*primary_tasks, *saved_dynamic_tasks]
+                if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
+            }
+            if ledger.get("planned_task_inputs") != saved_input_provenance:
+                raise ValueError("resume planned input binding mismatch")
+            for task in saved_dynamic_tasks:
+                if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
+                    saved_evidence = _evidence_for(task, saved_snapshot, input_ceiling)
+                    _validate_bound_specialist_input(task, saved_snapshot, profile, saved_evidence)
+            saved_outputs = ledger.get("outputs", {})
+            if isinstance(saved_outputs, dict):
+                for task_id, provenance in saved_input_provenance.items():
+                    output = saved_outputs.get(task_id)
+                    if isinstance(output, dict) and (
+                        output.get("request_input_contract") != provenance["request_input_contract"]
+                        or output.get("unit_evidence_bindings") != provenance["unit_evidence_bindings"]
+                    ):
+                        raise ValueError("resume task input binding mismatch")
             if ledger.get("identity", {}).get("snapshot_id") not in (None, snapshot.get("snapshot_id")):
                 raise ValueError("resume snapshot identity mismatch")
             if saved.get("completed_at"):
@@ -728,9 +889,12 @@ def run_review(
             if isinstance(entry, dict):
                 for evidence in entry.get("evidence", []):
                     if isinstance(evidence, dict) and isinstance(evidence.get("evidence_id"), str):
-                        snapshot["evidence"][evidence["evidence_id"]] = evidence
-    if isinstance(ledger.get("dynamic_tasks"), list):
-        tasks = list(tasks) + [t for t in ledger["dynamic_tasks"] if isinstance(t, dict)]
+                        existing = snapshot["evidence"].get(evidence["evidence_id"])
+                        if existing is not None and not _same_evidence_content(existing, evidence):
+                            raise ValueError("resume evidence identity mismatch")
+                        snapshot["evidence"].setdefault(evidence["evidence_id"], evidence)
+    tasks = primary_tasks
+    dynamic_tasks = [t for t in ledger.get("dynamic_tasks", []) if isinstance(t, dict)]
     if isinstance(ledger.get("dynamic_obligations"), list):
         obligations = list(obligations) + [o for o in ledger["dynamic_obligations"] if isinstance(o, dict)]
 
@@ -779,14 +943,34 @@ def run_review(
         if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
             raise ValueError("task references unknown obligation")
 
-    input_ceiling = effective_task_input_ceiling(limits, provider)
-    tasks, split_skips = prepare_plan_tasks(snapshot, {"tasks": tasks, "coverage_obligations": obligations}, profile, limits, provider)
+    known_task_ids = {task["task_id"] for task in tasks}
+    for task in dynamic_tasks:
+        if not task.get("task_id") or not task.get("obligation_id") or task["task_id"] in known_task_ids:
+            raise ValueError("invalid_or_duplicate_dynamic_task")
+        if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
+            evidence = _evidence_for(task, snapshot, input_ceiling)
+            _validate_bound_specialist_input(task, snapshot, profile, evidence)
+        if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
+            raise ValueError("dynamic_task_references_unknown_obligation")
+        known_task_ids.add(task["task_id"])
+        tasks.append(task)
+    planned_task_inputs = {
+        task["task_id"]: {
+            "request_input_contract": task.get("request_input_contract"),
+            "unit_evidence_bindings": task.get("unit_evidence_bindings"),
+        }
+        for task in tasks
+        if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
+    }
+    if "planned_task_inputs" in ledger and ledger["planned_task_inputs"] != planned_task_inputs:
+        raise ValueError("resume planned input binding mismatch")
+    ledger["planned_task_inputs"] = planned_task_inputs
 
     def review_input_size(task: dict, evidence: list[dict]) -> int:
         measure = getattr(provider, "review_input_bytes", None)
-        if callable(measure) and task.get("task_kind") == "SPECIALIST_FINDINGS":
+        if callable(measure) and task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
             return measure(task, evidence, limits) + 1024
-        return sum(len(_canonical(item)) for item in evidence)
+        return len(_canonical({"task": task, "evidence": evidence}))
 
     call_lock = threading.Lock()
     task_results = dict(ledger.get("outputs", {}))
@@ -796,6 +980,9 @@ def run_review(
         t for t in tasks if t["task_id"] not in task_results or task_results[t["task_id"]].get("status") != "SUCCEEDED"
     ]
     evidence_cache = {t["task_id"]: _evidence_for(t, snapshot, input_ceiling) for t in tasks}
+    for task in tasks:
+        if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
+            _validate_bound_specialist_input(task, snapshot, profile, evidence_cache[task["task_id"]])
 
     def remaining_call_limits() -> dict:
         return {**limits, "deadline_seconds": max(0.0, budget.remaining_seconds())}
@@ -943,6 +1130,8 @@ def run_review(
                 "error_code": "CHECK_ADAPTER_UNAVAILABLE" if is_check else "PROVIDER_UNAVAILABLE",
                 "attempts": attempt_index,
             }
+        if kind == "SPECIALIST_FINDINGS":
+            _validate_bound_specialist_input(task, snapshot, profile, evidence)
         required_size = review_input_size(task, evidence)
         task_input_ceiling = int(limits["max_input_bytes_per_task"]) if is_check else input_ceiling
         if required_size > task_input_ceiling:
@@ -1175,11 +1364,25 @@ def run_review(
                 "error_code": "INTERRUPTED_UNKNOWN",
                 "input_evidence_ids": [],
                 "attempts": attempts_done,
+                **(
+                    {
+                        "request_input_contract": task["request_input_contract"],
+                        "unit_evidence_bindings": task["unit_evidence_bindings"],
+                    }
+                    if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
+                    else {}
+                ),
             }
     active: dict[int, dict] = {}
 
     def record_task_outcome(task: dict, outcome: dict, reservation_key: str | None = None) -> None:
         with state_lock:
+            if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2:
+                outcome = {
+                    **outcome,
+                    "request_input_contract": task["request_input_contract"],
+                    "unit_evidence_bindings": task["unit_evidence_bindings"],
+                }
             task_results[task["task_id"]] = outcome
             ledger["outputs"] = task_results
             if reservation_key:
@@ -1550,6 +1753,7 @@ def run_review(
                         ):
                             raise ValueError("context_retrieval_evidence_binding_failed")
                         verified.append(item)
+                    verified = _merge_evidence_rows(verified)
                     if byte_count > reserved_bytes:
                         raise BudgetExhausted("CONTEXT_RETRIEVAL_BYTE_LIMIT_EXCEEDED")
                     budget.settle(retrieval_key, output_bytes=byte_count, usage={}, status=retrieved["status"])
@@ -1564,7 +1768,10 @@ def run_review(
                             "evidence": verified,
                         }
                     for item in verified:
-                        evidence_map[item["evidence_id"]] = item
+                        existing = evidence_map.get(item["evidence_id"])
+                        if existing is not None and not _same_evidence_content(existing, item):
+                            raise ValueError("evidence_identity_conflict")
+                        evidence_map.setdefault(item["evidence_id"], item)
                     checkpoint()
                 except Exception as exc:
                     record["retrieval_status"] = "UNRESOLVED"
@@ -1594,10 +1801,11 @@ def run_review(
                         "context_gap_followup_for": record["proposal_id"],
                         "lens": lens,
                     }
-                    followup_evidence = [
+                    followup_evidence = _merge_evidence_rows([
                         *evidence_cache.get(task["task_id"], []),
                         *(evidence_map[eid] for eid in record["retrieved_evidence_ids"]),
-                    ]
+                    ])
+                    followup_task = _bind_specialist_input(followup_task, snapshot, profile, followup_evidence)
                     try:
                         budget.reserve_followup(followup_id)
                         obligation = {
@@ -1617,7 +1825,13 @@ def run_review(
                         if prior_task is None:
                             tasks.append(followup_task)
                             ledger.setdefault("dynamic_tasks", []).append(followup_task)
+                            ledger.setdefault("planned_task_inputs", {})[followup_id] = {
+                                "request_input_contract": followup_task["request_input_contract"],
+                                "unit_evidence_bindings": followup_task["unit_evidence_bindings"],
+                            }
                         else:
+                            if prior_task != followup_task:
+                                raise ValueError("resume followup task binding mismatch")
                             followup_task = prior_task
                         checkpoint()
                         followup_result = task_results.get(followup_id)
