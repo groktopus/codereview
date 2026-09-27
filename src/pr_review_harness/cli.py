@@ -611,7 +611,7 @@ def _run_one(
                 continue
             evidence = _evidence_for(task, snapshot, effective_input_ceiling)
             body = provider.serialize_review_request(task, evidence, limits)
-            primary.append({
+            request_descriptor = {
                 "task_id": task["task_id"],
                 "lens": task.get("lens"),
                 "unit_ids": list(task.get("unit_ids", [])),
@@ -637,7 +637,15 @@ def _run_one(
                 "admitted": len(body) <= effective_input_ceiling,
                 "output_bytes_cap": min(provider.max_response_bytes, limits["max_output_bytes_per_task"]),
                 "output_tokens_cap": min(provider.max_output_tokens, limits["max_output_tokens"]),
-            })
+            }
+            # Keep the exact engine-bound contract metadata visible in the
+            # prepare receipt. Do not reconstruct bindings from the snapshot:
+            # the serialized body and this descriptor must describe the same
+            # planned request. Legacy requests retain their existing shape.
+            if "request_input_contract" in task or "unit_evidence_bindings" in task:
+                request_descriptor["request_input_contract"] = task.get("request_input_contract")
+                request_descriptor["unit_evidence_bindings"] = task.get("unit_evidence_bindings")
+            primary.append(request_descriptor)
         primary_calls = len(primary)
         summary_slots = 1 if decision_provider is not None else 0
         claim_slots = max_claim_assessments

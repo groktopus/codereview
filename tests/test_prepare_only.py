@@ -174,6 +174,149 @@ def test_prepare_only_cli_returns_scope_and_exact_sizes_without_key_or_artifact(
     assert not output_dir.exists()
 
 
+def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windows(
+    tmp_path, monkeypatch, capsys
+):
+    repo = tmp_path / "two-unit-repo"
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, timeout=10)
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args], check=True, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10,
+        ).stdout.strip()
+
+    git("config", "user.email", "prepare-v2@example.invalid")
+    git("config", "user.name", "Prepare V2 Fixture")
+    (repo / "src").mkdir()
+    (repo / "AGENTS.md").write_text("Treat shared policy as context, not unit-local evidence.\n")
+    (repo / "src/a.py").write_text("def alpha():\n    return 1\n")
+    (repo / "src/b.py").write_text("def beta():\n    return 1\n")
+    git("add", "AGENTS.md", "src/a.py", "src/b.py")
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "base"],
+        check=True, capture_output=True, timeout=10,
+    )
+    base = git("rev-parse", "HEAD")
+    (repo / "src/a.py").write_text("def alpha():\n    return 2\n")
+    (repo / "src/b.py").write_text("def beta():\n    return 2\n")
+    git("add", "src/a.py", "src/b.py")
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "change"],
+        check=True, capture_output=True, timeout=10,
+    )
+    head = git("rev-parse", "HEAD")
+
+    profile_data = {
+        "version": "prepare-v2-bindings-v1",
+        "required_lenses": ["correctness"],
+        "context_paths": ["AGENTS.md"],
+        "trusted_policy_paths": ["AGENTS.md"],
+        "context_selection": {
+            "version": "context-selection.v1",
+            "mandatory_policy_paths": ["AGENTS.md"],
+            "max_total_context_bytes": 10_000,
+            "window": {
+                "before_lines": 0,
+                "after_lines": 0,
+                "max_bytes": 1_000,
+                "max_windows_per_unit": 1,
+                "max_scan_bytes": 10_000,
+            },
+            "bindings": [
+                {
+                    "unit_patterns": ["src/*.py"],
+                    "lenses": ["correctness"],
+                    "context_paths": [],
+                    "max_context_bytes": 1_000,
+                }
+            ],
+        },
+    }
+    profile_path = tmp_path / "profile-v2.json"
+    profile_path.write_text(json.dumps(profile_data))
+    provider_config = tmp_path / "provider-v2.json"
+    provider_config.write_text(json.dumps({
+        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
+        "model": "prepare-v2-test-model", "api_key_env": "PREPARE_V2_ABSENT_KEY",
+    }))
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.delenv("PREPARE_V2_ABSENT_KEY", raising=False)
+
+    captured_bodies = {}
+    original_serialize = OpenAIProvider.serialize_review_request
+
+    def capture_serialized(self, task, evidence, limits):
+        body = original_serialize(self, task, evidence, limits)
+        if task.get("task_kind") == "SPECIALIST_FINDINGS":
+            captured_bodies[task["task_id"]] = body
+        return body
+
+    monkeypatch.setattr(OpenAIProvider, "serialize_review_request", capture_serialized)
+
+    class NoTransport:
+        def open(self, *_args, **_kwargs):
+            raise AssertionError("prepare-only opened provider transport")
+
+    monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", NoTransport())
+    monkeypatch.setattr("pr_review_harness.claim_transport._HTTP_OPENER", NoTransport())
+    code = cli.main([
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(profile_path), "--provider-config", str(provider_config),
+        "--prepare-only", "--json",
+    ])
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "PREPARED_ONLY"
+    assert report["no_provider_calls"] is True
+    assert report["primary_requests"]
+
+    from pr_review_harness.snapshot import collect_snapshot
+
+    snapshot = collect_snapshot(str(repo), base, head, profile_data, cli._limits())
+    inventory_by_unit = {
+        row["unit_id"]: set(row["evidence_ids"])
+        for row in snapshot["inventory"]
+    }
+    assert len(inventory_by_unit) == 2
+    evidence_index = {row["evidence_id"]: row for row in report["snapshot"]["evidence_index"]}
+    policy_ids = {
+        evidence_id for evidence_id, row in evidence_index.items()
+        if row["path"] == "AGENTS.md" and row["source_kind"] == "profile_context"
+    }
+    assert len(policy_ids) == 1
+
+    seen_windows = set()
+    for descriptor in report["primary_requests"]:
+        assert descriptor["request_input_contract"] == "specialist-input.v2"
+        body = captured_bodies[descriptor["task_id"]]
+        assert descriptor["input_bytes"] == len(body)
+        assert descriptor["input_sha256"] == hashlib.sha256(body).hexdigest()
+        wire = json.loads(body)
+        user_message = next(message["content"] for message in wire["messages"] if message["role"] == "user")
+        user_payload = json.loads(user_message)
+        wire_task = user_payload["task"]
+        wire_evidence_ids = {row["evidence_id"] for row in user_payload["evidence"]}
+        bindings = descriptor["unit_evidence_bindings"]
+        assert bindings == wire_task["unit_evidence_bindings"]
+        assert wire_task["request_input_contract"] == "specialist-input.v2"
+        assert set(descriptor["evidence_ids"]) == wire_evidence_ids
+        assert policy_ids <= wire_evidence_ids
+        assert not (policy_ids & {evidence_id for binding in bindings for evidence_id in binding["evidence_ids"]})
+        for binding in bindings:
+            unit_id = binding["unit_id"]
+            bound_ids = set(binding["evidence_ids"])
+            assert bound_ids == inventory_by_unit[unit_id] & wire_evidence_ids
+            assert bound_ids <= wire_evidence_ids
+            assert all(evidence_index[evidence_id]["path"] in {"src/a.py", "src/b.py"} for evidence_id in bound_ids)
+        seen_windows.update(
+            row["evidence_id"] for row in user_payload["evidence"]
+            if row.get("source_kind") == "source_window"
+        )
+    assert seen_windows
+    assert {evidence_index[evidence_id]["path"] for evidence_id in seen_windows} == {"src/a.py", "src/b.py"}
+
+
 def test_prepare_only_preserves_unadmitted_obligations(tmp_path, monkeypatch, capsys):
     repo, base, head = _repo(tmp_path)
     profile = tmp_path / "profile.json"
