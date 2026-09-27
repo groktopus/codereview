@@ -921,6 +921,13 @@ def cleanup_private(path: Path) -> None:
     shutil.rmtree(path)
 
 
+def cleanup_optional_private(path: Path) -> None:
+    """Remove an optional output directory when the command created one."""
+    if not path.exists() and not path.is_symlink():
+        return
+    cleanup_private(path)
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--mode", choices=("staged-pr464", "full-three-case"), required=True)
@@ -1231,10 +1238,13 @@ def main(argv: list[str] | None = None) -> int:
             _scan(row, secrets)
             results.append(row)
             # Raw provider and CLI data is removed immediately after bounded projection.
-            shutil.rmtree(case_dir / "result")
-            shutil.rmtree(case_dir / "prepared")
+            stage = "provider_result_cleanup"
+            cleanup_private(case_dir / "result")
+            stage = "prepare_workspace_cleanup"
+            cleanup_optional_private(case_dir / "prepared")
             if not args.target_bare:
-                shutil.rmtree(bare)
+                stage = "owned_target_object_cleanup"
+                cleanup_private(bare)
             active_case_id = None
             stage = "case_complete"
         if projection_failure:
