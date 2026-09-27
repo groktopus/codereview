@@ -229,6 +229,7 @@ jobs:
             printf '{"status":"NOT_RUN","reason":"immediate_probe_not_complete","primary_delay_seconds":15,"native_delay_seconds":0}\n' > "$ARTIFACT_DIR/primary-delay-15s.json"
           fi
 
+
       - name: Scan receipts and enforce file and byte bounds
         id: safe
         if: always()
@@ -279,5 +280,227 @@ jobs:
             ${{ runner.temp }}/selected-control-trace/identity.json
             ${{ runner.temp }}/selected-control-trace/immediate.json
             ${{ runner.temp }}/selected-control-trace/primary-delay-15s.json
+          if-no-files-found: error
+          retention-days: 3
+
+  candidate-cardinality-pair:
+    if: github.repository == 'groktopus/codereview' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == 'groktopus/codereview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      SOURCE_ROOT: ${{ github.workspace }}
+    steps:
+      - name: Check out the exact same-repository pull request head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        timeout-minutes: 2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up isolated Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Initialize bounded artifact directory
+        run: |
+          set -euo pipefail
+          echo "ARTIFACT_DIR=$RUNNER_TEMP/selected-control-cardinality" >> "$GITHUB_ENV"
+          mkdir -m 700 -p "$RUNNER_TEMP/selected-control-cardinality"
+
+      - name: Install the Linux observer
+        timeout-minutes: 2
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes strace
+
+      - name: Build installed runtime and verify exact source identity
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          mkdir -m 700 -p "$ARTIFACT_DIR" "$RUNNER_TEMP/cardinality-wheelhouse"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python -m pip wheel --no-deps --wheel-dir "$RUNNER_TEMP/cardinality-wheelhouse" .
+          python -m venv "$RUNNER_TEMP/cardinality-venv"
+          "$RUNNER_TEMP/cardinality-venv/bin/python" -m pip install --no-deps --no-index "$RUNNER_TEMP/cardinality-wheelhouse"/*.whl
+          CARDINALITY_PYTHON="$RUNNER_TEMP/cardinality-venv/bin/python"
+          CARDINALITY_CLI="$RUNNER_TEMP/cardinality-venv/bin/pr-review"
+          CARDINALITY_SCRIPT="$SOURCE_ROOT/scripts/selected_control_trace_attribution.py"
+          echo "CARDINALITY_PYTHON=$CARDINALITY_PYTHON" >> "$GITHUB_ENV"
+          echo "CARDINALITY_CLI=$CARDINALITY_CLI" >> "$GITHUB_ENV"
+          echo "CARDINALITY_SCRIPT=$CARDINALITY_SCRIPT" >> "$GITHUB_ENV"
+          CARDINALITY_PYTHON="$CARDINALITY_PYTHON" CARDINALITY_CLI="$CARDINALITY_CLI" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          root = Path(os.environ["SOURCE_ROOT"])
+          artifact_dir = Path(os.environ["ARTIFACT_DIR"])
+          source_sha = subprocess.run(
+              ["git", "rev-parse", "HEAD"], cwd=root, check=True,
+              capture_output=True, text=True, timeout=10,
+          ).stdout.strip()
+          if source_sha != os.environ["SOURCE_SHA"] or not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+              raise SystemExit("source_pin_mismatch")
+          source_dir = root / "src" / "pr_review_harness"
+          source = {
+              f"pr_review_harness/{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in sorted(source_dir.glob("*.py")) if path.is_file()
+          }
+          if len(source) != 28:
+              raise SystemExit("source_module_count_mismatch")
+          code = (
+              "import hashlib,json,pathlib,pr_review_harness; "
+              "p=pathlib.Path(pr_review_harness.__file__).parent; "
+              "print(json.dumps({'pr_review_harness/'+x.name:hashlib.sha256(x.read_bytes()).hexdigest() "
+              "for x in sorted(p.glob('*.py')) if x.is_file()},sort_keys=True))"
+          )
+          result = subprocess.run(
+              [os.environ["CARDINALITY_PYTHON"], "-c", code], cwd=artifact_dir, check=True,
+              capture_output=True, text=True, timeout=15,
+              env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(artifact_dir)},
+          )
+          installed = json.loads(result.stdout)
+          if source != installed:
+              raise SystemExit("installed_module_inventory_mismatch")
+          identity_code = (
+              "import json; from pr_review_harness.external_effect_observer import "
+              "OBSERVER_ID,SYSCALL_SCOPE,TRACE_MAX_BYTES; "
+              "print(json.dumps({'observer_id':OBSERVER_ID,'syscall_scope':SYSCALL_SCOPE,"
+              "'trace_cap_bytes':TRACE_MAX_BYTES},sort_keys=True))"
+          )
+          observer_result = subprocess.run(
+              [os.environ["CARDINALITY_PYTHON"], "-c", identity_code], cwd=artifact_dir, check=True,
+              capture_output=True, text=True, timeout=15,
+              env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(artifact_dir)},
+          )
+          observer = json.loads(observer_result.stdout)
+          expected_scope = ["%process", "%file", "socket", "connect", "bind", "listen", "accept", "accept4", "shutdown"]
+          if (
+              observer.get("observer_id") != "linux-strace-syscall-observer.v3"
+              or observer.get("trace_cap_bytes") != 1_048_576
+              or observer.get("syscall_scope") != expected_scope
+          ):
+              raise SystemExit("observer_contract_mismatch")
+          strace_path = Path("/usr/bin/strace")
+          strace_meta = strace_path.lstat()
+          if not strace_path.is_file() or strace_meta.st_size > 16 * 1024 * 1024:
+              raise SystemExit("strace_binary_invalid")
+          version = subprocess.run(
+              [str(strace_path), "--version"], check=True, capture_output=True,
+              text=True, timeout=10,
+          ).stdout.splitlines()[0][:120]
+          payload = {
+              "schema_version": 1,
+              "source_sha": source_sha,
+              "source_module_count": len(source),
+              "source_module_sha256": source,
+              "installed_module_count": len(installed),
+              "installed_module_sha256": installed,
+              "module_inventory_match": source == installed,
+              "observer_id": observer["observer_id"],
+              "observer_source_sha256": source["pr_review_harness/external_effect_observer.py"],
+              "syscall_scope": expected_scope,
+              "trace_cap_bytes": 1_048_576,
+              "strace_version": version,
+              "strace_executable_sha256": hashlib.sha256(strace_path.read_bytes()).hexdigest(),
+              "probe_started": False,
+          }
+          encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+          if len(encoded) > 65_536:
+              raise SystemExit("identity_receipt_limit_exceeded")
+          (artifact_dir / "identity.json").write_bytes(encoded)
+          PY
+
+      - name: Run the one-versus-two candidate pair in loopback-only namespace
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          output="$ARTIFACT_DIR/candidate-cardinality-pair.json"
+          rm -f "$output"
+          set +e
+          sudo unshare --net --fork -- /bin/bash -c '
+              set -euo pipefail
+              ip link set lo up
+              runner_uid="$1"
+              runner_gid="$2"
+              shift 2
+              exec /usr/bin/setpriv --reuid "$runner_uid" --regid "$runner_gid" --clear-groups -- "$@"
+          ' _ "$(id -u)" "$(id -g)" /usr/bin/env -i \
+            ARTIFACT_DIR="$ARTIFACT_DIR" \
+            PROBE_PYTHON="$CARDINALITY_PYTHON" \
+            PROBE_CLI="$CARDINALITY_CLI" \
+            PROBE_SCRIPT="$CARDINALITY_SCRIPT" \
+            HOME="$ARTIFACT_DIR" \
+            PATH="/usr/local/bin:/usr/bin:/bin" \
+            /bin/bash -c '
+              set -euo pipefail
+              exec "$PROBE_PYTHON" "$PROBE_SCRIPT" --cli "$PROBE_CLI" --workdir "$ARTIFACT_DIR" --candidate-cardinality-pair
+            ' > "$output" 2> /dev/null
+          probe_result=$?
+          set -e
+          if [ ! -f "$output" ] || [ "$(wc -c < "$output")" -gt 65536 ] || ! python -m json.tool "$output" > /dev/null 2>&1; then
+            printf '{"status":"FAILED","reason":"pair_summary_missing_oversize_or_invalid"}\n' > "$output"
+            probe_result=1
+          fi
+          if [ "$probe_result" -ne 0 ]; then
+            echo "candidate_cardinality_pair_incomplete" >&2
+          fi
+
+      - name: Scan bounded sanitized receipts
+        id: safe-pair
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import stat
+          from pathlib import Path
+
+          root = Path(os.environ["ARTIFACT_DIR"])
+          names = ("identity.json", "candidate-cardinality-pair.json")
+          forbidden = (b"loopback-only-synthetic-key", b"loopback-only-synthetic-decision-key")
+          safe = True
+          total = 0
+          for name in names:
+              path = root / name
+              try:
+                  mode = path.lstat().st_mode
+                  if not stat.S_ISREG(mode) or path.is_symlink() or path.stat().st_size > 65_536:
+                      safe = False
+                      continue
+                  content = path.read_bytes()
+              except OSError:
+                  safe = False
+                  continue
+              total += len(content)
+              if any(value in content for value in forbidden):
+                  safe = False
+              try:
+                  json.loads(content)
+              except (UnicodeDecodeError, json.JSONDecodeError):
+                  safe = False
+          if total > 128 * 1024:
+              safe = False
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+              stream.write(f"safe={str(safe).lower()}\n")
+          if not safe:
+              raise SystemExit("safe_pair_receipt_validation_failed")
+          PY
+
+      - name: Upload only bounded sanitized pair receipts
+        if: always() && steps.safe-pair.outputs.safe == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: selected-control-cardinality-pair
+          path: |
+            ${{ runner.temp }}/selected-control-cardinality/identity.json
+            ${{ runner.temp }}/selected-control-cardinality/candidate-cardinality-pair.json
           if-no-files-found: error
           retention-days: 3

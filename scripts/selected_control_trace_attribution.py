@@ -48,6 +48,7 @@ MAX_HTTP_REQUEST_BYTES = 64_000
 MAX_HTTP_RESPONSE_BYTES = 32_768
 MAX_SUMMARY_BYTES = 65_536
 DIAGNOSTIC_CONTRACT_VERSION = "selected-control-trace-attribution.v4"
+CARDINALITY_PAIR_CONTRACT_VERSION = "selected-control-candidate-cardinality-pair.v1"
 FAKE_PROVIDER_KEY = "loopback-only-synthetic-key"
 FAKE_DECISION_KEY = "loopback-only-synthetic-decision-key"
 FAKE_MODEL = "synthetic-control-model"
@@ -68,6 +69,7 @@ KNOWN_SYSCALLS = frozenset(
     "socket stat statx unlink unlinkat uname vfork wait4 waitid write"
     .split()
 )
+_SYSCALL_LABELS = tuple(sorted((*KNOWN_SYSCALLS, "OTHER")))
 _RAW_SYSCALL = re.compile(r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(")
 _TARGET_SYSCALL = re.compile(
     r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?(openat|newfstatat)\((.*)$"
@@ -327,6 +329,13 @@ def _increment(counters: _CallCounters, name: str) -> None:
         counters[name] += 1
 
 
+def _increment_by(counters: _CallCounters, name: str, amount: int) -> None:
+    if isinstance(amount, bool) or not isinstance(amount, int) or amount < 0:
+        raise ValueError("diagnostic_counter_amount_invalid")
+    with counters.lock:
+        counters[name] += amount
+
+
 def _write_json_response(
     handler: BaseHTTPRequestHandler,
     response: dict[str, Any],
@@ -346,6 +355,8 @@ def _write_json_response(
     # This records a server-side successful write/flush, not client parsing.
     _increment(handler.server.counters, "server_response_writes_completed")
     _increment(handler.server.counters, f"{response_stage}_response_writes_completed")
+    if getattr(handler.server, "measure_payload_bytes", False):
+        _increment_by(handler.server.counters, f"response_body_bytes_{response_stage}", len(encoded))
     return True
 
 
@@ -359,6 +370,7 @@ def _request_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     raw = handler.rfile.read(length)
     if len(raw) != length:
         raise ValueError("request_truncated")
+    handler._diagnostic_request_body_bytes = length
     value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("request_not_object")
@@ -462,7 +474,16 @@ def _project_task_statuses(
     return rows, unexpected_count
 
 
-def _primary_payload(request: dict[str, Any], counters: _CallCounters) -> dict[str, Any]:
+def _validate_candidate_cardinality(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value not in {1, 2}:
+        raise ValueError("candidate_cardinality_invalid")
+    return value
+
+
+def _primary_payload(
+    request: dict[str, Any], counters: _CallCounters, *, candidate_cardinality: int = 1
+) -> dict[str, Any]:
+    candidate_cardinality = _validate_candidate_cardinality(candidate_cardinality)
     messages = request.get("messages")
     if not isinstance(messages, list) or len(messages) < 2 or not isinstance(messages[-1], dict):
         raise ValueError("specialist_messages_invalid")
@@ -523,8 +544,7 @@ def _primary_payload(request: dict[str, Any], counters: _CallCounters) -> dict[s
             if isinstance(item, dict) and item.get("source_kind") == "diff" and item.get("evidence_id") in evidence_ids
         ]
         candidate_refs = diff_refs[:1] or refs[:1]
-        candidates.append(
-            {
+        candidates.append({
                 "unit_id": units[0],
                 "location": {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 2, "reason": None},
                 "title": "Synthetic authorization candidate",
@@ -535,8 +555,17 @@ def _primary_payload(request: dict[str, Any], counters: _CallCounters) -> dict[s
                 "reasoning_kind": "inferred",
                 "evidence_refs": candidate_refs,
                 "introducedness": "INTRODUCED",
-            }
-        )
+            })
+        if candidate_cardinality == 2:
+            candidates.append(
+                {
+                    **candidates[0],
+                    "title": "Synthetic request-scope candidate",
+                    "observation": "The changed route accepts a request without checking resource ownership.",
+                    "consequence": "A request may expose a record that belongs to a different owner.",
+                    "rule_or_contract": "The synthetic route contract requires an ownership check on each request.",
+                }
+            )
     return {
         "_diagnostic_stage": f"primary_{lens}",
         "contract_version": "specialist-findings.v4",
@@ -559,6 +588,8 @@ class _FakeServer(ThreadingHTTPServer):
     def __init__(self, address):
         self.counters = _CallCounters()
         self.primary_response_delay_seconds = 0.0
+        self.candidate_cardinality = 1
+        self.measure_payload_bytes = False
         self._active_handlers = 0
         self._idle_condition = threading.Condition()
         super().__init__(address, self.handler_type())
@@ -590,7 +621,11 @@ class _FakeServer(ThreadingHTTPServer):
                     counters = self.server.counters
                     response_stage = "unknown"
                     if self.path == "/v1/chat/completions":
-                        response = _primary_payload(request, counters)
+                        response = _primary_payload(
+                            request,
+                            counters,
+                            candidate_cardinality=self.server.candidate_cardinality,
+                        )
                         response_stage = response.pop("_diagnostic_stage", "primary")
                         if "_envelope" in response:
                             envelope = response.pop("_envelope")
@@ -625,6 +660,12 @@ class _FakeServer(ThreadingHTTPServer):
                         _increment(counters, "handler_errors")
                         self.send_error(404)
                         return
+                    if self.server.measure_payload_bytes:
+                        _increment_by(
+                            counters,
+                            f"request_body_bytes_{response_stage}",
+                            self._diagnostic_request_body_bytes,
+                        )
                     delay = self.server.primary_response_delay_seconds if response_stage.startswith("primary_") else 0.0
                     if delay:
                         time.sleep(delay)
@@ -680,6 +721,409 @@ def _bounded_summary_bytes(value: Any) -> tuple[bytes, bool]:
         return encoded, True
     failure = b'{"status":"FAILED","error_type":"summary_limit_exceeded"}\n'
     return failure, False
+
+
+_PAIR_STAGE_NAMES = (
+    "primary_correctness",
+    "primary_security",
+    "primary_tests",
+    "semantic_adjudication",
+    "native_claim",
+    "native_summary",
+)
+_PAIR_IDENTITY_SHA_FIELDS = (
+    "runtime_tree_sha256",
+    "fixture_suite_sha256",
+    "generated_profile_sha256",
+    "limits_sha256",
+    "snapshot_hash",
+    "observer_source_sha256",
+)
+
+
+def _cardinality_stage_counts(candidate_count: int) -> dict[str, int]:
+    count = _validate_candidate_cardinality(candidate_count)
+    return {
+        "primary_correctness_received": 1,
+        "primary_security_received": 1,
+        "primary_tests_received": 1,
+        "semantic_adjudication_received": count,
+        "native_claim_received": count,
+        "native_summary_received": 1,
+        "primary_correctness_response_writes_completed": 1,
+        "primary_security_response_writes_completed": 1,
+        "primary_tests_response_writes_completed": 1,
+        "semantic_adjudication_response_writes_completed": count,
+        "native_claim_response_writes_completed": count,
+        "native_summary_response_writes_completed": 1,
+    }
+
+
+def _is_sha(value: Any, length: int = 64) -> bool:
+    return isinstance(value, str) and re.fullmatch(rf"[0-9a-f]{{{length}}}", value) is not None
+
+
+def _valid_pair_input_identity(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if any(not _is_sha(value.get(key)) for key in _PAIR_IDENTITY_SHA_FIELDS):
+        return False
+    if any(not _is_sha(value.get(key), 40) for key in ("base_sha", "head_sha")):
+        return False
+    modules = value.get("runtime_module_hashes")
+    if (
+        value.get("runtime_module_count") != 28
+        or not isinstance(modules, dict)
+        or len(modules) != 28
+        or any(
+            not isinstance(name, str)
+            or not name.startswith("pr_review_harness/")
+            or not name.endswith(".py")
+            or not _is_sha(digest)
+            for name, digest in modules.items()
+        )
+    ):
+        return False
+    return (
+        isinstance(value.get("runtime_source_commit"), str)
+        and _is_sha(value.get("runtime_source_commit"), 40)
+        and _is_sha(value.get("diagnostic_script_sha256"))
+        and value.get("installed_source_match") is True
+        and isinstance(value.get("snapshot_id"), str)
+        and 1 <= len(value["snapshot_id"]) <= 128
+        and value.get("observer_id") == observer.OBSERVER_ID
+        and value.get("trace_cap_bytes") == observer.TRACE_MAX_BYTES
+        and value.get("syscall_scope") == observer.SYSCALL_SCOPE
+        and value.get("configured_transport") == "HTTP_LOOPBACK_FAKE"
+    )
+
+
+def _cardinality_arm_state(arm: Any, expected_candidates: int) -> str:
+    try:
+        expected_candidates = _validate_candidate_cardinality(expected_candidates)
+    except ValueError:
+        return "INVALID_EXPECTATION"
+    if not isinstance(arm, dict) or not _valid_pair_input_identity(arm.get("input_identity")):
+        return "INVALID_RECEIPT"
+    requested = arm.get("requested_candidate_count")
+    if isinstance(requested, bool) or not isinstance(requested, int) or requested != expected_candidates:
+        return "CARDINALITY_REQUEST_MISMATCH"
+    trace = arm.get("trace_attribution")
+    trace_bytes = trace.get("trace_bytes") if isinstance(trace, dict) else None
+    if isinstance(trace_bytes, bool) or not isinstance(trace_bytes, int) or trace_bytes < 0:
+        return "TRACE_MEASUREMENT_UNKNOWN"
+    if trace_bytes > observer.TRACE_MAX_BYTES or arm.get("observer_reason") == "trace_byte_cap_exceeded":
+        return "TRACE_CAP_EXCEEDED"
+    stage_counts = arm.get("protocol_stage_counts")
+    expected_stage_counts = _cardinality_stage_counts(expected_candidates)
+    if (
+        not isinstance(stage_counts, dict)
+        or set(stage_counts) != set(expected_stage_counts)
+        or any(
+            isinstance(stage_counts.get(name), bool)
+            or not isinstance(stage_counts.get(name), int)
+            for name in expected_stage_counts
+        )
+        or stage_counts != expected_stage_counts
+    ):
+        return "PROTOCOL_STAGE_MISMATCH"
+    task_rows = arm.get("primary_task_statuses")
+    expected_lenses = ["correctness", "security", "tests"]
+    if (
+        not isinstance(task_rows, list)
+        or [row.get("lens") for row in task_rows if isinstance(row, dict)] != expected_lenses
+        or any(not isinstance(row, dict) or row.get("status") != "SUCCEEDED" for row in task_rows)
+    ):
+        return "PRIMARY_TASKS_INCOMPLETE"
+    statuses = arm.get("claim_assessment_statuses")
+    if (
+        isinstance(arm.get("candidate_count"), bool)
+        or not isinstance(arm.get("candidate_count"), int)
+        or arm.get("candidate_count") != expected_candidates
+        or isinstance(arm.get("claim_assessment_rows"), bool)
+        or not isinstance(arm.get("claim_assessment_rows"), int)
+        or arm.get("claim_assessment_rows") != expected_candidates
+        or not isinstance(statuses, list)
+        or statuses != ["COMPLETE"] * expected_candidates
+        or arm.get("native_advisory_status") != "RECEIVED"
+    ):
+        return "CANDIDATE_STAGES_INCOMPLETE"
+    if (
+        arm.get("cli_invocation_status") != "CLI_COMPLETED"
+        or arm.get("cli_exit_code") != 0
+        or arm.get("coverage_state") != "COMPLETE"
+        or arm.get("protocol_exchange_state") != "SERVER_WRITES_SETTLED"
+        or arm.get("fake_server_handlers_settled") is not True
+        or arm.get("fake_server_active_handlers_at_snapshot") != 0
+        or isinstance(arm.get("http_requests_received"), bool)
+        or not isinstance(arm.get("http_requests_received"), int)
+        or arm.get("http_requests_received") != 4 + 2 * expected_candidates
+        or isinstance(arm.get("server_response_writes_completed"), bool)
+        or not isinstance(arm.get("server_response_writes_completed"), int)
+        or arm.get("server_response_writes_completed") != 4 + 2 * expected_candidates
+        or arm.get("observer_coverage") != "SCOPED_COMPLETE"
+        or arm.get("synthetic_protocol_path_state") != "COMPLETE"
+        or not isinstance(trace, dict)
+        or trace.get("state") != "COMPLETE"
+        or trace.get("unattributed_or_partial_bytes") != 0
+    ):
+        return "PROTOCOL_OR_OBSERVER_INCOMPLETE"
+    file_paths = trace.get("file_path_attribution")
+    if (
+        not isinstance(file_paths, dict)
+        or file_paths.get("state") != "COMPLETE"
+        or file_paths.get("reconciliation") != "MATCH"
+    ):
+        return "FILE_PATH_ATTRIBUTION_INCOMPLETE"
+    syscall_bytes = _bounded_numeric_map(trace.get("bytes_by_syscall"), _SYSCALL_LABELS)
+    syscall_lines = _bounded_numeric_map(trace.get("lines_by_syscall"), _SYSCALL_LABELS)
+    if syscall_bytes is None or syscall_lines is None:
+        return "TRACE_SYSCALL_ATTRIBUTION_INCOMPLETE"
+    return "COMPLETE"
+
+
+def _bounded_numeric_map(value: Any, allowed_names: tuple[str, ...]) -> dict[str, int] | None:
+    if not isinstance(value, dict) or any(
+        name not in allowed_names
+        or isinstance(number, bool)
+        or not isinstance(number, int)
+        or number < 0
+        for name, number in value.items()
+    ):
+        return None
+    return {name: value[name] for name in allowed_names if name in value}
+
+
+def _bounded_nested_numeric_map(
+    value: Any, allowed_names: tuple[str, ...], allowed_children: tuple[str, ...]
+) -> dict[str, dict[str, int]] | None:
+    if not isinstance(value, dict) or any(name not in allowed_names for name in value):
+        return None
+    projected: dict[str, dict[str, int]] = {}
+    for name, child in value.items():
+        safe_child = _bounded_numeric_map(child, allowed_children)
+        if safe_child is None:
+            return None
+        projected[name] = safe_child
+    return {name: projected[name] for name in allowed_names if name in projected}
+
+
+def _cardinality_arm_projection(arm: Any, expected_candidates: int | None = None) -> dict[str, Any]:
+    if not isinstance(arm, dict):
+        return {"state": "INVALID_RECEIPT"}
+    trace = arm.get("trace_attribution")
+    trace_bytes = trace.get("trace_bytes") if isinstance(trace, dict) else None
+    safe_trace = trace_bytes if isinstance(trace_bytes, int) and not isinstance(trace_bytes, bool) else None
+    stage_counts = arm.get("protocol_stage_counts")
+    safe_stages = (
+        {name: stage_counts.get(name) for name in _cardinality_stage_counts(1)}
+        if isinstance(stage_counts, dict)
+        and all(
+            isinstance(stage_counts.get(name), int) and not isinstance(stage_counts.get(name), bool)
+            for name in _cardinality_stage_counts(1)
+        )
+        else None
+    )
+    request_bytes = arm.get("request_body_bytes_by_stage")
+    response_bytes = arm.get("response_body_bytes_by_stage")
+    def safe_stage_bytes(value: Any) -> dict[str, int] | None:
+        if not isinstance(value, dict) or any(
+            name not in _PAIR_STAGE_NAMES
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or size < 0
+            for name, size in value.items()
+        ):
+            return None
+        return {name: value[name] for name in _PAIR_STAGE_NAMES if name in value}
+
+    expected = arm.get("requested_candidate_count")
+    expected_for_state = expected_candidates
+    if expected_for_state is None and isinstance(expected, int) and not isinstance(expected, bool):
+        expected_for_state = expected
+    computed_state = (
+        _cardinality_arm_state(arm, expected_for_state)
+        if expected_for_state in {1, 2}
+        else "CARDINALITY_REQUEST_MISMATCH"
+    )
+    trace_projection = trace if isinstance(trace, dict) else {}
+    file_paths = trace_projection.get("file_path_attribution")
+    path_counts = _bounded_nested_numeric_map(
+        file_paths.get("lines_by_syscall_class") if isinstance(file_paths, dict) else None,
+        ("openat", "newfstatat"),
+        _FILE_PATH_CLASSES,
+    )
+    path_bytes = _bounded_nested_numeric_map(
+        file_paths.get("bytes_by_syscall_class") if isinstance(file_paths, dict) else None,
+        ("openat", "newfstatat"),
+        _FILE_PATH_CLASSES,
+    )
+    path_targets_lines = _bounded_numeric_map(
+        file_paths.get("target_lines_by_syscall") if isinstance(file_paths, dict) else None,
+        ("openat", "newfstatat"),
+    )
+    path_targets_bytes = _bounded_numeric_map(
+        file_paths.get("target_bytes_by_syscall") if isinstance(file_paths, dict) else None,
+        ("openat", "newfstatat"),
+    )
+    file_path_projection = {
+        "state": file_paths.get("state") if isinstance(file_paths, dict) and file_paths.get("state") in {"COMPLETE", "PARTIAL"} else "UNKNOWN",
+        "basis": "lexical_path_namespace_only_no_symlink_fd_or_pid_cwd_resolution",
+        "reconciliation": file_paths.get("reconciliation") if isinstance(file_paths, dict) and file_paths.get("reconciliation") in {"MATCH", "MISMATCH"} else "UNKNOWN",
+        "lines_by_syscall_class": path_counts,
+        "bytes_by_syscall_class": path_bytes,
+        "target_lines_by_syscall": path_targets_lines,
+        "target_bytes_by_syscall": path_targets_bytes,
+    }
+    task_rows = arm.get("primary_task_statuses")
+    projected_tasks = None
+    if isinstance(task_rows, list):
+        projected_tasks = []
+        for row in task_rows:
+            if not isinstance(row, dict):
+                projected_tasks.append({"lens": "UNKNOWN", "status": "UNKNOWN"})
+                continue
+            lens = row.get("lens")
+            status = row.get("status")
+            projected_tasks.append({
+                "lens": lens if isinstance(lens, str) and lens in {"correctness", "security", "tests"} else "UNKNOWN",
+                "status": status if isinstance(status, str) and status in _TASK_STATUSES else "UNKNOWN",
+            })
+    claim_statuses = arm.get("claim_assessment_statuses")
+    projected_claim_statuses = (
+        [status if isinstance(status, str) and status in {"COMPLETE", "PARTIAL", "FAILED"} else "UNKNOWN" for status in claim_statuses]
+        if isinstance(claim_statuses, list)
+        else None
+    )
+    def bounded_nonnegative(value: Any) -> int | None:
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+    return {
+        "requested_candidate_count": expected if isinstance(expected, int) and not isinstance(expected, bool) and expected in {1, 2} else None,
+        "state": computed_state,
+        "observer_mode": arm.get("observer_mode") if isinstance(arm.get("observer_mode"), str) else "UNKNOWN",
+        "observer_coverage": arm.get("observer_coverage") if isinstance(arm.get("observer_coverage"), str) else "UNKNOWN",
+        "trace_bytes": safe_trace,
+        "observer_reason": (
+            arm.get("observer_reason")
+            if arm.get("observer_reason") is None
+            or arm.get("observer_reason") in {
+                "trace_byte_cap_exceeded", "observer_unavailable", "observer_failed", "observer_timeout"
+            }
+            else "UNKNOWN"
+        ) if isinstance(arm.get("observer_reason"), (str, type(None))) else "UNKNOWN",
+        "candidate_count": arm.get("candidate_count") if isinstance(arm.get("candidate_count"), int) and not isinstance(arm.get("candidate_count"), bool) else None,
+        "primary_task_statuses": projected_tasks,
+        "claim_assessment_statuses": projected_claim_statuses,
+        "native_advisory_status": arm.get("native_advisory_status") if isinstance(arm.get("native_advisory_status"), str) and arm.get("native_advisory_status") in {"RECEIVED", "FAILED", "NOT_RUN", "UNKNOWN"} else "UNKNOWN",
+        "http_requests_received": arm.get("http_requests_received") if isinstance(arm.get("http_requests_received"), int) and not isinstance(arm.get("http_requests_received"), bool) else None,
+        "server_response_writes_completed": arm.get("server_response_writes_completed") if isinstance(arm.get("server_response_writes_completed"), int) and not isinstance(arm.get("server_response_writes_completed"), bool) else None,
+        "protocol_stage_counts": safe_stages,
+        "request_body_bytes_by_stage": safe_stage_bytes(request_bytes),
+        "response_body_bytes_by_stage": safe_stage_bytes(response_bytes),
+        "trace_bytes_by_syscall": _bounded_numeric_map(trace_projection.get("bytes_by_syscall"), _SYSCALL_LABELS),
+        "trace_lines_by_syscall": _bounded_numeric_map(trace_projection.get("lines_by_syscall"), _SYSCALL_LABELS),
+        "trace_newline_terminated_line_bytes": bounded_nonnegative(trace_projection.get("newline_terminated_line_bytes")),
+        "trace_unattributed_or_partial_bytes": bounded_nonnegative(trace_projection.get("unattributed_or_partial_bytes")),
+        "trace_parse_failure_count": bounded_nonnegative(trace_projection.get("parse_failure_count")),
+        "file_path_attribution": file_path_projection,
+    }
+
+
+def _candidate_cardinality_comparison(one: Any, two: Any) -> dict[str, Any]:
+    one_projection = _cardinality_arm_projection(one, 1)
+    two_projection = _cardinality_arm_projection(two, 2)
+    if not isinstance(one, dict) or not isinstance(two, dict):
+        return {"state": "INVALID_RECEIPT", "arms": [one_projection, two_projection]}
+    one_identity = one.get("input_identity")
+    two_identity = two.get("input_identity")
+    identity_match = (
+        _valid_pair_input_identity(one_identity)
+        and _valid_pair_input_identity(two_identity)
+        and one_identity == two_identity
+    )
+    one_state = _cardinality_arm_state(one, 1)
+    two_state = _cardinality_arm_state(two, 2)
+    one_projection["state"] = one_state
+    two_projection["state"] = two_state
+    if not identity_match:
+        state = "INPUT_IDENTITY_MISMATCH"
+    elif one_state == "COMPLETE" and two_state == "COMPLETE":
+        state = "COMPLETE"
+    else:
+        state = "INCOMPLETE"
+    a = one_projection.get("trace_bytes")
+    b = two_projection.get("trace_bytes")
+    trace_delta = b - a if isinstance(a, int) and isinstance(b, int) else None
+    request_a = one_projection.get("request_body_bytes_by_stage")
+    request_b = two_projection.get("request_body_bytes_by_stage")
+    response_a = one_projection.get("response_body_bytes_by_stage")
+    response_b = two_projection.get("response_body_bytes_by_stage")
+    return {
+        "state": state,
+        "input_identity_match": identity_match,
+        "trace_bytes_delta_two_minus_one": trace_delta,
+        "request_body_bytes_delta_two_minus_one": {
+            stage: request_b.get(stage, 0) - request_a.get(stage, 0)
+            for stage in _PAIR_STAGE_NAMES
+        } if isinstance(request_a, dict) and isinstance(request_b, dict) else None,
+        "response_body_bytes_delta_two_minus_one": {
+            stage: response_b.get(stage, 0) - response_a.get(stage, 0)
+            for stage in _PAIR_STAGE_NAMES
+        } if isinstance(response_a, dict) and isinstance(response_b, dict) else None,
+        "arms": [one_projection, two_projection],
+    }
+
+
+def _cardinality_baseline_allows_second_arm(arms: Any) -> bool:
+    if not isinstance(arms, list) or len(arms) != 1 or not isinstance(arms[0], dict):
+        return False
+    first = arms[0]
+    protocol_complete = (
+        first.get("synthetic_protocol_path_state") == "COMPLETE"
+        and first.get("protocol_exchange_state") == "SERVER_WRITES_SETTLED"
+    )
+    no_observer = (
+        first.get("observer_mode") == "NOT_OBSERVED_PLATFORM_OR_EXPLICIT"
+        and isinstance(first.get("trace_attribution"), dict)
+        and first["trace_attribution"].get("state") == "UNKNOWN"
+    )
+    return _cardinality_arm_state(first, 1) == "COMPLETE" or (protocol_complete and no_observer)
+
+
+def _cardinality_input_identity(
+    runtime: dict[str, Any], prepared: Any, case: Any, limits_bytes: bytes
+) -> dict[str, Any]:
+    fingerprint = runtime.get("source_fingerprint", {})
+    source_hashes = fingerprint.get("file_hashes", {}) if isinstance(fingerprint, dict) else {}
+    module_hashes = {
+        name.removeprefix("src/"): digest
+        for name, digest in sorted(source_hashes.items())
+        if isinstance(name, str)
+        and name.startswith("src/pr_review_harness/")
+        and name.endswith(".py")
+        and isinstance(digest, str)
+    }
+    return {
+        "runtime_source_commit": fingerprint.get("git_revision") if isinstance(fingerprint, dict) else None,
+        "diagnostic_script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
+        "runtime_module_count": len(module_hashes),
+        "runtime_module_hashes": module_hashes,
+        "installed_source_match": True,
+        "fixture_suite_sha256": prepared.suite_sha256,
+        "generated_profile_sha256": hashlib.sha256(prepared.profile_path.read_bytes()).hexdigest(),
+        "limits_sha256": hashlib.sha256(limits_bytes).hexdigest(),
+        "base_sha": case.base_sha,
+        "head_sha": case.head_sha,
+        "snapshot_id": case.snapshot.get("snapshot_id"),
+        "snapshot_hash": case.snapshot.get("snapshot_hash"),
+        "observer_id": observer.OBSERVER_ID,
+        "observer_source_sha256": observer._source_sha256(),
+        "syscall_scope": observer.SYSCALL_SCOPE,
+        "trace_cap_bytes": observer.TRACE_MAX_BYTES,
+        "configured_transport": "HTTP_LOOPBACK_FAKE",
+    }
 
 
 def _attributed_observation(
@@ -972,24 +1416,312 @@ def run(
         shutil.rmtree(work_root, ignore_errors=True)
 
 
+def run_candidate_cardinality_pair(
+    cli: Path,
+    *,
+    workdir: Path | None = None,
+    observe: bool = True,
+) -> dict[str, Any]:
+    """Compare one versus two scripted findings on one prepared snapshot and fake server."""
+    pair_started = time.monotonic()
+    pair_deadline = pair_started + 660.0
+    cli = cli.resolve(strict=True)
+    runtime = _runtime_provenance(cli, ROOT)
+    fingerprint = runtime.get("source_fingerprint", {})
+    source_hashes = fingerprint.get("file_hashes", {}) if isinstance(fingerprint, dict) else {}
+    runtime_modules = {
+        name.removeprefix("src/"): digest
+        for name, digest in sorted(source_hashes.items())
+        if isinstance(name, str)
+        and name.startswith("src/pr_review_harness/")
+        and name.endswith(".py")
+        and isinstance(digest, str)
+    }
+    if len(runtime_modules) != 28:
+        raise RuntimeError("runtime_module_inventory_invalid")
+    work_root = Path(tempfile.mkdtemp(prefix="selected-control-cardinality-", dir=workdir))
+    os.chmod(work_root, 0o700)
+    server = _FakeServer(("127.0.0.1", 0))
+    server.measure_payload_bytes = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    try:
+        thread.start()
+        prepared = prepare_suite(
+            work_root / "fixture-suite",
+            suite_path=ROOT / "examples/injection/fixture-suite.v2.json",
+            repo_support_root=ROOT,
+            repetitions=1,
+            limits=_limits(),
+        )
+        selected_case_ids = tuple(case.case_id for case in prepared.cases if case.case_id in CASE_IDS)
+        if selected_case_ids != CASE_IDS:
+            raise RuntimeError("fixed_case_order_mismatch")
+        case = next(case for case in prepared.cases if case.case_id == "r1-control")
+        plan = plan_review(case.snapshot, prepared.profile, "AUTO")
+        tasks = plan.get("tasks") if isinstance(plan, dict) else None
+        task_lenses = [task.get("lens") for task in tasks] if isinstance(tasks, list) else []
+        if len(task_lenses) != 3 or set(task_lenses) != {"correctness", "security", "tests"}:
+            raise RuntimeError("fixed_control_scope_mismatch")
+        profile_path = prepared.profile_path
+        limits_path = work_root / "limits.json"
+        provider_path = work_root / "provider.json"
+        decision_path = work_root / "decision.json"
+        limits_bytes = _write_limits(limits_path)
+        port = server.server_address[1]
+        provider_path.write_text(
+            json.dumps(
+                {
+                    "kind": "openai_compatible",
+                    "provider_id": "operator_openai_compatible",
+                    "base_url": f"http://127.0.0.1:{port}/v1",
+                    "model": FAKE_MODEL,
+                    "api_key_env": "LLM_API_KEY",
+                },
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        decision_path.write_text(
+            json.dumps(
+                {
+                    "kind": "typesafe",
+                    "endpoint": f"http://127.0.0.1:{port}/v1/systemone",
+                    "model": JEV_ALIAS,
+                    "api_key_env": "JEV_API_KEY",
+                },
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        for path in (limits_path, provider_path, decision_path):
+            os.chmod(path, 0o600)
+        input_identity = _cardinality_input_identity(runtime, prepared, case, limits_bytes)
+        if not _valid_pair_input_identity(input_identity):
+            raise RuntimeError("cardinality_input_identity_invalid")
+        env = _environment()
+        arms: list[dict[str, Any]] = []
+        for cardinality in (1, 2):
+            remaining = pair_deadline - time.monotonic()
+            if remaining <= observer.CLEANUP_GRACE_SECONDS + 1:
+                arms.append(
+                    {
+                        "requested_candidate_count": cardinality,
+                        "input_identity": input_identity,
+                        "arm_state": "DEADLINE_NOT_STARTED",
+                        "observer_reason": "pair_deadline_exhausted",
+                    }
+                )
+                continue
+            if cardinality == 2:
+                if not _cardinality_baseline_allows_second_arm(arms):
+                    arms.append(
+                        {
+                            "requested_candidate_count": cardinality,
+                            "input_identity": input_identity,
+                            "arm_state": "NOT_RUN_BASELINE_INCOMPLETE",
+                            "observer_reason": "one_candidate_baseline_incomplete",
+                        }
+                    )
+                    break
+            server.candidate_cardinality = cardinality
+            server.counters = _CallCounters()
+            output_path = work_root / "cli-output" / f"candidate-{cardinality}"
+            command = _command(
+                cli, case, profile_path, limits_path, output_path, provider_path, decision_path, dry_run=False
+            )
+            timeout = min(300.0, remaining - observer.CLEANUP_GRACE_SECONDS)
+            if observe and sys.platform.startswith("linux"):
+                observed, attribution = _attributed_observation(
+                    command,
+                    cwd=work_root,
+                    env=env,
+                    timeout=timeout,
+                    roots=_path_roots(cli=cli, work_root=work_root, repo_support=ROOT),
+                )
+                observer_mode = "LINUX_STRACE"
+            else:
+                observed = invoke_cli_bounded(command, cwd=work_root, env=env, timeout_seconds=timeout)
+                attribution = {
+                    "state": "UNKNOWN",
+                    "trace_bytes": None,
+                    "unattributed_or_partial_bytes": None,
+                }
+                observer_mode = "NOT_OBSERVED_PLATFORM_OR_EXPLICIT"
+            handlers_settled, active_handlers = server.wait_until_idle(
+                min(2.0, max(0.0, pair_deadline - time.monotonic()))
+            )
+            counters = server.counters
+            invocation = observed.get("invocation") if isinstance(observed, dict) else None
+            cli_result = observed.get("cli_result") if isinstance(observed, dict) else None
+            cli_status = (
+                invocation.get("run_status") if isinstance(invocation, dict)
+                else observed.get("run_status") if isinstance(observed, dict)
+                else "UNKNOWN"
+            )
+            exit_code = (
+                invocation.get("exit_code") if isinstance(invocation, dict)
+                else observed.get("exit_code") if isinstance(observed, dict)
+                else None
+            )
+            raw_observer = observed.get("observer") if isinstance(observed, dict) else None
+            raw_observer = raw_observer if isinstance(raw_observer, dict) else {}
+            result_file = output_path / "r1-control.json"
+            durable = None
+            try:
+                metadata = result_file.lstat()
+                if result_file.is_file() and not result_file.is_symlink() and metadata.st_size <= 2_000_000:
+                    durable = json.loads(result_file.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                durable = None
+            task_rows, unexpected = _project_task_statuses(durable, tasks)
+            claim_rows = durable.get("claim_assessments") if isinstance(durable, dict) else None
+            claim_statuses = (
+                [
+                    row.get("status")
+                    if isinstance(row, dict) and row.get("status") in {"COMPLETE", "PARTIAL", "FAILED"}
+                    else "UNKNOWN"
+                    for row in claim_rows
+                ]
+                if isinstance(claim_rows, list)
+                else None
+            )
+            findings = durable.get("findings") if isinstance(durable, dict) else None
+            candidate_count = len(findings) if isinstance(findings, list) else None
+            advisory = durable.get("advisory_assessment") if isinstance(durable, dict) else None
+            advisory_status = (
+                advisory.get("status")
+                if isinstance(advisory, dict)
+                and advisory.get("status") in {"RECEIVED", "FAILED", "NOT_RUN", "UNKNOWN"}
+                else "UNKNOWN"
+            )
+            stage_counts = {
+                name: counters.get(name, 0)
+                for name in (
+                    "primary_correctness_received", "primary_security_received", "primary_tests_received",
+                    "semantic_adjudication_received", "native_claim_received", "native_summary_received",
+                    "primary_correctness_response_writes_completed", "primary_security_response_writes_completed",
+                    "primary_tests_response_writes_completed", "semantic_adjudication_response_writes_completed",
+                    "native_claim_response_writes_completed", "native_summary_response_writes_completed",
+                )
+            }
+            request_bytes = {
+                stage: counters.get(f"request_body_bytes_{stage}", 0) for stage in _PAIR_STAGE_NAMES
+            }
+            response_bytes = {
+                stage: counters.get(f"response_body_bytes_{stage}", 0) for stage in _PAIR_STAGE_NAMES
+            }
+            received = counters.get("http_requests_received", 0)
+            writes = counters.get("server_response_writes_completed", 0)
+            errors = counters.get("handler_errors", 0)
+            if not received and not errors:
+                exchange_state = "NOT_STARTED"
+            elif handlers_settled and received == writes and errors == 0:
+                exchange_state = "SERVER_WRITES_SETTLED"
+            else:
+                exchange_state = "INCOMPLETE"
+            trace_attribution = attribution if isinstance(attribution, dict) else {"state": "UNKNOWN"}
+            arm: dict[str, Any] = {
+                "requested_candidate_count": cardinality,
+                "input_identity": input_identity,
+                "observer_mode": observer_mode,
+                "observer_coverage": raw_observer.get("coverage", "UNKNOWN"),
+                "observer_reason": raw_observer.get("reason"),
+                "trace_attribution": trace_attribution,
+                "cli_invocation_status": cli_status,
+                "cli_exit_code": exit_code,
+                "cli_result_present": isinstance(cli_result, dict),
+                "primary_task_statuses": task_rows,
+                "unexpected_task_result_count": unexpected,
+                "coverage_state": durable.get("coverage_state") if isinstance(durable, dict) else None,
+                "candidate_count": candidate_count,
+                "claim_assessment_rows": len(claim_rows) if isinstance(claim_rows, list) else None,
+                "claim_assessment_statuses": claim_statuses,
+                "native_advisory_status": advisory_status,
+                "http_requests_received": received,
+                "server_response_writes_completed": writes,
+                "protocol_exchange_state": exchange_state,
+                "protocol_stage_counts": stage_counts,
+                "request_body_bytes_by_stage": request_bytes,
+                "response_body_bytes_by_stage": response_bytes,
+                "fake_server_handlers_settled": handlers_settled,
+                "fake_server_active_handlers_at_snapshot": active_handlers,
+                "synthetic_protocol_path_state": (
+                    "COMPLETE"
+                    if exchange_state == "SERVER_WRITES_SETTLED"
+                    and stage_counts == _cardinality_stage_counts(cardinality)
+                    and isinstance(task_rows, list)
+                    and all(row.get("status") == "SUCCEEDED" for row in task_rows)
+                    and isinstance(durable, dict)
+                    and durable.get("coverage_state") == "COMPLETE"
+                    and claim_statuses == ["COMPLETE"] * cardinality
+                    and advisory_status == "RECEIVED"
+                    and candidate_count == cardinality
+                    else "INCOMPLETE"
+                ),
+            }
+            arm["arm_state"] = _cardinality_arm_state(arm, cardinality)
+            arms.append(arm)
+        comparison = _candidate_cardinality_comparison(arms[0], arms[1] if len(arms) > 1 else None)
+        return {
+            "contract_version": CARDINALITY_PAIR_CONTRACT_VERSION,
+            "probe_kind": "same_snapshot_one_vs_two_scripted_candidates",
+            "candidate_cardinality_is_the_only_scripted_response_change": True,
+            "configured_transport": "HTTP_LOOPBACK_FAKE",
+            "external_provider_dispatch_requested": False,
+            "target_execution_requested": False,
+            "limits": _limits(),
+            "pair_deadline_seconds": 660,
+            "input_identity": input_identity,
+            "arms": [_cardinality_arm_projection(arm) for arm in arms],
+            "comparison": comparison,
+            "pair_state": comparison.get("state", "UNKNOWN"),
+        }
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+        import shutil
+
+        shutil.rmtree(work_root, ignore_errors=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", type=Path, required=True, help="exact installed pr-review executable")
     parser.add_argument("--workdir", type=Path, help="optional parent for private temporary fixture files")
     parser.add_argument("--no-observer", action="store_true", help="run the normal CLI without syscall attribution")
+    parser.add_argument(
+        "--candidate-cardinality-pair",
+        action="store_true",
+        help="run paired one- and two-candidate synthetic control arms on one prepared snapshot",
+    )
     parser.add_argument("--primary-response-delay-seconds", type=float, default=0.0,
                         help="optional delay for primary specialist responses only (0..15 seconds; native responses remain immediate)")
     args = parser.parse_args(argv)
     try:
-        result = run(
-            args.cli,
-            workdir=args.workdir,
-            observe=not args.no_observer,
-            primary_response_delay_seconds=args.primary_response_delay_seconds,
-        )
+        if args.candidate_cardinality_pair:
+            if args.primary_response_delay_seconds != 0:
+                raise ValueError("cardinality_pair_rejects_response_delay")
+            result = run_candidate_cardinality_pair(
+                args.cli,
+                workdir=args.workdir,
+                observe=not args.no_observer,
+            )
+        else:
+            result = run(
+                args.cli,
+                workdir=args.workdir,
+                observe=not args.no_observer,
+                primary_response_delay_seconds=args.primary_response_delay_seconds,
+            )
         encoded, within_limit = _bounded_summary_bytes(result)
         sys.stdout.buffer.write(encoded)
-        return 0 if within_limit and result.get("cli_invocation_status") == "CLI_COMPLETED" else 2
+        completed = (
+            result.get("pair_state") == "COMPLETE"
+            if args.candidate_cardinality_pair
+            else result.get("cli_invocation_status") == "CLI_COMPLETED"
+        )
+        return 0 if within_limit and completed else 2
     except Exception as exc:
         # Emit only a stable error type. Never print exception text or subprocess output.
         encoded, _ = _bounded_summary_bytes({"status": "FAILED", "error_type": type(exc).__name__})
