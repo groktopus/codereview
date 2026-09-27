@@ -59,7 +59,7 @@ jobs:
       - name: Set up the pinned readiness artifact bridge runtime
         if: inputs.phase == 'run-a'
         timeout-minutes: 2
-        uses: actions/setup-node@1e60f620b9541d83c2a0d7bbbd10743a27a4e3d6 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
 
