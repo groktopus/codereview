@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import external_effect_observer as observer
-from scripts.effect_observer_smoke import _failure_summary, _prepare_environment
+from scripts.effect_observer_smoke import _failure_summary, _prepare_environment, _validate_full_review
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -30,6 +30,10 @@ def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "if '--help' in sys.argv:\n"
         " print('  --kill-on-exit       kill tracees when strace exits')\n"
         " raise SystemExit(0)\n"
+        "if os.environ.get('OBSERVER_TEST_ARGV_FILE'):\n"
+        " import json\n"
+        " with open(os.environ['OBSERVER_TEST_ARGV_FILE'], 'w', encoding='utf-8') as stream:\n"
+        "  json.dump(sys.argv, stream)\n"
         "if os.environ.get('OBSERVER_TEST_PID_FILE'):\n"
         " pid_path = os.environ['OBSERVER_TEST_PID_FILE']\n"
         " ready_path = pid_path + '.ready-tmp'\n"
@@ -102,7 +106,7 @@ def test_observations_keep_only_typed_fields_and_hash_raw_paths(tmp_path, monkey
     result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
 
     observation = result["observer"]
-    assert observation["observer_id"] == "linux-strace-syscall-observer.v2"
+    assert observation["observer_id"] == "linux-strace-syscall-observer.v3"
     encoded = json.dumps(result, sort_keys=True)
     assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
     assert observation["overall_state"] == "UNKNOWN"
@@ -188,7 +192,7 @@ def test_noisy_prepare_volume_is_aggregated_with_late_effect_buckets(tmp_path, m
     observed = result["observer"]
     assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
     assert observed["coverage"] == "SCOPED_COMPLETE"
-    assert observed["observer_id"] == "linux-strace-syscall-observer.v2"
+    assert observed["observer_id"] == "linux-strace-syscall-observer.v3"
     assert observed["overall_state"] == "UNKNOWN"
     assert observed["event_count"] == 2104
     assert observed["event_sample_count"] == observer.TRACE_MAX_EVENT_EXEMPLARS
@@ -319,6 +323,94 @@ def test_prepare_smoke_environment_ignores_enclosing_actions_event():
     assert env["PATH"] == source["PATH"]
     assert env["OBSERVER_SMOKE_PROVIDER_KEY"] == "synthetic-canary-never-send"
     assert source["GITHUB_EVENT_PATH"] == "/runner/work/_temp/event.json"
+
+
+def _full_review_contract_fixture():
+    lenses = ("correctness", "tests", "security", "maintainability")
+    result = {
+        "task_results": {
+            f"task-{lens}": {
+                "lens": lens,
+                "status": "SUCCEEDED",
+                "attempts": 1,
+                "payload": {"finding_candidates": []},
+            }
+            for lens in lenses
+        },
+        "coverage_state": "COMPLETE",
+        "coverage_ledger": [{"state": "COMPLETE", "lens": lens, "required": True} for lens in lenses],
+        "disposition": "COMMENT",
+        "freshness": "UNKNOWN",
+        "allow_empty_approve": False,
+        "budget": {
+            "provider_calls_reserved": 4,
+            "provider_calls_limit": 8,
+            "output_bytes_reserved": 32_000,
+            "output_bytes_limit": 32_000,
+            "cost": "UNKNOWN",
+            "cost_billing_known": False,
+            "budget_breaches": [],
+        },
+    }
+    observation = {
+        "observer_id": "linux-strace-syscall-observer.v3",
+        "coverage": "SCOPED_COMPLETE",
+        "event_aggregates_complete": True,
+        "event_count": 42,
+        "trace_bytes": 2048,
+    }
+    invocation = {"run_status": "CLI_COMPLETED", "exit_code": 0}
+    calls = [{"path": "/v1/chat/completions", "behavior": "success"} for _ in lenses]
+    return result, observation, invocation, calls
+
+
+def test_full_review_smoke_requires_typed_complete_normal_path():
+    result, observation, invocation, calls = _full_review_contract_fixture()
+    summary = _validate_full_review(result, observation, invocation, calls, target_marker_exists=False)
+    assert summary == {
+        "status": "NORMAL_REVIEW_COMPLETED",
+        "coverage_state": "COMPLETE",
+        "disposition": "COMMENT",
+        "freshness": "UNKNOWN",
+        "required_lenses": ["correctness", "maintainability", "security", "tests"],
+        "completed_tasks": 4,
+        "provider_calls": 4,
+        "provider_call_limit": 8,
+        "retries": 0,
+        "output_bytes_reserved": 32_000,
+        "aggregate_output_byte_cap": 32_000,
+        "cost_status": "UNKNOWN",
+        "candidate_adjudication": "NOT_EXERCISED_NO_CANDIDATES",
+        "jev": "NOT_CONFIGURED",
+        "target_code_execution": False,
+        "observer_coverage": "SCOPED_COMPLETE",
+        "event_count": 42,
+        "trace_bytes": 2048,
+        "trace_byte_cap": observer.TRACE_MAX_BYTES,
+    }
+
+
+@pytest.mark.parametrize("failure", ["calls", "lens", "coverage", "candidate", "executed", "trace_cap"])
+def test_full_review_smoke_rejects_incomplete_or_unexercised_evidence(failure):
+    result, observation, invocation, calls = _full_review_contract_fixture()
+    if failure == "calls":
+        calls.pop()
+    elif failure == "lens":
+        result["task_results"]["task-tests"]["lens"] = "performance"
+    elif failure == "coverage":
+        result["coverage_ledger"][0]["state"] = "PARTIAL"
+    elif failure == "candidate":
+        result["task_results"]["task-security"]["payload"]["finding_candidates"] = [{"id": "candidate"}]
+    elif failure == "trace_cap":
+        observation["trace_bytes"] = observer.TRACE_MAX_BYTES + 1
+    summary = _validate_full_review(
+        result,
+        observation,
+        invocation,
+        calls,
+        target_marker_exists=failure == "executed",
+    )
+    assert summary is None
 
 
 def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):
@@ -530,6 +622,186 @@ def test_parse_trace_paths_never_resolves_symlinks(tmp_path):
 def test_raw_exec_hex_zero_is_success_but_nonzero_is_not():
     assert observer._outcome("execve(0x0, 0x0, 0x0) = 0x0", "execve") == ("SUCCESS", 0)
     assert observer._outcome("execve(0x0, 0x0, 0x0) = 0xfffffffffffffff2", "execve") == ("ERROR", -1)
+
+
+def test_raw_metadata_hex_args_keep_normalized_syscall_outcomes(tmp_path):
+    decoded_stat = observer._parse_line(
+        'newfstatat(AT_FDCWD, "private-name", {st_mode=S_IFREG|0600}, 0) = 0', tmp_path
+    )
+    raw_stat = observer._parse_line(
+        "newfstatat(0xffffff9c, 0x7ffeaa001000, 0x7ffeaa000a00, 0) = 0", tmp_path
+    )
+    decoded_wait = observer._parse_line(
+        "wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, {ru_utime={tv_sec=0, tv_usec=0}}) = 4242",
+        tmp_path,
+    )
+    raw_wait = observer._parse_line("wait4(0xffffffff, 0x7ffeaa000a00, 0, 0x0) = 0x1092", tmp_path)
+
+    assert decoded_stat == raw_stat == {
+        "syscall": "newfstatat",
+        "operation": "other_scoped_syscall",
+        "outcome": "SUCCESS",
+    }
+    assert decoded_wait == raw_wait == {
+        "syscall": "wait4",
+        "operation": "other_scoped_syscall",
+        "outcome": "SUCCESS",
+    }
+    assert observer._parse_line("newfstatat(0x1, 0x2, 0x3, 0) = -1 ENOENT", tmp_path)["outcome"] == "ERROR"
+    assert observer._outcome("wait4(0x1, 0x2, 0x0, 0x0) = 0xfffffffffffffff2", "wait4") == ("ERROR", -14)
+    with pytest.raises(ValueError, match="trace_outcome_unavailable"):
+        observer._parse_line("wait4(0x1, 0x2, 0x0, 0x0) = 0xzz", tmp_path)
+
+
+def _completed_aggregate_projection(rows):
+    counts = {}
+    fields = ("operation", "syscall", "outcome", "destination_class", "path_scope")
+    process_creation_calls = {"fork", "vfork", "clone", "clone3"}
+    for row in rows:
+        if row["outcome"] == "PENDING":
+            continue
+        # Resumed generic calls get a parser-inferred class that ordinary
+        # records lack; only process-creation calls expose this in both forms.
+        key = tuple((field, row.get(field)) for field in fields) + (
+            ("result_class", row.get("result_class") if row.get("syscall") in process_creation_calls else None),
+        )
+        counts[key] = counts.get(key, 0) + row["count"]
+    return counts
+
+
+def _bounded_observer_count_summary(rows):
+    selected = {"newfstatat", "wait4", "openat", "rename", "renameat", "renameat2", "connect"}
+    counts = {}
+    for row in rows:
+        if row["syscall"] not in selected or row["outcome"] == "PENDING":
+            continue
+        key = ":".join(
+            str(value or "-")
+            for value in (row["syscall"], row["outcome"], row.get("destination_class"))
+        )
+        counts[key] = counts.get(key, 0) + row["count"]
+    return dict(sorted(counts.items()))
+
+
+def test_completed_projection_ignores_only_resumption_framing_metadata():
+    normal = [
+        {"operation": "other_scoped_syscall", "syscall": "newfstatat", "outcome": "SUCCESS", "count": 3},
+        {"operation": "other_scoped_syscall", "syscall": "wait4", "outcome": "ERROR", "count": 1},
+        {"operation": "file_name_syscall", "syscall": "openat", "outcome": "SUCCESS", "path_scope": "case_workdir", "count": 2},
+        {"operation": "socket_endpoint_syscall", "syscall": "connect", "outcome": "SUCCESS", "destination_class": "loopback", "count": 1},
+    ]
+    resumed_equivalent = [
+        {**normal[0], "result_class": "positive", "trace_state": "RESUMED"},
+        {**normal[1], "result_class": "zero_or_nonpositive", "trace_state": "RESUMED"},
+        {**normal[2], "result_class": "positive", "trace_state": "RESUMED"},
+        {**normal[3], "result_class": "positive", "trace_state": "RESUMED"},
+        {"operation": "other_scoped_syscall", "syscall": "newfstatat", "outcome": "PENDING", "trace_state": "UNFINISHED", "count": 900},
+    ]
+    assert _completed_aggregate_projection(normal) == _completed_aggregate_projection(resumed_equivalent)
+
+    for changed_row in (
+        {**resumed_equivalent[0], "outcome": "ERROR"},
+        {**resumed_equivalent[2], "path_scope": "outside_case_workdir"},
+        {**resumed_equivalent[3], "destination_class": "public"},
+    ):
+        changed = [*resumed_equivalent[:4]]
+        changed[resumed_equivalent.index(next(row for row in resumed_equivalent[:4] if row["syscall"] == changed_row["syscall"]))] = changed_row
+        assert _completed_aggregate_projection(normal) != _completed_aggregate_projection(changed)
+
+    clone_zero = {"operation": "process_lifecycle_syscall", "syscall": "clone", "outcome": "SUCCESS", "result_class": "zero_or_nonpositive", "count": 1}
+    clone_child = {**clone_zero, "result_class": "positive"}
+    assert _completed_aggregate_projection([clone_zero]) != _completed_aggregate_projection([clone_child])
+
+
+def test_strace_command_raw_formats_only_low_detail_metadata(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    argv_file = tmp_path / "strace-argv.json"
+    env = {**os.environ, "OBSERVER_TEST_ARGV_FILE": str(argv_file)}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    argv = json.loads(argv_file.read_text(encoding="utf-8"))
+
+    assert result["invocation"]["run_status"] == "CLI_COMPLETED"
+    assert argv[argv.index("-e") + 1] == "trace=" + ",".join(observer.SYSCALL_SCOPE)
+    raw_arguments = [argv[index + 1] for index, item in enumerate(argv[:-1]) if item == "-e" and argv[index + 1].startswith("raw=")]
+    assert raw_arguments == ["raw=execve,execveat,newfstatat,wait4"]
+
+
+@pytest.mark.skipif(platform.system() != "Linux" or shutil.which("strace") is None, reason="requires Linux strace")
+def test_linux_raw_metadata_format_reduces_bytes_without_changing_observed_events(tmp_path, monkeypatch):
+    target = tmp_path / "workload-created.txt"
+    child = "import os,sys; [os.stat(sys.argv[1]) for _ in range(20)]"
+    workload = tmp_path / "metadata_workload.py"
+    workload.write_text(
+        "import json, os, pathlib, socket, subprocess, sys, threading\n"
+        "for _ in range(600): os.stat(__file__)\n"
+        "try: os.stat(__file__ + '.observer-missing')\n"
+        "except FileNotFoundError: pass\n"
+        f"subprocess.run([sys.executable, '-c', {child!r}, __file__], check=True)\n"
+        "try: os.waitpid(-1, os.WNOHANG)\n"
+        "except ChildProcessError: pass\n"
+        "server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+        "server.bind(('127.0.0.1', 0)); server.listen(1)\n"
+        "accepted = []\n"
+        "thread = threading.Thread(target=lambda: accepted.append(server.accept()[0]))\n"
+        "thread.start()\n"
+        "client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+        "client.connect(server.getsockname()); client.close(); thread.join()\n"
+        "accepted[0].close(); server.close()\n"
+        f"target = pathlib.Path({str(target)!r})\n"
+        "target.write_text('fixture', encoding='utf-8')\n"
+        "target.rename(target.with_suffix('.renamed'))\n"
+        "print(json.dumps({'status': 'ok'}))\n",
+        encoding="utf-8",
+    )
+    command = [sys.executable, str(workload)]
+    env = os.environ.copy()
+    candidate_raw = observer.RAW_ARGUMENT_SYSCALLS
+
+    monkeypatch.setattr(observer, "RAW_ARGUMENT_SYSCALLS", ("execve", "execveat"))
+    baseline = observer.observe_cli(command, cwd=tmp_path, env=env, timeout_seconds=30)
+    monkeypatch.setattr(observer, "RAW_ARGUMENT_SYSCALLS", candidate_raw)
+    candidate = observer.observe_cli(command, cwd=tmp_path, env=env, timeout_seconds=30)
+
+    assert baseline["invocation"]["run_status"] == candidate["invocation"]["run_status"] == "CLI_COMPLETED"
+    assert baseline["cli_result"] == candidate["cli_result"] == {"status": "ok"}
+    assert baseline["observer"]["coverage"] == candidate["observer"]["coverage"] == "SCOPED_COMPLETE"
+    assert baseline["observer"]["event_aggregates_complete"] is candidate["observer"]["event_aggregates_complete"] is True
+    assert sum(row["count"] for row in baseline["observer"]["event_aggregates"]) == baseline["observer"]["event_count"]
+    assert sum(row["count"] for row in candidate["observer"]["event_aggregates"]) == candidate["observer"]["event_count"]
+    baseline_completed = _completed_aggregate_projection(baseline["observer"]["event_aggregates"])
+    candidate_completed = _completed_aggregate_projection(candidate["observer"]["event_aggregates"])
+    assert baseline_completed == candidate_completed
+    assert baseline["observer"]["trace_bytes"] > candidate["observer"]["trace_bytes"]
+    counts = {(row["syscall"], row["outcome"]): row["count"] for row in candidate["observer"]["event_aggregates"]}
+    assert counts[("newfstatat", "SUCCESS")] >= 600
+    assert counts[("newfstatat", "ERROR")] >= 1
+    assert counts[("wait4", "SUCCESS")] >= 1
+    assert counts[("wait4", "ERROR")] >= 1
+    assert counts[("openat", "SUCCESS")] >= 1
+    assert counts[("connect", "SUCCESS")] >= 1
+    assert sum(
+        row["count"]
+        for row in candidate["observer"]["event_aggregates"]
+        if row["syscall"] in {"rename", "renameat", "renameat2"} and row["outcome"] == "SUCCESS"
+    ) == 1
+    print(
+        "observer-v3-real-strace="
+        + json.dumps(
+            {
+                "baseline_trace_bytes": baseline["observer"]["trace_bytes"],
+                "candidate_trace_bytes": candidate["observer"]["trace_bytes"],
+                "saved_trace_bytes": baseline["observer"]["trace_bytes"] - candidate["observer"]["trace_bytes"],
+                "completed_event_count": sum(candidate_completed.values()),
+                "completed_counts": _bounded_observer_count_summary(candidate["observer"]["event_aggregates"]),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    assert any(
+        row["syscall"] == "connect" and row.get("destination_class") == "loopback"
+        for row in candidate["observer"]["event_aggregates"]
+    )
 
 
 def test_numeric_pid_parser_does_not_confuse_tracer_root_and_child(tmp_path):
