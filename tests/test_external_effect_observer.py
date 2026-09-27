@@ -220,7 +220,7 @@ def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
     summary = _failure_summary(
         {
             "observer": {"observer_id": observer.OBSERVER_ID, "reason": sentinel, "coverage": {sentinel: sentinel}, "event_count": 4, "trace_bytes": 128},
-            "invocation": {"run_status": sentinel, "exit_code": 1},
+            "invocation": {"run_status": sentinel, "exit_code": 1, "cli_error_code": sentinel},
             "cli_result": {"status": sentinel, "error": sentinel, "no_provider_calls": False},
         },
         "prepare_contract_failed",
@@ -233,6 +233,22 @@ def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
     assert summary["cli_status"] == "UNKNOWN"
     assert summary["cli_error_code"] == "other"
     assert summary["event_count"] == 4 and summary["trace_bytes"] == 128
+
+
+def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    canary = "SENSITIVE_CLI_STDOUT_CANARY"
+    script = tmp_path / "failed_cli.py"
+    script.write_text(
+        "import json, sys; print(json.dumps({'error':'invalid_arguments','exit_code':2,'payload':'SENSITIVE_CLI_STDOUT_CANARY'})); sys.exit(2)\n",
+        encoding="utf-8",
+    )
+    result = observer.observe_cli([sys.executable, str(script)], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=5)
+    assert result["invocation"]["run_status"] == "CLI_FAILED"
+    assert result["invocation"]["exit_code"] == 2
+    assert result["invocation"]["cli_error_code"] == "invalid_arguments"
+    assert result["cli_result"] is None
+    assert canary not in json.dumps(result, sort_keys=True)
 
 
 def test_unterminated_trace_line_cap_fails_closed(tmp_path, monkeypatch):

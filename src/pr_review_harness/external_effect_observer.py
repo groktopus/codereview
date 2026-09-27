@@ -56,6 +56,16 @@ _PROCESS_END_RE = re.compile(r"^" + _PID_PREFIX + r"\+\+\+ (exited with (\d+)|ki
 _SIGNAL_RE = re.compile(r"^" + _PID_PREFIX + r"--- (SIG[A-Z0-9]+) .*---$")
 _QUOTED_RE = re.compile(r'"((?:\\.|[^"\\])*)"')
 _ADDR_RE = re.compile(r'(?:inet_addr\(|inet_pton\([^,]+,\s*)\s*"([^"\n]{1,128})"')
+_CLI_ERROR_CODES = {
+    "invalid_arguments": "invalid_arguments",
+    "snapshot_preflight_failed": "snapshot_preflight_failed",
+    "preflight_rejected": "preflight_rejected",
+    "review_runtime_failed": "review_runtime_failed",
+    "provider configuration is invalid": "provider_configuration_invalid",
+    "provider adapter is unavailable": "provider_adapter_unavailable",
+    "cannot read profile JSON": "profile_unavailable",
+    "cannot read limits JSON": "limits_unavailable",
+}
 
 
 def _source_sha256(*, deadline: float | None = None) -> str | None:
@@ -348,6 +358,17 @@ def _aggregate_key(event: dict[str, Any]) -> tuple[str, ...]:
     )
 
 
+def _cli_error_code(stdout: bytes) -> str | None:
+    """Extract a stable CLI error code without returning its output payload."""
+    try:
+        value = json.loads(stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        return None
+    if not isinstance(value, dict) or not isinstance(value.get("error"), str):
+        return None
+    return _CLI_ERROR_CODES.get(value["error"], "other")
+
+
 def observe_cli(
     command: list[str],
     *,
@@ -634,6 +655,7 @@ def observe_cli(
             "stdout_sha256": hashlib.sha256(cli_stdout).hexdigest(),
             "stderr_bytes": len(cli_stderr),
             "stderr_sha256": hashlib.sha256(cli_stderr).hexdigest(),
+            "cli_error_code": _cli_error_code(cli_stdout) if process.returncode else None,
         }
         cli_result = None
         if invocation["run_status"] == "CLI_COMPLETED" and complete:

@@ -21,6 +21,10 @@ limits prevent complete aggregation, coverage is `INCOMPLETE`, aggregates are
 marked incomplete, and the observer withholds the CLI result from the opted-in
 caller.
 
+For a nonzero CLI exit, the invocation may include a `cli_error_code` selected
+from stable public error categories. The observer keeps the CLI result withheld
+and never returns raw stdout or stderr.
+
 File observations describe successful syscalls such as `openat` or `rename`;
 they do not establish that bytes were written. Endpoint classes describe only
 the destination information visible on the selected socket syscalls. Payload

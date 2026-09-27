@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 from pathlib import Path
 
@@ -33,7 +33,11 @@ _CLI_ERRORS = {
     "snapshot_preflight_failed",
     "preflight_rejected",
     "review_runtime_failed",
-    "provider_configuration_is_invalid",
+    "provider_configuration_invalid",
+    "provider_adapter_unavailable",
+    "profile_unavailable",
+    "limits_unavailable",
+    "other",
 }
 _OBSERVER_REASONS = {
     "linux_required",
@@ -71,7 +75,7 @@ def _failure_summary(result: dict, failure: str) -> dict[str, object]:
     invocation = result.get("invocation", {})
     cli_result = result.get("cli_result") or {}
     reason = observed.get("reason")
-    cli_error = cli_result.get("error")
+    cli_error = invocation.get("cli_error_code")
     return {
         "smoke": "INSTALLED_CLI_PREPARE_ONLY_FAILED",
         "failure": failure,
@@ -86,7 +90,7 @@ def _failure_summary(result: dict, failure: str) -> dict[str, object]:
         "invocation_status": invocation.get("run_status") if isinstance(invocation.get("run_status"), str) and invocation.get("run_status") in _RUN_STATUSES else "UNKNOWN",
         "cli_exit_code": invocation.get("exit_code") if isinstance(invocation.get("exit_code"), int) else None,
         "cli_status": cli_result.get("status") if cli_result.get("status") == "PREPARED_ONLY" else "UNKNOWN",
-        "cli_error_code": cli_error.replace(" ", "_") if isinstance(cli_error, str) and cli_error in _CLI_ERRORS else "other" if cli_error else None,
+        "cli_error_code": cli_error if isinstance(cli_error, str) and cli_error in _CLI_ERRORS else "other" if cli_error else None,
         "no_provider_calls": cli_result.get("no_provider_calls") if isinstance(cli_result.get("no_provider_calls"), bool) else None,
         "no_target_code_execution": cli_result.get("no_target_code_execution") if isinstance(cli_result.get("no_target_code_execution"), bool) else None,
     }
@@ -101,8 +105,8 @@ def _git(repo: Path, *args: str) -> str:
 
 def main() -> int:
     identity = preflight()
-    cli = shutil.which("pr-review")
-    if identity.get("status") != "AVAILABLE" or cli is None:
+    cli = Path(sysconfig.get_path("scripts")) / ("pr-review.exe" if os.name == "nt" else "pr-review")
+    if identity.get("status") != "AVAILABLE" or not cli.is_file() or not os.access(cli, os.X_OK):
         raise SystemExit("effect_observer_preflight_unavailable")
     with tempfile.TemporaryDirectory(prefix="effect-observer-prepare-") as temporary:
         root = Path(temporary)
@@ -143,7 +147,7 @@ def main() -> int:
         env["OBSERVER_SMOKE_PROVIDER_KEY"] = "synthetic-canary-never-send"
         result = observe_cli(
             [
-                cli,
+                str(cli),
                 "review",
                 "--repo",
                 str(repo),
