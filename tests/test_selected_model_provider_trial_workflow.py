@@ -8,8 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github/workflows/selected-model-provider-trial.yml"
 PREPARE_WORKFLOW = ROOT / ".github/workflows/selected-model-claim-trial.yml"
-PIN = "b70af2bf115e789a73c05a593b031d1644d84523"
-OBSERVER_SOURCE_SHA256 = "c06c9a5b1030446413012cbf4aecf8da8315c7337383b9322ac0730909ec1622"
+PIN = "3540b543577ca852dc6b0f929469bd1950905141"
+OBSERVER_ID = "linux-strace-syscall-observer.v2"
+OBSERVER_SOURCE_SHA256 = "fd51625b888c49b592b55c959bbad60a9cca30020e3e594ec6c399c0e2f21ad6"
 CHECKOUT_ACTION = "11bd71901bbe5b1630ceea73d27597364c9af683"
 SETUP_PYTHON_ACTION = "a26af69be951a213d495a4c3e4e4022e16d87065"
 UPLOAD_ARTIFACT_ACTION = "ea165f8d65b6e75b540449e92b4886f43607fa02"
@@ -93,6 +94,7 @@ def test_trusted_runner_is_checked_out_and_verified_at_the_same_full_sha():
     assert f"EXPECTED_OBSERVER_SOURCE_SHA256: {OBSERVER_SOURCE_SHA256}" in preflight
     assert '[sys.executable, "-m", "pr_review_harness.external_effect_observer"]' in preflight
     assert 'identity.get("status") != "AVAILABLE"' in preflight
+    assert f'identity.get("observer_id") != "{OBSERVER_ID}"' in preflight
     assert 'identity.get("source_sha256") != os.environ.get("EXPECTED_OBSERVER_SOURCE_SHA256")' in preflight
     assert 'identity.get("kill_on_exit_supported") is not True' in preflight
     assert "secrets." not in preflight
