@@ -199,7 +199,11 @@ def _read_limits(args) -> dict:
         limits = defaults
     else:
         supplied = _load_json(args.limits, "limits")
-        unknown = set(supplied) - set(defaults) - {"max_cost_microunits", "schema_version"}
+        unknown = set(supplied) - set(defaults) - {
+            "max_cost_microunits",
+            "max_snapshot_context_bytes",
+            "schema_version",
+        }
         if unknown:
             raise ValueError("unknown limits field")
         version = supplied.get("schema_version")
@@ -595,16 +599,17 @@ def _run_one(
     plan = plan_review(snapshot, profile, args.mode)
     if getattr(args, "prepare_only", False):
         from . import contracts
-        from .engine import _evidence_for, prepare_plan_tasks
+        from .engine import _evidence_for, effective_task_input_ceiling, prepare_plan_tasks
 
         if provider is None or not callable(getattr(provider, "serialize_review_request", None)):
             raise ValueError("prepare-only requires an exact request serializer")
+        effective_input_ceiling = effective_task_input_ceiling(limits, provider)
         prepared_tasks, skipped = prepare_plan_tasks(snapshot, plan, profile, limits, provider)
         primary = []
         for task in prepared_tasks:
             if task.get("task_kind") != "SPECIALIST_FINDINGS":
                 continue
-            evidence = _evidence_for(task, snapshot, limits["max_input_bytes_per_task"])
+            evidence = _evidence_for(task, snapshot, effective_input_ceiling)
             body = provider.serialize_review_request(task, evidence, limits)
             primary.append({
                 "task_id": task["task_id"],
@@ -629,7 +634,7 @@ def _run_one(
                 "required_context_omissions": list(task.get("required_context_omissions", [])),
                 "input_bytes": len(body),
                 "input_sha256": _sha256(body),
-                "admitted": len(body) <= limits["max_input_bytes_per_task"],
+                "admitted": len(body) <= effective_input_ceiling,
                 "output_bytes_cap": min(provider.max_response_bytes, limits["max_output_bytes_per_task"]),
                 "output_tokens_cap": min(provider.max_output_tokens, limits["max_output_tokens"]),
             })
@@ -722,6 +727,11 @@ def _run_one(
             "capacity": {
                 "configured_max_provider_calls": limits["max_provider_calls"],
                 "configured_max_context_bytes": limits["max_context_bytes"],
+                "configured_max_input_bytes_per_task": limits["max_input_bytes_per_task"],
+                "effective_max_input_bytes_per_task": effective_input_ceiling,
+                "effective_snapshot_context_bytes": limits.get(
+                    "max_snapshot_context_bytes", limits["max_context_bytes"]
+                ),
                 "exact_primary_call_demand": primary_calls,
                 "exact_primary_serialized_input_bytes": primary_request_bytes,
                 "primary_serialized_input_bytes_fit_context_cap": primary_context_fits,

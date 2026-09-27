@@ -288,8 +288,9 @@ def _deleted_line_ranges(diff: str) -> list[list[int]]:
 def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dict) -> dict:
     """Capture immutable diff and bounded file evidence from Git objects only.
 
-    `max_context_bytes` bounds source context payloads in aggregate. Any omitted
-    bytes are represented by explicit gap records. Profile context paths are
+    `max_snapshot_context_bytes` bounds source context payloads in aggregate
+    when configured; otherwise the legacy `max_context_bytes` value is used.
+    Omitted bytes are represented by explicit gap records. Profile context paths are
     read only from the base tree and require a fixed profile hash.
     """
     if not isinstance(profile, dict) or not isinstance(limits, dict):
@@ -328,9 +329,9 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
     evidence: dict[str, dict] = {}
     inventory: list[dict] = []
     gaps: list[dict] = []
-    max_context = limits.get("max_context_bytes", 120000)
-    if not isinstance(max_context, int) or max_context <= 0:
-        raise SnapshotError("max_context_bytes must be a positive integer")
+    max_context = limits.get("max_snapshot_context_bytes", limits.get("max_context_bytes", 120000))
+    if isinstance(max_context, bool) or not isinstance(max_context, int) or max_context <= 0:
+        raise SnapshotError("snapshot context byte limit must be a positive integer")
     remaining = max_context
     selection_bytes_remaining = context_selection["max_total_context_bytes"] if context_selection else 0
 

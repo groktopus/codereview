@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import pr_review_harness.engine as engine_module
-from pr_review_harness.engine import render_report, run_review
+from pr_review_harness.engine import prepare_plan_tasks, render_report, run_review
 from pr_review_harness.planner import plan_review
 from pr_review_harness.providers import OpenAIProvider
 
@@ -693,6 +693,133 @@ def test_required_context_is_included_before_batch_admission_and_units_split(tmp
         if obligation["obligation_kind"] == "CHANGED_UNIT_LENS":
             assert obligation["state"] == "COMPLETE"
             assert obligation["task_ids"]
+
+
+def test_oversized_initial_request_is_measured_then_split_below_unchanged_dispatch_caps():
+    snap = make_snapshot(units=2)
+    for unit in snap["inventory"]:
+        evidence = snap["evidence"][unit["evidence_ids"][0]]
+        content = f"source for {unit['unit_id']}\n" + ("x" * 65_000)
+        evidence["content"] = content
+        evidence["content_hash"] = hashlib.sha256(content.encode()).hexdigest()
+    prof = profile()
+    plan = plan_review(snap, prof)
+    provider = SizingOnlyOpenAIProvider()
+    provider.max_request_bytes = 128_000
+    limits = {
+        **LIMITS,
+        "max_context_bytes": 8_000_000,
+        "max_snapshot_context_bytes": 300_000,
+        "max_input_bytes_per_task": 128_000,
+    }
+    initial = plan["tasks"][0]
+    initial_evidence = [snap["evidence"][eid] for eid in initial["evidence_ids"]]
+    initial_bytes = provider.review_input_bytes(initial, initial_evidence, limits)
+    assert initial_bytes > provider.max_request_bytes
+
+    prepared, skipped = prepare_plan_tasks(snap, plan, prof, limits, provider)
+    assert skipped == {}
+    assert len(prepared) == 2
+    final_sizes = [
+        provider.review_input_bytes(
+            task,
+            [snap["evidence"][eid] for eid in task["evidence_ids"]],
+            limits,
+        )
+        for task in prepared
+    ]
+    assert all(size <= provider.max_request_bytes for size in final_sizes)
+    assert all(size <= limits["max_input_bytes_per_task"] for size in final_sizes)
+
+
+def test_lower_adapter_ceiling_drives_splitting_below_runtime_ceiling():
+    snap = make_snapshot(units=2)
+    for unit in snap["inventory"]:
+        evidence = snap["evidence"][unit["evidence_ids"][0]]
+        content = f"source for {unit['unit_id']}\n" + ("x" * 50_000)
+        evidence["content"] = content
+        evidence["content_hash"] = hashlib.sha256(content.encode()).hexdigest()
+    prof = profile()
+    plan = plan_review(snap, prof)
+    provider = SizingOnlyOpenAIProvider()
+    provider.max_request_bytes = 90_000
+    limits = {**LIMITS, "max_context_bytes": 8_000_000, "max_input_bytes_per_task": 128_000}
+
+    original = plan["tasks"][0]
+    original_evidence = [snap["evidence"][eid] for eid in original["evidence_ids"]]
+    assert provider.review_input_bytes(original, original_evidence, limits) > provider.max_request_bytes
+    prepared, skipped = prepare_plan_tasks(snap, plan, prof, limits, provider)
+
+    assert skipped == {}
+    assert len(prepared) == 2
+    final_sizes = [
+        provider.review_input_bytes(task, [snap["evidence"][eid] for eid in task["evidence_ids"]], limits)
+        for task in prepared
+    ]
+    assert all(size <= provider.max_request_bytes for size in final_sizes)
+    assert all(size <= limits["max_input_bytes_per_task"] for size in final_sizes)
+
+
+def test_adapter_cap_rejects_unsplittable_task_before_reservation_or_secret_lookup(
+    tmp_path, monkeypatch
+):
+    snap = make_snapshot(units=1)
+    evidence = snap["evidence"]["diff:u0"]
+    evidence["content"] = "x" * 5_000
+    evidence["content_hash"] = hashlib.sha256(evidence["content"].encode()).hexdigest()
+    prof = profile()
+    provider = OpenAIProvider({
+        "kind": "openai_compatible",
+        "base_url": "https://provider.invalid/v1",
+        "model": "adapter-cap-test",
+        "api_key_env": "ADAPTER_CAP_MUST_NOT_BE_READ",
+        "max_request_bytes": 1_000,
+    })
+
+    class GuardedEnv(dict):
+        def get(self, key, default=None):
+            if key == "ADAPTER_CAP_MUST_NOT_BE_READ":
+                raise AssertionError("rejected task looked up a provider credential")
+            return super().get(key, default)
+
+    monkeypatch.setenv("ADAPTER_CAP_MUST_NOT_BE_READ", "synthetic-secret")
+    monkeypatch.setattr(os, "environ", GuardedEnv(os.environ))
+
+    class NoTransport:
+        def open(self, *_args, **_kwargs):
+            raise AssertionError("rejected task opened provider transport")
+
+    monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", NoTransport())
+    result = run(
+        tmp_path,
+        snap,
+        prof,
+        provider,
+        {**LIMITS, "max_input_bytes_per_task": 128_000},
+        run_id="adapter-cap-rejected",
+    )
+
+    assert result["budget"]["provider_calls_reserved"] == 0
+    skipped = [row for row in result["task_results"].values() if row.get("status") == "SKIPPED"]
+    assert len(skipped) == 1
+    assert skipped[0]["error_code"] == "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT"
+    assert result["disposition"] == "INCOMPLETE"
+
+
+@pytest.mark.parametrize("adapter_cap", [True, 0, -1, 1.5])
+def test_invalid_declared_adapter_input_cap_fails_preflight(adapter_cap):
+    provider = EmptyProvider()
+    provider.max_request_bytes = adapter_cap
+    with pytest.raises(ValueError, match="invalid provider input byte capability"):
+        engine_module.effective_task_input_ceiling(
+            {**LIMITS, "max_input_bytes_per_task": 128_000}, provider
+        )
+
+
+def test_provider_without_declared_request_cap_keeps_runtime_input_ceiling():
+    assert engine_module.effective_task_input_ceiling(
+        {**LIMITS, "max_input_bytes_per_task": 128_000}, EmptyProvider()
+    ) == 128_000
 
 
 def test_unit_skips_when_required_context_cannot_fit_without_dispatch(tmp_path):
@@ -1401,6 +1528,19 @@ def test_unbounded_or_invalid_limits_rejected_before_provider_dispatch(tmp_path,
     provider = EmptyProvider()
     with pytest.raises(ValueError):
         run(tmp_path, provider=provider, limits=limits)
+    assert not (tmp_path / "r1.json").exists()
+
+
+@pytest.mark.parametrize("value", [True, 0, -1, 1.5, "100"])
+def test_invalid_optional_snapshot_budget_rejected_before_provider_dispatch(tmp_path, value):
+    provider = EmptyProvider()
+    with pytest.raises(ValueError, match="max_snapshot_context_bytes"):
+        run(
+            tmp_path,
+            provider=provider,
+            limits={**LIMITS, "max_context_bytes": 8_000_000, "max_snapshot_context_bytes": value},
+        )
+    assert provider.calls == 0
     assert not (tmp_path / "r1.json").exists()
 
 

@@ -176,6 +176,7 @@ def validate_limits(limits: dict) -> None:
         "max_context_retrievals": (int, 0, None),
         "max_followup_tasks": (int, 0, None),
     }
+    optional_positive_ints = {"max_snapshot_context_bytes"}
     missing = [key for key in required if key not in limits]
     if missing:
         raise ValueError("missing finite limits: " + ", ".join(missing))
@@ -188,6 +189,11 @@ def validate_limits(limits: dict) -> None:
                 raise ValueError(f"invalid limit: {key}")
         elif value < low:
             raise ValueError(f"invalid limit: {key}")
+    for key in optional_positive_ints:
+        if key in limits:
+            value = limits[key]
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"invalid limit: {key}")
     if limits.get("max_cost_microunits") is not None:
         if (
             isinstance(limits["max_cost_microunits"], bool)
@@ -274,6 +280,22 @@ def _evidence_for(task: dict, snapshot: dict, limit: int) -> list[dict]:
     return result
 
 
+def effective_task_input_ceiling(limits: dict, provider: Any) -> int:
+    """Return the shared runtime/adapter ceiling for one primary request.
+
+    Providers without a declared request cap retain the historical runtime
+    limit. A declared cap is trusted adapter configuration and must be a finite
+    positive integer; malformed capabilities fail preflight before dispatch.
+    """
+    runtime_cap = limits["max_input_bytes_per_task"]
+    adapter_cap = getattr(provider, "max_request_bytes", None)
+    if adapter_cap is None:
+        return runtime_cap
+    if isinstance(adapter_cap, bool) or not isinstance(adapter_cap, int) or adapter_cap <= 0:
+        raise ValueError("invalid provider input byte capability")
+    return min(runtime_cap, adapter_cap)
+
+
 def _unwrap(response: Any) -> tuple[dict, dict, dict]:
     if not isinstance(response, dict):
         raise ValueError("invalid_result")
@@ -356,7 +378,7 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
     unit_order = {u.get("unit_id"): i for i, u in enumerate(snapshot.get("inventory", [])) if isinstance(u, dict)}
     split_tasks = []
     split_skips = {}
-    input_ceiling = int(limits["max_input_bytes_per_task"])
+    input_ceiling = effective_task_input_ceiling(limits, provider)
     for task in tasks:
         unit_ids = list(task.get("unit_ids", task.get("scope_unit_ids", [])))
         if task.get("task_kind") != "SPECIALIST_FINDINGS":
@@ -739,6 +761,7 @@ def run_review(
         if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
             raise ValueError("task references unknown obligation")
 
+    input_ceiling = effective_task_input_ceiling(limits, provider)
     tasks, split_skips = prepare_plan_tasks(snapshot, {"tasks": tasks, "coverage_obligations": obligations}, profile, limits, provider)
 
     def review_input_size(task: dict, evidence: list[dict]) -> int:
@@ -754,7 +777,7 @@ def run_review(
     pending = [
         t for t in tasks if t["task_id"] not in task_results or task_results[t["task_id"]].get("status") != "SUCCEEDED"
     ]
-    evidence_cache = {t["task_id"]: _evidence_for(t, snapshot, int(limits["max_input_bytes_per_task"])) for t in tasks}
+    evidence_cache = {t["task_id"]: _evidence_for(t, snapshot, input_ceiling) for t in tasks}
 
     def remaining_call_limits() -> dict:
         return {**limits, "deadline_seconds": max(0.0, budget.remaining_seconds())}
@@ -903,7 +926,8 @@ def run_review(
                 "attempts": attempt_index,
             }
         required_size = review_input_size(task, evidence)
-        if required_size > int(limits["max_input_bytes_per_task"]):
+        task_input_ceiling = int(limits["max_input_bytes_per_task"]) if is_check else input_ceiling
+        if required_size > task_input_ceiling:
             return {
                 "task_id": task_id,
                 "status": "SKIPPED",

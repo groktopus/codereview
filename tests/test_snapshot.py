@@ -5,7 +5,13 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness.planner import plan_review
-from pr_review_harness.snapshot import _changed_line_ranges, _deleted_line_ranges, collect_snapshot, recent_commits
+from pr_review_harness.snapshot import (
+    SnapshotError,
+    _changed_line_ranges,
+    _deleted_line_ranges,
+    collect_snapshot,
+    recent_commits,
+)
 
 
 def git(path: Path, *args: str) -> str:
@@ -62,6 +68,39 @@ def test_snapshot_uses_immutable_objects_and_trusted_base_context(repo):
     assert any(gap["reason"] == "symlink_not_followed" for gap in snap["gaps"])
     assert all(gap.get("required") is True for gap in snap["gaps"] if gap["reason"] == "symlink_not_followed")
     assert snap["snapshot_hash"] and snap["snapshot_id"]
+
+
+def test_snapshot_context_budget_is_separate_with_legacy_fallback(repo):
+    path, base, head = repo
+    profile = {
+        "version": "pilot-v1",
+        "context_paths": ["AGENTS.md"],
+        "trusted_policy_paths": ["AGENTS.md"],
+    }
+    legacy = collect_snapshot(str(path), base, head, profile, {"max_context_bytes": 8_000})
+    explicit = collect_snapshot(
+        str(path), base, head, profile,
+        {"max_context_bytes": 20_000, "max_snapshot_context_bytes": 8_000},
+    )
+    assert explicit["snapshot_hash"] == legacy["snapshot_hash"]
+    assert explicit["evidence"] == legacy["evidence"]
+
+    tiny_capture = collect_snapshot(
+        str(path), base, head, profile,
+        {"max_context_bytes": 20_000, "max_snapshot_context_bytes": 1},
+    )
+    assert tiny_capture["snapshot_hash"] != explicit["snapshot_hash"]
+
+
+@pytest.mark.parametrize("value", [True, False, 0, -1, 1.5, "100"])
+def test_snapshot_context_budget_rejects_invalid_optional_values(repo, value):
+    path, base, head = repo
+    with pytest.raises(SnapshotError, match="snapshot context byte limit"):
+        collect_snapshot(
+            str(path), base, head,
+            {"version": "pilot-v1", "context_paths": []},
+            {"max_context_bytes": 10_000, "max_snapshot_context_bytes": value},
+        )
 
 
 def _selection_profile():

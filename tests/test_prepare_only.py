@@ -200,6 +200,101 @@ def test_prepare_only_preserves_unadmitted_obligations(tmp_path, monkeypatch, ca
     assert report["capacity"]["fits_call_cap"] is None
 
 
+def test_prepare_only_uses_lower_adapter_cap_and_never_admits_rejected_request(
+    tmp_path, monkeypatch, capsys
+):
+    repo, base, head = _repo(tmp_path)
+    profile = tmp_path / "profile.json"
+    profile.write_text(json.dumps({"version": "adapter-cap-v1", "required_lenses": ["correctness"]}))
+    provider_config = tmp_path / "provider.json"
+    provider_config.write_text(json.dumps({
+        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
+        "model": "prepare-test-model", "api_key_env": "ADAPTER_CAP_ABSENT_KEY",
+        "max_request_bytes": 1,
+    }))
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.setenv("ADAPTER_CAP_ABSENT_KEY", "synthetic-secret-must-not-be-read")
+    monkeypatch.setenv("JEV_API_KEY", "synthetic-jev-secret-must-not-be-read")
+
+    class GuardedEnv(dict):
+        def get(self, key, default=None):
+            if key in {"ADAPTER_CAP_ABSENT_KEY", "JEV_API_KEY"}:
+                raise AssertionError("prepare-only read a provider credential value")
+            return super().get(key, default)
+
+        def __getitem__(self, key):
+            if key in {"ADAPTER_CAP_ABSENT_KEY", "JEV_API_KEY"}:
+                raise AssertionError("prepare-only read a provider credential value")
+            return super().__getitem__(key)
+
+    monkeypatch.setattr(os, "environ", GuardedEnv(os.environ))
+
+    class NoTransport:
+        def open(self, *_args, **_kwargs):
+            raise AssertionError("prepare-only opened provider transport")
+
+    monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", NoTransport())
+    monkeypatch.setattr("pr_review_harness.claim_transport._HTTP_OPENER", NoTransport())
+    limits = tmp_path / "limits.json"
+    limits.write_text(json.dumps({"max_input_bytes_per_task": 64_000}))
+    output_dir = tmp_path / "out"
+
+    code = cli.main([
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(profile), "--provider-config", str(provider_config),
+        "--limits", str(limits), "--prepare-only", "--json",
+        "--output", str(output_dir),
+    ])
+    assert code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["primary_requests"] == []
+    assert report["scope"]["required_unadmitted_obligation_ids"]
+    assert report["scope"]["skipped_units"]
+    assert report["capacity"]["configured_max_input_bytes_per_task"] == 64_000
+    assert report["capacity"]["effective_max_input_bytes_per_task"] == 1
+    assert report["capacity"]["overall_capacity"] == "PRIMARY_SCOPE_NOT_ADMITTED"
+    assert report["no_provider_calls"] is True
+    assert not output_dir.exists()
+
+
+def test_separate_snapshot_cap_preserves_exact_requests_and_inference_headroom(tmp_path, monkeypatch, capsys):
+    repo, base, head = _repo(tmp_path)
+    profile = tmp_path / "profile.json"
+    profile.write_text(json.dumps({"version": "split-budget-v1", "required_lenses": ["correctness"]}))
+    provider_config = tmp_path / "provider.json"
+    provider_config.write_text(json.dumps({
+        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
+        "model": "prepare-test-model", "api_key_env": "SPLIT_BUDGET_ABSENT_KEY",
+    }))
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.delenv("SPLIT_BUDGET_ABSENT_KEY", raising=False)
+    reports = []
+    for inference_budget in (8_000_000, 10_000_000):
+        limits = tmp_path / f"limits-{inference_budget}.json"
+        limits.write_text(json.dumps({
+            "max_context_bytes": inference_budget,
+            "max_snapshot_context_bytes": 100_000,
+        }))
+        code = cli.main([
+            "review", "--repo", str(repo), "--base", base, "--head", head,
+            "--profile", str(profile), "--provider-config", str(provider_config),
+            "--limits", str(limits), "--prepare-only", "--json",
+        ])
+        assert code == 0
+        reports.append(json.loads(capsys.readouterr().out))
+
+    first, second = reports
+    assert first["snapshot"]["snapshot_hash"] == second["snapshot"]["snapshot_hash"]
+    assert [row["input_sha256"] for row in first["primary_requests"]] == [
+        row["input_sha256"] for row in second["primary_requests"]
+    ]
+    for report in reports:
+        assert report["capacity"]["effective_snapshot_context_bytes"] == 100_000
+        assert report["capacity"]["configured_max_context_bytes"] >= 8_000_000
+        assert report["capacity"]["primary_serialized_input_bytes_fit_context_cap"] is True
+        assert report["scope"]["primary_scope_admission_complete"] is True
+
+
 def test_prepare_only_marks_known_primary_call_cap_excess(tmp_path, monkeypatch, capsys):
     repo, base, head = _repo(tmp_path)
     profile = tmp_path / "profile.json"

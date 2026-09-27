@@ -115,12 +115,12 @@ def _finite_positive(value: Any, default: float, label: str) -> float:
     return float(value)
 
 
-def _json_bytes(value: Any, cap: int, label: str) -> bytes:
+def _json_bytes(value: Any, cap: int | None, label: str) -> bytes:
     try:
         data = json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
     except (TypeError, ValueError, UnicodeEncodeError):
         raise ProviderError(f"invalid_{label}") from None
-    if len(data) > cap:
+    if cap is not None and len(data) > cap:
         raise ProviderError(f"{label}_exceeds_limit")
     return data
 
@@ -308,7 +308,7 @@ class OpenAIProvider:
         if primitive not in supported:
             raise ProviderError("unsupported_primitive")
 
-    def _request_bytes(self, system: str, user: dict, schema: dict, limits: dict) -> bytes:
+    def _serialize_request_body(self, system: str, user: dict, schema: dict, limits: dict) -> bytes:
         token_cap = min(self.max_output_tokens, _limits_int(limits, "max_output_tokens", self.max_output_tokens))
         body = {
             "model": self.model,
@@ -320,7 +320,14 @@ class OpenAIProvider:
                 {"role": "user", "content": json.dumps(user, ensure_ascii=False, separators=(",", ":"))},
             ],
         }
-        return _json_bytes(body, self.max_request_bytes, "request")
+        return _json_bytes(body, None, "request")
+
+    def _request_bytes(self, system: str, user: dict, schema: dict, limits: dict) -> bytes:
+        """Build a dispatchable request, enforcing the adapter ceiling."""
+        request_bytes = self._serialize_request_body(system, user, schema, limits)
+        if len(request_bytes) > self.max_request_bytes:
+            raise ProviderError("request_exceeds_limit")
+        return request_bytes
 
     def estimate_call(
         self, task_kind: str, task: dict[str, Any], evidence: list[dict[str, Any]], limits: dict[str, Any]
@@ -332,7 +339,7 @@ class OpenAIProvider:
             system, user, schema = self._adjudication_parts(task, evidence)
         else:
             raise ProviderError("unsupported_task_kind")
-        request_bytes = self._request_bytes(system, user, schema, limits)
+        request_bytes = self._serialize_request_body(system, user, schema, limits)
         output_bytes = min(
             self.max_response_bytes, _limits_int(limits, "max_output_bytes_per_task", self.max_response_bytes)
         )
@@ -739,9 +746,9 @@ class OpenAIProvider:
         return system, user, schema
 
     def serialize_review_request(self, task: dict, evidence: list[dict], limits: dict) -> bytes:
-        """Return the exact JSON request body used by review(), without dispatch."""
+        """Return the exact serialized body for planning, without dispatch caps."""
         system, user, schema = self._review_parts(task, evidence)
-        return self._request_bytes(system, user, schema, limits)
+        return self._serialize_request_body(system, user, schema, limits)
 
     def review_input_bytes(self, task: dict, evidence: list[dict], limits: dict) -> int:
         return len(self.serialize_review_request(task, evidence, limits))
