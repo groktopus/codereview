@@ -1,5 +1,7 @@
 # Secretless hosted cancellation and resume rehearsal
 
+The observed two-run evidence is recorded in [Hosted recovery drill evidence — 2026-09-27](HOSTED-RECOVERY-DRILL-EVIDENCE-2026-09-27.md). The protocol below remains the procedure and scope definition; the supplement records one synthetic rehearsal outcome only.
+
 This manually operated, read-only Actions drill exercises the packaging and recovery boundary using a synthetic two-commit Git repository and a loopback fake provider. It does not read target SlopSearX code, bind provider credentials, publish a review/check/comment, or change the normal analysis workflow. Run A builds the wheel from the exact checked-out source using pip's isolated PEP 517 environment and project-declared `setuptools>=68`; the backend patch version is not pinned. `--no-deps` prevents project runtime dependency installation.
 
 ## Dispatch procedure
