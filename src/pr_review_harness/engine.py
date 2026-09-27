@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import pickle
 import re
 import tempfile
 import threading
@@ -32,6 +33,15 @@ def _canonical(value: Any) -> bytes:
 
 def _hash(value: Any) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
+
+
+def _claim_adapter_bytes(value: Any) -> bytes:
+    """Use the claim adapter's exact canonical JSON representation for bound hashes."""
+    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+
+
+def _claim_adapter_hash(value: Any) -> str:
+    return hashlib.sha256(_claim_adapter_bytes(value)).hexdigest()
 
 
 _ADJUDICATION_V3 = review_contracts.ADJUDICATION_V3
@@ -203,6 +213,36 @@ def _provider_identity(provider: Any, decision_provider: Any) -> Any:
     return {"provider": identity(provider), "decision_provider": identity(decision_provider)}
 
 
+def _claim_assessor_binding(assessor: Any) -> tuple[str, str, str]:
+    """Validate the opt-in shadow adapter and return a stable non-secret identity binding."""
+    for name in ("prepare", "estimate_prepared", "assess_prepared"):
+        if not callable(getattr(assessor, name, None)):
+            raise ValueError("claim assessor does not implement the prepared-assessment interface")
+    identity = getattr(assessor, "identity", None)
+    if callable(identity):
+        identity = identity()
+    if not isinstance(identity, dict):
+        raise ValueError("claim assessor identity must be an object")
+    version = identity.get("contract_version")
+    if not isinstance(version, str) or not version or len(version) > 128:
+        raise ValueError("claim assessor contract identity is required")
+    try:
+        encoded_identity = _canonical(identity)
+        serialized_assessor = pickle.dumps(assessor, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception as exc:
+        raise ValueError("claim assessor identity or adapter is not serializable") from exc
+    if len(encoded_identity) > 16_384 or len(serialized_assessor) > 65_536:
+        raise ValueError("claim assessor configuration exceeds its finite preflight bound")
+    root = Path(__file__).resolve().parent
+    implementation_hash = _hash(
+        {
+            name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+            for name in ("claim_assessment.py", "claim_transport.py")
+        }
+    )
+    return _hash(identity), version, implementation_hash
+
+
 def _evidence_for(task: dict, snapshot: dict, limit: int) -> list[dict]:
     evidence = snapshot.get("evidence", {})
     ids = list(task.get("evidence_ids", []))
@@ -289,6 +329,8 @@ def run_review(
     freshness_check: Any = None,
     context_retriever: Any = None,
     check_adapter: Any = None,
+    claim_assessor: Any = None,
+    max_claim_assessments: int = 0,
 ) -> dict:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -296,6 +338,21 @@ def run_review(
     yields explicit NOT_STARTED coverage; it cannot be interpreted as no findings.
     """
     validate_limits(limits)
+    if (
+        isinstance(max_claim_assessments, bool)
+        or not isinstance(max_claim_assessments, int)
+        or not 0 <= max_claim_assessments <= 4
+    ):
+        raise ValueError("max_claim_assessments must be an integer from 0 to 4")
+    claim_assessor_identity_hash = None
+    claim_assessor_contract = None
+    claim_assessor_code_hash = None
+    if max_claim_assessments > 0:
+        if claim_assessor is None:
+            raise ValueError("positive max_claim_assessments requires a claim assessor")
+        claim_assessor_identity_hash, claim_assessor_contract, claim_assessor_code_hash = _claim_assessor_binding(
+            claim_assessor
+        )
     if (
         not run_id
         or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", run_id)
@@ -323,6 +380,13 @@ def run_review(
         "run_id": run_id,
         "core_contract_hash": _core_contract_hash(),
     }
+    if max_claim_assessments > 0:
+        request_basis["claim_assessment"] = {
+            "assessor_identity_hash": claim_assessor_identity_hash,
+            "implementation_hash": claim_assessor_code_hash,
+            "contract_version": claim_assessor_contract,
+            "max_assessments": max_claim_assessments,
+        }
     request_hash = _hash(request_basis)
     deadline_epoch = time.time() + float(limits["deadline_seconds"])
     ledger = {
@@ -342,6 +406,13 @@ def run_review(
             "core_contract_hash": _core_contract_hash(),
         },
     }
+    if max_claim_assessments > 0:
+        ledger["identity"]["claim_assessment"] = {
+            "assessor_identity_hash": claim_assessor_identity_hash,
+            "implementation_hash": claim_assessor_code_hash,
+            "contract_version": claim_assessor_contract,
+            "max_assessments": max_claim_assessments,
+        }
     if output_path.exists():
         if not resume:
             raise ValueError("run_id already exists; resume explicitly")
@@ -419,6 +490,9 @@ def run_review(
         event = {"event": "RUN_STARTED", "at": _now()}
         event["event_hash"] = _hash(event)
         ledger["events"].append(event)
+
+    if max_claim_assessments > 0:
+        ledger.setdefault("claim_assessments", {})
 
     # Dynamic follow-up requests and retrieved immutable evidence are part of
     # the durable run state, while request identity remains the original
@@ -1804,6 +1878,492 @@ def run_review(
             findings.append(finding)
         ledger.setdefault("reconciled_tasks", []).append(task["task_id"])
 
+    # The per-candidate claim assessor is an optional, sequential shadow stage.
+    # It runs after every primary adjudication has settled and before findings
+    # are consolidated so it cannot consume primary call slots or affect the
+    # deterministic reducer inputs.
+    if max_claim_assessments > 0:
+        claim_rows = ledger.setdefault("claim_assessments", {})
+        if not isinstance(claim_rows, dict):
+            raise ValueError("claim assessment ledger is invalid")
+        finding_by_candidate = {
+            item.get("candidate_id"): item
+            for item in findings
+            if isinstance(item, dict) and isinstance(item.get("candidate_id"), str)
+        }
+        record_by_candidate = {
+            item.get("candidate_id"): item
+            for item in ledger.get("candidate_records", [])
+            if isinstance(item, dict) and isinstance(item.get("candidate_id"), str)
+        }
+        ordered_candidates = sorted(record_by_candidate)
+        attempts_used = sum(
+            1 for row in claim_rows.values() if isinstance(row, dict) and isinstance(row.get("reservation_key"), str)
+        )
+
+        def claim_not_run(candidate_id: str, reason: str, **details: Any) -> None:
+            claim_rows[candidate_id] = {
+                "contract_version": claim_assessor_contract,
+                "candidate_id": candidate_id,
+                "status": "NOT_RUN",
+                "reason_code": reason,
+                **details,
+            }
+            checkpoint()
+
+        claim_identity = {
+            "snapshot_id": snapshot.get("snapshot_id"),
+            "snapshot_hash": snapshot.get("snapshot_hash"),
+            "profile_id": profile.get("version", profile.get("profile_version")),
+            "profile_hash": _hash(profile),
+            "base_sha": snapshot.get("base_sha"),
+            "head_sha": snapshot.get("head_sha"),
+        }
+        freshness_reserve_seconds = 16.0 if callable(freshness_check) else 0.0
+        for candidate_id in ordered_candidates:
+            prior = claim_rows.get(candidate_id)
+            if isinstance(prior, dict):
+                if prior.get("status") in {
+                    "COMPLETE",
+                    "PARTIAL",
+                    "FAILED",
+                    "NOT_RUN",
+                    "INTERRUPTED_UNKNOWN",
+                }:
+                    continue
+                # An unfinished row or reservation represents an uncertain
+                # dispatch after a crash. Never reuse that paid-call key.
+                prior_reservation = prior.get("reservation_key")
+                if prior_reservation or prior.get("status") in {"RESERVED", "DISPATCHING", "PREPARING"}:
+                    claim_rows[candidate_id] = {
+                        **prior,
+                        "status": "INTERRUPTED_UNKNOWN",
+                        "reason_code": "PRIOR_SHADOW_ATTEMPT_UNSETTLED",
+                    }
+                    checkpoint()
+                    continue
+
+            candidate_record = record_by_candidate[candidate_id]
+            finding = finding_by_candidate.get(candidate_id)
+            primary = finding.get("semantic_assessment") if isinstance(finding, dict) else None
+            if candidate_record.get("validation_state") != "VALID":
+                claim_not_run(candidate_id, "PRIMARY_CANDIDATE_INVALID")
+                continue
+            if (
+                not isinstance(finding, dict)
+                or not isinstance(primary, dict)
+                or primary.get("contract_version") != _ADJUDICATION_V3
+                or primary.get("source_contract_version") != _ADJUDICATION_V3
+            ):
+                claim_not_run(candidate_id, "PRIMARY_ASSESSMENT_UNAVAILABLE")
+                continue
+            if attempts_used >= max_claim_assessments:
+                claim_not_run(candidate_id, "CLAIM_ASSESSMENT_CAP_EXHAUSTED")
+                continue
+
+            raw_candidate = candidate_record.get("raw")
+            if not isinstance(raw_candidate, dict):
+                claim_not_run(candidate_id, "PRIMARY_CANDIDATE_INVALID")
+                continue
+            refs: list[str] = []
+            original_refs = raw_candidate.get("evidence_refs")
+            if not isinstance(original_refs, list):
+                claim_not_run(candidate_id, "PRIMARY_CANDIDATE_INVALID")
+                continue
+            refs.extend(original_refs)
+            refs.extend(primary.get("evidence_refs", []))
+            role_records = primary.get("causal_roles", {})
+            if isinstance(role_records, dict):
+                for role_name in _CAUSAL_ROLES:
+                    role = role_records.get(role_name)
+                    if isinstance(role, dict) and isinstance(role.get("evidence_refs"), list):
+                        refs.extend(role["evidence_refs"])
+            refs = list(dict.fromkeys(ref for ref in refs if isinstance(ref, str)))
+            cited_evidence = []
+            invalid_binding = False
+            for evidence_id in refs:
+                item = evidence_map.get(evidence_id)
+                if (
+                    not isinstance(item, dict)
+                    or item.get("evidence_id") != evidence_id
+                    or item.get("snapshot_id") != snapshot.get("snapshot_id")
+                ):
+                    invalid_binding = True
+                    break
+                cited_evidence.append(item)
+            if invalid_binding or not original_refs or any(ref not in refs for ref in original_refs):
+                claim_not_run(candidate_id, "CANDIDATE_EVIDENCE_BINDING_INVALID")
+                continue
+
+            reservation_key = f"claim-assessment:{claim_assessor_contract}:{candidate_id}:attempt:0"
+            if reservation_key in budget.state["reservations"]:
+                # A reservation without a durable completed row is uncertain;
+                # startup settlement above has already marked it unknown.
+                attempts_used += 1
+                claim_rows[candidate_id] = {
+                    "contract_version": claim_assessor_contract,
+                    "candidate_id": candidate_id,
+                    "status": "INTERRUPTED_UNKNOWN",
+                    "reason_code": "PRIOR_SHADOW_RESERVATION_EXISTS",
+                    "attempt": 0,
+                    "reservation_key": reservation_key,
+                }
+                checkpoint()
+                continue
+
+            remaining = budget.remaining_seconds() - freshness_reserve_seconds
+            deadline_cap = min(8.0, remaining)
+            if deadline_cap <= 0:
+                claim_not_run(
+                    candidate_id,
+                    "FRESHNESS_BUDGET_RESERVED" if freshness_reserve_seconds else "DEADLINE_EXHAUSTED",
+                    freshness_reserve_seconds=freshness_reserve_seconds,
+                )
+                continue
+
+            primary_hash = _hash(primary)
+            raw_refs = list(original_refs)
+            claim_candidate = {
+                key: raw_candidate.get(key)
+                for key in ("candidate_id", "title", "observation", "consequence", "rule_or_contract")
+            }
+            claim_candidate["candidate_id"] = candidate_id
+            claim_candidate["evidence_refs"] = raw_refs
+            claim_rows[candidate_id] = {
+                "contract_version": claim_assessor_contract,
+                "candidate_id": candidate_id,
+                "attempt": 0,
+                "status": "PREPARING",
+                "primary_assessment_hash": primary_hash,
+                "candidate_hash": _hash(claim_candidate),
+                "evidence_refs": refs,
+                "implementation_hash": claim_assessor_code_hash,
+            }
+            checkpoint()
+            prepared = None
+            reservation = None
+            try:
+                call_limits = {
+                    **limits,
+                    "deadline_seconds": deadline_cap,
+                }
+                prepared = claim_assessor.prepare(
+                    claim_candidate,
+                    cited_evidence,
+                    claim_identity,
+                    call_limits,
+                    primary_assessment=primary,
+                )
+                prepared_request = getattr(prepared, "request_bytes", None)
+                prepared_hash = getattr(prepared, "request_hash", None)
+                prepared_version = getattr(prepared, "contract_version", None)
+                if (
+                    not isinstance(prepared_request, bytes)
+                    or not isinstance(prepared_hash, str)
+                    or hashlib.sha256(prepared_request).hexdigest() != prepared_hash
+                    or prepared_version != claim_assessor_contract
+                    or prepared_version != "claim-assessment.2"
+                ):
+                    raise ValueError("invalid_prepared_claim_request")
+                try:
+                    prepared_body = json.loads(prepared_request.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+                    raise ValueError("invalid_prepared_claim_request") from None
+                prepared_state = prepared_body.get("state") if isinstance(prepared_body, dict) else None
+                prepared_candidate = prepared_state.get("candidate") if isinstance(prepared_state, dict) else None
+                prepared_evidence = prepared_state.get("cited_evidence") if isinstance(prepared_state, dict) else None
+                prepared_questions = prepared_body.get("questions") if isinstance(prepared_body, dict) else None
+                prepared_primary = (
+                    prepared_state.get("primary_assessment") if isinstance(prepared_state, dict) else None
+                )
+                question_pairs = getattr(prepared, "question_ids", None)
+                introducedness_available = getattr(prepared, "introducedness_available", None)
+                required_dimensions = {
+                    "observation_support",
+                    "consequence_support",
+                    "rule_connection_support",
+                    "materiality",
+                    "missing_context",
+                    "introducedness",
+                }
+                prepared_question_map = {}
+                prepared_question_ids_valid = False
+                if (
+                    isinstance(question_pairs, tuple)
+                    and isinstance(introducedness_available, bool)
+                    and all(
+                        isinstance(pair, tuple)
+                        and len(pair) == 2
+                        and all(isinstance(value, str) and value for value in pair)
+                        for pair in question_pairs
+                    )
+                ):
+                    prepared_question_map = dict(question_pairs)
+                    expected_question_ids = {
+                        question_id
+                        for dimension, question_id in prepared_question_map.items()
+                        if introducedness_available or dimension != "introducedness"
+                    }
+                    prepared_question_ids_valid = bool(
+                        len(prepared_question_map) == len(question_pairs)
+                        and len(set(prepared_question_map.values())) == len(prepared_question_map)
+                        and set(prepared_question_map) == required_dimensions
+                        and isinstance(prepared_questions, dict)
+                        and bool(prepared_questions)
+                        and all(isinstance(question, dict) for question in prepared_questions.values())
+                        and set(prepared_questions) == expected_question_ids
+                    )
+                if (
+                    not isinstance(prepared_state, dict)
+                    or prepared_state.get("assessment_contract_version") != prepared_version
+                    or prepared_state.get("assessment_identity") != claim_identity
+                    or prepared_candidate != claim_candidate
+                    or prepared_primary != primary
+                    or not isinstance(prepared_evidence, list)
+                    or [item.get("evidence_id") for item in prepared_evidence if isinstance(item, dict)] != refs
+                    or not isinstance(prepared_questions, dict)
+                    or not prepared_questions
+                    or not prepared_question_ids_valid
+                    or getattr(prepared, "candidate_hash", None) != _claim_adapter_hash(prepared_candidate)
+                    or getattr(prepared, "evidence_hash", None) != _claim_adapter_hash(prepared_evidence)
+                    or getattr(prepared, "question_hash", None) != _claim_adapter_hash(prepared_questions)
+                    or getattr(prepared, "primary_assessment_hash", None) != _claim_adapter_hash(prepared_primary)
+                ):
+                    raise ValueError("invalid_prepared_claim_binding")
+                # Preparation and quote are local but may consume wall time.
+                remaining = budget.remaining_seconds() - freshness_reserve_seconds
+                deadline_cap = min(8.0, remaining)
+                if deadline_cap <= 0:
+                    raise BudgetExhausted(
+                        "FRESHNESS_BUDGET_RESERVED" if freshness_reserve_seconds else "DEADLINE_EXHAUSTED"
+                    )
+                call_limits = {**limits, "deadline_seconds": deadline_cap}
+                estimate = claim_assessor.estimate_prepared(prepared, call_limits)
+                if (
+                    not isinstance(estimate, dict)
+                    or estimate.get("provider_calls") != 1
+                    or estimate.get("input_bytes") != len(prepared_request)
+                    or estimate.get("max_output_bytes") != limits["max_output_bytes_per_task"]
+                    or isinstance(estimate.get("provider_response_bytes"), bool)
+                    or not isinstance(estimate.get("provider_response_bytes"), int)
+                    or not 0 < estimate["provider_response_bytes"] <= limits["max_output_bytes_per_task"]
+                    or isinstance(estimate.get("deadline_seconds"), bool)
+                    or not isinstance(estimate.get("deadline_seconds"), (int, float))
+                    or not math.isfinite(estimate["deadline_seconds"])
+                    or not 0 < estimate["deadline_seconds"] <= deadline_cap
+                ):
+                    raise ValueError("invalid_claim_assessment_quote")
+                estimate = {**estimate, "max_cost_microunits": None}
+                # The process result has its own serialized IPC ceiling; the
+                # transport's raw response ceiling remains separately recorded.
+                raw_response_cap = estimate["provider_response_bytes"]
+                ipc_cap = int(estimate["max_output_bytes"])
+                claim_rows[candidate_id].update(
+                    {
+                        "status": "RESERVED",
+                        "request_hash": prepared_hash,
+                        "candidate_hash": getattr(prepared, "candidate_hash", None),
+                        "question_hash": getattr(prepared, "question_hash", None),
+                        "evidence_hash": getattr(prepared, "evidence_hash", None),
+                        "primary_assessment_hash": getattr(prepared, "primary_assessment_hash", primary_hash),
+                        "provider_response_bytes_reserved": raw_response_cap,
+                        "ipc_output_bytes_reserved": ipc_cap,
+                        "input_bytes_reserved": estimate["input_bytes"],
+                        "reservation_key": reservation_key,
+                        "quote_deadline_seconds": estimate["deadline_seconds"],
+                    }
+                )
+                checkpoint()
+                reservation = budget.reserve(reservation_key, estimate, kind="claim_assessment")
+                claim_rows[candidate_id]["status"] = "DISPATCHING"
+                checkpoint()
+                # Retain a 16 second tail for the independent final freshness
+                # check. A started shadow call cannot consume that opportunity.
+                remaining = budget.remaining_seconds() - freshness_reserve_seconds
+                dispatch_deadline = min(8.0, float(reservation["deadline_seconds"]), remaining)
+                if dispatch_deadline <= 0:
+                    raise BudgetExhausted(
+                        "FRESHNESS_BUDGET_RESERVED" if freshness_reserve_seconds else "DEADLINE_EXHAUSTED"
+                    )
+                started = time.monotonic()
+                response = isolated_call(
+                    claim_assessor,
+                    "assess_prepared",
+                    (
+                        prepared,
+                        {
+                            **limits,
+                            "deadline_seconds": dispatch_deadline,
+                            # The transport quote can impose a smaller raw
+                            # HTTP response ceiling than the serialized IPC cap.
+                            "max_output_bytes_per_task": raw_response_cap,
+                        },
+                    ),
+                    deadline_seconds=dispatch_deadline,
+                    output_limit=ipc_cap,
+                    lock=call_lock,
+                )
+                elapsed_ms = round((time.monotonic() - started) * 1000, 2)
+                if not isinstance(response, dict):
+                    raise ValueError("invalid_claim_assessment_response")
+                output_bytes = len(_canonical(response))
+                usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+                status = response.get("status")
+                if status not in {"COMPLETE", "PARTIAL", "FAILED"}:
+                    status = "FAILED"
+                provenance = response.get("provenance") if isinstance(response.get("provenance"), dict) else {}
+                expected_provenance = {
+                    "contract_version": prepared_version,
+                    "request_hash": prepared_hash,
+                    "candidate_hash": getattr(prepared, "candidate_hash", None),
+                    "evidence_hash": getattr(prepared, "evidence_hash", None),
+                    "question_hash": getattr(prepared, "question_hash", None),
+                    **claim_identity,
+                }
+                expected_provenance["primary_assessment_hash"] = prepared.primary_assessment_hash
+                provenance_valid = bool(
+                    response.get("contract_version") == prepared_version
+                    and all(provenance.get(key) == value for key, value in expected_provenance.items())
+                )
+                question_map = prepared_question_map
+                response_assessments = response.get("assessments")
+                assessments_valid = bool(
+                    isinstance(response_assessments, dict)
+                    and set(response_assessments) == set(question_map)
+                    and response.get("decision") == "ADVISORY_ONLY"
+                )
+                for dimension, question_id in question_map.items():
+                    item = response_assessments.get(dimension) if isinstance(response_assessments, dict) else None
+                    if (
+                        not isinstance(item, dict)
+                        or item.get("question_id") != question_id
+                        or item.get("native_primitive") != "Choice"
+                        or item.get("interpretation") != "advisory_uncalibrated"
+                        or item.get("evidence_refs") != list(getattr(prepared, "evidence_refs", ()))
+                        or item.get("status") not in {"ANSWERED", "OMITTED", "INVALID", "FAILED", "NOT_SHOWN"}
+                        or (
+                            item.get("status") == "NOT_SHOWN"
+                            and (dimension != "introducedness" or getattr(prepared, "introducedness_available", True))
+                        )
+                    ):
+                        assessments_valid = False
+                        break
+                complete_assessment = bool(
+                    assessments_valid
+                    and all(
+                        response_assessments[dimension]["status"]
+                        == (
+                            "NOT_SHOWN"
+                            if dimension == "introducedness" and not prepared.introducedness_available
+                            else "ANSWERED"
+                        )
+                        for dimension in question_map
+                    )
+                )
+                response_valid = bool(
+                    provenance_valid and assessments_valid and (status != "COMPLETE" or complete_assessment)
+                )
+                if not response_valid:
+                    status = "FAILED"
+                budget.settle(reservation_key, output_bytes=output_bytes, usage=usage, status=status)
+                record_update = {
+                    "status": status,
+                    "normalized_result_hash": _hash(response),
+                    "response_bytes": output_bytes,
+                    "usage": usage,
+                    "provenance_valid": provenance_valid,
+                    "response_valid": response_valid,
+                    "provenance": provenance if provenance_valid else {},
+                    "elapsed_ms": elapsed_ms,
+                    "settlement_key": reservation_key,
+                }
+                if response_valid:
+                    record_update["assessments"] = response_assessments
+                else:
+                    record_update["reason_code"] = (
+                        "RESPONSE_PROVENANCE_MISMATCH" if not provenance_valid else "RESPONSE_SCHEMA_INVALID"
+                    )
+                claim_rows[candidate_id].update(record_update)
+                attempts_used += 1
+                checkpoint()
+            except BudgetExhausted as exc:
+                budget_code = str(exc)
+                allowed_budget_codes = {
+                    "CLAIM_ASSESSMENT_CAP_EXHAUSTED",
+                    "CONTEXT_BYTE_BUDGET_EXHAUSTED",
+                    "DEADLINE_EXHAUSTED",
+                    "FRESHNESS_BUDGET_RESERVED",
+                    "INPUT_BYTE_LIMIT_EXCEEDED",
+                    "MONETARY_BOUND_UNAVAILABLE",
+                    "MONETARY_BUDGET_EXHAUSTED",
+                    "OUTPUT_BYTE_BUDGET_EXHAUSTED",
+                    "OUTPUT_BYTE_LIMIT_EXCEEDED",
+                    "PROVIDER_CALL_BUDGET_EXHAUSTED",
+                }
+                error_code = (
+                    budget_code if budget_code in allowed_budget_codes else "CLAIM_ASSESSMENT_BUDGET_UNAVAILABLE"
+                )
+                if reservation is not None:
+                    try:
+                        budget.settle(reservation_key, output_bytes=None, usage={}, status="NOT_RUN")
+                    except (ValueError, KeyError):
+                        pass
+                claim_rows[candidate_id].update(
+                    {
+                        "status": "NOT_RUN",
+                        "reason_code": error_code,
+                        "attempt": 0,
+                        "reservation_key": reservation_key if reservation is not None else None,
+                    }
+                )
+                if reservation is not None:
+                    attempts_used += 1
+                checkpoint()
+            except Exception as exc:
+                meta = getattr(exc, "meta", {})
+                meta = meta if isinstance(meta, dict) else {}
+                remote_type = getattr(exc, "remote_type", None)
+                uncertain = remote_type in {"TimeoutError", "Cancelled", "WorkerExit", "WorkerStartError"}
+                raw_actual = meta.get("actual_output_bytes")
+                actual_output = (
+                    raw_actual
+                    if isinstance(raw_actual, int) and not isinstance(raw_actual, bool) and raw_actual >= 0
+                    else None
+                )
+                if reservation is not None:
+                    # Preserve measured output so BudgetLedger records a real
+                    # shared-resource overrun and the existing reducer fails closed.
+                    settlement_bytes = actual_output
+                    try:
+                        budget.settle(
+                            reservation_key,
+                            output_bytes=settlement_bytes,
+                            usage=meta.get("usage", {}) if isinstance(meta.get("usage"), dict) else {},
+                            status="INTERRUPTED_UNKNOWN" if uncertain else "FAILED",
+                        )
+                    except (ValueError, KeyError):
+                        pass
+                    attempts_used += 1
+                claim_rows[candidate_id].update(
+                    {
+                        "status": "INTERRUPTED_UNKNOWN" if uncertain else "FAILED",
+                        "reason_code": "SHADOW_DISPATCH_UNCERTAIN"
+                        if uncertain
+                        else "IPC_OUTPUT_LIMIT_EXCEEDED"
+                        if actual_output is not None and actual_output > ipc_cap
+                        else type(exc).__name__,
+                        "error_type": type(exc).__name__,
+                        "actual_output_bytes_observed": actual_output,
+                        "observed_output_limit_violation": (
+                            {"actual_bytes": actual_output, "reserved_bytes": ipc_cap}
+                            if actual_output is not None and actual_output > ipc_cap
+                            else None
+                        ),
+                        "reservation_key": reservation_key if reservation is not None else None,
+                    }
+                )
+                checkpoint()
+
     findings = consolidate_findings(findings)
     gap_obligations = {}
     for gap in context_gaps:
@@ -2099,6 +2659,10 @@ def run_review(
             for eid in tr.get("context_omissions", [])
         ],
     }
+    if max_claim_assessments > 0:
+        result["claim_assessments"] = [
+            ledger["claim_assessments"][candidate_id] for candidate_id in sorted(ledger["claim_assessments"])
+        ]
     result["disposition"] = _reduce(
         result,
         approval_authority,
