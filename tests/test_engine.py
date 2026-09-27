@@ -1,6 +1,8 @@
 import hashlib
 import json
+import os
 import time
+from pathlib import Path
 
 import pytest
 
@@ -482,8 +484,18 @@ class BadOnceProvider(EmptyProvider):
 
 
 class SlowProvider(EmptyProvider):
+    def __init__(self, started_path=None, completed_path=None, delay_seconds=2):
+        super().__init__()
+        self.started_path = started_path
+        self.completed_path = completed_path
+        self.delay_seconds = delay_seconds
+
     def review(self, task, evidence, limits):
-        time.sleep(0.15)
+        if self.started_path is not None:
+            Path(self.started_path).write_text(str(os.getpid()))
+        time.sleep(self.delay_seconds)
+        if self.completed_path is not None:
+            Path(self.completed_path).write_text("completed")
         return super().review(task, evidence, limits)
 
 
@@ -1144,12 +1156,28 @@ def test_retry_calls_are_reserved_before_attempts(tmp_path):
 
 
 def test_timeout_becomes_partial_and_does_not_wait_past_deadline(tmp_path):
-    budget = {**LIMITS, "deadline_seconds": 0.12}
+    started_path = tmp_path / "provider-started"
+    completed_path = tmp_path / "provider-completed"
+    provider_delay = 2
+    budget = {**LIMITS, "deadline_seconds": 0.8}
     start = time.monotonic()
-    result = run(tmp_path, provider=SlowProvider(), limits=budget)
-    assert time.monotonic() - start < 0.5
-    assert result["coverage_state"] != "COMPLETE"
+    result = run(
+        tmp_path,
+        provider=SlowProvider(str(started_path), str(completed_path), provider_delay),
+        limits=budget,
+    )
+    elapsed = time.monotonic() - start
+    assert elapsed < 1.6, "review waited for the provider's full two-second delay"
+    assert result["coverage_state"] == "PARTIAL"
     assert result["disposition"] == "INCOMPLETE"
+    timed_out = [row for row in result["task_results"].values() if row.get("status") == "TIMED_OUT"]
+    assert len(timed_out) == 1
+    assert started_path.exists(), "the provider never reached its review call"
+    worker_pid = int(started_path.read_text())
+    with pytest.raises(ProcessLookupError):
+        os.kill(worker_pid, 0)
+    time.sleep(provider_delay + 0.1)
+    assert not completed_path.exists(), "cancelled provider ran to natural completion"
 
 
 def test_resume_is_idempotent_and_rejects_changed_snapshot_or_tampering(tmp_path):
