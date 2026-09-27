@@ -373,6 +373,7 @@ def test_context_gap_projection_exposes_only_typed_bounded_diagnostics():
             "retrieval_status": "UNRESOLVED",
             "retrieval_reason": "target_path_not_allowlisted",
             "retrieved_bytes": 0,
+            "retrieval_envelope_bytes": 148,
             "retrieved_evidence_ids": [],
             "followup_error": "CONTEXT_BYTE_BUDGET_EXHAUSTED",
         },
@@ -383,6 +384,7 @@ def test_context_gap_projection_exposes_only_typed_bounded_diagnostics():
             "retrieval_status": "UNRESOLVED",
             "retrieval_reason": 'exception echoed "private key"',
             "retrieved_bytes": -1,
+            "retrieval_envelope_bytes": True,
             "followup_task_id": "followup-1",
         },
     ]
@@ -397,6 +399,7 @@ def test_context_gap_projection_exposes_only_typed_bounded_diagnostics():
         "retrieval_status": "UNRESOLVED",
         "retrieval_reason_code": "target_path_not_allowlisted",
         "retrieved_bytes": 0,
+        "retrieval_envelope_bytes": 148,
         "retrieved_evidence_count": 0,
         "followup_status": "NOT_ADMITTED_OR_UNKNOWN",
         "followup_reason_code": "CONTEXT_BYTE_BUDGET_EXHAUSTED",
@@ -407,6 +410,7 @@ def test_context_gap_projection_exposes_only_typed_bounded_diagnostics():
         "retrieval_status": "UNRESOLVED",
         "retrieval_reason_code": "UNKNOWN",
         "retrieved_bytes": "UNKNOWN",
+        "retrieval_envelope_bytes": "UNKNOWN",
         "retrieved_evidence_count": "UNKNOWN",
         "followup_status": "SKIPPED",
         "followup_reason_code": "DEADLINE_EXHAUSTED",
@@ -431,10 +435,38 @@ def test_context_gap_projection_keeps_missing_diagnostics_unknown():
         "retrieval_status": "UNKNOWN",
         "retrieval_reason_code": "UNKNOWN",
         "retrieved_bytes": "UNKNOWN",
+        "retrieval_envelope_bytes": "UNKNOWN",
         "retrieved_evidence_count": "UNKNOWN",
         "followup_status": "NOT_SHOWN",
         "followup_reason_code": "NOT_SHOWN",
     }
+
+
+def test_context_gap_projection_keeps_new_bounded_retrieval_reason_codes():
+    result = trial._project_gaps(
+        [
+            {"proposal_id": "gap-partial", "retrieval_reason": "ipc_envelope_truncated"},
+            {"proposal_id": "gap-large-metadata", "retrieval_reason": "retrieval_metadata_exceeds_ipc_limit"},
+            {"proposal_id": "gap-bad-encoding", "retrieval_reason": "retrieval_evidence_encoding_invalid"},
+        ]
+    )
+    assert [row["diagnostic"]["retrieval_reason_code"] for row in result] == [
+        "ipc_envelope_truncated",
+        "retrieval_metadata_exceeds_ipc_limit",
+        "retrieval_evidence_encoding_invalid",
+    ]
+
+
+def test_context_gap_projection_rejects_invalid_envelope_sizes():
+    result = trial._project_gaps(
+        [
+            {"proposal_id": "negative", "retrieval_envelope_bytes": -1},
+            {"proposal_id": "bool", "retrieval_envelope_bytes": True},
+            {"proposal_id": "canary", "retrieval_envelope_bytes": "private-secret"},
+        ]
+    )
+    assert [row["diagnostic"]["retrieval_envelope_bytes"] for row in result] == ["UNKNOWN"] * 3
+    assert "private-secret" not in json.dumps(result)
 
 
 def test_project_case_reads_engine_task_results_and_keeps_absent_outcome_unknown():
