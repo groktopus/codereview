@@ -1,8 +1,11 @@
 import {spawn} from 'node:child_process'
 import process from 'node:process'
+import {pathToFileURL} from 'node:url'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
 const DEADLINE_MS = 150_000
+const CLEANUP_GRACE_MS = 250
+const FINAL_CLOSE_GRACE_MS = 50
 
 const allowed = [
   'PATH',
@@ -28,81 +31,133 @@ const allowed = [
   'PYTHONPATH',
 ]
 
-function terminate(child) {
+function signalOwnedProcessGroup(child, signal) {
   try {
-    if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGTERM')
-    else child.kill('SIGTERM')
+    if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, signal)
+    else child.kill(signal)
   } catch {}
-  const timer = setTimeout(() => {
-    try {
-      if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGKILL')
-      else child.kill('SIGKILL')
-    } catch {}
-  }, 250)
-  timer.unref()
 }
 
-async function main() {
-  if (!process.env.ACTIONS_RUNTIME_TOKEN || !process.env.ACTIONS_RESULTS_URL || !process.env.GITHUB_WORKSPACE) {
-    process.stdout.write('{"state":"UNKNOWN","reason":"actions_runtime_unavailable","safe_to_publish":false}\n')
-    return
+function waitForClose(exit, waitMs) {
+  let timer
+  return Promise.race([
+    exit.then(() => true, () => true),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(false), waitMs)
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
+async function stopOwnedChild(child, exit) {
+  signalOwnedProcessGroup(child, 'SIGTERM')
+  if (await waitForClose(exit, CLEANUP_GRACE_MS)) return
+
+  signalOwnedProcessGroup(child, 'SIGKILL')
+  if (await waitForClose(exit, CLEANUP_GRACE_MS)) return
+
+  // An escaped descendant can keep the inherited stdout pipe open after the
+  // owned process group has been killed. Close only our pipe; do not signal an
+  // unrelated descendant that deliberately left the owned process group.
+  child.stdout?.destroy()
+  await waitForClose(exit, FINAL_CLOSE_GRACE_MS)
+}
+
+function unknown(reason, exitCode = 1) {
+  return {
+    stdout: `{"state":"UNKNOWN","reason":"${reason}","safe_to_publish":false}\n`,
+    exitCode,
+  }
+}
+
+export async function runCanary({deadlineMs = DEADLINE_MS, spawnProcess = spawn, env = process.env} = {}) {
+  if (!Number.isInteger(deadlineMs) || deadlineMs <= 0 || deadlineMs > DEADLINE_MS) {
+    return unknown('canary_runtime_failed')
+  }
+  if (!env.ACTIONS_RUNTIME_TOKEN || !env.ACTIONS_RESULTS_URL || !env.GITHUB_WORKSPACE) {
+    return unknown('actions_runtime_unavailable', 0)
   }
   const childEnv = {}
   for (const key of allowed) {
-    if (typeof process.env[key] === 'string') childEnv[key] = process.env[key]
+    if (typeof env[key] === 'string') childEnv[key] = env[key]
   }
   childEnv.PYTHONPATH = childEnv.PYTHONPATH || 'src'
-  const child = spawn('python', ['-m', 'pr_review_harness.actions_runtime'], {
-    cwd: childEnv.GITHUB_WORKSPACE,
-    env: childEnv,
-    stdio: ['ignore', 'pipe', 'ignore'],
-    detached: process.platform !== 'win32',
-  })
+
+  let child
+  try {
+    child = spawnProcess('python', ['-m', 'pr_review_harness.actions_runtime'], {
+      cwd: childEnv.GITHUB_WORKSPACE,
+      env: childEnv,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      detached: process.platform !== 'win32',
+    })
+  } catch {
+    return unknown('canary_runtime_failed')
+  }
+
   const chunks = []
   let outputBytes = 0
   let exceeded = false
-  child.stdout.on('data', (chunk) => {
-    outputBytes += chunk.length
-    if (outputBytes > MAX_OUTPUT_BYTES) {
-      exceeded = true
-      terminate(child)
-      return
-    }
-    chunks.push(chunk)
-  })
-  const deadline = Date.now() + DEADLINE_MS
-  const exit = new Promise((resolve, reject) => {
-    child.once('error', reject)
+  const closed = new Promise((resolve) => {
     child.once('close', (code, signal) => resolve({code, signal}))
   })
+  // Spawn errors and child close are distinct: an error does not prove that a
+  // process with a PID has exited or that its owned process group is closed.
+  const exit = new Promise((resolve, reject) => {
+    child.once('error', reject)
+    closed.then(resolve)
+  })
+  exit.catch(() => {})
+  const outputLimit = new Promise((resolve) => {
+    child.stdout?.on('data', (chunk) => {
+      outputBytes += chunk.length
+      if (outputBytes > MAX_OUTPUT_BYTES) {
+        exceeded = true
+        child.stdout.pause()
+        resolve('oversized')
+        return
+      }
+      chunks.push(chunk)
+    })
+  })
+  const deadline = Date.now() + deadlineMs
   let timeout
   const timedOut = new Promise((resolve) => {
-    timeout = setTimeout(() => resolve(null), Math.max(1, deadline - Date.now()))
+    timeout = setTimeout(() => resolve('deadline'), Math.max(1, deadline - Date.now()))
   })
-  const outcome = await Promise.race([exit, timedOut])
-  clearTimeout(timeout)
-  if (outcome === null) {
-    terminate(child)
-    await exit.catch(() => {})
-    process.stdout.write('{"state":"UNKNOWN","reason":"canary_deadline_exhausted","safe_to_publish":false}\n')
-    process.exitCode = 1
-    return
+
+  let outcome
+  try {
+    outcome = await Promise.race([exit, timedOut, outputLimit])
+  } catch {
+    if (child.pid) await stopOwnedChild(child, closed)
+    return unknown('canary_runtime_failed')
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  if (outcome === 'deadline' || outcome === 'oversized') {
+    await stopOwnedChild(child, closed)
+    return unknown(outcome === 'deadline' ? 'canary_deadline_exhausted' : 'canary_runtime_failed_or_oversized')
   }
   if (exceeded || outcome.code !== 0 || outcome.signal) {
-    process.stdout.write('{"state":"UNKNOWN","reason":"canary_runtime_failed_or_oversized","safe_to_publish":false}\n')
-    process.exitCode = 1
-    return
+    return unknown('canary_runtime_failed_or_oversized')
   }
   const output = Buffer.concat(chunks)
   if (!output.length || output[output.length - 1] !== 10) {
-    process.stdout.write('{"state":"UNKNOWN","reason":"canary_output_invalid","safe_to_publish":false}\n')
-    process.exitCode = 1
-    return
+    return unknown('canary_output_invalid')
   }
-  process.stdout.write(output)
+  return {stdout: output, exitCode: 0}
 }
 
-main().catch(() => {
-  process.stdout.write('{"state":"UNKNOWN","reason":"canary_runtime_failed","safe_to_publish":false}\n')
-  process.exitCode = 1
-})
+async function main() {
+  const result = await runCanary()
+  process.stdout.write(result.stdout)
+  if (result.exitCode !== 0) process.exitCode = result.exitCode
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(() => {
+    process.stdout.write('{"state":"UNKNOWN","reason":"canary_runtime_failed","safe_to_publish":false}\n')
+    process.exitCode = 1
+  })
+}
