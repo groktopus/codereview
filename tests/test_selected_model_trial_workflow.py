@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/selected-model-claim-trial.yml"
-PIN = "b1c2f9fed50d7cdcc7333d1f626b7c4bafe7412a"
+PIN = "69a848b651faf6deddd777ed1b83187b7b8adfbf"
 CHECKOUT_ACTION = "11bd71901bbe5b1630ceea73d27597364c9af683"
 SETUP_PYTHON_ACTION = "a26af69be951a213d495a4c3e4e4022e16d87065"
 UPLOAD_ARTIFACT_ACTION = "ea165f8d65b6e75b540449e92b4886f43607fa02"
