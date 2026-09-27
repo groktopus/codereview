@@ -131,12 +131,17 @@ def accepted_blocker(value):
     value["report_sections"]["blockers"] = [
         {
             "finding_id": finding_id,
+            "snapshot_id": finding["snapshot_id"],
+            "unit_id": finding["unit_id"],
             "title": finding["title"],
+            "status": finding["status"],
             "path": finding["path"],
+            "line": finding["location"]["line"],
             "location": finding["location"],
             "observation": finding["observation"],
             "consequence": finding["consequence"],
             "rule_or_contract": finding["rule_or_contract"],
+            "rationale": finding["blocking_rationale"],
             "evidence_refs": [evidence_id],
         }
     ]

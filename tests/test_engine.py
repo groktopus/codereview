@@ -1386,6 +1386,12 @@ def test_partial_reason_is_stable_across_task_order_and_blocker_is_preserved(tmp
     assert blocked["disposition"] == "REQUEST_CHANGES"
     assert blocked["coverage_state"] == "PARTIAL"
     assert any(item["blocking_class"] == "BLOCKING" and item["status"] == "ACCEPTED" for item in blocked["findings"])
+    blocked_report = render_report(blocked)
+    assert "Coverage: PARTIAL" in blocked_report
+    assert "## Blockers" in blocked_report
+    assert "## Coverage" not in blocked_report
+    assert blocked_report.count("## ") == 4
+    assert blocked["report_sections"]["blockers"][0]["title"] in blocked_report
 
 
 def selected_review_fixture():

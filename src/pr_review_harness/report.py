@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import html
+import json
 import re
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -51,14 +53,7 @@ def render_report(result: dict) -> str:
         or any(not isinstance(sections[k], list) for k in required)
     ):
         raise ValueError("report requires exactly four section arrays")
-    expected_blockers = {
-        f.get("finding_id")
-        for f in result.get("findings", [])
-        if isinstance(f, dict) and f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"
-    }
-    rendered_blockers = {item.get("finding_id") for item in sections["blockers"] if isinstance(item, dict)}
-    if not expected_blockers.issubset(rendered_blockers):
-        raise ValueError("report omits an accepted blocker")
+    _validate_blocker_projection(result.get("findings", []), sections["blockers"])
 
     lines = [
         f"PR review {safe(result.get('run_id', 'unknown'))}: {safe(result.get('disposition', 'INCOMPLETE'))}",
@@ -103,6 +98,7 @@ def render_report(result: dict) -> str:
                     anchor = safe(evidence_id)
                 refs.append(anchor)
             evidence = ", ".join(refs) or "no evidence references"
+            classification = "[ACCEPTED / BLOCKING] " if key == "blockers" else ""
             note_type = (
                 "why_it_matters" if key == "specific_strengths" else "guidance" if key == "future_guidance" else None
             )
@@ -112,10 +108,12 @@ def render_report(result: dict) -> str:
                 )
             else:
                 lines.append(
-                    f"- **{safe(item.get('finding_id', 'unidentified'))}** {safe(item.get('title', ''))} at {loc}. {safe(item.get('observation', ''))} Consequence: {safe(item.get('consequence', ''))} Rule: {safe(item.get('rule_or_contract', ''))} Evidence: {evidence}."
+                    f"- {classification}**{safe(item.get('finding_id', 'unidentified'))}** {safe(item.get('title', ''))} at {loc}. {safe(item.get('observation', ''))} Consequence: {safe(item.get('consequence', ''))} Rule: {safe(item.get('rule_or_contract', ''))} Evidence: {evidence}."
                 )
 
     coverage_rows = result.get("coverage_ledger", [])
+    if not isinstance(coverage_rows, list) or any(not isinstance(row, dict) for row in coverage_rows):
+        raise ValueError("coverage ledger rows must be objects")
     counts = {
         state: sum(row.get("state") == state for row in coverage_rows)
         for state in ("COMPLETE", "PARTIAL", "NOT_STARTED")
@@ -126,9 +124,11 @@ def render_report(result: dict) -> str:
         f"{counts['COMPLETE']} complete, {counts['PARTIAL']} partial, {counts['NOT_STARTED']} not started across {len(coverage_rows)} obligations."
     )
     if unresolved:
-        for row in sorted(unresolved, key=lambda item: (item.get("state") != "PARTIAL", item.get("obligation_id", "")))[
-            :8
-        ]:
+        ordered_unresolved = sorted(
+            unresolved,
+            key=lambda item: (item.get("state") != "PARTIAL", str(item.get("obligation_id", ""))),
+        )
+        for row in ordered_unresolved[:8]:
             lines.append(
                 f"- {safe(row.get('obligation_id'))}: {safe(row.get('state'))} ({safe(row.get('reason_code'))})"
             )
@@ -138,7 +138,7 @@ def render_report(result: dict) -> str:
                     f"  Specialist reported partial coverage: {', '.join(safe(reason) for reason in reasons)}."
                 )
         if len(unresolved) > 8:
-            lines.append(f"- {len(unresolved) - 8} more unresolved obligations are retained in the durable result.")
+            lines.append(f"- {len(unresolved) - 8} more unresolved obligations are listed in the full coverage ledger below.")
     for entry in result.get("not_applicable", []):
         line = f"- {safe(entry.get('obligation_id'))}: NOT_APPLICABLE ({safe(entry.get('reason'))})"
         rationale = entry.get("profile_rationale")
@@ -155,7 +155,84 @@ def render_report(result: dict) -> str:
         lines.append(
             f"{unresolved_findings} unverified claims remain in the durable result and are not presented as recommendations."
         )
+    lines.extend(("", "<details>", f"<summary>Full coverage ledger ({len(coverage_rows)} obligations)</summary>", ""))
+    for row in coverage_rows:
+        serialized = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        lines.extend(("<pre><code>", html.escape(serialized, quote=True), "</code></pre>"))
+    lines.extend(("", "</details>"))
     return "\n".join(lines).rstrip() + "\n"
+
+
+_BLOCKER_PROJECTION_FIELDS = (
+    "finding_id",
+    "snapshot_id",
+    "unit_id",
+    "title",
+    "status",
+    "path",
+    "line",
+    "location",
+    "observation",
+    "consequence",
+    "rule_or_contract",
+    "rationale",
+    "evidence_refs",
+)
+
+
+def _canonical_blocker_projection(finding: dict[str, Any]) -> dict[str, Any]:
+    location = finding.get("location")
+    if not isinstance(location, dict):
+        location = {}
+    return {
+        "finding_id": finding.get("finding_id"),
+        "snapshot_id": finding.get("snapshot_id"),
+        "unit_id": finding.get("unit_id"),
+        "title": finding.get("title"),
+        "status": finding.get("status"),
+        "path": finding.get("path"),
+        "line": location.get("line"),
+        "location": finding.get("location"),
+        "observation": finding.get("observation"),
+        "consequence": finding.get("consequence"),
+        "rule_or_contract": finding.get("rule_or_contract"),
+        "rationale": finding.get("blocking_rationale"),
+        "evidence_refs": finding.get("evidence_refs"),
+    }
+
+
+def _validate_blocker_projection(findings: Any, rendered_blockers: list[Any]) -> None:
+    if not isinstance(findings, list):
+        raise ValueError("canonical findings must be a list")
+    canonical: dict[str, dict[str, Any]] = {}
+    canonical_ids: set[str] = set()
+    for finding in findings:
+        if not isinstance(finding, dict):
+            raise ValueError("canonical finding must be an object")
+        finding_id = finding.get("finding_id")
+        if not isinstance(finding_id, str) or not finding_id:
+            raise ValueError("canonical finding identity is invalid")
+        if finding_id in canonical_ids:
+            raise ValueError("duplicate canonical finding identity")
+        canonical_ids.add(finding_id)
+        if finding.get("status") == "ACCEPTED" and finding.get("blocking_class") == "BLOCKING":
+            canonical[finding_id] = _canonical_blocker_projection(finding)
+
+    seen: set[str] = set()
+    for item in rendered_blockers:
+        if not isinstance(item, dict):
+            raise ValueError("report blocker must be an object")
+        finding_id = item.get("finding_id")
+        if not isinstance(finding_id, str) or finding_id not in canonical:
+            raise ValueError("report blocker has no canonical finding")
+        if finding_id in seen:
+            raise ValueError("duplicate report blocker identity")
+        seen.add(finding_id)
+        expected = canonical[finding_id]
+        if any(item.get(field) != expected[field] for field in _BLOCKER_PROJECTION_FIELDS):
+            raise ValueError("report blocker does not match canonical finding")
+    if seen != set(canonical):
+        raise ValueError("report omits an accepted blocker")
 
 
 def _specialist_partial_reasons(row: dict, task_results: Any) -> list[str]:

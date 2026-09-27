@@ -212,12 +212,17 @@ def sealed_review(*, disposition="REQUEST_CHANGES", completed_at="2026-09-26T12:
             "blockers": [
                 {
                     "finding_id": finding_id,
+                    "snapshot_id": "snapshot-publish-cli",
+                    "unit_id": "unit-a",
                     "title": "Unicode anchor: café",
+                    "status": "ACCEPTED",
                     "path": "src/a.py",
-                    "location": {"kind": "line", "path": "src/a.py", "side": "HEAD", "line": 4},
+                    "line": 4,
+                    "location": {"kind": "line", "path": "src/a.py", "side": "HEAD", "line": 4, "reason": None},
                     "observation": "The validated branch blocks unsafe input.",
                     "consequence": "Malformed input can cross the trust boundary.",
                     "rule_or_contract": "Input contract",
+                    "rationale": "Supported by source evidence.",
                     "evidence_refs": [evidence_id],
                 }
             ],
@@ -801,6 +806,7 @@ def test_publish_rejects_rehashed_but_semantically_unproven_result(mutation, tmp
         reviewed["coverage_ledger"] = []
     else:
         reviewed["findings"][0]["evidence_refs"] = ["unbound-evidence"]
+        reviewed["report_sections"]["blockers"][0]["evidence_refs"] = ["unbound-evidence"]
     reviewed["rendered_review"] = render_report(reviewed)
     reviewed.pop("result_hash")
     reviewed["result_hash"] = _hash(reviewed)
