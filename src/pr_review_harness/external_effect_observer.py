@@ -23,7 +23,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-OBSERVER_ID = "linux-strace-syscall-observer.v2"
+OBSERVER_ID = "linux-strace-syscall-observer.v3"
 TRACE_MAX_BYTES = 1_048_576
 TRACE_MAX_EVENT_EXEMPLARS = 256
 TRACE_MAX_AGGREGATE_BUCKETS = 128
@@ -47,6 +47,7 @@ SYSCALL_SCOPE = [
     "accept4",
     "shutdown",
 ]
+RAW_ARGUMENT_SYSCALLS = ("execve", "execveat", "newfstatat", "wait4")
 _RETURN_RE = re.compile(r"\)\s+=\s+(-?\d+)(?:\s|$)")
 _HEX_RETURN_RE = re.compile(r"\)\s+=\s+0x[0-9a-fA-F]+(?:\s|$)")
 _PID_PREFIX = r"(?:(?:\[pid\s+(\d+)\]|\[(\d+)\]|(\d+))\s+)?"
@@ -219,11 +220,18 @@ def _hash_file(path: str, *, deadline: float | None = None) -> str | None:
 
 
 def _outcome(line: str, syscall: str) -> tuple[str, int | None] | None:
-    if syscall in {"execve", "execveat"}:
-        hex_match = _HEX_RETURN_RE.search(line)
-        if hex_match:
-            value = hex_match.group(0).split("=")[-1].strip().lower()
+    hex_match = _HEX_RETURN_RE.search(line)
+    if hex_match:
+        value = hex_match.group(0).split("=")[-1].strip().lower()
+        if syscall in {"execve", "execveat"}:
             return ("SUCCESS", 0) if value == "0x0" else ("ERROR", -1)
+        if syscall in RAW_ARGUMENT_SYSCALLS:
+            raw_value = int(value, 16)
+            digits = value[2:]
+            width = len(digits) * 4
+            if width in {32, 64} and raw_value & (1 << (width - 1)):
+                raw_value -= 1 << width
+            return ("SUCCESS" if raw_value >= 0 else "ERROR"), raw_value
     if syscall in {"exit", "exit_group"} and re.search(r"\)\s+=\s+\?(?:\s|$)", line):
         return "NONRETURNING", None
     match = _RETURN_RE.search(line)
@@ -425,7 +433,7 @@ def observe_cli(
         "-e",
         "trace=" + ",".join(SYSCALL_SCOPE),
         "-e",
-        "raw=execve,execveat",
+        "raw=" + ",".join(RAW_ARGUMENT_SYSCALLS),
         "-o",
         trace_path,
         "--",
