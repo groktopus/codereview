@@ -17,8 +17,10 @@ from typing import Any
 
 try:
     from prepare_real_case_batch import _bounded_run, _clean_git_env, git_command
+    from provider_config_from_env import ConfigError, configurations_from_environment
 except ModuleNotFoundError:
     from scripts.prepare_real_case_batch import _bounded_run, _clean_git_env, git_command
+    from scripts.provider_config_from_env import ConfigError, configurations_from_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 INPUT_ROOT = ROOT / "docs" / "real-case-trial-v1"
@@ -59,9 +61,12 @@ FROZEN_PLAN_MANIFEST_SHA256 = "820a98512df38a257531b92e5cdc02f314e9f87c6230435ad
 REPOSITORY_URL = "https://github.com/magnus919/SlopSearX.git"
 EXPECTED_LLM_ENDPOINT = "https://inference-api.nousresearch.com/v1"
 EXPECTED_LLM_MODEL = "openai/gpt-6-luna"
+EXPECTED_JEV_BASE_URL = "https://api.typesafe.ai/v1"
 EXPECTED_JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 EXPECTED_JEV_ALIAS = "jev-latest"
 SECRET_NAMES = ("LLM_API_KEY", "JEV_API_KEY")
+IDENTITY_ENV_NAMES = ("LLM_BASE_URL", "LLM_MODEL", "JEV_BASE_URL", "JEV_MODEL")
+TRIAL_ENV_NAMES = IDENTITY_ENV_NAMES + SECRET_NAMES
 OUTPUT_CAP = 1_000_000
 STDERR_CAP = 128_000
 CASE_SECONDS = 660
@@ -149,47 +154,50 @@ def selected_cases(mode: str, cases: list[dict[str, Any]]) -> list[dict[str, Any
 
 
 def build_configs(directory: Path) -> tuple[Path, Path, list[str]]:
-    expected = {
-        "LLM_BASE_URL": EXPECTED_LLM_ENDPOINT,
-        "LLM_MODEL": EXPECTED_LLM_MODEL,
-        "JEV_BASE_URL": EXPECTED_JEV_ENDPOINT,
-        "JEV_MODEL": EXPECTED_JEV_ALIAS,
-    }
-    values: dict[str, str] = {}
-    for name, exact in expected.items():
-        value = os.environ.get(name)
-        if value != exact:
-            raise TrialError("provider_identity_configuration_mismatch")
-        values[name] = value
+    environment = {name: os.environ.get(name, "") for name in TRIAL_ENV_NAMES}
     secrets = []
     for name in SECRET_NAMES:
-        value = os.environ.get(name)
+        value = environment[name]
         if not value or len(value) > 4096 or any(ch in value for ch in "\r\n\x00"):
             raise TrialError("provider_credential_unavailable")
         secrets.append(value)
-    secrets.extend(expected.values())
+
+    # Use the same API-root contract and validation as the normal production
+    # environment translator, then pin the resulting endpoint/model identities.
+    try:
+        llm, jev = configurations_from_environment(environment)
+    except ConfigError:
+        raise TrialError("provider_identity_configuration_mismatch") from None
+    if (
+        llm.get("base_url") != EXPECTED_LLM_ENDPOINT
+        or llm.get("model") != EXPECTED_LLM_MODEL
+        or jev.get("endpoint") != EXPECTED_JEV_ENDPOINT
+        or jev.get("model") != EXPECTED_JEV_ALIAS
+    ):
+        raise TrialError("provider_identity_configuration_mismatch")
+    secrets.extend(environment[name] for name in IDENTITY_ENV_NAMES)
+    secrets.extend(
+        (
+            EXPECTED_LLM_ENDPOINT,
+            EXPECTED_LLM_MODEL,
+            EXPECTED_JEV_BASE_URL,
+            EXPECTED_JEV_ENDPOINT,
+            EXPECTED_JEV_ALIAS,
+        )
+    )
 
     directory.mkdir(mode=0o700, parents=True, exist_ok=False)
     os.chmod(directory, 0o700)
-    llm = {
-        "kind": "openai_compatible",
-        "provider_id": "operator_openai_compatible",
-        "base_url": values["LLM_BASE_URL"],
-        "model": values["LLM_MODEL"],
-        "api_key_env": "LLM_API_KEY",
-        "timeout_seconds": 75,
-        "max_request_bytes": 128000,
-        "max_response_bytes": 16000,
-        "max_output_tokens": 1800,
-        "max_output_items": 100,
-        "semantic_adjudication": True,
-    }
-    jev = {
-        "kind": "typesafe",
-        "endpoint": values["JEV_BASE_URL"],
-        "model": values["JEV_MODEL"],
-        "api_key_env": "JEV_API_KEY",
-    }
+    llm.update(
+        {
+            "timeout_seconds": 75,
+            "max_request_bytes": 128000,
+            "max_response_bytes": 16000,
+            "max_output_tokens": 1800,
+            "max_output_items": 100,
+            "semantic_adjudication": True,
+        }
+    )
     llm_path = directory / "provider.json"
     jev_path = directory / "decision.json"
     for path, value in ((llm_path, llm), (jev_path, jev)):
