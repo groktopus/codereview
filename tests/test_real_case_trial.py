@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -357,6 +358,40 @@ def test_projection_scan_rejects_escaped_credentials_in_nested_keys_and_values(s
 def test_projection_scan_accepts_clean_nested_metadata():
     projection = {"nested": [{"path": "src/module.py", "status": "REVIEWED"}]}
     assert trial._scan(projection, ["private-secret"]) == trial.canonical(projection)
+
+
+def test_prepare_only_workspace_may_be_absent_but_required_result_cleanup_stays_fail_closed(tmp_path):
+    result = tmp_path / "case" / "result"
+    prepared = tmp_path / "case" / "prepared"
+    owned_bare = tmp_path / "case" / "objects.git"
+    result.mkdir(parents=True)
+    owned_bare.mkdir()
+
+    trial.cleanup_private(result)
+    trial.cleanup_optional_private(prepared)
+    trial.cleanup_private(owned_bare)
+
+    assert not result.exists()
+    assert not prepared.exists()
+    assert not owned_bare.exists()
+    with pytest.raises(trial.TrialError, match="private_cleanup_refused"):
+        trial.cleanup_private(result)
+
+
+def test_optional_prepare_cleanup_removes_existing_directory_and_rejects_symlink(tmp_path):
+    prepared = tmp_path / "prepared"
+    prepared.mkdir()
+    (prepared / "receipt.json").write_text("{}", encoding="utf-8")
+    trial.cleanup_optional_private(prepared)
+    assert not prepared.exists()
+
+    target = tmp_path / "target"
+    target.mkdir()
+    symlink = tmp_path / "prepared-link"
+    symlink.symlink_to(target, target_is_directory=True)
+    with pytest.raises(trial.TrialError, match="private_cleanup_refused"):
+        trial.cleanup_optional_private(symlink)
+    assert target.is_dir()
 
 
 def test_private_configuration_contains_only_credential_references(tmp_path, monkeypatch):
@@ -719,7 +754,8 @@ def test_provider_failure_marks_actual_usage_unknown_and_keeps_no_secret_values(
         output = args[8]
         cli_calls.append((case["case_id"], prepare))
         if prepare:
-            output.mkdir()
+            # The real CLI's --prepare-only branch returns JSON without creating
+            # its requested output path.
             return {"value": {"primary_requests": []}, "run_id": "prepared"}
         provider_calls += 1
         if provider_calls == 1:
@@ -778,4 +814,74 @@ def test_provider_failure_marks_actual_usage_unknown_and_keeps_no_secret_values(
     assert manifest["cases"][1]["failure_code"] == "subprocess_deadline_exceeded"
     assert [row["status"] for row in manifest["cases"]] == ["PROCESS_COMPLETED", "INCOMPLETE", "NOT_RUN"]
     assert b"bounded safe narrative" not in summary_bytes
+    assert not (artifact_dir / "private").exists()
+
+
+def test_projection_is_retained_when_prepare_workspace_cleanup_fails_with_specific_stage(tmp_path, monkeypatch, capsys):
+    artifact_dir = tmp_path / "artifacts"
+    repo_root = trial.ROOT
+    monkeypatch.setattr(trial, "_matrix_deadline", lambda provider_run: trial.time.monotonic() + 10_000)
+    monkeypatch.setattr(trial, "verify_dispatch_context", lambda root: "a" * 40)
+    monkeypatch.setattr(trial, "verify_runtime", lambda cli, source: {"module_file_count": 28})
+    monkeypatch.setattr(trial, "validate_prepare", lambda case, prepared, cap: None)
+    monkeypatch.setattr(trial, "primary_receipts", lambda prepared: [])
+    monkeypatch.setattr(trial, "acquire_bare_case", lambda case, path, *args, **kwargs: (
+        path.mkdir(),
+        {
+            "patch_sha256": case["patch_sha256"],
+            "isolated_object_count": 1,
+            "isolated_loose_object_count": 1,
+            "isolated_in_pack_object_count": 0,
+            "isolated_pack_kib": 0,
+        },
+    )[1])
+    for name, value in {
+        "LLM_BASE_URL": trial.EXPECTED_LLM_ENDPOINT,
+        "LLM_MODEL": trial.EXPECTED_LLM_MODEL,
+        "LLM_API_KEY": "llm-cleanup-test-key",
+        "JEV_BASE_URL": trial.EXPECTED_JEV_BASE_URL,
+        "JEV_MODEL": trial.EXPECTED_JEV_ALIAS,
+        "JEV_API_KEY": "jev-cleanup-test-key",
+    }.items():
+        monkeypatch.setenv(name, value)
+
+    projection = {"candidate_projection_status": "COMPLETE", "candidate_count": 0, "candidates": []}
+    monkeypatch.setattr(trial, "read_result", lambda path: {"disposition": "INCOMPLETE"})
+    monkeypatch.setattr(trial, "project_case", lambda case, durable, secrets: projection)
+    prepared_path = artifact_dir / "private" / "PR-464" / "prepared"
+
+    def run_cli(*args, **kwargs):
+        output = args[8]
+        if args[9]:
+            output.mkdir()
+            return {"value": {"primary_requests": []}, "run_id": "prepared"}
+        output.mkdir()
+        (output / "reviewed.json").write_text("{}", encoding="utf-8")
+        return {"value": {"artifact_path": str(output)}, "run_id": "reviewed"}
+
+    monkeypatch.setattr(trial, "run_cli", run_cli)
+    real_rmtree = trial.shutil.rmtree
+
+    def fail_prepare_cleanup(path, *args, **kwargs):
+        if Path(path) == prepared_path:
+            raise OSError("synthetic cleanup failure")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(trial.shutil, "rmtree", fail_prepare_cleanup)
+    code = trial.main(
+        [
+            "--mode", "staged-pr464", "--run-provider-trial", "--artifacts", str(artifact_dir),
+            "--cli", str(repo_root / "scripts" / "run_real_case_trial.py"),
+            "--runtime-source", str(repo_root),
+        ]
+    )
+
+    assert code == 2
+    assert json.loads(capsys.readouterr().out) == {"status": "FAILED", "error": "trial_io_error"}
+    manifest = json.loads((artifact_dir / "manifest.json").read_text())
+    assert manifest["failure"] == {"stage": "prepare_workspace_cleanup", "code": "trial_io_error"}
+    assert manifest["provider_calls"] == "UNKNOWN"
+    assert manifest["cost"] == "UNKNOWN"
+    assert manifest["cases"][0]["projection"] == projection
+    assert manifest["cases"][0]["failure_stage"] == "prepare_workspace_cleanup"
     assert not (artifact_dir / "private").exists()
