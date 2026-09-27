@@ -78,9 +78,11 @@ _RESUMED_TARGET_SYSCALL = re.compile(
 _DIRFD_AND_PATH = re.compile(
     r"^\s*(AT_FDCWD|-?[0-9]+)\s*,\s*(\"(?:\\.|[^\"\\])*\")(?=\s*,)"
 )
-_RAW_HEX = r"0x[0-9a-fA-F]{1,16}"
-_RAW_NEWFSTATAT_LINE = re.compile(
-    rf"^\s*{_RAW_HEX}\s*,\s*{_RAW_HEX}\s*,\s*{_RAW_HEX}\s*,\s*{_RAW_HEX}\s*\)\s+=\s+{_RAW_HEX}\s*$"
+_RAW_HEX_VALUE = r"(?:0|0x[1-9a-fA-F][0-9a-fA-F]{0,15})"
+_RAW_NEWFSTATAT_ARGS = rf"\s*{_RAW_HEX_VALUE}\s*,\s*{_RAW_HEX_VALUE}\s*,\s*{_RAW_HEX_VALUE}\s*,\s*{_RAW_HEX_VALUE}\s*\)"
+_RAW_NEWFSTATAT_SUCCESS = re.compile(rf"^{_RAW_NEWFSTATAT_ARGS}\s+=\s+{_RAW_HEX_VALUE}\s*$")
+_RAW_NEWFSTATAT_ERROR = re.compile(
+    rf"^{_RAW_NEWFSTATAT_ARGS}\s+=\s+-1\s+[A-Z][A-Z0-9_]*(?:\s+\([^()\n]{{0,256}}\))?\s*$"
 )
 _SYSTEM_PATH_ROOTS = (
     "/usr", "/lib", "/lib64", "/etc", "/proc", "/dev", "/var", "/run",
@@ -120,7 +122,8 @@ def _path_class_for_line(line: str, syscall: str, roots: tuple[tuple[str, str], 
         return "UNKNOWN_SYNTAX"
     args = match.group(2)
     if syscall == "newfstatat":
-        return "UNKNOWN_RAW_ARGUMENTS" if _RAW_NEWFSTATAT_LINE.fullmatch(args) else "UNKNOWN_SYNTAX"
+        raw_shape = _RAW_NEWFSTATAT_SUCCESS.fullmatch(args) or _RAW_NEWFSTATAT_ERROR.fullmatch(args)
+        return "UNKNOWN_RAW_ARGUMENTS" if raw_shape else "UNKNOWN_SYNTAX"
     parsed = _DIRFD_AND_PATH.match(args)
     if parsed is None:
         return "UNKNOWN_SYNTAX"

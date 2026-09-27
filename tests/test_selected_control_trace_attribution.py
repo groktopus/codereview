@@ -54,7 +54,7 @@ def test_file_path_classes_are_lexical_bounded_and_reconcile_exact_newline_bytes
     )
     lines = [
         '[pid 7] openat(AT_FDCWD, "/tmp/private-case/src/é.py", O_RDONLY) = 3',
-        '[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0x100) = 0x0',
+        '[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0',
         '[pid 9] openat(AT_FDCWD, "relative/name", O_RDONLY) = 3',
         '[pid 10] newfstatat(AT_FDCWD, "unterminated, {}, 0) = -1 EINVAL (Invalid argument)',
         '[pid 11] openat(AT_FDCWD, "/tmp/private-case/partial", O_RDONLY <unfinished ...>',
@@ -141,8 +141,8 @@ def test_strace_c_path_escapes_are_conservative(token, expected):
 @pytest.mark.parametrize(
     ("line", "expected_outcome"),
     [
-        ('[pid 7] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0x100) = 0x0', "SUCCESS"),
-        ('[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0x100) = 0xfffffff2', "ERROR"),
+        ('[pid 7] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0', "SUCCESS"),
+        ('[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = -1 ENOENT (No such file or directory)', "ERROR"),
     ],
 )
 def test_raw_newfstatat_uses_real_observer_shape_but_never_claims_path(line, expected_outcome):
@@ -151,6 +151,17 @@ def test_raw_newfstatat_uses_real_observer_shape_but_never_claims_path(line, exp
     assert parsed["outcome"] == expected_outcome
     assert diagnostic._path_class_for_line(line, "newfstatat", ()) == "UNKNOWN_RAW_ARGUMENTS"
     assert "/" not in json.dumps(parsed)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '[pid 9] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0x0',
+        '[pid 10] newfstatat(0xffffff9c, "pathname", 0x7fff00001000, 0) = 0',
+    ],
+)
+def test_newfstatat_nonproduction_renderings_remain_unknown_syntax(line):
+    assert diagnostic._path_class_for_line(line, "newfstatat", ()) == "UNKNOWN_SYNTAX"
 
 
 def test_file_path_attribution_never_claims_complete_when_trace_has_residual_bytes():
