@@ -114,6 +114,87 @@ def test_run_cli_bounds_timeout_and_output(tmp_path):
         )
 
 
+def test_run_cli_rejects_mismatched_process_exit_even_with_preflight_json(tmp_path):
+    cli = tmp_path / "wrong-exit"
+    cli.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "print(json.dumps({'error':'resume_state_invalid','exit_code':2}))\n"
+        "sys.exit(1)\n",
+        encoding="utf-8",
+    )
+    cli.chmod(0o700)
+    with pytest.raises(rehearsal.RehearsalError, match="cli_exit_mismatch"):
+        rehearsal._run_cli(
+            cli,
+            [],
+            cwd=tmp_path,
+            env={"PATH": os.environ.get("PATH", "")},
+            expected_exit=2,
+            deadline_at=__import__("time").monotonic() + 2,
+        )
+
+
+@pytest.mark.parametrize("error_code", ["preflight_rejected", "resume_state_invalid"])
+def test_profile_drift_accepts_only_known_preflight_codes_and_preserves_checkpoint(tmp_path, error_code):
+    checkpoint = tmp_path / "run.json"
+    checkpoint.write_bytes(b'{"disposition":"INCOMPLETE"}\n')
+    digest = rehearsal._hash_file(checkpoint)
+    result = rehearsal._validate_profile_drift_rejection(
+        {"error": error_code, "exit_code": 2},
+        checkpoint_path=checkpoint,
+        checkpoint_sha256=digest,
+        calls_before=2,
+        calls_after=2,
+    )
+    assert result == error_code
+    assert rehearsal._hash_file(checkpoint) == digest
+
+
+@pytest.mark.parametrize(
+    ("drift", "calls_after", "mutate_checkpoint", "expected_error"),
+    [
+        ({"error": "resume_state_invalid", "exit_code": 1}, 2, False, "profile_drift_not_rejected"),
+        ({"error": "resume_state_invalid", "exit_code": 2.0}, 2, False, "profile_drift_not_rejected"),
+        ({"error": "resume_state_invalid"}, 2, False, "profile_drift_not_rejected"),
+        ({"error": "review_runtime_failed", "exit_code": 2}, 2, False, "profile_drift_not_rejected"),
+        ({"error": ["resume_state_invalid"], "exit_code": 2}, 2, False, "profile_drift_not_rejected"),
+        ({"error": "resume_state_invalid", "exit_code": 2}, 3, False, "profile_drift_dispatched_provider"),
+        ({"error": "resume_state_invalid", "exit_code": 2}, 2, True, "profile_drift_checkpoint_mutated"),
+    ],
+)
+def test_profile_drift_rejects_wrong_exit_code_diagnostic_calls_or_checkpoint(
+    tmp_path, drift, calls_after, mutate_checkpoint, expected_error
+):
+    checkpoint = tmp_path / "run.json"
+    checkpoint.write_bytes(b'{"disposition":"INCOMPLETE"}\n')
+    digest = rehearsal._hash_file(checkpoint)
+    if mutate_checkpoint:
+        checkpoint.write_bytes(b'{"disposition":"COMPLETE"}\n')
+    with pytest.raises(rehearsal.RehearsalError, match=expected_error):
+        rehearsal._validate_profile_drift_rejection(
+            drift,
+            checkpoint_path=checkpoint,
+            checkpoint_sha256=digest,
+            calls_before=2,
+            calls_after=calls_after,
+        )
+
+
+def test_profile_drift_summary_uses_counts_captured_before_later_resume_calls():
+    observed_calls = ["interrupted request", "reserved uncertain request"]
+    drift_calls_before = len(observed_calls)
+    drift_calls_after = len(observed_calls)
+    row = rehearsal._profile_drift_row(
+        "resume_state_invalid",
+        calls_before=drift_calls_before,
+        calls_after=drift_calls_after,
+        checkpoint_sha256="a" * 64,
+    )
+    observed_calls.append("later successful resume request")
+    assert len(observed_calls) > drift_calls_after
+    assert row["fake_provider_calls_before"] == 2
+    assert row["fake_provider_calls_after"] == 2
 @pytest.mark.skipif(os.name != "posix", reason="isolated process-group behavior is POSIX-specific")
 def test_run_cli_stops_pipe_holding_descendant_after_parent_exits(tmp_path):
     cli = tmp_path / "parent-exits"

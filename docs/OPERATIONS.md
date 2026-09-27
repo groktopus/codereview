@@ -120,9 +120,14 @@ The resulting manifest is compatibility and harness-operation evidence only. It 
 
 ## Troubleshooting and recovery
 
+CLI JSON error envelopes and stable diagnostic codes are versioned in the [CLI diagnostic contract](design/CONTRACTS.md#cli-diagnostic-contract-revision-2).
+
 | Symptom | Meaning and action |
 |---|---|
-| `preflight_rejected` / exit 2 | Correct the CLI/profile/limit inputs. Error output does not include configuration contents. |
+| `preflight_rejected` / exit 2 | A legacy CLI's generic preflight rejection. Correct the CLI/profile/limit inputs; the output does not include configuration contents. |
+| `invalid_review_request` / exit 2 | The current CLI rejected a malformed review request before dispatch. Correct the request fields and retry with a new run ID if needed. |
+| `run_id_already_exists` / exit 2 | The run ID is already bound to saved state. Choose a new run ID, or resume only the exact matching run. |
+| `resume_state_invalid` / exit 2 | Saved state or its resume identity failed validation. Preserve the checkpoint and inspect the stable diagnostic; do not edit the checkpoint to force a resume. |
 | `snapshot_preflight_failed` | Verify that the bare repository contains both exact full commit IDs and valid Git objects. Do not check out the target as a workaround. |
 | `review_runtime_failed` / exit 1 | Inspect the persisted result/checkpoint and task-level safe diagnostics. A failed task stays incomplete; resume only against the same run identity and immutable input. |
 | `STALE` | The PR head changed while review ran. Start a new run for the current event. Never reuse the old report as current evidence. |

@@ -15,7 +15,9 @@ from scripts.effect_observer_smoke import (
 )
 
 WORKFLOW = Path(__file__).parents[1] / ".github" / "workflows" / "worker-readiness-comparison.yml"
-BASELINE_SHA = "94d35b43d6441e412e3c6123d354c5e78d6c12e9"
+BASELINE_SHA = "2116506c8e5a08158c51645502bbcaec6bf9e71f"
+BASELINE_PARENT_SHA = "94d35b43d6441e412e3c6123d354c5e78d6c12e9"
+COMPARISON_CONTRACT = "worker-readiness-linux.v2"
 TRACE_CAP = 1_048_576
 OBSERVER_ID = "linux-strace-syscall-observer.v3"
 SYSCALL_SCOPE = ["%process", "%file", "socket", "connect", "bind", "listen", "accept", "accept4", "shutdown"]
@@ -148,6 +150,9 @@ def test_workflow_pins_sources_builds_both_wheels_and_checks_complete_module_ide
     text = _workflow_text()
     assert f"BASELINE_SHA: {BASELINE_SHA}" in text
     assert f"ref: {BASELINE_SHA}" in text
+    assert f"BASELINE_PARENT_SHA: {BASELINE_PARENT_SHA}" in text
+    assert f"COMPARISON_CONTRACT: {COMPARISON_CONTRACT}" in text
+    assert "fetch-depth: 2" in text
     assert "CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}" in text
     assert "ref: ${{ github.event.pull_request.head.sha }}" in text
     assert "path: baseline-source" in text and "path: candidate-source" in text
@@ -155,6 +160,15 @@ def test_workflow_pins_sources_builds_both_wheels_and_checks_complete_module_ide
     assert "${{ github.workspace }}/candidate-source" in text
     assert "len(source_modules) != 28" in text
     assert "source_modules != installed_modules" in text
+    assert '"git", "-C", str(source), "rev-parse", "HEAD^"' in text
+    assert "parent != os.environ[\"BASELINE_PARENT_SHA\"]" in text
+    assert 'changed_paths != ["src/pr_review_harness/external_effect_observer.py"]' in text
+    assert "added_lines != [" in text and "removed_lines" in text
+    assert '    "invalid_review_request": "invalid_review_request",' in text
+    assert '    "run_id_already_exists": "run_id_already_exists",' in text
+    assert '    "resume_state_invalid": "resume_state_invalid",' in text
+    assert "baseline_compatibility_patch_mismatch" in text
+    assert "observer_runtime_source_changed" in text
     assert 'pip wheel --no-deps --wheel-dir "$BASELINE_WHEELHOUSE" "$BASELINE_SOURCE"' in text
     assert 'pip wheel --no-deps --wheel-dir "$CANDIDATE_WHEELHOUSE" "$CANDIDATE_SOURCE"' in text
     assert 'pip install --no-deps --no-index "$BASELINE_WHEELHOUSE"/*.whl' in text
@@ -163,6 +177,13 @@ def test_workflow_pins_sources_builds_both_wheels_and_checks_complete_module_ide
     assert '"fixture_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest()' in text
     assert "fixture_sha != expected_fixture_sha" in text
     assert "FIXTURE_HASH_MISMATCH" in text
+    assert '"comparison_contract": os.environ["COMPARISON_CONTRACT"]' in text
+    assert '"baseline_parent_sha": os.environ["BASELINE_PARENT_SHA"]' in text
+    assert '"baseline_kind": "observer_diagnostic_compatibility_backport"' in text
+    assert text.count('"schema_version": 2') >= 6
+    assert '"schema_version": 1' not in text
+    assert "worker-readiness-comparison-v2-${{ github.run_id }}" in text
+    assert "worker-readiness-comparison-v2/identity.json" in text
 
 
 def test_workflow_is_read_only_secretless_and_always_retains_bounded_receipts():

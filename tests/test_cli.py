@@ -593,6 +593,194 @@ def test_run_one_only_forwards_claim_options_when_enabled(tmp_path, monkeypatch,
         assert captured["kwargs"]["max_claim_assessments"] == 2
 
 
+def _phase_aware_cli(monkeypatch, tmp_path, *, report_failure=None):
+    from pr_review_harness import checks, cli, engine, evidence, planner
+
+    # These cases supply synthetic repository revisions and are not event-mode
+    # tests. GitHub Actions exports the real pull-request event for every test.
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    repo, base, head, profile_path = fixture_repo(tmp_path)
+    output_dir = tmp_path / "phase-artifacts"
+    snapshot = {
+        "snapshot_id": "snapshot-phase-test",
+        "snapshot_hash": "a" * 64,
+        "base_sha": base,
+        "head_sha": head,
+        "evidence": {},
+        "inventory": [],
+    }
+    monkeypatch.setattr(cli, "_configs", lambda _args: ({"version": "phase-test-v1"}, {}, None, None, None))
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: snapshot)
+    monkeypatch.setattr(planner, "plan_review", lambda *_args: {"tasks": [], "coverage_obligations": []})
+    monkeypatch.setattr(checks, "GitHubCheckAdapter", lambda: object())
+    monkeypatch.setattr(evidence, "ContextRetriever", lambda *_args: object())
+    monkeypatch.setattr(cli, "_freshness", lambda *_args: None)
+    terminal = {
+        "run_id": "phase-test",
+        "status": "COMPLETED",
+        "disposition": "INCOMPLETE",
+        "coverage_state": "PARTIAL",
+        "findings": [{"finding_id": "finding-blocker", "status": "ACCEPTED", "blocking_class": "BLOCKING"}],
+    }
+
+    def fake_run_review(*args, **_kwargs):
+        result_path = Path(args[6]) / f"{args[7]}.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(json.dumps(terminal), encoding="utf-8")
+        return dict(terminal)
+
+    monkeypatch.setattr(engine, "run_review", fake_run_review)
+    if report_failure == "render":
+        monkeypatch.setattr(engine, "render_report", lambda _result: (_ for _ in ()).throw(ValueError("private payload")))
+    else:
+        monkeypatch.setattr(engine, "render_report", lambda _result: "# Incomplete review\n\nAccepted blocker: finding-blocker\n")
+    if report_failure == "write":
+        real_replace = os.replace
+
+        def fail_markdown_replace(source, destination):
+            if str(destination).endswith(".md"):
+                raise ValueError("private write detail")
+            return real_replace(source, destination)
+
+        monkeypatch.setattr(os, "replace", fail_markdown_replace)
+    argv = [
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(profile_path), "--output", str(output_dir), "--run-id", "phase-test", "--json",
+    ]
+    return cli, argv, output_dir
+
+
+@pytest.mark.parametrize("failure", ["render", "write"])
+def test_post_review_value_errors_are_runtime_failures_without_exception_text(tmp_path, monkeypatch, capsys, failure):
+    cli, argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path, report_failure=failure)
+    assert cli.main(argv) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result == {
+        "error": "review_runtime_failed",
+        "exit_code": 1,
+        "diagnostic_artifact_path": str(output_dir / "phase-test.json"),
+    }
+    assert (output_dir / "phase-test.json").is_file()
+    assert not (output_dir / "phase-test.md").is_file()
+
+
+def test_valid_durable_incomplete_terminal_result_exits_zero(tmp_path, monkeypatch, capsys):
+    cli, argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path)
+    assert cli.main(argv) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "COMPLETED"
+    assert result["disposition"] == "INCOMPLETE"
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["findings"][0]["blocking_class"] == "BLOCKING"
+    assert Path(result["artifact_path"]).is_file()
+    assert Path(result["report_path"]).is_file()
+    assert (output_dir / "phase-test.md").read_text(encoding="utf-8") == (
+        "# Incomplete review\n\nAccepted blocker: finding-blocker\n"
+    )
+
+
+def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli, engine
+
+    repo, base, _head, profile_path = fixture_repo(tmp_path)
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
+    monkeypatch.setattr(engine, "run_review", lambda *_args, **_kwargs: pytest.fail("preflight must reject before dispatch"))
+    assert cli.main([
+        "review", "--repo", str(repo), "--base", base, "--head", "", "--profile", str(profile_path),
+        "--output", str(tmp_path / "preflight-output"), "--json",
+    ]) == 2
+    output = capsys.readouterr().out
+    assert json.loads(output) == {
+        "error": "explicit base and head revisions are required without a PR/event input",
+        "exit_code": 2,
+    }
+    assert "diagnostic_artifact_path" not in output
+
+
+def test_recent_runtime_failure_returns_same_diagnostic_path_and_exit_one(tmp_path, monkeypatch, capsys):
+    cli, review_argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path, report_failure="render")
+    repo = Path(review_argv[review_argv.index("--repo") + 1])
+    profile = Path(review_argv[review_argv.index("--profile") + 1])
+    base = "a" * 40
+    head = "b" * 40
+    monkeypatch.setattr(cli, "recent_commits", lambda *_args: [{"base": base, "head": head, "subject": "fixture"}])
+    output_dir.mkdir()
+    assert cli.main([
+        "recent", "--repo", str(repo), "--profile", str(profile),
+        "--output", str(output_dir), "--json",
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "recent"
+    assert payload["runs"][0]["disposition"] == "FAILED"
+    assert payload["runs"][0]["error"] == "review_runtime_failed"
+    path = payload["runs"][0]["diagnostic_artifact_path"]
+    assert Path(path).is_file()
+    assert not Path(path.removesuffix(".json") + ".md").exists()
+
+
+def test_recent_valid_incomplete_result_exits_zero(tmp_path, monkeypatch, capsys):
+    cli, review_argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path)
+    repo = Path(review_argv[review_argv.index("--repo") + 1])
+    profile = Path(review_argv[review_argv.index("--profile") + 1])
+    monkeypatch.setattr(
+        cli,
+        "recent_commits",
+        lambda *_args: [{"base": "a" * 40, "head": "b" * 40, "subject": "fixture"}],
+    )
+    output_dir.mkdir()
+    assert cli.main([
+        "recent", "--repo", str(repo), "--profile", str(profile),
+        "--output", str(output_dir), "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["runs"][0]["disposition"] == "INCOMPLETE"
+    assert "error" not in payload["runs"][0]
+    assert Path(payload["runs"][0]["artifact_path"]).is_file()
+
+
+def test_human_runtime_error_reports_only_the_existing_diagnostic_path(tmp_path, monkeypatch, capsys):
+    cli, argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path, report_failure="write")
+    argv.remove("--json")
+    assert cli.main(argv) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        f"pr-review: review_runtime_failed; diagnostic artifact (not a completed report): "
+        f"{output_dir / 'phase-test.json'}\n"
+    )
+    assert (output_dir / "phase-test.json").is_file()
+    assert "private write detail" not in captured.err
+
+
+def test_runtime_failure_without_a_regular_result_has_no_diagnostic_path(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import engine
+
+    cli, argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path)
+    monkeypatch.setattr(engine, "run_review", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("secret detail")))
+    assert cli.main(argv) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"error": "review_runtime_failed", "exit_code": 1}
+    assert not output_dir.exists()
+
+
+def test_engine_typed_preflight_rejection_stays_exit_two_without_artifact_path(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import engine
+
+    cli, argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        engine,
+        "run_review",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(engine.EnginePreflightError("resume_state_invalid")),
+    )
+    assert cli.main(argv) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"error": "resume_state_invalid", "exit_code": 2}
+    assert not output_dir.exists()
+
+
 def test_run_one_fails_closed_for_positive_claim_cap_without_assessor(tmp_path, monkeypatch):
     from pr_review_harness import cli
 
