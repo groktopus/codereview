@@ -22,13 +22,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: groktopus/codereview
-          ref: 69a848b651faf6deddd777ed1b83187b7b8adfbf
+          ref: b70af2bf115e789a73c05a593b031d1644d84523
           path: trusted-runner
           persist-credentials: false
 
       - name: Verify the exact trusted source revision before build or import
         env:
-          EXPECTED_RUNNER_SHA: 69a848b651faf6deddd777ed1b83187b7b8adfbf
+          EXPECTED_RUNNER_SHA: b70af2bf115e789a73c05a593b031d1644d84523
           RUNNER_SOURCE: ${{ github.workspace }}/trusted-runner
         run: |
           python3 - <<'PY'
@@ -91,6 +91,37 @@ jobs:
               raise SystemExit("trusted_runner_install_failed")
           PY
 
+      - name: Preflight the bounded effect observer before provider configuration
+        working-directory: trusted-runner
+        env:
+          EXPECTED_OBSERVER_SOURCE_SHA256: c06c9a5b1030446413012cbf4aecf8da8315c7337383b9322ac0730909ec1622
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          try:
+              result = subprocess.run(
+                  [sys.executable, "-m", "pr_review_harness.external_effect_observer"],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+                  timeout=20,
+              )
+              identity = json.loads(result.stdout)
+          except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+              raise SystemExit("effect_observer_preflight_unavailable") from None
+          if (
+              result.returncode
+              or identity.get("status") != "AVAILABLE"
+              or identity.get("source_sha256") != os.environ.get("EXPECTED_OBSERVER_SOURCE_SHA256")
+              or identity.get("kill_on_exit_supported") is not True
+          ):
+              raise SystemExit("effect_observer_preflight_rejected")
+          PY
+
       - name: Run the fixed provider trial with private temporary configs
         working-directory: trusted-runner
         env:
@@ -111,7 +142,8 @@ jobs:
             --output "$trial_output_dir" \
             --cli-executable "$(command -v pr-review)" \
             --provider-config "$private_config_dir/provider.json" \
-            --decision-config "$private_config_dir/decision.json" >/dev/null
+            --decision-config "$private_config_dir/decision.json" \
+            --observe-effects >/dev/null
 
       - name: Remove only the private configs created for this run
         if: always()
