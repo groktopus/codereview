@@ -1,0 +1,245 @@
+name: SlopSearX direct read-only diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: 'Open SlopSearX pull request number (diagnostic default: 477)'
+        required: true
+        default: 477
+        type: number
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+concurrency:
+  group: slopsearx-direct-diagnostic-${{ inputs.pull_request_number }}
+  cancel-in-progress: true
+
+jobs:
+  analysis:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+    steps:
+      - name: Check out the approved immutable harness source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: groktopus/codereview
+          ref: df8d945f023696c8cbcb1486e63696642a5005d9
+          token: ${{ github.token }}
+          persist-credentials: false
+
+      - name: Verify the approved harness revision before install or import
+        env:
+          EXPECTED_HARNESS_SHA: df8d945f023696c8cbcb1486e63696642a5005d9
+        run: |
+          ACTUAL_HARNESS_SHA="$(git rev-parse HEAD)"
+          if [ "$ACTUAL_HARNESS_SHA" != "$EXPECTED_HARNESS_SHA" ]; then
+            echo 'checked_out_harness_revision_mismatch' >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Install the pinned trusted harness
+        run: python -m pip install .
+
+      - name: Resolve current open SlopSearX PR identity using read-only GitHub API
+        id: resolve-target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          def reject_duplicates(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError("duplicate_json_key")
+                  result[key] = value
+              return result
+
+          def main():
+              if os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview":
+                  raise SystemExit("caller_repository_mismatch")
+              if os.environ.get("GITHUB_REF") != "refs/heads/main":
+                  raise SystemExit("dispatch_ref_not_main")
+              if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
+                  raise SystemExit("dispatch_event_invalid")
+              raw_number = os.environ.get("PR_NUMBER", "")
+              if not re.fullmatch(r"[1-9][0-9]{0,8}", raw_number):
+                  raise SystemExit("pull_request_number_invalid")
+              number = int(raw_number)
+              command = [
+                  "gh", "api", f"repos/magnus919/SlopSearX/pulls/{number}",
+                  "--jq",
+                  "{number, state, draft, base: {ref: .base.ref, sha: .base.sha, repo: {full_name: .base.repo.full_name}}, head: {sha: .head.sha}}",
+              ]
+              try:
+                  response = subprocess.run(
+                      command, check=False, capture_output=True, text=True, timeout=15,
+                  )
+              except (OSError, subprocess.TimeoutExpired):
+                  raise SystemExit("target_pull_request_read_failed") from None
+              if response.returncode or len(response.stdout.encode("utf-8")) > 16_384:
+                  raise SystemExit("target_pull_request_read_failed")
+              try:
+                  record = json.loads(response.stdout, object_pairs_hook=reject_duplicates)
+              except (TypeError, ValueError, json.JSONDecodeError, RecursionError):
+                  raise SystemExit("target_pull_request_response_invalid") from None
+              if not isinstance(record, dict):
+                  raise SystemExit("target_pull_request_response_invalid")
+              if isinstance(record.get("number"), bool) or record.get("number") != number:
+                  raise SystemExit("target_pull_request_identity_mismatch")
+              if record.get("state") != "open" or record.get("draft") is not False:
+                  raise SystemExit("target_pull_request_not_open_ready")
+
+              base = record.get("base")
+              base_repo = base.get("repo") if isinstance(base, dict) else None
+              head = record.get("head")
+              if not isinstance(base_repo, dict) or base_repo.get("full_name") != "magnus919/SlopSearX":
+                  raise SystemExit("target_base_repository_mismatch")
+              if not isinstance(base, dict) or base.get("ref") != "main":
+                  raise SystemExit("target_base_ref_mismatch")
+              base_sha = base.get("sha")
+              head_sha = head.get("sha") if isinstance(head, dict) else None
+              if not isinstance(base_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+                  raise SystemExit("target_base_sha_invalid")
+              if not isinstance(head_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+                  raise SystemExit("target_head_sha_invalid")
+              output_path = os.environ.get("GITHUB_OUTPUT")
+              if not output_path:
+                  raise SystemExit("workflow_output_unavailable")
+              with Path(output_path).open("a", encoding="utf-8") as stream:
+                  stream.write(f"base_ref=main\nbase_sha={base_sha}\nhead_sha={head_sha}\n")
+
+          if __name__ == "__main__":
+              main()
+          PY
+
+      - name: Revalidate PR identity and acquire immutable target objects in a bare store
+        env:
+          HARNESS_SHA: df8d945f023696c8cbcb1486e63696642a5005d9
+          TARGET_REPOSITORY: magnus919/SlopSearX
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          BASE_REF: ${{ steps.resolve-target.outputs.base_ref }}
+          BASE_SHA: ${{ steps.resolve-target.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolve-target.outputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          OBJECT_STORE: ${{ runner.temp }}/target.git
+          EVENT_OUTPUT: ${{ runner.temp }}/pr-event.json
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          from pr_review_harness.github import GitHubPRAdapter
+
+          def git(*args, timeout=30):
+              return subprocess.run(args, check=True, text=True, capture_output=True, timeout=timeout).stdout.strip()
+
+          harness_sha = os.environ['HARNESS_SHA']
+          target = os.environ['TARGET_REPOSITORY']
+          number = int(os.environ['PR_NUMBER'])
+          base_ref = os.environ['BASE_REF']
+          base_sha = os.environ['BASE_SHA']
+          head_sha = os.environ['HEAD_SHA']
+          if os.environ.get('GITHUB_REPOSITORY') != 'groktopus/codereview':
+              raise SystemExit('caller_repository_invalid')
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', target):
+              raise SystemExit('target_repository_invalid')
+          if not re.fullmatch(r'[0-9a-f]{40}', harness_sha):
+              raise SystemExit('harness_revision_must_be_full_sha')
+          if any(not re.fullmatch(r'[0-9a-f]{40}', sha) for sha in (base_sha, head_sha)):
+              raise SystemExit('target_revision_invalid')
+          if number < 1 or base_ref != 'main':
+              raise SystemExit('pull_request_identity_invalid')
+          if git('git', 'rev-parse', 'HEAD') != harness_sha:
+              raise SystemExit('checked_out_harness_revision_mismatch')
+
+          current = GitHubPRAdapter().pull_request(target, number)
+          if current.get('state') != 'open' or current.get('draft') is True:
+              raise SystemExit('target_pull_request_not_open_ready')
+          if current['base_sha'] != base_sha or current['head_sha'] != head_sha:
+              raise SystemExit('target_pull_request_revision_mismatch')
+
+          store = os.environ['OBJECT_STORE']
+          git('git', 'init', '--bare', store)
+          url = 'https://github.com/' + target + '.git'
+          git('git', '-C', store, 'fetch', '--no-tags', '--depth=1', url,
+              f'+refs/pull/{number}/head:refs/pr/head', timeout=120)
+          base_ref_full = 'refs/heads/' + base_ref
+          if subprocess.run(['git', '-C', store, 'check-ref-format', base_ref_full], check=False, timeout=10).returncode:
+              raise SystemExit('target_base_ref_invalid')
+          git('git', '-C', store, 'fetch', '--no-tags', '--depth=1', url,
+              f'+{base_sha}:refs/pr/base', timeout=120)
+          if git('git', '-C', store, 'rev-parse', 'refs/pr/head') != head_sha:
+              raise SystemExit('fetched_target_head_mismatch')
+          if git('git', '-C', store, 'rev-parse', 'refs/pr/base') != base_sha:
+              raise SystemExit('fetched_target_base_mismatch')
+
+          event = {'number': number, 'pull_request': {'base': {'sha': base_sha}, 'head': {'sha': head_sha}}}
+          Path(os.environ['EVENT_OUTPUT']).write_text(json.dumps(event), encoding='utf-8')
+          PY
+
+      - name: Materialize private provider configuration from the six trusted secrets
+        env:
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+          JEV_MODEL: ${{ secrets.JEV_MODEL }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+        run: |
+          python scripts/provider_config_from_env.py \
+            --output-dir "$RUNNER_TEMP/pr-review-provider-config" \
+            --json > "$RUNNER_TEMP/pr-review-provider-config-paths.json"
+
+      - name: Produce the bounded read-only review report
+        env:
+          GITHUB_EVENT_PATH: ${{ runner.temp }}/pr-event.json
+          GITHUB_REPOSITORY: magnus919/SlopSearX
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: https://github.com
+          GH_TOKEN: ${{ github.token }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+          PROFILE: profiles/slopsearx.json
+          OBJECT_STORE: ${{ runner.temp }}/target.git
+        run: |
+          mkdir -p artifacts
+          pr-review review \
+            --repo "$OBJECT_STORE" \
+            --event-file "$GITHUB_EVENT_PATH" \
+            --profile "$PROFILE" \
+            --provider-config "$RUNNER_TEMP/pr-review-provider-config/provider.json" \
+            --decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json" \
+            --output artifacts/review \
+            --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
+            --mode AUTO \
+            --json > artifacts/review-result.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: pr-review-diagnostic-${{ inputs.pull_request_number }}-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
