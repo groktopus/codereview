@@ -24,6 +24,7 @@ def test_historical_trial_workflow_is_manual_read_only_and_has_fixed_modes():
     assert "ref: ${{ steps.runtime-pins.outputs.sha }}" in text
     assert "default: specialist-input-v1" in text
     assert "specialist-input-v2" in text
+    assert trial.CONTEXT_FOLLOWUP_V2_SELECTOR in text
     assert trial.RUNTIME_MODULE_TREE_SHA256 == "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3"
 
 
@@ -72,6 +73,11 @@ def test_runtime_pin_resolver_selects_only_exact_trusted_input_contract_identiti
             trial.CONTEXT_FOLLOWUP_MODULE_TREE_SHA256,
             "-context-followup-v1",
         ),
+        trial.CONTEXT_FOLLOWUP_V2_SELECTOR: (
+            trial.CONTEXT_FOLLOWUP_V2_RUNTIME_SHA,
+            trial.CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256,
+            "-context-followup-v2",
+        ),
     }
     for contract, (revision, tree, suffix) in expected.items():
         output = tmp_path / f"{contract}.out"
@@ -105,10 +111,17 @@ def test_runtime_pin_resolver_selects_only_exact_trusted_input_contract_identiti
                 "historical-real-case-trial-123-v2",
             )
         else:
-            assert (artifact_path, artifact_name) == (
+            if contract == trial.CONTEXT_FOLLOWUP_SELECTOR:
+                expected_paths = (
                 "historical-real-case-trial-context-followup-v1",
                 "historical-real-case-trial-123-context-followup-v1",
-            )
+                )
+            else:
+                expected_paths = (
+                    "historical-real-case-trial-context-followup-v2",
+                    "historical-real-case-trial-123-context-followup-v2",
+                )
+            assert (artifact_path, artifact_name) == expected_paths
 
     output = tmp_path / "invalid.out"
     result = subprocess.run(

@@ -1305,6 +1305,95 @@ def test_context_followup_plan_reader_rejects_nonfinite_or_unbounded_input(tmp_p
         trial.read_context_followup_plan()
 
 
+def test_context_followup_v2_plan_is_additive_and_preserves_all_v2_primary_inputs():
+    v2_document, v2_cases = trial.load_locked_cases("specialist-input-v2")
+    document, cases = trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_V2_SELECTOR)
+
+    assert [case["case_id"] for case in cases] == ["PR-457", "PR-463", "PR-464"]
+    assert document["baseline_plan_sha256"] == v2_document["baseline_plan_sha256"]
+    assert document["experiment_selector"] == trial.CONTEXT_FOLLOWUP_V2_SELECTOR
+    assert document["dynamic_followup_contract"] == "context-followup.v1"
+    assert document["dynamic_followup_projection"] == "context-followup-observation.v2"
+    assert trial.runtime_identity(trial.CONTEXT_FOLLOWUP_V2_SELECTOR) == (
+        "7c89ad17327b8f0ed4fc381bf5c93255fd4e548e",
+        "c5b7c4e43aeddfad55bbcfdcb9e07c4a89fd0b6a3a263a31f046c8852dd8838a",
+    )
+    assert [case["expected_primary_request_descriptors"] for case in cases] == [
+        case["expected_primary_request_descriptors"] for case in v2_cases
+    ]
+    assert [(case["expected_primary_count"], case["expected_primary_serialized_input_bytes"]) for case in cases] == [
+        (10, 878_970),
+        (27, 2_230_598),
+        (10, 893_359),
+    ]
+    assert sum(case["expected_primary_count"] for case in cases) == 47
+    assert sum(case["expected_scope_count"] for case in cases) == 124
+    assert sum(case["expected_primary_serialized_input_bytes"] for case in cases) == 4_002_927
+    assert trial._manifest_schema(trial.CONTEXT_FOLLOWUP_V2_SELECTOR) == (
+        "historical-real-case-trial-manifest.context-followup.v2"
+    )
+    assert trial._plan_identity(trial.CONTEXT_FOLLOWUP_V2_SELECTOR) == trial.CONTEXT_FOLLOWUP_V2_PLAN_SHA256
+    assert trial._experiment_identity_fields(trial.CONTEXT_FOLLOWUP_V2_SELECTOR)["dynamic_followup_projection"] == (
+        "context-followup-observation.v2"
+    )
+    assert trial._runtime_provenance_version(trial.CONTEXT_FOLLOWUP_V2_SELECTOR) == (
+        "historical-real-case-runtime.context-followup.v2"
+    )
+
+
+def test_context_followup_v2_plan_reader_fails_closed_on_mutated_identity_or_size(tmp_path, monkeypatch):
+    original = trial.CONTEXT_FOLLOWUP_V2_PLAN_PATH.read_bytes()
+    document = json.loads(original)
+    document["primary_requests_total"] += 1
+    encoded = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    altered = tmp_path / "altered.json"
+    altered.write_bytes(encoded)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_V2_PLAN_PATH", altered)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_V2_PLAN_SHA256", digest(encoded))
+    with pytest.raises(trial.TrialError, match="context_followup_v2_plan_manifest_identity_mismatch"):
+        trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_V2_SELECTOR)
+
+    oversized = tmp_path / "oversized.json"
+    oversized.write_bytes(b" " * 128_001)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_V2_PLAN_PATH", oversized)
+    with pytest.raises(trial.TrialError, match="context_followup_v2_plan_manifest_limit_exceeded"):
+        trial.read_context_followup_v2_plan()
+
+
+def test_context_followup_v2_plan_proof_must_match_its_fixed_digest(tmp_path, monkeypatch):
+    plan_dir = tmp_path / "experiment"
+    (plan_dir / "proofs").mkdir(parents=True)
+    (plan_dir / "manifest.json").write_bytes(trial.CONTEXT_FOLLOWUP_V2_PLAN_PATH.read_bytes())
+    (plan_dir / "proofs" / "runtime-module-map.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_V2_PLAN_PATH", plan_dir / "manifest.json")
+    with pytest.raises(trial.TrialError, match="context_followup_v2_plan_proof_hash_mismatch"):
+        trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_V2_SELECTOR)
+
+
+def test_context_followup_projection_version_is_selected_only_by_new_selector(monkeypatch):
+    calls = []
+
+    def project(*args, **kwargs):
+        calls.append((args, kwargs))
+        return kwargs
+
+    monkeypatch.setattr(trial, "project_case", project)
+    case, durable, secrets = {}, {}, []
+    assert trial.project_case_for_contract(case, durable, secrets, trial.CONTEXT_FOLLOWUP_SELECTOR) == {
+        "include_context_followups": True
+    }
+    assert trial.project_case_for_contract(case, durable, secrets, trial.CONTEXT_FOLLOWUP_V2_SELECTOR) == {
+        "include_context_followups": True,
+        "include_closure_diagnostics": True,
+    }
+    assert trial.project_case_for_contract(case, durable, secrets, "specialist-input-v2") == {}
+    assert [kwargs for _args, kwargs in calls] == [
+        {"include_context_followups": True},
+        {"include_context_followups": True, "include_closure_diagnostics": True},
+        {},
+    ]
+
+
 def _context_followup_projection_fixture():
     metadata = {
         "contract_version": "context-followup.v1",
@@ -1708,7 +1797,10 @@ def test_v2_prepare_accepts_bound_unit_and_rejects_forged_cross_unit_binding():
         trial.validate_prepare_v2(forged_case, forged_prepared, 128_000, 1)
 
 
-@pytest.mark.parametrize("input_contract", ["specialist-input-v2", trial.CONTEXT_FOLLOWUP_SELECTOR])
+@pytest.mark.parametrize(
+    "input_contract",
+    ["specialist-input-v2", trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR],
+)
 def test_v2_family_provider_trial_preflights_prepare_before_any_provider_configuration(
     tmp_path, monkeypatch, capsys, input_contract
 ):
@@ -1764,8 +1856,8 @@ def test_v2_family_provider_trial_preflights_prepare_before_any_provider_configu
     assert output == {"status": "FAILED", "error": "prepared_primary_descriptor_mismatch"}
 
 
-def _patch_three_case_context_preflight(tmp_path, monkeypatch):
-    _, cases = trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_SELECTOR)
+def _patch_three_case_context_preflight(tmp_path, monkeypatch, input_contract=trial.CONTEXT_FOLLOWUP_SELECTOR):
+    document, cases = trial.load_locked_cases(input_contract)
     calls = []
     validations = []
     monkeypatch.setattr(trial, "verify_dispatch_context", lambda _root: "a" * 40)
@@ -1792,14 +1884,15 @@ def _patch_three_case_context_preflight(tmp_path, monkeypatch):
 
     monkeypatch.setattr(trial, "acquire_bare_case", acquire)
     monkeypatch.setattr(trial, "run_cli", run_cli)
-    monkeypatch.setattr(trial, "load_locked_cases", lambda _contract: (trial.read_context_followup_plan(), cases))
-    return cases, calls, validations
+    monkeypatch.setattr(trial, "load_locked_cases", lambda _contract: (document, cases))
+    return document, cases, calls, validations
 
 
+@pytest.mark.parametrize("input_contract", [trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR])
 def test_context_followup_full_matrix_preflights_all_cases_before_provider_configuration(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, input_contract
 ):
-    cases, calls, validations = _patch_three_case_context_preflight(tmp_path, monkeypatch)
+    _document, cases, calls, validations = _patch_three_case_context_preflight(tmp_path, monkeypatch, input_contract)
     monkeypatch.setenv("LLM_API_KEY", "llm-canary-not-for-prepare")
     monkeypatch.setenv("JEV_API_KEY", "jev-canary-not-for-prepare")
 
@@ -1811,7 +1904,7 @@ def test_context_followup_full_matrix_preflights_all_cases_before_provider_confi
     monkeypatch.setattr(trial, "validate_prepare_v2", validate)
     monkeypatch.setattr(trial, "build_configs", lambda *_args: pytest.fail("provider config built before all-case preflight"))
     result = trial.main([
-        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", trial.CONTEXT_FOLLOWUP_SELECTOR,
+        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", input_contract,
         "--artifacts", str(tmp_path / "artifacts"), "--cli", str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
         "--runtime-source", str(trial.ROOT),
     ])
@@ -1822,10 +1915,11 @@ def test_context_followup_full_matrix_preflights_all_cases_before_provider_confi
     assert json.loads(capsys.readouterr().out) == {"status": "FAILED", "error": "third_case_descriptor_mismatch"}
 
 
+@pytest.mark.parametrize("input_contract", [trial.CONTEXT_FOLLOWUP_SELECTOR, trial.CONTEXT_FOLLOWUP_V2_SELECTOR])
 def test_context_followup_full_matrix_success_reaches_provider_configuration_only_after_three_prepares(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, input_contract
 ):
-    _cases, calls, validations = _patch_three_case_context_preflight(tmp_path, monkeypatch)
+    _document, _cases, calls, validations = _patch_three_case_context_preflight(tmp_path, monkeypatch, input_contract)
     monkeypatch.setenv("LLM_API_KEY", "llm-canary")
     monkeypatch.setenv("JEV_API_KEY", "jev-canary")
     monkeypatch.setattr(trial, "validate_prepare_v2", lambda case, *_args: validations.append(case["case_id"]))
@@ -1837,7 +1931,7 @@ def test_context_followup_full_matrix_success_reaches_provider_configuration_onl
 
     monkeypatch.setattr(trial, "build_configs", stop_at_provider_config)
     result = trial.main([
-        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", trial.CONTEXT_FOLLOWUP_SELECTOR,
+        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", input_contract,
         "--artifacts", str(tmp_path / "artifacts"), "--cli", str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
         "--runtime-source", str(trial.ROOT),
     ])
