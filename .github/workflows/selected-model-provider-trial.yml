@@ -22,13 +22,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: groktopus/codereview
-          ref: dfe8b6c2d8a73f4259a1ec5112c9d34f849350d2
+          ref: 54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215
           path: trusted-runner
           persist-credentials: false
 
       - name: Verify the exact trusted source revision before build or import
         env:
-          EXPECTED_RUNNER_SHA: dfe8b6c2d8a73f4259a1ec5112c9d34f849350d2
+          EXPECTED_RUNNER_SHA: 54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215
           RUNNER_SOURCE: ${{ github.workspace }}/trusted-runner
         run: |
           python3 - <<'PY'

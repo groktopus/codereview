@@ -14,7 +14,7 @@ from pr_review_harness import external_effect_observer as observer
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github/workflows/selected-model-provider-trial.yml"
 PREPARE_WORKFLOW = ROOT / ".github/workflows/selected-model-claim-trial.yml"
-PIN = "dfe8b6c2d8a73f4259a1ec5112c9d34f849350d2"
+PIN = "54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215"
 OBSERVER_ID = "linux-strace-syscall-observer.v3"
 OBSERVER_SOURCE_SHA256 = "fce15c42bfbc7fe66f353e8322b11f5fff1ae44a10458bba234366509f75f328"
 CHECKOUT_ACTION = "11bd71901bbe5b1630ceea73d27597364c9af683"

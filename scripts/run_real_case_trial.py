@@ -25,8 +25,8 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 INPUT_ROOT = ROOT / "docs" / "real-case-trial-v1"
 CASES_SHA256 = "702a83e0c1456a8881416b5767eeda1aa9aac711ff51a68aecd0b609593f594b"
-RUNTIME_SHA = "6bd412b6fb1477677700fa6e36b38e77075b1701"
-RUNTIME_MODULE_TREE_SHA256 = "ec760753df9060f8bc156c1b141f7b8b2d319b0416d4e1e3f28be8f05977b976"
+RUNTIME_SHA = "54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215"
+RUNTIME_MODULE_TREE_SHA256 = "86b4f0c82bbf3e4c01f38dff07d3dd93de31d14d6791683b95988c4c5ca04f5d"
 RUNTIME_MODULE_INVENTORY = (
     "__init__.py",
     "__main__.py",

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from scripts import run_real_case_trial as trial
+
 WORKFLOW = Path(__file__).parents[1] / ".github" / "workflows" / "historical-real-case-provider-trial.yml"
 
 
@@ -16,7 +18,8 @@ def test_historical_trial_workflow_is_manual_read_only_and_has_fixed_modes():
     assert "provider-trial" in text
     assert "full-three-case" in text
     assert "github.ref == 'refs/heads/main'" in text
-    assert "6bd412b6fb1477677700fa6e36b38e77075b1701" in text
+    assert f"ref: {trial.RUNTIME_SHA}" in text
+    assert trial.RUNTIME_MODULE_TREE_SHA256 == "86b4f0c82bbf3e4c01f38dff07d3dd93de31d14d6791683b95988c4c5ca04f5d"
 
 
 def test_provider_secrets_are_only_mapped_to_the_explicit_run_step():
