@@ -33,6 +33,15 @@ class SpawnsDescendant:
 
 
 def _process_state(pid: int) -> str:
+    def recheck_liveness() -> str:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return "X"
+        except PermissionError:
+            return "UNKNOWN"
+        return "UNKNOWN"
+
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -54,10 +63,81 @@ def _process_state(pid: int) -> str:
             timeout=1,
         )
     except (OSError, subprocess.SubprocessError):
-        return "UNKNOWN"
+        return recheck_liveness()
     if result.returncode != 0 or not result.stdout.strip():
-        return "UNKNOWN"
+        return recheck_liveness()
     return result.stdout.strip().split()[0][0]
+
+
+def _hide_process_table_observations(monkeypatch, pid: int) -> None:
+    original_read_text = Path.read_text
+
+    def read_text(path, *args, **kwargs):
+        if path == Path(f"/proc/{pid}/stat"):
+            raise FileNotFoundError(path)
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 1, "", ""),
+    )
+
+
+def test_process_state_rechecks_pid_after_process_table_disappears(monkeypatch):
+    pid = 87654321
+    _hide_process_table_observations(monkeypatch, pid)
+    calls = 0
+
+    def kill_probe(probed_pid, signal_number):
+        nonlocal calls
+        assert probed_pid == pid
+        assert signal_number == 0
+        calls += 1
+        if calls == 2:
+            raise ProcessLookupError
+
+    monkeypatch.setattr(os, "kill", kill_probe)
+
+    assert _process_state(pid) == "X"
+    assert calls == 2
+
+
+def test_process_state_keeps_live_unobservable_pid_unknown(monkeypatch):
+    pid = 87654322
+    _hide_process_table_observations(monkeypatch, pid)
+    calls = 0
+
+    def kill_probe(probed_pid, signal_number):
+        nonlocal calls
+        assert probed_pid == pid
+        assert signal_number == 0
+        calls += 1
+
+    monkeypatch.setattr(os, "kill", kill_probe)
+
+    assert _process_state(pid) == "UNKNOWN"
+    assert calls == 2
+
+
+def test_process_state_keeps_permission_limited_recheck_unknown(monkeypatch):
+    pid = 87654323
+    _hide_process_table_observations(monkeypatch, pid)
+    calls = 0
+
+    def kill_probe(probed_pid, signal_number):
+        nonlocal calls
+        assert probed_pid == pid
+        assert signal_number == 0
+        calls += 1
+        if calls == 2:
+            raise PermissionError
+
+    monkeypatch.setattr(os, "kill", kill_probe)
+
+    assert _process_state(pid) == "UNKNOWN"
+    assert calls == 2
 
 
 LIMITS = {

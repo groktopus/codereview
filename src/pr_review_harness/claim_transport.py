@@ -12,7 +12,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request
 
-from .claim_assessment import _questions
+from .claim_assessment import (
+    CONTRACT_VERSION,
+    PRIMARY_ASSESSMENT_CONTRACT_VERSION,
+    _questions,
+    _validate_primary_assessment,
+)
 from .providers import (
     _HTTP_OPENER,
     ProviderError,
@@ -96,7 +101,13 @@ def _parse_request(raw: bytes) -> dict[str, Any]:
 
 
 def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> None:
-    if set(state) != {"assessment_identity", "candidate", "cited_evidence"}:
+    version = state.get("assessment_contract_version", CONTRACT_VERSION)
+    expected_fields = {"assessment_identity", "candidate", "cited_evidence"}
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
+        expected_fields |= {"assessment_contract_version", "primary_assessment"}
+    elif version != CONTRACT_VERSION:
+        raise ProviderError("unsupported_native_operation")
+    if set(state) != expected_fields:
         raise ProviderError("unsupported_native_operation")
     identity = state["assessment_identity"]
     identity_fields = {"snapshot_id", "snapshot_hash", "profile_id", "profile_hash", "base_sha", "head_sha"}
@@ -116,12 +127,14 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
 
     candidate = state["candidate"]
     candidate_fields = {"candidate_id", "title", "observation", "consequence", "rule_or_contract"}
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
+        candidate_fields.add("evidence_refs")
     if not isinstance(candidate, dict) or set(candidate) != candidate_fields:
         raise ProviderError("invalid_claim_candidate")
     candidate_id = candidate["candidate_id"]
     if not isinstance(candidate_id, str) or not candidate_id.strip() or len(candidate_id) > 256:
         raise ProviderError("invalid_claim_candidate")
-    for key in candidate_fields - {"candidate_id"}:
+    for key in candidate_fields - {"candidate_id", "evidence_refs"}:
         if (
             not isinstance(candidate[key], str)
             or not candidate[key].strip()
@@ -208,25 +221,53 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
             revisions.add(revision)
     if len(set(evidence_ids)) != len(evidence_ids):
         raise ProviderError("invalid_claim_evidence")
-    expected_questions, _ids = _questions(candidate_id, revisions == {identity["base_sha"], identity["head_sha"]})
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
+        candidate_refs = candidate.get("evidence_refs")
+        if (
+            not isinstance(candidate_refs, list)
+            or not candidate_refs
+            or any(not isinstance(ref, str) or not ref.strip() or len(ref) > 256 for ref in candidate_refs)
+            or len(set(candidate_refs)) != len(candidate_refs)
+            or any(ref not in evidence_ids for ref in candidate_refs)
+        ):
+            raise ProviderError("invalid_claim_evidence")
+    expected_questions, _ids = _questions(
+        candidate_id,
+        revisions == {identity["base_sha"], identity["head_sha"]},
+        version,
+    )
     if questions != expected_questions:
         raise ProviderError("unsupported_native_operation")
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
+        try:
+            primary = _validate_primary_assessment(state.get("primary_assessment"), set(evidence_ids))
+        except Exception:
+            raise ProviderError("invalid_primary_assessment") from None
+        if primary != state.get("primary_assessment"):
+            raise ProviderError("invalid_primary_assessment")
 
 
-def _endpoint(value: Any) -> str:
+def _endpoint(value: Any, *, operator_root: bool = False) -> str:
     endpoint = _safe_url(value)
     try:
         parsed = urlsplit(endpoint)
         port = parsed.port
     except ValueError:
         raise ProviderError("unsupported_native_endpoint") from None
-    if parsed.path != "/v1/systemone" or parsed.query or parsed.fragment:
+    if parsed.query or parsed.fragment:
         raise ProviderError("unsupported_native_endpoint")
-    if endpoint == _OFFICIAL_ENDPOINT:
+    if parsed.scheme == "https" and parsed.path == "/v1/systemone" and endpoint == _OFFICIAL_ENDPOINT:
         return endpoint
     host = parsed.hostname.lower() if parsed.hostname else ""
     loopback = host in {"localhost", "127.0.0.1", "::1"}
-    if loopback and parsed.scheme in {"http", "https"} and port is not None:
+    if (
+        loopback
+        and parsed.scheme in {"http", "https"}
+        and port is not None
+        and (parsed.path == "/v1/systemone" or (operator_root and parsed.path.endswith("/systemone")))
+    ):
+        return endpoint
+    if operator_root and parsed.scheme == "https" and parsed.path.endswith("/systemone"):
         return endpoint
     raise ProviderError("unsupported_native_endpoint")
 
@@ -234,10 +275,12 @@ def _endpoint(value: Any) -> str:
 class ClaimTransport:
     """Transport seam for `ClaimAssessmentAdapter` with finite HTTP bounds.
 
-    Production accepts only TypeSafe's official endpoint and an environment
-    variable name for its credential. A custom endpoint is permitted only on
-    explicit localhost URLs for tests. This class makes no retries and exposes
-    raw bounded bytes only to the caller that validates the native response.
+    The direct constructor accepts TypeSafe's official endpoint and explicit
+    loopback endpoints for tests. ``from_decision_config`` accepts a validated
+    operator-generated HTTPS route with an arbitrary API-root prefix. Both
+    forms use an environment variable name for credentials. This class makes
+    no retries and exposes raw bounded bytes only to the caller that validates
+    the native response.
     """
 
     def __init__(self, config: dict[str, Any]):
@@ -280,6 +323,36 @@ class ClaimTransport:
             "credential_reference_name": self.api_key_env,
             "native_probability_calibration": "unknown",
         }
+
+    @classmethod
+    def from_decision_config(cls, config: dict[str, Any]) -> "ClaimTransport":
+        """Load the generated operator decision config without accepting PR inputs.
+
+        The caller must load this file from the trusted workflow configuration
+        path. Its schema is the exact ``decision.json`` emitted by
+        ``provider_config_from_env.py``; custom remote HTTPS roots are accepted
+        only through this operator-config entry point.
+        """
+        if not isinstance(config, dict) or set(config) != {"kind", "endpoint", "model", "api_key_env"}:
+            raise ProviderError("invalid_decision_config")
+        _reject_literal_credentials(config)
+        if config.get("kind") != "typesafe":
+            raise ProviderError("unsupported_claim_transport_config")
+        endpoint = _endpoint(config.get("endpoint"), operator_root=True)
+        # Reuse the constructor's model, credential-reference, and finite-limit
+        # validation while preventing this method from broadening the direct
+        # constructor's endpoint allowlist.
+        transport = cls(
+            {
+                "endpoint": _OFFICIAL_ENDPOINT,
+                "api_key_env": config.get("api_key_env"),
+                "model": config.get("model"),
+            }
+        )
+        transport.endpoint = endpoint
+        transport.identity["endpoint_id"] = endpoint
+        transport.identity["endpoint_trust"] = "trusted_operator_decision_config"
+        return transport
 
     def estimate_call(self, request_bytes: bytes, limits: dict[str, Any]) -> dict[str, Any]:
         """Return an exact serialized-byte quote; caller ceilings are dispatch policy.

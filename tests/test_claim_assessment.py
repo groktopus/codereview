@@ -61,6 +61,32 @@ def _limits(**changes) -> dict:
     }
 
 
+def _primary_assessment() -> dict:
+    refs = ["ev-head"]
+    return {
+        "contract_version": "semantic-adjudication.v3",
+        "source_contract_version": "semantic-adjudication.v3",
+        "outcome": "SUPPORTED",
+        "observation_support": "SUPPORTED",
+        "consequence_support": "NOT_ESTABLISHED",
+        "rule_connection_support": "SUPPORTED",
+        "introducedness": "INTRODUCED",
+        "evidence_refs": refs,
+        "assumptions": [],
+        "uncertainties": [],
+        "summary": "Primary model assessment summary.",
+        "material_consequence": False,
+        "causal_roles": {
+            role: {
+                "support": "SUPPORTED",
+                "assessment": f"Primary {role} assessment.",
+                "evidence_refs": refs,
+            }
+            for role in ("behavior", "consumer", "impact")
+        },
+    }
+
+
 def _envelope(request_bytes: bytes, *, omit=(), invalid=(), model="jev-1.13.0") -> bytes:
     request = json.loads(request_bytes)
     answers = {}
@@ -110,6 +136,321 @@ def test_serialized_native_choice_request_binds_candidate_and_exact_evidence_ref
     assert result["assessments"]["introducedness"]["status"] == "NOT_SHOWN"
     assert result["assessments"]["observation_support"]["interpretation"] == "advisory_uncalibrated"
     assert result["usage"] == {"known": True, "input_tokens": 10, "output_tokens": 5}
+
+
+def test_v2_binds_primary_generated_assessment_separately_and_preserves_v1_contract():
+    captured = {}
+
+    def call(raw, _deadline, _cap):
+        captured["raw"] = raw
+        return _envelope(raw)
+
+    adapter = _adapter(call)
+    primary = _primary_assessment()
+    prepared = adapter.prepare(_candidate(), [_evidence()], _identity(), _limits(), primary_assessment=primary)
+    request = json.loads(prepared.request_bytes)
+    assert prepared.contract_version == "claim-assessment.2"
+    assert request["state"]["assessment_contract_version"] == "claim-assessment.2"
+    assert request["state"]["primary_assessment"] == primary
+    assert request["state"]["candidate"] != request["state"]["primary_assessment"]
+    assert len(request["questions"]) == 5
+    assert (
+        prepared.primary_assessment_hash
+        == hashlib.sha256(
+            json.dumps(primary, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["contract_version"] == "claim-assessment.2"
+    assert result["decision"] == "ADVISORY_ONLY"
+    assert result["provenance"]["primary_assessment_hash"] == prepared.primary_assessment_hash
+    assert captured["raw"] == prepared.request_bytes
+
+
+def test_v2_rejects_primary_assessment_refs_without_delivered_source_records():
+    primary = _primary_assessment()
+    primary["causal_roles"]["consumer"]["evidence_refs"] = ["not-delivered"]
+    with pytest.raises(ClaimAssessmentError, match="candidate_evidence_reference_missing"):
+        _adapter(lambda *_args: b"").prepare(
+            _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=primary
+        )
+
+
+def test_v2_accepts_source_contract_array_counts_and_long_text_within_request_bound():
+    primary = _primary_assessment()
+    primary["assumptions"] = [f"assumption {index}" for index in range(33)]
+    primary["uncertainties"] = ["u" * 11_900]
+    primary["causal_roles"]["behavior"]["assessment"] = "role assessment " * 100
+
+    prepared = _adapter(lambda *_args: b"").prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=primary
+    )
+    serialized = json.loads(prepared.request_bytes)["state"]["primary_assessment"]
+
+    assert serialized["assumptions"] == primary["assumptions"]
+    assert serialized["uncertainties"] == primary["uncertainties"]
+    assert serialized["causal_roles"]["behavior"]["assessment"] == primary["causal_roles"]["behavior"]["assessment"]
+    assert len(prepared.request_bytes) < 64_000
+
+
+def test_v2_rejects_whole_request_over_intrinsic_cap_before_transport_dispatch():
+    calls = []
+    primary = _primary_assessment()
+    primary["assumptions"] = ["x" * 11_900 for _ in range(6)]
+
+    with pytest.raises(ClaimAssessmentError, match="request_exceeds_intrinsic_limit"):
+        _adapter(lambda *args: calls.append(args)).prepare(
+            _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=primary
+        )
+
+    assert calls == []
+
+
+def test_v2_rejects_unhashable_primary_evidence_reference_as_contract_error():
+    primary = _primary_assessment()
+    primary["evidence_refs"] = [{"not": "a reference"}]
+
+    with pytest.raises(ClaimAssessmentError, match="invalid_primary_assessment_evidence_refs"):
+        _adapter(lambda *_args: b"").prepare(
+            _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=primary
+        )
+
+
+def test_v2_rejects_unhashable_candidate_ref_in_prepared_request_without_type_error():
+    adapter = _adapter(lambda *_args: b"")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    request = json.loads(prepared.request_bytes)
+    request["state"]["candidate"]["evidence_refs"] = [{}]
+    tampered_bytes = json.dumps(request, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
+
+    with pytest.raises(ClaimAssessmentError, match="invalid_prepared_assessment"):
+        adapter.assess_prepared(replace(prepared, request_bytes=tampered_bytes), _limits())
+
+
+def test_v2_keeps_original_candidate_refs_separate_from_primary_source_union():
+    primary = _primary_assessment()
+    primary["causal_roles"]["impact"]["evidence_refs"] = ["ev-extra"]
+    extra = _evidence("ev-extra", "HEAD", "caller verifies result")
+    prepared = _adapter(lambda *_args: b"").prepare(
+        _candidate(), [_evidence(), extra], _identity(), _limits(), primary_assessment=primary
+    )
+    request = json.loads(prepared.request_bytes)
+    assert request["state"]["candidate"]["evidence_refs"] == ["ev-head"]
+    assert request["state"]["primary_assessment"]["causal_roles"]["impact"]["evidence_refs"] == ["ev-extra"]
+    assert [row["evidence_id"] for row in request["state"]["cited_evidence"]] == ["ev-head", "ev-extra"]
+    assert prepared.evidence_refs == ("ev-head", "ev-extra")
+    assert (
+        _adapter(lambda *_args: _envelope(prepared.request_bytes)).assess_prepared(prepared, _limits())["status"]
+        == "COMPLETE"
+    )
+
+
+def test_prepared_estimate_quotes_identical_bytes_and_separates_response_from_ipc_caps():
+    class EstimatingTransport:
+        def __init__(self):
+            self.request = None
+
+        def __call__(self, _raw, _deadline, _cap):
+            return b""
+
+        def estimate_call(self, request_bytes, limits):
+            self.request = request_bytes
+            return {
+                "provider_calls": 1,
+                "input_bytes": len(request_bytes),
+                "max_output_bytes": min(8192, limits["max_output_bytes_per_task"]),
+                "deadline_seconds": min(8, limits["deadline_seconds"]),
+            }
+
+    transport = EstimatingTransport()
+    adapter = ClaimAssessmentAdapter(transport, "jev-latest")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+
+    quote = adapter.estimate_prepared(prepared, _limits(max_output_bytes_per_task=20_000))
+
+    assert transport.request is prepared.request_bytes
+    assert quote["input_bytes"] == len(prepared.request_bytes)
+    assert quote["provider_response_bytes"] == 8192
+    assert quote["max_output_bytes"] == 20_000
+
+
+def test_prepared_estimate_rejects_quote_for_different_request_length():
+    class BadEstimator:
+        def __call__(self, _raw, _deadline, _cap):
+            return b""
+
+        def estimate_call(self, request_bytes, _limits):
+            return {
+                "provider_calls": 1,
+                "input_bytes": len(request_bytes) + 1,
+                "max_output_bytes": 8192,
+                "deadline_seconds": 2,
+            }
+
+    adapter = ClaimAssessmentAdapter(BadEstimator(), "jev-latest")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+
+    with pytest.raises(ClaimAssessmentError, match="invalid_claim_transport_estimate"):
+        adapter.estimate_prepared(prepared, _limits())
+
+
+def test_prepared_estimate_accepts_shorter_transport_deadline():
+    class ShortEstimator:
+        def __call__(self, _raw, _deadline, _cap):
+            return b""
+
+        def estimate_call(self, request_bytes, _limits):
+            return {
+                "provider_calls": 1,
+                "input_bytes": len(request_bytes),
+                "max_output_bytes": 8192,
+                "deadline_seconds": 0.5,
+            }
+
+    adapter = ClaimAssessmentAdapter(ShortEstimator(), "jev-latest")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+
+    assert adapter.estimate_prepared(prepared, _limits())["deadline_seconds"] == 0.5
+
+
+@pytest.mark.parametrize("deadline", [2.01, float("inf"), float("nan")])
+def test_prepared_estimate_rejects_deadline_over_caller_limit_or_nonfinite(deadline):
+    class LongEstimator:
+        def __call__(self, _raw, _deadline, _cap):
+            return b""
+
+        def estimate_call(self, request_bytes, _limits):
+            return {
+                "provider_calls": 1,
+                "input_bytes": len(request_bytes),
+                "max_output_bytes": 8192,
+                "deadline_seconds": deadline,
+            }
+
+    adapter = ClaimAssessmentAdapter(LongEstimator(), "jev-latest")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+
+    with pytest.raises(ClaimAssessmentError, match="invalid_claim_transport_estimate"):
+        adapter.estimate_prepared(prepared, _limits())
+
+
+@pytest.mark.parametrize("malformation", ["tampered_request", "list_candidate", "unhashable_refs"])
+def test_prepared_estimate_rejects_malformed_prepared_before_estimator(malformation):
+    class CountingEstimator:
+        called = False
+
+        def __call__(self, _raw, _deadline, _cap):
+            return b""
+
+        def estimate_call(self, request_bytes, _limits):
+            self.called = True
+            return {
+                "provider_calls": 1,
+                "input_bytes": len(request_bytes),
+                "max_output_bytes": 8192,
+                "deadline_seconds": 1,
+            }
+
+    transport = CountingEstimator()
+    adapter = ClaimAssessmentAdapter(transport, "jev-latest")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    if malformation == "tampered_request":
+        request = json.loads(prepared.request_bytes)
+        request["state"]["assessment_identity"]["snapshot_id"] = "other-snapshot"
+        tampered_bytes = json.dumps(request, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
+        prepared = replace(prepared, request_bytes=tampered_bytes)
+    elif malformation == "list_candidate":
+        request = json.loads(prepared.request_bytes)
+        request["state"]["candidate"] = []
+        tampered_bytes = json.dumps(request, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
+        prepared = replace(
+            prepared, request_bytes=tampered_bytes, request_hash=hashlib.sha256(tampered_bytes).hexdigest()
+        )
+    else:
+        prepared = replace(prepared, evidence_refs=({},))
+
+    with pytest.raises(ClaimAssessmentError, match="invalid_prepared_assessment"):
+        adapter.estimate_prepared(prepared, _limits())
+    assert not transport.called
+
+
+def test_v2_prepared_primary_hash_is_checked_before_dispatch():
+    called = False
+
+    def call(*_args):
+        nonlocal called
+        called = True
+        return b"{}"
+
+    adapter = _adapter(call)
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    tampered = replace(prepared, primary_assessment_hash="0" * 64)
+    with pytest.raises(ClaimAssessmentError, match="invalid_prepared_assessment"):
+        adapter.assess_prepared(tampered, _limits())
+    assert not called
+
+
+@pytest.mark.parametrize(
+    ("response_model", "error_code"),
+    [("jev-other", "model_identity_mismatch"), (None, "model_identity_missing")],
+)
+def test_v2_requires_validated_endpoint_model_identity(response_model, error_code):
+    def call(raw, _deadline, _cap):
+        body = _envelope(raw, model=response_model) if response_model is not None else _envelope(raw)
+        if response_model is None:
+            envelope = json.loads(body)
+            envelope.pop("model")
+            body = json.dumps(envelope).encode()
+        return body
+
+    adapter = _adapter(call)
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["status"] == "FAILED"
+    assert result["provenance"]["error_code"] == error_code
+    assert all(item["status"] in {"FAILED", "NOT_SHOWN"} for item in result["assessments"].values())
+    assert not any(item["status"] == "ANSWERED" for item in result["assessments"].values())
+    if response_model is not None:
+        assert "provider_model_id" not in result["provenance"]
+        assert "invalid_provider_model_id_hash" in result["provenance"]
+
+
+def test_v2_latest_alias_accepts_only_versioned_jev_reported_model():
+    adapter = _adapter(lambda raw, _deadline, _cap: _envelope(raw, model="jev-1.13.0"))
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["status"] == "COMPLETE"
+    assert result["provenance"]["provider_model_id"] == "jev-1.13.0"
+    assert result["provenance"]["model_identity_source"] == "endpoint_reported_validated"
+
+
+def test_v2_pinned_model_requires_exact_endpoint_report():
+    adapter = ClaimAssessmentAdapter(lambda raw, _deadline, _cap: _envelope(raw, model="jev-1.14.0"), "jev-1.13.0")
+    prepared = adapter.prepare(
+        _candidate(), [_evidence()], _identity(), _limits(), primary_assessment=_primary_assessment()
+    )
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["status"] == "FAILED"
+    assert result["provenance"]["error_code"] == "model_identity_mismatch"
+    assert "provider_model_id" not in result["provenance"]
 
 
 @pytest.mark.parametrize("source_kind", ["diff", "base_file", "head_file", "profile_context"])
