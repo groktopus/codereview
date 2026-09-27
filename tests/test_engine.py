@@ -505,6 +505,47 @@ class ContextFollowupProvider(EmptyProvider):
         }
 
 
+class RequiredContextClosureFixtureProvider(ContextFollowupProvider):
+    """Exercise the real engine closure reducer with bounded synthetic notes."""
+
+    def __init__(self, followup_state="COVERED", mutation=None):
+        super().__init__()
+        self.followup_state = followup_state
+        self.mutation = mutation
+
+    def review(self, task, evidence, limits):
+        if not task.get("context_gap_followup_for"):
+            return super().review(task, evidence, limits)
+
+        self.calls += 1
+        unit_id = task["unit_ids"][0]
+        retrieved_id = next(
+            item["evidence_id"] for item in evidence if item.get("path") == "docs/caller.md"
+        )
+        unit_binding = next(
+            row for row in task["unit_evidence_bindings"] if row["unit_id"] == unit_id
+        )
+        unit_local_id = unit_binding["evidence_ids"][0]
+        note = {
+            "unit_id": unit_id,
+            "state": self.followup_state,
+            "reason_code": "synthetic_closure_fixture",
+            "evidence_refs": [retrieved_id, unit_local_id],
+            "coverage_basis": "STATIC_REVIEW",
+        }
+        if self.mutation == "wrong_basis":
+            note["coverage_basis"] = "DYNAMIC_EXECUTION"
+        elif self.mutation == "wrong_scope":
+            note["unit_id"] = "unit-outside-scope"
+        elif self.mutation == "undispatched_reference":
+            note["evidence_refs"].append("ev-not-in-task-input")
+        return {
+            "finding_candidates": [],
+            "context_gap_proposals": [],
+            "coverage_notes": [note],
+        }
+
+
 class NestedGapContextFollowupProvider(ContextFollowupProvider):
     def review(self, task, evidence, limits):
         if not task.get("context_gap_followup_for"):
@@ -1578,6 +1619,53 @@ def test_retrieval_requires_bounded_followup_that_cites_retrieved_evidence(tmp_p
     assert context_coverage["closure_diagnostics"]["state"] == "OBSERVED"
     assert context_coverage["closure_diagnostics"]["coverage_note_result"] == "COVERED"
     assert context_coverage["closure_diagnostics"]["coverage_note_failure_counts"]["MATCH"] >= 1
+
+
+@pytest.mark.parametrize(
+    ("followup_state", "mutation", "expected_note_code", "expected_coverage"),
+    [
+        ("COVERED", None, "MATCH", "COMPLETE"),
+        ("PARTIAL", None, "STATE_NOT_COVERED", "PARTIAL"),
+        ("NOT_COVERED", None, "STATE_NOT_COVERED", "PARTIAL"),
+        ("COVERED", "wrong_basis", "BASIS_NOT_STATIC_REVIEW", "PARTIAL"),
+        ("COVERED", "wrong_scope", "UNIT_OUT_OF_SCOPE", "PARTIAL"),
+        ("COVERED", "undispatched_reference", "REFERENCE_NOT_IN_TASK_INPUT", "PARTIAL"),
+    ],
+)
+def test_required_context_closure_fixtures_preserve_engine_decision(
+    tmp_path, followup_state, mutation, expected_note_code, expected_coverage
+):
+    provider = RequiredContextClosureFixtureProvider(followup_state, mutation)
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    result = run(
+        tmp_path,
+        prof=prof,
+        provider=provider,
+        context_retriever=ResolvedContextRetriever(),
+    )
+
+    followup_id = next(task["task_id"] for task in result["ledger"]["dynamic_tasks"])
+    followup_result = result["task_results"][followup_id]
+    assert followup_result["status"] == "SUCCEEDED"
+    assert followup_result["input_evidence_ids"]
+    assert result["context_gaps"][0]["status"] == (
+        "RESOLVED_BY_FOLLOWUP" if expected_coverage == "COMPLETE" else "VALID_UNRESOLVED"
+    )
+    context_coverage = next(
+        row for row in result["coverage_ledger"] if row["obligation_kind"] == "REQUIRED_CONTEXT"
+    )
+    assert context_coverage["state"] == expected_coverage
+    assert context_coverage["reason_code"] == (
+        "VALID_RESULT" if expected_coverage == "COMPLETE" else "REQUIRED_CONTEXT_NOT_COVERED"
+    )
+    diagnostics = context_coverage["closure_diagnostics"]
+    assert diagnostics["state"] == "OBSERVED"
+    assert diagnostics["coverage_note_result"] == (
+        "COVERED" if expected_coverage == "COMPLETE" else "NO_COVERING_NOTE"
+    )
+    assert diagnostics["coverage_note_failure_counts"][expected_note_code] == 1
+    assert result["coverage_state"] == expected_coverage
+    assert result["disposition"] == ("APPROVE" if expected_coverage == "COMPLETE" else "INCOMPLETE")
 
 
 @pytest.mark.parametrize(
