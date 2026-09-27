@@ -72,6 +72,50 @@ class RedirectSinkHandler(BaseHTTPRequestHandler):
         pass
 
 
+class RequestMeasurementWithoutNetworkTests(unittest.TestCase):
+    def test_measurement_can_exceed_transport_ceiling_but_dispatch_checks_both_caps_first(self):
+        task = {"task_id": "size", "unit_ids": ["u1"]}
+        evidence = [{"evidence_id": "ev-1", "content": 'quotes " and newlines\n' * 50}]
+        limits = {
+            "max_input_bytes_per_task": 20_000,
+            "max_output_bytes_per_task": 4096,
+            "max_output_tokens": 50,
+            "deadline_seconds": 1,
+        }
+        provider = OpenAIProvider(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "test-model",
+                "api_key_env": "TEST_PROVIDER_KEY",
+                "max_request_bytes": 1024,
+            }
+        )
+        measured = provider.review_input_bytes(task, evidence, limits)
+        self.assertGreater(measured, provider.max_request_bytes)
+        self.assertEqual(len(provider.serialize_review_request(task, evidence, limits)), measured)
+
+        class Unopened:
+            def open(self, *_args, **_kwargs):
+                raise AssertionError("HTTP must not be opened for an oversized request")
+
+        with patch("pr_review_harness.providers._HTTP_OPENER", Unopened()), patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(ProviderError, "request_exceeds_limit"):
+                provider.review(task, evidence, limits)
+            provider = OpenAIProvider(
+                {
+                    "kind": "openai_compatible",
+                    "base_url": "https://provider.example.invalid/v1",
+                    "model": "test-model",
+                    "api_key_env": "TEST_PROVIDER_KEY",
+                    "max_request_bytes": measured + 1,
+                }
+            )
+            self.assertEqual(provider.review_input_bytes(task, evidence, limits), measured)
+            with self.assertRaisesRegex(ProviderError, "request_exceeds_limit"):
+                provider.review(task, evidence, {**limits, "max_input_bytes_per_task": measured - 1})
+
+
 class ProviderBoundaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

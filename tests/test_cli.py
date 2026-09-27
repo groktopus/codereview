@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from pr_review_harness.cli import _read_limits
+
 
 def git(path: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(path), *args], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
@@ -27,6 +29,18 @@ def fixture_repo(tmp_path: Path):
     profile = tmp_path / "profile.json"
     profile.write_text(json.dumps({"version": "pilot-v1", "context_paths": []}))
     return repo, base, head, profile
+
+
+def test_optional_snapshot_limit_is_accepted_and_unknown_limits_still_rejected(tmp_path):
+    limits_file = tmp_path / "limits.json"
+    limits_file.write_text(json.dumps({"max_snapshot_context_bytes": 300_000}))
+    parsed = _read_limits(SimpleNamespace(limits=str(limits_file)))
+    assert parsed["max_snapshot_context_bytes"] == 300_000
+    assert parsed["max_context_bytes"] == 300_000
+
+    limits_file.write_text(json.dumps({"unexpected_limit": 100}))
+    with pytest.raises(ValueError, match="unknown limits field"):
+        _read_limits(SimpleNamespace(limits=str(limits_file)))
 
 
 class _InertContextProvider:

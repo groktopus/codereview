@@ -41,7 +41,9 @@ Snapshot data is immutable. Context retrieval adds evidence references and cover
 
 ### RunLimits
 
-Each field is finite and has a unit and policy source. `deadline_seconds`, `max_concurrent_scopes`, `max_provider_calls`, `max_input_bytes_per_task`, `max_output_bytes_per_task`, and `max_context_bytes` are positive numbers; concurrency, call, and byte limits are positive integers. `max_retries_per_task` is an integer >= 0, where zero means no retry. `max_cost_microunits` is a positive integer when known provider pricing is available. If price is unknown and budget policy requires a monetary cap, preflight rejects. No field means “unlimited.” Reservations are made before dispatch; exceeding any limit prevents new work and records the skipped scopes.
+Each field is finite and has a unit and policy source. `deadline_seconds`, `max_concurrent_scopes`, `max_provider_calls`, `max_input_bytes_per_task`, `max_output_bytes_per_task`, and `max_context_bytes` are positive numbers; concurrency, call, and byte limits are positive integers. Optional `max_snapshot_context_bytes`, when present, is also a positive integer. It caps aggregate source/context evidence captured into the snapshot and defaults to `max_context_bytes` when absent for legacy compatibility. `max_context_bytes` remains the cumulative serialized provider-input admission budget; the snapshot cap does not replace or increase it. `max_retries_per_task` is an integer >= 0, where zero means no retry. `max_cost_microunits` is a positive integer when known provider pricing is available. If price is unknown and budget policy requires a monetary cap, preflight rejects. No field means “unlimited.” Reservations are made before dispatch; exceeding any limit prevents new work and records the skipped scopes.
+
+Provider request sizing uses the same canonical serializer as dispatch but does not apply transport caps, so planning may measure an oversized unsplit scope before deterministic splitting. Immediately before credential lookup or HTTP, dispatch enforces both the provider adapter request ceiling and `max_input_bytes_per_task`. Measurement never authorizes dispatch.
 
 ### ScopeTask and TaskResult
 

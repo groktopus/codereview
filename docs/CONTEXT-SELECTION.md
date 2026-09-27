@@ -63,6 +63,13 @@ that can be delivered to review tasks; full BASE/HEAD blobs remain available
 for validation and bounded retrieval without being copied into every prompt.
 Task grouping is deterministic by unit, lens, and selected context set.
 
+For runtime limits, optional `max_snapshot_context_bytes` bounds aggregate
+snapshot capture independently from `max_context_bytes`, which remains the
+cumulative provider-input budget. If the optional field is absent, snapshot
+capture uses the legacy `max_context_bytes` value. This compatibility fallback
+preserves existing configurations; deployments that need separate capture and
+inference budgets must set both fields explicitly.
+
 ## Measurement and current limitation
 
 The PR 464 preflight used the same frozen base/head pair and the current full
