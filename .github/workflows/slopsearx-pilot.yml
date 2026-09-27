@@ -14,7 +14,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: slopsearx-read-only-pilot-${{ inputs.pull_request_number }}
+  group: reusable-instantiation-probe-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,8 +46,8 @@ jobs:
     with:
       harness_repository: groktopus/codereview
       harness_sha: invalid-sha
-      target_repository: magnus919/SlopSearX
-      pull_request_number: 477
+      target_repository: diagnostic/probe
+      pull_request_number: 1
       base_ref: main
       base_sha: '0000000000000000000000000000000000000000'
       head_sha: '1111111111111111111111111111111111111111'
