@@ -319,8 +319,18 @@ def _complete_cardinality_arm_for_test(count: int, *, trace_bytes: int = 400_000
             "state": "COMPLETE",
             "trace_bytes": trace_bytes,
             "unattributed_or_partial_bytes": 0,
-            "bytes_by_syscall": {"newfstatat": 1000, "openat": 800},
-            "lines_by_syscall": {"newfstatat": 10, "openat": 8},
+            "bytes_by_syscall": {
+                "newfstatat": 1000,
+                "openat": 800,
+                "OTHER": trace_bytes - 1000 - 800 - 4 - 5 - 6,
+                "PROCESS_END": 4,
+                "SIGNAL": 5,
+                "UNPARSED": 6,
+            },
+            "lines_by_syscall": {"newfstatat": 10, "openat": 8, "OTHER": 1, "PROCESS_END": 1, "SIGNAL": 1, "UNPARSED": 1},
+            "newline_terminated_line_bytes": trace_bytes,
+            "parsed_line_count": 22,
+            "parse_failure_count": 0,
             "file_path_attribution": {
                 "state": "COMPLETE",
                 "reconciliation": "MATCH",
@@ -367,6 +377,7 @@ def test_candidate_cardinality_pair_projection_requires_complete_normal_path_and
     assert result["response_body_bytes_delta_two_minus_one"]["primary_security"] == 100
     assert result["arms"][0]["http_requests_received"] == 6
     assert result["arms"][1]["http_requests_received"] == 8
+    assert diagnostic.CARDINALITY_PAIR_CONTRACT_VERSION.endswith(".v2")
     assert "Synthetic" not in json.dumps(result)
 
 
@@ -415,12 +426,53 @@ def test_candidate_cardinality_comparison_recomputes_arm_state_and_projects_boun
     assert result["state"] == "INCOMPLETE"
     assert result["arms"][0]["state"] == "COMPLETE"
     assert result["arms"][1]["state"] == "PROTOCOL_OR_OBSERVER_INCOMPLETE"
-    assert result["arms"][0]["trace_bytes_by_syscall"] == {"newfstatat": 1000, "openat": 800}
+    assert result["arms"][0]["trace_bytes_by_syscall"] == {
+        "OTHER": 398_185,
+        "PROCESS_END": 4,
+        "SIGNAL": 5,
+        "UNPARSED": 6,
+        "newfstatat": 1000,
+        "openat": 800,
+    }
+    assert result["arms"][0]["trace_parsed_line_count"] == 22
+    assert sum(result["arms"][0]["trace_lines_by_syscall"].values()) == result["arms"][0]["trace_parsed_line_count"]
+    assert sum(result["arms"][0]["trace_bytes_by_syscall"].values()) == result["arms"][0]["trace_newline_terminated_line_bytes"]
     assert result["arms"][0]["file_path_attribution"]["bytes_by_syscall_class"] == {
         "openat": {"SYSTEM_ROOT": 800},
         "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 1000},
     }
     assert "/" not in json.dumps(result)
+
+
+def test_cardinality_trace_allowlist_covers_actual_line_attributor_labels_only():
+    lines = (
+        'openat(AT_FDCWD, "/tmp/file", O_RDONLY) = 3',
+        "+++ exited with 0 +++",
+        "--- SIGCHLD {si_signo=SIGCHLD} ---",
+        "unparsed but bounded trace fragment",
+        "custom_fake_syscall(1) = 0",
+    )
+    labels = [diagnostic._label_line(line) for line in lines]
+    assert labels == ["openat", "PROCESS_END", "SIGNAL", "UNPARSED", "OTHER"]
+    projected = diagnostic._bounded_numeric_map(dict.fromkeys(labels, 1), diagnostic._TRACE_LINE_LABELS)
+    assert projected == {"OTHER": 1, "PROCESS_END": 1, "SIGNAL": 1, "UNPARSED": 1, "openat": 1}
+    assert diagnostic._bounded_numeric_map({"UNEXPECTED_RAW_LABEL": 1}, diagnostic._TRACE_LINE_LABELS) is None
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda trace: trace["bytes_by_syscall"].__setitem__("OTHER", trace["bytes_by_syscall"]["OTHER"] - 1),
+        lambda trace: trace.__setitem__("newline_terminated_line_bytes", trace["trace_bytes"] - 1),
+        lambda trace: trace.__setitem__("parsed_line_count", trace["parsed_line_count"] - 1),
+        lambda trace: trace.__setitem__("unattributed_or_partial_bytes", 1),
+    ],
+    ids=("syscall-byte-sum", "newline-byte-total", "parsed-line-total", "residual-bytes"),
+)
+def test_cardinality_complete_state_requires_reconciled_trace_totals(mutation):
+    arm = _complete_cardinality_arm_for_test(1)
+    mutation(arm["trace_attribution"])
+    assert diagnostic._cardinality_arm_state(arm, 1) == "TRACE_SYSCALL_ATTRIBUTION_INCOMPLETE"
 
 
 def test_candidate_cardinality_comparison_rejects_claimed_complete_with_missing_attribution():

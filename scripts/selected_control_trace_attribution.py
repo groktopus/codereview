@@ -48,7 +48,7 @@ MAX_HTTP_REQUEST_BYTES = 64_000
 MAX_HTTP_RESPONSE_BYTES = 32_768
 MAX_SUMMARY_BYTES = 65_536
 DIAGNOSTIC_CONTRACT_VERSION = "selected-control-trace-attribution.v4"
-CARDINALITY_PAIR_CONTRACT_VERSION = "selected-control-candidate-cardinality-pair.v1"
+CARDINALITY_PAIR_CONTRACT_VERSION = "selected-control-candidate-cardinality-pair.v2"
 FAKE_PROVIDER_KEY = "loopback-only-synthetic-key"
 FAKE_DECISION_KEY = "loopback-only-synthetic-decision-key"
 FAKE_MODEL = "synthetic-control-model"
@@ -70,6 +70,7 @@ KNOWN_SYSCALLS = frozenset(
     .split()
 )
 _SYSCALL_LABELS = tuple(sorted((*KNOWN_SYSCALLS, "OTHER")))
+_TRACE_LINE_LABELS = tuple(sorted((*KNOWN_SYSCALLS, "OTHER", "PROCESS_END", "SIGNAL", "UNPARSED")))
 _RAW_SYSCALL = re.compile(r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(")
 _TARGET_SYSCALL = re.compile(
     r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?(openat|newfstatat)\((.*)$"
@@ -865,7 +866,6 @@ def _cardinality_arm_state(arm: Any, expected_candidates: int) -> str:
         or arm.get("synthetic_protocol_path_state") != "COMPLETE"
         or not isinstance(trace, dict)
         or trace.get("state") != "COMPLETE"
-        or trace.get("unattributed_or_partial_bytes") != 0
     ):
         return "PROTOCOL_OR_OBSERVER_INCOMPLETE"
     file_paths = trace.get("file_path_attribution")
@@ -875,9 +875,25 @@ def _cardinality_arm_state(arm: Any, expected_candidates: int) -> str:
         or file_paths.get("reconciliation") != "MATCH"
     ):
         return "FILE_PATH_ATTRIBUTION_INCOMPLETE"
-    syscall_bytes = _bounded_numeric_map(trace.get("bytes_by_syscall"), _SYSCALL_LABELS)
-    syscall_lines = _bounded_numeric_map(trace.get("lines_by_syscall"), _SYSCALL_LABELS)
+    syscall_bytes = _bounded_numeric_map(trace.get("bytes_by_syscall"), _TRACE_LINE_LABELS)
+    syscall_lines = _bounded_numeric_map(trace.get("lines_by_syscall"), _TRACE_LINE_LABELS)
     if syscall_bytes is None or syscall_lines is None:
+        return "TRACE_SYSCALL_ATTRIBUTION_INCOMPLETE"
+    line_bytes = trace.get("newline_terminated_line_bytes")
+    parsed_lines = trace.get("parsed_line_count")
+    residual_bytes = trace.get("unattributed_or_partial_bytes")
+    if (
+        isinstance(line_bytes, bool)
+        or not isinstance(line_bytes, int)
+        or isinstance(parsed_lines, bool)
+        or not isinstance(parsed_lines, int)
+        or isinstance(residual_bytes, bool)
+        or not isinstance(residual_bytes, int)
+        or sum(syscall_bytes.values()) != line_bytes
+        or sum(syscall_lines.values()) != parsed_lines
+        or line_bytes + residual_bytes != trace_bytes
+        or residual_bytes != 0
+    ):
         return "TRACE_SYSCALL_ATTRIBUTION_INCOMPLETE"
     return "COMPLETE"
 
@@ -1021,9 +1037,10 @@ def _cardinality_arm_projection(arm: Any, expected_candidates: int | None = None
         "protocol_stage_counts": safe_stages,
         "request_body_bytes_by_stage": safe_stage_bytes(request_bytes),
         "response_body_bytes_by_stage": safe_stage_bytes(response_bytes),
-        "trace_bytes_by_syscall": _bounded_numeric_map(trace_projection.get("bytes_by_syscall"), _SYSCALL_LABELS),
-        "trace_lines_by_syscall": _bounded_numeric_map(trace_projection.get("lines_by_syscall"), _SYSCALL_LABELS),
+        "trace_bytes_by_syscall": _bounded_numeric_map(trace_projection.get("bytes_by_syscall"), _TRACE_LINE_LABELS),
+        "trace_lines_by_syscall": _bounded_numeric_map(trace_projection.get("lines_by_syscall"), _TRACE_LINE_LABELS),
         "trace_newline_terminated_line_bytes": bounded_nonnegative(trace_projection.get("newline_terminated_line_bytes")),
+        "trace_parsed_line_count": bounded_nonnegative(trace_projection.get("parsed_line_count")),
         "trace_unattributed_or_partial_bytes": bounded_nonnegative(trace_projection.get("unattributed_or_partial_bytes")),
         "trace_parse_failure_count": bounded_nonnegative(trace_projection.get("parse_failure_count")),
         "file_path_attribution": file_path_projection,
