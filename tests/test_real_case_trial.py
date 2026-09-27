@@ -12,6 +12,7 @@ from scripts import run_real_case_trial as trial
 from scripts.provider_config_from_env import configurations_from_environment
 
 sys.path.insert(0, str(trial.ROOT / "src"))
+from pr_review_harness.claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES
 from pr_review_harness.claim_transport import ClaimTransport
 from pr_review_harness.providers import load_provider_config, make_decision_provider, make_provider
 
@@ -567,6 +568,24 @@ def test_private_configuration_contains_only_credential_references(tmp_path, mon
     assert json.loads(provider.read_text())["api_key_env"] == "LLM_API_KEY"
     assert "llm-secret-canary" in scan_values
     assert trial.EXPECTED_LLM_MODEL in scan_values
+
+
+def test_claim_error_projection_is_additive_finite_and_canary_safe():
+    assert trial._SAFE_CLAIM_ERROR_CODES == CLAIM_ASSESSMENT_ERROR_CODES
+    legacy = trial._project_claim({"status": "FAILED", "reason_code": "ClaimAssessmentError"})
+    assert legacy == {"status": "FAILED", "reason_code": "ClaimAssessmentError", "candidate_id": "UNKNOWN"}
+
+    safe = trial._project_claim(
+        {"status": "FAILED", "reason_code": "ClaimAssessmentError", "error_code": "invalid_prepared_assessment"}
+    )
+    assert safe["status"] == "FAILED"
+    assert safe["reason_code"] == "ClaimAssessmentError"
+    assert safe["error_code"] == "invalid_prepared_assessment"
+
+    for invalid in (True, -1, "private-canary \"credential-value\"", "not_a_claim_error"):
+        projected = trial._project_claim({"status": "FAILED", "error_code": invalid})
+        assert projected["error_code"] == "UNKNOWN"
+        assert "credential-value" not in json.dumps(projected)
 
 
 def test_prepare_and_live_decision_configs_match_claim_transport_contract(tmp_path, monkeypatch):

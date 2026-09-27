@@ -71,6 +71,20 @@ The downloaded `summary.json` is 49,995 bytes (SHA-256 `15c826ac02277f5a0ab16730
 
 ## Current workflow observer-v3 binding
 
-The manual provider-trial workflow now pins trusted runtime `dfe8b6c2d8a73f4259a1ec5112c9d34f849350d2` and requires observer ID `linux-strace-syscall-observer.v3` with source SHA-256 `fce15c42bfbc7fe66f353e8322b11f5fff1ae44a10458bba234366509f75f328` before provider configuration. Compared with the earlier runtime pin `3540b543577ca852dc6b0f929469bd1950905141`, this is a full source-version change across `cli.py`, `engine.py`, `external_effect_observer.py`, `providers.py`, and `snapshot.py`, not an observer-only comparison. The fixed cases, six trusted secret bindings, provider/call/time/output/artifact limits, zero retries, disabled publication, and no-target-execution path remain unchanged. No provider-enabled dispatch has yet used this new binding.
+The manual provider-trial workflow now pins trusted runtime `dfe8b6c2d8a73f4259a1ec5112c9d34f849350d2` and requires observer ID `linux-strace-syscall-observer.v3` with source SHA-256 `fce15c42bfbc7fe66f353e8322b11f5fff1ae44a10458bba234366509f75f328` before provider configuration. Compared with the earlier runtime pin `3540b543577ca852dc6b0f929469bd1950905141`, this is a full source-version change across `cli.py`, `engine.py`, `external_effect_observer.py`, `providers.py`, and `snapshot.py`, not an observer-only comparison. The fixed cases, six trusted secret bindings, provider/call/time/output/artifact limits, zero retries, disabled publication, and no-target-execution path remain unchanged. This binding was exercised once by run 36317986713.
+
+Run 36317986713 stopped on its control case after 21,397.8 ms with exit code -9. The observer reported `trace_byte_cap_exceeded` at 1,048,523 of the 1,048,576-byte cap and retained 13,897 partial parsed records/events; later cases were `NOT_RUN_AFTER_EARLIER_STOP`. The root packet matched all 60 fingerprinted files and all 28 runtime modules to the pinned runtime. Its summary SHA-256 is `0b2a590ee7729f2586e712220494d69867f2ae9c7ad09c96679f3d1e05851f55`, manifest SHA-256 is `3e09c0b6aab2b16e9c6b3a0448864fea24182b447b6844f68dddd8592239eaaa`, and archive SHA-256 is `edecde1e942751d07b0094ff0161fecd6c387b329fbce0b2c2262c4b696482a7`. Raw trace and per-syscall byte attribution were not retained, so the cap failure is recorded without a more specific cause. Actual provider dispatch and billing remain `UNKNOWN`.
 
 The exact runtime package source was exercised in the PR38 hosted validation [run 36317062180](https://github.com/groktopus/codereview/actions/runs/36317062180) and matches the package tree at the merged runtime pin. Its secretless loopback fake-provider smoke completed four review tasks and four fake calls, with complete review coverage and `COMMENT` disposition. The scoped observer trace was 670,975 bytes of the 1,048,576-byte cap. The differential test measured 169,399 baseline bytes and 85,660 candidate bytes, saving 83,739 bytes across 1,098 normalized completed events; 44 observer tests passed. The overall effect state remained `UNKNOWN`; candidate adjudication and Jev were not exercised. This validates the bounded observer and synthetic CLI path, not provider-trial quality, real-provider behavior, or production acceptance. Retained log SHA-256: `4185bc40938db901dfe4f86901e32f05af41fd59e87727e1d06c3f1c25d8bd84`.
+
+## Bounded claim-error diagnostics
+
+Claim-assessment failures may carry an additive `error_code` only when the local
+exception is the exact `ClaimAssessmentError` type and its code is in the
+finite source allowlist. An isolated child error is eligible only when its
+remote type is exactly `ClaimAssessmentError` and its message exactly matches
+that allowlist. Unknown values project as `UNKNOWN`; raw exception text,
+tracebacks, provider responses, endpoints, and credentials are never copied.
+Existing status and reason fields remain unchanged. This diagnostic does not
+establish provider dispatch, billed usage, semantic correctness, calibration,
+or a quality result; absent dispatch or billing evidence remains unknown.
