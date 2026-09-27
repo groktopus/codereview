@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/effect_observer_smoke.py | tee -a "$GITHUB_STEP_SUMMARY"
-      - run: python -m pytest -q tests/test_external_effect_observer.py
+      - run: python -m pytest -q -s tests/test_external_effect_observer.py
       - run: ruff check src/pr_review_harness/external_effect_observer.py tests/test_external_effect_observer.py
 
   tests:
