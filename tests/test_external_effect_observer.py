@@ -64,6 +64,18 @@ def _fake_cli(tmp_path: Path) -> list[str]:
     return [sys.executable, str(script)]
 
 
+def _wait_for_proc_child_stop(read_state, deadline: float) -> None:
+    while time.monotonic() < deadline:
+        try:
+            state = read_state()
+        except (FileNotFoundError, ProcessLookupError):
+            return
+        if state == "Z":
+            return
+        time.sleep(0.05)
+    pytest.fail("strace_exit_left_a_running_setsid_tracee")
+
+
 def test_observations_keep_only_typed_fields_and_hash_raw_paths(tmp_path, monkeypatch):
     _fake_strace(tmp_path, monkeypatch)
     raw_path = "/tmp/PRIVATE_OBSERVER_PATH_91f7"
@@ -397,14 +409,41 @@ def test_kill_on_exit_stops_setsid_descendant_on_trial_deadline(tmp_path):
     assert result["invocation"]["run_status"] == "RUN_TIMEOUT"
     assert pid_file.exists()
     child_pid = int(pid_file.read_text(encoding="ascii"))
-    deadline = time.monotonic() + 3
-    while time.monotonic() < deadline:
-        try:
-            state = Path(f"/proc/{child_pid}/stat").read_text(encoding="ascii").split()[2]
-        except FileNotFoundError:
-            break
-        if state == "Z":
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("strace_exit_left_a_running_setsid_tracee")
+    _wait_for_proc_child_stop(
+        lambda: Path(f"/proc/{child_pid}/stat").read_text(encoding="ascii").split()[2],
+        time.monotonic() + 3,
+    )
+
+
+@pytest.mark.parametrize("disappearance", [FileNotFoundError, ProcessLookupError])
+def test_proc_stat_disappearance_race_is_treated_as_stopped(tmp_path, disappearance):
+    stat_file = tmp_path / "proc" / "4242" / "stat"
+    reads = 0
+
+    def read_state():
+        nonlocal reads
+        reads += 1
+        if disappearance is ProcessLookupError:
+            raise ProcessLookupError("process vanished during procfs read")
+        return stat_file.read_text(encoding="ascii").split()[2]
+
+    _wait_for_proc_child_stop(read_state, time.monotonic() + 3)
+    assert reads == 1
+
+
+def test_proc_stat_permission_and_malformed_data_fail_loudly(tmp_path):
+    stat_file = tmp_path / "proc" / "4242" / "stat"
+    stat_file.parent.mkdir(parents=True)
+    stat_file.write_text("4242 (child)", encoding="ascii")
+
+    def read_state():
+        return stat_file.read_text(encoding="ascii").split()[2]
+
+    with pytest.raises(IndexError):
+        _wait_for_proc_child_stop(read_state, time.monotonic() + 3)
+
+    def permission_denied():
+        raise PermissionError("permission denied")
+
+    with pytest.raises(PermissionError, match="permission denied"):
+        _wait_for_proc_child_stop(permission_denied, time.monotonic() + 3)
