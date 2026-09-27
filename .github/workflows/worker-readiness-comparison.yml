@@ -27,7 +27,9 @@ jobs:
     permissions:
       contents: read
     env:
-      BASELINE_SHA: 94d35b43d6441e412e3c6123d354c5e78d6c12e9
+      COMPARISON_CONTRACT: worker-readiness-linux.v2
+      BASELINE_SHA: 2116506c8e5a08158c51645502bbcaec6bf9e71f
+      BASELINE_PARENT_SHA: 94d35b43d6441e412e3c6123d354c5e78d6c12e9
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
       BASELINE_SOURCE: ${{ github.workspace }}/baseline-source
       CANDIDATE_SOURCE: ${{ github.workspace }}/candidate-source
@@ -38,7 +40,8 @@ jobs:
         timeout-minutes: 2
         with:
           repository: groktopus/codereview
-          ref: 94d35b43d6441e412e3c6123d354c5e78d6c12e9
+          ref: 2116506c8e5a08158c51645502bbcaec6bf9e71f
+          fetch-depth: 2
           path: baseline-source
           persist-credentials: false
 
@@ -60,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "ARTIFACT_DIR=$RUNNER_TEMP/worker-readiness-comparison"
+            echo "ARTIFACT_DIR=$RUNNER_TEMP/worker-readiness-comparison-v2"
             echo "BASELINE_WHEELHOUSE=$RUNNER_TEMP/worker-readiness-baseline-wheel"
             echo "CANDIDATE_WHEELHOUSE=$RUNNER_TEMP/worker-readiness-candidate-wheel"
             echo "BASELINE_VENV=$RUNNER_TEMP/worker-readiness-baseline-venv"
@@ -113,6 +116,34 @@ jobs:
               ).stdout.strip()
               if not re.fullmatch(r"[0-9a-f]{40}", expected) or actual != expected:
                   raise SystemExit("source_pin_mismatch")
+              if label == "BASELINE":
+                  parent = subprocess.run(
+                      ["git", "-C", str(source), "rev-parse", "HEAD^"],
+                      check=True, capture_output=True, text=True, timeout=10,
+                  ).stdout.strip()
+                  changed_paths = subprocess.run(
+                      ["git", "-C", str(source), "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+                      check=True, capture_output=True, text=True, timeout=10,
+                  ).stdout.splitlines()
+                  patch = subprocess.run(
+                      [
+                          "git", "-C", str(source), "diff", "--no-ext-diff", "--unified=0",
+                          f"{parent}..HEAD", "--", "src/pr_review_harness/external_effect_observer.py",
+                      ],
+                      check=True, capture_output=True, text=True, timeout=10,
+                  ).stdout.splitlines()
+                  added_lines = [line[1:] for line in patch if line.startswith("+") and not line.startswith("+++")]
+                  removed_lines = [line[1:] for line in patch if line.startswith("-") and not line.startswith("---")]
+                  if parent != os.environ["BASELINE_PARENT_SHA"]:
+                      raise SystemExit("baseline_parent_mismatch")
+                  if changed_paths != ["src/pr_review_harness/external_effect_observer.py"]:
+                      raise SystemExit("baseline_compatibility_scope_mismatch")
+                  if added_lines != [
+                      '    "invalid_review_request": "invalid_review_request",',
+                      '    "run_id_already_exists": "run_id_already_exists",',
+                      '    "resume_state_invalid": "resume_state_invalid",',
+                  ] or removed_lines:
+                      raise SystemExit("baseline_compatibility_patch_mismatch")
               wheels = sorted(wheelhouse.glob("*.whl"))
               if len(wheels) != 1 or wheels[0].stat().st_size > 16 * 1024 * 1024:
                   raise SystemExit("wheel_inventory_invalid")
@@ -177,8 +208,11 @@ jobs:
           ):
               raise SystemExit("observer_contract_changed")
           payload = {
-              "schema_version": 1,
+              "schema_version": 2,
+              "comparison_contract": os.environ["COMPARISON_CONTRACT"],
               "baseline_sha": os.environ["BASELINE_SHA"],
+              "baseline_parent_sha": os.environ["BASELINE_PARENT_SHA"],
+              "baseline_kind": "observer_diagnostic_compatibility_backport",
               "candidate_sha": os.environ["CANDIDATE_SHA"],
               "source_and_wheel_identity_verified": True,
               "modules_per_runtime": 28,
@@ -234,7 +268,7 @@ jobs:
               namespace_loopback = None
           if namespace_loopback is None or namespace_loopback.returncode != 0:
               (output_dir / "comparison.json").write_text(
-                  json.dumps({"schema_version": 1, "comparison": "FAIL", "failure": "isolated_loopback_unavailable", "probes_started": False}, sort_keys=True, separators=(",", ":")) + "\n",
+                  json.dumps({"schema_version": 2, "comparison_contract": "worker-readiness-linux.v2", "comparison": "FAIL", "failure": "isolated_loopback_unavailable", "probes_started": False}, sort_keys=True, separators=(",", ":")) + "\n",
                   encoding="utf-8",
               )
               raise SystemExit("isolated_loopback_unavailable")
@@ -261,7 +295,7 @@ jobs:
               except OSError:
                   fixture_sha = None
               if fixture_sha != expected_fixture_sha:
-                  report = {"schema_version": 1, "label": label, "runner_status": "FIXTURE_HASH_MISMATCH",
+                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": "FIXTURE_HASH_MISMATCH",
                             "return_code": None, "elapsed_ms": 0, "stdout_bytes": 0}
                   (output_dir / f"{label}.json").write_text(
                       json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
@@ -274,7 +308,7 @@ jobs:
                       cwd=output_dir, env=base_env, start_new_session=True,
                   )
               except OSError:
-                  report = {"schema_version": 1, "label": label, "runner_status": "SPAWN_FAILED",
+                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": "SPAWN_FAILED",
                             "return_code": None, "elapsed_ms": int((time.monotonic() - started) * 1000),
                             "stdout_bytes": 0}
                   (output_dir / f"{label}.json").write_text(
@@ -321,7 +355,7 @@ jobs:
                   process.kill()
                   return_code = process.wait(timeout=5)
                   status = "PROCESS_REAP_FAILED" if status == "COMPLETED" else status
-              report = {"schema_version": 1, "label": label, "runner_status": status,
+              report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": status,
                         "return_code": return_code, "elapsed_ms": int((time.monotonic() - started) * 1000),
                         "stdout_bytes": len(captured)}
               if status == "COMPLETED":
@@ -336,7 +370,7 @@ jobs:
               target = output_dir / f"{label}.json"
               encoded = json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
               if len(encoded.encode()) > max_report:
-                  report = {"schema_version": 1, "label": label, "runner_status": "SUMMARY_LIMIT_EXCEEDED",
+                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": "SUMMARY_LIMIT_EXCEEDED",
                             "return_code": return_code, "elapsed_ms": int((time.monotonic() - started) * 1000),
                             "stdout_bytes": len(captured)}
                   encoded = json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
@@ -438,7 +472,8 @@ jobs:
               ) else "UNKNOWN"
           )
           final = {
-              "schema_version": 1,
+              "schema_version": 2,
+              "comparison_contract": identity["comparison_contract"],
               "fixture_comparison": "same_candidate_fixture_and_scope_not_byte_identical_generated_git_input",
               "baseline_outcome": "COMPLETED" if complete(baseline) else "TYPED_TRACE_CAP_FAILURE" if valid_baseline_cap_failure(baseline) else "INVALID_OR_INCOMPLETE",
               "candidate_outcome": "NORMAL_REVIEW_COMPLETED" if candidate_valid else "INVALID_OR_INCOMPLETE",
@@ -458,11 +493,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: worker-readiness-comparison-${{ github.run_id }}
+          name: worker-readiness-comparison-v2-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/worker-readiness-comparison/identity.json
-            ${{ runner.temp }}/worker-readiness-comparison/baseline.json
-            ${{ runner.temp }}/worker-readiness-comparison/candidate.json
-            ${{ runner.temp }}/worker-readiness-comparison/comparison.json
+            ${{ runner.temp }}/worker-readiness-comparison-v2/identity.json
+            ${{ runner.temp }}/worker-readiness-comparison-v2/baseline.json
+            ${{ runner.temp }}/worker-readiness-comparison-v2/candidate.json
+            ${{ runner.temp }}/worker-readiness-comparison-v2/comparison.json
           if-no-files-found: warn
           retention-days: 7

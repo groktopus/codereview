@@ -596,6 +596,10 @@ def test_run_one_only_forwards_claim_options_when_enabled(tmp_path, monkeypatch,
 def _phase_aware_cli(monkeypatch, tmp_path, *, report_failure=None):
     from pr_review_harness import checks, cli, engine, evidence, planner
 
+    # These cases supply synthetic repository revisions and are not event-mode
+    # tests. GitHub Actions exports the real pull-request event for every test.
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     repo, base, head, profile_path = fixture_repo(tmp_path)
     output_dir = tmp_path / "phase-artifacts"
     snapshot = {
