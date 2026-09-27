@@ -52,7 +52,13 @@ CONTEXT_FOLLOWUP_V2_PRIMARY_PROOF_SHA256 = "8d4a2c9e3f46a23d2f823c8b0134dabddf57
 CONTEXT_FOLLOWUP_V2_PREPARE_PROOF_SHA256 = "0ce2b0ffcc1da8135b196598d6eeb4c5c855b2d60917a081a2cf972d556419ed"
 CONTEXT_FOLLOWUP_V2_LOCAL_WHEEL_SHA256 = "5f14d8d4ac8e700f9c5cdc6fe8abd37a45e548e8b76d65a400dab8f8b8eba313"
 CONTEXT_FOLLOWUP_V2_LOCAL_PREPARE_PROOF_SHA256 = "040e263ca9e761326a11ce3af183aa2cdd510a3ce28f1b99350bd8844c3d8cdc"
-INPUT_CONTRACTS = ("specialist-input-v1", "specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR, CONTEXT_FOLLOWUP_V2_SELECTOR)
+CONTEXT_FOLLOWUP_V3_PLAN_PATH = ROOT / "docs" / "real-case-trial-context-followup-v3" / "manifest.json"
+CONTEXT_FOLLOWUP_V3_PLAN_SHA256 = "fccc745fade50066d12a2173af987b13d548ac214861f8e99b3a8d3078694857"
+CONTEXT_FOLLOWUP_V3_SELECTOR = "specialist-input-v2-context-followup-v3"
+INPUT_CONTRACTS = (
+    "specialist-input-v1", "specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR,
+    CONTEXT_FOLLOWUP_V2_SELECTOR, CONTEXT_FOLLOWUP_V3_SELECTOR,
+)
 RUNTIME_MODULE_INVENTORY = (
     "__init__.py",
     "__main__.py",
@@ -223,6 +229,41 @@ def read_context_followup_v2_plan() -> dict[str, Any]:
     return value
 
 
+def read_context_followup_v3_plan() -> dict[str, Any]:
+    """Read the v3 selector plan with a fixed digest and strict bounded JSON."""
+    try:
+        if (
+            CONTEXT_FOLLOWUP_V3_PLAN_PATH.is_symlink()
+            or not CONTEXT_FOLLOWUP_V3_PLAN_PATH.is_file()
+            or CONTEXT_FOLLOWUP_V3_PLAN_PATH.stat().st_size > 128_000
+        ):
+            raise TrialError("context_followup_v3_plan_manifest_limit_exceeded")
+        raw = CONTEXT_FOLLOWUP_V3_PLAN_PATH.read_bytes()
+        if sha256(raw) != CONTEXT_FOLLOWUP_V3_PLAN_SHA256:
+            raise TrialError("context_followup_v3_plan_manifest_hash_mismatch")
+
+        def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_json_key")
+                result[key] = value
+            return result
+
+        value = json.loads(
+            raw.decode("utf-8", errors="strict"),
+            object_pairs_hook=unique_object,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("non_finite_json_number")),
+        )
+    except TrialError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+        raise TrialError("context_followup_v3_plan_manifest_invalid") from None
+    if not isinstance(value, dict):
+        raise TrialError("context_followup_v3_plan_manifest_invalid")
+    return value
+
+
 def read_result(path: Path) -> dict[str, Any]:
     try:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > 8_000_000:
@@ -272,6 +313,68 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
     """Load one immutable input-contract plan; v1 remains the default."""
     if input_contract == "specialist-input-v1":
         return _load_locked_cases_v1()
+    if input_contract == CONTEXT_FOLLOWUP_V3_SELECTOR:
+        parent_document, parent_cases = load_locked_cases(CONTEXT_FOLLOWUP_V2_SELECTOR)
+        parent_plan = read_context_followup_v2_plan()
+        plan = read_context_followup_v3_plan()
+        fields = {
+            "schema", "status", "experiment_id", "input_contract", "dynamic_followup_contract",
+            "dynamic_followup_projection", "response_contract", "runtime_revision", "runtime_module_tree_sha256",
+            "runtime_module_file_count", "primary_parent_plan_sha256", "primary_input_parent_plan_sha256",
+            "primary_requests_total", "primary_serialized_input_bytes_total", "required_obligations_total",
+            "max_claim_assessments_per_case", "max_retries_per_task", "limits", "selectors", "cases",
+            "interpretation", "projection_limitations",
+        }
+        if set(plan) != fields:
+            raise TrialError("context_followup_v3_plan_manifest_shape_invalid")
+        if (
+            plan.get("schema") != "historical-real-case-context-followup-input-plan.v3"
+            or plan.get("status") != "FROZEN_CANDIDATE_PRIMARY_IDENTITY_PROVIDER_FREE"
+            or plan.get("experiment_id") != "historical-context-followup-v3"
+            or plan.get("input_contract") != "specialist-input.v2"
+            or plan.get("dynamic_followup_contract") != "context-followup.v1"
+            or plan.get("dynamic_followup_projection") != "context-followup-observation.v3"
+            or plan.get("response_contract") != "specialist-findings.v4"
+            or plan.get("runtime_revision") != CONTEXT_FOLLOWUP_V2_RUNTIME_SHA
+            or plan.get("runtime_module_tree_sha256") != CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256
+            or plan.get("runtime_module_file_count") != len(RUNTIME_MODULE_INVENTORY)
+            or plan.get("primary_parent_plan_sha256") != CONTEXT_FOLLOWUP_V2_PLAN_SHA256
+            or plan.get("primary_input_parent_plan_sha256") != V2_PLAN_SHA256
+            or plan.get("primary_requests_total") != 47
+            or plan.get("primary_serialized_input_bytes_total") != 4_002_927
+            or plan.get("required_obligations_total") != 124
+            or plan.get("max_claim_assessments_per_case") != 4
+            or plan.get("max_retries_per_task") != 0
+            or plan.get("limits") != parent_plan.get("limits")
+            or plan.get("selectors") != ["staged-pr464", "full-three-case"]
+            or plan.get("cases") != parent_plan.get("cases")
+            or plan.get("interpretation") != (
+                "The exact primary descriptors, scope, byte counts, obligations, and limits are inherited from the "
+                "frozen context-followup-v2 plan. This selector adds only the direct-Python "
+                "context-followup-observation.v3 projection. The provider-free prepare workflow and synthetic "
+                "projection check do not establish provider delivery, live context handoff, review quality, semantic "
+                "accuracy, cost, adoption, or production readiness."
+            )
+            or plan.get("projection_limitations") != [
+                "The candidate preparation preserves only exact primary request hashes, identities, and binding metadata; "
+                "it does not retain serialized request bodies or raw source.",
+                "The v3 projection can report persisted handoff bindings; it does not prove provider delivery, model "
+                "consumption, or semantic use.",
+                "Actual provider calls and cost remain UNKNOWN after any provider dispatch unless separate evidence "
+                "establishes them.",
+            ]
+        ):
+            raise TrialError("context_followup_v3_plan_manifest_identity_mismatch")
+        document = dict(parent_document)
+        document.update({
+            "experiment_selector": CONTEXT_FOLLOWUP_V3_SELECTOR,
+            "context_followup_plan_sha256": CONTEXT_FOLLOWUP_V3_PLAN_SHA256,
+            "context_followup_runtime_revision": CONTEXT_FOLLOWUP_V2_RUNTIME_SHA,
+            "context_followup_module_tree_sha256": CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256,
+            "dynamic_followup_contract": "context-followup.v1",
+            "dynamic_followup_projection": "context-followup-observation.v3",
+        })
+        return document, parent_cases
     if input_contract == CONTEXT_FOLLOWUP_V2_SELECTOR:
         v2_document, v2_cases = load_locked_cases("specialist-input-v2")
         plan = read_context_followup_v2_plan()
@@ -718,11 +821,15 @@ def runtime_identity(input_contract: str = "specialist-input-v1") -> tuple[str, 
         return CONTEXT_FOLLOWUP_RUNTIME_SHA, CONTEXT_FOLLOWUP_MODULE_TREE_SHA256
     if input_contract == CONTEXT_FOLLOWUP_V2_SELECTOR:
         return CONTEXT_FOLLOWUP_V2_RUNTIME_SHA, CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256
+    if input_contract == CONTEXT_FOLLOWUP_V3_SELECTOR:
+        return CONTEXT_FOLLOWUP_V2_RUNTIME_SHA, CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256
     raise TrialError("input_contract_invalid")
 
 
 def _uses_v2_primary(input_contract: str) -> bool:
-    return input_contract in {"specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR, CONTEXT_FOLLOWUP_V2_SELECTOR}
+    return input_contract in {
+        "specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR, CONTEXT_FOLLOWUP_V2_SELECTOR, CONTEXT_FOLLOWUP_V3_SELECTOR,
+    }
 
 
 def _primary_input_contract(input_contract: str) -> str:
@@ -730,14 +837,20 @@ def _primary_input_contract(input_contract: str) -> str:
 
 
 def _is_context_followup_experiment(input_contract: str) -> bool:
-    return input_contract in {CONTEXT_FOLLOWUP_SELECTOR, CONTEXT_FOLLOWUP_V2_SELECTOR}
+    return input_contract in {CONTEXT_FOLLOWUP_SELECTOR, CONTEXT_FOLLOWUP_V2_SELECTOR, CONTEXT_FOLLOWUP_V3_SELECTOR}
 
 
 def _is_context_followup_v2(input_contract: str) -> bool:
     return input_contract == CONTEXT_FOLLOWUP_V2_SELECTOR
 
 
+def _is_context_followup_v3(input_contract: str) -> bool:
+    return input_contract == CONTEXT_FOLLOWUP_V3_SELECTOR
+
+
 def _runtime_provenance_version(input_contract: str) -> str:
+    if _is_context_followup_v3(input_contract):
+        return "historical-real-case-runtime.context-followup.v3"
     if _is_context_followup_v2(input_contract):
         return "historical-real-case-runtime.context-followup.v2"
     if _is_context_followup_experiment(input_contract):
@@ -746,6 +859,8 @@ def _runtime_provenance_version(input_contract: str) -> str:
 
 
 def _manifest_schema(input_contract: str) -> str:
+    if _is_context_followup_v3(input_contract):
+        return "historical-real-case-trial-manifest.context-followup.v3"
     if _is_context_followup_v2(input_contract):
         return "historical-real-case-trial-manifest.context-followup.v2"
     if _is_context_followup_experiment(input_contract):
@@ -754,6 +869,8 @@ def _manifest_schema(input_contract: str) -> str:
 
 
 def _plan_identity(input_contract: str) -> str:
+    if _is_context_followup_v3(input_contract):
+        return CONTEXT_FOLLOWUP_V3_PLAN_SHA256
     if _is_context_followup_v2(input_contract):
         return CONTEXT_FOLLOWUP_V2_PLAN_SHA256
     if _is_context_followup_experiment(input_contract):
@@ -762,6 +879,16 @@ def _plan_identity(input_contract: str) -> str:
 
 
 def _experiment_identity_fields(input_contract: str) -> dict[str, Any]:
+    if _is_context_followup_v3(input_contract):
+        return {
+            "experiment_selector": CONTEXT_FOLLOWUP_V3_SELECTOR,
+            "input_contract": "specialist-input.v2",
+            "dynamic_followup_contract": "context-followup.v1",
+            "context_followup_plan_sha256": CONTEXT_FOLLOWUP_V3_PLAN_SHA256,
+            "primary_parent_plan_sha256": CONTEXT_FOLLOWUP_V2_PLAN_SHA256,
+            "primary_input_identity": "FROZEN_V2_DESCRIPTOR_PLAN_SELECTED",
+            "dynamic_followup_projection": "context-followup-observation.v3",
+        }
     if _is_context_followup_v2(input_contract):
         return {
             "experiment_selector": CONTEXT_FOLLOWUP_V2_SELECTOR,
@@ -2110,6 +2237,8 @@ def project_case_for_contract(
     case: dict[str, Any], durable: dict[str, Any], secrets: list[str], input_contract: str
 ) -> dict[str, Any]:
     """Apply only the explicitly versioned projection selected by the experiment."""
+    if _is_context_followup_v3(input_contract):
+        return project_case(case, durable, secrets, include_context_handoff=True)
     if _is_context_followup_v2(input_contract):
         return project_case(case, durable, secrets, include_context_followups=True, include_closure_diagnostics=True)
     if _is_context_followup_experiment(input_contract):
