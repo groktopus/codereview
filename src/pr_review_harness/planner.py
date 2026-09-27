@@ -615,7 +615,8 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                     {
                         "obligation_id": f"check:{check_id}",
                         "obligation_kind": "PROJECT_CHECK",
-                        "reason": check.get("reason", "configured_path_patterns_did_not_match"),
+                        "reason": "configured_path_patterns_did_not_match",
+                        "profile_rationale": check.get("reason"),
                         "state": "NOT_APPLICABLE",
                     }
                 )

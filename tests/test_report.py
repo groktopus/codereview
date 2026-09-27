@@ -71,3 +71,20 @@ def test_report_ignores_malformed_partial_note_containers():
     malformed = result_with_coverage_reason("NO_TEST_SOURCE_SUPPLIED")
     malformed["task_results"]["task-u0"]["payload"]["coverage_notes"] = None
     assert "Specialist reported partial coverage" not in render_report(malformed)
+
+
+def test_not_applicable_check_report_separates_reason_from_profile_rationale():
+    result = result_with_coverage_reason("NO_TEST_SOURCE_SUPPLIED")
+    result["not_applicable"] = [
+        {
+            "obligation_id": "check:portal",
+            "state": "NOT_APPLICABLE",
+            "reason": "configured_path_patterns_did_not_match",
+            "profile_rationale": "trusted profile rationale",
+        }
+    ]
+
+    rendered = render_report(result)
+
+    assert r"check:portal: NOT_APPLICABLE (configured\_path\_patterns\_did\_not\_match)" in rendered
+    assert "profile rationale: trusted profile rationale" in rendered
