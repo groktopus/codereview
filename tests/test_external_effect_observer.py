@@ -423,6 +423,15 @@ def test_full_review_failure_diagnostic_uses_stable_codes_and_no_payload_fields(
     sentinel = "UNTRUSTED_PROVIDER_OR_SOURCE_CONTENT_5f8a"
     result, observation, invocation, calls = _full_review_contract_fixture()
     result["task_results"]["task-security"]["lens"] = sentinel
+    result["task_results"]["task-security"].update(
+        {"status": "FAILED", "attempts": 1, "error_code": "provider_deadline_exceeded"}
+    )
+    result["task_results"]["task-tests"].update(
+        {"status": "INVALID", "attempts": 1, "error_code": sentinel}
+    )
+    result["task_results"]["task-correctness"].update(
+        {"status": "FAILED", "attempts": 1, "error_code": "http_status_504"}
+    )
     result["disposition"] = sentinel
     observation.update(
         {
@@ -447,6 +456,14 @@ def test_full_review_failure_diagnostic_uses_stable_codes_and_no_payload_fields(
     assert summary["observer_trace_bytes"] == observer.TRACE_MAX_BYTES + 1
     assert summary["observed_task_lenses"] == ["correctness", "maintainability", "tests"]
     assert summary["unknown_task_lens_count"] == 1
+    assert summary["task_status_counts"] == {"FAILED": 2, "INVALID": 1, "SUCCEEDED": 1}
+    assert summary["task_error_code_counts"] == {
+        "http_status_5xx": 1,
+        "provider_deadline_exceeded": 1,
+        "other": 1,
+    }
+    assert summary["task_attempts_total"] == 4
+    assert summary["unknown_task_error_count"] == 0
 
 
 def test_full_review_diagnostic_fails_closed_on_malformed_payload_and_envelope():

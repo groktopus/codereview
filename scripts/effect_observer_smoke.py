@@ -103,6 +103,45 @@ _FULL_REVIEW_FAILURE_CODES = {
     "summary_projection_failed",
     "fixture_or_result_processing_failed",
 }
+_TASK_STATUS_VALUES = {
+    "SUCCEEDED",
+    "SKIPPED",
+    "INVALID",
+    "FAILED",
+    "TIMED_OUT",
+    "INTERRUPTED_UNKNOWN",
+    "VALID_UNRESOLVED",
+}
+_TASK_ERROR_CODES = {
+    "other",
+    "CHECK_ADAPTER_UNAVAILABLE",
+    "PROVIDER_UNAVAILABLE",
+    "INPUT_BYTE_LIMIT_EXCEEDED",
+    "INVALID_PROVIDER_ESTIMATE",
+    "WORKER_START_FAILED",
+    "INVALID_PROVIDER_RESULT",
+    "INTERRUPTED_UNKNOWN",
+    "RUN_CONTEXT_BUDGET_EXHAUSTED",
+    "DEADLINE_EXCEEDED",
+    "DEADLINE_EXHAUSTED",
+    "request_exceeds_limit",
+    "credential_unavailable",
+    "provider_deadline_exceeded",
+    "transport_failed",
+    "malformed_provider_response",
+    "malformed_native_response",
+    "model_identity_missing",
+    "model_identity_mismatch",
+    "unsupported_primitive",
+    "unsupported_task_kind",
+    "invalid_specialist_result",
+    "model_output_incomplete",
+    "assessment_references_unknown_evidence",
+    "response_exceeds_limit",
+    "response_invalid",
+    "http_status_4xx",
+    "http_status_5xx",
+}
 _ACTION_EVENT_ENV = ("GITHUB_EVENT_PATH", "GITHUB_REPOSITORY", "GITHUB_RUN_ID")
 
 
@@ -290,6 +329,23 @@ def _full_review_failure_code(
     return None
 
 
+def _safe_task_error_bucket(value: object) -> str:
+    """Classify only known provider/engine codes; never echo an exception string."""
+    if not isinstance(value, str):
+        return "other"
+    if value in _TASK_ERROR_CODES:
+        return value
+    if value.startswith("http_status_"):
+        status = value[len("http_status_") :]
+        if len(status) == 3 and status.isascii() and status.isdigit():
+            number = int(status)
+            if 400 <= number <= 499:
+                return "http_status_4xx"
+            if 500 <= number <= 599:
+                return "http_status_5xx"
+    return "other"
+
+
 def _bounded_full_review_failure(
     failure_code: str,
     result: dict | None,
@@ -310,6 +366,29 @@ def _bounded_full_review_failure(
     budget = result.get("budget", {}) if isinstance(result, dict) else {}
     safe_task_rows = [item for item in tasks.values() if isinstance(item, dict)] if isinstance(tasks, dict) else []
     safe_coverage_rows = [item for item in coverage if isinstance(item, dict)] if isinstance(coverage, list) else []
+    task_status_counts = {status: 0 for status in sorted(_TASK_STATUS_VALUES)}
+    task_error_counts = {code: 0 for code in sorted(_TASK_ERROR_CODES)}
+    unknown_task_status_count = 0
+    unknown_task_error_count = 0
+    total_task_attempts = 0
+    unknown_task_attempt_count = 0
+    for item in safe_task_rows:
+        status = item.get("status")
+        if isinstance(status, str) and status in task_status_counts:
+            task_status_counts[status] += 1
+        else:
+            unknown_task_status_count += 1
+        if status != "SUCCEEDED":
+            error_code = _safe_task_error_bucket(item.get("error_code"))
+            if error_code in task_error_counts:
+                task_error_counts[error_code] += 1
+            else:
+                unknown_task_error_count += 1
+        attempts = item.get("attempts")
+        if isinstance(attempts, int) and not isinstance(attempts, bool) and 0 <= attempts <= 8:
+            total_task_attempts += attempts
+        else:
+            unknown_task_attempt_count += 1
     observer_reason = observation.get("reason")
     invocation_status = invocation.get("run_status")
     return {
@@ -328,6 +407,12 @@ def _bounded_full_review_failure(
         "cli_result_available": isinstance(result, dict),
         "task_result_rows": len(safe_task_rows),
         "succeeded_task_rows": sum(item.get("status") == "SUCCEEDED" for item in safe_task_rows),
+        "task_status_counts": {key: value for key, value in task_status_counts.items() if value},
+        "unknown_task_status_count": unknown_task_status_count,
+        "task_error_code_counts": {key: value for key, value in task_error_counts.items() if value},
+        "unknown_task_error_count": unknown_task_error_count,
+        "task_attempts_total": total_task_attempts,
+        "unknown_task_attempt_count": unknown_task_attempt_count,
         "observed_task_lenses": sorted(
             {
                 item.get("lens")
