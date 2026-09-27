@@ -28,6 +28,7 @@ on:
           - specialist-input-v1
           - specialist-input-v2
           - specialist-input-v2-context-followup-v1
+          - specialist-input-v2-context-followup-v2
 
 permissions:
   contents: read
@@ -102,6 +103,7 @@ jobs:
               "specialist-input-v1": ("ed7aa8b82f8d0c8deee03b6f99d8f4f599529301", "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3", ""),
               "specialist-input-v2": ("5873c3f1b297a96c49b78cbcb7be674ab70b3cea", "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4", "-v2"),
               "specialist-input-v2-context-followup-v1": ("37d9896b229d08a925ddd726eb1bd7e6b5b489a3", "eaacdfce96354925414ca8c547c4fd87f0bf5b4b7862bbdfb910870db45afdf1", "-context-followup-v1"),
+              "specialist-input-v2-context-followup-v2": ("7c89ad17327b8f0ed4fc381bf5c93255fd4e548e", "c5b7c4e43aeddfad55bbcfdcb9e07c4a89fd0b6a3a263a31f046c8852dd8838a", "-context-followup-v2"),
           }
           contract = os.environ.get("INPUT_CONTRACT", "")
           selected = pins.get(contract)
