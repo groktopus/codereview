@@ -410,7 +410,7 @@ def test_invalid_or_alias_mismatched_native_request_fails_before_dispatch(server
     assert FakeTypeSafeHandler.seen == []
 
 
-@pytest.mark.parametrize("source_kind", ["diff", "base_file", "head_file", "profile_context"])
+@pytest.mark.parametrize("source_kind", ["diff", "base_file", "head_file", "source_window", "profile_context"])
 def test_transport_preflights_snapshot_collector_source_kinds_without_remapping(servers, source_kind):
     _reset_server()
     endpoint, _ = servers
@@ -422,6 +422,20 @@ def test_transport_preflights_snapshot_collector_source_kinds_without_remapping(
         {"max_input_bytes_per_task": 64_000, "max_output_bytes_per_task": 8_000, "deadline_seconds": 1},
     )
     assert quote["input_bytes"] == len(raw)
+    assert FakeTypeSafeHandler.seen == []
+
+
+def test_transport_preflight_rejects_unknown_evidence_source_kind(servers):
+    _reset_server()
+    endpoint, _ = servers
+    request = json.loads(_request())
+    request["state"]["cited_evidence"][0]["source_kind"] = "invented_window"
+    raw = json.dumps(request, separators=(",", ":")).encode()
+    with pytest.raises(ProviderError, match="invalid_claim_evidence"):
+        _transport(endpoint).estimate_call(
+            raw,
+            {"max_input_bytes_per_task": 64_000, "max_output_bytes_per_task": 8_000, "deadline_seconds": 1},
+        )
     assert FakeTypeSafeHandler.seen == []
 
 
