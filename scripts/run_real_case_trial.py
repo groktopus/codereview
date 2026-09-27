@@ -35,7 +35,14 @@ V2_PREPARATION_MANIFEST_SHA256 = "c83715789fbb1892c6fddcd380d0506bec73f2b75304b1
 V2_PREPARATION_VERIFICATION_SHA256 = "86594df8c3dd0a5b2c1c12b1c87fa2b667307065e87bc77a7d0c8c67cedbce82"
 V2_PLAN_PATH = ROOT / "docs" / "real-case-trial-v2" / "manifest.json"
 V2_PLAN_SHA256 = "b8958c589fc49d7beeb4e3b5530c0c99d385bd40cee8b124cdf395090a0c3322"
-INPUT_CONTRACTS = ("specialist-input-v1", "specialist-input-v2")
+CONTEXT_FOLLOWUP_RUNTIME_SHA = "37d9896b229d08a925ddd726eb1bd7e6b5b489a3"
+CONTEXT_FOLLOWUP_MODULE_TREE_SHA256 = "eaacdfce96354925414ca8c547c4fd87f0bf5b4b7862bbdfb910870db45afdf1"
+CONTEXT_FOLLOWUP_PLAN_PATH = ROOT / "docs" / "real-case-trial-context-followup-v1" / "manifest.json"
+CONTEXT_FOLLOWUP_PLAN_SHA256 = "9daf5f1688d21f7a89287d8c813fafb1f9ade67b8776ce31ed6dcbae212427f0"
+CONTEXT_FOLLOWUP_SELECTOR = "specialist-input-v2-context-followup-v1"
+CONTEXT_FOLLOWUP_TREE_PROOF_SHA256 = "cff87be824d59a8673e9c8b672c0704e1c1da27e441929a48f9e7ba4e6192018"
+CONTEXT_FOLLOWUP_PRIMARY_PROOF_SHA256 = "1505b8ac9f8511b1b6f9da4482e771fb1ec4c4b5229ea1c0515f5a23b60d54d1"
+INPUT_CONTRACTS = ("specialist-input-v1", "specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR)
 RUNTIME_MODULE_INVENTORY = (
     "__init__.py",
     "__main__.py",
@@ -136,6 +143,41 @@ def read_v2_plan() -> dict[str, Any]:
     return value
 
 
+def read_context_followup_plan() -> dict[str, Any]:
+    """Read the separately frozen dynamic-contract experiment plan."""
+    try:
+        if (
+            CONTEXT_FOLLOWUP_PLAN_PATH.is_symlink()
+            or not CONTEXT_FOLLOWUP_PLAN_PATH.is_file()
+            or CONTEXT_FOLLOWUP_PLAN_PATH.stat().st_size > 128_000
+        ):
+            raise TrialError("context_followup_plan_manifest_limit_exceeded")
+        raw = CONTEXT_FOLLOWUP_PLAN_PATH.read_bytes()
+        if sha256(raw) != CONTEXT_FOLLOWUP_PLAN_SHA256:
+            raise TrialError("context_followup_plan_manifest_hash_mismatch")
+
+        def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("duplicate_json_key")
+                result[key] = value
+            return result
+
+        value = json.loads(
+            raw.decode("utf-8", errors="strict"),
+            object_pairs_hook=unique_object,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("non_finite_json_number")),
+        )
+    except TrialError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+        raise TrialError("context_followup_plan_manifest_invalid") from None
+    if not isinstance(value, dict):
+        raise TrialError("context_followup_plan_manifest_invalid")
+    return value
+
+
 def read_result(path: Path) -> dict[str, Any]:
     try:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > 8_000_000:
@@ -185,6 +227,78 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
     """Load one immutable input-contract plan; v1 remains the default."""
     if input_contract == "specialist-input-v1":
         return _load_locked_cases_v1()
+    if input_contract == CONTEXT_FOLLOWUP_SELECTOR:
+        v2_document, v2_cases = load_locked_cases("specialist-input-v2")
+        plan = read_context_followup_plan()
+        fields = {
+            "schema", "status", "experiment_id", "input_contract", "dynamic_followup_contract",
+            "response_contract", "runtime_revision", "runtime_module_tree_sha256", "runtime_module_file_count",
+            "primary_parent_plan_sha256", "prior_provider_free_primary_identity_proof_sha256",
+            "prior_installed_module_proof_sha256", "cases", "primary_requests_total",
+            "primary_serialized_input_bytes_total", "required_obligations_total",
+            "max_claim_assessments_per_case", "max_retries_per_task", "limits", "selectors",
+            "interpretation", "projection_limitations",
+        }
+        if set(plan) != fields:
+            raise TrialError("context_followup_plan_manifest_shape_invalid")
+        if (
+            plan.get("schema") != "historical-real-case-context-followup-input-plan.v1"
+            or plan.get("status") != "FROZEN_PRIMARY_IDENTITY_BASIS_PROVIDER_FREE"
+            or plan.get("experiment_id") != "historical-context-followup-v1"
+            or plan.get("input_contract") != "specialist-input.v2"
+            or plan.get("dynamic_followup_contract") != "context-followup.v1"
+            or plan.get("response_contract") != "specialist-findings.v4"
+            or plan.get("runtime_revision") != CONTEXT_FOLLOWUP_RUNTIME_SHA
+            or plan.get("runtime_module_tree_sha256") != CONTEXT_FOLLOWUP_MODULE_TREE_SHA256
+            or plan.get("runtime_module_file_count") != len(RUNTIME_MODULE_INVENTORY)
+            or plan.get("primary_parent_plan_sha256") != V2_PLAN_SHA256
+            or plan.get("prior_provider_free_primary_identity_proof_sha256") != CONTEXT_FOLLOWUP_PRIMARY_PROOF_SHA256
+            or plan.get("prior_installed_module_proof_sha256") != CONTEXT_FOLLOWUP_TREE_PROOF_SHA256
+            or plan.get("primary_requests_total") != 47
+            or plan.get("primary_serialized_input_bytes_total") != 4_002_927
+            or plan.get("required_obligations_total") != 124
+            or plan.get("max_claim_assessments_per_case") != 4
+            or plan.get("max_retries_per_task") != 0
+            or plan.get("limits") != limits_for(64)
+            or plan.get("selectors") != ["staged-pr464", "full-three-case"]
+            or plan.get("interpretation") != (
+                "Fixed primary input identity is inherited from and must match the frozen specialist-input.v2 plan exactly. "
+                "The runtime source and dynamic follow-up contract are new. This plan is not hosted prepare evidence and "
+                "makes no provider, coverage, quality, accuracy, adoption, or production-readiness claim."
+            )
+        ):
+            raise TrialError("context_followup_plan_manifest_identity_mismatch")
+        expected_plan_cases = [
+            {
+                "case_id": case["case_id"],
+                "base_sha": case["base_sha"],
+                "head_sha": case["head_sha"],
+                "mode": case["mode"],
+                "profile_sha256": case["profile_sha256"],
+                "checks_sha256": case["checks_sha256"],
+                "snapshot_hash": case["snapshot_hash"],
+                "evidence_index_sha256": case["evidence_index_sha256"],
+                "scope_count": case["expected_scope_count"],
+                "scope_sha256": case["expected_scope_sha256"],
+                "primary_request_count": case["expected_primary_count"],
+                "primary_serialized_input_bytes": case["expected_primary_serialized_input_bytes"],
+                "primary_descriptor_sha256": case["expected_primary_descriptor_sha256"],
+            }
+            for case in v2_cases
+        ]
+        if plan.get("cases") != expected_plan_cases:
+            raise TrialError("context_followup_plan_primary_binding_mismatch")
+        document = dict(v2_document)
+        document.update(
+            {
+                "experiment_selector": CONTEXT_FOLLOWUP_SELECTOR,
+                "context_followup_plan_sha256": CONTEXT_FOLLOWUP_PLAN_SHA256,
+                "context_followup_runtime_revision": CONTEXT_FOLLOWUP_RUNTIME_SHA,
+                "context_followup_module_tree_sha256": CONTEXT_FOLLOWUP_MODULE_TREE_SHA256,
+                "dynamic_followup_contract": "context-followup.v1",
+            }
+        )
+        return document, v2_cases
     if input_contract != "specialist-input-v2":
         raise TrialError("input_contract_invalid")
 
@@ -462,7 +576,47 @@ def runtime_identity(input_contract: str = "specialist-input-v1") -> tuple[str, 
         return RUNTIME_SHA, RUNTIME_MODULE_TREE_SHA256
     if input_contract == "specialist-input-v2":
         return V2_RUNTIME_SHA, V2_RUNTIME_MODULE_TREE_SHA256
+    if input_contract == CONTEXT_FOLLOWUP_SELECTOR:
+        return CONTEXT_FOLLOWUP_RUNTIME_SHA, CONTEXT_FOLLOWUP_MODULE_TREE_SHA256
     raise TrialError("input_contract_invalid")
+
+
+def _uses_v2_primary(input_contract: str) -> bool:
+    return input_contract in {"specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR}
+
+
+def _primary_input_contract(input_contract: str) -> str:
+    return "specialist-input-v2" if _uses_v2_primary(input_contract) else "specialist-input-v1"
+
+
+def _is_context_followup_experiment(input_contract: str) -> bool:
+    return input_contract == CONTEXT_FOLLOWUP_SELECTOR
+
+
+def _manifest_schema(input_contract: str) -> str:
+    if _is_context_followup_experiment(input_contract):
+        return "historical-real-case-trial-manifest.context-followup.v1"
+    return "historical-real-case-trial-manifest.v2" if _uses_v2_primary(input_contract) else "historical-real-case-trial-manifest.v1"
+
+
+def _plan_identity(input_contract: str) -> str:
+    if _is_context_followup_experiment(input_contract):
+        return CONTEXT_FOLLOWUP_PLAN_SHA256
+    return V2_PLAN_SHA256 if input_contract == "specialist-input-v2" else FROZEN_PLAN_MANIFEST_SHA256
+
+
+def _experiment_identity_fields(input_contract: str) -> dict[str, Any]:
+    if _is_context_followup_experiment(input_contract):
+        return {
+            "experiment_selector": CONTEXT_FOLLOWUP_SELECTOR,
+            "input_contract": "specialist-input.v2",
+            "dynamic_followup_contract": "context-followup.v1",
+            "context_followup_plan_sha256": CONTEXT_FOLLOWUP_PLAN_SHA256,
+            "primary_parent_plan_sha256": V2_PLAN_SHA256,
+            "primary_input_identity": "FROZEN_V2_DESCRIPTOR_PLAN_SELECTED",
+            "dynamic_followup_projection": "LIMITED_TO_FIELDS_EXPOSED_BY_EXISTING_SANITIZED_PROJECTION",
+        }
+    return {"input_contract": "specialist-input-v2"} if input_contract == "specialist-input-v2" else {}
 
 
 def verify_runtime(
@@ -952,6 +1106,328 @@ def validate_prepare_v2(
                 raise TrialError("prepared_unit_evidence_binding_invalid")
 
 
+_FOLLOWUP_TASK_STATUSES = frozenset({"SUCCEEDED", "FAILED", "TIMED_OUT", "SKIPPED", "INTERRUPTED_UNKNOWN", "INVALID"})
+_FOLLOWUP_COVERAGE_STATES = frozenset({"COMPLETE", "PARTIAL", "NOT_STARTED"})
+_FOLLOWUP_SETTLEMENT_STATUSES = frozenset({"SUCCEEDED", "FAILED", "TIMED_OUT", "INVALID", "INTERRUPTED_UNKNOWN", "NOT_RUN"})
+_FOLLOWUP_LENSES = frozenset({"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"})
+_FOLLOWUP_TARGET_KINDS = frozenset({"unit", "path", "symbol"})
+_FOLLOWUP_LINK_STATES = frozenset({"PERSISTED_RECORDS_MATCH", "PERSISTED_RECORDS_MISMATCH", "UNKNOWN"})
+
+
+def _bounded_object_hash(value: Any, max_bytes: int = 64_000) -> str | None:
+    try:
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode()
+    except (TypeError, ValueError, RecursionError):
+        return None
+    return sha256(raw) if len(raw) <= max_bytes else None
+
+
+def _safe_followup_id(value: Any) -> str:
+    return value if isinstance(value, str) and _CLAIM_DIMENSION_ID.fullmatch(value) else "UNKNOWN"
+
+
+def _safe_followup_enum(value: Any, allowed: frozenset[str]) -> str:
+    return value if isinstance(value, str) and value in allowed else "UNKNOWN"
+
+
+def _project_context_followups(durable: dict[str, Any]) -> dict[str, Any]:
+    """Project only bounded persisted follow-up metadata and ledger observations."""
+    ledger = durable.get("ledger")
+    if not isinstance(ledger, dict):
+        return {"schema": "context-followup-observation.v1", "projection_state": "UNKNOWN", "reason": "LEDGER_NOT_SHOWN"}
+    dynamic = ledger.get("dynamic_tasks")
+    planned = ledger.get("planned_task_inputs")
+    outputs = durable.get("task_results")
+    gaps = durable.get("context_gaps")
+    coverage = durable.get("coverage_ledger")
+    budget_state = ledger.get("budget")
+    if not all(isinstance(value, expected) for value, expected in (
+        (dynamic, list), (planned, dict), (outputs, dict), (gaps, list), (coverage, list), (budget_state, dict)
+    )):
+        return {"schema": "context-followup-observation.v1", "projection_state": "UNKNOWN", "reason": "DYNAMIC_LEDGER_FIELDS_NOT_SHOWN"}
+
+    tasks = [
+        item for item in dynamic
+        if isinstance(item, dict) and ("context_followup" in item or isinstance(item.get("context_gap_followup_for"), str))
+    ]
+    gap_task_count = sum(1 for item in gaps if isinstance(item, dict) and isinstance(item.get("followup_task_id"), str))
+    reservation_map = budget_state.get("reservations")
+    settlement_map = budget_state.get("settlements")
+    budget_maps_valid = isinstance(reservation_map, dict) and isinstance(settlement_map, dict)
+    if not isinstance(reservation_map, dict):
+        reservation_map = {}
+    if not isinstance(settlement_map, dict):
+        settlement_map = {}
+    gap_by_id: dict[str, dict[str, Any]] = {}
+    duplicate_gap_ids: set[str] = set()
+    for item in gaps:
+        key = item.get("proposal_id") if isinstance(item, dict) else None
+        if isinstance(key, str):
+            if key in gap_by_id:
+                duplicate_gap_ids.add(key)
+            gap_by_id[key] = item
+    coverage_by_id: dict[str, dict[str, Any]] = {}
+    duplicate_coverage_ids: set[str] = set()
+    for item in coverage:
+        key = item.get("obligation_id") if isinstance(item, dict) else None
+        if isinstance(key, str):
+            if key in coverage_by_id:
+                duplicate_coverage_ids.add(key)
+            coverage_by_id[key] = item
+    partial = len(tasks) != gap_task_count or len(tasks) > 8 or bool(duplicate_gap_ids or duplicate_coverage_ids)
+    rows: list[dict[str, Any]] = []
+    for task in tasks[:8]:
+        task_id = task.get("task_id")
+        safe_task_id = _safe_followup_id(task_id)
+        task_input = planned.get(task_id) if isinstance(task_id, str) else None
+        task_output = outputs.get(task_id) if isinstance(task_id, str) else None
+        metadata = task.get("context_followup")
+        input_metadata = task_input.get("context_followup") if isinstance(task_input, dict) else None
+        output_metadata = task_output.get("context_followup") if isinstance(task_output, dict) else None
+        metadata_hash = _bounded_object_hash(metadata) if isinstance(metadata, dict) else None
+        target = metadata.get("target") if isinstance(metadata, dict) else None
+        target_kind = target.get("kind") if isinstance(target, dict) else None
+        target_hash = _bounded_object_hash(target.get("value")) if isinstance(target, dict) and "value" in target else None
+        rationale_hash = _bounded_object_hash(metadata.get("rationale")) if isinstance(metadata, dict) else None
+        retrieved_ids = metadata.get("retrieved_evidence_ids") if isinstance(metadata, dict) else None
+        metadata_shape_valid = (
+            metadata_hash is not None
+            and metadata.get("contract_version") == "context-followup.v1"
+            and _safe_followup_id(metadata.get("proposal_id")) != "UNKNOWN"
+            and _safe_followup_id(metadata.get("parent_task_id")) != "UNKNOWN"
+            and _safe_followup_id(metadata.get("followup_obligation_id")) != "UNKNOWN"
+            and isinstance(metadata.get("required_lens"), str) and metadata.get("required_lens") in _FOLLOWUP_LENSES
+            and isinstance(target, dict) and set(target) == {"kind", "value"}
+            and isinstance(target_kind, str) and target_kind in _FOLLOWUP_TARGET_KINDS
+            and isinstance(target.get("value"), str) and target_hash is not None and rationale_hash is not None
+            and isinstance(metadata.get("rationale"), str)
+            and isinstance(retrieved_ids, list) and len(retrieved_ids) <= 100
+            and all(_safe_followup_id(value) != "UNKNOWN" for value in retrieved_ids)
+            and len(set(retrieved_ids)) == len(retrieved_ids)
+        )
+        metadata_copies_present = all(isinstance(value, dict) for value in (metadata, input_metadata, output_metadata))
+        if metadata_shape_valid and metadata_copies_present and metadata == input_metadata == output_metadata:
+            metadata_binding = "PERSISTED_RECORDS_MATCH"
+        elif metadata_shape_valid and metadata_copies_present:
+            metadata_binding = "PERSISTED_RECORDS_MISMATCH"
+            partial = True
+        else:
+            metadata_binding = "UNKNOWN"
+            partial = True
+
+        task_bindings = task.get("unit_evidence_bindings")
+        input_bindings = task_input.get("unit_evidence_bindings") if isinstance(task_input, dict) else None
+        output_bindings = task_output.get("unit_evidence_bindings") if isinstance(task_output, dict) else None
+        bindings_valid = (
+            isinstance(task_bindings, list)
+            and len(task_bindings) <= 100
+            and all(
+                isinstance(item, dict)
+                and set(item) == {"unit_id", "binding_status", "evidence_ids"}
+                and _safe_followup_id(item.get("unit_id")) != "UNKNOWN"
+                and isinstance(item.get("binding_status"), str)
+                and item.get("binding_status") in {"VERIFIED", "UNKNOWN"}
+                and isinstance(item.get("evidence_ids"), list)
+                and len(item["evidence_ids"]) <= 100
+                and all(_safe_followup_id(ref) != "UNKNOWN" for ref in item["evidence_ids"])
+                for item in task_bindings
+            )
+        )
+        binding_hash = _bounded_object_hash(task_bindings) if bindings_valid else None
+        bindings_copies_present = all(isinstance(value, list) for value in (task_bindings, input_bindings, output_bindings))
+        if bindings_valid and bindings_copies_present and task_bindings == input_bindings == output_bindings:
+            unit_binding = "PERSISTED_RECORDS_MATCH"
+        elif bindings_valid and bindings_copies_present:
+            unit_binding = "PERSISTED_RECORDS_MISMATCH"
+            partial = True
+        else:
+            unit_binding = "UNKNOWN"
+            partial = True
+
+        proposal_id = metadata.get("proposal_id") if isinstance(metadata, dict) else None
+        gap = gap_by_id.get(proposal_id) if isinstance(proposal_id, str) and proposal_id not in duplicate_gap_ids else None
+        task_gap_marker = task.get("context_gap_followup_for")
+        gap_task_id = gap.get("followup_task_id") if isinstance(gap, dict) else None
+        if (
+            isinstance(proposal_id, str)
+            and isinstance(task_id, str)
+            and isinstance(task_gap_marker, str)
+            and isinstance(gap_task_id, str)
+            and isinstance(gap, dict)
+        ):
+            gap_linkage = (
+                "PERSISTED_RECORDS_MATCH"
+                if task_gap_marker == proposal_id and gap_task_id == task_id
+                else "PERSISTED_RECORDS_MISMATCH"
+            )
+            if gap_linkage != "PERSISTED_RECORDS_MATCH":
+                partial = True
+        else:
+            gap_linkage = "UNKNOWN"
+            partial = True
+        gap_ids = gap.get("retrieved_evidence_ids") if isinstance(gap, dict) else None
+        if (
+            metadata_shape_valid
+            and gap_linkage == "PERSISTED_RECORDS_MATCH"
+            and isinstance(gap_ids, list)
+            and isinstance(retrieved_ids, list)
+        ):
+            retrieval_binding = "PERSISTED_IDS_MATCH" if gap_ids == retrieved_ids else "PERSISTED_IDS_MISMATCH"
+            if retrieval_binding == "PERSISTED_IDS_MISMATCH":
+                partial = True
+        else:
+            retrieval_binding = "UNKNOWN"
+        if retrieval_binding == "UNKNOWN":
+            partial = True
+        obligation_id = metadata.get("followup_obligation_id") if isinstance(metadata, dict) else None
+        obligation = (
+            coverage_by_id.get(obligation_id)
+            if isinstance(obligation_id, str) and obligation_id not in duplicate_coverage_ids
+            else None
+        )
+        obligation_task_ids = obligation.get("task_ids") if isinstance(obligation, dict) else None
+        obligation_binding_fields_valid = (
+            isinstance(obligation, dict)
+            and isinstance(obligation.get("obligation_id"), str)
+            and isinstance(obligation.get("obligation_kind"), str)
+            and isinstance(obligation.get("context_gap_id"), str)
+            and isinstance(obligation_task_ids, list)
+            and len(obligation_task_ids) <= 100
+            and all(isinstance(value, str) for value in obligation_task_ids)
+        )
+        if obligation_binding_fields_valid:
+            obligation_binding = (
+                "PERSISTED_RECORDS_MATCH"
+                if obligation.get("obligation_id") == obligation_id
+                and obligation.get("obligation_kind") == "REQUIRED_CONTEXT"
+                and obligation.get("context_gap_id") == proposal_id
+                and isinstance(task_id, str)
+                and task_id in obligation_task_ids
+                else "PERSISTED_RECORDS_MISMATCH"
+            )
+            if obligation_binding != "PERSISTED_RECORDS_MATCH":
+                partial = True
+        else:
+            obligation_binding = "UNKNOWN"
+            partial = True
+        coverage_state = _safe_followup_enum(
+            obligation.get("state") if obligation_binding == "PERSISTED_RECORDS_MATCH" else None,
+            _FOLLOWUP_COVERAGE_STATES,
+        )
+        if coverage_state == "UNKNOWN":
+            partial = True
+
+        input_evidence_ids = task_output.get("input_evidence_ids") if isinstance(task_output, dict) else None
+        input_evidence_valid = (
+            isinstance(input_evidence_ids, list)
+            and len(input_evidence_ids) <= 100
+            and all(_safe_followup_id(value) != "UNKNOWN" for value in input_evidence_ids)
+        )
+        if not input_evidence_valid:
+            partial = True
+
+        outcome_status = _safe_followup_enum(task_output.get("status") if isinstance(task_output, dict) else None, _FOLLOWUP_TASK_STATUSES)
+        if outcome_status == "UNKNOWN":
+            partial = True
+        provenance = task_output.get("provenance") if isinstance(task_output, dict) else None
+        request_hash = provenance.get("request_hash") if isinstance(provenance, dict) else None
+        response_hash = provenance.get("response_hash") if isinstance(provenance, dict) else None
+        if not (isinstance(request_hash, str) and _CLAIM_DIMENSION_HASH.fullmatch(request_hash)):
+            request_hash = "UNKNOWN"
+        if not (isinstance(response_hash, str) and _CLAIM_DIMENSION_HASH.fullmatch(response_hash)):
+            response_hash = "UNKNOWN"
+        http_status = provenance.get("http_status") if isinstance(provenance, dict) else None
+        if not (isinstance(http_status, int) and not isinstance(http_status, bool) and 100 <= http_status <= 599):
+            http_status = "UNKNOWN"
+
+        reservation_keys = [key for key in reservation_map if isinstance(key, str) and isinstance(task_id, str) and key.startswith(task_id + ":review:")]
+        reserved_calls = 0
+        reservations_with_settlement = 0
+        settlement_statuses: list[str] = []
+        row_budget_valid = budget_maps_valid
+        for key in reservation_keys:
+            reservation = reservation_map.get(key)
+            count = reservation.get("provider_calls") if isinstance(reservation, dict) else None
+            if not (isinstance(count, int) and not isinstance(count, bool) and 0 <= count <= 1):
+                row_budget_valid = False
+                continue
+            reserved_calls += count
+            settlement = settlement_map.get(key)
+            if isinstance(settlement, dict):
+                status = _safe_followup_enum(settlement.get("status"), _FOLLOWUP_SETTLEMENT_STATUSES)
+                if status == "UNKNOWN":
+                    row_budget_valid = False
+                else:
+                    settlement_statuses.append(status)
+                    reservations_with_settlement += count
+            else:
+                settlement_statuses.append("UNSETTLED")
+        if not row_budget_valid:
+            partial = True
+
+        rows.append({
+            "task_id": safe_task_id,
+            "proposal_id": _safe_followup_id(proposal_id),
+            "parent_task_id": _safe_followup_id(metadata.get("parent_task_id") if isinstance(metadata, dict) else None),
+            "followup_obligation_id": _safe_followup_id(obligation_id),
+            "contract_version": "context-followup.v1" if isinstance(metadata, dict) and metadata.get("contract_version") == "context-followup.v1" else "UNKNOWN",
+            "metadata_contract_validation": "NOT_ASSESSED",
+            "required_lens": _safe_followup_enum(metadata.get("required_lens") if isinstance(metadata, dict) else None, _FOLLOWUP_LENSES),
+            "target_kind": target_kind if isinstance(target_kind, str) and target_kind in _FOLLOWUP_TARGET_KINDS else "UNKNOWN",
+            "metadata_sha256": metadata_hash or "UNKNOWN",
+            "target_value_sha256": target_hash or "UNKNOWN",
+            "rationale_sha256": rationale_hash or "UNKNOWN",
+            "persisted_metadata_binding": metadata_binding,
+            "unit_evidence_binding_sha256": binding_hash or "UNKNOWN",
+            "persisted_unit_binding": unit_binding,
+            "unit_binding_count": len(task_bindings) if bindings_valid else "UNKNOWN",
+            "unit_binding_evidence_count": sum(len(item["evidence_ids"]) for item in task_bindings) if bindings_valid else "UNKNOWN",
+            "dispatched_input_evidence_count": len(input_evidence_ids) if input_evidence_valid else "UNKNOWN",
+            "dispatched_input_evidence_ids_sha256": _bounded_object_hash(input_evidence_ids) if input_evidence_valid else "UNKNOWN",
+            "persisted_gap_task_binding": _safe_followup_enum(gap_linkage, _FOLLOWUP_LINK_STATES),
+            "retrieved_evidence_count": len(retrieved_ids) if isinstance(retrieved_ids, list) else "UNKNOWN",
+            "retrieved_evidence_ids_sha256": _bounded_object_hash(retrieved_ids) if isinstance(retrieved_ids, list) else "UNKNOWN",
+            "persisted_retrieval_binding": retrieval_binding,
+            "retrieval_status": _safe_followup_enum(gap.get("retrieval_status") if isinstance(gap, dict) else None, frozenset({"RESOLVED", "PARTIAL", "UNRESOLVED"})),
+            "task_status": outcome_status,
+            "persisted_obligation_binding": _safe_followup_enum(obligation_binding, _FOLLOWUP_LINK_STATES),
+            "coverage_state": coverage_state,
+            "adapter_request_hash": request_hash,
+            "adapter_response_hash": response_hash,
+            "adapter_http_status": http_status,
+            "delivery_binding": "UNKNOWN",
+            "provider_calls_reserved": reserved_calls if row_budget_valid else "UNKNOWN",
+            "provider_call_reservations_with_settlement": reservations_with_settlement if row_budget_valid else "UNKNOWN",
+            "actual_provider_calls": "UNKNOWN",
+            "reservation_count": len(reservation_keys) if row_budget_valid else "UNKNOWN",
+            "settlement_count": sum(1 for key in reservation_keys if key in settlement_map) if row_budget_valid else "UNKNOWN",
+            "settlement_statuses": sorted(set(settlement_statuses)) if row_budget_valid else ["UNKNOWN"],
+        })
+    if not tasks:
+        projection_state = "NO_FOLLOWUP_TASKS_RECORDED" if gap_task_count == 0 else "PARTIAL"
+    else:
+        projection_state = "PARTIAL" if partial else "OBSERVED_WITH_LIMITATIONS"
+    return {
+        "schema": "context-followup-observation.v1",
+        "projection_state": projection_state,
+        "observed_followup_task_count": len(tasks),
+        "projected_followup_task_count": len(rows),
+        "omitted_followup_task_count": max(0, len(tasks) - len(rows)),
+        "retrieval_followup_link_count": gap_task_count,
+        "rows": rows,
+        "delivery_binding": "UNKNOWN",
+        "limitations": [
+            "PERSISTED_METADATA_MATCH_DOES_NOT_PROVE_DISPATCH",
+            "METADATA_CONTRACT_VALIDATION_NOT_PERFORMED",
+            "FOLLOWUP_REQUEST_BODY_NOT_RETAINED",
+            "PERSISTED_RETRIEVAL_ID_MATCH_DOES_NOT_PROVE_DELIVERY",
+            "PERSISTED_GAP_AND_OBLIGATION_LINKS_ARE_STRUCTURAL_ONLY",
+            "BUDGET_SETTLEMENT_IS_NOT_ACTUAL_PROVIDER_CALL_RECEIPT",
+            "TASK_SUCCESS_DOES_NOT_PROVE_REQUIRED_CONTEXT_COVERAGE",
+        ],
+    }
+
+
 def primary_receipts(prepared: dict[str, Any], input_contract: str = "specialist-input-v1") -> Any:
     value = prepared["value"]
     snapshot = value["snapshot"]
@@ -999,9 +1475,10 @@ def primary_receipts(prepared: dict[str, Any], input_contract: str = "specialist
 
 def _primary_receipts_for_contract(prepared: dict[str, Any], input_contract: str) -> Any:
     # Keep the historical v1 call shape stable for existing integrations.
-    if input_contract == "specialist-input-v1":
+    primary_contract = _primary_input_contract(input_contract)
+    if primary_contract == "specialist-input-v1":
         return primary_receipts(prepared)
-    return primary_receipts(prepared, input_contract)
+    return primary_receipts(prepared, primary_contract)
 
 
 def _scan(value: Any, secrets: list[str], limit: int = OUTPUT_CAP) -> bytes:
@@ -1025,7 +1502,9 @@ def _scan(value: Any, secrets: list[str], limit: int = OUTPUT_CAP) -> bytes:
     return raw
 
 
-def project_case(case: dict[str, Any], durable: dict[str, Any], secrets: list[str]) -> dict[str, Any]:
+def project_case(
+    case: dict[str, Any], durable: dict[str, Any], secrets: list[str], *, include_context_followups: bool = False
+) -> dict[str, Any]:
     findings = durable.get("findings")
     records = durable.get("ledger", {}).get("candidate_records") if isinstance(durable.get("ledger"), dict) else None
     if not isinstance(records, list):
@@ -1120,6 +1599,8 @@ def project_case(case: dict[str, Any], durable: dict[str, Any], secrets: list[st
         "snapshot_gaps": _project_snapshot_gaps(durable.get("snapshot_gaps")),
         "evidence_index": _project_evidence_index(evidence_index, candidates),
     }
+    if include_context_followups:
+        projection["context_followup_observations"] = _project_context_followups(durable)
     _scan(projection, secrets)
     return projection
 
@@ -1736,10 +2217,10 @@ def _write_failure_artifacts(
         else "NO_PROVIDER_DISPATCH"
     )
     manifest = {
-        "schema": "historical-real-case-trial-manifest.v2" if input_contract == "specialist-input-v2" else "historical-real-case-trial-manifest.v1",
-        "runtime_provenance_version": "historical-real-case-runtime.v2",
+        "schema": _manifest_schema(input_contract),
+        "runtime_provenance_version": "historical-real-case-runtime.context-followup.v1" if _is_context_followup_experiment(input_contract) else "historical-real-case-runtime.v2",
         "limits_version": "historical-real-case-limits.v2",
-        "frozen_plan_manifest_sha256": V2_PLAN_SHA256 if input_contract == "specialist-input-v2" else FROZEN_PLAN_MANIFEST_SHA256,
+        "frozen_plan_manifest_sha256": _plan_identity(input_contract),
         "status": "FAILED",
         "historical_only": True,
         "current_pr_state_checked": False,
@@ -1774,14 +2255,16 @@ def _write_failure_artifacts(
         "cases": rows,
         "elapsed_seconds": matrix_elapsed,
     }
-    if input_contract == "specialist-input-v2":
-        manifest["input_contract"] = input_contract
+    if _uses_v2_primary(input_contract):
         manifest["fixed_case_manifest_sha256"] = V2_PLAN_SHA256
-        manifest["runtime_module_tree_sha256"] = V2_RUNTIME_MODULE_TREE_SHA256
+        manifest["runtime_module_tree_sha256"] = runtime_identity(input_contract)[1]
+        manifest.update(_experiment_identity_fields(input_contract))
+        if _is_context_followup_experiment(input_contract):
+            manifest["primary_input_identity"] = "NOT_VERIFIED"
     _scan(manifest, secrets)
     if len(canonical(manifest)) > 4_000_000:
         raise TrialError("sanitized_manifest_limit_exceeded")
-    if input_contract == "specialist-input-v2" and len(canonical(manifest)) > V2_ARTIFACT_MANIFEST_CAP:
+    if _uses_v2_primary(input_contract) and len(canonical(manifest)) > V2_ARTIFACT_MANIFEST_CAP:
         raise TrialError("sanitized_manifest_limit_exceeded")
     summary = {
         "schema": manifest["schema"],
@@ -1792,13 +2275,13 @@ def _write_failure_artifacts(
             {
                 key: value
                 for key, value in row.items()
-                if key != "projection" and not (input_contract == "specialist-input-v2" and key == "primary_request_receipts")
+                if key != "projection" and not (_uses_v2_primary(input_contract) and key == "primary_request_receipts")
             }
             for row in rows
         ],
     }
     _scan(summary, secrets, 128_000)
-    if input_contract == "specialist-input-v2" and len(canonical(summary)) > V2_ARTIFACT_SUMMARY_CAP:
+    if _uses_v2_primary(input_contract) and len(canonical(summary)) > V2_ARTIFACT_SUMMARY_CAP:
         raise TrialError("sanitized_summary_limit_exceeded")
     write_json(artifacts / "summary.json", summary)
     write_json(artifacts / "manifest.json", manifest)
@@ -1842,7 +2325,7 @@ def main(argv: list[str] | None = None) -> int:
         output = args.artifacts / "private"
         private_root = output
         output.mkdir(mode=0o700)
-        v2_provider_preflight = args.input_contract == "specialist-input-v2" and args.run_provider_trial
+        v2_provider_preflight = _uses_v2_primary(args.input_contract) and args.run_provider_trial
         if args.prepare_only or v2_provider_preflight:
             stage = "prepare_configuration"
             # Guard the workflow process environment so prepare-only cannot read provider credentials.
@@ -1961,7 +2444,7 @@ def main(argv: list[str] | None = None) -> int:
                     effective_env,
                     _remaining(case_deadline, matrix_deadline),
                 )
-                if args.input_contract == "specialist-input-v2":
+                if _uses_v2_primary(args.input_contract):
                     validate_prepare_v2(case, prep, 8_000_000, matrix_calls)
                 else:
                     validate_prepare(case, prep, 8_000_000)
@@ -2009,7 +2492,10 @@ def main(argv: list[str] | None = None) -> int:
             result_path = case_dir / "result" / f"{actual['run_id']}.json"
             durable = read_result(result_path)
             try:
-                projection = project_case(case, durable, secrets)
+                    if _is_context_followup_experiment(args.input_contract):
+                        projection = project_case(case, durable, secrets, include_context_followups=True)
+                    else:
+                        projection = project_case(case, durable, secrets)
             except TrialError as exc:
                 results.append(
                     {
@@ -2063,10 +2549,10 @@ def main(argv: list[str] | None = None) -> int:
         if matrix_deadline - time.monotonic() <= MATRIX_CLEANUP_RESERVE_SECONDS:
             raise TrialError("matrix_deadline_exceeded")
         manifest = {
-        "schema": "historical-real-case-trial-manifest.v2" if args.input_contract == "specialist-input-v2" else "historical-real-case-trial-manifest.v1",
-            "runtime_provenance_version": "historical-real-case-runtime.v2",
+        "schema": _manifest_schema(args.input_contract),
+            "runtime_provenance_version": "historical-real-case-runtime.context-followup.v1" if _is_context_followup_experiment(args.input_contract) else "historical-real-case-runtime.v2",
             "limits_version": "historical-real-case-limits.v2",
-            "frozen_plan_manifest_sha256": V2_PLAN_SHA256 if args.input_contract == "specialist-input-v2" else FROZEN_PLAN_MANIFEST_SHA256,
+            "frozen_plan_manifest_sha256": _plan_identity(args.input_contract),
             "status": "PREPARED_NOT_RUN"
             if args.prepare_only
             else "INCOMPLETE"
@@ -2082,7 +2568,7 @@ def main(argv: list[str] | None = None) -> int:
             "runtime_module_proof": runtime,
             "runner_revision": os.environ.get("GITHUB_SHA", "local-uncommitted"),
             "workflow_matrix_started_epoch": os.environ.get("TRIAL_STARTED_EPOCH", "NOT_AVAILABLE"),
-            "fixed_case_manifest_sha256": V2_PLAN_SHA256 if args.input_contract == "specialist-input-v2" else CASES_SHA256,
+            "fixed_case_manifest_sha256": V2_PLAN_SHA256 if _uses_v2_primary(args.input_contract) else CASES_SHA256,
             "baseline_plan_sha256": document.get("baseline_plan_sha256"),
             "call_cap_per_case": matrix_calls,
             "call_cap_total_selected_cases": matrix_calls * len(cases),
@@ -2123,9 +2609,30 @@ def main(argv: list[str] | None = None) -> int:
                 3,
             ),
         }
-        if args.input_contract == "specialist-input-v2":
-            manifest["input_contract"] = args.input_contract
-            manifest["runtime_module_tree_sha256"] = V2_RUNTIME_MODULE_TREE_SHA256
+        if _uses_v2_primary(args.input_contract):
+            manifest.update(_experiment_identity_fields(args.input_contract))
+            manifest["runtime_module_tree_sha256"] = runtime_identity(args.input_contract)[1]
+            if _is_context_followup_experiment(args.input_contract):
+                rows_by_id = {row.get("case_id"): row for row in results if isinstance(row, dict)}
+                primary_match = all(
+                    isinstance(rows_by_id.get(case["case_id"]), dict)
+                    and rows_by_id[case["case_id"]].get("primary_calls") == case["expected_primary_count"]
+                    and rows_by_id[case["case_id"]].get("primary_serialized_input_bytes") == case["expected_primary_serialized_input_bytes"]
+                    and rows_by_id[case["case_id"]].get("primary_descriptor_sha256") == case["expected_primary_descriptor_sha256"]
+                    for case in cases
+                )
+                manifest["primary_input_identity"] = (
+                    "MATCHED_ALL_FROZEN_V2_PRIMARY_DESCRIPTORS"
+                    if primary_match and [case["case_id"] for case in cases] == ["PR-457", "PR-463", "PR-464"]
+                    else "MATCHED_SELECTED_FROZEN_V2_CASES"
+                    if primary_match
+                    else "NOT_VERIFIED"
+                )
+                manifest["primary_request_identity_totals"] = {
+                    "requests": sum(case["expected_primary_count"] for case in cases) if primary_match else "UNKNOWN",
+                    "serialized_input_bytes": sum(case["expected_primary_serialized_input_bytes"] for case in cases) if primary_match else "UNKNOWN",
+                    "required_obligations": sum(case["expected_scope_count"] for case in cases) if primary_match else "UNKNOWN",
+                }
             manifest["serialized_artifact_caps"] = {
                 "manifest_json_bytes_max": V2_ARTIFACT_MANIFEST_CAP,
                 "summary_json_bytes_max": V2_ARTIFACT_SUMMARY_CAP,
@@ -2140,14 +2647,14 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     key: value for key, value in item.items()
                     if key != "projection"
-                    and not (args.input_contract == "specialist-input-v2" and key == "primary_request_receipts")
+                    and not (_uses_v2_primary(args.input_contract) and key == "primary_request_receipts")
                 }
                 | ({"case_id": item["case_id"], "status": item["status"]} if "projection" in item else {})
                 for item in results
             ],
         }
         _scan(summary, secrets, 128_000)
-        if args.input_contract == "specialist-input-v2" and (
+        if _uses_v2_primary(args.input_contract) and (
             len(canonical(manifest)) > V2_ARTIFACT_MANIFEST_CAP
             or len(canonical(summary)) > V2_ARTIFACT_SUMMARY_CAP
         ):

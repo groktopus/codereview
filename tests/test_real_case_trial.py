@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import subprocess
@@ -1256,6 +1257,237 @@ def test_v2_plan_is_a_separate_opt_in_and_round_trips_compact_primary_receipts()
         assert expanded == expected
 
 
+def test_context_followup_plan_preserves_every_frozen_v2_primary_descriptor():
+    v2_document, v2_cases = trial.load_locked_cases("specialist-input-v2")
+    document, cases = trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_SELECTOR)
+
+    assert [case["case_id"] for case in cases] == ["PR-457", "PR-463", "PR-464"]
+    assert document["baseline_plan_sha256"] == v2_document["baseline_plan_sha256"]
+    assert document["experiment_selector"] == trial.CONTEXT_FOLLOWUP_SELECTOR
+    assert document["dynamic_followup_contract"] == "context-followup.v1"
+    assert trial.runtime_identity(trial.CONTEXT_FOLLOWUP_SELECTOR) == (
+        trial.CONTEXT_FOLLOWUP_RUNTIME_SHA,
+        trial.CONTEXT_FOLLOWUP_MODULE_TREE_SHA256,
+    )
+    assert [case["expected_primary_request_descriptors"] for case in cases] == [
+        case["expected_primary_request_descriptors"] for case in v2_cases
+    ]
+    assert [(case["expected_primary_count"], case["expected_primary_serialized_input_bytes"]) for case in cases] == [
+        (10, 878_970),
+        (27, 2_230_598),
+        (10, 893_359),
+    ]
+    assert sum(case["expected_primary_count"] for case in cases) == 47
+    assert sum(case["expected_scope_count"] for case in cases) == 124
+    assert sum(case["expected_primary_serialized_input_bytes"] for case in cases) == 4_002_927
+    assert trial._manifest_schema(trial.CONTEXT_FOLLOWUP_SELECTOR) == "historical-real-case-trial-manifest.context-followup.v1"
+    assert trial._experiment_identity_fields("specialist-input-v2")["input_contract"] == "specialist-input-v2"
+    assert trial._experiment_identity_fields(trial.CONTEXT_FOLLOWUP_SELECTOR)["primary_input_identity"] == (
+        "FROZEN_V2_DESCRIPTOR_PLAN_SELECTED"
+    )
+
+
+def test_context_followup_plan_reader_rejects_nonfinite_or_unbounded_input(tmp_path, monkeypatch):
+    plan = json.loads(trial.CONTEXT_FOLLOWUP_PLAN_PATH.read_text(encoding="utf-8"))
+    plan["unexpected"] = float("nan")
+    encoded = json.dumps(plan, separators=(",", ":"), allow_nan=True).encode()
+    altered = tmp_path / "altered.json"
+    altered.write_bytes(encoded)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_PLAN_PATH", altered)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_PLAN_SHA256", digest(encoded))
+    with pytest.raises(trial.TrialError, match="context_followup_plan_manifest_invalid"):
+        trial.read_context_followup_plan()
+
+    oversized = tmp_path / "oversized.json"
+    oversized.write_bytes(b" " * 128_001)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_PLAN_PATH", oversized)
+    with pytest.raises(trial.TrialError, match="context_followup_plan_manifest_limit_exceeded"):
+        trial.read_context_followup_plan()
+
+
+def _context_followup_projection_fixture():
+    metadata = {
+        "contract_version": "context-followup.v1",
+        "proposal_id": "gap-1",
+        "parent_task_id": "parent-1",
+        "followup_obligation_id": "obligation-1",
+        "required_lens": "security",
+        "target": {"kind": "symbol", "value": "private-target-canary"},
+        "rationale": "private-rationale-canary",
+        "retrieved_evidence_ids": ["ev-retrieved-1"],
+    }
+    bindings = [{"unit_id": "unit-1", "binding_status": "VERIFIED", "evidence_ids": ["ev-retrieved-1"]}]
+    task = {
+        "task_id": "followup-1",
+        "context_gap_followup_for": "gap-1",
+        "context_followup": metadata,
+        "unit_evidence_bindings": bindings,
+    }
+    task_input = {"context_followup": copy.deepcopy(metadata), "unit_evidence_bindings": copy.deepcopy(bindings)}
+    task_output = {
+        "task_id": "followup-1",
+        "status": "SUCCEEDED",
+        "input_evidence_ids": ["ev-retrieved-1"],
+        "context_followup": copy.deepcopy(metadata),
+        "unit_evidence_bindings": copy.deepcopy(bindings),
+        "provenance": {"request_hash": "a" * 64, "response_hash": "b" * 64, "http_status": 200},
+    }
+    durable = {
+        "findings": [],
+        "ledger": {
+            "candidate_records": [],
+            "dynamic_tasks": [task],
+            "planned_task_inputs": {"followup-1": task_input},
+            "budget": {
+                "reservations": {"followup-1:review:1": {"provider_calls": 1}},
+                "settlements": {"followup-1:review:1": {"status": "SUCCEEDED"}},
+            },
+        },
+        "task_results": {"followup-1": task_output},
+        "context_gaps": [{
+            "proposal_id": "gap-1",
+            "retrieval_status": "RESOLVED",
+            "retrieved_evidence_ids": ["ev-retrieved-1"],
+            "followup_task_id": "followup-1",
+        }],
+        "coverage_ledger": [{
+            "obligation_id": "obligation-1",
+            "obligation_kind": "REQUIRED_CONTEXT",
+            "context_gap_id": "gap-1",
+            "task_ids": ["followup-1"],
+            "state": "COMPLETE",
+        }],
+    }
+    return durable
+
+
+def test_context_followup_projection_hashes_untrusted_text_and_keeps_delivery_unknown():
+    durable = _context_followup_projection_fixture()
+    projected = trial._project_context_followups(durable)
+
+    assert projected["projection_state"] == "OBSERVED_WITH_LIMITATIONS"
+    assert projected["observed_followup_task_count"] == 1
+    assert projected["projected_followup_task_count"] == 1
+    row = projected["rows"][0]
+    assert row["persisted_metadata_binding"] == "PERSISTED_RECORDS_MATCH"
+    assert row["persisted_unit_binding"] == "PERSISTED_RECORDS_MATCH"
+    assert row["persisted_retrieval_binding"] == "PERSISTED_IDS_MATCH"
+    assert row["persisted_gap_task_binding"] == "PERSISTED_RECORDS_MATCH"
+    assert row["persisted_obligation_binding"] == "PERSISTED_RECORDS_MATCH"
+    assert row["dispatched_input_evidence_count"] == 1
+    assert row["retrieval_status"] == "RESOLVED"
+    assert row["task_status"] == "SUCCEEDED"
+    assert row["coverage_state"] == "COMPLETE"
+    assert row["provider_calls_reserved"] == row["provider_call_reservations_with_settlement"] == 1
+    assert row["actual_provider_calls"] == "UNKNOWN"
+    assert row["delivery_binding"] == projected["delivery_binding"] == "UNKNOWN"
+    assert "PERSISTED_RETRIEVAL_ID_MATCH_DOES_NOT_PROVE_DELIVERY" in projected["limitations"]
+    encoded = json.dumps(projected)
+    assert "private-target-canary" not in encoded
+    assert "private-rationale-canary" not in encoded
+    assert row["target_value_sha256"] == digest(canonical("private-target-canary"))
+    assert row["rationale_sha256"] == digest(canonical("private-rationale-canary"))
+
+
+def test_context_followup_projection_is_new_selector_only_and_failure_copies_do_not_prove_delivery():
+    durable = _context_followup_projection_fixture()
+    durable["task_results"]["followup-1"]["status"] = "FAILED"
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+
+    old_projection = trial.project_case(case, durable, [])
+    new_projection = trial.project_case(case, durable, [], include_context_followups=True)
+
+    assert "context_followup_observations" not in old_projection
+    observation = new_projection["context_followup_observations"]
+    assert observation["rows"][0]["task_status"] == "FAILED"
+    assert observation["rows"][0]["persisted_metadata_binding"] == "PERSISTED_RECORDS_MATCH"
+    assert observation["rows"][0]["delivery_binding"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_binding"),
+    [
+        (lambda meta: meta.update(required_lens=[]), "UNKNOWN"),
+        (lambda meta: meta["target"].update(kind={"malformed": True}), "UNKNOWN"),
+        (lambda meta: meta.update(target={"kind": "unit", "value": "ok", "extra": []}), "UNKNOWN"),
+    ],
+)
+def test_context_followup_projection_quarantines_malformed_metadata_without_crashing(mutation, expected_binding):
+    durable = _context_followup_projection_fixture()
+    mutation(durable["ledger"]["dynamic_tasks"][0]["context_followup"])
+    projected = trial._project_context_followups(durable)
+    row = projected["rows"][0]
+    assert projected["projection_state"] == "PARTIAL"
+    assert row["persisted_metadata_binding"] == expected_binding
+    assert row["delivery_binding"] == "UNKNOWN"
+
+
+def test_context_followup_projection_marks_mismatched_or_ambiguous_links_partial():
+    durable = _context_followup_projection_fixture()
+    durable["ledger"]["planned_task_inputs"]["followup-1"]["unit_evidence_bindings"] = []
+    durable["coverage_ledger"].append(dict(durable["coverage_ledger"][0]))
+    durable["context_gaps"].append(dict(durable["context_gaps"][0]))
+
+    projected = trial._project_context_followups(durable)
+    row = projected["rows"][0]
+
+    assert projected["projection_state"] == "PARTIAL"
+    assert row["persisted_unit_binding"] == "PERSISTED_RECORDS_MISMATCH"
+    assert row["persisted_retrieval_binding"] == "UNKNOWN"
+    assert row["coverage_state"] == "UNKNOWN"
+    assert row["delivery_binding"] == "UNKNOWN"
+
+
+def test_context_followup_projection_distinguishes_persisted_mismatch_from_missing_records():
+    mismatched = _context_followup_projection_fixture()
+    mismatched["ledger"]["planned_task_inputs"]["followup-1"]["context_followup"]["rationale"] = "other"
+    mismatch_row = trial._project_context_followups(mismatched)["rows"][0]
+    assert mismatch_row["persisted_metadata_binding"] == "PERSISTED_RECORDS_MISMATCH"
+
+    missing = _context_followup_projection_fixture()
+    del missing["task_results"]["followup-1"]["context_followup"]
+    missing_row = trial._project_context_followups(missing)["rows"][0]
+    assert missing_row["persisted_metadata_binding"] == "UNKNOWN"
+
+    retrieval_mismatch = _context_followup_projection_fixture()
+    retrieval_mismatch["context_gaps"][0]["retrieved_evidence_ids"] = ["ev-other"]
+    retrieval_row = trial._project_context_followups(retrieval_mismatch)["rows"][0]
+    assert retrieval_row["persisted_retrieval_binding"] == "PERSISTED_IDS_MISMATCH"
+    assert retrieval_row["delivery_binding"] == "UNKNOWN"
+
+
+def test_context_followup_projection_does_not_treat_duplicate_ids_as_valid_contract_metadata():
+    durable = _context_followup_projection_fixture()
+    for row in (
+        durable["ledger"]["dynamic_tasks"][0],
+        durable["ledger"]["planned_task_inputs"]["followup-1"],
+        durable["task_results"]["followup-1"],
+    ):
+        row["context_followup"]["retrieved_evidence_ids"].append("ev-retrieved-1")
+    durable["context_gaps"][0]["retrieved_evidence_ids"].append("ev-retrieved-1")
+
+    projection = trial._project_context_followups(durable)
+    row = projection["rows"][0]
+
+    assert projection["projection_state"] == "PARTIAL"
+    assert row["persisted_metadata_binding"] == "UNKNOWN"
+    assert row["persisted_retrieval_binding"] == "UNKNOWN"
+    assert row["retrieved_evidence_count"] == 2
+    assert row["metadata_contract_validation"] == "NOT_ASSESSED"
+
+    bad_gap_link = _context_followup_projection_fixture()
+    bad_gap_link["context_gaps"][0]["followup_task_id"] = "different-task"
+    bad_gap_row = trial._project_context_followups(bad_gap_link)["rows"][0]
+    assert bad_gap_row["persisted_gap_task_binding"] == "PERSISTED_RECORDS_MISMATCH"
+    assert bad_gap_row["persisted_retrieval_binding"] == "UNKNOWN"
+
+    bad_obligation_link = _context_followup_projection_fixture()
+    bad_obligation_link["coverage_ledger"][0]["task_ids"] = ["different-task"]
+    bad_obligation_row = trial._project_context_followups(bad_obligation_link)["rows"][0]
+    assert bad_obligation_row["persisted_obligation_binding"] == "PERSISTED_RECORDS_MISMATCH"
+    assert bad_obligation_row["coverage_state"] == "UNKNOWN"
+
+
 def test_v2_plan_reader_rejects_duplicate_json_keys_and_unknown_manifest_fields(tmp_path, monkeypatch):
     duplicate = tmp_path / "duplicate.json"
     duplicate.write_text('{"schema":"one","schema":"two"}', encoding="utf-8")
@@ -1368,17 +1600,18 @@ def test_v2_prepare_accepts_bound_unit_and_rejects_forged_cross_unit_binding():
         trial.validate_prepare_v2(forged_case, forged_prepared, 128_000, 1)
 
 
-def test_v2_provider_trial_preflights_prepare_before_any_provider_configuration(
-    tmp_path, monkeypatch, capsys
+@pytest.mark.parametrize("input_contract", ["specialist-input-v2", trial.CONTEXT_FOLLOWUP_SELECTOR])
+def test_v2_family_provider_trial_preflights_prepare_before_any_provider_configuration(
+    tmp_path, monkeypatch, capsys, input_contract
 ):
-    _, cases = trial.load_locked_cases("specialist-input-v2")
+    document, cases = trial.load_locked_cases(input_contract)
     case = next(row for row in cases if row["case_id"] == "PR-464")
     calls = []
     monkeypatch.setattr(trial, "verify_dispatch_context", lambda _root: None)
     monkeypatch.setattr(trial, "verify_runtime", lambda *args: {"module_file_count": 28})
     monkeypatch.setattr(trial, "_matrix_deadline", lambda _provider_run: trial.time.monotonic() + 10_000)
     monkeypatch.setattr(trial, "selected_cases", lambda _mode, _cases: [case])
-    monkeypatch.setattr(trial, "load_locked_cases", lambda _contract: ({"baseline_plan_sha256": trial.V2_PLAN_SHA256}, cases))
+    monkeypatch.setattr(trial, "load_locked_cases", lambda _contract: (document, cases))
     monkeypatch.setattr(trial, "build_prepare_configs", lambda _path: (tmp_path / "provider.json", tmp_path / "decision.json"))
     monkeypatch.setattr(
         trial,
@@ -1412,7 +1645,7 @@ def test_v2_provider_trial_preflights_prepare_before_any_provider_configuration(
     artifact_dir = tmp_path / "artifacts"
     result = trial.main(
         [
-            "--mode", "staged-pr464", "--run-provider-trial", "--input-contract", "specialist-input-v2",
+            "--mode", "staged-pr464", "--run-provider-trial", "--input-contract", input_contract,
             "--artifacts", str(artifact_dir), "--cli", str(trial.ROOT / "scripts/run_real_case_trial.py"),
             "--runtime-source", str(trial.ROOT), "--target-bare", str(target_bare),
         ]
@@ -1421,6 +1654,90 @@ def test_v2_provider_trial_preflights_prepare_before_any_provider_configuration(
     assert calls == [True]
     output = json.loads(capsys.readouterr().out)
     assert output == {"status": "FAILED", "error": "prepared_primary_descriptor_mismatch"}
+
+
+def _patch_three_case_context_preflight(tmp_path, monkeypatch):
+    _, cases = trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_SELECTOR)
+    calls = []
+    validations = []
+    monkeypatch.setattr(trial, "verify_dispatch_context", lambda _root: "a" * 40)
+    monkeypatch.setattr(trial, "verify_runtime", lambda *args: {"module_file_count": 28})
+    monkeypatch.setattr(trial, "_matrix_deadline", lambda _provider_run: trial.time.monotonic() + 10_000)
+    monkeypatch.setattr(trial, "build_prepare_configs", lambda _path: (tmp_path / "provider.json", tmp_path / "decision.json"))
+
+    def acquire(case, path, *_args, **_kwargs):
+        path.mkdir()
+        return {
+            "patch_sha256": case["patch_sha256"],
+            "isolated_object_count": 1,
+            "isolated_loose_object_count": 1,
+            "isolated_in_pack_object_count": 0,
+            "isolated_pack_kib": 0,
+        }
+
+    def run_cli(*args, **_kwargs):
+        case = args[1]
+        calls.append(case["case_id"])
+        assert args[9] is True
+        assert not (set(args[10]) & set(trial.SECRET_NAMES))
+        return {"value": {"snapshot": {"snapshot_hash": case["snapshot_hash"]}, "primary_requests": []}}
+
+    monkeypatch.setattr(trial, "acquire_bare_case", acquire)
+    monkeypatch.setattr(trial, "run_cli", run_cli)
+    monkeypatch.setattr(trial, "load_locked_cases", lambda _contract: (trial.read_context_followup_plan(), cases))
+    return cases, calls, validations
+
+
+def test_context_followup_full_matrix_preflights_all_cases_before_provider_configuration(
+    tmp_path, monkeypatch, capsys
+):
+    cases, calls, validations = _patch_three_case_context_preflight(tmp_path, monkeypatch)
+    monkeypatch.setenv("LLM_API_KEY", "llm-canary-not-for-prepare")
+    monkeypatch.setenv("JEV_API_KEY", "jev-canary-not-for-prepare")
+
+    def validate(case, _prepared, _cap, _call_cap):
+        validations.append(case["case_id"])
+        if case["case_id"] == "PR-464":
+            raise trial.TrialError("third_case_descriptor_mismatch")
+
+    monkeypatch.setattr(trial, "validate_prepare_v2", validate)
+    monkeypatch.setattr(trial, "build_configs", lambda *_args: pytest.fail("provider config built before all-case preflight"))
+    result = trial.main([
+        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", trial.CONTEXT_FOLLOWUP_SELECTOR,
+        "--artifacts", str(tmp_path / "artifacts"), "--cli", str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
+        "--runtime-source", str(trial.ROOT),
+    ])
+
+    assert result == 2
+    assert [case["case_id"] for case in cases] == ["PR-457", "PR-463", "PR-464"]
+    assert calls == validations == ["PR-457", "PR-463", "PR-464"]
+    assert json.loads(capsys.readouterr().out) == {"status": "FAILED", "error": "third_case_descriptor_mismatch"}
+
+
+def test_context_followup_full_matrix_success_reaches_provider_configuration_only_after_three_prepares(
+    tmp_path, monkeypatch, capsys
+):
+    _cases, calls, validations = _patch_three_case_context_preflight(tmp_path, monkeypatch)
+    monkeypatch.setenv("LLM_API_KEY", "llm-canary")
+    monkeypatch.setenv("JEV_API_KEY", "jev-canary")
+    monkeypatch.setattr(trial, "validate_prepare_v2", lambda case, *_args: validations.append(case["case_id"]))
+    build_events = []
+
+    def stop_at_provider_config(*_args):
+        build_events.append(list(validations))
+        raise trial.TrialError("provider_configuration_sentinel")
+
+    monkeypatch.setattr(trial, "build_configs", stop_at_provider_config)
+    result = trial.main([
+        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", trial.CONTEXT_FOLLOWUP_SELECTOR,
+        "--artifacts", str(tmp_path / "artifacts"), "--cli", str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
+        "--runtime-source", str(trial.ROOT),
+    ])
+
+    assert result == 2
+    assert calls == validations == ["PR-457", "PR-463", "PR-464"]
+    assert build_events == [["PR-457", "PR-463", "PR-464"]]
+    assert json.loads(capsys.readouterr().out) == {"status": "FAILED", "error": "provider_configuration_sentinel"}
 
 
 def test_main_failure_keeps_completed_row_and_marks_failed_and_unstarted_cases(tmp_path, monkeypatch, capsys):

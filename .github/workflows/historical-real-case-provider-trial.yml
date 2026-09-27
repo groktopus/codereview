@@ -20,13 +20,14 @@ on:
           - staged-pr464
           - full-three-case
       input_contract:
-        description: "Keep the historical v1 input by default, or explicitly select the frozen specialist-input v2 experiment"
+        description: "Keep the historical v1 input by default, or explicitly select a frozen v2 input experiment"
         required: true
         type: choice
         default: specialist-input-v1
         options:
           - specialist-input-v1
           - specialist-input-v2
+          - specialist-input-v2-context-followup-v1
 
 permissions:
   contents: read
@@ -100,6 +101,7 @@ jobs:
           pins = {
               "specialist-input-v1": ("ed7aa8b82f8d0c8deee03b6f99d8f4f599529301", "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3", ""),
               "specialist-input-v2": ("5873c3f1b297a96c49b78cbcb7be674ab70b3cea", "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4", "-v2"),
+              "specialist-input-v2-context-followup-v1": ("37d9896b229d08a925ddd726eb1bd7e6b5b489a3", "eaacdfce96354925414ca8c547c4fd87f0bf5b4b7862bbdfb910870db45afdf1", "-context-followup-v1"),
           }
           contract = os.environ.get("INPUT_CONTRACT", "")
           selected = pins.get(contract)
