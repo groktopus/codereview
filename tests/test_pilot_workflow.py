@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import textwrap
 from pathlib import Path
@@ -8,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/slopsearx-pilot.yml"
-PIN = "df8d945f023696c8cbcb1486e63696642a5005d9"
+PIN = "8052da90c269815ef6235a4fa7517c67b4ee6a65"
 SECRETS = (
     "LLM_BASE_URL",
     "LLM_MODEL",
@@ -90,8 +91,10 @@ def test_pilot_dispatch_has_only_pr_number_and_runs_dispatcher_on_default_branch
 def test_pilot_calls_immutable_harness_and_passes_only_named_provider_secrets():
     source = _source()
     call = source.split("  analyze:\n", 1)[1]
-    assert f"uses: groktopus/codereview/.github/workflows/pr-analysis.yml@{PIN}" in call
-    assert f"harness_sha: {PIN}" in call
+    uses_match = re.search(r"uses: groktopus/codereview/.github/workflows/pr-analysis.yml@([0-9a-f]{40})", call)
+    sha_match = re.search(r"harness_sha: ([0-9a-f]{40})", call)
+    assert uses_match is not None and sha_match is not None
+    assert uses_match.group(1) == sha_match.group(1) == PIN
     assert "harness_repository: groktopus/codereview" in call
     assert "target_repository: magnus919/SlopSearX" in call
     secret_block = call.split("    secrets:\n", 1)[1]
@@ -102,6 +105,8 @@ def test_pilot_calls_immutable_harness_and_passes_only_named_provider_secrets():
     assert "contents: write" not in source
     assert "actions: write" not in source
     assert "pr-publish.yml" not in source
+    assert "--effect-policy" not in call
+    assert "--max-claim-assessments" not in call
 
 
 def test_metadata_job_is_read_only_and_does_not_receive_provider_secrets():
