@@ -17,6 +17,80 @@ if str(ROOT / "src") not in sys.path:
 
 from pr_review_harness.external_effect_observer import observe_cli, preflight  # noqa: E402
 
+_RUN_STATUSES = {
+    "CLI_COMPLETED",
+    "CLI_FAILED",
+    "INVALID_CLI_OUTPUT",
+    "OBSERVER_TRACE_INCOMPLETE",
+    "OBSERVER_UNAVAILABLE",
+    "OBSERVER_SPAWN_FAILED",
+    "OBSERVER_PROCESS_CAP_EXCEEDED",
+    "RUN_TIMEOUT",
+    "OUTPUT_LIMIT_EXCEEDED",
+}
+_CLI_ERRORS = {
+    "invalid_arguments",
+    "snapshot_preflight_failed",
+    "preflight_rejected",
+    "review_runtime_failed",
+    "provider_configuration_is_invalid",
+}
+_OBSERVER_REASONS = {
+    "linux_required",
+    "strace_unavailable",
+    "observer_identity_unavailable",
+    "strace_version_probe_failed",
+    "kill_on_exit_unavailable",
+    "strace_version_invalid",
+    "observer_deadline_exhausted",
+    "timeout_invalid",
+    "observer_unavailable",
+    "command_invalid",
+    "strace_spawn_failed",
+    "trace_read_failed",
+    "cli_output_read_failed",
+    "trace_byte_cap_exceeded",
+    "cli_output_cap_exceeded",
+    "trace_line_cap_exceeded",
+    "trace_parse_failed",
+    "root_exec_launch_not_proven",
+    "trace_resume_without_unfinished",
+    "process_creation_cap_exceeded",
+    "trace_aggregate_bucket_cap_exceeded",
+    "run_timeout",
+    "tracee_cleanup_unconfirmed",
+    "trace_unfinished_syscall",
+    "root_exec_or_trace_incomplete",
+    "trace_trailing_bytes",
+}
+
+
+def _failure_summary(result: dict, failure: str) -> dict[str, object]:
+    """Emit only allowlisted status codes and numeric observer counters."""
+    observed = result.get("observer", {})
+    invocation = result.get("invocation", {})
+    cli_result = result.get("cli_result") or {}
+    reason = observed.get("reason")
+    cli_error = cli_result.get("error")
+    return {
+        "smoke": "INSTALLED_CLI_PREPARE_ONLY_FAILED",
+        "failure": failure,
+        "observer_id": "linux-strace-syscall-observer.v2"
+        if observed.get("observer_id") == "linux-strace-syscall-observer.v2"
+        else "unknown",
+        "observer_reason": reason if isinstance(reason, str) and reason in _OBSERVER_REASONS else "other",
+        "coverage": observed.get("coverage") if isinstance(observed.get("coverage"), str) and observed.get("coverage") in {"SCOPED_COMPLETE", "INCOMPLETE", "UNKNOWN"} else "UNKNOWN",
+        "event_count": observed.get("event_count") if isinstance(observed.get("event_count"), int) else None,
+        "event_aggregates_complete": observed.get("event_aggregates_complete") if isinstance(observed.get("event_aggregates_complete"), bool) else None,
+        "trace_bytes": observed.get("trace_bytes") if isinstance(observed.get("trace_bytes"), int) else None,
+        "invocation_status": invocation.get("run_status") if isinstance(invocation.get("run_status"), str) and invocation.get("run_status") in _RUN_STATUSES else "UNKNOWN",
+        "cli_exit_code": invocation.get("exit_code") if isinstance(invocation.get("exit_code"), int) else None,
+        "cli_status": cli_result.get("status") if cli_result.get("status") == "PREPARED_ONLY" else "UNKNOWN",
+        "cli_error_code": cli_error.replace(" ", "_") if isinstance(cli_error, str) and cli_error in _CLI_ERRORS else "other" if cli_error else None,
+        "no_provider_calls": cli_result.get("no_provider_calls") if isinstance(cli_result.get("no_provider_calls"), bool) else None,
+        "no_target_code_execution": cli_result.get("no_target_code_execution") if isinstance(cli_result.get("no_target_code_execution"), bool) else None,
+    }
+
 
 def _git(repo: Path, *args: str) -> str:
     completed = subprocess.run(
@@ -103,9 +177,11 @@ def main() -> int:
         or cli_result.get("no_provider_calls") is not True
         or cli_result.get("no_target_code_execution") is not True
     ):
-        raise SystemExit("effect_observer_installed_prepare_incomplete")
+        print(json.dumps(_failure_summary(result, "prepare_contract_failed"), sort_keys=True, separators=(",", ":")))
+        return 1
     if "synthetic-canary-never-send" in json.dumps(result, sort_keys=True):
-        raise SystemExit("effect_observer_smoke_secret_redaction_failed")
+        print(json.dumps(_failure_summary(result, "redaction_check_failed"), sort_keys=True, separators=(",", ":")))
+        return 1
     summary = {
         "smoke": "INSTALLED_CLI_PREPARE_ONLY_COMPLETED",
         "observer_id": observed.get("observer_id"),

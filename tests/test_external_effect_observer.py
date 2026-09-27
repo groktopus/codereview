@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import external_effect_observer as observer
+from scripts.effect_observer_smoke import _failure_summary
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -214,6 +215,26 @@ def test_aggregate_bucket_cap_fails_closed(tmp_path, monkeypatch):
     assert result["cli_result"] is None
 
 
+def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
+    sentinel = "synthetic-canary-never-send"
+    summary = _failure_summary(
+        {
+            "observer": {"observer_id": observer.OBSERVER_ID, "reason": sentinel, "coverage": {sentinel: sentinel}, "event_count": 4, "trace_bytes": 128},
+            "invocation": {"run_status": sentinel, "exit_code": 1},
+            "cli_result": {"status": sentinel, "error": sentinel, "no_provider_calls": False},
+        },
+        "prepare_contract_failed",
+    )
+    encoded = json.dumps(summary, sort_keys=True)
+    assert sentinel not in encoded
+    assert summary["observer_reason"] == "other"
+    assert summary["coverage"] == "UNKNOWN"
+    assert summary["invocation_status"] == "UNKNOWN"
+    assert summary["cli_status"] == "UNKNOWN"
+    assert summary["cli_error_code"] == "other"
+    assert summary["event_count"] == 4 and summary["trace_bytes"] == 128
+
+
 def test_unterminated_trace_line_cap_fails_closed(tmp_path, monkeypatch):
     _fake_strace(tmp_path, monkeypatch)
     env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": (b"x" * (observer.TRACE_MAX_LINE_BYTES + 1)).hex()}
@@ -298,15 +319,44 @@ def test_real_strace_observes_file_names_connect_and_child_after_parent_exit(tmp
         server.close()
         for connection in accepted:
             connection.close()
-    events = result["observer"]["events"]
-    assert result["observer"]["overall_state"] == "UNKNOWN"
-    assert result["observer"]["coverage"] == "SCOPED_COMPLETE"
+    observation = result["observer"]
+    assert observation["overall_state"] == "UNKNOWN"
+    assert observation["coverage"] == "SCOPED_COMPLETE"
+    assert observation["event_aggregates_complete"] is True
+    assert observation["event_sample_truncated"] is True
     assert result["invocation"]["run_status"] == "CLI_COMPLETED"
-    assert any(item.get("syscall") in {"open", "openat", "creat"} and item.get("outcome") == "SUCCESS" for item in events)
-    assert any(item.get("syscall", "").startswith("rename") and item.get("outcome") == "SUCCESS" for item in events)
-    assert any(item.get("syscall") == "connect" and item.get("destination_class") == "loopback" for item in events)
-    assert sum(item.get("syscall") in {"execve", "execveat"} for item in events) >= 2
-    assert renamed.exists() and child_file.exists()
+    aggregates = observation["event_aggregates"]
+    assert sum(item["count"] for item in aggregates) == observation["event_count"]
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["operation"] == "file_name_syscall"
+        and item["syscall"] in {"open", "openat", "creat"}
+        and item["outcome"] == "SUCCESS"
+        and item["path_scope"] == "case_workdir"
+    ) > 0
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["operation"] == "file_name_syscall"
+        and item["syscall"].startswith("rename")
+        and item["outcome"] == "SUCCESS"
+        and item["path_scope"] == "case_workdir"
+    ) > 0
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["syscall"] == "connect"
+        and item["outcome"] == "SUCCESS"
+        and item["destination_class"] == "loopback"
+    ) > 0
+    assert sum(
+        item["count"]
+        for item in aggregates
+        if item["syscall"] in {"execve", "execveat"} and item["outcome"] == "SUCCESS"
+    ) >= 2
+    assert not created.exists() and renamed.is_file() and child_file.is_file()
+    assert len(accepted) == 1
 
 
 def test_process_creation_cap_terminates_owned_observer_tree(tmp_path, monkeypatch):
