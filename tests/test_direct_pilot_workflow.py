@@ -10,7 +10,7 @@ import pytest
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/slopsearx-direct-diagnostic.yml"
 REUSABLE = Path(__file__).parents[1] / ".github/workflows/pr-analysis.yml"
-PIN = "df8d945f023696c8cbcb1486e63696642a5005d9"
+PIN = "109a3bcba09362c5c808c86d029be0c6d0b521fa"
 SECRETS = (
     "LLM_BASE_URL",
     "LLM_MODEL",
@@ -247,10 +247,13 @@ def test_harness_is_checked_out_at_the_approved_sha_and_verified_before_install(
     source = _source()
     checkout = _step(source, "Check out the approved immutable harness source")
     verify = _step(source, "Verify the approved harness revision before install or import")
+    acquire = _step(source, "Revalidate PR identity and acquire immutable target objects in a bare store")
     assert "repository: groktopus/codereview" in checkout
     assert f"ref: {PIN}" in checkout
     assert "persist-credentials: false" in checkout
     assert f"EXPECTED_HARNESS_SHA: {PIN}" in verify
+    assert f"HARNESS_SHA: {PIN}" in acquire
+    assert source.count(PIN) == 3
     assert '"$ACTUAL_HARNESS_SHA" != "$EXPECTED_HARNESS_SHA"' in verify
     assert source.index("Verify the approved harness revision") < source.index("python -m pip install .")
     assert f"{PIN}" not in _step(source, "Resolve current open SlopSearX PR identity using read-only GitHub API")
@@ -356,6 +359,7 @@ def test_only_six_step_scoped_secrets_and_read_permissions_no_publication():
     assert "GITHUB_REPOSITORY:" not in source
     assert "GITHUB_RUN_ID:" not in source
     assert "GITHUB_SERVER_URL:" not in source
+    assert "--max-claim-assessments" not in source
 
 
 def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
