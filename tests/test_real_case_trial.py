@@ -1341,6 +1341,52 @@ def test_context_followup_v2_plan_is_additive_and_preserves_all_v2_primary_input
     )
 
 
+def test_context_followup_v3_plan_is_additive_and_preserves_v2_primary_identity():
+    v2_document, v2_cases = trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_V2_SELECTOR)
+    document, cases = trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_V3_SELECTOR)
+    v2_plan = trial.read_context_followup_v2_plan()
+    v3_plan = trial.read_context_followup_v3_plan()
+
+    assert document["baseline_plan_sha256"] == v2_document["baseline_plan_sha256"]
+    assert document["experiment_selector"] == trial.CONTEXT_FOLLOWUP_V3_SELECTOR
+    assert document["dynamic_followup_projection"] == "context-followup-observation.v3"
+    assert v3_plan["primary_parent_plan_sha256"] == trial.CONTEXT_FOLLOWUP_V2_PLAN_SHA256
+    assert v3_plan["primary_input_parent_plan_sha256"] == trial.V2_PLAN_SHA256
+    assert v3_plan["cases"] == v2_plan["cases"]
+    assert [case["expected_primary_request_descriptors"] for case in cases] == [
+        case["expected_primary_request_descriptors"] for case in v2_cases
+    ]
+    assert sum(case["expected_primary_count"] for case in cases) == 47
+    assert sum(case["expected_scope_count"] for case in cases) == 124
+    assert sum(case["expected_primary_serialized_input_bytes"] for case in cases) == 4_002_927
+    assert trial.runtime_identity(trial.CONTEXT_FOLLOWUP_V3_SELECTOR) == (
+        trial.CONTEXT_FOLLOWUP_V2_RUNTIME_SHA,
+        trial.CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256,
+    )
+    assert trial._manifest_schema(trial.CONTEXT_FOLLOWUP_V3_SELECTOR) == (
+        "historical-real-case-trial-manifest.context-followup.v3"
+    )
+    assert trial._plan_identity(trial.CONTEXT_FOLLOWUP_V3_SELECTOR) == trial.CONTEXT_FOLLOWUP_V3_PLAN_SHA256
+    assert trial._experiment_identity_fields(trial.CONTEXT_FOLLOWUP_V3_SELECTOR)["dynamic_followup_projection"] == (
+        "context-followup-observation.v3"
+    )
+    assert trial._runtime_provenance_version(trial.CONTEXT_FOLLOWUP_V3_SELECTOR) == (
+        "historical-real-case-runtime.context-followup.v3"
+    )
+
+
+def test_context_followup_v3_plan_reader_fails_closed_on_mutated_identity(tmp_path, monkeypatch):
+    plan = json.loads(trial.CONTEXT_FOLLOWUP_V3_PLAN_PATH.read_text(encoding="utf-8"))
+    plan["primary_requests_total"] += 1
+    encoded = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()
+    altered = tmp_path / "altered.json"
+    altered.write_bytes(encoded)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_V3_PLAN_PATH", altered)
+    monkeypatch.setattr(trial, "CONTEXT_FOLLOWUP_V3_PLAN_SHA256", digest(encoded))
+    with pytest.raises(trial.TrialError, match="context_followup_v3_plan_manifest_identity_mismatch"):
+        trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_V3_SELECTOR)
+
+
 def test_context_followup_v2_plan_reader_fails_closed_on_mutated_identity_or_size(tmp_path, monkeypatch):
     original = trial.CONTEXT_FOLLOWUP_V2_PLAN_PATH.read_bytes()
     document = json.loads(original)
@@ -1386,10 +1432,14 @@ def test_context_followup_projection_version_is_selected_only_by_new_selector(mo
         "include_context_followups": True,
         "include_closure_diagnostics": True,
     }
+    assert trial.project_case_for_contract(case, durable, secrets, trial.CONTEXT_FOLLOWUP_V3_SELECTOR) == {
+        "include_context_handoff": True
+    }
     assert trial.project_case_for_contract(case, durable, secrets, "specialist-input-v2") == {}
     assert [kwargs for _args, kwargs in calls] == [
         {"include_context_followups": True},
         {"include_context_followups": True, "include_closure_diagnostics": True},
+        {"include_context_handoff": True},
         {},
     ]
 
@@ -1795,6 +1845,12 @@ def test_context_followup_projection_is_new_selector_only_and_failure_copies_do_
     diagnostics = diagnostics_projection["context_followup_observations"]
     assert diagnostics["schema"] == "context-followup-observation.v2"
     assert diagnostics["rows"][0]["required_context_closure_diagnostics"]["state"] == "OBSERVED"
+
+    handoff_projection = trial.project_case(case, durable, [], include_context_handoff=True)
+    handoff = handoff_projection["context_followup_observations"]
+    assert handoff["schema"] == "context-followup-observation.v3"
+    assert handoff["rows"][0]["required_context_closure_diagnostics"]["state"] == "OBSERVED"
+    assert handoff["rows"][0]["delivery_binding"] == "UNKNOWN"
 
 
 @pytest.mark.parametrize(
