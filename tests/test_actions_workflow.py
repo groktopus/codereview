@@ -1,6 +1,12 @@
+import json
+import os
 import re
 import subprocess
+import textwrap
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-publish.yml"
 ANALYSIS_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-analysis.yml"
@@ -43,6 +49,59 @@ def _workflow_run_names(source: str) -> tuple[str, ...]:
     if not names:
         raise ValueError("workflow_run_names_missing")
     return tuple(names)
+
+
+def _step(source: str, name: str) -> str:
+    marker = f"      - name: {name}\n"
+    start = source.index(marker)
+    following = source.find("\n      - ", start + len(marker))
+    return source[start:] if following < 0 else source[start:following] + "\n"
+
+
+def _python_script(step: str) -> str:
+    block = step.split("        run: |\n", 1)[1]
+    lines = block.removeprefix("          python - <<'PY'\n").splitlines()
+    script = []
+    for line in lines:
+        if line.strip() == "PY":
+            break
+        if line.strip() and not line.startswith("          "):
+            break
+        script.append(line[10:] if line else "")
+    if not script:
+        raise AssertionError("embedded_python_missing")
+    return textwrap.dedent("\n".join(script))
+
+
+BASE_SHA = "c355830512fa5bffc167926a6a167bace93d96c6"
+HEAD_SHA = "c8496b74d8e1da05a2ed654772fc4b1b1fcff56b"
+TARGET_REPOSITORY = "magnus919/SlopSearX"
+
+
+def _pull_request_event(number=477):
+    return {
+        "number": number,
+        "pull_request": {"base": {"sha": BASE_SHA}, "head": {"sha": HEAD_SHA}},
+    }
+
+
+def _run_event_validator(tmp_path: Path, raw: bytes):
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = _step(source, "Validate generated PR event against the pinned analysis identity")
+    namespace = {"__name__": "test_reusable_analysis_event_validation"}
+    exec(compile(_python_script(step), "reusable analysis event validation", "exec"), namespace)
+    event_path = tmp_path / "pr-event.json"
+    event_path.write_bytes(raw)
+    with patch.dict(
+        os.environ,
+        {
+            "PR_EVENT_PATH": str(event_path),
+            "EXPECTED_PR_NUMBER": "477",
+            "EXPECTED_BASE_SHA": BASE_SHA,
+            "EXPECTED_HEAD_SHA": HEAD_SHA,
+        },
+    ):
+        namespace["main"]()
 
 
 def _caller_triggers_canary(caller: str, publisher: str) -> bool:
@@ -163,6 +222,114 @@ def test_production_analysis_creates_redirect_parent_before_cli_starts():
     assert "mkdir -p artifacts" in commands
     assert commands.index("mkdir -p artifacts") < commands.index("pr-review review")
     assert commands.index("mkdir -p artifacts") < commands.index("> artifacts/review-result.json")
+
+
+def test_reusable_analysis_validates_bounded_generated_event_before_provider_secrets(tmp_path):
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    validator = _step(source, "Validate generated PR event against the pinned analysis identity")
+    config = _step(source, "Materialize private provider configuration from trusted secrets")
+    script = _python_script(validator)
+
+    assert source.index(validator) < source.index(config)
+    assert "PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json" in validator
+    assert "EXPECTED_PR_NUMBER: ${{ inputs.pull_request_number }}" in validator
+    assert "EXPECTED_BASE_SHA: ${{ inputs.base_sha }}" in validator
+    assert "EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}" in validator
+    assert "MAX_EVENT_BYTES = 16_384" in script
+    assert "stream.read(MAX_EVENT_BYTES + 1)" in script
+    assert "object_pairs_hook=reject_duplicates" in script
+    assert "parse_constant=reject_constant" in script
+    assert "isinstance(number, bool) or not isinstance(number, int)" in script
+    assert 'base.get("sha") != base_sha or head.get("sha") != head_sha' in script
+    assert "print(" not in script
+    _run_event_validator(tmp_path, json.dumps(_pull_request_event()).encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"{malformed",
+        b"{" + b" " * 16_384 + b"}",
+        b'{"number":477,"number":477,"pull_request":{}}',
+        b'{"number":477,"ignored":NaN,"pull_request":{}}',
+        b'{"number":477,"ignored":Infinity,"pull_request":{}}',
+        b'{"number":4.77e2,"pull_request":{"base":{"sha":"c355830512fa5bffc167926a6a167bace93d96c6"},"head":{"sha":"c8496b74d8e1da05a2ed654772fc4b1b1fcff56b"}}}',
+        json.dumps({**_pull_request_event(), "number": True}).encode("utf-8"),
+        json.dumps({**_pull_request_event(), "number": 478}).encode("utf-8"),
+        json.dumps({"number": 477, "pull_request": {"base": {"sha": "d" * 40}, "head": {"sha": HEAD_SHA}}}).encode(
+            "utf-8"
+        ),
+        json.dumps({"number": 477, "pull_request": {"base": {"sha": BASE_SHA}, "head": {"sha": "e" * 40}}}).encode(
+            "utf-8"
+        ),
+    ],
+)
+def test_reusable_analysis_event_preflight_fails_closed_on_malformed_or_mismatched_event(tmp_path, raw):
+    with pytest.raises(SystemExit, match="generated_pull_request_event_invalid"):
+        _run_event_validator(tmp_path, raw)
+
+
+def test_reusable_cli_uses_explicit_resolved_event_and_child_target_repository(monkeypatch, tmp_path, capsys):
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    review = _step(source, "Produce a bounded read-only report from the bare target object store")
+    command = review.split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
+
+    assert "PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json" in review
+    assert "TARGET_REPOSITORY: ${{ inputs.target_repository }}" in review
+    assert "GITHUB_EVENT_PATH:" not in review
+    assert "GITHUB_REPOSITORY:" not in review
+    assert "GITHUB_RUN_ID:" not in review
+    assert "GITHUB_SERVER_URL:" not in review
+    assert 'env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review' in command
+    assert '--event-file "$PR_EVENT_PATH"' in command
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[1] / "src"))
+    from pr_review_harness import cli, github
+
+    dispatch_path = tmp_path / "workflow-dispatch-event.json"
+    dispatch_path.write_text(json.dumps({"workflow": "workflow_dispatch", "inputs": {"pull_request_number": "477"}}))
+    resolved_path = tmp_path / "pr-event.json"
+    resolved_path.write_text(json.dumps(_pull_request_event()))
+    profile = tmp_path / "profile.json"
+    profile.write_text(
+        json.dumps({"version": "reusable-event-boundary-v1", "repository": TARGET_REPOSITORY, "context_paths": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(dispatch_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "trusted-harness/repository")
+    monkeypatch.setenv("GITHUB_RUN_ID", "reusable-run-42")
+    calls = []
+
+    monkeypatch.setattr(github.GitHubPRAdapter, "check_runs", lambda *_args: {"runs": [], "complete": False})
+    monkeypatch.setattr(cli, "_run_one", lambda *args: calls.append(args) or {"disposition": "INCOMPLETE"})
+    with patch.dict(os.environ, {"GITHUB_REPOSITORY": TARGET_REPOSITORY}):
+        result = cli.main(
+            [
+                "review",
+                "--repo",
+                str(tmp_path),
+                "--event-file",
+                str(resolved_path),
+                "--profile",
+                str(profile),
+                "--output",
+                str(tmp_path / "reports"),
+                "--run-id",
+                "pr-477-reusable-run-42",
+                "--mode",
+                "AUTO",
+                "--json",
+            ]
+        )
+
+    assert result == 0
+    assert len(calls) == 1
+    event = calls[0][8]
+    assert event["repository"] == TARGET_REPOSITORY
+    assert event["pull_request_number"] == 477
+    assert event["base_sha"] == BASE_SHA
+    assert event["head_sha"] == HEAD_SHA
+    assert json.loads(capsys.readouterr().out)["disposition"] == "INCOMPLETE"
 
 
 def test_production_analysis_fetches_immutable_pr_base_after_api_identity_check(tmp_path):
