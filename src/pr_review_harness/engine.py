@@ -17,7 +17,15 @@ from pathlib import Path
 from typing import Any
 
 from . import contracts as review_contracts
-from .budget import BudgetExhausted, BudgetLedger, IsolatedInvocation, isolated_call, wait_for_any
+from .budget import (
+    BudgetExhausted,
+    BudgetLedger,
+    IsolatedCallError,
+    IsolatedInvocation,
+    isolated_call,
+    wait_for_any,
+)
+from .claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES, ClaimAssessmentError
 from .planner import allow_empty_approve
 from .reconcile import consolidate_findings, stable_candidate_id, validate_location
 from .report import render_report as _render_report
@@ -42,6 +50,16 @@ def _claim_adapter_bytes(value: Any) -> bytes:
 
 def _claim_adapter_hash(value: Any) -> str:
     return hashlib.sha256(_claim_adapter_bytes(value)).hexdigest()
+
+
+def _safe_claim_error_code(exc: Exception) -> str:
+    """Return only a known local ClaimAssessmentError code, never raw text."""
+    code = None
+    if type(exc) is ClaimAssessmentError:
+        code = getattr(exc, "code", None)
+    elif isinstance(exc, IsolatedCallError) and exc.remote_type == "ClaimAssessmentError":
+        code = str(exc)
+    return code if isinstance(code, str) and code in CLAIM_ASSESSMENT_ERROR_CODES else "UNKNOWN"
 
 
 _ADJUDICATION_V3 = review_contracts.ADJUDICATION_V3
@@ -2423,6 +2441,7 @@ def run_review(
                         if actual_output is not None and actual_output > ipc_cap
                         else type(exc).__name__,
                         "error_type": type(exc).__name__,
+                        "error_code": _safe_claim_error_code(exc),
                         "actual_output_bytes_observed": actual_output,
                         "observed_output_limit_violation": (
                             {"actual_bytes": actual_output, "reserved_bytes": ipc_cap}
