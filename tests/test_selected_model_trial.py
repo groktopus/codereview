@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -309,12 +311,111 @@ def test_wrong_trusted_environment_fails_before_output_or_cli(tmp_path):
             cli_executable=tmp_path / "not-invoked",
             provider_config=tmp_path / "provider.json",
             decision_config=tmp_path / "decision.json",
+            repo_support_root=Path(__file__).resolve().parents[1],
             environ=env,
             invoke=lambda *_a, **_k: pytest.fail("identity mismatch must fail before CLI dispatch"),
         )
     assert "secret-primary" not in str(raised.value)
     assert "secret-decision" not in str(raised.value)
     assert not output.exists()
+
+
+def test_trusted_environment_uses_explicit_support_root(tmp_path):
+    env = {
+        "LLM_BASE_URL": "https://attacker.example/v1",
+        "LLM_MODEL": "openai/gpt-6-luna",
+        "LLM_API_KEY": "secret-primary",
+        "JEV_BASE_URL": "https://api.typesafe.ai/v1",
+        "JEV_MODEL": "jev-latest",
+        "JEV_API_KEY": "secret-decision",
+    }
+    support_root = Path(__file__).resolve().parents[1]
+    with pytest.raises(trial.SelectedTrialError, match="provider_identity_mismatch"):
+        trial._environment_configs(env, repo_support_root=support_root)
+
+
+def test_prepare_only_stops_before_next_case_when_nonselected_source_changes(tmp_path, monkeypatch):
+    root = tmp_path / "support"
+    for relative in (
+        "src/pr_review_harness/selected_model_trial.py",
+        "src/pr_review_harness/injection_trials.py",
+        "src/pr_review_harness/nonselected_module.py",
+        "scripts/run_selected_model_trial.py",
+        "scripts/provider_config_from_env.py",
+        "profiles/generic.json",
+        "examples/injection/fixture-suite.v2.json",
+    ):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("initial source\n", encoding="utf-8")
+    source_file = root / "src/pr_review_harness/nonselected_module.py"
+    suite_file = root / "examples/injection/fixture-suite.v2.json"
+    output = tmp_path / "trial-output"
+    calls = []
+
+    class Matrix:
+        def source_fingerprint(self):
+            path = source_file
+            return {
+                "file_hashes": {
+                    "src/pr_review_harness/nonselected_module.py": hashlib.sha256(path.read_bytes()).hexdigest()
+                }
+            }
+
+    monkeypatch.setattr(trial, "_load_matrix_tools", lambda _root: Matrix())
+
+    def fake_suite_and_runtime(workspace, support_root, cli):
+        profile_path = workspace / "profile.json"
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
+        profile_path.write_text("{}", encoding="utf-8")
+        repo = tmp_path / "fixture-repo"
+        repo.mkdir(exist_ok=True)
+        cases = []
+        for case_id in trial.CASE_IDS:
+            case = _case()
+            case.case_id = case_id
+            case.repo = repo
+            case.variant = {"kind": "control", "vector": "none"}
+            case.family_id = "family-1"
+            case.pair_case_id = None
+            case.behavior_sha256 = "d" * 64
+            cases.append(case)
+        prepared = SimpleNamespace(
+            profile_path=profile_path,
+            profile={"version": "fixture-v2"},
+            cases=cases,
+        )
+        return prepared, {
+            "cli_path": str(cli),
+            "source_fingerprint": Matrix().source_fingerprint(),
+        }
+
+    def fake_preview(command):
+        calls.append(command)
+        if len(calls) == 1:
+            source_file.write_text("changed nonselected source\n", encoding="utf-8")
+        return {
+            "status": "PREPARED_NOT_RUN",
+            "command": "review",
+            "repository": str((tmp_path / "fixture-repo").resolve()),
+            "base": "1" * 40,
+            "head": "2" * 40,
+            "provider_configured": True,
+            "decision_provider_configured": True,
+            "effect_policy": "READ_ONLY",
+            "mode": "AUTO",
+            "max_claim_assessments": trial.MAX_CLAIM_ASSESSMENTS_PER_RUN,
+        }
+
+    monkeypatch.setattr(trial, "_suite_and_runtime", fake_suite_and_runtime)
+    monkeypatch.setattr(trial, "_preview_case", fake_preview)
+    with pytest.raises(trial.SelectedTrialError, match="preparation_source_changed"):
+        trial.prepare_only(output=output, cli_executable=Path("/bin/true"), repo_support_root=root)
+
+    assert len(calls) == 1
+    assert suite_file.is_file()
+    assert not (output / "manifest.json").exists()
+    assert not (output / "summary.json").exists()
 
 
 def test_selected_identity_is_fixed_and_no_endpoint_or_model_cli_override_exists():

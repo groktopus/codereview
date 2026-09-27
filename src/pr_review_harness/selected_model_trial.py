@@ -245,6 +245,15 @@ def _trial_input_identity(
     }
 
 
+def _assert_source_fingerprint(root: Path, expected: dict[str, Any]) -> None:
+    try:
+        current = _load_matrix_tools(root).source_fingerprint()
+    except Exception:
+        raise SelectedTrialError("preparation_source_unavailable") from None
+    if current != expected:
+        raise SelectedTrialError("preparation_source_changed")
+
+
 def _config_identity(path: Path, *, expected: dict[str, str], decision: bool) -> tuple[dict[str, Any], str]:
     try:
         config = load_provider_config(str(path))
@@ -282,7 +291,9 @@ def _synthetic_configs(work: Path) -> tuple[Path, Path, dict[str, str]]:
     )
 
 
-def _environment_configs(env: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _environment_configs(
+    env: dict[str, str], repo_support_root: Path | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
     required = ("LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "JEV_BASE_URL", "JEV_MODEL", "JEV_API_KEY")
     for key in required:
         value = env.get(key)
@@ -295,7 +306,8 @@ def _environment_configs(env: dict[str, str]) -> tuple[dict[str, Any], dict[str,
     try:
         import importlib.util
 
-        root = Path(__file__).resolve().parents[2]
+        root = Path(__file__).resolve().parents[2] if repo_support_root is None else repo_support_root
+        root = root.resolve(strict=True)
         helper_path = root / "scripts" / "provider_config_from_env.py"
         spec = importlib.util.spec_from_file_location("_selected_trial_provider_config", helper_path)
         if spec is None or spec.loader is None:
@@ -867,6 +879,9 @@ def prepare_only(
         with tempfile.TemporaryDirectory(prefix="selected-claim-dry-run-", dir=result_dir) as temporary:
             work = Path(temporary)
             prepared, runtime = _suite_and_runtime(work / "fixtures", root, cli_executable)
+            source_fingerprint = runtime.get("source_fingerprint")
+            if not isinstance(source_fingerprint, dict):
+                raise SelectedTrialError("runtime_source_fingerprint_unavailable")
             profile_path = prepared.profile_path
             limits = _limits()
             limits_path = work / "limits.json"
@@ -882,6 +897,7 @@ def prepare_only(
             for case in prepared.cases:
                 if case.case_id not in CASE_IDS:
                     continue
+                _assert_source_fingerprint(root, source_fingerprint)
                 if (
                     _trial_input_identity(
                         root,
@@ -905,6 +921,7 @@ def prepare_only(
                     dry_run=True,
                 )
                 preview = _preview_case(command)
+                _assert_source_fingerprint(root, source_fingerprint)
                 if (
                     _trial_input_identity(
                         root,
@@ -935,6 +952,7 @@ def prepare_only(
                 raise SelectedTrialError("fixed_case_selection_mismatch")
             suite_path = root / "examples" / "injection" / "fixture-suite.v2.json"
             suite_raw = suite_path.read_bytes()
+            _assert_source_fingerprint(root, source_fingerprint)
             source_fingerprint = runtime.get("source_fingerprint", {})
             manifest = {
                 "contract_version": TRIAL_ID,
@@ -1184,16 +1202,16 @@ def run_provider_trial(
     """Run exactly the three frozen cases with the selected trusted model pair."""
     env_source = dict(os.environ if environ is None else environ)
     invoke = invoke_cli_bounded if invoke is None else invoke
-    primary_identity, decision_identity = _environment_configs(env_source)
-    primary_config_identity, primary_hash = _config_identity(provider_config, expected=primary_identity, decision=False)
-    decision_config_identity, decision_hash = _config_identity(
-        decision_config, expected=decision_identity, decision=True
-    )
     root = Path(__file__).resolve().parents[2] if repo_support_root is None else repo_support_root
     try:
         root = root.resolve(strict=True)
     except OSError:
         raise SelectedTrialError("repository_support_assets_unavailable") from None
+    primary_identity, decision_identity = _environment_configs(env_source, root)
+    primary_config_identity, primary_hash = _config_identity(provider_config, expected=primary_identity, decision=False)
+    decision_config_identity, decision_hash = _config_identity(
+        decision_config, expected=decision_identity, decision=True
+    )
     result_dir = _new_output(output)
     runtime: dict[str, Any] = {}
     case_results: list[dict[str, Any]] = []
