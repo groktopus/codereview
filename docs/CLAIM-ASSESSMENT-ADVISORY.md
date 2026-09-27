@@ -1,9 +1,48 @@
 # Claim assessment adapter (advisory)
 
-`pr_review_harness.claim_assessment.ClaimAssessmentAdapter` defines an
-optional, bounded TypeSafe System One boundary using native Choice questions.
-The adapter and transport are not connected to the normal review engine or
-CLI. They cannot change a review disposition or authorize publication.
+`pr_review_harness.claim_assessment.ClaimAssessmentAdapter` provides an
+optional, bounded TypeSafe System One assessment using native Choice
+questions. The normal `pr-review review` CLI can enable this as a shadow
+assessment alongside the deterministic review path. Its model judgments are
+advisory and cannot change findings, review disposition, or publication
+authority. A real call, byte, or deadline budget breach remains an operational
+failure and must keep the overall review incomplete under the shared-budget
+guard.
+
+## CLI shadow assessment
+
+The CLI defaults `--max-claim-assessments` to `0`, which leaves the shadow
+stage disabled and does not construct its transport. Set it to an integer from
+`1` through `4` to request at most that many candidate assessments. A positive
+value requires `--decision-config` to point to the trusted operator-generated
+Typesafe decision config. The CLI validates the exact config schema before it
+constructs either provider; the configured model and credential environment
+reference are shared with the existing semantic decision-provider setup. The
+credential value is resolved only if an API call is made, and is never accepted
+on the command line or read from review input.
+
+The engine subjects enabled assessments to the existing shared call, byte, and
+deadline ledger, including time reserved for the final freshness check. It
+records this stage separately from the primary semantic adjudication. An
+assessment that cannot run within the remaining budget is not treated as a
+negative answer or as evidence that a candidate is safe. The deterministic
+reducer continues to own blocker acceptance and disposition; a model answer,
+probability, or confidence cannot clear a finding, create approval, or replace
+freshness and coverage requirements. `--dry-run` reports the requested cap but
+does not load provider configuration, resolve credentials, or make a request.
+The model's answer cannot alter disposition, but failures in the shared
+assessment budget or final freshness check can still make the run incomplete.
+
+With a positive cap, the durable result adds a sorted `claim_assessments` list.
+Only valid candidates with a validated `semantic-adjudication.v3` primary
+assessment and snapshot-bound citations are eligible. Each row records the
+candidate, separate per-dimension answers, status (`COMPLETE`, `PARTIAL`,
+`FAILED`, `NOT_RUN`, or `INTERRUPTED_UNKNOWN`), safe provenance and usage,
+request/evidence/question hashes, reservation and settlement keys, and timing.
+An uncertain interrupted attempt remains unknown on resume rather than being
+silently resent under the same reservation. These rows are supplementary
+observations; they do not replace the primary assessment or deterministic
+result fields.
 
 `claim-assessment.1` preserves the standalone candidate-and-source-evidence
 request. Optional `claim-assessment.2` adds `state.primary_assessment`: a

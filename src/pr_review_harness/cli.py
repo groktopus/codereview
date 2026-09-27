@@ -58,6 +58,14 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--event-file", help="GitHub Actions pull_request event JSON (read only)")
     review.add_argument("--effect-policy", choices=["READ_ONLY", "PUBLISH_REVIEW"], default="READ_ONLY")
     review.add_argument("--dry-run", action="store_true")
+    review.add_argument(
+        "--max-claim-assessments",
+        type=int,
+        choices=range(5),
+        default=0,
+        metavar="0..4",
+        help="run up to four optional TypeSafe claim assessments (requires --decision-config; default: disabled)",
+    )
     recent = sub.add_parser("recent", help="review recent first-parent commit pairs")
     _common(recent)
     recent.add_argument("--count", type=int, default=5)
@@ -375,10 +383,32 @@ def _freshness(event: dict | None, expected_head: str):
     return GitHubFreshnessCheck(event["repository"], event["pull_request_number"], expected_head)
 
 
+def _claim_assessment_cap(args) -> int:
+    cap = getattr(args, "max_claim_assessments", 0)
+    if isinstance(cap, bool) or not isinstance(cap, int) or not 0 <= cap <= 4:
+        raise ValueError("max claim assessments must be between 0 and 4")
+    if cap > 0 and not getattr(args, "decision_config", None):
+        raise ValueError("positive max claim assessments requires --decision-config")
+    return cap
+
+
+def _claim_transport_from_config(config: dict):
+    try:
+        from .claim_transport import ClaimTransport
+
+        return ClaimTransport.from_decision_config(config)
+    except ImportError:
+        raise ValueError("claim assessment adapter is unavailable") from None
+    except Exception:
+        raise ValueError("claim assessment decision configuration is invalid") from None
+
+
 def _configs(args):
     profile = _load_json(args.profile, "profile")
     limits = _read_limits(args)
     provider_config = decision_config = None
+    claim_assessor = None
+    claim_cap = _claim_assessment_cap(args)
     try:
         from .providers import load_provider_config, make_decision_provider, make_provider
 
@@ -386,8 +416,13 @@ def _configs(args):
             provider_config = load_provider_config(args.provider_config)
         if args.decision_config:
             decision_config = load_provider_config(args.decision_config)
+        claim_transport = _claim_transport_from_config(decision_config) if claim_cap > 0 else None
         provider = make_provider(provider_config) if provider_config else None
         decision_provider = make_decision_provider(decision_config) if decision_config else None
+        if claim_transport is not None:
+            from .claim_assessment import ClaimAssessmentAdapter
+
+            claim_assessor = ClaimAssessmentAdapter(claim_transport, model=claim_transport.model)
     except ImportError:
         if args.provider_config or args.decision_config:
             raise ValueError("provider adapter is unavailable")
@@ -396,7 +431,7 @@ def _configs(args):
         # Adapter exceptions are safe codes, but avoid surfacing configuration
         # contents or endpoint diagnostics through CLI errors.
         raise ValueError("provider configuration is invalid") from None
-    return profile, limits, provider, decision_provider
+    return profile, limits, provider, decision_provider, claim_assessor
 
 
 def _run_one(
@@ -411,9 +446,19 @@ def _run_one(
     event: dict | None = None,
     checks_document: dict | None = None,
     historical_check_identity: dict | None = None,
+    claim_assessor=None,
+    max_claim_assessments: int = 0,
 ) -> dict:
     if getattr(args, "effect_policy", "READ_ONLY") != "READ_ONLY":
         raise ValueError("PUBLISH_REVIEW is disabled")
+    if (
+        isinstance(max_claim_assessments, bool)
+        or not isinstance(max_claim_assessments, int)
+        or not 0 <= max_claim_assessments <= 4
+    ):
+        raise ValueError("max claim assessments must be between 0 and 4")
+    if max_claim_assessments > 0 and claim_assessor is None:
+        raise ValueError("positive max claim assessments requires a claim assessor")
     snapshot = collect_snapshot(args.repo, base, head, profile, limits)
     if event is not None:
         # Event identity is run provenance. Bind it before planning and refresh
@@ -548,6 +593,12 @@ def _run_one(
         raise RuntimeError("review core is unavailable") from exc
     plan = plan_review(snapshot, profile, args.mode)
     output_dir = str(Path(args.output))
+    review_kwargs = {}
+    if claim_assessor is not None and max_claim_assessments > 0:
+        review_kwargs.update(
+            claim_assessor=claim_assessor,
+            max_claim_assessments=max_claim_assessments,
+        )
     result = run_review(
         snapshot,
         plan,
@@ -561,6 +612,7 @@ def _run_one(
         freshness_check=_freshness(event, snapshot["head_sha"]),
         check_adapter=GitHubCheckAdapter(),
         context_retriever=ContextRetriever(args.repo),
+        **review_kwargs,
     )
     # Keep CLI result JSON-friendly and never expose provider configuration.
     result_path = Path(output_dir) / f"{run_id}.json"
@@ -738,6 +790,7 @@ def main(argv=None) -> int:
             return code
         if getattr(args, "effect_policy", "READ_ONLY") != "READ_ONLY":
             raise ValueError("PUBLISH_REVIEW is disabled")
+        claim_cap = _claim_assessment_cap(args)
         if args.dry_run:
             if args.command == "recent" and not 1 <= args.count <= 100:
                 raise ValueError("count must be between 1 and 100")
@@ -765,11 +818,13 @@ def main(argv=None) -> int:
                         "historical_checks_path": args.historical_checks_json,
                     }
                 )
+                if claim_cap > 0:
+                    preview["max_claim_assessments"] = claim_cap
             else:
                 preview.update({"count": args.count, "head": "HEAD"})
             _emit(args, preview)
             return 0
-        profile, limits, provider, decision_provider = _configs(args)
+        profile, limits, provider, decision_provider, claim_assessor = _configs(args)
         if args.command == "review":
             historical_check_identity = None
             if args.historical_checks_json:
@@ -830,6 +885,8 @@ def main(argv=None) -> int:
                 event,
                 checks_document,
                 historical_check_identity,
+                claim_assessor,
+                claim_cap,
             )
             _emit(args, result)
             return 0

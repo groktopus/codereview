@@ -278,6 +278,8 @@ def test_module_help_and_dry_run_are_real_cli_paths(tmp_path):
     repo, base, head, profile = fixture_repo(tmp_path)
     help_run = run_cli("--help")
     assert help_run.returncode == 0 and "review" in help_run.stdout
+    review_help = run_cli("review", "--help")
+    assert review_help.returncode == 0 and "--max-claim-assessments" in review_help.stdout
     publish_help = run_cli("publish", "--help")
     assert publish_help.returncode == 0
     assert "Live publication currently fails closed" in publish_help.stdout
@@ -288,10 +290,307 @@ def test_module_help_and_dry_run_are_real_cli_paths(tmp_path):
     assert preview.returncode == 0
     value = json.loads(preview.stdout)
     assert value["base"] == base and value["head"] == head
+    assert "max_claim_assessments" not in value
     assert value["profile_path"] == str(profile.resolve())
     assert not (tmp_path / "artifacts").exists()
     bad = run_cli("review", "--repo", repo, "--json")
     assert bad.returncode == 2 and json.loads(bad.stdout)["error"] == "invalid_arguments"
+
+
+@pytest.mark.parametrize("value", ["-1", "5", "not-an-integer"])
+def test_claim_assessment_cap_is_bounded_before_configuration_or_dispatch(tmp_path, monkeypatch, value, capsys):
+    from pr_review_harness import cli
+
+    repo, base, head, profile = fixture_repo(tmp_path)
+
+    def forbidden_configs(_args):
+        pytest.fail("invalid cap must fail before provider configuration or dispatch")
+
+    monkeypatch.setattr(cli, "_configs", forbidden_configs)
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--max-claim-assessments",
+            value,
+            "--json",
+        ]
+    )
+    assert code == 2
+    assert "invalid_arguments" in capsys.readouterr().out
+
+
+def test_positive_claim_cap_requires_trusted_decision_config_before_run(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli
+
+    repo, base, head, profile = fixture_repo(tmp_path)
+
+    def forbidden_configs(_args):
+        pytest.fail("missing trusted decision config must fail before provider setup")
+
+    monkeypatch.setattr(cli, "_configs", forbidden_configs)
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--max-claim-assessments",
+            "1",
+            "--json",
+        ]
+    )
+    assert code == 2
+    output = capsys.readouterr().out
+    assert "preflight_rejected" in output
+    assert "API_KEY" not in output
+
+
+def test_claim_dry_run_shows_enabled_cap_without_loading_config(tmp_path):
+    repo, base, head, profile = fixture_repo(tmp_path)
+    preview = run_cli(
+        "review",
+        "--repo",
+        repo,
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        profile,
+        "--decision-config",
+        tmp_path / "not-read.json",
+        "--max-claim-assessments",
+        "2",
+        "--dry-run",
+        "--json",
+    )
+    assert preview.returncode == 0
+    value = json.loads(preview.stdout)
+    assert value["max_claim_assessments"] == 2
+    assert value["decision_provider_configured"] is True
+
+
+@pytest.mark.parametrize("ambient_event_kind", ["push", "pull_request"])
+def test_enabled_cli_uses_typesafe_decision_config_without_reading_credential(
+    tmp_path, monkeypatch, capsys, ambient_event_kind
+):
+    from pr_review_harness import cli
+    from pr_review_harness.claim_assessment import ClaimAssessmentAdapter
+
+    repo, base, head, profile = fixture_repo(tmp_path)
+    decision_config = tmp_path / "decision.json"
+    decision_config.write_text(
+        json.dumps(
+            {
+                "kind": "typesafe",
+                "endpoint": "https://api.typesafe.ai/v1/systemone",
+                "model": "jev-1.13.0",
+                "api_key_env": "CLAIM_TEST_TOKEN",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("CLAIM_TEST_TOKEN", raising=False)
+    ambient_event_path = tmp_path / "ambient-event.json"
+    ambient_event = (
+        {"ref": "refs/heads/main"}
+        if ambient_event_kind == "push"
+        else {
+            "number": 7,
+            "pull_request": {"base": {"sha": "b" * 40}, "head": {"sha": "c" * 40}},
+        }
+    )
+    ambient_event_path.write_text(json.dumps(ambient_event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(ambient_event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/project")
+    monkeypatch.setenv("GITHUB_RUN_ID", "workflow-run-7")
+    # This exercises a historical explicit-base/head CLI invocation. Do not
+    # let the host Actions event silently turn it into event-bound review.
+    monkeypatch.delenv("GITHUB_EVENT_PATH")
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    monkeypatch.delenv("GITHUB_RUN_ID")
+    captured = {}
+
+    def capture_run_one(*args):
+        captured["args"] = args
+        return {"disposition": "INCOMPLETE", "run_id": "cli-claim-test"}
+
+    monkeypatch.setattr(cli, "_run_one", capture_run_one)
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--decision-config",
+            str(decision_config),
+            "--max-claim-assessments",
+            "2",
+            "--json",
+        ]
+    )
+    assert code == 0
+    assert isinstance(captured["args"][-2], ClaimAssessmentAdapter)
+    assert captured["args"][-2].configured_model == "jev-1.13.0"
+    assert captured["args"][-2].native_call.api_key_env == "CLAIM_TEST_TOKEN"
+    assert captured["args"][6].model == captured["args"][-2].configured_model
+    assert captured["args"][8] is None
+    assert captured["args"][-1] == 2
+    assert "CLAIM_TEST_TOKEN" not in capsys.readouterr().out
+
+
+def test_invalid_claim_decision_schema_fails_before_review_dispatch(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli, providers
+
+    repo, base, head, profile = fixture_repo(tmp_path)
+    decision_config = tmp_path / "decision.json"
+    provider_config = tmp_path / "provider.json"
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://api.example.invalid/v1",
+                "model": "review-model",
+                "api_key_env": "LLM_API_KEY",
+            }
+        ),
+        encoding="utf-8",
+    )
+    decision_config.write_text(
+        json.dumps(
+            {
+                "kind": "jev",
+                "endpoint": "https://api.typesafe.ai/v1/systemone",
+                "model": "jev-1.13.0",
+                "api_key_env": "CLAIM_TEST_TOKEN",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        providers,
+        "make_provider",
+        lambda *_args: pytest.fail("invalid claim config must be checked before provider construction"),
+    )
+    monkeypatch.setattr(
+        providers,
+        "make_decision_provider",
+        lambda *_args: pytest.fail("invalid claim config must be checked before decision provider construction"),
+    )
+    monkeypatch.setattr(cli, "_run_one", lambda *_args: pytest.fail("invalid config reached review dispatch"))
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--provider-config",
+            str(provider_config),
+            "--decision-config",
+            str(decision_config),
+            "--max-claim-assessments",
+            "1",
+            "--json",
+        ]
+    )
+    assert code == 2
+    output = capsys.readouterr().out
+    assert "provider configuration is invalid" in output
+    assert "CLAIM_TEST_TOKEN" not in output
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_run_one_only_forwards_claim_options_when_enabled(tmp_path, monkeypatch, enabled):
+    from pr_review_harness import checks, cli, engine, evidence, planner
+
+    args = SimpleNamespace(
+        effect_policy="READ_ONLY",
+        repo=str(tmp_path),
+        mode="AUTO",
+        output=str(tmp_path / "out"),
+        resume=False,
+    )
+    monkeypatch.setattr(
+        cli,
+        "collect_snapshot",
+        lambda *_args: {"head_sha": "head-sha", "snapshot_id": "snapshot-id", "evidence": {}},
+    )
+    monkeypatch.setattr(planner, "plan_review", lambda *_args: {"snapshot_id": "snapshot-id", "tasks": []})
+    monkeypatch.setattr(checks, "GitHubCheckAdapter", lambda: object())
+    monkeypatch.setattr(evidence, "ContextRetriever", lambda *_args: object())
+    monkeypatch.setattr(cli, "_freshness", lambda *_args: None)
+    captured = {}
+
+    def fake_run_review(*call_args, **call_kwargs):
+        captured["args"] = call_args
+        captured["kwargs"] = call_kwargs
+        artifact = Path(call_args[6]) / f"{call_args[7]}.json"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text("{}", encoding="utf-8")
+        return {"disposition": "INCOMPLETE"}
+
+    monkeypatch.setattr(engine, "run_review", fake_run_review)
+    monkeypatch.setattr(engine, "render_report", lambda _result: "# test review\n")
+    assessor = object() if enabled else None
+    cli._run_one(
+        args,
+        "base-sha",
+        "head-sha",
+        {"version": "cli-forward-v1"},
+        {},
+        None,
+        None,
+        f"forward-{enabled}",
+        claim_assessor=assessor,
+        max_claim_assessments=2 if enabled else 0,
+    )
+    assert ("claim_assessor" in captured["kwargs"]) is enabled
+    assert ("max_claim_assessments" in captured["kwargs"]) is enabled
+    if enabled:
+        assert captured["kwargs"]["claim_assessor"] is assessor
+        assert captured["kwargs"]["max_claim_assessments"] == 2
+
+
+def test_run_one_fails_closed_for_positive_claim_cap_without_assessor(tmp_path, monkeypatch):
+    from pr_review_harness import cli
+
+    args = SimpleNamespace(effect_policy="READ_ONLY", repo=str(tmp_path))
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("snapshot collection must not start"))
+    with pytest.raises(ValueError, match="requires a claim assessor"):
+        cli._run_one(
+            args,
+            "base-sha",
+            "head-sha",
+            {},
+            {},
+            None,
+            None,
+            "missing-claim-assessor",
+            max_claim_assessments=1,
+        )
 
 
 def test_github_event_metadata_is_checked_and_publish_is_rejected(tmp_path):
