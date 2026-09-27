@@ -8,12 +8,14 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
 
+from .engine import EnginePreflightError
 from .snapshot import SnapshotError, bind_repository_url, collect_snapshot, recent_commits
 
 MAX_HISTORICAL_CHECKS_BYTES = 2_000_000
@@ -22,6 +24,14 @@ MAX_HISTORICAL_CHECK_RUNS = 2_000
 
 class _ArgumentError(Exception):
     pass
+
+
+class _ReviewRuntimeFailure(RuntimeError):
+    """Sanitized runtime failure with an optional durable diagnostic artifact."""
+
+    def __init__(self, diagnostic_artifact_path: str | None = None):
+        super().__init__("review runtime failed")
+        self.diagnostic_artifact_path = diagnostic_artifact_path
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -221,6 +231,21 @@ def _validate_run_id(value: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value):
         raise ValueError("run_id must be 1 to 128 safe filename characters")
     return value
+
+
+def _diagnostic_artifact_path(output_dir: str | Path, run_id: str) -> str | None:
+    """Return only the derived, regular result JSON path; never inspect its contents."""
+    try:
+        validated_id = _validate_run_id(run_id)
+        candidate = Path(output_dir) / f"{validated_id}.json"
+        encoded = os.fsencode(str(candidate))
+        if len(encoded) > 4096 or any(byte < 32 or byte == 127 for byte in encoded):
+            return None
+        if not stat.S_ISREG(candidate.lstat().st_mode):
+            return None
+        return str(candidate)
+    except (OSError, TypeError, ValueError):
+        return None
 
 
 def _emit(args, value: Any) -> None:
@@ -788,39 +813,52 @@ def _run_one(
             claim_assessor=claim_assessor,
             max_claim_assessments=max_claim_assessments,
         )
-    result = run_review(
-        snapshot,
-        plan,
-        profile,
-        provider,
-        decision_provider,
-        limits,
-        output_dir,
-        run_id,
-        resume=getattr(args, "resume", False),
-        freshness_check=_freshness(event, snapshot["head_sha"]),
-        check_adapter=GitHubCheckAdapter(),
-        context_retriever=ContextRetriever(args.repo),
-        **review_kwargs,
-    )
-    # Keep CLI result JSON-friendly and never expose provider configuration.
-    result_path = Path(output_dir) / f"{run_id}.json"
-    if not result_path.is_file():
-        raise RuntimeError("review core returned without a durable result")
-    result["artifact_path"] = str(result_path)
-    result["snapshot_id"] = snapshot["snapshot_id"]
-    from .engine import render_report
+    try:
+        result = run_review(
+            snapshot,
+            plan,
+            profile,
+            provider,
+            decision_provider,
+            limits,
+            output_dir,
+            run_id,
+            resume=getattr(args, "resume", False),
+            freshness_check=_freshness(event, snapshot["head_sha"]),
+            check_adapter=GitHubCheckAdapter(),
+            context_retriever=ContextRetriever(args.repo),
+            **review_kwargs,
+        )
+    except EnginePreflightError:
+        raise
+    except Exception:
+        # Once the review engine is entered, ValueError and SnapshotError can
+        # describe runtime failures too. Keep their payload private and prevent
+        # main() from misclassifying them as preflight rejections.
+        raise _ReviewRuntimeFailure(_diagnostic_artifact_path(output_dir, run_id)) from None
+    try:
+        # Keep CLI result JSON-friendly and never expose provider configuration.
+        result_path = Path(output_dir) / f"{run_id}.json"
+        if not result_path.is_file():
+            raise RuntimeError("review core returned without a durable result")
+        result["artifact_path"] = str(result_path)
+        result["snapshot_id"] = snapshot["snapshot_id"]
+        from .engine import render_report
 
-    report_path = Path(output_dir) / f"{run_id}.md"
-    report = render_report(result)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{report_path.name}.", dir=report_path.parent)
+        report_path = Path(output_dir) / f"{run_id}.md"
+        report = render_report(result)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(prefix=f".{report_path.name}.", dir=report_path.parent)
+    except Exception:
+        raise _ReviewRuntimeFailure(_diagnostic_artifact_path(output_dir, run_id)) from None
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             stream.write(report)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, report_path)
+    except Exception:
+        raise _ReviewRuntimeFailure(_diagnostic_artifact_path(output_dir, run_id)) from None
     finally:
         try:
             os.unlink(temporary)
@@ -937,6 +975,8 @@ def _status(result: dict) -> str:
 
 def _public_error(exc: Exception) -> str:
     """Return a stable diagnostic without propagating arbitrary exception text."""
+    if isinstance(exc, EnginePreflightError):
+        return exc.reason
     if isinstance(exc, SnapshotError):
         return "snapshot_preflight_failed"
     if isinstance(exc, ValueError):
@@ -1107,6 +1147,11 @@ def main(argv=None) -> int:
                     }
                 )
             except Exception as exc:
+                diagnostic_path = (
+                    exc.diagnostic_artifact_path
+                    if isinstance(exc, _ReviewRuntimeFailure)
+                    else None
+                )
                 runs.append(
                     {
                         "run_id": run_id,
@@ -1115,8 +1160,14 @@ def main(argv=None) -> int:
                         "subject": pair["subject"],
                         "disposition": "FAILED",
                         "error": _public_error(exc),
+                        **({"diagnostic_artifact_path": diagnostic_path} if diagnostic_path else {}),
                     }
                 )
+                if diagnostic_path and not args.json:
+                    print(
+                        f"pr-review: review_runtime_failed; diagnostic artifact (not a completed report): {diagnostic_path}",
+                        file=sys.stderr,
+                    )
         _emit(
             args,
             {
@@ -1126,17 +1177,29 @@ def main(argv=None) -> int:
             },
         )
         return 0 if runs and all(r["disposition"] != "FAILED" for r in runs) else 1
+    except EnginePreflightError as exc:
+        _emit_error(args, 2, exc.reason)
+        return 2
     except (ValueError, SnapshotError) as exc:
         _emit_error(args, 2, _public_error(exc))
         return 2
     except Exception as exc:
-        _emit_error(args, 1, _public_error(exc))
+        diagnostic = exc.diagnostic_artifact_path if isinstance(exc, _ReviewRuntimeFailure) else None
+        _emit_error(args, 1, _public_error(exc), diagnostic_artifact_path=diagnostic)
         return 1
 
 
-def _emit_error(args, code: int, message: str) -> None:
+def _emit_error(args, code: int, message: str, *, diagnostic_artifact_path: str | None = None) -> None:
     safe = message.replace("\n", " ")[:500]
+    payload = {"error": safe, "exit_code": code}
+    if code == 1 and diagnostic_artifact_path:
+        payload["diagnostic_artifact_path"] = diagnostic_artifact_path
     if getattr(args, "json", False):
-        print(json.dumps({"error": safe, "exit_code": code}, sort_keys=True, separators=(",", ":")))
+        print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
     else:
-        print(f"pr-review: {safe}", file=sys.stderr)
+        suffix = (
+            f"; diagnostic artifact (not a completed report): {diagnostic_artifact_path}"
+            if code == 1 and diagnostic_artifact_path
+            else ""
+        )
+        print(f"pr-review: {safe}{suffix}", file=sys.stderr)

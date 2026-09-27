@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -11,6 +12,31 @@ import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+
+MAX_SMOKE_RESULT_BYTES = 2_000_000
+
+
+def _load_valid_terminal_result(path: Path) -> dict:
+    if not path.is_file() or path.stat().st_size > MAX_SMOKE_RESULT_BYTES:
+        raise RuntimeError("installed_cli_terminal_result_size_invalid")
+    with path.open("rb") as stream:
+        payload = stream.read(MAX_SMOKE_RESULT_BYTES + 1)
+    if len(payload) > MAX_SMOKE_RESULT_BYTES:
+        raise RuntimeError("installed_cli_terminal_result_size_invalid")
+    result = json.loads(payload)
+    if not isinstance(result, dict):
+        raise RuntimeError("installed_cli_terminal_result_invalid")
+    completed_at = result.get("completed_at")
+    result_hash = result.get("result_hash")
+    if not isinstance(completed_at, str) or not completed_at.strip():
+        raise RuntimeError("installed_cli_terminal_result_incomplete")
+    if not isinstance(result_hash, str) or len(result_hash) != 64:
+        raise RuntimeError("installed_cli_terminal_result_integrity_invalid")
+    unsigned = {key: value for key, value in result.items() if key != "result_hash"}
+    canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    if hashlib.sha256(canonical).hexdigest() != result_hash:
+        raise RuntimeError("installed_cli_terminal_result_integrity_invalid")
+    return result
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str], expected: int = 0) -> subprocess.CompletedProcess[str]:
@@ -137,7 +163,7 @@ def smoke(cli: Path) -> dict[str, str]:
             raise RuntimeError("installed_cli_provider_free_report_missing")
         if not artifact.resolve().is_relative_to(root) or not report.resolve().is_relative_to(root):
             raise RuntimeError("installed_cli_wrote_outside_smoke_directory")
-        durable_result = json.loads(artifact.read_text(encoding="utf-8"))
+        durable_result = _load_valid_terminal_result(artifact)
         smoke_case = SimpleNamespace(
             case_id="installed-wheel-provider-free-smoke",
             variant={"kind": "provider_free_smoke", "vector": None},
@@ -169,10 +195,45 @@ def smoke(cli: Path) -> dict[str, str]:
             raise RuntimeError("installed_cli_empty_claim_projection_invalid")
         if projected["snapshot_content_binding"] != "UNKNOWN_NO_CLAIM_PROVENANCE":
             raise RuntimeError("installed_cli_snapshot_provenance_overstated")
+
+        # Create a deterministic failure after the review engine has written
+        # its terminal JSON, but before the Markdown report can be replaced.
+        # This exercises exit status 1 through the installed wheel, without a
+        # provider, target checkout, permissions race, or external effect.
+        failed_output = root / "runtime-failure-artifacts"
+        (failed_output / "wheel-smoke-runtime-failure.md").mkdir(parents=True)
+        runtime_failure = _run(
+            [
+                str(cli), "review", "--repo", str(repo), "--base", base, "--head", head,
+                "--profile", str(profile), "--run-id", "wheel-smoke-runtime-failure",
+                "--output", str(failed_output), "--json",
+            ],
+            cwd=root,
+            env=env,
+            expected=1,
+        )
+        failure_payload = json.loads(runtime_failure.stdout)
+        expected_failure_artifact = str(failed_output / "wheel-smoke-runtime-failure.json")
+        if failure_payload != {
+            "error": "review_runtime_failed",
+            "exit_code": 1,
+            "diagnostic_artifact_path": expected_failure_artifact,
+        }:
+            raise RuntimeError("installed_cli_runtime_failure_exit_invalid")
+        failure_result = _load_valid_terminal_result(Path(failure_payload["diagnostic_artifact_path"]))
+        if (
+            failure_result.get("run_id") != "wheel-smoke-runtime-failure"
+            or failure_result.get("disposition") != "INCOMPLETE"
+        ):
+            raise RuntimeError("installed_cli_runtime_failure_diagnostic_result_invalid")
+        failure_report = failed_output / "wheel-smoke-runtime-failure.md"
+        if not failure_report.is_dir() or failure_report.is_file():
+            raise RuntimeError("installed_cli_runtime_failure_fixture_not_applied")
         return {
             "status": "passed",
             "python": sys.version.split()[0],
             "cli": str(cli),
+            "cli_exit_contract": "0_terminal_1_postreview_runtime_2_preflight",
             "provider_free_disposition": str(result.get("disposition", result.get("status", "UNKNOWN"))),
             "durable_result_projection": "passed",
             "claim_content_provenance": projected["snapshot_content_binding"],

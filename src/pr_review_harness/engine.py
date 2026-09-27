@@ -31,6 +31,82 @@ from .reconcile import consolidate_findings, stable_candidate_id, validate_locat
 from .report import render_report as _render_report
 
 
+class EnginePreflightError(ValueError):
+    """A closed, deterministic rejection found before provider dispatch or writes."""
+
+    _PUBLIC_REASONS = {"invalid_review_request", "run_id_already_exists", "resume_state_invalid"}
+
+    _DETAILS = {
+        "invalid_review_request": "review request is invalid",
+        "run_id_already_exists": "run_id already exists; resume explicitly",
+        "resume_state_invalid": "resume ledger invalid",
+    }
+    _RESUME_DETAILS = {
+        "resume request mismatch",
+        "resume result integrity mismatch",
+        "resume ledger integrity mismatch",
+        "resume evidence identity mismatch",
+        "resume dynamic obligation ledger invalid",
+        "resume planned input binding mismatch",
+        "resume task input binding mismatch",
+        "resume snapshot identity mismatch",
+        "invalid_context_followup_parent_binding",
+        "invalid_context_followup_proposal_binding",
+        "invalid_context_followup_parent_contract",
+        "invalid_context_followup_target",
+        "invalid_context_followup_retrieval_binding",
+        "invalid_context_followup_parent_obligations",
+        "invalid_context_followup_scope",
+        "invalid_context_followup_obligation_binding",
+        "invalid_context_followup_related_evidence",
+        "invalid_context_followup_task_binding",
+        "invalid_context_followup_contract",
+        "invalid_context_followup_gap_record",
+        "invalid_context_followup_run_binding",
+        "invalid_context_followup_metadata_binding",
+    }
+    _REQUEST_DETAILS = {
+        "plan requires tasks and coverage_obligations",
+        "invalid planned task",
+        "invalid planned task kind",
+        "duplicate task_id",
+        "planned_specialist_input_metadata_is_engine_owned",
+        "invalid or duplicate coverage obligation",
+        "task references unknown obligation",
+        "positive max_claim_assessments requires a claim assessor",
+        "max_claim_assessments must be an integer from 0 to 4",
+        "claim assessor does not implement the prepared-assessment interface",
+        "claim assessor identity must be an object",
+        "claim assessor contract identity is required",
+        "claim assessor identity or adapter is not serializable",
+        "claim assessor configuration exceeds its finite preflight bound",
+    }
+    _LIMIT_NAMES = {
+        "deadline_seconds", "max_concurrent_scopes", "max_provider_calls", "max_retries_per_task",
+        "max_context_bytes", "max_input_bytes_per_task", "max_output_bytes_per_task", "max_output_bytes",
+        "max_context_retrievals", "max_followup_tasks", "max_snapshot_context_bytes", "max_cost_microunits",
+    }
+
+    def __init__(self, reason: str, detail: str | None = None):
+        if reason not in self._PUBLIC_REASONS:
+            raise ValueError("unknown engine preflight rejection")
+        self.reason = reason
+        safe_detail = None
+        if reason == "resume_state_invalid" and detail in self._RESUME_DETAILS:
+            safe_detail = detail
+        elif reason == "invalid_review_request" and detail in self._REQUEST_DETAILS:
+            safe_detail = detail
+        elif reason == "invalid_review_request" and isinstance(detail, str):
+            prefix, separator, key = detail.partition(": ")
+            if prefix == "invalid limit" and separator and key in self._LIMIT_NAMES:
+                safe_detail = detail
+            elif prefix == "missing finite limits" and separator:
+                missing = key.split(", ")
+                if missing and all(item in self._LIMIT_NAMES for item in missing):
+                    safe_detail = detail
+        super().__init__(safe_detail or self._DETAILS[reason])
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -1013,6 +1089,82 @@ def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, 
     return tasks, split_skips
 
 
+def _load_validated_resume_state(
+    output_path: Path,
+    request_hash: str,
+    snapshot: dict,
+    primary_tasks: list[dict],
+    obligations: list[dict],
+    input_ceiling: int,
+    profile: dict,
+) -> tuple[dict, dict]:
+    """Validate immutable resume identity before freshness work or any write."""
+    try:
+        saved = json.loads(output_path.read_text(encoding="utf-8"))
+        ledger = saved["ledger"]
+        if saved.get("request_hash") != request_hash or ledger.get("request_hash") != request_hash:
+            raise ValueError("resume request mismatch")
+        if _hash({k: v for k, v in saved.items() if k != "result_hash"}) != saved.get("result_hash"):
+            raise ValueError("resume result integrity mismatch")
+        if any(
+            _hash({k: v for k, v in event.items() if k != "event_hash"}) != event.get("event_hash")
+            for event in ledger.get("events", [])
+        ):
+            raise ValueError("resume ledger integrity mismatch")
+        saved_snapshot = {**snapshot, "evidence": dict(snapshot.get("evidence", {}))}
+        saved_retrieved_context = ledger.get("retrieved_context", {})
+        if isinstance(saved_retrieved_context, dict):
+            for entry in saved_retrieved_context.values():
+                if isinstance(entry, dict):
+                    for item in entry.get("evidence", []):
+                        if isinstance(item, dict) and isinstance(item.get("evidence_id"), str):
+                            existing = saved_snapshot["evidence"].get(item["evidence_id"])
+                            if existing is not None and not _same_evidence_content(existing, item):
+                                raise ValueError("resume evidence identity mismatch")
+                            saved_snapshot["evidence"].setdefault(item["evidence_id"], item)
+        saved_dynamic_tasks = [t for t in ledger.get("dynamic_tasks", []) if isinstance(t, dict)]
+        saved_task_by_id = {task["task_id"]: task for task in [*primary_tasks, *saved_dynamic_tasks]}
+        saved_dynamic_obligations = ledger.get("dynamic_obligations", [])
+        if not isinstance(saved_dynamic_obligations, list):
+            raise ValueError("resume dynamic obligation ledger invalid")
+        saved_obligation_by_id = {
+            item.get("obligation_id"): item
+            for item in [*obligations, *saved_dynamic_obligations]
+            if isinstance(item, dict) and item.get("obligation_id")
+        }
+        for task in saved_dynamic_tasks:
+            if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
+                _validate_context_followup_task(task, ledger, saved_snapshot, saved_obligation_by_id, saved_task_by_id)
+                saved_evidence = _evidence_for(task, saved_snapshot, input_ceiling)
+                _validate_bound_specialist_input(task, saved_snapshot, profile, saved_evidence)
+        saved_input_provenance = {
+            task["task_id"]: _task_input_provenance(task)
+            for task in [*primary_tasks, *saved_dynamic_tasks]
+            if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
+        }
+        if ledger.get("planned_task_inputs") != saved_input_provenance:
+            raise ValueError("resume planned input binding mismatch")
+        saved_outputs = ledger.get("outputs", {})
+        if isinstance(saved_outputs, dict):
+            for task_id, provenance in saved_input_provenance.items():
+                output = saved_outputs.get(task_id)
+                if isinstance(output, dict) and _task_input_provenance(output) != provenance:
+                    raise ValueError("resume task input binding mismatch")
+        if ledger.get("identity", {}).get("snapshot_id") not in (None, snapshot.get("snapshot_id")):
+            raise ValueError("resume snapshot identity mismatch")
+        if "deadline_epoch" in ledger:
+            float(ledger["deadline_epoch"])
+    except OSError:
+        # Storage failures are runtime failures; do not relabel them as bad input.
+        raise
+    except ValueError as exc:
+        detail = str(exc) if str(exc) in EnginePreflightError._RESUME_DETAILS else None
+        raise EnginePreflightError("resume_state_invalid", detail) from None
+    except (KeyError, TypeError, AttributeError):
+        raise EnginePreflightError("resume_state_invalid") from None
+    return saved, ledger
+
+
 def run_review(
     snapshot: dict,
     plan: dict,
@@ -1034,54 +1186,69 @@ def run_review(
     This controller never executes reviewed code. A lack of provider capability
     yields explicit NOT_STARTED coverage; it cannot be interpreted as no findings.
     """
-    validate_limits(limits)
+    try:
+        validate_limits(limits)
+    except (TypeError, ValueError) as exc:
+        raise EnginePreflightError("invalid_review_request", str(exc)) from None
     if (
         isinstance(max_claim_assessments, bool)
         or not isinstance(max_claim_assessments, int)
         or not 0 <= max_claim_assessments <= 4
     ):
-        raise ValueError("max_claim_assessments must be an integer from 0 to 4")
+        raise EnginePreflightError("invalid_review_request", "max_claim_assessments must be an integer from 0 to 4")
     claim_assessor_identity_hash = None
     claim_assessor_contract = None
     claim_assessor_code_hash = None
     if max_claim_assessments > 0:
         if claim_assessor is None:
-            raise ValueError("positive max_claim_assessments requires a claim assessor")
-        claim_assessor_identity_hash, claim_assessor_contract, claim_assessor_code_hash = _claim_assessor_binding(
-            claim_assessor
-        )
+            raise EnginePreflightError("invalid_review_request", "positive max_claim_assessments requires a claim assessor")
+        try:
+            claim_assessor_identity_hash, claim_assessor_contract, claim_assessor_code_hash = _claim_assessor_binding(
+                claim_assessor
+            )
+        except (TypeError, ValueError) as exc:
+            raise EnginePreflightError("invalid_review_request", str(exc)) from None
     if (
-        not run_id
+        not isinstance(run_id, str)
+        or not run_id
         or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", run_id)
         or ".." in run_id
         or not isinstance(snapshot, dict)
         or not isinstance(plan, dict)
         or not isinstance(profile, dict)
     ):
-        raise ValueError("run_id, snapshot, plan, and profile are required")
-    approval_authority = allow_empty_approve(profile)
+        raise EnginePreflightError("invalid_review_request")
+    try:
+        approval_authority = allow_empty_approve(profile)
+    except (TypeError, ValueError):
+        raise EnginePreflightError("invalid_review_request") from None
     if plan.get("snapshot_id") not in (None, snapshot.get("snapshot_id")):
-        raise ValueError("plan snapshot mismatch")
+        raise EnginePreflightError("invalid_review_request")
     tasks = plan.get("tasks")
     obligations = plan.get("coverage_obligations")
     if not isinstance(tasks, list) or not isinstance(obligations, list):
-        raise ValueError("plan requires tasks and coverage_obligations")
+        raise EnginePreflightError("invalid_review_request")
     obligations = list(obligations)
-    input_ceiling = effective_task_input_ceiling(limits, provider)
-    primary_tasks, split_skips = prepare_plan_tasks(
-        snapshot, {"tasks": tasks, "coverage_obligations": obligations}, profile, limits, provider
-    )
-    primary_task_inputs = [
-        {
-            "task_id": task["task_id"],
-            "task_kind": task.get("task_kind", "SPECIALIST_FINDINGS"),
-            "unit_ids": list(task.get("unit_ids", [])),
-            "evidence_ids": list(task.get("evidence_ids", [])),
-            "request_input_contract": task.get("request_input_contract"),
-            "unit_evidence_bindings": task.get("unit_evidence_bindings"),
-        }
-        for task in primary_tasks
-    ]
+    try:
+        input_ceiling = effective_task_input_ceiling(limits, provider)
+        primary_tasks, split_skips = prepare_plan_tasks(
+            snapshot, {"tasks": tasks, "coverage_obligations": obligations}, profile, limits, provider
+        )
+        primary_task_inputs = [
+            {
+                "task_id": task["task_id"],
+                "task_kind": task.get("task_kind", "SPECIALIST_FINDINGS"),
+                "unit_ids": list(task.get("unit_ids", [])),
+                "evidence_ids": list(task.get("evidence_ids", [])),
+                "request_input_contract": task.get("request_input_contract"),
+                "unit_evidence_bindings": task.get("unit_evidence_bindings"),
+            }
+            for task in primary_tasks
+        ]
+    except EnginePreflightError:
+        raise
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EnginePreflightError("invalid_review_request", str(exc)) from None
     output_path = Path(output_dir).resolve() / f"{run_id}.json"
     provider_identity = _provider_identity(provider, decision_provider)
     request_basis = {
@@ -1132,106 +1299,46 @@ def run_review(
         }
     if output_path.exists():
         if not resume:
-            raise ValueError("run_id already exists; resume explicitly")
-        try:
-            saved = json.loads(output_path.read_text(encoding="utf-8"))
-            ledger = saved["ledger"]
-            if saved.get("request_hash") != request_hash or ledger.get("request_hash") != request_hash:
-                raise ValueError("resume request mismatch")
-            if _hash({k: v for k, v in saved.items() if k != "result_hash"}) != saved.get("result_hash"):
-                raise ValueError("resume result integrity mismatch")
-            if any(
-                _hash({k: v for k, v in event.items() if k != "event_hash"}) != event.get("event_hash")
-                for event in ledger.get("events", [])
-            ):
-                raise ValueError("resume ledger integrity mismatch")
-            saved_snapshot = {**snapshot, "evidence": dict(snapshot.get("evidence", {}))}
-            saved_retrieved_context = ledger.get("retrieved_context", {})
-            if isinstance(saved_retrieved_context, dict):
-                for entry in saved_retrieved_context.values():
-                    if isinstance(entry, dict):
-                        for item in entry.get("evidence", []):
-                            if isinstance(item, dict) and isinstance(item.get("evidence_id"), str):
-                                existing = saved_snapshot["evidence"].get(item["evidence_id"])
-                                if existing is not None and not _same_evidence_content(existing, item):
-                                    raise ValueError("resume evidence identity mismatch")
-                                saved_snapshot["evidence"].setdefault(item["evidence_id"], item)
-            saved_dynamic_tasks = [t for t in ledger.get("dynamic_tasks", []) if isinstance(t, dict)]
-            saved_task_by_id = {task["task_id"]: task for task in [*primary_tasks, *saved_dynamic_tasks]}
-            saved_dynamic_obligations = ledger.get("dynamic_obligations", [])
-            if not isinstance(saved_dynamic_obligations, list):
-                raise ValueError("resume dynamic obligation ledger invalid")
-            saved_obligation_by_id = {
-                item.get("obligation_id"): item
-                for item in [*obligations, *saved_dynamic_obligations]
-                if isinstance(item, dict) and item.get("obligation_id")
-            }
-            for task in saved_dynamic_tasks:
-                if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
-                    _validate_context_followup_task(
-                        task, ledger, saved_snapshot, saved_obligation_by_id, saved_task_by_id
-                    )
-                    saved_evidence = _evidence_for(task, saved_snapshot, input_ceiling)
-                    _validate_bound_specialist_input(task, saved_snapshot, profile, saved_evidence)
-            saved_input_provenance = {
-                task["task_id"]: _task_input_provenance(task)
-                for task in [*primary_tasks, *saved_dynamic_tasks]
-                if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
-            }
-            if ledger.get("planned_task_inputs") != saved_input_provenance:
-                raise ValueError("resume planned input binding mismatch")
-            saved_outputs = ledger.get("outputs", {})
-            if isinstance(saved_outputs, dict):
-                for task_id, provenance in saved_input_provenance.items():
-                    output = saved_outputs.get(task_id)
-                    if isinstance(output, dict) and _task_input_provenance(output) != provenance:
-                        raise ValueError("resume task input binding mismatch")
-            if ledger.get("identity", {}).get("snapshot_id") not in (None, snapshot.get("snapshot_id")):
-                raise ValueError("resume snapshot identity mismatch")
-            if saved.get("completed_at"):
-                if callable(freshness_check):
-                    try:
-                        check = _bounded_freshness(freshness_check, 5.0)
-                        if isinstance(check, dict) and check.get("freshness") in {"CURRENT", "STALE", "UNKNOWN"}:
-                            saved["freshness"] = check["freshness"]
-                            saved["freshness_details"] = {
-                                "expected_head_sha": snapshot.get("head_sha"),
-                                **{k: v for k, v in check.items() if k != "freshness"},
-                            }
-                        else:
-                            saved["freshness"] = "UNKNOWN"
-                            saved["freshness_details"] = {
-                                "expected_head_sha": snapshot.get("head_sha"),
-                                "observed_head_sha": None,
-                            }
-                        saved["disposition"] = _reduce(
-                            saved,
-                            saved.get("allow_empty_approve") is True,
-                            saved.get("policy_valid", False),
-                        )
-                        saved["completed_at"] = _now()
-                        saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
-                        _atomic_write(output_path, _canonical(saved) + b"\n")
-                    except Exception:
+            raise EnginePreflightError("run_id_already_exists")
+        saved, ledger = _load_validated_resume_state(
+            output_path,
+            request_hash,
+            snapshot,
+            primary_tasks,
+            obligations,
+            input_ceiling,
+            profile,
+        )
+        if saved.get("completed_at"):
+            if callable(freshness_check):
+                try:
+                    check = _bounded_freshness(freshness_check, 5.0)
+                    if isinstance(check, dict) and check.get("freshness") in {"CURRENT", "STALE", "UNKNOWN"}:
+                        saved["freshness"] = check["freshness"]
+                        saved["freshness_details"] = {
+                            "expected_head_sha": snapshot.get("head_sha"),
+                            **{k: v for k, v in check.items() if k != "freshness"},
+                        }
+                    else:
                         saved["freshness"] = "UNKNOWN"
                         saved["freshness_details"] = {
                             "expected_head_sha": snapshot.get("head_sha"),
                             "observed_head_sha": None,
-                            "freshness_check_error": True,
                         }
-                        saved["disposition"] = _reduce(
-                            saved,
-                            saved.get("allow_empty_approve") is True,
-                            saved.get("policy_valid", False),
-                        )
-                        saved["completed_at"] = _now()
-                        saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
-                        _atomic_write(output_path, _canonical(saved) + b"\n")
-                elif snapshot.get("freshness_basis") != "HISTORICAL_SNAPSHOT":
+                    saved["disposition"] = _reduce(
+                        saved,
+                        saved.get("allow_empty_approve") is True,
+                        saved.get("policy_valid", False),
+                    )
+                    saved["completed_at"] = _now()
+                    saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
+                    _atomic_write(output_path, _canonical(saved) + b"\n")
+                except Exception:
                     saved["freshness"] = "UNKNOWN"
                     saved["freshness_details"] = {
                         "expected_head_sha": snapshot.get("head_sha"),
                         "observed_head_sha": None,
+                        "freshness_check_error": True,
                     }
                     saved["disposition"] = _reduce(
                         saved,
@@ -1241,9 +1348,21 @@ def run_review(
                     saved["completed_at"] = _now()
                     saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
                     _atomic_write(output_path, _canonical(saved) + b"\n")
-                return saved
-        except (KeyError, OSError, json.JSONDecodeError) as exc:
-            raise ValueError("resume ledger invalid") from exc
+            elif snapshot.get("freshness_basis") != "HISTORICAL_SNAPSHOT":
+                saved["freshness"] = "UNKNOWN"
+                saved["freshness_details"] = {
+                    "expected_head_sha": snapshot.get("head_sha"),
+                    "observed_head_sha": None,
+                }
+                saved["disposition"] = _reduce(
+                    saved,
+                    saved.get("allow_empty_approve") is True,
+                    saved.get("policy_valid", False),
+                )
+                saved["completed_at"] = _now()
+                saved["result_hash"] = _hash({k: v for k, v in saved.items() if k != "result_hash"})
+                _atomic_write(output_path, _canonical(saved) + b"\n")
+            return saved
     else:
         event = {"event": "RUN_STARTED", "at": _now()}
         event["event_hash"] = _hash(event)
@@ -1264,7 +1383,7 @@ def run_review(
                     if isinstance(evidence, dict) and isinstance(evidence.get("evidence_id"), str):
                         existing = snapshot["evidence"].get(evidence["evidence_id"])
                         if existing is not None and not _same_evidence_content(existing, evidence):
-                            raise ValueError("resume evidence identity mismatch")
+                            raise EnginePreflightError("resume_state_invalid", "resume evidence identity mismatch")
                         snapshot["evidence"].setdefault(evidence["evidence_id"], evidence)
     tasks = primary_tasks
     dynamic_tasks = [t for t in ledger.get("dynamic_tasks", []) if isinstance(t, dict)]

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 import pr_review_harness.engine as engine_module
-from pr_review_harness.engine import prepare_plan_tasks, render_report, run_review
+from pr_review_harness.engine import EnginePreflightError, prepare_plan_tasks, render_report, run_review
 from pr_review_harness.evidence import ContextRetriever
 from pr_review_harness.planner import plan_review
 from pr_review_harness.providers import OpenAIProvider, _validate_specialist
@@ -2359,6 +2359,85 @@ def test_resume_is_idempotent_and_rejects_changed_snapshot_or_tampering(tmp_path
     path.write_text(json.dumps(payload))
     with pytest.raises(ValueError, match="integrity"):
         run_review(snap, plan, profile(), provider, None, LIMITS, str(tmp_path), "r1", resume=True)
+
+
+def test_invalid_run_id_and_resume_state_are_typed_preflight_without_calls_or_mutation(tmp_path):
+    provider = EmptyProvider()
+    first = run(tmp_path, provider=provider)
+    path = tmp_path / "r1.json"
+    original = path.read_bytes()
+    marker = tmp_path / "preflight-provider-called"
+    attempt_provider = ContextFollowupProvider(marker=marker)
+
+    with pytest.raises(EnginePreflightError) as collision:
+        run_review(make_snapshot(), plan_review(make_snapshot(), profile()), profile(), attempt_provider, None,
+                   LIMITS, str(tmp_path), "r1")
+    assert collision.value.reason == "run_id_already_exists"
+    assert path.read_bytes() == original
+    assert not marker.exists()
+
+    other_snapshot = make_snapshot(2)
+    with pytest.raises(EnginePreflightError) as mismatch:
+        run_review(other_snapshot, plan_review(other_snapshot, profile()), profile(), attempt_provider, None,
+                   LIMITS, str(tmp_path), "r1", resume=True)
+    assert mismatch.value.reason == "resume_state_invalid"
+    assert path.read_bytes() == original
+    assert not marker.exists()
+
+    tampered = json.loads(original)
+    tampered["disposition"] = "REQUEST_CHANGES"
+    path.write_text(json.dumps(tampered), encoding="utf-8")
+    tampered_bytes = path.read_bytes()
+    snap = make_snapshot()
+    with pytest.raises(EnginePreflightError) as integrity:
+        run_review(snap, plan_review(snap, profile()), profile(), attempt_provider, None,
+                   LIMITS, str(tmp_path), "r1", resume=True)
+    assert integrity.value.reason == "resume_state_invalid"
+    assert path.read_bytes() == tampered_bytes
+    assert not marker.exists()
+    assert first["budget"]["provider_calls_reserved"] == json.loads(original)["budget"]["provider_calls_reserved"]
+
+
+def test_invalid_engine_limits_are_typed_preflight_without_output(tmp_path):
+    provider = EmptyProvider()
+    snap = make_snapshot()
+    plan = plan_review(snap, profile())
+    limits = {**LIMITS, "max_provider_calls": True}
+    with pytest.raises(EnginePreflightError) as rejected:
+        run_review(snap, plan, profile(), provider, None, limits, str(tmp_path), "invalid-limits")
+    assert rejected.value.reason == "invalid_review_request"
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("run_id", [True, 1, [], {}])
+def test_non_string_run_ids_are_typed_preflight_without_output(tmp_path, run_id):
+    snap = make_snapshot()
+    plan = plan_review(snap, profile())
+    with pytest.raises(EnginePreflightError) as rejected:
+        run_review(snap, plan, profile(), EmptyProvider(), None, LIMITS, str(tmp_path), run_id)
+    assert rejected.value.reason == "invalid_review_request"
+    assert not list(tmp_path.iterdir())
+
+
+def test_completed_resume_persistence_failure_remains_runtime(tmp_path, monkeypatch):
+    provider = EmptyProvider()
+    run(tmp_path, provider=provider)
+    path = tmp_path / "r1.json"
+    original = path.read_bytes()
+    snap = make_snapshot()
+    plan = plan_review(snap, profile())
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("private persistence detail")
+
+    monkeypatch.setattr(engine_module, "_atomic_write", fail_write)
+    with pytest.raises(OSError, match="private persistence detail"):
+        run_review(
+            snap, plan, profile(), provider, None, LIMITS, str(tmp_path), "r1",
+            resume=True,
+            freshness_check=StaticFreshness({"freshness": "STALE", "observed_head_sha": "e" * 40}),
+        )
+    assert path.read_bytes() == original
 
 
 def test_nonterminal_recovery_never_reuses_an_uncertain_reserved_call(tmp_path, monkeypatch):
