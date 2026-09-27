@@ -47,7 +47,7 @@ jobs:
       harness_repository: groktopus/codereview
       harness_sha: invalid-sha
       target_repository: diagnostic/probe
-      pull_request_number: ${{ inputs.pull_request_number }}
+      pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
       base_ref: main
       base_sha: '0000000000000000000000000000000000000000'
       head_sha: '1111111111111111111111111111111111111111'
