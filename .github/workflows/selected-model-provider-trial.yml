@@ -22,13 +22,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: groktopus/codereview
-          ref: 3540b543577ca852dc6b0f929469bd1950905141
+          ref: dfe8b6c2d8a73f4259a1ec5112c9d34f849350d2
           path: trusted-runner
           persist-credentials: false
 
       - name: Verify the exact trusted source revision before build or import
         env:
-          EXPECTED_RUNNER_SHA: 3540b543577ca852dc6b0f929469bd1950905141
+          EXPECTED_RUNNER_SHA: dfe8b6c2d8a73f4259a1ec5112c9d34f849350d2
           RUNNER_SOURCE: ${{ github.workspace }}/trusted-runner
         run: |
           python3 - <<'PY'
@@ -94,7 +94,7 @@ jobs:
       - name: Preflight the bounded effect observer before provider configuration
         working-directory: trusted-runner
         env:
-          EXPECTED_OBSERVER_SOURCE_SHA256: fd51625b888c49b592b55c959bbad60a9cca30020e3e594ec6c399c0e2f21ad6
+          EXPECTED_OBSERVER_SOURCE_SHA256: fce15c42bfbc7fe66f353e8322b11f5fff1ae44a10458bba234366509f75f328
         run: |
           python3 - <<'PY'
           import json
@@ -127,7 +127,7 @@ jobs:
           if (
               result.returncode
               or identity.get("status") != "AVAILABLE"
-              or OBSERVER_ID != "linux-strace-syscall-observer.v2"
+              or OBSERVER_ID != "linux-strace-syscall-observer.v3"
               or identity.get("source_sha256") != os.environ.get("EXPECTED_OBSERVER_SOURCE_SHA256")
               or identity.get("kill_on_exit_supported") is not True
           ):

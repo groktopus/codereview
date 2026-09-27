@@ -8,6 +8,7 @@ import threading
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 
@@ -176,6 +177,8 @@ class FakeClaimAssessor:
         empty_question_metadata: bool = False,
         corrupt_provenance: bool = False,
         budget_error: str | None = None,
+        estimated_dispatch_deadline: float | None = None,
+        dispatch_marker_path: str | None = None,
     ):
         self.sleep_seconds = sleep_seconds
         self.status = status
@@ -184,6 +187,8 @@ class FakeClaimAssessor:
         self.empty_question_metadata = empty_question_metadata
         self.corrupt_provenance = corrupt_provenance
         self.budget_error = budget_error
+        self.estimated_dispatch_deadline = estimated_dispatch_deadline
+        self.dispatch_marker_path = dispatch_marker_path
         self.prepare_calls = 0
 
     def prepare(
@@ -258,11 +263,18 @@ class FakeClaimAssessor:
             "input_bytes": len(prepared.request_bytes),
             "max_output_bytes": limits["max_output_bytes_per_task"],
             "provider_response_bytes": 2_000,
-            "deadline_seconds": limits["deadline_seconds"],
+            "deadline_seconds": min(
+                limits["deadline_seconds"],
+                self.estimated_dispatch_deadline
+                if self.estimated_dispatch_deadline is not None
+                else limits["deadline_seconds"],
+            ),
             "reservation_kind": "unknown",
         }
 
     def assess_prepared(self, prepared: Prepared, limits: dict) -> dict:
+        if self.dispatch_marker_path is not None:
+            Path(self.dispatch_marker_path).write_text("dispatched\n", encoding="utf-8")
         if self.sleep_seconds:
             time.sleep(self.sleep_seconds)
         request = json.loads(prepared.request_bytes)
@@ -304,10 +316,25 @@ class FakeClaimAssessor:
 
 
 class Freshness:
-    def __init__(self, value: str):
+    def __init__(
+        self,
+        value: str,
+        dispatch_marker_path: str | None = None,
+        dispatch_observation_path: str | None = None,
+    ):
         self.value = value
+        self.dispatch_marker_path = dispatch_marker_path
+        self.dispatch_observation_path = dispatch_observation_path
 
     def __call__(self) -> dict:
+        if self.dispatch_observation_path is not None:
+            marker_seen = bool(
+                self.dispatch_marker_path is not None and Path(self.dispatch_marker_path).is_file()
+            )
+            Path(self.dispatch_observation_path).write_text(
+                "dispatch_seen\n" if marker_seen else "dispatch_missing\n",
+                encoding="utf-8",
+            )
         return {
             "freshness": self.value,
             "expected_head_sha": HEAD,
@@ -623,25 +650,33 @@ def test_unsettled_shadow_reservation_is_not_redispatched_on_resume(tmp_path, mo
 
 
 def test_final_callable_freshness_runs_after_timed_out_shadow_and_stale_still_gates(tmp_path):
-    # With 18 seconds total, primary isolated calls leave less than eight
-    # seconds for the shadow after its 16 second freshness reserve. The shadow
-    # deliberately runs past its child deadline; the final freshness callback
-    # must still be invoked and remains authoritative.
+    # Give primary work ample time, then bound the actual shadow dispatch with
+    # the fake assessor's finite quote. Its child marks dispatch before sleeping
+    # past that deadline, so this exercises a post-dispatch timeout independent
+    # of primary-stage timing. The final freshness callback remains authoritative.
+    marker = tmp_path / "shadow-dispatched"
+    freshness_observation = tmp_path / "freshness-observed-dispatch"
+    current_freshness = Freshness("CURRENT", str(marker), str(freshness_observation))
     timeout = _run(
         tmp_path / "timeout",
-        assessor=FakeClaimAssessor(sleep_seconds=10),
+        assessor=FakeClaimAssessor(
+            sleep_seconds=10,
+            estimated_dispatch_deadline=2,
+            dispatch_marker_path=str(marker),
+        ),
         cap=1,
-        limits={**LIMITS, "deadline_seconds": 18},
-        freshness=Freshness("CURRENT"),
+        limits={**LIMITS, "deadline_seconds": 60},
+        freshness=current_freshness,
     )
     assert timeout["claim_assessments"][0]["status"] == "INTERRUPTED_UNKNOWN"
     assert timeout["freshness"] == "CURRENT"
+    assert freshness_observation.read_text(encoding="utf-8") == "dispatch_seen\n"
 
     stale = _run(
         tmp_path / "stale",
         assessor=FakeClaimAssessor(),
         cap=1,
-        limits={**LIMITS, "deadline_seconds": 24},
+        limits={**LIMITS, "deadline_seconds": 60},
         freshness=Freshness("STALE"),
     )
     assert stale["claim_assessments"][0]["status"] == "COMPLETE"
