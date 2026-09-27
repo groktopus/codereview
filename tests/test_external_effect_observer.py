@@ -39,12 +39,18 @@ def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "if repeat:\n"
         " if os.environ.get('OBSERVER_TEST_TRACE_REPEAT_KIND') == 'file':\n"
         "  payload = b'[pid 4242] execve(0x0, 0x0, 0x0) = 0x0\\n' + b'[pid 5] openat(AT_FDCWD, \"' + b'x' * 550 + b'\", O_RDONLY) = 3\\n'\n"
+        " elif os.environ.get('OBSERVER_TEST_TRACE_REPEAT_KIND') == 'metadata':\n"
+        "  payload = b'[pid 5] newfstatat(AT_FDCWD, \"x\", {st_mode=S_IFREG}, 0) = 0\\n'\n"
         " else:\n"
         "  payload = b'[pid 4242] execve(0x0, 0x0, 0x0) = 0x0\\n' + b'[pid 5] clone(' + b'1' * 600 + b') = 6\\n'\n"
         " repeat -= 1\n"
         " while repeat:\n"
         "  n = os.write(fd, payload)\n"
         "  repeat -= 1\n"
+        "if os.environ.get('OBSERVER_TEST_TRACE_REPEAT_KIND') == 'metadata':\n"
+        " payload = b'[pid 5] newfstatat(AT_FDCWD, \"x\", {st_mode=S_IFREG}, 0) = 0\\n' + root_event + bytes.fromhex(os.environ.get('OBSERVER_TEST_TRACE_HEX', ''))\n"
+        "elif not int(os.environ.get('OBSERVER_TEST_TRACE_REPEAT', '0')):\n"
+        " payload = root_event + bytes.fromhex(os.environ.get('OBSERVER_TEST_TRACE_HEX', ''))\n"
         "view = memoryview(payload)\n"
         "while view:\n"
         " view = view[os.write(fd, view):]\n"
@@ -89,6 +95,7 @@ def test_observations_keep_only_typed_fields_and_hash_raw_paths(tmp_path, monkey
     result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
 
     observation = result["observer"]
+    assert observation["observer_id"] == "linux-strace-syscall-observer.v2"
     encoded = json.dumps(result, sort_keys=True)
     assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
     assert observation["overall_state"] == "UNKNOWN"
@@ -144,7 +151,6 @@ def test_unparseable_trace_is_unknown_and_bounds_cli_launch(tmp_path, monkeypatc
 
 def test_trace_byte_cap_forces_unknown(tmp_path, monkeypatch):
     _fake_strace(tmp_path, monkeypatch)
-    monkeypatch.setattr(observer, "TRACE_MAX_EVENTS", 10_000)
     env = {
         **os.environ,
         "OBSERVER_TEST_TRACE_REPEAT": "5000",
@@ -155,6 +161,56 @@ def test_trace_byte_cap_forces_unknown(tmp_path, monkeypatch):
     assert result["observer"]["overall_state"] == "UNKNOWN"
     assert result["observer"]["reason"] == "trace_byte_cap_exceeded"
     assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE", result
+    assert result["cli_result"] is None
+
+
+def test_noisy_prepare_volume_is_aggregated_with_late_effect_buckets(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    late = (
+        b'[pid 6] rename("/tmp/LATE_PRIVATE_PATH", "/tmp/LATE_PRIVATE_PATH.new") = 0\n'
+        b'[pid 6] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("203.0.113.8")}, 16) = 0\n'
+        b'[pid 7] execve(0x0, 0x0, 0x0) = 0x0\n'
+    )
+    env = {
+        **os.environ,
+        "OBSERVER_TEST_TRACE_REPEAT": "2100",
+        "OBSERVER_TEST_TRACE_REPEAT_KIND": "metadata",
+        "OBSERVER_TEST_TRACE_HEX": late.hex(),
+    }
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    observed = result["observer"]
+    assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
+    assert observed["coverage"] == "SCOPED_COMPLETE"
+    assert observed["observer_id"] == "linux-strace-syscall-observer.v2"
+    assert observed["overall_state"] == "UNKNOWN"
+    assert observed["event_count"] == 2104
+    assert observed["event_sample_count"] == observer.TRACE_MAX_EVENT_EXEMPLARS
+    assert observed["event_sample_truncated"] is True
+    assert observed["event_aggregates_complete"] is True
+    counts = {(item["syscall"], item["outcome"]): item["count"] for item in observed["event_aggregates"]}
+    assert sum(item["count"] for item in observed["event_aggregates"]) == observed["event_count"]
+    assert counts[("newfstatat", "SUCCESS")] == 2100
+    assert counts[("rename", "SUCCESS")] == 1
+    assert counts[("connect", "SUCCESS")] == 1
+    assert counts[("execve", "SUCCESS")] == 2
+    serialized = json.dumps(result, sort_keys=True)
+    assert "LATE_PRIVATE_PATH" not in serialized
+
+
+def test_aggregate_bucket_cap_fails_closed(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    trace = b"".join(
+        f"[pid 8] syscall{index}() = 0\n".encode()
+        for index in range(observer.TRACE_MAX_AGGREGATE_BUCKETS)
+    )
+    env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    assert result["observer"]["reason"] == "trace_aggregate_bucket_cap_exceeded"
+    assert result["observer"]["coverage"] == "INCOMPLETE"
+    assert result["observer"]["event_aggregates_complete"] is False
+    assert result["observer"]["event_count"] == observer.TRACE_MAX_AGGREGATE_BUCKETS + 1
+    assert sum(item["count"] for item in result["observer"]["event_aggregates"]) == observer.TRACE_MAX_AGGREGATE_BUCKETS
+    assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE"
     assert result["cli_result"] is None
 
 

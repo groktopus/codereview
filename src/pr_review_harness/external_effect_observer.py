@@ -19,12 +19,14 @@ import signal
 import stat
 import subprocess
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
-OBSERVER_ID = "linux-strace-syscall-observer.v1"
+OBSERVER_ID = "linux-strace-syscall-observer.v2"
 TRACE_MAX_BYTES = 1_048_576
-TRACE_MAX_EVENTS = 2_048
+TRACE_MAX_EVENT_EXEMPLARS = 256
+TRACE_MAX_AGGREGATE_BUCKETS = 128
 TRACE_MAX_LINE_BYTES = 8_192
 MAX_PROCESS_CREATIONS = 128
 CLI_STDOUT_MAX_BYTES = 256_000
@@ -330,6 +332,22 @@ def _parse_line(line: str, cwd: Path) -> dict[str, Any] | None:
     return event
 
 
+def _aggregate_key(event: dict[str, Any]) -> tuple[str, ...]:
+    """Return a fixed-cardinality key containing only sanitized fields."""
+    return tuple(
+        str(event.get(field, ""))[:64]
+        for field in (
+            "operation",
+            "syscall",
+            "outcome",
+            "result_class",
+            "destination_class",
+            "path_scope",
+            "trace_state",
+        )
+    )
+
+
 def observe_cli(
     command: list[str],
     *,
@@ -425,6 +443,8 @@ def observe_cli(
             selector.register(stream if stream is not None else fd, selectors.EVENT_READ, fd)
         trace_buffer = bytearray()
         events: list[dict[str, Any]] = []
+        aggregates: Counter[tuple[str, ...]] = Counter()
+        parsed_event_count = 0
         trace_bytes = 0
         incomplete: str | None = None
         parse_enabled = True
@@ -508,6 +528,7 @@ def observe_cli(
                         if incomplete is not None:
                             break
                         if parsed is not None:
+                            parsed_event_count += 1
                             if not root_exec_seen and parsed.get("syscall") in {"execve", "execveat"}:
                                 root_exec_seen = True
                                 if parsed.get("outcome") == "SUCCESS" and parsed.get("pid") is not None:
@@ -535,12 +556,15 @@ def observe_cli(
                                     incomplete = "process_creation_cap_exceeded"
                                     process_cap_exceeded = True
                                     break
-                            if len(events) >= TRACE_MAX_EVENTS:
-                                incomplete = incomplete or "trace_event_cap_exceeded"
+                            key = _aggregate_key(parsed)
+                            if key not in aggregates and len(aggregates) >= TRACE_MAX_AGGREGATE_BUCKETS:
+                                incomplete = "trace_aggregate_bucket_cap_exceeded"
                                 parse_enabled = False
                                 trace_buffer.clear()
                                 break
-                            events.append(parsed)
+                            aggregates[key] += 1
+                            if len(events) < TRACE_MAX_EVENT_EXEMPLARS:
+                                events.append(parsed)
                     if len(trace_buffer) > TRACE_MAX_LINE_BYTES:
                         incomplete = incomplete or "trace_line_cap_exceeded"
                         parse_enabled = False
@@ -626,8 +650,24 @@ def observe_cli(
             "strace_version": identity.get("version"),
             "strace_executable_sha256": identity.get("executable_sha256"),
             "trace_bytes": trace_bytes,
-            "event_count": len(events),
-            "events": events[:TRACE_MAX_EVENTS],
+            "event_count": parsed_event_count,
+            "event_sample_count": len(events),
+            "event_sample_truncated": parsed_event_count > len(events),
+            "event_aggregates": [
+                {
+                    "operation": key[0],
+                    "syscall": key[1],
+                    "outcome": key[2],
+                    "result_class": key[3] or None,
+                    "destination_class": key[4] or None,
+                    "path_scope": key[5] or None,
+                    "trace_state": key[6] or None,
+                    "count": count,
+                }
+                for key, count in sorted(aggregates.items())
+            ],
+            "event_aggregates_complete": complete,
+            "events": events,
             "root_exec_evidence": "first_successful_execve_in_fresh_spawn_trace" if root_exec_observed else None,
             "root_exec_pid": root_exec_pid,
             "coverage": "SCOPED_COMPLETE" if complete else "INCOMPLETE",

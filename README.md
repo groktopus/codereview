@@ -57,6 +57,7 @@ python -m venv /tmp/pr-review-wheel
 | `docs/VERIFICATION.md` | Implemented behavior and explicit spec gaps |
 | `docs/PILOT-RESULTS.md` | Actual recent-commit experiment and its limitations |
 | `docs/OPERATIONS.md` | Safe local and GitHub Actions operation, evidence handling, and recovery |
+| `docs/EXTERNAL-EFFECT-OBSERVER.md` | Linux observer v2 event-sample, aggregate, and coverage contract |
 | `docs/PACKAGING-VERIFICATION.md` | Wheel, source distribution, matrix, and installed-entry-point checks |
 | `.github/workflows/` | Python support matrix, wheel verification, and read-only review artifacts |
 
