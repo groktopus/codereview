@@ -143,6 +143,7 @@ _TASK_ERROR_CODES = {
     "http_status_5xx",
 }
 _ACTION_EVENT_ENV = ("GITHUB_EVENT_PATH", "GITHUB_REPOSITORY", "GITHUB_RUN_ID")
+FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS = 5.0
 
 
 def _prepare_environment(source: dict[str, str]) -> dict[str, str]:
@@ -186,6 +187,15 @@ def _git(repo: Path, *args: str) -> str:
         ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
     )
     return completed.stdout.strip()
+
+
+def _set_full_review_fake_provider_timeout(provider_config: Path) -> None:
+    """Keep the normal-review fake usable under tracing, below its engine deadline."""
+    config = json.loads(provider_config.read_text(encoding="utf-8"))
+    if not isinstance(config, dict):
+        raise ValueError("provider_config_invalid")
+    config["timeout_seconds"] = FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS
+    provider_config.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _validate_full_review(
@@ -484,6 +494,7 @@ def _full_review_smoke(cli: Path) -> dict[str, object]:
             repo, base, _initial_head, profile, limits, provider_config = _write_fixture(
                 root, server.endpoint, deadline
             )
+            _set_full_review_fake_provider_timeout(provider_config)
 
             profile_value = json.loads(profile.read_text(encoding="utf-8"))
             profile_value["required_lenses"] = ["correctness", "tests", "security", "maintainability"]

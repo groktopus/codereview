@@ -14,12 +14,15 @@ import pytest
 
 from pr_review_harness import external_effect_observer as observer
 from scripts.effect_observer_smoke import (
+    FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS,
     _bounded_full_review_failure,
     _failure_summary,
     _full_review_failure_code,
     _prepare_environment,
+    _set_full_review_fake_provider_timeout,
     _validate_full_review,
 )
+from scripts.run_recovery_rehearsal import PROVIDER_TIMEOUT_SECONDS
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -487,6 +490,25 @@ def test_full_review_diagnostic_fails_closed_on_malformed_payload_and_envelope()
     assert _full_review_failure_code(
         result, observation, invocation, calls, target_marker_exists=False
     ) == "task_payload_schema_invalid"
+
+
+def test_full_review_smoke_uses_five_second_fake_timeout_without_changing_recovery_default(tmp_path):
+    provider_config = tmp_path / "provider.json"
+    provider_config.write_text(
+        json.dumps({"timeout_seconds": PROVIDER_TIMEOUT_SECONDS, "kind": "openai_compatible"}),
+        encoding="utf-8",
+    )
+    assert PROVIDER_TIMEOUT_SECONDS == 0.35
+
+    _set_full_review_fake_provider_timeout(provider_config)
+
+    configured = json.loads(provider_config.read_text(encoding="utf-8"))
+    assert configured == {
+        "kind": "openai_compatible",
+        "timeout_seconds": FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS,
+    }
+    assert FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS == 5.0
+    assert FULL_REVIEW_FAKE_PROVIDER_TIMEOUT_SECONDS < 20.0
 
 
 def test_failed_cli_exposes_only_stable_error_code(tmp_path, monkeypatch):
