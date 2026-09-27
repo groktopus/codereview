@@ -36,7 +36,119 @@ def test_trace_attributor_accounts_only_fixed_labels_and_keeps_no_raw_lines():
     assert attributor.lines_by_label == {"OTHER": 1, "newfstatat": 1}
     assert attributor.total_line_bytes == sum(attributor.bytes_by_label.values())
     assert seen == [first, second]  # parser receives lines, but retained state is numeric counters only
-    assert set(attributor.__dict__) == {"parser", "cwd", "bytes_by_label", "lines_by_label", "total_line_bytes", "parse_failures"}
+    assert set(attributor.__dict__) == {
+        "parser", "cwd", "roots", "bytes_by_label", "lines_by_label",
+        "file_path_bytes", "file_path_lines", "target_file_bytes", "target_file_lines",
+        "resumed_file_bytes", "resumed_file_lines", "total_line_bytes", "parse_failures",
+    }
+    assert "private/value" not in repr(attributor.__dict__)
+
+
+def test_file_path_classes_are_lexical_bounded_and_reconcile_exact_newline_bytes():
+    roots = (
+        ("CASE_WORKDIR", "/tmp/private-case"),
+        ("CLI_ENVIRONMENT", "/opt/cli-env"),
+        ("REPO_SUPPORT", "/work/repo"),
+        ("TEMP_ROOT", "/tmp"),
+        ("SYSTEM_ROOT", "/usr"),
+    )
+    lines = [
+        '[pid 7] openat(AT_FDCWD, "/tmp/private-case/src/é.py", O_RDONLY) = 3',
+        '[pid 8] newfstatat(3, "/usr/lib/python3.13/os.py", {}, 0) = 0',
+        '[pid 9] openat(AT_FDCWD, "relative/name", O_RDONLY) = 3',
+        '[pid 10] newfstatat(AT_FDCWD, "unterminated, {}, 0) = -1 EINVAL (Invalid argument)',
+        '[pid 11] openat(AT_FDCWD, "/tmp/private-case/partial", O_RDONLY <unfinished ...>',
+        '[pid 11] <... openat resumed> ) = 3',
+        '[pid 12] openat(AT_FDCWD, "/tmp/private-case/truncated...", O_RDONLY) = 3',
+    ]
+    attributor = diagnostic._LineAttributor(
+        diagnostic.observer._parse_line,
+        Path("/tmp"),
+        roots,
+    )
+    for line in lines:
+        try:
+            attributor(line, Path("/tmp"))
+        except ValueError:
+            # The deliberately malformed quote must remain counted and UNKNOWN.
+            pass
+
+    projection = diagnostic._file_path_projection(attributor, complete_trace=True)
+    assert projection["state"] == "COMPLETE"
+    assert projection["reconciliation"] == "MATCH"
+    assert projection["lines_by_syscall_class"] == {
+        "openat": {
+            "CASE_WORKDIR": 1,
+            "UNKNOWN_RELATIVE": 1,
+            "UNKNOWN_UNFINISHED": 1,
+            "UNKNOWN_RESUMED": 1,
+            "UNKNOWN_ELLIPSIS_AMBIGUOUS": 1,
+        },
+        "newfstatat": {"SYSTEM_ROOT": 1, "UNKNOWN_SYNTAX": 1},
+    }
+    assert projection["target_lines_by_syscall"] == {"openat": 5, "newfstatat": 2}
+    assert projection["target_bytes_by_syscall"] == {
+        syscall: sum(
+            len(line.encode("utf-8")) + 1
+            for line in lines
+            if diagnostic._target_syscall(line) == syscall
+        )
+        for syscall in ("openat", "newfstatat")
+    }
+    assert "private-case" not in json.dumps(projection)
+    assert "relative/name" not in repr(attributor.file_path_bytes)
+    assert diagnostic._path_class_for_line(
+        '[pid 13] openat(AT_FDCWD, "/tmp/private-case-other/file", O_RDONLY) = 3',
+        "openat",
+        roots,
+    ) == "TEMP_ROOT"
+    assert diagnostic._path_class_for_line(
+        '[pid 14] openat(AT_FDCWD, "/tmp/private-case/link/../source.py", O_RDONLY) = 3',
+        "openat",
+        roots,
+    ) == "CASE_WORKDIR"
+
+
+def test_file_path_attribution_rejects_mismatch_with_original_syscall_buckets():
+    line = '[pid 7] openat(AT_FDCWD, "/outside/path", O_RDONLY) = 3'
+    attributor = diagnostic._LineAttributor(
+        diagnostic.observer._parse_line,
+        Path("/tmp"),
+        (("REPO_SUPPORT", "/work/repo"),),
+    )
+    attributor(line, Path("/tmp"))
+    attributor.bytes_by_label["openat"] -= 1
+    projection = diagnostic._file_path_projection(attributor, complete_trace=True)
+    assert projection["state"] == "PARTIAL"
+    assert projection["reconciliation"] == "MISMATCH"
+
+
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [
+        ('"/repo/a\\\"b"', "REPO_SUPPORT"),
+        ('"/repo/a\\\\b"', "REPO_SUPPORT"),
+        ('"/repo\\057file"', "REPO_SUPPORT"),
+        ('"/repo/invalid\\q"', "UNKNOWN_SYNTAX"),
+        ('"\\u002frepo/file"', "UNKNOWN_SYNTAX"),
+    ],
+)
+def test_strace_c_path_escapes_are_conservative(token, expected):
+    line = f"[pid 7] openat(AT_FDCWD, {token}, O_RDONLY) = 3"
+    assert diagnostic._path_class_for_line(line, "openat", (("REPO_SUPPORT", "/repo"),)) == expected
+
+
+def test_file_path_attribution_never_claims_complete_when_trace_has_residual_bytes():
+    line = '[pid 7] openat(AT_FDCWD, "/outside/path", O_RDONLY) = 3'
+    attributor = diagnostic._LineAttributor(
+        diagnostic.observer._parse_line,
+        Path("/tmp"),
+        (("REPO_SUPPORT", "/work/repo"),),
+    )
+    attributor(line, Path("/tmp"))
+    projection = diagnostic._file_path_projection(attributor, complete_trace=False)
+    assert projection["state"] == "PARTIAL"
+    assert projection["lines_by_syscall_class"] == {"openat": {"OTHER_ABSOLUTE": 1}, "newfstatat": {}}
 
 
 def test_diagnostic_limits_bytes_match_selected_trial_canonical_input(tmp_path):

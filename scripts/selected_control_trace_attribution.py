@@ -3,7 +3,7 @@
 
 This is a secretless loopback diagnostic, not a model-quality or live-HTTPS
 equivalence test. It uses the normal installed CLI and a parser wrapper that
-retains only fixed-label syscall counts and byte totals.
+retains only fixed syscall/path-class counts and byte totals, never observed paths.
 """
 
 from __future__ import annotations
@@ -45,6 +45,7 @@ from pr_review_harness.selected_model_trial import (  # noqa: E402
 MAX_HTTP_REQUEST_BYTES = 64_000
 MAX_HTTP_RESPONSE_BYTES = 32_768
 MAX_SUMMARY_BYTES = 65_536
+DIAGNOSTIC_CONTRACT_VERSION = "selected-control-trace-attribution.v4"
 FAKE_PROVIDER_KEY = "loopback-only-synthetic-key"
 FAKE_DECISION_KEY = "loopback-only-synthetic-decision-key"
 FAKE_MODEL = "synthetic-control-model"
@@ -66,6 +67,119 @@ KNOWN_SYSCALLS = frozenset(
     .split()
 )
 _RAW_SYSCALL = re.compile(r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(")
+_TARGET_SYSCALL = re.compile(
+    r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?(openat|newfstatat)\((.*)$"
+)
+_RESUMED_TARGET_SYSCALL = re.compile(
+    r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?<\.\.\.\s+(openat|newfstatat)\s+resumed>"
+)
+_DIRFD_AND_PATH = re.compile(
+    r"^\s*(AT_FDCWD|-?[0-9]+)\s*,\s*(\"(?:\\.|[^\"\\])*\")(?=\s*,)"
+)
+_SYSTEM_PATH_ROOTS = (
+    "/usr", "/lib", "/lib64", "/etc", "/proc", "/dev", "/var", "/run",
+    "/opt", "/System", "/Library", "/Applications",
+)
+_FILE_PATH_CLASSES = (
+    "CASE_WORKDIR", "CLI_ENVIRONMENT", "REPO_SUPPORT", "TEMP_ROOT", "SYSTEM_ROOT",
+    "OTHER_ABSOLUTE", "UNKNOWN_RELATIVE", "UNKNOWN_SYNTAX", "UNKNOWN_UNFINISHED",
+    "UNKNOWN_RESUMED", "UNKNOWN_ELLIPSIS_AMBIGUOUS",
+)
+_TRUSTED_PATH_ROOT_CLASSES = frozenset(
+    {"CASE_WORKDIR", "CLI_ENVIRONMENT", "REPO_SUPPORT", "TEMP_ROOT", "SYSTEM_ROOT"}
+)
+
+
+def _path_roots(*, cli: Path, work_root: Path, repo_support: Path) -> tuple[tuple[str, str], ...]:
+    """Return trusted lexical roots; observed paths are never resolved or retained."""
+    candidates = [
+        ("CASE_WORKDIR", os.path.abspath(os.fspath(work_root))),
+        ("CLI_ENVIRONMENT", os.path.abspath(os.fspath(cli.parent.parent))),
+        ("REPO_SUPPORT", os.path.abspath(os.fspath(repo_support))),
+        ("TEMP_ROOT", os.path.abspath(tempfile.gettempdir())),
+        *(('SYSTEM_ROOT', root) for root in _SYSTEM_PATH_ROOTS),
+    ]
+    # More specific roots win when trusted roots are nested.
+    return tuple(sorted(candidates, key=lambda item: len(item[1]), reverse=True))
+
+
+def _path_class_for_line(line: str, syscall: str, roots: tuple[tuple[str, str], ...]) -> str:
+    """Classify a target syscall lexically, without retaining or resolving its path."""
+    if _RESUMED_TARGET_SYSCALL.match(line):
+        return "UNKNOWN_RESUMED"
+    if "<unfinished ...>" in line:
+        return "UNKNOWN_UNFINISHED"
+    match = _TARGET_SYSCALL.match(line)
+    if not match or match.group(1) != syscall:
+        return "UNKNOWN_SYNTAX"
+    args = match.group(2)
+    parsed = _DIRFD_AND_PATH.match(args)
+    if parsed is None:
+        return "UNKNOWN_SYNTAX"
+    token = parsed.group(2)
+    try:
+        value = _decode_strace_c_string(token)
+    except (ValueError, UnicodeError):
+        return "UNKNOWN_SYNTAX"
+    if "\x00" in value:
+        return "UNKNOWN_SYNTAX"
+    if value.endswith("..."):
+        return "UNKNOWN_ELLIPSIS_AMBIGUOUS"
+    if not value.startswith("/"):
+        return "UNKNOWN_RELATIVE"
+    lexical = os.path.normpath(value)
+    for path_class, root in roots:
+        if (
+            path_class in _TRUSTED_PATH_ROOT_CLASSES
+            and (lexical == root or lexical.startswith(root.rstrip(os.sep) + os.sep))
+        ):
+            return path_class
+    return "OTHER_ABSOLUTE"
+
+
+def _decode_strace_c_string(token: str) -> str:
+    """Decode a bounded C-style quoted pathname; reject unsupported escapes."""
+    if len(token) < 2 or token[0] != '"' or token[-1] != '"':
+        raise ValueError("quoted_path_invalid")
+    source = token[1:-1]
+    escapes = {
+        "a": "\a", "b": "\b", "f": "\f", "n": "\n", "r": "\r",
+        "t": "\t", "v": "\v", "\\": "\\", '"': '"', "'": "'", "?": "?",
+    }
+    output: list[str] = []
+    index = 0
+    while index < len(source):
+        char = source[index]
+        if char != "\\":
+            output.append(char)
+            index += 1
+            continue
+        index += 1
+        if index >= len(source):
+            raise ValueError("escape_incomplete")
+        escaped = source[index]
+        if escaped in escapes:
+            output.append(escapes[escaped])
+            index += 1
+        elif escaped in "01234567":
+            end = index + 1
+            while end < min(index + 3, len(source)) and source[end] in "01234567":
+                end += 1
+            output.append(chr(int(source[index:end], 8)))
+            index = end
+        elif escaped == "x":
+            end = index + 1
+            while end < len(source) and end <= index + 2 and source[end] in "0123456789abcdefABCDEF":
+                end += 1
+            if end == index + 1:
+                raise ValueError("hex_escape_empty")
+            output.append(chr(int(source[index + 1 : end], 16)))
+            index = end
+        else:
+            # Python accepts implementation-specific/unknown escapes and \u/\U;
+            # strace's escaped C-string representation is not a Python literal.
+            raise ValueError("escape_unsupported")
+    return "".join(output)
 
 
 def _label_line(line: str) -> str:
@@ -82,25 +196,109 @@ def _label_line(line: str) -> str:
 
 
 class _LineAttributor:
-    def __init__(self, parser, cwd: Path):
+    def __init__(self, parser, cwd: Path, roots: tuple[tuple[str, str], ...] = ()):
         self.parser = parser
         self.cwd = cwd
+        self.roots = roots
         self.bytes_by_label: Counter[str] = Counter()
         self.lines_by_label: Counter[str] = Counter()
+        self.file_path_bytes: Counter[tuple[str, str]] = Counter()
+        self.file_path_lines: Counter[tuple[str, str]] = Counter()
+        self.target_file_bytes: Counter[str] = Counter()
+        self.target_file_lines: Counter[str] = Counter()
+        self.resumed_file_bytes: Counter[str] = Counter()
+        self.resumed_file_lines: Counter[str] = Counter()
         self.total_line_bytes = 0
         self.parse_failures = 0
 
     def __call__(self, line: str, cwd: Path):
         label = _label_line(line)
-        size = len(line.encode("utf-8", "strict")) + 1  # observer calls the parser only for newline-ended lines
+        # The observer passes a decoded line after splitting on its newline.
+        size = len(line.encode("utf-8", "strict")) + 1
         self.bytes_by_label[label] += size
         self.lines_by_label[label] += 1
         self.total_line_bytes += size
         try:
-            return self.parser(line, cwd)
+            parsed = self.parser(line, cwd)
         except Exception:
             self.parse_failures += 1
+            target = _target_syscall(line)
+            if target is not None:
+                self._record_file_path(
+                    target,
+                    "UNKNOWN_RESUMED" if _RESUMED_TARGET_SYSCALL.match(line) else "UNKNOWN_SYNTAX",
+                    size,
+                    resumed=bool(_RESUMED_TARGET_SYSCALL.match(line)),
+                )
             raise
+        target = _target_syscall(line)
+        if target is not None:
+            path_class = _path_class_for_line(line, target, self.roots)
+            self._record_file_path(target, path_class, size, resumed=bool(_RESUMED_TARGET_SYSCALL.match(line)))
+        return parsed
+
+    def _record_file_path(self, syscall: str, path_class: str, size: int, *, resumed: bool = False) -> None:
+        self.target_file_bytes[syscall] += size
+        self.target_file_lines[syscall] += 1
+        self.file_path_bytes[(syscall, path_class)] += size
+        self.file_path_lines[(syscall, path_class)] += 1
+        if resumed:
+            self.resumed_file_bytes[syscall] += size
+            self.resumed_file_lines[syscall] += 1
+
+
+def _target_syscall(line: str) -> str | None:
+    resumed = _RESUMED_TARGET_SYSCALL.match(line)
+    if resumed:
+        return resumed.group(1)
+    match = _TARGET_SYSCALL.match(line)
+    return match.group(1) if match else None
+
+
+def _file_path_projection(attributor: _LineAttributor, *, complete_trace: bool) -> dict[str, Any]:
+    counts: dict[str, dict[str, int]] = {}
+    byte_counts: dict[str, dict[str, int]] = {}
+    count_reconciles = True
+    bytes_reconcile = True
+    for syscall in ("openat", "newfstatat"):
+        counts[syscall] = {
+            path_class: attributor.file_path_lines[(syscall, path_class)]
+            for path_class in _FILE_PATH_CLASSES
+            if attributor.file_path_lines[(syscall, path_class)]
+        }
+        byte_counts[syscall] = {
+            path_class: attributor.file_path_bytes[(syscall, path_class)]
+            for path_class in _FILE_PATH_CLASSES
+            if attributor.file_path_bytes[(syscall, path_class)]
+        }
+        # Independently reconcile regular syscall rows to the existing attribution;
+        # resumed fragments are deliberately `UNPARSED` in that unchanged channel.
+        count_reconciles &= (
+            sum(counts[syscall].values()) - attributor.resumed_file_lines[syscall]
+            == attributor.lines_by_label[syscall]
+        )
+        bytes_reconcile &= (
+            sum(byte_counts[syscall].values()) - attributor.resumed_file_bytes[syscall]
+            == attributor.bytes_by_label[syscall]
+        )
+        count_reconciles &= sum(counts[syscall].values()) == attributor.target_file_lines[syscall]
+        bytes_reconcile &= sum(byte_counts[syscall].values()) == attributor.target_file_bytes[syscall]
+    reconciliation = count_reconciles and bytes_reconcile
+    return {
+        "state": "COMPLETE" if complete_trace and reconciliation else "PARTIAL",
+        "state_meaning": "numeric_line_and_byte_accounting_complete_unknown_classes_are_valid",
+        "basis": "lexical_path_namespace_only_no_symlink_fd_or_pid_cwd_resolution",
+        "line_bytes": "decoded_utf8_line_bytes_plus_observed_newline_byte",
+        "lines_by_syscall_class": counts,
+        "bytes_by_syscall_class": byte_counts,
+        "target_lines_by_syscall": {
+            name: attributor.target_file_lines[name] for name in ("openat", "newfstatat")
+        },
+        "target_bytes_by_syscall": {
+            name: attributor.target_file_bytes[name] for name in ("openat", "newfstatat")
+        },
+        "reconciliation": "MATCH" if reconciliation else "MISMATCH",
+    }
 
 
 class _CallCounters(Counter):
@@ -469,9 +667,16 @@ def _bounded_summary_bytes(value: Any) -> tuple[bytes, bool]:
     return failure, False
 
 
-def _attributed_observation(command: list[str], *, cwd: Path, env: dict[str, str], timeout: float) -> tuple[dict, dict]:
+def _attributed_observation(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: float,
+    roots: tuple[tuple[str, str], ...] = (),
+) -> tuple[dict, dict]:
     original = observer._parse_line
-    attributor = _LineAttributor(original, cwd)
+    attributor = _LineAttributor(original, cwd, roots)
     observer._parse_line = attributor
     try:
         result = observer.observe_cli(command, cwd=cwd, env=env, timeout_seconds=timeout)
@@ -494,6 +699,10 @@ def _attributed_observation(command: list[str], *, cwd: Path, env: dict[str, str
         "parse_failure_count": attributor.parse_failures,
         "bytes_by_syscall": dict(sorted(attributor.bytes_by_label.items())),
         "lines_by_syscall": dict(sorted(attributor.lines_by_label.items())),
+        "file_path_attribution": _file_path_projection(
+            attributor,
+            complete_trace=attribution_state == "COMPLETE",
+        ),
     }
     return result, attribution
 
@@ -579,7 +788,13 @@ def run(
             cli, case, profile_path, limits_path, output_path, provider_path, decision_path, dry_run=False
         )
         if observe and sys.platform.startswith("linux"):
-            observed, attribution = _attributed_observation(command, cwd=work_root, env=_environment(), timeout=300)
+            observed, attribution = _attributed_observation(
+                command,
+                cwd=work_root,
+                env=_environment(),
+                timeout=300,
+                roots=_path_roots(cli=cli, work_root=work_root, repo_support=ROOT),
+            )
             observer_mode = "LINUX_STRACE"
         else:
             observed = invoke_cli_bounded(command, cwd=work_root, env=_environment(), timeout_seconds=300)
@@ -592,6 +807,16 @@ def run(
                 "parse_failure_count": None,
                 "bytes_by_syscall": {},
                 "lines_by_syscall": {},
+                "file_path_attribution": {
+                    "state": "UNKNOWN",
+                    "basis": "lexical_path_namespace_only_no_symlink_fd_or_pid_cwd_resolution",
+                    "line_bytes": "decoded_utf8_line_bytes_plus_observed_newline_byte",
+                    "lines_by_syscall_class": {},
+                    "bytes_by_syscall_class": {},
+                    "target_lines_by_syscall": {},
+                    "target_bytes_by_syscall": {},
+                    "reconciliation": "UNKNOWN",
+                },
             }
             observer_mode = "NOT_OBSERVED_PLATFORM_OR_EXPLICIT"
         raw_observer = observed.get("observer", {})
@@ -663,7 +888,7 @@ def run(
             else "INCOMPLETE"
         )
         return {
-            "contract_version": "selected-control-trace-attribution.v3",
+            "contract_version": DIAGNOSTIC_CONTRACT_VERSION,
             "fixture_case": "r1-control",
             "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
             "installed_source_match": True,
