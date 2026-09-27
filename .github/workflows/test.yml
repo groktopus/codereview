@@ -9,6 +9,25 @@ permissions:
   contents: read
 
 jobs:
+  effect-observer:
+    name: Linux external observer contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Require strace and record the exact observer runtime identity
+        run: |
+          set -euo pipefail
+          PYTHONPATH=src python -m pr_review_harness.external_effect_observer | tee -a "$GITHUB_STEP_SUMMARY"
+      - run: python -m pip install '.[dev]'
+      - name: Measure bounded events for the installed provider-free CLI help path
+        run: python scripts/effect_observer_smoke.py | tee -a "$GITHUB_STEP_SUMMARY"
+      - run: python -m pytest -q tests/test_external_effect_observer.py
+      - run: ruff check src/pr_review_harness/external_effect_observer.py tests/test_external_effect_observer.py
+
   tests:
     name: Tests and lint (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

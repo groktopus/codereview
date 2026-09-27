@@ -36,6 +36,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--cli-executable", type=Path, required=True, help="installed pr-review executable")
     result.add_argument("--provider-config", type=Path, help="config from provider_config_from_env.py; run mode only")
     result.add_argument("--decision-config", type=Path, help="config from provider_config_from_env.py; run mode only")
+    result.add_argument(
+        "--observe-effects",
+        action="store_true",
+        help="opt in to bounded Linux syscall observations around the installed CLI; the overall effect state stays unknown",
+    )
     return result
 
 
@@ -45,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.prepare_only:
             if args.provider_config is not None or args.decision_config is not None:
                 raise SelectedTrialError("prepare_only_rejects_provider_configs")
+            if args.observe_effects:
+                raise SelectedTrialError("prepare_only_rejects_effect_observer")
             result = prepare_only(output=args.output, cli_executable=args.cli_executable, repo_support_root=ROOT)
         else:
             if args.provider_config is None or args.decision_config is None:
@@ -55,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
                 provider_config=args.provider_config,
                 decision_config=args.decision_config,
                 repo_support_root=ROOT,
+                observe_effects=args.observe_effects,
             )
     except SelectedTrialError as exc:
         print(json.dumps({"status": "FAILED", "error": exc.code}, sort_keys=True, separators=(",", ":")))
