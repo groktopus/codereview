@@ -1431,6 +1431,19 @@ def _context_followup_projection_fixture():
                 "reservations": {"followup-1:review:1": {"provider_calls": 1}},
                 "settlements": {"followup-1:review:1": {"status": "SUCCEEDED"}},
             },
+            "retrieved_context": {
+                "gap-1": {
+                    "result": {"status": "RESOLVED"},
+                    "evidence": [{"evidence_id": "ev-retrieved-1"}],
+                }
+            },
+            "dynamic_obligations": [{
+                "obligation_id": "obligation-1",
+                "obligation_kind": "REQUIRED_CONTEXT",
+                "required": True,
+                "context_gap_id": "gap-1",
+                "retrieved_evidence_ids": ["ev-retrieved-1"],
+            }],
         },
         "task_results": {"followup-1": task_output},
         "context_gaps": [{
@@ -1476,6 +1489,189 @@ def _context_followup_projection_fixture():
         }],
     }
     return durable
+
+
+def _valid_context_followup_handoff_fixture():
+    durable = _context_followup_projection_fixture()
+    task = durable["ledger"]["dynamic_tasks"][0]
+    task_input = durable["ledger"]["planned_task_inputs"]["followup-1"]
+    task_output = durable["task_results"]["followup-1"]
+    metadata = task["context_followup"]
+    metadata.update(
+        {
+            "snapshot_id": "snapshot-1",
+            "parent_obligation_ids": ["parent-obligation-1"],
+            "scope_unit_ids": ["unit-1"],
+            "evidence_kind": "implementation",
+            "related_candidate_ids": [],
+            "related_evidence_ids": [],
+        }
+    )
+    task["evidence_ids"] = ["ev-parent-1", "ev-retrieved-1"]
+    task["request_input_contract"] = "specialist-input.v2"
+    task_input["context_followup"] = copy.deepcopy(metadata)
+    task_input["request_input_contract"] = "specialist-input.v2"
+    task_output["context_followup"] = copy.deepcopy(metadata)
+    task_output["request_input_contract"] = "specialist-input.v2"
+    task_output["input_evidence_ids"] = ["ev-parent-1", "ev-retrieved-1"]
+    return durable
+
+
+def test_context_followup_v1_and_v2_projection_bytes_remain_unchanged():
+    durable = _context_followup_projection_fixture()
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+
+    default = trial.project_case(case, durable, [])
+    v1 = trial.project_case(case, durable, [], include_context_followups=True)
+    v2 = trial.project_case(case, durable, [], include_context_followups=True, include_closure_diagnostics=True)
+
+    assert "context_followup_observations" not in default
+    assert digest(canonical(v1)) == "ca301cf560f6f832f515bc0b7e6a759f35b7e3fbfb4d7ba3142b80f7dbccc482"
+    assert digest(canonical(v2)) == "650b32316798fa51dd1e54190165b3a4285e67f889e883cd20840e5a8a0a5b36"
+
+
+def test_context_followup_v3_observes_persisted_handoff_without_claiming_delivery():
+    durable = _valid_context_followup_handoff_fixture()
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+
+    projected = trial.project_case(case, durable, ["fake-secret-canary"], include_context_handoff=True)
+    observation = projected["context_followup_observations"]
+    row = observation["rows"][0]
+
+    assert observation["schema"] == "context-followup-observation.v3"
+    assert row["metadata_contract_validation"] == "VALID"
+    assert row["retrieved_evidence_handoff_binding"] == "VERIFIED"
+    assert row["constructed_task_evidence_count"] == 2
+    assert row["task_result_input_evidence_count"] == 2
+    assert row["task_status"] == "SUCCEEDED" and row["adapter_http_status"] == 200
+    assert row["delivery_binding"] == observation["delivery_binding"] == "UNKNOWN"
+    assert row["actual_provider_calls"] == "UNKNOWN"
+    assert "PERSISTED_HANDOFF_BINDING_DOES_NOT_PROVE_TRANSPORT_DELIVERY" in observation["limitations"]
+    encoded = json.dumps(projected)
+    for secret in ("ev-retrieved-1", "ev-parent-1", "private-target-canary", "private-rationale-canary", "fake-secret-canary"):
+        assert secret not in encoded
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (lambda durable: durable["ledger"]["dynamic_tasks"][0].update(evidence_ids=["ev-parent-1"]), "MISMATCH"),
+        (lambda durable: durable["task_results"]["followup-1"].update(input_evidence_ids=["ev-parent-1"]), "MISMATCH"),
+        (
+            lambda durable: durable["ledger"]["planned_task_inputs"]["followup-1"]["context_followup"].update(
+                retrieved_evidence_ids=["ev-other-1"]
+            ),
+            "MISMATCH",
+        ),
+        (lambda durable: durable["ledger"]["planned_task_inputs"]["followup-1"].update(unit_evidence_bindings=[]), "VERIFIED"),
+        (lambda durable: durable["task_results"]["followup-1"].pop("input_evidence_ids"), "UNKNOWN"),
+        (lambda durable: durable["ledger"]["planned_task_inputs"].pop("followup-1"), "UNKNOWN"),
+        (lambda durable: durable["ledger"]["dynamic_tasks"][0].pop("request_input_contract"), "UNKNOWN"),
+        (lambda durable: durable["ledger"]["planned_task_inputs"]["followup-1"].pop("request_input_contract"), "UNKNOWN"),
+        (lambda durable: durable["task_results"]["followup-1"].pop("request_input_contract"), "UNKNOWN"),
+        (lambda durable: durable["ledger"]["dynamic_tasks"][0].update(request_input_contract="specialist-input.v1"), "MISMATCH"),
+        (lambda durable: durable["task_results"]["followup-1"].update(request_input_contract="specialist-input.v1"), "MISMATCH"),
+        (
+            lambda durable: durable["context_gaps"][0].update(retrieved_evidence_ids=["ev-other-1"]),
+            "MISMATCH",
+        ),
+        (
+            lambda durable: durable["ledger"]["retrieved_context"]["gap-1"]["evidence"].__setitem__(
+                0, {"evidence_id": "ev-other-1"}
+            ),
+            "MISMATCH",
+        ),
+        (
+            lambda durable: durable["ledger"]["dynamic_obligations"][0].update(
+                retrieved_evidence_ids=["ev-other-1"]
+            ),
+            "MISMATCH",
+        ),
+        (
+            lambda durable: durable["ledger"]["dynamic_obligations"][0].update(context_gap_id="gap-other"),
+            "MISMATCH",
+        ),
+    ],
+    ids=[
+        "task-evidence-omits-retrieval",
+        "successful-http-result-omits-retrieval",
+        "planned-metadata-diverges",
+        "planned-unit-binding-diverges-does-not-assert-unit-validity",
+        "result-inputs-missing",
+        "planned-provenance-missing",
+        "constructed-contract-missing",
+        "planned-contract-missing",
+        "result-contract-missing",
+        "constructed-contract-contradicts",
+        "result-contract-contradicts",
+        "authoritative-gap-retrieval-id-diverges",
+        "retrieved-context-entry-id-diverges",
+        "dynamic-obligation-retrieval-id-diverges",
+        "dynamic-obligation-link-diverges",
+    ],
+)
+def test_context_followup_v3_handoff_binding_distinguishes_conflict_from_missing(mutate, expected):
+    durable = _valid_context_followup_handoff_fixture()
+    mutate(durable)
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+
+    projected = trial.project_case(case, durable, [], include_context_handoff=True)
+    row = projected["context_followup_observations"]["rows"][0]
+
+    assert row["retrieved_evidence_handoff_binding"] == expected
+    assert row["delivery_binding"] == "UNKNOWN"
+    assert projected["context_followup_observations"]["projection_state"] == "PARTIAL"
+
+
+
+def test_context_followup_v3_requires_canonical_retrieval_and_obligation_records():
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+    missing_entry = _valid_context_followup_handoff_fixture()
+    missing_entry["ledger"].pop("retrieved_context")
+    row = trial.project_case(case, missing_entry, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+    assert row["retrieved_evidence_handoff_binding"] == "UNKNOWN"
+
+    unresolved = _valid_context_followup_handoff_fixture()
+    unresolved["ledger"]["retrieved_context"]["gap-1"]["result"]["status"] = "UNRESOLVED"
+    row = trial.project_case(case, unresolved, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+    assert row["retrieved_evidence_handoff_binding"] == "MISMATCH"
+
+    malformed_obligation = _valid_context_followup_handoff_fixture()
+    malformed_obligation["ledger"]["dynamic_obligations"] = []
+    row = trial.project_case(case, malformed_obligation, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+    assert row["retrieved_evidence_handoff_binding"] == "UNKNOWN"
+
+
+def test_context_followup_v3_does_not_claim_unit_binding_validation():
+    durable = _valid_context_followup_handoff_fixture()
+    for record in (
+        durable["ledger"]["dynamic_tasks"][0],
+        durable["ledger"]["planned_task_inputs"]["followup-1"],
+        durable["task_results"]["followup-1"],
+    ):
+        record["unit_evidence_bindings"] = [{"unit_id": "unit-1", "binding_status": "INVALID", "evidence_ids": []}]
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+
+    projected = trial.project_case(case, durable, [], include_context_handoff=True)
+    row = projected["context_followup_observations"]["rows"][0]
+    assert row["persisted_unit_binding"] == "UNKNOWN"
+    assert row["retrieved_evidence_handoff_binding"] == "VERIFIED"
+    assert "UNIT_EVIDENCE_BINDING_VALIDITY_NOT_ASSESSED" in projected["context_followup_observations"]["limitations"]
+
+def test_context_followup_v3_invalid_metadata_is_not_a_handoff_mismatch():
+    durable = _valid_context_followup_handoff_fixture()
+    for record in (
+        durable["ledger"]["dynamic_tasks"][0],
+        durable["ledger"]["planned_task_inputs"]["followup-1"],
+        durable["task_results"]["followup-1"],
+    ):
+        record["context_followup"].pop("snapshot_id")
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+
+    row = trial.project_case(case, durable, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+
+    assert row["metadata_contract_validation"] == "INVALID"
+    assert row["retrieved_evidence_handoff_binding"] == "UNKNOWN"
 
 
 def test_context_followup_projection_hashes_untrusted_text_and_keeps_delivery_unknown():

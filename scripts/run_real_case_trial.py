@@ -1278,6 +1278,8 @@ _FOLLOWUP_SETTLEMENT_STATUSES = frozenset({"SUCCEEDED", "FAILED", "TIMED_OUT", "
 _FOLLOWUP_LENSES = frozenset({"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"})
 _FOLLOWUP_TARGET_KINDS = frozenset({"unit", "path", "symbol"})
 _FOLLOWUP_LINK_STATES = frozenset({"PERSISTED_RECORDS_MATCH", "PERSISTED_RECORDS_MISMATCH", "UNKNOWN"})
+_FOLLOWUP_HANDOFF_STATES = frozenset({"VERIFIED", "MISMATCH", "UNKNOWN"})
+_FOLLOWUP_PROJECTION_MAX_IDS = 500
 _CLOSURE_NOTE_CODES = frozenset({
     "NOTE_NOT_OBJECT", "STATE_NOT_COVERED", "BASIS_NOT_STATIC_REVIEW", "UNIT_OUT_OF_SCOPE",
     "NO_RETRIEVED_EVIDENCE_REFERENCE", "REFERENCE_NOT_IN_TASK_INPUT", "MATCH", "NO_COVERAGE_NOTES", "UNKNOWN",
@@ -1301,6 +1303,29 @@ def _safe_followup_id(value: Any) -> str:
 
 def _safe_followup_enum(value: Any, allowed: frozenset[str]) -> str:
     return value if isinstance(value, str) and value in allowed else "UNKNOWN"
+
+
+def _followup_metadata_contract_state(value: Any) -> str:
+    """Observe the pinned runtime's canonical v1 shape validator, without retaining its errors."""
+    if not isinstance(value, dict):
+        return "UNKNOWN"
+    try:
+        from pr_review_harness.contracts import ContractIssue, validate_context_followup_metadata
+    except ImportError:
+        return "UNKNOWN"
+    try:
+        validate_context_followup_metadata(value)
+    except ContractIssue:
+        return "INVALID"
+    except Exception:
+        return "UNKNOWN"
+    return "VALID"
+
+
+def _bounded_followup_evidence_ids(value: Any) -> bool:
+    if not isinstance(value, list) or len(value) > _FOLLOWUP_PROJECTION_MAX_IDS:
+        return False
+    return all(_safe_followup_id(item) != "UNKNOWN" for item in value) and len(value) == len(set(value))
 
 
 def _project_required_context_closure_diagnostics(value: Any) -> dict[str, Any]:
@@ -1421,10 +1446,16 @@ def _project_required_context_closure_diagnostics(value: Any) -> dict[str, Any]:
 
 
 def _project_context_followups(
-    durable: dict[str, Any], *, include_closure_diagnostics: bool = False
+    durable: dict[str, Any], *, include_closure_diagnostics: bool = False, include_handoff_observation: bool = False
 ) -> dict[str, Any]:
     """Project only bounded persisted follow-up metadata and ledger observations."""
-    schema = "context-followup-observation.v2" if include_closure_diagnostics else "context-followup-observation.v1"
+    schema = (
+        "context-followup-observation.v3"
+        if include_handoff_observation
+        else "context-followup-observation.v2"
+        if include_closure_diagnostics
+        else "context-followup-observation.v1"
+    )
     ledger = durable.get("ledger")
     if not isinstance(ledger, dict):
         return {"schema": schema, "projection_state": "UNKNOWN", "reason": "LEDGER_NOT_SHOWN"}
@@ -1631,6 +1662,134 @@ def _project_context_followups(
         outcome_status = _safe_followup_enum(task_output.get("status") if isinstance(task_output, dict) else None, _FOLLOWUP_TASK_STATUSES)
         if outcome_status == "UNKNOWN":
             partial = True
+
+        handoff_state = "UNKNOWN"
+        metadata_validation = "NOT_ASSESSED"
+        constructed_evidence_ids: Any = None
+        result_input_evidence_ids: Any = None
+        if include_handoff_observation:
+            metadata_validation = _followup_metadata_contract_state(metadata)
+            constructed_evidence_ids = task.get("evidence_ids") if isinstance(task, dict) else None
+            result_input_evidence_ids = task_output.get("input_evidence_ids") if isinstance(task_output, dict) else None
+            constructed_contract = task.get("request_input_contract") if isinstance(task, dict) else None
+            planned_contract = task_input.get("request_input_contract") if isinstance(task_input, dict) else None
+            result_contract = task_output.get("request_input_contract") if isinstance(task_output, dict) else None
+            contract_copies = (constructed_contract, planned_contract, result_contract)
+            if any(isinstance(value, str) and value != "specialist-input.v2" for value in contract_copies):
+                contract_binding = "MISMATCH"
+            elif not all(isinstance(value, str) for value in contract_copies):
+                contract_binding = "UNKNOWN"
+            else:
+                contract_binding = "MATCH"
+            result_task_id = task_output.get("task_id") if isinstance(task_output, dict) else None
+            retrieved_context = ledger.get("retrieved_context")
+            retrieved_entry = (
+                retrieved_context.get(proposal_id)
+                if isinstance(retrieved_context, dict) and isinstance(proposal_id, str)
+                else None
+            )
+            retrieved_entry_result = retrieved_entry.get("result") if isinstance(retrieved_entry, dict) else None
+            retrieved_entry_evidence = retrieved_entry.get("evidence") if isinstance(retrieved_entry, dict) else None
+            retrieved_entry_ids = (
+                [item.get("evidence_id") for item in retrieved_entry_evidence]
+                if isinstance(retrieved_entry_evidence, list)
+                and len(retrieved_entry_evidence) <= 100
+                and all(isinstance(item, dict) for item in retrieved_entry_evidence)
+                else None
+            )
+            dynamic_obligations = ledger.get("dynamic_obligations")
+            matching_dynamic_obligations = (
+                [item for item in dynamic_obligations if isinstance(item, dict) and item.get("obligation_id") == obligation_id]
+                if isinstance(dynamic_obligations, list) and isinstance(obligation_id, str)
+                else []
+            )
+            dynamic_obligation = matching_dynamic_obligations[0] if len(matching_dynamic_obligations) == 1 else None
+            if metadata_validation == "VALID":
+                copies_available = all(isinstance(value, dict) for value in (metadata, input_metadata, output_metadata))
+                lists_available = all(
+                    _bounded_followup_evidence_ids(value)
+                    for value in (
+                        metadata.get("retrieved_evidence_ids"),
+                        input_metadata.get("retrieved_evidence_ids") if isinstance(input_metadata, dict) else None,
+                        output_metadata.get("retrieved_evidence_ids") if isinstance(output_metadata, dict) else None,
+                        constructed_evidence_ids,
+                        result_input_evidence_ids,
+                    )
+                )
+                identity_available = isinstance(planned_contract, str) and isinstance(result_task_id, str)
+                if copies_available and lists_available and identity_available:
+                    if (
+                        contract_binding == "MISMATCH"
+                        or result_task_id != task_id
+                        or metadata != input_metadata
+                        or metadata != output_metadata
+                    ):
+                        handoff_state = "MISMATCH"
+                    elif contract_binding != "MATCH":
+                        handoff_state = "UNKNOWN"
+                    elif retrieval_binding == "PERSISTED_IDS_MISMATCH" or gap_linkage == "PERSISTED_RECORDS_MISMATCH" or obligation_binding == "PERSISTED_RECORDS_MISMATCH":
+                        handoff_state = "MISMATCH"
+                    elif retrieval_binding != "PERSISTED_IDS_MATCH" or gap_linkage != "PERSISTED_RECORDS_MATCH" or obligation_binding != "PERSISTED_RECORDS_MATCH":
+                        handoff_state = "UNKNOWN"
+                    else:
+                        retrieved = set(metadata["retrieved_evidence_ids"])
+                        constructed = set(constructed_evidence_ids)
+                        result_inputs = set(result_input_evidence_ids)
+                        obligation_retrieved = dynamic_obligation.get("retrieved_evidence_ids") if isinstance(dynamic_obligation, dict) else None
+                        obligation_fields_present = (
+                            isinstance(dynamic_obligation, dict)
+                            and isinstance(dynamic_obligation.get("obligation_id"), str)
+                            and isinstance(dynamic_obligation.get("obligation_kind"), str)
+                            and isinstance(dynamic_obligation.get("required"), bool)
+                            and isinstance(dynamic_obligation.get("context_gap_id"), str)
+                            and _bounded_followup_evidence_ids(obligation_retrieved)
+                        )
+                        obligation_fields_mismatch = (
+                            isinstance(dynamic_obligation, dict)
+                            and (
+                                isinstance(dynamic_obligation.get("obligation_id"), str)
+                                and dynamic_obligation.get("obligation_id") != obligation_id
+                                or isinstance(dynamic_obligation.get("obligation_kind"), str)
+                                and dynamic_obligation.get("obligation_kind") != "REQUIRED_CONTEXT"
+                                or isinstance(dynamic_obligation.get("required"), bool)
+                                and dynamic_obligation.get("required") is not True
+                                or isinstance(dynamic_obligation.get("context_gap_id"), str)
+                                and dynamic_obligation.get("context_gap_id") != proposal_id
+                                or _bounded_followup_evidence_ids(obligation_retrieved)
+                                and obligation_retrieved != metadata["retrieved_evidence_ids"]
+                            )
+                        )
+                        entry_ids_valid = _bounded_followup_evidence_ids(retrieved_entry_ids)
+                        entry_result_status = retrieved_entry_result.get("status") if isinstance(retrieved_entry_result, dict) else None
+                        gap_status = gap.get("retrieval_status") if isinstance(gap, dict) else None
+                        source_statuses = (gap_status, entry_result_status)
+                        source_status_mismatch = any(
+                            isinstance(value, str) and value != "RESOLVED" for value in source_statuses
+                        )
+                        source_status_missing = not all(isinstance(value, str) for value in source_statuses)
+                        if source_status_mismatch or obligation_fields_mismatch:
+                            handoff_state = "MISMATCH"
+                        elif not obligation_fields_present or not entry_ids_valid or source_status_missing:
+                            handoff_state = "UNKNOWN"
+                        elif (
+                            obligation_retrieved != metadata["retrieved_evidence_ids"]
+                            or retrieved_entry_ids != metadata["retrieved_evidence_ids"]
+                        ):
+                            handoff_state = "MISMATCH"
+                        else:
+                            handoff_state = (
+                                "VERIFIED"
+                                if retrieved.issubset(constructed)
+                                and result_inputs.issubset(constructed)
+                                and retrieved.issubset(result_inputs)
+                                else "MISMATCH"
+                            )
+                elif contract_binding == "MISMATCH" or (
+                    isinstance(result_task_id, str) and result_task_id != task_id
+                ):
+                    handoff_state = "MISMATCH"
+            if metadata_validation != "VALID" or handoff_state != "VERIFIED":
+                partial = True
         provenance = task_output.get("provenance") if isinstance(task_output, dict) else None
         request_hash = provenance.get("request_hash") if isinstance(provenance, dict) else None
         response_hash = provenance.get("response_hash") if isinstance(provenance, dict) else None
@@ -1707,11 +1866,51 @@ def _project_context_followups(
         }
         if include_closure_diagnostics:
             row["required_context_closure_diagnostics"] = closure_diagnostics
+        if include_handoff_observation:
+            row.update(
+                {
+                    "metadata_contract_validation": metadata_validation,
+                    "retrieved_evidence_handoff_binding": _safe_followup_enum(handoff_state, _FOLLOWUP_HANDOFF_STATES),
+                    "constructed_task_evidence_count": (
+                        len(constructed_evidence_ids)
+                        if _bounded_followup_evidence_ids(constructed_evidence_ids)
+                        else "UNKNOWN"
+                    ),
+                    "constructed_task_evidence_ids_sha256": (
+                        _bounded_object_hash(constructed_evidence_ids)
+                        if _bounded_followup_evidence_ids(constructed_evidence_ids)
+                        else "UNKNOWN"
+                    ) or "UNKNOWN",
+                    "task_result_input_evidence_count": (
+                        len(result_input_evidence_ids)
+                        if _bounded_followup_evidence_ids(result_input_evidence_ids)
+                        else "UNKNOWN"
+                    ),
+                    "task_result_input_evidence_ids_sha256": (
+                        _bounded_object_hash(result_input_evidence_ids)
+                        if _bounded_followup_evidence_ids(result_input_evidence_ids)
+                        else "UNKNOWN"
+                    ) or "UNKNOWN",
+                }
+            )
         rows.append(row)
     if not tasks:
         projection_state = "NO_FOLLOWUP_TASKS_RECORDED" if gap_task_count == 0 else "PARTIAL"
     else:
         projection_state = "PARTIAL" if partial else "OBSERVED_WITH_LIMITATIONS"
+    limitations = [
+        "PERSISTED_METADATA_MATCH_DOES_NOT_PROVE_DISPATCH",
+        "METADATA_CONTRACT_VALIDATION_NOT_PERFORMED",
+        "FOLLOWUP_REQUEST_BODY_NOT_RETAINED",
+        "PERSISTED_RETRIEVAL_ID_MATCH_DOES_NOT_PROVE_DELIVERY",
+        "PERSISTED_GAP_AND_OBLIGATION_LINKS_ARE_STRUCTURAL_ONLY",
+        "BUDGET_SETTLEMENT_IS_NOT_ACTUAL_PROVIDER_CALL_RECEIPT",
+        "TASK_SUCCESS_DOES_NOT_PROVE_REQUIRED_CONTEXT_COVERAGE",
+    ]
+    if include_handoff_observation:
+        limitations[1] = "METADATA_CONTRACT_VALIDATION_IS_SHAPE_ONLY"
+        limitations.append("PERSISTED_HANDOFF_BINDING_DOES_NOT_PROVE_TRANSPORT_DELIVERY")
+        limitations.append("UNIT_EVIDENCE_BINDING_VALIDITY_NOT_ASSESSED")
     return {
         "schema": schema,
         "projection_state": projection_state,
@@ -1721,15 +1920,7 @@ def _project_context_followups(
         "retrieval_followup_link_count": gap_task_count,
         "rows": rows,
         "delivery_binding": "UNKNOWN",
-        "limitations": [
-            "PERSISTED_METADATA_MATCH_DOES_NOT_PROVE_DISPATCH",
-            "METADATA_CONTRACT_VALIDATION_NOT_PERFORMED",
-            "FOLLOWUP_REQUEST_BODY_NOT_RETAINED",
-            "PERSISTED_RETRIEVAL_ID_MATCH_DOES_NOT_PROVE_DELIVERY",
-            "PERSISTED_GAP_AND_OBLIGATION_LINKS_ARE_STRUCTURAL_ONLY",
-            "BUDGET_SETTLEMENT_IS_NOT_ACTUAL_PROVIDER_CALL_RECEIPT",
-            "TASK_SUCCESS_DOES_NOT_PROVE_REQUIRED_CONTEXT_COVERAGE",
-        ],
+        "limitations": limitations,
     }
 
 
@@ -1809,7 +2000,7 @@ def _scan(value: Any, secrets: list[str], limit: int = OUTPUT_CAP) -> bytes:
 
 def project_case(
     case: dict[str, Any], durable: dict[str, Any], secrets: list[str], *, include_context_followups: bool = False,
-    include_closure_diagnostics: bool = False,
+    include_closure_diagnostics: bool = False, include_context_handoff: bool = False,
 ) -> dict[str, Any]:
     findings = durable.get("findings")
     records = durable.get("ledger", {}).get("candidate_records") if isinstance(durable.get("ledger"), dict) else None
@@ -1905,9 +2096,11 @@ def project_case(
         "snapshot_gaps": _project_snapshot_gaps(durable.get("snapshot_gaps")),
         "evidence_index": _project_evidence_index(evidence_index, candidates),
     }
-    if include_context_followups:
+    if include_context_followups or include_context_handoff:
         projection["context_followup_observations"] = _project_context_followups(
-            durable, include_closure_diagnostics=include_closure_diagnostics
+            durable,
+            include_closure_diagnostics=include_closure_diagnostics or include_context_handoff,
+            include_handoff_observation=include_context_handoff,
         )
     _scan(projection, secrets)
     return projection
