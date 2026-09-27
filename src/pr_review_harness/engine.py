@@ -383,6 +383,225 @@ def _bind_specialist_input(task: dict, snapshot: dict, profile: dict, evidence: 
     }
 
 
+def _task_input_provenance(task: dict) -> dict[str, Any]:
+    provenance = {
+        "request_input_contract": task.get("request_input_contract"),
+        "unit_evidence_bindings": task.get("unit_evidence_bindings"),
+    }
+    if "context_followup" in task:
+        provenance["context_followup"] = task["context_followup"]
+    return provenance
+
+
+def _context_followup_metadata(
+    *,
+    task: dict,
+    record: dict,
+    obligation: dict,
+    parent_task: dict,
+    parent_result: dict,
+    retrieved_entry: dict,
+    snapshot_id: str,
+) -> dict[str, Any]:
+    """Reconstruct the exact authorized follow-up metadata from run state."""
+    proposal_id = record.get("proposal_id")
+    parent_task_id = record.get("task_id")
+    proposal = record.get("proposal")
+    if not isinstance(parent_task_id, str) or not parent_task_id:
+        raise ValueError("invalid_context_followup_parent_binding")
+    prefix = f"{parent_task_id}:gap:"
+    if (
+        record.get("status") not in {"VALID_UNRESOLVED", "RESOLVED_BY_FOLLOWUP"}
+        or not isinstance(proposal_id, str)
+        or not proposal_id.startswith(prefix)
+        or not proposal_id[len(prefix) :].isdigit()
+        or not isinstance(proposal, dict)
+        or parent_task.get("task_id") != parent_task_id
+        or parent_result.get("task_id") != parent_task_id
+        or parent_result.get("status") != "SUCCEEDED"
+    ):
+        raise ValueError("invalid_context_followup_parent_binding")
+    index = int(proposal_id[len(prefix) :])
+    if proposal_id != f"{parent_task_id}:gap:{index}":
+        raise ValueError("invalid_context_followup_proposal_binding")
+    parent_payload = parent_result.get("payload")
+    parent_proposals = parent_payload.get("context_gap_proposals", []) if isinstance(parent_payload, dict) else []
+    if not isinstance(parent_proposals, list) or index >= len(parent_proposals) or parent_proposals[index] != proposal:
+        raise ValueError("invalid_context_followup_proposal_binding")
+    source_version = parent_result.get("source_contract_version")
+    if source_version is None:
+        source_version = review_contracts.SPECIALIST_V1
+    if not isinstance(source_version, str) or source_version not in {
+        review_contracts.SPECIALIST_V1,
+        review_contracts.SPECIALIST_V2,
+        review_contracts.SPECIALIST_V3,
+        review_contracts.SPECIALIST_V4,
+    }:
+        raise ValueError("invalid_context_followup_parent_contract")
+    target = proposal.get("target")
+    if not isinstance(target, dict) or set(target) != {"target_unit_id", "target_path", "target_symbol"}:
+        raise ValueError("invalid_context_followup_target")
+    target_values = [target.get(key) for key in ("target_unit_id", "target_path", "target_symbol")]
+    if any(
+        value is not None
+        and (not isinstance(value, str) or not value.strip() or len(value.encode("utf-8")) > 2_000)
+        for value in target_values
+    ):
+        raise ValueError("invalid_context_followup_target")
+    selected = [
+        (key, target.get(key))
+        for key in ("target_unit_id", "target_path", "target_symbol")
+        if target.get(key) is not None
+    ]
+    if len(selected) != 1 or not isinstance(selected[0][1], str):
+        raise ValueError("invalid_context_followup_target")
+    target_kind = {"target_unit_id": "unit", "target_path": "path", "target_symbol": "symbol"}[selected[0][0]]
+    # Provider adapters store the normalized engine-facing target triplet. Rebuild
+    # the typed contract shape before revalidating with the declared source version.
+    wire_proposal = {
+        **proposal,
+        "target": {"kind": target_kind, "value": selected[0][1]},
+    }
+    try:
+        normalized_proposal = review_contracts.validate_gap(wire_proposal, source_version)
+    except review_contracts.ContractIssue as exc:
+        raise ValueError(exc.code) from None
+
+    target = normalized_proposal.get("target")
+    if not isinstance(target, dict) or set(target) != {"target_unit_id", "target_path", "target_symbol"}:
+        raise ValueError("invalid_context_followup_target")
+
+    retrieved = retrieved_entry.get("result")
+    retrieved_evidence = retrieved_entry.get("evidence")
+    retrieved_ids = record.get("retrieved_evidence_ids")
+    if (
+        not isinstance(retrieved, dict)
+        or retrieved.get("status") != "RESOLVED"
+        or not isinstance(retrieved_evidence, list)
+        or any(not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str) for item in retrieved_evidence)
+        or not isinstance(retrieved_ids, list)
+        or not retrieved_ids
+        or any(not isinstance(evidence_id, str) for evidence_id in retrieved_ids)
+        or len(retrieved_ids) != len(set(retrieved_ids))
+        or [item.get("evidence_id") for item in retrieved_evidence if isinstance(item, dict)] != retrieved_ids
+    ):
+        raise ValueError("invalid_context_followup_retrieval_binding")
+
+    parent_obligation_ids = record.get("affected_obligation_ids")
+    if (
+        not isinstance(parent_obligation_ids, list)
+        or not parent_obligation_ids
+        or any(not isinstance(oid, str) or not oid for oid in parent_obligation_ids)
+        or len(parent_obligation_ids) != len(set(parent_obligation_ids))
+        or not isinstance(parent_task.get("obligation_ids", [parent_task.get("obligation_id")]), list)
+        or not set(parent_obligation_ids).issubset(
+            set(parent_task.get("obligation_ids", [parent_task.get("obligation_id")]))
+        )
+    ):
+        raise ValueError("invalid_context_followup_parent_obligations")
+    scope_unit_ids = [record["resolved_unit_id"]] if record.get("resolved_unit_id") else list(parent_task.get("unit_ids", []))
+    if not scope_unit_ids or any(not isinstance(uid, str) or not uid for uid in scope_unit_ids):
+        raise ValueError("invalid_context_followup_scope")
+    obligation_id = f"context:{proposal_id}"
+    if (
+        obligation.get("obligation_id") != obligation_id
+        or obligation.get("obligation_kind") != "REQUIRED_CONTEXT"
+        or obligation.get("required") is not True
+        or obligation.get("scope_unit_ids") != scope_unit_ids
+        or obligation.get("lens") != normalized_proposal.get("required_lens")
+        or obligation.get("parent_obligation_ids") != parent_obligation_ids
+        or obligation.get("context_gap_id") != proposal_id
+        or obligation.get("retrieved_evidence_ids") != retrieved_ids
+    ):
+        raise ValueError("invalid_context_followup_obligation_binding")
+
+    related_candidate_ids = normalized_proposal.get("related_candidate_ids")
+    related_evidence_ids = normalized_proposal.get("related_evidence_ids")
+    parent_evidence_ids = parent_task.get("evidence_ids")
+    if (
+        not isinstance(related_candidate_ids, list)
+        or not isinstance(related_evidence_ids, list)
+        or not isinstance(parent_evidence_ids, list)
+        or any(not isinstance(value, str) or not value for value in parent_evidence_ids)
+        or any(not isinstance(value, str) or not value for value in related_candidate_ids)
+        or any(not isinstance(value, str) or not value for value in related_evidence_ids)
+        or not set(related_evidence_ids).issubset(set(parent_evidence_ids))
+    ):
+        raise ValueError("invalid_context_followup_related_evidence")
+    metadata = {
+        "contract_version": review_contracts.CONTEXT_FOLLOWUP_V1,
+        "snapshot_id": snapshot_id,
+        "proposal_id": proposal_id,
+        "parent_task_id": parent_task_id,
+        "parent_obligation_ids": list(parent_obligation_ids),
+        "followup_obligation_id": obligation_id,
+        "required_lens": normalized_proposal.get("required_lens"),
+        "scope_unit_ids": scope_unit_ids,
+        "evidence_kind": normalized_proposal.get("evidence_kind"),
+        "target": {"kind": target_kind, "value": selected[0][1]},
+        "rationale": normalized_proposal.get("rationale"),
+        "related_candidate_ids": list(related_candidate_ids),
+        "related_evidence_ids": list(related_evidence_ids),
+        "retrieved_evidence_ids": list(retrieved_ids),
+    }
+    try:
+        review_contracts.validate_context_followup_metadata(metadata)
+    except review_contracts.ContractIssue as exc:
+        raise ValueError(exc.code) from None
+    if (
+        task.get("task_id") != f"{parent_task_id}:followup:{index}"
+        or task.get("context_gap_followup_for") != proposal_id
+        or task.get("obligation_id") != obligation_id
+        or task.get("obligation_ids") != [obligation_id]
+        or task.get("unit_ids") != scope_unit_ids
+        or task.get("lens") != normalized_proposal.get("required_lens")
+        or not isinstance(task.get("evidence_ids"), list)
+        or any(not isinstance(value, str) or not value for value in task.get("evidence_ids", []))
+        or not set(retrieved_ids).issubset(set(task["evidence_ids"]))
+    ):
+        raise ValueError("invalid_context_followup_task_binding")
+    return metadata
+
+
+def _validate_context_followup_task(
+    task: dict,
+    ledger: dict,
+    snapshot: dict,
+    obligation_by_id: dict,
+    task_by_id: dict,
+) -> None:
+    marker = task.get("context_gap_followup_for")
+    if marker is None and "context_followup" not in task:
+        return
+    if not isinstance(marker, str) or "context_followup" not in task:
+        raise ValueError("invalid_context_followup_contract")
+    records = [
+        item
+        for item in ledger.get("context_gaps", [])
+        if isinstance(item, dict) and item.get("proposal_id") == marker
+    ]
+    if len(records) != 1:
+        raise ValueError("invalid_context_followup_gap_record")
+    record = records[0]
+    parent_task = task_by_id.get(record.get("task_id"))
+    parent_result = ledger.get("outputs", {}).get(record.get("task_id"), {})
+    obligation = obligation_by_id.get(f"context:{marker}")
+    retrieved_entry = ledger.get("retrieved_context", {}).get(marker)
+    if not all(isinstance(value, dict) for value in (parent_task, parent_result, obligation, retrieved_entry)):
+        raise ValueError("invalid_context_followup_run_binding")
+    expected = _context_followup_metadata(
+        task=task,
+        record=record,
+        obligation=obligation,
+        parent_task=parent_task,
+        parent_result=parent_result,
+        retrieved_entry=retrieved_entry,
+        snapshot_id=snapshot.get("snapshot_id"),
+    )
+    if task.get("context_followup") != expected:
+        raise ValueError("invalid_context_followup_metadata_binding")
+
+
 def _validate_bound_specialist_input(task: dict, snapshot: dict, profile: dict, evidence: list[dict]) -> None:
     """Reject persisted or caller-supplied mappings not derivable from trusted input."""
     if task.get("request_input_contract") != review_contracts.SPECIALIST_INPUT_V2:
@@ -790,28 +1009,34 @@ def run_review(
                                     raise ValueError("resume evidence identity mismatch")
                                 saved_snapshot["evidence"].setdefault(item["evidence_id"], item)
             saved_dynamic_tasks = [t for t in ledger.get("dynamic_tasks", []) if isinstance(t, dict)]
+            saved_task_by_id = {task["task_id"]: task for task in [*primary_tasks, *saved_dynamic_tasks]}
+            saved_dynamic_obligations = ledger.get("dynamic_obligations", [])
+            if not isinstance(saved_dynamic_obligations, list):
+                raise ValueError("resume dynamic obligation ledger invalid")
+            saved_obligation_by_id = {
+                item.get("obligation_id"): item
+                for item in [*obligations, *saved_dynamic_obligations]
+                if isinstance(item, dict) and item.get("obligation_id")
+            }
+            for task in saved_dynamic_tasks:
+                if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
+                    _validate_context_followup_task(
+                        task, ledger, saved_snapshot, saved_obligation_by_id, saved_task_by_id
+                    )
+                    saved_evidence = _evidence_for(task, saved_snapshot, input_ceiling)
+                    _validate_bound_specialist_input(task, saved_snapshot, profile, saved_evidence)
             saved_input_provenance = {
-                task["task_id"]: {
-                    "request_input_contract": task.get("request_input_contract"),
-                    "unit_evidence_bindings": task.get("unit_evidence_bindings"),
-                }
+                task["task_id"]: _task_input_provenance(task)
                 for task in [*primary_tasks, *saved_dynamic_tasks]
                 if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
             }
             if ledger.get("planned_task_inputs") != saved_input_provenance:
                 raise ValueError("resume planned input binding mismatch")
-            for task in saved_dynamic_tasks:
-                if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
-                    saved_evidence = _evidence_for(task, saved_snapshot, input_ceiling)
-                    _validate_bound_specialist_input(task, saved_snapshot, profile, saved_evidence)
             saved_outputs = ledger.get("outputs", {})
             if isinstance(saved_outputs, dict):
                 for task_id, provenance in saved_input_provenance.items():
                     output = saved_outputs.get(task_id)
-                    if isinstance(output, dict) and (
-                        output.get("request_input_contract") != provenance["request_input_contract"]
-                        or output.get("unit_evidence_bindings") != provenance["unit_evidence_bindings"]
-                    ):
+                    if isinstance(output, dict) and _task_input_provenance(output) != provenance:
                         raise ValueError("resume task input binding mismatch")
             if ledger.get("identity", {}).get("snapshot_id") not in (None, snapshot.get("snapshot_id")):
                 raise ValueError("resume snapshot identity mismatch")
@@ -948,17 +1173,16 @@ def run_review(
         if not task.get("task_id") or not task.get("obligation_id") or task["task_id"] in known_task_ids:
             raise ValueError("invalid_or_duplicate_dynamic_task")
         if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
+            _validate_context_followup_task(task, ledger, snapshot, obligation_by_id, task_by_id)
             evidence = _evidence_for(task, snapshot, input_ceiling)
             _validate_bound_specialist_input(task, snapshot, profile, evidence)
         if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
             raise ValueError("dynamic_task_references_unknown_obligation")
         known_task_ids.add(task["task_id"])
+        task_by_id[task["task_id"]] = task
         tasks.append(task)
     planned_task_inputs = {
-        task["task_id"]: {
-            "request_input_contract": task.get("request_input_contract"),
-            "unit_evidence_bindings": task.get("unit_evidence_bindings"),
-        }
+        task["task_id"]: _task_input_provenance(task)
         for task in tasks
         if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
     }
@@ -1131,6 +1355,7 @@ def run_review(
                 "attempts": attempt_index,
             }
         if kind == "SPECIALIST_FINDINGS":
+            _validate_context_followup_task(task, ledger, snapshot, obligation_by_id, task_by_id)
             _validate_bound_specialist_input(task, snapshot, profile, evidence)
         required_size = review_input_size(task, evidence)
         task_input_ceiling = int(limits["max_input_bytes_per_task"]) if is_check else input_ceiling
@@ -1372,6 +1597,7 @@ def run_review(
                     if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2
                     else {}
                 ),
+                **({"context_followup": task["context_followup"]} if "context_followup" in task else {}),
             }
     active: dict[int, dict] = {}
 
@@ -1383,6 +1609,8 @@ def run_review(
                     "request_input_contract": task["request_input_contract"],
                     "unit_evidence_bindings": task["unit_evidence_bindings"],
                 }
+            if "context_followup" in task:
+                outcome = {**outcome, "context_followup": task["context_followup"]}
             task_results[task["task_id"]] = outcome
             ledger["outputs"] = task_results
             if reservation_key:
@@ -1650,6 +1878,8 @@ def run_review(
                 context_gaps.append(record)
             else:
                 context_gaps[prior_index].update(record)
+            ledger["context_gaps"] = context_gaps
+            checkpoint()
             if valid and callable(context_retriever) and ":followup:" not in task["task_id"]:
                 retrieval_key = f"{record['proposal_id']}:context-retrieval"
                 reserved_bytes = max(
@@ -1805,9 +2035,7 @@ def run_review(
                         *evidence_cache.get(task["task_id"], []),
                         *(evidence_map[eid] for eid in record["retrieved_evidence_ids"]),
                     ])
-                    followup_task = _bind_specialist_input(followup_task, snapshot, profile, followup_evidence)
                     try:
-                        budget.reserve_followup(followup_id)
                         obligation = {
                             "obligation_id": followup_obligation_id,
                             "obligation_kind": "REQUIRED_CONTEXT",
@@ -1818,17 +2046,41 @@ def run_review(
                             "context_gap_id": record["proposal_id"],
                             "retrieved_evidence_ids": list(record["retrieved_evidence_ids"]),
                         }
+                        followup_task["context_followup"] = _context_followup_metadata(
+                            task=followup_task,
+                            record=record,
+                            obligation=obligation,
+                            parent_task=task,
+                            parent_result=task_results[task["task_id"]],
+                            retrieved_entry=ledger.get("retrieved_context", {}).get(record["proposal_id"], {}),
+                            snapshot_id=snapshot.get("snapshot_id"),
+                        )
+                        followup_task = _bind_specialist_input(
+                            followup_task, snapshot, profile, followup_evidence
+                        )
+                        budget.reserve_followup(followup_id)
                         obligation_by_id[followup_obligation_id] = obligation
                         if not any(o.get("obligation_id") == followup_obligation_id for o in obligations):
                             obligations.append(obligation)
+                        dynamic_obligations = ledger.setdefault("dynamic_obligations", [])
+                        if not isinstance(dynamic_obligations, list):
+                            raise ValueError("invalid_dynamic_obligation_ledger")
+                        existing_obligation = next(
+                            (item for item in dynamic_obligations if isinstance(item, dict) and item.get("obligation_id") == followup_obligation_id),
+                            None,
+                        )
+                        if existing_obligation is None:
+                            dynamic_obligations.append(obligation)
+                        elif existing_obligation != obligation:
+                            raise ValueError("resume context follow-up obligation mismatch")
                         prior_task = next((t for t in tasks if t.get("task_id") == followup_id), None)
                         if prior_task is None:
                             tasks.append(followup_task)
+                            task_by_id[followup_id] = followup_task
                             ledger.setdefault("dynamic_tasks", []).append(followup_task)
-                            ledger.setdefault("planned_task_inputs", {})[followup_id] = {
-                                "request_input_contract": followup_task["request_input_contract"],
-                                "unit_evidence_bindings": followup_task["unit_evidence_bindings"],
-                            }
+                            ledger.setdefault("planned_task_inputs", {})[followup_id] = _task_input_provenance(
+                                followup_task
+                            )
                         else:
                             if prior_task != followup_task:
                                 raise ValueError("resume followup task binding mismatch")

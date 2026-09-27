@@ -12,7 +12,7 @@ import pr_review_harness.engine as engine_module
 from pr_review_harness.engine import prepare_plan_tasks, render_report, run_review
 from pr_review_harness.evidence import ContextRetriever
 from pr_review_harness.planner import plan_review
-from pr_review_harness.providers import OpenAIProvider
+from pr_review_harness.providers import OpenAIProvider, _validate_specialist
 from pr_review_harness.snapshot import collect_snapshot
 
 LIMITS = {
@@ -502,6 +502,39 @@ class ContextFollowupProvider(EmptyProvider):
                 }
             ],
         }
+
+
+class AdapterNormalizedContextFollowupProvider(ContextFollowupProvider):
+    """Use the production V4 specialist normalizer on the offline fixture."""
+
+    def review(self, task, evidence, limits):
+        raw = super().review(task, evidence, limits)
+        for proposal in raw["context_gap_proposals"]:
+            target = proposal["target"]
+            selected = next(key for key, value in target.items() if value)
+            kind = {"target_unit_id": "unit", "target_path": "path", "target_symbol": "symbol"}[selected]
+            proposal["target"] = {"kind": kind, "value": target[selected]}
+            proposal["related_candidate_ids"] = []
+        raw.update(
+            {
+                "contract_version": "specialist-findings.v4",
+                "specific_strengths": [],
+                "future_guidance": [],
+            }
+        )
+        return _validate_specialist(
+            raw,
+            valid_evidence_ids={item["evidence_id"] for item in evidence},
+            valid_unit_ids=set(task["unit_ids"]),
+        )
+
+
+class MalformedUnusedTargetProvider(ContextFollowupProvider):
+    def review(self, task, evidence, limits):
+        result = super().review(task, evidence, limits)
+        if result.get("context_gap_proposals"):
+            result["context_gap_proposals"][0]["target"]["target_symbol"] = ""
+        return result
 
 
 class NoteProvider(EmptyProvider):
@@ -1503,6 +1536,176 @@ def test_retrieval_requires_bounded_followup_that_cites_retrieved_evidence(tmp_p
     context_coverage = next(c for c in result["coverage_ledger"] if c["obligation_kind"] == "REQUIRED_CONTEXT")
     assert context_coverage["state"] == "COMPLETE"
     assert result["coverage_state"] == "COMPLETE"
+    followup_id = next(task["task_id"] for task in result["ledger"]["dynamic_tasks"])
+    metadata = result["ledger"]["planned_task_inputs"][followup_id]["context_followup"]
+    assert metadata == result["task_results"][followup_id]["context_followup"]
+    assert metadata["contract_version"] == "context-followup.v1"
+    assert metadata["target"] == {"kind": "path", "value": "docs/caller.md"}
+    assert metadata["rationale"] == "Caller contract is required to finish the review."
+    assert metadata["related_evidence_ids"] == ["diff:u0"]
+    assert metadata["related_candidate_ids"] == []  # Supported legacy V1 gap normalization.
+    assert "context_followup" not in result["ledger"]["planned_task_inputs"][metadata["parent_task_id"]]
+
+
+def test_adapter_normalized_v4_gap_can_authorize_bound_context_followup(tmp_path):
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    result = run(
+        tmp_path,
+        prof=prof,
+        provider=AdapterNormalizedContextFollowupProvider(),
+        context_retriever=ResolvedContextRetriever(),
+    )
+    assert result["context_gaps"][0]["retrieval_status"] == "RESOLVED"
+    assert result["context_gaps"][0]["status"] == "RESOLVED_BY_FOLLOWUP"
+    parent = result["task_results"][result["ledger"]["context_gaps"][0]["task_id"]]
+    assert parent["source_contract_version"] == "specialist-findings.v4"
+    followup_id = result["ledger"]["dynamic_tasks"][0]["task_id"]
+    metadata = result["task_results"][followup_id]["context_followup"]
+    assert metadata["related_candidate_ids"] == []
+    assert metadata["target"] == {"kind": "path", "value": "docs/caller.md"}
+    assert result["budget"]["followup_tasks_reserved"] == 1
+
+
+def test_malformed_unused_target_value_is_not_repaired_before_reservation(tmp_path):
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    result = run(
+        tmp_path,
+        prof=prof,
+        provider=MalformedUnusedTargetProvider(),
+        context_retriever=ResolvedContextRetriever(),
+    )
+    assert result["context_gaps"][0]["retrieval_status"] == "RESOLVED"
+    assert result["context_gaps"][0]["followup_error"] == "invalid_context_followup_target"
+    assert result["budget"]["followup_tasks_reserved"] == 0
+    assert result["ledger"].get("dynamic_tasks", []) == []
+
+
+def test_followup_metadata_is_authenticated_before_followup_reservation(tmp_path, monkeypatch):
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+
+    def reject_metadata(**_kwargs):
+        raise ValueError("invalid_context_followup_test_binding")
+
+    monkeypatch.setattr(engine_module, "_context_followup_metadata", reject_metadata)
+    result = run(
+        tmp_path,
+        prof=prof,
+        provider=ContextFollowupProvider(),
+        context_retriever=ResolvedContextRetriever(),
+    )
+    assert result["context_gaps"][0]["retrieval_status"] == "RESOLVED"
+    assert result["context_gaps"][0]["followup_error"] == "invalid_context_followup_test_binding"
+    assert result["budget"]["context_retrievals_reserved"] == 1
+    assert result["budget"]["followup_tasks_reserved"] == 0
+    assert result["ledger"].get("dynamic_tasks", []) == []
+    assert not any(":followup:" in key for key in result["ledger"]["budget"]["reservations"])
+
+
+def test_tampered_followup_metadata_fails_resume_against_controller_owned_gap(tmp_path):
+    snap = make_snapshot()
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    plan = plan_review(snap, prof)
+    provider = ContextFollowupProvider()
+    retriever = ResolvedContextRetriever()
+    run_id = "tampered-followup"
+    result = run_review(snap, plan, prof, provider, None, LIMITS, str(tmp_path), run_id, context_retriever=retriever)
+    saved_path = tmp_path / f"{run_id}.json"
+    saved = json.loads(saved_path.read_text())
+    task_id = saved["ledger"]["dynamic_tasks"][0]["task_id"]
+    task = saved["ledger"]["dynamic_tasks"][0]
+    task["context_followup"]["rationale"] = "Forged request to expand scope."
+    provenance = engine_module._task_input_provenance(task)
+    saved["ledger"]["planned_task_inputs"][task_id] = provenance
+    saved["ledger"]["outputs"][task_id]["context_followup"] = task["context_followup"]
+    saved["task_results"] = saved["ledger"]["outputs"]
+    saved["result_hash"] = engine_module._hash({key: value for key, value in saved.items() if key != "result_hash"})
+    forged = engine_module._canonical(saved) + b"\n"
+    saved_path.write_bytes(forged)
+
+    with pytest.raises(ValueError, match="invalid_context_followup_metadata_binding"):
+        run_review(
+            snap,
+            plan,
+            prof,
+            ContextFollowupProvider(),
+            None,
+            LIMITS,
+            str(tmp_path),
+            run_id,
+            context_retriever=retriever,
+            resume=True,
+        )
+    assert saved_path.read_bytes() == forged
+    assert result["budget"]["followup_tasks_reserved"] == 1
+
+
+def test_legacy_cached_dynamic_followup_without_binding_is_rejected_before_replay(tmp_path):
+    snap = make_snapshot()
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    plan = plan_review(snap, prof)
+    run_id = "legacy-followup-cache"
+    path = tmp_path / f"{run_id}.json"
+    run_review(snap, plan, prof, ContextFollowupProvider(), None, LIMITS, str(tmp_path), run_id,
+               context_retriever=ResolvedContextRetriever())
+    saved = json.loads(path.read_text())
+    task = saved["ledger"]["dynamic_tasks"][0]
+    task_id = task["task_id"]
+    del task["context_followup"]
+    del saved["ledger"]["planned_task_inputs"][task_id]["context_followup"]
+    del saved["ledger"]["outputs"][task_id]["context_followup"]
+    saved["task_results"] = saved["ledger"]["outputs"]
+    saved["result_hash"] = engine_module._hash({key: value for key, value in saved.items() if key != "result_hash"})
+    legacy_bytes = engine_module._canonical(saved) + b"\n"
+    path.write_bytes(legacy_bytes)
+    marker = tmp_path / "provider-called"
+
+    with pytest.raises(ValueError, match="invalid_context_followup_contract"):
+        run_review(
+            snap,
+            plan,
+            prof,
+            ContextFollowupProvider(marker=marker),
+            None,
+            LIMITS,
+            str(tmp_path),
+            run_id,
+            context_retriever=ResolvedContextRetriever(),
+            resume=True,
+        )
+    assert path.read_bytes() == legacy_bytes
+    assert not marker.exists()
+
+
+def test_cached_followup_rejects_unknown_parent_contract_version(tmp_path):
+    snap = make_snapshot()
+    prof = {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
+    plan = plan_review(snap, prof)
+    run_id = "unknown-parent-contract"
+    path = tmp_path / f"{run_id}.json"
+    run_review(snap, plan, prof, ContextFollowupProvider(), None, LIMITS, str(tmp_path), run_id,
+               context_retriever=ResolvedContextRetriever())
+    saved = json.loads(path.read_text())
+    parent_id = saved["ledger"]["dynamic_tasks"][0]["context_followup"]["parent_task_id"]
+    saved["ledger"]["outputs"][parent_id]["source_contract_version"] = {"unrecognized": "version"}
+    saved["task_results"] = saved["ledger"]["outputs"]
+    saved["result_hash"] = engine_module._hash({key: value for key, value in saved.items() if key != "result_hash"})
+    forged = engine_module._canonical(saved) + b"\n"
+    path.write_bytes(forged)
+
+    with pytest.raises(ValueError, match="invalid_context_followup_parent_contract"):
+        run_review(
+            snap,
+            plan,
+            prof,
+            ContextFollowupProvider(),
+            None,
+            LIMITS,
+            str(tmp_path),
+            run_id,
+            context_retriever=ResolvedContextRetriever(),
+            resume=True,
+        )
+    assert path.read_bytes() == forged
 
 
 def test_followup_deduplicates_repeated_identical_context_and_binds_v2(tmp_path):
