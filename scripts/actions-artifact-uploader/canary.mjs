@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process'
 import process from 'node:process'
 import {pathToFileURL} from 'node:url'
+import {runHostedRecovery} from './hosted-recovery.mjs'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
 const DEADLINE_MS = 150_000
@@ -150,6 +151,10 @@ export async function runCanary({deadlineMs = DEADLINE_MS, spawnProcess = spawn,
 }
 
 async function main() {
+  if (process.env.INPUT_MODE === 'hosted-recovery-run-a') {
+    await runHostedRecovery()
+    return
+  }
   const result = await runCanary()
   process.stdout.write(result.stdout)
   if (result.exitCode !== 0) process.exitCode = result.exitCode
@@ -157,7 +162,11 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(() => {
-    process.stdout.write('{"state":"UNKNOWN","reason":"canary_runtime_failed","safe_to_publish":false}\n')
+    if (process.env.INPUT_MODE === 'hosted-recovery-run-a') {
+      process.stderr.write('{"status":"failed","error_code":"hosted_recovery_action_failed"}\n')
+    } else {
+      process.stdout.write('{"state":"UNKNOWN","reason":"canary_runtime_failed","safe_to_publish":false}\n')
+    }
     process.exitCode = 1
   })
 }
