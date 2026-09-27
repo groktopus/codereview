@@ -738,8 +738,13 @@ class OpenAIProvider:
         )
         return system, user, schema
 
+    def serialize_review_request(self, task: dict, evidence: list[dict], limits: dict) -> bytes:
+        """Return the exact JSON request body used by review(), without dispatch."""
+        system, user, schema = self._review_parts(task, evidence)
+        return self._request_bytes(system, user, schema, limits)
+
     def review_input_bytes(self, task: dict, evidence: list[dict], limits: dict) -> int:
-        return self.estimate_call("SPECIALIST_FINDINGS", task, evidence, limits)["input_bytes"]
+        return len(self.serialize_review_request(task, evidence, limits))
 
     def review(self, task: dict[str, Any], evidence: list[dict[str, Any]], limits: dict[str, Any]) -> dict[str, Any]:
         system, user, schema = self._review_parts(task, evidence)

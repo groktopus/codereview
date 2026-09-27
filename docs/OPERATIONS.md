@@ -18,6 +18,8 @@ pr-review review --repo /tmp/target.git --base BASE_SHA --head HEAD_SHA \
 
 `--dry-run` previews resolved paths and selected revisions without loading provider credentials or making network calls. Normal live review sends bounded source excerpts to the provider named in the trusted provider configuration. Confirm the repository's data handling rules before doing so. Do not put credentials in configuration files, command arguments, artifacts, or logs.
 
+`review --prepare-only` is a separate provider-free mode for an explicit historical base/head pair. It validates and snapshots the source, plans scopes, and measures exact serialized primary specialist requests using the configured adapter, but it does not dispatch requests, read credential values, write a result artifact, or produce a disposition. Its report keeps skipped scopes and required-context gaps visible. Primary call and serialized-byte totals are exact for the prepared plan; semantic-adjudication calls depend on emitted candidates, and summary, follow-up, and claim-assessment work is dynamic, so the report does not claim total call-cap fit. Unlike `--dry-run`, prepare-only inspects the selected immutable source and profile and requires a provider configuration for exact serialization.
+
 Normal `review` and `recent` commands remain read-only; `--effect-policy PUBLISH_REVIEW` is rejected on those paths. The separate `publish` command is also read-only: it validates and previews a canonical sealed PR review but does not submit it. Live publication remains unavailable. `INCOMPLETE`, `PARTIAL`, `UNKNOWN`, or `STALE` is not a passing review.
 
 ### Historical check evidence

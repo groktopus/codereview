@@ -316,6 +316,190 @@ def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
     return "APPROVE" if allow_empty_approve else "COMMENT"
 
 
+def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, provider: Any) -> tuple[list[dict], dict]:
+    """Apply the same deterministic specialist chunking used by the runner.
+
+    This is shared with provider-free prepare mode so admission and serialized
+    request measurements cannot drift from normal dispatch behavior.
+    """
+    validate_limits(limits)
+    tasks = plan.get("tasks")
+    obligations = plan.get("coverage_obligations")
+    if not isinstance(tasks, list) or not isinstance(obligations, list):
+        raise ValueError("plan requires tasks and coverage_obligations")
+    task_by_id = {}
+    for task in tasks:
+        if not isinstance(task, dict) or not task.get("task_id") or not task.get("obligation_id"):
+            raise ValueError("invalid planned task")
+        if task["task_id"] in task_by_id:
+            raise ValueError("duplicate task_id")
+        task_by_id[task["task_id"]] = task
+    obligation_by_id = {
+        o.get("obligation_id"): o for o in obligations if isinstance(o, dict) and o.get("obligation_id")
+    }
+    if len(obligation_by_id) != len(obligations):
+        raise ValueError("invalid or duplicate coverage obligation")
+    for task in tasks:
+        if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
+            raise ValueError("task references unknown obligation")
+
+    # Split an oversized specialist batch deterministically by inventory order.
+    # Each unit keeps its own required obligation IDs, so omitted units cannot
+    # inherit another chunk's successful result.
+    def review_input_size(task: dict, evidence: list[dict]) -> int:
+        measure = getattr(provider, "review_input_bytes", None)
+        if callable(measure) and task.get("task_kind") == "SPECIALIST_FINDINGS":
+            # Reserve extra room for chunk metadata added after grouping.
+            return measure(task, evidence, limits) + 1024
+        return sum(len(_canonical(item)) for item in evidence)
+
+    unit_order = {u.get("unit_id"): i for i, u in enumerate(snapshot.get("inventory", [])) if isinstance(u, dict)}
+    split_tasks = []
+    split_skips = {}
+    input_ceiling = int(limits["max_input_bytes_per_task"])
+    for task in tasks:
+        unit_ids = list(task.get("unit_ids", task.get("scope_unit_ids", [])))
+        if task.get("task_kind") != "SPECIALIST_FINDINGS":
+            split_tasks.append(task)
+            continue
+        unit_obligations = {
+            oid: list(obligation_by_id[oid].get("scope_unit_ids", []))
+            for oid in task.get("obligation_ids", [task["obligation_id"]])
+        }
+        task_evidence_ids = set(task.get("evidence_ids", []))
+        all_context_ids = list(task.get("base_context_ids") or snapshot.get("trusted_context_refs", []))
+        required_context_ids = list(dict.fromkeys(task.get("required_context_ids", [])))
+        # A required reference is authoritative even if an inconsistent task
+        # omitted it from base_context_ids. Do not turn that inconsistency into
+        # optional or silently absent context.
+        all_context_ids = list(dict.fromkeys(all_context_ids + required_context_ids))
+        context_ids = [eid for eid in all_context_ids if eid in task_evidence_ids]
+        context_id_set = set(context_ids)
+        task_evidence = snapshot.get("evidence", {})
+
+        def skip_unit(uid: str, error_code: str, required_omissions: list[str] | None = None) -> None:
+            obligation_ids = [oid for oid, units in unit_obligations.items() if uid in units]
+            key = _hash({"task": task["task_id"], "unit": uid})[:20]
+            existing = split_skips.get(key, {})
+            split_skips[key] = {
+                "task_id": task["task_id"],
+                "unit_id": uid,
+                "obligation_ids": list(dict.fromkeys(existing.get("obligation_ids", []) + obligation_ids)),
+                "status": "SKIPPED",
+                "error_code": error_code,
+                "required_context_omissions": list(
+                    dict.fromkeys(existing.get("required_context_omissions", []) + (required_omissions or []))
+                ),
+                "attempts": 0,
+            }
+
+        missing_required = [
+            eid
+            for eid in required_context_ids
+            if eid not in task_evidence_ids
+            or not isinstance(task_evidence, dict)
+            or not isinstance(task_evidence.get(eid), dict)
+            or task_evidence[eid].get("evidence_id") != eid
+            or task_evidence[eid].get("snapshot_id") != snapshot.get("snapshot_id")
+        ]
+        if missing_required:
+            for uid in unit_ids:
+                skip_unit(uid, "REQUIRED_CONTEXT_MISSING", missing_required)
+            continue
+
+        batches, current, current_ids, current_obs, current_required = [], [], [], [], []
+
+        def batch_task(units: list[str], ids: list[str], required: list[str]) -> dict:
+            required = list(dict.fromkeys(required))
+            return {
+                **task,
+                "unit_ids": units,
+                "scope_unit_ids": units,
+                "evidence_ids": list(dict.fromkeys(ids + required)),
+                "base_context_ids": required,
+                "required_context_ids": required,
+            }
+
+        for uid in sorted(unit_ids, key=lambda u: unit_order.get(u, 10**9)):
+            unit = next((u for u in snapshot.get("inventory", []) if u.get("unit_id") == uid), {})
+            if profile.get("context_selection"):
+                # The planner narrows each unit to its bound diff/window set.
+                # Keep that exact set during batching; inventory.evidence_ids
+                # also contains whole-file captures that the selector excludes.
+                unit_review_ids = unit.get("review_context_evidence_ids", unit.get("evidence_ids", []))
+            else:
+                # Preserve historical profile behavior, including older
+                # snapshots without the selector-specific inventory field.
+                unit_review_ids = unit.get("evidence_ids", [])
+            unit_evidence_ids = set(unit_review_ids)
+            ids = [
+                eid for eid in task.get("evidence_ids", []) if eid in unit_evidence_ids and eid not in context_id_set
+            ]
+            unit_size = review_input_size(
+                batch_task([uid], ids, []),
+                _evidence_for(batch_task([uid], ids, []), snapshot, input_ceiling),
+            )
+            if unit_size > input_ceiling:
+                skip_unit(uid, "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT")
+                continue
+
+            unit_required = list(required_context_ids)
+            required_task = batch_task([uid], ids, unit_required)
+            required_size = review_input_size(required_task, _evidence_for(required_task, snapshot, input_ceiling))
+            if required_size > input_ceiling:
+                skip_unit(uid, "UNIT_REQUIRED_CONTEXT_EXCEEDS_INPUT_LIMIT", unit_required)
+                continue
+
+            candidate_units = current + [uid]
+            candidate_ids = current_ids + ids
+            candidate_required = list(dict.fromkeys(current_required + unit_required))
+            candidate_task = batch_task(candidate_units, candidate_ids, candidate_required)
+            cur_size = review_input_size(candidate_task, _evidence_for(candidate_task, snapshot, input_ceiling))
+            if current and cur_size > input_ceiling:
+                batches.append((current, current_ids, current_obs, current_required))
+                current, current_ids, current_obs, current_required = [], [], [], []
+            current.append(uid)
+            current_ids.extend(ids)
+            current_required.extend(unit_required)
+            current_obs.extend(oid for oid, units in unit_obligations.items() if uid in units)
+        if current:
+            batches.append((current, current_ids, current_obs, current_required))
+        for index, (units, ids, oids, mandatory_ids) in enumerate(batches, 1):
+            chosen_context = list(dict.fromkeys(mandatory_ids))
+            omitted_context = []
+
+            def finalized_batch(selected_context: list[str], omitted_ids: list[str]) -> dict:
+                return {
+                    **task,
+                    "task_id": f"{task['task_id']}:chunk-{index}",
+                    "unit_ids": units,
+                    "scope_unit_ids": units,
+                    "evidence_ids": list(dict.fromkeys(ids + selected_context)),
+                    "base_context_ids": selected_context,
+                    "required_context_ids": list(dict.fromkeys(mandatory_ids)),
+                    "context_omissions": omitted_ids,
+                    "required_context_omissions": [],
+                    "obligation_id": oids[0],
+                    "obligation_ids": list(dict.fromkeys(oids)),
+                }
+
+            for eid in context_ids:
+                if eid in set(chosen_context):
+                    continue
+                optional_task = finalized_batch(chosen_context + [eid], omitted_context)
+                size = review_input_size(optional_task, _evidence_for(optional_task, snapshot, input_ceiling))
+                (chosen_context if size <= input_ceiling else omitted_context).append(eid)
+            final_task = finalized_batch(chosen_context, omitted_context)
+            final_size = review_input_size(final_task, _evidence_for(final_task, snapshot, input_ceiling))
+            if final_size > input_ceiling:
+                for uid in units:
+                    skip_unit(uid, "UNIT_REQUIRED_CONTEXT_EXCEEDS_INPUT_LIMIT", list(dict.fromkeys(mandatory_ids)))
+                continue
+            split_tasks.append(final_task)
+    tasks = split_tasks
+    return tasks, split_skips
+
+
 def run_review(
     snapshot: dict,
     plan: dict,
@@ -555,160 +739,14 @@ def run_review(
         if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
             raise ValueError("task references unknown obligation")
 
-    # Split an oversized specialist batch deterministically by inventory order.
-    # Each unit keeps its own required obligation IDs, so omitted units cannot
-    # inherit another chunk's successful result.
+    tasks, split_skips = prepare_plan_tasks(snapshot, {"tasks": tasks, "coverage_obligations": obligations}, profile, limits, provider)
+
     def review_input_size(task: dict, evidence: list[dict]) -> int:
         measure = getattr(provider, "review_input_bytes", None)
         if callable(measure) and task.get("task_kind") == "SPECIALIST_FINDINGS":
-            # Reserve extra room for chunk metadata added after grouping.
             return measure(task, evidence, limits) + 1024
         return sum(len(_canonical(item)) for item in evidence)
 
-    unit_order = {u.get("unit_id"): i for i, u in enumerate(snapshot.get("inventory", [])) if isinstance(u, dict)}
-    split_tasks = []
-    split_skips = {}
-    input_ceiling = int(limits["max_input_bytes_per_task"])
-    for task in tasks:
-        unit_ids = list(task.get("unit_ids", task.get("scope_unit_ids", [])))
-        if task.get("task_kind") != "SPECIALIST_FINDINGS":
-            split_tasks.append(task)
-            continue
-        unit_obligations = {
-            oid: list(obligation_by_id[oid].get("scope_unit_ids", []))
-            for oid in task.get("obligation_ids", [task["obligation_id"]])
-        }
-        task_evidence_ids = set(task.get("evidence_ids", []))
-        all_context_ids = list(task.get("base_context_ids") or snapshot.get("trusted_context_refs", []))
-        required_context_ids = list(dict.fromkeys(task.get("required_context_ids", [])))
-        # A required reference is authoritative even if an inconsistent task
-        # omitted it from base_context_ids. Do not turn that inconsistency into
-        # optional or silently absent context.
-        all_context_ids = list(dict.fromkeys(all_context_ids + required_context_ids))
-        context_ids = [eid for eid in all_context_ids if eid in task_evidence_ids]
-        context_id_set = set(context_ids)
-        task_evidence = snapshot.get("evidence", {})
-
-        def skip_unit(uid: str, error_code: str, required_omissions: list[str] | None = None) -> None:
-            obligation_ids = [oid for oid, units in unit_obligations.items() if uid in units]
-            key = _hash({"task": task["task_id"], "unit": uid})[:20]
-            existing = split_skips.get(key, {})
-            split_skips[key] = {
-                "task_id": task["task_id"],
-                "unit_id": uid,
-                "obligation_ids": list(dict.fromkeys(existing.get("obligation_ids", []) + obligation_ids)),
-                "status": "SKIPPED",
-                "error_code": error_code,
-                "required_context_omissions": list(
-                    dict.fromkeys(existing.get("required_context_omissions", []) + (required_omissions or []))
-                ),
-                "attempts": 0,
-            }
-
-        missing_required = [
-            eid
-            for eid in required_context_ids
-            if eid not in task_evidence_ids
-            or not isinstance(task_evidence, dict)
-            or not isinstance(task_evidence.get(eid), dict)
-            or task_evidence[eid].get("evidence_id") != eid
-            or task_evidence[eid].get("snapshot_id") != snapshot.get("snapshot_id")
-        ]
-        if missing_required:
-            for uid in unit_ids:
-                skip_unit(uid, "REQUIRED_CONTEXT_MISSING", missing_required)
-            continue
-
-        batches, current, current_ids, current_obs, current_required = [], [], [], [], []
-
-        def batch_task(units: list[str], ids: list[str], required: list[str]) -> dict:
-            required = list(dict.fromkeys(required))
-            return {
-                **task,
-                "unit_ids": units,
-                "scope_unit_ids": units,
-                "evidence_ids": list(dict.fromkeys(ids + required)),
-                "base_context_ids": required,
-                "required_context_ids": required,
-            }
-
-        for uid in sorted(unit_ids, key=lambda u: unit_order.get(u, 10**9)):
-            unit = next((u for u in snapshot.get("inventory", []) if u.get("unit_id") == uid), {})
-            if profile.get("context_selection"):
-                # The planner narrows each unit to its bound diff/window set.
-                # Keep that exact set during batching; inventory.evidence_ids
-                # also contains whole-file captures that the selector excludes.
-                unit_review_ids = unit.get("review_context_evidence_ids", unit.get("evidence_ids", []))
-            else:
-                # Preserve historical profile behavior, including older
-                # snapshots without the selector-specific inventory field.
-                unit_review_ids = unit.get("evidence_ids", [])
-            unit_evidence_ids = set(unit_review_ids)
-            ids = [
-                eid for eid in task.get("evidence_ids", []) if eid in unit_evidence_ids and eid not in context_id_set
-            ]
-            unit_size = review_input_size(
-                batch_task([uid], ids, []),
-                _evidence_for(batch_task([uid], ids, []), snapshot, input_ceiling),
-            )
-            if unit_size > input_ceiling:
-                skip_unit(uid, "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT")
-                continue
-
-            unit_required = list(required_context_ids)
-            required_task = batch_task([uid], ids, unit_required)
-            required_size = review_input_size(required_task, _evidence_for(required_task, snapshot, input_ceiling))
-            if required_size > input_ceiling:
-                skip_unit(uid, "UNIT_REQUIRED_CONTEXT_EXCEEDS_INPUT_LIMIT", unit_required)
-                continue
-
-            candidate_units = current + [uid]
-            candidate_ids = current_ids + ids
-            candidate_required = list(dict.fromkeys(current_required + unit_required))
-            candidate_task = batch_task(candidate_units, candidate_ids, candidate_required)
-            cur_size = review_input_size(candidate_task, _evidence_for(candidate_task, snapshot, input_ceiling))
-            if current and cur_size > input_ceiling:
-                batches.append((current, current_ids, current_obs, current_required))
-                current, current_ids, current_obs, current_required = [], [], [], []
-            current.append(uid)
-            current_ids.extend(ids)
-            current_required.extend(unit_required)
-            current_obs.extend(oid for oid, units in unit_obligations.items() if uid in units)
-        if current:
-            batches.append((current, current_ids, current_obs, current_required))
-        for index, (units, ids, oids, mandatory_ids) in enumerate(batches, 1):
-            chosen_context = list(dict.fromkeys(mandatory_ids))
-            omitted_context = []
-
-            def finalized_batch(selected_context: list[str], omitted_ids: list[str]) -> dict:
-                return {
-                    **task,
-                    "task_id": f"{task['task_id']}:chunk-{index}",
-                    "unit_ids": units,
-                    "scope_unit_ids": units,
-                    "evidence_ids": list(dict.fromkeys(ids + selected_context)),
-                    "base_context_ids": selected_context,
-                    "required_context_ids": list(dict.fromkeys(mandatory_ids)),
-                    "context_omissions": omitted_ids,
-                    "required_context_omissions": [],
-                    "obligation_id": oids[0],
-                    "obligation_ids": list(dict.fromkeys(oids)),
-                }
-
-            for eid in context_ids:
-                if eid in set(chosen_context):
-                    continue
-                optional_task = finalized_batch(chosen_context + [eid], omitted_context)
-                size = review_input_size(optional_task, _evidence_for(optional_task, snapshot, input_ceiling))
-                (chosen_context if size <= input_ceiling else omitted_context).append(eid)
-            final_task = finalized_batch(chosen_context, omitted_context)
-            final_size = review_input_size(final_task, _evidence_for(final_task, snapshot, input_ceiling))
-            if final_size > input_ceiling:
-                for uid in units:
-                    skip_unit(uid, "UNIT_REQUIRED_CONTEXT_EXCEEDS_INPUT_LIMIT", list(dict.fromkeys(mandatory_ids)))
-                continue
-            split_tasks.append(final_task)
-    tasks = split_tasks
     call_lock = threading.Lock()
     task_results = dict(ledger.get("outputs", {}))
     for key, value in split_skips.items():
