@@ -1451,6 +1451,7 @@ def run_review(
                             "max_bytes": reserved_bytes,
                             "max_retrieval_bytes": reserved_bytes,
                             "context_bytes_remaining": reserved_bytes,
+                            "max_result_bytes": int(limits["max_output_bytes_per_task"]),
                         }
                         invocation = IsolatedInvocation(
                             context_retriever,
@@ -1476,6 +1477,9 @@ def run_review(
                             fetched = [fetched]
                         elif fetched is None:
                             fetched = []
+                    retrieval_envelope_bytes = len(_canonical(retrieved))
+                    if retrieval_envelope_bytes > int(limits["max_output_bytes_per_task"]):
+                        raise BudgetExhausted("OUTPUT_BYTE_LIMIT_EXCEEDED")
                     if not isinstance(retrieved, dict) or retrieved.get("status") not in {
                         "RESOLVED",
                         "PARTIAL",
@@ -1532,6 +1536,7 @@ def run_review(
                     record["retrieval_reason"] = retrieved.get("reason")
                     record["retrieved_evidence_ids"] = [item["evidence_id"] for item in verified]
                     record["retrieved_bytes"] = byte_count
+                    record["retrieval_envelope_bytes"] = retrieval_envelope_bytes
                     if not isinstance(cached, dict):
                         ledger.setdefault("retrieved_context", {})[record["proposal_id"]] = {
                             "result": retrieved,

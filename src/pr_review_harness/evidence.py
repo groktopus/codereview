@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
-import json
 import math
 import os
 import re
@@ -13,6 +12,8 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from urllib.parse import quote, urlsplit
+
+from .budget import _canonical as _ipc_canonical
 
 
 class EvidenceError(ValueError):
@@ -34,8 +35,72 @@ _LENSES = {"correctness", "tests", "design", "security", "performance", "maintai
 _SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+def _fit_ipc_envelope(result: dict, max_result_bytes: int) -> dict:
+    """Fit trusted retrieval content to the existing serialized IPC ceiling.
+
+    Only evidence content is shortened. The complete envelope is measured with
+    the same canonical serializer used by ``IsolatedInvocation``; all evidence
+    bindings are then recomputed and truncation is made explicit.
+    """
+    if len(_ipc_canonical(result)) <= max_result_bytes:
+        return result
+    evidence = result.get("evidence")
+    if not isinstance(evidence, dict) or not isinstance(evidence.get("content"), str):
+        return {"status": "UNRESOLVED", "reason": "retrieval_metadata_exceeds_ipc_limit", "evidence": None}
+
+    original_content = evidence["content"]
+    original_bytes = original_content.encode("utf-8")
+    if hashlib.sha256(original_bytes).hexdigest() != evidence.get("content_hash"):
+        # The source was not representable as the UTF-8 text whose hash the
+        # engine verifies. Do not manufacture a different evidence identity.
+        return {"status": "UNRESOLVED", "reason": "retrieval_evidence_encoding_invalid", "evidence": None}
+
+    low, high = 0, len(original_content)
+    best = None
+    while low <= high:
+        middle = (low + high) // 2
+        candidate_content = original_content[:middle]
+        candidate_bytes = candidate_content.encode("utf-8")
+        candidate_evidence = {
+            **evidence,
+            "content": candidate_content,
+            "content_hash": hashlib.sha256(candidate_bytes).hexdigest(),
+            "captured_bytes": len(candidate_bytes),
+            "truncated": True,
+        }
+        candidate_evidence["evidence_id"] = (
+            "ev-"
+            + hashlib.sha256(
+                _ipc_canonical(
+                    {
+                        "snapshot_id": candidate_evidence.get("snapshot_id"),
+                        "revision": candidate_evidence.get("source_revision"),
+                        "path": candidate_evidence.get("path"),
+                        "hash": candidate_evidence["content_hash"],
+                    }
+                )
+            ).hexdigest()[:24]
+        )
+        source_url = candidate_evidence.get("source_url")
+        if isinstance(source_url, str) and "#L1-" in source_url:
+            base_url = source_url.split("#L1-", 1)[0]
+            line_count = max(len(candidate_content.splitlines()), 1)
+            candidate_evidence["source_url"] = f"{base_url}#L1-L{line_count}"
+        candidate_result = {
+            **result,
+            "status": "PARTIAL",
+            "reason": "ipc_envelope_truncated",
+            "evidence": candidate_evidence,
+        }
+        if len(_ipc_canonical(candidate_result)) <= max_result_bytes:
+            best = candidate_result
+            low = middle + 1
+        else:
+            high = middle - 1
+
+    if best is None:
+        return {"status": "UNRESOLVED", "reason": "retrieval_metadata_exceeds_ipc_limit", "evidence": None}
+    return best
 
 
 def _git(repo: str, *args: str, deadline: float | None = None) -> bytes:
@@ -211,24 +276,34 @@ def retrieve_context_gap(
     raw, truncated = _git_blob_limited(repo, object_id, limit, deadline)
     if b"\0" in raw:
         return {"status": "UNRESOLVED", "reason": "binary_context_not_retrieved", "evidence": None}
-    content = raw
-    content_hash = hashlib.sha256(content).hexdigest()
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        if truncated and exc.reason == "unexpected end of data" and exc.end == len(raw):
+            # The captured prefix is valid UTF-8 except for an incomplete final
+            # code point at the byte boundary; the uncaptured tail is unknown.
+            raw = raw[: exc.start]
+            content = raw.decode("utf-8")
+        else:
+            return {"status": "UNRESOLVED", "reason": "retrieval_evidence_encoding_invalid", "evidence": None}
+    content_bytes = content.encode("utf-8")
+    content_hash = hashlib.sha256(content_bytes).hexdigest()
     evidence_id = (
         "ev-"
         + hashlib.sha256(
-            _canonical({"snapshot_id": snapshot_id, "revision": revision, "path": requested_path, "hash": content_hash})
+            _ipc_canonical({"snapshot_id": snapshot_id, "revision": revision, "path": requested_path, "hash": content_hash})
         ).hexdigest()[:24]
     )
     evidence = {
         "evidence_id": evidence_id,
         "snapshot_id": snapshot_id,
         "path": requested_path,
-        "content": content.decode("utf-8", "replace"),
+        "content": content,
         "source_kind": "repository_file",
         "source_revision": revision,
         "source_object_id": object_id,
         "content_hash": content_hash,
-        "captured_bytes": len(content),
+        "captured_bytes": len(content_bytes),
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "trust": (
             "trusted_policy"
@@ -251,4 +326,10 @@ def retrieve_context_gap(
             source_url = f"https://{parsed.netloc.lower()}{parsed.path.rstrip('/')}/blob/{revision}/{quote(requested_path, safe='/')}"
             line_count = max(len(evidence["content"].splitlines()), 1)
             evidence["source_url"] = f"{source_url}#L1-L{line_count}"
-    return {"status": "RESOLVED" if not evidence["truncated"] else "PARTIAL", "reason": None, "evidence": evidence}
+    result = {"status": "RESOLVED" if not evidence["truncated"] else "PARTIAL", "reason": None, "evidence": evidence}
+    max_result_bytes = limits.get("max_result_bytes")
+    if max_result_bytes is not None:
+        if isinstance(max_result_bytes, bool) or not isinstance(max_result_bytes, int) or max_result_bytes < 1:
+            raise EvidenceError("context retrieval result byte limit is invalid")
+        result = _fit_ipc_envelope(result, max_result_bytes)
+    return result

@@ -1,9 +1,12 @@
+import hashlib
 import pickle
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from pr_review_harness.budget import _canonical as ipc_canonical
 from pr_review_harness.evidence import ContextRetriever, EvidenceError, retrieve_context_gap
 
 
@@ -128,6 +131,52 @@ def test_retrieval_is_bounded_and_marks_partial_evidence(tmp_path):
     assert result["evidence"]["captured_bytes"] == 3
 
 
+def test_byte_cap_ending_inside_valid_utf8_codepoint_keeps_complete_prefix(tmp_path):
+    repo, base, head = repository(tmp_path)
+    (repo / "AGENTS.md").write_bytes("AπB".encode("utf-8"))
+    git(repo, "add", "AGENTS.md")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "unicode context")
+    revision = git(repo, "rev-parse", "HEAD")
+    result = retrieve_context_gap(
+        str(repo),
+        {"snapshot_id": "snap-test", "base_sha": revision, "head_sha": revision, "inventory": []},
+        {"context_paths": ["AGENTS.md"]},
+        {
+            "evidence_kind": "contract",
+            "target_path": "AGENTS.md",
+            "rationale": "Need trusted context",
+            "required_lens": "project_specific",
+        },
+        {"max_bytes": 2},
+    )
+    evidence = result["evidence"]
+    assert result["status"] == "PARTIAL"
+    assert evidence["content"] == "A"
+    assert evidence["captured_bytes"] == 1
+    assert evidence["content_hash"] == hashlib.sha256(b"A").hexdigest()
+
+
+def test_invalid_utf8_context_fails_closed(tmp_path):
+    repo, base, head = repository(tmp_path)
+    (repo / "AGENTS.md").write_bytes(b"valid\xffinvalid")
+    git(repo, "add", "AGENTS.md")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "invalid encoding")
+    revision = git(repo, "rev-parse", "HEAD")
+    result = retrieve_context_gap(
+        str(repo),
+        {"snapshot_id": "snap-test", "base_sha": revision, "head_sha": revision, "inventory": []},
+        {"context_paths": ["AGENTS.md"]},
+        {
+            "evidence_kind": "contract",
+            "target_path": "AGENTS.md",
+            "rationale": "Need trusted context",
+            "required_lens": "project_specific",
+        },
+        {"max_bytes": 100},
+    )
+    assert result == {"status": "UNRESOLVED", "reason": "retrieval_evidence_encoding_invalid", "evidence": None}
+
+
 def test_only_explicit_policy_paths_receive_policy_trust(tmp_path):
     repo, base, head = repository(tmp_path)
     snapshot = {"snapshot_id": "snap-test", "base_sha": base, "head_sha": head, "inventory": []}
@@ -145,3 +194,101 @@ def test_only_explicit_policy_paths_receive_policy_trust(tmp_path):
         {"max_context_bytes": 100},
     )
     assert result["evidence"]["trust"] == "trusted_policy"
+
+
+def test_retrieval_fits_complete_ipc_envelope_and_rebinds_multibyte_content(tmp_path, monkeypatch):
+    import pr_review_harness.evidence as evidence_module
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 9, 27, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(evidence_module, "datetime", FrozenDatetime)
+    repo, base, head = repository(tmp_path)
+    payload = ("π and 漢字\n" * 5000)
+    (repo / "AGENTS.md").write_text(payload, encoding="utf-8")
+    git(repo, "add", "AGENTS.md")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "large trusted context")
+    base = head = git(repo, "rev-parse", "HEAD")
+    snapshot = {
+        "snapshot_id": "snap-test",
+        "base_sha": base,
+        "head_sha": head,
+        "repository_url": "https://example.invalid/repo",
+        "inventory": [],
+    }
+    proposal = {
+        "_proposal_id": "task-1:gap:0",
+        "_task_id": "task-1",
+        "evidence_kind": "contract",
+        "target_path": "AGENTS.md",
+        "rationale": "Need bounded trusted context",
+        "required_lens": "project_specific",
+    }
+    limits = {"max_bytes": 100_000, "max_retrieval_bytes": 100_000, "context_bytes_remaining": 100_000}
+    unbounded = retrieve_context_gap(str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, limits)
+    exact_boundary = retrieve_context_gap(
+        str(repo),
+        snapshot,
+        {"context_paths": ["AGENTS.md"]},
+        proposal,
+        {**limits, "max_result_bytes": len(ipc_canonical(unbounded))},
+    )
+    cap = len(ipc_canonical(unbounded)) - 73
+    first = retrieve_context_gap(
+        str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, {**limits, "max_result_bytes": cap}
+    )
+    second = retrieve_context_gap(
+        str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, {**limits, "max_result_bytes": cap}
+    )
+
+    assert first == second
+    assert exact_boundary == unbounded
+    assert len(ipc_canonical(exact_boundary)) == len(ipc_canonical(unbounded))
+    assert first["status"] == "PARTIAL"
+    assert first["reason"] == "ipc_envelope_truncated"
+    assert len(ipc_canonical(first)) <= cap
+    evidence = first["evidence"]
+    raw = evidence["content"].encode("utf-8")
+    assert raw.decode("utf-8") == evidence["content"]
+    assert len(raw) == evidence["captured_bytes"] < len(payload.encode("utf-8"))
+    assert evidence["truncated"] is True
+    assert evidence["content_hash"] == hashlib.sha256(raw).hexdigest()
+    expected_id = "ev-" + hashlib.sha256(
+        ipc_canonical(
+            {"snapshot_id": "snap-test", "revision": base, "path": "AGENTS.md", "hash": evidence["content_hash"]}
+        )
+    ).hexdigest()[:24]
+    assert evidence["evidence_id"] == expected_id
+    assert evidence["source_url"].endswith(f"#L1-L{max(len(evidence['content'].splitlines()), 1)}")
+
+
+def test_retrieval_metadata_that_cannot_fit_fails_closed_without_trimming_fields(tmp_path):
+    repo, base, head = repository(tmp_path)
+    snapshot = {
+        "snapshot_id": "snap-test",
+        "base_sha": base,
+        "head_sha": head,
+        "repository_url": "https://example.invalid/" + ("x" * 2000),
+        "inventory": [],
+    }
+    proposal = {
+        "evidence_kind": "contract",
+        "target_path": "AGENTS.md",
+        "rationale": "Need trusted context",
+        "required_lens": "project_specific",
+    }
+    result = retrieve_context_gap(
+        str(repo),
+        snapshot,
+        {"context_paths": ["AGENTS.md"]},
+        proposal,
+        {"max_bytes": 1000, "max_result_bytes": 512},
+    )
+    assert result == {
+        "status": "UNRESOLVED",
+        "reason": "retrieval_metadata_exceeds_ipc_limit",
+        "evidence": None,
+    }
+    assert len(ipc_canonical(result)) <= 512

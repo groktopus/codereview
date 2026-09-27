@@ -914,6 +914,9 @@ _SAFE_RETRIEVAL_REASONS = {
     "invalid_context_retrieval_result",
     "invalid_context_retrieval_evidence",
     "context_retrieval_evidence_binding_failed",
+    "ipc_envelope_truncated",
+    "retrieval_metadata_exceeds_ipc_limit",
+    "retrieval_evidence_encoding_invalid",
 }
 
 
@@ -965,6 +968,13 @@ def _project_gaps(
         retrieved_bytes = row.get("retrieved_bytes")
         if isinstance(retrieved_bytes, bool) or not isinstance(retrieved_bytes, int) or retrieved_bytes < 0:
             retrieved_bytes = "UNKNOWN"
+        retrieval_envelope_bytes = row.get("retrieval_envelope_bytes")
+        if (
+            isinstance(retrieval_envelope_bytes, bool)
+            or not isinstance(retrieval_envelope_bytes, int)
+            or retrieval_envelope_bytes < 0
+        ):
+            retrieval_envelope_bytes = "UNKNOWN"
         evidence_ids = row.get("retrieved_evidence_ids")
         evidence_count = len(evidence_ids) if isinstance(evidence_ids, list) and all(
             isinstance(ref, str) for ref in evidence_ids
@@ -993,6 +1003,7 @@ def _project_gaps(
             "retrieval_status": retrieval_status,
             "retrieval_reason_code": reason_code,
             "retrieved_bytes": retrieved_bytes,
+            "retrieval_envelope_bytes": retrieval_envelope_bytes,
             "retrieved_evidence_count": evidence_count,
             "followup_status": followup_status,
             "followup_reason_code": followup_reason,

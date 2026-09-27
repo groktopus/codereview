@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 
 import pr_review_harness.engine as engine_module
 from pr_review_harness.engine import prepare_plan_tasks, render_report, run_review
+from pr_review_harness.evidence import ContextRetriever
 from pr_review_harness.planner import plan_review
 from pr_review_harness.providers import OpenAIProvider
 
@@ -514,6 +516,11 @@ class ResolvedContextRetriever:
                 "truncated": False,
             },
         }
+
+
+class OversizedContextRetriever:
+    def __call__(self, snapshot, prof, proposal, limits):
+        return {"status": "UNRESOLVED", "reason": "safe", "evidence": None, "untrusted": "secret-marker" * 2000}
 
 
 class SidePathProvider(FindingProvider):
@@ -1203,6 +1210,70 @@ def test_retrieval_requires_bounded_followup_that_cites_retrieved_evidence(tmp_p
     context_coverage = next(c for c in result["coverage_ledger"] if c["obligation_kind"] == "REQUIRED_CONTEXT")
     assert context_coverage["state"] == "COMPLETE"
     assert result["coverage_state"] == "COMPLETE"
+
+
+def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatches_followup(tmp_path):
+    repo = tmp_path / "evidence-repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", str(repo)], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "fixture@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Fixture"], check=True)
+    (repo / "src").mkdir()
+    (repo / "src" / "m0.py").write_text("trusted context line\n" * 5000, encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "src/m0.py"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "commit", "-m", "fixture"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    revision = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, text=True, stdout=subprocess.PIPE
+    ).stdout.strip()
+    snapshot = make_snapshot()
+    snapshot["base_sha"] = snapshot["head_sha"] = revision
+    provider = GapProvider()
+    result = run(
+        tmp_path / "run",
+        snap=snapshot,
+        prof={**profile(), "retrieval_context_patterns": ["src/*.py"]},
+        provider=provider,
+        context_retriever=ContextRetriever(str(repo)),
+    )
+
+    gap = result["context_gaps"][0]
+    assert gap["retrieval_status"] == "PARTIAL", gap.get("retrieval_reason")
+    retrieved = result["ledger"]["retrieved_context"][gap["proposal_id"]]
+    item = retrieved["evidence"][0]
+    content_bytes = item["content"].encode("utf-8")
+    assert gap["retrieval_status"] == "PARTIAL"
+    assert gap["retrieval_reason"] == "ipc_envelope_truncated"
+    assert gap["retrieved_bytes"] == len(content_bytes)
+    assert gap["retrieval_envelope_bytes"] <= LIMITS["max_output_bytes_per_task"]
+    assert gap["retrieved_bytes"] <= LIMITS["max_output_bytes_per_task"]
+    assert hashlib.sha256(content_bytes).hexdigest() == item["content_hash"]
+    settlement = result["ledger"]["budget"]["settlements"][f"{gap['proposal_id']}:context-retrieval"]
+    assert settlement["actual_output_bytes"] == len(content_bytes)
+    assert settlement["actual_output_bytes"] < gap["retrieval_envelope_bytes"]
+    assert result["budget"]["context_retrievals_reserved"] == 1
+    assert result["budget"]["followup_tasks_reserved"] == 0
+    assert len(result["task_results"]) == 1
+    assert result["disposition"] == "INCOMPLETE"
+
+
+def test_oversized_untrusted_retriever_is_rejected_by_ipc_without_metadata_leak(tmp_path):
+    result = run(
+        tmp_path,
+        prof={**profile(), "retrieval_context_patterns": ["docs/*.md"]},
+        provider=GapProvider(),
+        context_retriever=OversizedContextRetriever(),
+    )
+    gap = result["context_gaps"][0]
+    assert gap["retrieval_status"] == "UNRESOLVED"
+    assert gap["retrieval_reason"] == "OUTPUT_BYTE_LIMIT_EXCEEDED"
+    assert gap.get("retrieval_envelope_bytes") is None
+    assert "secret-marker" not in json.dumps(result)
+    assert result["budget"]["context_retrievals_reserved"] == 1
+    assert result["budget"]["followup_tasks_reserved"] == 0
 
 
 def test_v4_notes_are_evidence_linked_and_invalid_optional_notes_do_not_gate(tmp_path):

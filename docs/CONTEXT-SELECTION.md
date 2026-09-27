@@ -94,3 +94,17 @@ These are local serialization/preflight measurements against retained
 repository evidence. They involve no live provider request, target-code
 execution, or finding-quality adjudication. They establish neither improved
 coverage nor readiness to replace another review system.
+
+## Retrieval content and IPC envelope limits
+
+Context retrieval keeps two byte measurements separate. The existing context
+reservation bounds admitted UTF-8 evidence content; the unchanged
+`max_output_bytes_per_task` bounds the complete serialized retrieval result,
+including its hashes, provenance, and metadata. The trusted Git retriever may
+shorten only the content prefix to fit that envelope, then recomputes its
+content hash and evidence ID and marks the result `PARTIAL` with
+`ipc_envelope_truncated`. The budget settlement continues to count admitted
+content bytes; the serialized envelope size is recorded separately. If
+metadata alone cannot fit, retrieval fails closed. Other retrievers are not
+automatically trimmed, and an oversized result remains an IPC failure. None of
+these behaviors increases the configured content, output, call, or time caps.
