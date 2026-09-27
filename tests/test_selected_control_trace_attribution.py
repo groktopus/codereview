@@ -246,6 +246,273 @@ def test_synthetic_security_response_is_bound_to_control_unit_and_diff_evidence(
     assert payload["coverage_notes"][0]["unit_id"] == "unit-u0"
 
 
+def test_two_candidate_fixture_response_is_distinct_but_uses_same_bound_unit_and_evidence():
+    request = {
+        "messages": [
+            {"role": "system", "content": "synthetic system instruction"},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "task": {"lens": "security", "unit_ids": ["unit-u0"]},
+                        "evidence": [
+                            {"evidence_id": "diff:u0", "source_kind": "diff"},
+                            {"evidence_id": "base:u0", "source_kind": "base_file"},
+                        ],
+                    }
+                ),
+            },
+        ]
+    }
+    counters = diagnostic._CallCounters()
+    envelope = diagnostic._primary_payload(request, counters, candidate_cardinality=2)
+    payload = {key: value for key, value in envelope.items() if key != "_envelope"}
+    candidates = payload["finding_candidates"]
+
+    assert len(candidates) == 2
+    assert len({
+        (candidate["title"], candidate["observation"], candidate["consequence"], candidate["rule_or_contract"])
+        for candidate in candidates
+    }) == 2
+    assert all(candidate["unit_id"] == "unit-u0" for candidate in candidates)
+    assert all(candidate["location"]["path"] == "src/auth.py" for candidate in candidates)
+    assert all(candidate["evidence_refs"] == ["diff:u0"] for candidate in candidates)
+    assert counters["primary_security_received"] == 1
+
+
+@pytest.mark.parametrize("bad", [True, 0, 3, "2", None])
+def test_candidate_cardinality_rejects_unbounded_or_ambiguous_values(bad):
+    with pytest.raises(ValueError, match="candidate_cardinality_invalid"):
+        diagnostic._validate_candidate_cardinality(bad)
+
+
+def _cardinality_identity_for_test():
+    return {
+        "runtime_source_commit": "a" * 40,
+        "diagnostic_script_sha256": "b" * 64,
+        "runtime_tree_sha256": "c" * 64,
+        "runtime_module_count": 28,
+        "runtime_module_hashes": {f"pr_review_harness/mod{i}.py": "d" * 64 for i in range(28)},
+        "installed_source_match": True,
+        "fixture_suite_sha256": "e" * 64,
+        "generated_profile_sha256": "f" * 64,
+        "limits_sha256": "1" * 64,
+        "base_sha": "2" * 40,
+        "head_sha": "3" * 40,
+        "snapshot_id": "snap-test",
+        "snapshot_hash": "4" * 64,
+        "observer_id": diagnostic.observer.OBSERVER_ID,
+        "observer_source_sha256": "5" * 64,
+        "syscall_scope": diagnostic.observer.SYSCALL_SCOPE,
+        "trace_cap_bytes": diagnostic.observer.TRACE_MAX_BYTES,
+        "configured_transport": "HTTP_LOOPBACK_FAKE",
+    }
+
+
+def _complete_cardinality_arm_for_test(count: int, *, trace_bytes: int = 400_000):
+    stages = diagnostic._cardinality_stage_counts(count)
+    return {
+        "requested_candidate_count": count,
+        "input_identity": _cardinality_identity_for_test(),
+        "observer_reason": None,
+        "trace_attribution": {
+            "state": "COMPLETE",
+            "trace_bytes": trace_bytes,
+            "unattributed_or_partial_bytes": 0,
+            "bytes_by_syscall": {
+                "newfstatat": 1000,
+                "openat": 800,
+                "OTHER": trace_bytes - 1000 - 800 - 4 - 5 - 6,
+                "PROCESS_END": 4,
+                "SIGNAL": 5,
+                "UNPARSED": 6,
+            },
+            "lines_by_syscall": {"newfstatat": 10, "openat": 8, "OTHER": 1, "PROCESS_END": 1, "SIGNAL": 1, "UNPARSED": 1},
+            "newline_terminated_line_bytes": trace_bytes,
+            "parsed_line_count": 22,
+            "parse_failure_count": 0,
+            "file_path_attribution": {
+                "state": "COMPLETE",
+                "reconciliation": "MATCH",
+                "lines_by_syscall_class": {"openat": {"SYSTEM_ROOT": 8}, "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 10}},
+                "bytes_by_syscall_class": {"openat": {"SYSTEM_ROOT": 800}, "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 1000}},
+                "target_lines_by_syscall": {"openat": 8, "newfstatat": 10},
+                "target_bytes_by_syscall": {"openat": 800, "newfstatat": 1000},
+            },
+        },
+        "protocol_stage_counts": stages,
+        "primary_task_statuses": [
+            {"lens": lens, "status": "SUCCEEDED"} for lens in ("correctness", "security", "tests")
+        ],
+        "candidate_count": count,
+        "claim_assessment_rows": count,
+        "claim_assessment_statuses": ["COMPLETE"] * count,
+        "native_advisory_status": "RECEIVED",
+        "cli_invocation_status": "CLI_COMPLETED",
+        "cli_exit_code": 0,
+        "coverage_state": "COMPLETE",
+        "protocol_exchange_state": "SERVER_WRITES_SETTLED",
+        "fake_server_handlers_settled": True,
+        "fake_server_active_handlers_at_snapshot": 0,
+        "http_requests_received": 4 + 2 * count,
+        "server_response_writes_completed": 4 + 2 * count,
+        "observer_coverage": "SCOPED_COMPLETE",
+        "synthetic_protocol_path_state": "COMPLETE",
+        "request_body_bytes_by_stage": {"primary_security": 2000 + count},
+        "response_body_bytes_by_stage": {"primary_security": 400 + 100 * count},
+    }
+
+
+def test_candidate_cardinality_pair_projection_requires_complete_normal_path_and_reports_byte_deltas():
+    one = _complete_cardinality_arm_for_test(1, trace_bytes=400_000)
+    two = _complete_cardinality_arm_for_test(2, trace_bytes=410_000)
+    result = diagnostic._candidate_cardinality_comparison(one, two)
+
+    assert diagnostic._cardinality_arm_state(one, 1) == "COMPLETE"
+    assert diagnostic._cardinality_arm_state(two, 2) == "COMPLETE"
+    assert result["state"] == "COMPLETE"
+    assert result["input_identity_match"] is True
+    assert result["trace_bytes_delta_two_minus_one"] == 10_000
+    assert result["request_body_bytes_delta_two_minus_one"]["primary_security"] == 1
+    assert result["response_body_bytes_delta_two_minus_one"]["primary_security"] == 100
+    assert result["arms"][0]["http_requests_received"] == 6
+    assert result["arms"][1]["http_requests_received"] == 8
+    assert diagnostic.CARDINALITY_PAIR_CONTRACT_VERSION.endswith(".v2")
+    assert "Synthetic" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        ({"candidate_count": 1}, "CANDIDATE_STAGES_INCOMPLETE"),
+        ({"protocol_stage_counts": {"primary_security_received": 2}}, "PROTOCOL_STAGE_MISMATCH"),
+        ({"trace_attribution": {"state": "COMPLETE", "trace_bytes": 1_048_577,
+                                "unattributed_or_partial_bytes": 0}}, "TRACE_CAP_EXCEEDED"),
+        ({"trace_attribution": {"state": "UNKNOWN", "trace_bytes": None}}, "TRACE_MEASUREMENT_UNKNOWN"),
+    ],
+)
+def test_candidate_cardinality_arm_rejects_stage_count_and_cap_near_misses(change, expected):
+    arm = _complete_cardinality_arm_for_test(2)
+    arm.update(change)
+    assert diagnostic._cardinality_arm_state(arm, 2) == expected
+
+
+def test_candidate_cardinality_pair_rejects_input_identity_mismatch_and_preserves_incomplete_arm():
+    one = _complete_cardinality_arm_for_test(1)
+    two = _complete_cardinality_arm_for_test(2)
+    two["input_identity"] = {**two["input_identity"], "generated_profile_sha256": "6" * 64}
+    result = diagnostic._candidate_cardinality_comparison(one, two)
+    assert result["state"] == "INPUT_IDENTITY_MISMATCH"
+    assert result["input_identity_match"] is False
+
+    two = _complete_cardinality_arm_for_test(2)
+    two["observer_reason"] = "trace_byte_cap_exceeded"
+    two["trace_attribution"]["trace_bytes"] = diagnostic.observer.TRACE_MAX_BYTES
+    two["arm_state"] = "TRACE_CAP_EXCEEDED"
+    result = diagnostic._candidate_cardinality_comparison(one, two)
+    assert result["state"] == "INCOMPLETE"
+    assert result["arms"][1]["state"] == "TRACE_CAP_EXCEEDED"
+    assert result["trace_bytes_delta_two_minus_one"] == diagnostic.observer.TRACE_MAX_BYTES - 400_000
+
+
+def test_candidate_cardinality_comparison_recomputes_arm_state_and_projects_bounded_trace_attribution():
+    one = _complete_cardinality_arm_for_test(1)
+    two = _complete_cardinality_arm_for_test(2)
+    one["arm_state"] = "COMPLETE"
+    two["arm_state"] = "COMPLETE"
+    two["observer_coverage"] = "INCOMPLETE"
+    result = diagnostic._candidate_cardinality_comparison(one, two)
+
+    assert result["state"] == "INCOMPLETE"
+    assert result["arms"][0]["state"] == "COMPLETE"
+    assert result["arms"][1]["state"] == "PROTOCOL_OR_OBSERVER_INCOMPLETE"
+    assert result["arms"][0]["trace_bytes_by_syscall"] == {
+        "OTHER": 398_185,
+        "PROCESS_END": 4,
+        "SIGNAL": 5,
+        "UNPARSED": 6,
+        "newfstatat": 1000,
+        "openat": 800,
+    }
+    assert result["arms"][0]["trace_parsed_line_count"] == 22
+    assert sum(result["arms"][0]["trace_lines_by_syscall"].values()) == result["arms"][0]["trace_parsed_line_count"]
+    assert sum(result["arms"][0]["trace_bytes_by_syscall"].values()) == result["arms"][0]["trace_newline_terminated_line_bytes"]
+    assert result["arms"][0]["file_path_attribution"]["bytes_by_syscall_class"] == {
+        "openat": {"SYSTEM_ROOT": 800},
+        "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 1000},
+    }
+    assert "/" not in json.dumps(result)
+
+
+def test_cardinality_trace_allowlist_covers_actual_line_attributor_labels_only():
+    lines = (
+        'openat(AT_FDCWD, "/tmp/file", O_RDONLY) = 3',
+        "+++ exited with 0 +++",
+        "--- SIGCHLD {si_signo=SIGCHLD} ---",
+        "unparsed but bounded trace fragment",
+        "custom_fake_syscall(1) = 0",
+    )
+    labels = [diagnostic._label_line(line) for line in lines]
+    assert labels == ["openat", "PROCESS_END", "SIGNAL", "UNPARSED", "OTHER"]
+    projected = diagnostic._bounded_numeric_map(dict.fromkeys(labels, 1), diagnostic._TRACE_LINE_LABELS)
+    assert projected == {"OTHER": 1, "PROCESS_END": 1, "SIGNAL": 1, "UNPARSED": 1, "openat": 1}
+    assert diagnostic._bounded_numeric_map({"UNEXPECTED_RAW_LABEL": 1}, diagnostic._TRACE_LINE_LABELS) is None
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda trace: trace["bytes_by_syscall"].__setitem__("OTHER", trace["bytes_by_syscall"]["OTHER"] - 1),
+        lambda trace: trace.__setitem__("newline_terminated_line_bytes", trace["trace_bytes"] - 1),
+        lambda trace: trace.__setitem__("parsed_line_count", trace["parsed_line_count"] - 1),
+        lambda trace: trace.__setitem__("unattributed_or_partial_bytes", 1),
+    ],
+    ids=("syscall-byte-sum", "newline-byte-total", "parsed-line-total", "residual-bytes"),
+)
+def test_cardinality_complete_state_requires_reconciled_trace_totals(mutation):
+    arm = _complete_cardinality_arm_for_test(1)
+    mutation(arm["trace_attribution"])
+    assert diagnostic._cardinality_arm_state(arm, 1) == "TRACE_SYSCALL_ATTRIBUTION_INCOMPLETE"
+
+
+def test_candidate_cardinality_comparison_rejects_claimed_complete_with_missing_attribution():
+    one = _complete_cardinality_arm_for_test(1)
+    two = _complete_cardinality_arm_for_test(2)
+    two["arm_state"] = "COMPLETE"
+    del two["trace_attribution"]["file_path_attribution"]
+    result = diagnostic._candidate_cardinality_comparison(one, two)
+    assert result["state"] == "INCOMPLETE"
+    assert result["arms"][1]["state"] == "FILE_PATH_ATTRIBUTION_INCOMPLETE"
+
+
+@pytest.mark.parametrize(("pair_state", "expected_exit"), [("COMPLETE", 0), ("INCOMPLETE", 2)])
+def test_pair_cli_exit_code_uses_pair_state(pair_state, expected_exit, monkeypatch, capsys):
+    monkeypatch.setattr(
+        diagnostic,
+        "run_candidate_cardinality_pair",
+        lambda *_args, **_kwargs: {"pair_state": pair_state},
+    )
+    assert diagnostic.main(["--cli", "/usr/bin/pr-review", "--candidate-cardinality-pair"]) == expected_exit
+    assert json.loads(capsys.readouterr().out) == {"pair_state": pair_state}
+
+
+def test_second_cardinality_arm_guard_rejects_empty_and_bad_baselines_but_allows_normal_path_without_observer():
+    assert diagnostic._cardinality_baseline_allows_second_arm([]) is False
+    assert diagnostic._cardinality_baseline_allows_second_arm([None]) is False
+    assert diagnostic._cardinality_baseline_allows_second_arm([{"arm_state": "COMPLETE"}]) is False
+    assert diagnostic._cardinality_baseline_allows_second_arm([_complete_cardinality_arm_for_test(1)]) is True
+    no_observer_completed_protocol = {
+        "arm_state": "TRACE_MEASUREMENT_UNKNOWN",
+        "observer_mode": "NOT_OBSERVED_PLATFORM_OR_EXPLICIT",
+        "trace_attribution": {"state": "UNKNOWN"},
+        "synthetic_protocol_path_state": "COMPLETE",
+        "protocol_exchange_state": "SERVER_WRITES_SETTLED",
+    }
+    assert diagnostic._cardinality_baseline_allows_second_arm([no_observer_completed_protocol]) is True
+    cap_failed_protocol = {**no_observer_completed_protocol, "observer_mode": "LINUX_STRACE", "arm_state": "TRACE_CAP_EXCEEDED"}
+    assert diagnostic._cardinality_baseline_allows_second_arm([cap_failed_protocol]) is False
+
+
 def test_native_claim_questions_match_exact_supported_contract_shapes():
     candidate_id = "candidate-17"
     base_head_questions, _ = _questions(

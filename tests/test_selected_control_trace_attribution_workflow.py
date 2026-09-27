@@ -59,15 +59,39 @@ def test_workflow_runs_only_bounded_loopback_observation_and_uploads_sanitized_j
     assert "65536" in text and "128 * 1024" in text
     assert "retention-days: 3" in text
     assert "identity.json" in text and "immediate.json" in text and "primary-delay-15s.json" in text
+    assert "candidate-cardinality-pair.json" in text
     assert "loopback-only-synthetic-key" in text
     assert "loopback-only-synthetic-decision-key" in text
     assert "raw_trace" not in text.lower()
     assert "target execution" not in text.lower()
 
 
+def test_cardinality_pair_has_its_own_bounded_job_and_artifact():
+    text = _workflow_text()
+    assert "  loopback-measurement:" in text
+    pair_job = text.split("  candidate-cardinality-pair:", 1)[1]
+    assert "    timeout-minutes: 20" in pair_job
+    assert "      - name: Run the one-versus-two candidate pair in loopback-only namespace\n        timeout-minutes: 12" in pair_job
+    assert "--candidate-cardinality-pair" in pair_job
+    assert 'output="$ARTIFACT_DIR/candidate-cardinality-pair.json"' in pair_job
+    assert "PROBE_SCRIPT=\"$CARDINALITY_SCRIPT\"" in pair_job
+    assert "--primary-response-delay-seconds" not in pair_job
+    assert "sudo unshare --net --fork" in pair_job
+    assert "/usr/bin/setpriv --reuid" in pair_job and "/usr/bin/env -i" in pair_job
+    assert "contents: read" in pair_job
+    assert "secrets." not in pair_job and "GITHUB_TOKEN" not in pair_job
+    assert "len(encoded) > 65_536" in pair_job
+    assert "path.stat().st_size > 65_536" in pair_job
+    assert '[ "$(wc -c < "$output")" -gt 65536 ]' in pair_job
+    assert 'total > 128 * 1024' in pair_job
+    assert 'name: selected-control-cardinality-pair' in pair_job
+    assert 'candidate-cardinality-pair.json' in pair_job
+    assert "retention-days: 3" in pair_job
+
+
 def test_all_embedded_python_blocks_parse_and_delay_probe_gate_is_fail_closed():
     blocks = _embedded_python()
-    assert len(blocks) == 3
+    assert len(blocks) == 5
     trees = [ast.parse(block) for block in blocks]
     gate = trees[1]
     selected = [
