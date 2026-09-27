@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -13,6 +14,7 @@ import pytest
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+import selected_control_trace_attribution as diagnostic  # noqa: E402
 import validate_selected_control_transport_receipt as receipt_validator  # noqa: E402
 
 
@@ -101,6 +103,62 @@ def _retained_cardinality_arm(transport: str, state: str = "COMPLETE"):
 
 
 _arm = _retained_cardinality_arm
+
+
+def test_actual_task_status_projector_roundtrips_through_transport_projection_and_validator():
+    planned = [
+        {"task_id": "synthetic-task-1", "lens": "correctness"},
+        {"task_id": "synthetic-task-2", "lens": "security"},
+        {"task_id": "synthetic-task-3", "lens": "tests"},
+    ]
+    durable = {
+        "task_results": {
+            "synthetic-task-1:chunk-1": {"status": "SUCCEEDED"},
+            "synthetic-task-1:chunk-2": {"status": "SUCCEEDED"},
+            "synthetic-task-2": {"status": "SUCCEEDED"},
+        }
+    }
+    emitted_rows, unexpected = diagnostic._project_task_statuses(durable, planned)
+    assert emitted_rows is not None and unexpected == 0
+    assert emitted_rows[0]["chunk_count"] == 2
+    assert emitted_rows[0]["completed_chunks"] == 2
+
+    arm = _retained_cardinality_arm("HTTP_LOOPBACK_FAKE", "INCOMPLETE")
+    arm["primary_task_statuses"] = emitted_rows
+    projected = diagnostic._transport_arm_projection(arm)
+    projected["state"] = "INCOMPLETE"
+    assert projected["primary_task_statuses"] == [
+        {"task_id": "synthetic-task-1", "lens": "correctness", "status": "SUCCEEDED"},
+        {"task_id": "synthetic-task-2", "lens": "security", "status": "SUCCEEDED"},
+        {"task_id": "synthetic-task-3", "lens": "tests", "status": "MISSING_RESULT"},
+    ]
+    receipt_validator._arm(projected, "HTTP_LOOPBACK_FAKE")
+
+
+@pytest.mark.parametrize(
+    "mutation,code",
+    [
+        (lambda rows: rows[0].pop("task_id"), "arm_task_fields_invalid"),
+        (lambda rows: rows[0].pop("status"), "arm_task_fields_invalid"),
+        (lambda rows: rows[0].update(status="UNTRUSTED_PRIVATE_TEXT"), "arm_task_status_invalid"),
+    ],
+)
+def test_actual_task_projection_malformed_identity_or_status_fails_strict_arm_validation(mutation, code):
+    planned = [
+        {"task_id": "synthetic-task-1", "lens": "correctness"},
+        {"task_id": "synthetic-task-2", "lens": "security"},
+        {"task_id": "synthetic-task-3", "lens": "tests"},
+    ]
+    durable = {"task_results": {task["task_id"]: {"status": "SUCCEEDED"} for task in planned}}
+    rows, unexpected = diagnostic._project_task_statuses(durable, planned)
+    assert rows is not None and unexpected == 0
+    mutation(rows)
+    arm = _retained_cardinality_arm("HTTP_LOOPBACK_FAKE", "INCOMPLETE")
+    arm["primary_task_statuses"] = rows
+    projected = diagnostic._transport_arm_projection(arm)
+    projected["state"] = "INCOMPLETE"
+    with pytest.raises(ValueError, match=code):
+        receipt_validator._arm(projected, "HTTP_LOOPBACK_FAKE")
 
 
 def _valid_receipt():
@@ -275,12 +333,12 @@ def test_transport_workflow_is_manual_main_only_secretless_and_uploads_one_bound
     assert "--transport-pair" in workflow
     assert "sudo unshare --net --fork" in workflow and "/usr/bin/env -i" in workflow
     assert "validate_selected_control_transport_receipt.py" in workflow
-    assert "selected-control-transport-not-observed.v1" in workflow
+    assert "selected-control-transport-not-observed.v2" in workflow
     assert '"expected_source_sha": expected' in workflow
     assert '"checkout_source_sha": checkout_sha' in workflow
     assert '"installed_runtime_source_sha": expected if' in workflow
     assert '"actual_provider_calls": "UNKNOWN"' in workflow
-    assert "PAIR_RECEIPT_MISSING_OR_REJECTED" in workflow
+    assert "PAIR_RECEIPT_REJECTED" in workflow
     assert "len(encoded) > 2048" in workflow
     assert "selected-control-transport-pair-${{ github.run_id }}" in workflow
     assert "retention-days: 3" in workflow
@@ -299,19 +357,27 @@ def test_not_observed_failure_receipt_is_bounded_and_does_not_infer_provider_cal
         "SOURCE_SHA": "a" * 40,
         "SOURCE_ROOT": str(tmp_path / "checkout-not-created"),
         "ARTIFACT_DIR": str(artifact_dir),
+        "GITHUB_OUTPUT": str(tmp_path / "github-output"),
         "CHECKOUT_OUTCOME": "failure",
         "PYTHON_OUTCOME": "skipped",
         "OBSERVER_OUTCOME": "skipped",
         "RUNTIME_OUTCOME": "skipped",
         "PROBE_OUTCOME": "skipped",
+        "VALIDATION_EXIT_CODE": "1",
     }
+    (artifact_dir / "validation-status.json").write_text(json.dumps({
+        "contract_version": "transport-receipt-validation.v1",
+        "status": "REJECTED",
+        "rejection_code": "receipt_file_invalid",
+    }), encoding="utf-8")
     subprocess.run([sys.executable, "-c", source], check=True, env=env, timeout=5)
     receipt_path = artifact_dir / "transport-pair.json"
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     assert receipt == {
-        "contract_version": "selected-control-transport-not-observed.v1",
+        "contract_version": "selected-control-transport-not-observed.v2",
         "state": "NOT_OBSERVED",
         "reason_code": "CHECKOUT_FAILED",
+        "validator_rejection_code": None,
         "expected_source_sha": "a" * 40,
         "checkout_source_sha": None,
         "checkout_source_matches_expected": None,
@@ -321,3 +387,268 @@ def test_not_observed_failure_receipt_is_bounded_and_does_not_infer_provider_cal
         "actual_provider_calls": "UNKNOWN",
     }
     assert receipt_path.stat().st_size <= 2048
+
+
+def _run_safe_step(tmp_path, status_bytes, *, validation_exit="1", probe_outcome="success"):
+    workflow = (ROOT / ".github/workflows/selected-control-transport-pair.yml").read_text(encoding="utf-8")
+    safe_step = workflow.split("      - name: Validate the exact bounded receipt and source identity", 1)[1]
+    block = re.search(r"(?ms)python3 - <<'PY'\n(?P<body>.*?)^\s+PY\s*$", safe_step)
+    assert block is not None
+    source = textwrap.dedent(block.group("body"))
+    artifact_dir = tmp_path / "artifact"
+    artifact_dir.mkdir(mode=0o700)
+    (artifact_dir / "validation-status.json").write_bytes(status_bytes)
+    output_file = tmp_path / "github-output"
+    env = {
+        **os.environ,
+        "SOURCE_SHA": "a" * 40,
+        "SOURCE_ROOT": str(tmp_path / "checkout-not-created"),
+        "ARTIFACT_DIR": str(artifact_dir),
+        "GITHUB_OUTPUT": str(output_file),
+        "CHECKOUT_OUTCOME": "success",
+        "PYTHON_OUTCOME": "success",
+        "OBSERVER_OUTCOME": "success",
+        "RUNTIME_OUTCOME": "success",
+        "PROBE_OUTCOME": probe_outcome,
+        "VALIDATION_EXIT_CODE": validation_exit,
+    }
+    completed = subprocess.run([sys.executable, "-c", source], env=env, capture_output=True, timeout=5)
+    output = output_file.read_text(encoding="utf-8") if output_file.exists() else ""
+    receipt_path = artifact_dir / "transport-pair.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8")) if receipt_path.exists() else None
+    return completed, output, receipt, artifact_dir
+
+
+def test_successful_probe_with_typed_validator_rejection_writes_safe_fallback_and_denies_acceptance(tmp_path):
+    status = {
+        "contract_version": "transport-receipt-validation.v1",
+        "status": "REJECTED",
+        "rejection_code": "receipt_source_identity_mismatch",
+    }
+    completed, outputs, receipt, artifact_dir = _run_safe_step(
+        tmp_path, json.dumps(status).encode(), validation_exit="1"
+    )
+    assert completed.returncode == 0
+    assert outputs.splitlines() == ["safe=true", "accepted=false"]
+    assert receipt["contract_version"] == "selected-control-transport-not-observed.v2"
+    assert receipt["state"] == "NOT_OBSERVED"
+    assert receipt["reason_code"] == "PAIR_RECEIPT_REJECTED"
+    assert receipt["validator_rejection_code"] == "receipt_source_identity_mismatch"
+    assert receipt["actual_provider_calls"] == "UNKNOWN"
+    assert len(list(artifact_dir.glob("transport-pair.json"))) == 1
+
+
+def test_arbitrary_validator_output_is_unknown_and_never_copied_into_fallback(tmp_path):
+    secretish = "raw-provider-or-secret-value-must-not-survive"
+    completed, outputs, receipt, artifact_dir = _run_safe_step(
+        tmp_path, f"validator said {secretish}".encode(), validation_exit="1"
+    )
+    assert completed.returncode == 0
+    assert outputs.splitlines() == ["safe=true", "accepted=false"]
+    assert receipt["reason_code"] == "VALIDATOR_OUTPUT_UNKNOWN"
+    assert receipt["validator_rejection_code"] is None
+    assert secretish.encode() not in (artifact_dir / "transport-pair.json").read_bytes()
+
+
+def test_only_accepted_diagnostic_and_successful_probe_can_mark_receipt_accepted(tmp_path):
+    status = {
+        "contract_version": "transport-receipt-validation.v1",
+        "status": "ACCEPTED",
+        "rejection_code": None,
+    }
+    completed, outputs, receipt, _ = _run_safe_step(
+        tmp_path, json.dumps(status).encode(), validation_exit="0"
+    )
+    assert completed.returncode == 0
+    assert outputs.splitlines() == ["safe=true", "accepted=true"]
+    assert receipt is None
+
+
+def test_validator_machine_diagnostic_is_finite_and_legacy_stdout_stays_generic(tmp_path, capsys):
+    row = _valid_receipt()
+    row["diagnostic_head_sha"] = "b" * 40
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(row), encoding="utf-8")
+    args = [str(path), "--source-root", str(ROOT), "--expected-sha", "a" * 40, "--diagnostic-json"]
+    assert receipt_validator.main(args) == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "contract_version": "transport-receipt-validation.v1",
+        "status": "REJECTED",
+        "rejection_code": "receipt_source_identity_mismatch",
+    }
+    assert receipt_validator.main(args[:-1]) == 1
+    assert capsys.readouterr().out.strip() == "transport_receipt_rejected"
+
+
+def test_unknown_validator_exception_is_sanitized_in_machine_diagnostic(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(
+        receipt_validator, "validate_receipt",
+        lambda *_args: (_ for _ in ()).throw(ValueError("sensitive exception payload")),
+    )
+    assert receipt_validator.main([
+        str(tmp_path / "unused"), "--source-root", str(ROOT), "--expected-sha", "a" * 40,
+        "--diagnostic-json",
+    ]) == 1
+    emitted = capsys.readouterr().out
+    assert "sensitive" not in emitted
+    assert json.loads(emitted)["rejection_code"] == "validator_internal_unknown"
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "trace_fields_invalid",
+        "arm_stage_fields_invalid",
+        "arm_task_fields_invalid",
+        "arm_payload_stages_invalid",
+    ],
+)
+def test_fixed_validator_codes_survive_bounded_diagnostic(monkeypatch, tmp_path, code):
+    monkeypatch.setattr(
+        receipt_validator,
+        "validate_receipt",
+        lambda *_args: (_ for _ in ()).throw(ValueError(code)),
+    )
+
+    result = receipt_validator._validation_diagnostic(tmp_path / "unused", ROOT, "a" * 40)
+
+    assert result == {
+        "contract_version": "transport-receipt-validation.v1",
+        "status": "REJECTED",
+        "rejection_code": code,
+    }
+
+
+def test_every_literal_validator_rejection_code_is_in_the_closed_diagnostic_allowlist():
+    source = (ROOT / "scripts/validate_selected_control_transport_receipt.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    fixed_codes = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
+            if (
+                isinstance(node.exc.func, ast.Name)
+                and node.exc.func.id == "ValueError"
+                and node.exc.args
+                and isinstance(node.exc.args[0], ast.Constant)
+                and isinstance(node.exc.args[0].value, str)
+            ):
+                fixed_codes.add(node.exc.args[0].value)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            code_arg = 2 if node.func.id == "_keys" else 1 if node.func.id == "_hash" else None
+            if (
+                code_arg is not None
+                and len(node.args) > code_arg
+                and isinstance(node.args[code_arg], ast.Constant)
+                and isinstance(node.args[code_arg].value, str)
+            ):
+                fixed_codes.add(node.args[code_arg].value)
+
+    assert fixed_codes <= receipt_validator.VALIDATION_DIAGNOSTIC_CODES
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_INSTALLED_LOOPBACK_TRANSPORT_VALIDATOR_TEST") != "1",
+    reason="requires a separately opted-in Linux installed-CLI loopback pair run",
+)
+def test_actual_installed_cli_transport_emitter_roundtrips_through_strict_validator(tmp_path):
+    import shutil
+
+    assert sys.platform.startswith("linux"), "opt-in transport roundtrip must run on Linux"
+    assert shutil.which("strace"), "opt-in transport roundtrip requires the installed Linux observer"
+    cli = shutil.which("pr-review")
+    assert cli, "opt-in transport roundtrip requires the installed wheel entrypoint"
+    venv_bin = Path(os.environ["ROUNDTRIP_ENV"]) / "bin"
+    assert Path(cli).resolve().parent == venv_bin.resolve(), "transport probe must use the built-wheel CLI"
+    script = ROOT / "scripts/selected_control_trace_attribution.py"
+    completed = subprocess.run(
+        [sys.executable, str(script), "--cli", cli, "--workdir", str(tmp_path), "--transport-pair"],
+        capture_output=True, timeout=660, check=False,
+    )
+    emitted = json.loads(completed.stdout)
+    assert emitted.get("contract_version") == "selected-control-transport-pair.v1"
+    assert emitted.get("pair_state") in {"COMPLETE", "INCOMPLETE"}
+    source_identity = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        timeout=3, check=True,
+    ).stdout.decode("ascii").strip()
+    assert re.fullmatch(r"[0-9a-f]{40}", source_identity)
+    assert emitted.get("diagnostic_head_sha") == source_identity
+    receipt_path = tmp_path / "transport-pair.json"
+    receipt_path.write_bytes(completed.stdout)
+    validation = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/validate_selected_control_transport_receipt.py"),
+            str(receipt_path), "--source-root", str(ROOT), "--expected-sha",
+            source_identity, "--diagnostic-json",
+        ],
+        capture_output=True, timeout=5, check=False,
+    )
+    assert len(validation.stdout) <= 512
+    result = json.loads(validation.stdout)
+    assert result == {
+        "contract_version": "transport-receipt-validation.v1",
+        "status": "ACCEPTED",
+        "rejection_code": None,
+    }, result.get("rejection_code")
+    assert validation.returncode == 0
+    assert completed.returncode == (0 if emitted["pair_state"] == "COMPLETE" else 2)
+    print(json.dumps({
+        "contract_version": "transport-roundtrip-regression.v1",
+        "trusted_source_sha": source_identity,
+        "validated_pair_state": emitted["pair_state"],
+        "emitter_cli_exit": completed.returncode,
+        "receipt_validation": result["status"],
+    }, sort_keys=True))
+
+
+def test_workflow_always_uploads_safe_fallback_then_fails_when_receipt_was_rejected():
+    workflow = (ROOT / ".github/workflows/selected-control-transport-pair.yml").read_text(encoding="utf-8")
+    upload_index = workflow.index("- name: Upload only the source-bound bounded receipt")
+    gate_index = workflow.index("- name: Require a strictly accepted transport receipt")
+    upload_block = workflow[upload_index:gate_index]
+    gate_block = workflow[gate_index:]
+    assert "if: always() && steps.safe.outputs.safe == 'true'" in upload_block
+    assert "if: always()" in gate_block
+    assert "RECEIPT_ACCEPTED" in gate_block and 'exit 1' in gate_block
+    assert "PAIR_RECEIPT_REJECTED" in workflow and "VALIDATOR_OUTPUT_UNKNOWN" in workflow
+    script = re.search(r"(?ms)        run: \|\n(?P<body>.*)$", gate_block)
+    assert script is not None
+    completed = subprocess.run(
+        ["bash", "-c", textwrap.dedent(script.group("body"))],
+        env={**os.environ, "RECEIPT_ACCEPTED": "false"}, capture_output=True, timeout=5,
+    )
+    assert completed.returncode == 1
+
+
+def test_workflow_reason_codes_match_the_validator_closed_allowlist():
+    workflow = (ROOT / ".github/workflows/selected-control-transport-pair.yml").read_text(encoding="utf-8")
+    safe_step = workflow.split("      - name: Validate the exact bounded receipt and source identity", 1)[1]
+    block = re.search(r"(?ms)python3 - <<'PY'\n(?P<body>.*?)^\s+PY\s*$", safe_step)
+    assert block is not None
+    tree = ast.parse(textwrap.dedent(block.group("body")))
+    assignment = next(
+        node for node in tree.body
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "validation_codes" for target in node.targets
+        )
+    )
+    workflow_codes = ast.literal_eval(assignment.value)
+    assert workflow_codes == receipt_validator.VALIDATION_DIAGNOSTIC_CODES | {
+        "receipt_json_invalid", "receipt_encoding_invalid", "receipt_io_error",
+        "validator_internal_unknown",
+    }
+
+
+def test_secretless_ci_runs_opt_in_roundtrip_against_the_built_wheel():
+    workflow = (ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8")
+    job = workflow.split("  transport-receipt-roundtrip:", 1)[1]
+    assert "needs: build" in job
+    assert "runs-on: ubuntu-latest" in job
+    assert "sudo apt-get install --yes strace" in job
+    assert "actions/download-artifact" in job and "pr-review-distributions" in job
+    assert 'pip install "$ROUNDTRIP_DIST"/*.whl pytest' in job
+    assert "RUN_INSTALLED_LOOPBACK_TRANSPORT_VALIDATOR_TEST: '1'" in job
+    assert "tests/test_selected_control_transport_receipt.py::test_actual_installed_cli_transport_emitter_roundtrips_through_strict_validator" in job
+    assert "secrets." not in job and "GITHUB_TOKEN" not in job

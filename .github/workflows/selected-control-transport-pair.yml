@@ -174,12 +174,13 @@ jobs:
         run: |
           set -euo pipefail
           receipt="$ARTIFACT_DIR/transport-pair.json"
-          if [ -f "$receipt" ] && python scripts/validate_selected_control_transport_receipt.py \
-            "$receipt" --source-root "$SOURCE_ROOT" --expected-sha "$SOURCE_SHA"; then
-            echo 'safe=true' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          python3 - <<'PY'
+          set +e
+          python scripts/validate_selected_control_transport_receipt.py \
+            "$receipt" --source-root "$SOURCE_ROOT" --expected-sha "$SOURCE_SHA" --diagnostic-json \
+            > "$ARTIFACT_DIR/validation-status.json" 2>/dev/null
+          validation_exit=$?
+          set -e
+          VALIDATION_EXIT_CODE="$validation_exit" python3 - <<'PY'
           import json
           import os
           import re
@@ -192,13 +193,76 @@ jobs:
           outcomes = {key: os.environ.get(key, "") for key in (
               "CHECKOUT_OUTCOME", "PYTHON_OUTCOME", "OBSERVER_OUTCOME", "RUNTIME_OUTCOME", "PROBE_OUTCOME"
           )}
+          validation_codes = {
+              "receipt_json_invalid", "receipt_encoding_invalid", "receipt_io_error", "validator_internal_unknown",
+              "receipt_fields_invalid", "receipt_hash_invalid", "trace_state_invalid", "trace_count_invalid",
+              "trace_syscalls_invalid", "trace_syscall_count_invalid", "complete_trace_accounting_mismatch",
+              "trace_path_fields_invalid", "trace_path_basis_invalid", "trace_path_state_invalid",
+              "trace_path_visibility_invalid", "trace_path_counts_invalid", "trace_path_class_counts_invalid",
+              "trace_path_count_invalid", "trace_path_target_fields_invalid", "trace_path_target_count_invalid",
+              "trace_path_total_mismatch", "arm_fields_invalid", "arm_state_invalid", "skipped_arm_fields_invalid",
+              "arm_observer_mode_invalid", "arm_observer_coverage_invalid", "arm_cli_result_presence_invalid",
+              "arm_coverage_state_invalid", "arm_native_advisory_status_invalid", "arm_claim_statuses_invalid",
+              "complete_arm_actual_criteria_mismatch", "arm_task_ids_invalid", "arm_task_statuses_invalid",
+              "arm_task_lens_invalid", "arm_task_status_invalid", "payload_fields_invalid", "payload_size_invalid",
+              "expected_source_sha_invalid", "receipt_file_invalid", "receipt_contract_invalid",
+              "receipt_source_identity_mismatch", "diagnostic_script_dirty", "diagnostic_script_hash_mismatch",
+              "runtime_module_identity_mismatch", "receipt_trace_budget_mismatch", "receipt_cli_budget_mismatch",
+              "receipt_syscall_scope_mismatch", "receipt_tls_safety_mismatch", "receipt_effect_scope_mismatch",
+              "receipt_run_identity_mismatch", "receipt_task_scope_mismatch", "receipt_case_identity_invalid",
+              "receipt_arms_invalid", "tls_without_complete_http", "arm_identity_binding_mismatch",
+              "complete_pair_arm_mismatch", "complete_pair_comparison_missing", "complete_pair_payload_mismatch",
+              "complete_pair_config_mismatch", "receipt_pair_state_invalid", "comparison_fields_invalid",
+              "comparison_boolean_invalid", "comparison_trace_bytes_invalid", "comparison_syscall_delta_invalid",
+              "comparison_trace_arithmetic_mismatch", "comparison_syscall_arithmetic_mismatch",
+              "complete_pair_comparison_false", "receipt_secret_or_pem_detected",
+              "trace_fields_invalid", "arm_stage_fields_invalid", "arm_task_fields_invalid",
+              "arm_payload_stages_invalid",
+          }
+          validation = None
+          try:
+              status_path = Path(os.environ["ARTIFACT_DIR"]) / "validation-status.json"
+              with status_path.open("rb") as source:
+                  raw = source.read(513)
+              def unique_object(pairs):
+                  result = {}
+                  for key, value in pairs:
+                      if key in result:
+                          raise ValueError("duplicate_key")
+                      result[key] = value
+                  return result
+              if len(raw) <= 512:
+                  candidate = json.loads(raw, object_pairs_hook=unique_object,
+                      parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("nonfinite")))
+                  if (isinstance(candidate, dict) and set(candidate) == {"contract_version", "status", "rejection_code"}
+                      and candidate["contract_version"] == "transport-receipt-validation.v1"
+                      and type(candidate["status"]) is str and candidate["status"] in {"ACCEPTED", "REJECTED"}
+                      and (candidate["rejection_code"] is None or (type(candidate["rejection_code"]) is str
+                          and candidate["rejection_code"] in validation_codes))):
+                      validation = candidate
+          except (OSError, UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
+              validation = None
+          validation_exit = os.environ.get("VALIDATION_EXIT_CODE", "")
+          if (validation == {"contract_version": "transport-receipt-validation.v1", "status": "ACCEPTED", "rejection_code": None}
+              and validation_exit == "0" and outcomes["PROBE_OUTCOME"] == "success"):
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                  output.write("safe=true\naccepted=true\n")
+              raise SystemExit(0)
+          validator_rejection = (
+              validation["rejection_code"]
+              if validation is not None and validation["status"] == "REJECTED"
+              and validation["rejection_code"] in validation_codes and validation_exit == "1"
+              else None
+          )
           reason = (
               "CHECKOUT_FAILED" if outcomes["CHECKOUT_OUTCOME"] != "success" else
               "PYTHON_SETUP_FAILED" if outcomes["PYTHON_OUTCOME"] != "success" else
               "OBSERVER_INSTALL_FAILED" if outcomes["OBSERVER_OUTCOME"] != "success" else
               "RUNTIME_BUILD_FAILED" if outcomes["RUNTIME_OUTCOME"] != "success" else
               "PROBE_NOT_STARTED" if outcomes["PROBE_OUTCOME"] == "skipped" else
-              "PAIR_RECEIPT_MISSING_OR_REJECTED"
+              "PROBE_FAILED" if outcomes["PROBE_OUTCOME"] != "success" else
+              "PAIR_RECEIPT_REJECTED" if validator_rejection is not None else
+              "VALIDATOR_OUTPUT_UNKNOWN"
           )
           checkout_sha = None
           source_root = Path(os.environ.get("SOURCE_ROOT", ""))
@@ -217,9 +281,10 @@ jobs:
           if checkout_sha is not None and checkout_sha != expected:
               reason = "CHECKOUT_SOURCE_MISMATCH"
           receipt = {
-              "contract_version": "selected-control-transport-not-observed.v1",
+              "contract_version": "selected-control-transport-not-observed.v2",
               "state": "NOT_OBSERVED",
               "reason_code": reason,
+              "validator_rejection_code": validator_rejection if reason == "PAIR_RECEIPT_REJECTED" else None,
               "expected_source_sha": expected,
               "checkout_source_sha": checkout_sha,
               "checkout_source_matches_expected": checkout_sha == expected if checkout_sha else None,
@@ -229,14 +294,17 @@ jobs:
               "actual_provider_calls": "UNKNOWN",
           }
           allowed = {
-              "contract_version", "state", "reason_code", "expected_source_sha", "checkout_source_sha",
+              "contract_version", "state", "reason_code", "validator_rejection_code", "expected_source_sha", "checkout_source_sha",
               "checkout_source_matches_expected", "installed_runtime_source_sha", "probe_step_outcome",
               "execution_state", "actual_provider_calls",
           }
-          if set(receipt) != allowed or receipt["reason_code"] not in {
+          if (set(receipt) != allowed or receipt["reason_code"] not in {
               "CHECKOUT_FAILED", "PYTHON_SETUP_FAILED", "OBSERVER_INSTALL_FAILED", "RUNTIME_BUILD_FAILED",
-              "PROBE_NOT_STARTED", "PAIR_RECEIPT_MISSING_OR_REJECTED", "CHECKOUT_SOURCE_MISMATCH",
-          }:
+              "PROBE_NOT_STARTED", "PROBE_FAILED", "PAIR_RECEIPT_REJECTED", "VALIDATOR_OUTPUT_UNKNOWN",
+              "CHECKOUT_SOURCE_MISMATCH",
+          } or (receipt["validator_rejection_code"] is not None
+              and receipt["validator_rejection_code"] not in validation_codes)
+              or (reason == "PAIR_RECEIPT_REJECTED") != (receipt["validator_rejection_code"] is not None)):
               raise SystemExit("not_observed_receipt_contract_invalid")
           encoded = (json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n").encode()
           if len(encoded) > 2048:
@@ -245,9 +313,10 @@ jobs:
           target = temporary.with_suffix("")
           temporary.write_bytes(encoded)
           temporary.replace(target)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("safe=true\naccepted=false\n")
           PY
           python3 -m json.tool "$receipt" >/dev/null
-          echo 'safe=true' >> "$GITHUB_OUTPUT"
 
       - name: Upload only the source-bound bounded receipt
         if: always() && steps.safe.outputs.safe == 'true'
@@ -258,3 +327,15 @@ jobs:
           path: ${{ runner.temp }}/selected-control-transport-pair/transport-pair.json
           if-no-files-found: error
           retention-days: 3
+
+      - name: Require a strictly accepted transport receipt
+        if: always()
+        timeout-minutes: 1
+        env:
+          RECEIPT_ACCEPTED: ${{ steps.safe.outputs.accepted }}
+        run: |
+          set -euo pipefail
+          if [ "$RECEIPT_ACCEPTED" != "true" ]; then
+            echo "transport_receipt_not_accepted" >&2
+            exit 1
+          fi

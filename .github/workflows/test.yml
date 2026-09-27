@@ -111,3 +111,42 @@ jobs:
             ${{ runner.temp }}/pr-review-recovery-${{ matrix.python-version }}/artifacts/
           if-no-files-found: warn
           retention-days: 7
+
+  transport-receipt-roundtrip:
+    name: Installed loopback emitter and strict receipt validator
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install the Linux syscall observer
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes strace
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: pr-review-distributions
+          path: ${{ runner.temp }}/transport-roundtrip-dist
+      - name: Install the built wheel and test runner in an isolated environment
+        env:
+          ROUNDTRIP_ENV: ${{ runner.temp }}/transport-roundtrip-venv
+          ROUNDTRIP_DIST: ${{ runner.temp }}/transport-roundtrip-dist
+        run: |
+          set -euo pipefail
+          python -m venv "$ROUNDTRIP_ENV"
+          "$ROUNDTRIP_ENV/bin/python" -m pip install "$ROUNDTRIP_DIST"/*.whl pytest
+      - name: Run actual loopback emitter to strict validator roundtrip
+        env:
+          ROUNDTRIP_ENV: ${{ runner.temp }}/transport-roundtrip-venv
+          RUN_INSTALLED_LOOPBACK_TRANSPORT_VALIDATOR_TEST: '1'
+        run: |
+          set -euo pipefail
+          export PATH="$ROUNDTRIP_ENV/bin:$PATH"
+          "$ROUNDTRIP_ENV/bin/python" -m pytest -q -s \
+            tests/test_selected_control_transport_receipt.py::test_actual_installed_cli_transport_emitter_roundtrips_through_strict_validator
