@@ -701,7 +701,7 @@ def _validate_claim_bindings(
                 not isinstance(assessment_refs, list)
                 or not isinstance(refs, list)
                 or assessment_refs != refs
-                or any(ref not in evidence_index or not isinstance(refs, list) or ref not in refs for ref in assessment_refs)
+                or any(ref not in evidence_index for ref in assessment_refs)
             ):
                 row["evidence_binding"] = "NO_MATCH"
                 okay = False
