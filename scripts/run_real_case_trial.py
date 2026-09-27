@@ -614,7 +614,7 @@ def _experiment_identity_fields(input_contract: str) -> dict[str, Any]:
             "context_followup_plan_sha256": CONTEXT_FOLLOWUP_PLAN_SHA256,
             "primary_parent_plan_sha256": V2_PLAN_SHA256,
             "primary_input_identity": "FROZEN_V2_DESCRIPTOR_PLAN_SELECTED",
-            "dynamic_followup_projection": "LIMITED_TO_FIELDS_EXPOSED_BY_EXISTING_SANITIZED_PROJECTION",
+            "dynamic_followup_projection": "context-followup-observation.v1",
         }
     return {"input_contract": "specialist-input-v2"} if input_contract == "specialist-input-v2" else {}
 
@@ -1112,6 +1112,13 @@ _FOLLOWUP_SETTLEMENT_STATUSES = frozenset({"SUCCEEDED", "FAILED", "TIMED_OUT", "
 _FOLLOWUP_LENSES = frozenset({"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"})
 _FOLLOWUP_TARGET_KINDS = frozenset({"unit", "path", "symbol"})
 _FOLLOWUP_LINK_STATES = frozenset({"PERSISTED_RECORDS_MATCH", "PERSISTED_RECORDS_MISMATCH", "UNKNOWN"})
+_CLOSURE_NOTE_CODES = frozenset({
+    "NOTE_NOT_OBJECT", "STATE_NOT_COVERED", "BASIS_NOT_STATIC_REVIEW", "UNIT_OUT_OF_SCOPE",
+    "NO_RETRIEVED_EVIDENCE_REFERENCE", "REFERENCE_NOT_IN_TASK_INPUT", "MATCH", "NO_COVERAGE_NOTES", "UNKNOWN",
+})
+_CLOSURE_QUARANTINE_KINDS = frozenset({
+    "finding_candidates", "context_gap_proposals", "coverage_notes", "other_required_kind",
+})
 
 
 def _bounded_object_hash(value: Any, max_bytes: int = 64_000) -> str | None:
@@ -1130,11 +1137,131 @@ def _safe_followup_enum(value: Any, allowed: frozenset[str]) -> str:
     return value if isinstance(value, str) and value in allowed else "UNKNOWN"
 
 
-def _project_context_followups(durable: dict[str, Any]) -> dict[str, Any]:
+def _project_required_context_closure_diagnostics(value: Any) -> dict[str, Any]:
+    """Allowlist the engine's typed closure observation without re-evaluating it."""
+    unknown = {
+        "schema": "required-context-closure-diagnostics.v1",
+        "state": "UNKNOWN",
+        "coverage_note_result": "UNKNOWN",
+        "coverage_note_count": "UNKNOWN",
+        "coverage_note_notes_examined_count": "UNKNOWN",
+        "coverage_note_notes_unexamined_after_match_count": "UNKNOWN",
+        "coverage_note_failure_counts": "UNKNOWN",
+        "required_output_quarantine_count": "UNKNOWN",
+        "required_output_quarantine_by_kind": "UNKNOWN",
+        "unresolved_context_gap_count": "UNKNOWN",
+        "unresolved_followup_gap_count": "UNKNOWN",
+    }
+    expected = set(unknown)
+    if not isinstance(value, dict) or set(value) != expected:
+        return unknown
+    state = value.get("state")
+    note_result = value.get("coverage_note_result")
+    if (
+        value.get("schema") != unknown["schema"]
+        or not isinstance(state, str)
+        or state not in {"OBSERVED", "UNKNOWN"}
+        or not isinstance(note_result, str)
+        or note_result not in {"COVERED", "NO_COVERING_NOTE", "NO_NOTES", "UNKNOWN"}
+    ):
+        return unknown
+
+    def count_ok(item: Any, maximum: int = 10_000) -> bool:
+        return item == "UNKNOWN" or (
+            isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= maximum
+        )
+
+    note_counts = value.get("coverage_note_failure_counts")
+    quarantine_counts = value.get("required_output_quarantine_by_kind")
+    if note_counts != "UNKNOWN" and (
+        not isinstance(note_counts, dict) or set(note_counts) != _CLOSURE_NOTE_CODES
+    ):
+        return unknown
+    if quarantine_counts != "UNKNOWN" and (
+        not isinstance(quarantine_counts, dict) or set(quarantine_counts) != _CLOSURE_QUARANTINE_KINDS
+    ):
+        return unknown
+    if (
+        isinstance(note_counts, dict) and not all(count_ok(item) for item in note_counts.values())
+    ) or (
+        isinstance(quarantine_counts, dict) and not all(count_ok(item) for item in quarantine_counts.values())
+    ) or (
+        not count_ok(value.get("coverage_note_count"))
+        or not count_ok(value.get("coverage_note_notes_examined_count"))
+        or not count_ok(value.get("coverage_note_notes_unexamined_after_match_count"))
+        or not count_ok(value.get("required_output_quarantine_count"))
+        or not count_ok(value.get("unresolved_context_gap_count"))
+        or not count_ok(value.get("unresolved_followup_gap_count"))
+    ):
+        return unknown
+    if state == "OBSERVED":
+        note_count = value["coverage_note_count"]
+        examined = value["coverage_note_notes_examined_count"]
+        unexamined = value["coverage_note_notes_unexamined_after_match_count"]
+        quarantine_count = value["required_output_quarantine_count"]
+        unresolved_gaps = value["unresolved_context_gap_count"]
+        unresolved_followups = value["unresolved_followup_gap_count"]
+        if (
+            note_result == "UNKNOWN"
+            or note_count == "UNKNOWN"
+            or examined == "UNKNOWN"
+            or unexamined == "UNKNOWN"
+            or note_counts == "UNKNOWN"
+            or quarantine_count == "UNKNOWN"
+            or quarantine_counts == "UNKNOWN"
+            or unresolved_gaps == "UNKNOWN"
+            or unresolved_followups == "UNKNOWN"
+            or any(item == "UNKNOWN" for item in note_counts.values())
+            or any(item == "UNKNOWN" for item in quarantine_counts.values())
+            or note_count != examined + unexamined
+            or unresolved_followups > unresolved_gaps
+            or sum(quarantine_counts.values()) != quarantine_count
+        ):
+            return unknown
+
+        note_code_total = sum(
+            count for code, count in note_counts.items() if code != "NO_COVERAGE_NOTES"
+        )
+        no_notes_sentinel = note_counts["NO_COVERAGE_NOTES"]
+        if note_counts["UNKNOWN"] != 0 or note_counts["MATCH"] > 1:
+            return unknown
+        if note_count == 0:
+            coherent_note_result = (
+                note_result == "NO_NOTES"
+                and examined == 0
+                and unexamined == 0
+                and note_code_total == 0
+                and no_notes_sentinel == 1
+            )
+        else:
+            matches = note_counts["MATCH"]
+            coherent_note_result = (
+                no_notes_sentinel == 0
+                and note_code_total == examined
+                and (
+                    note_result == "COVERED"
+                    and matches > 0
+                    or note_result == "NO_COVERING_NOTE"
+                    and matches == 0
+                )
+            )
+        if not coherent_note_result:
+            return unknown
+    return {
+        **value,
+        "coverage_note_failure_counts": dict(note_counts) if isinstance(note_counts, dict) else "UNKNOWN",
+        "required_output_quarantine_by_kind": dict(quarantine_counts) if isinstance(quarantine_counts, dict) else "UNKNOWN",
+    }
+
+
+def _project_context_followups(
+    durable: dict[str, Any], *, include_closure_diagnostics: bool = False
+) -> dict[str, Any]:
     """Project only bounded persisted follow-up metadata and ledger observations."""
+    schema = "context-followup-observation.v2" if include_closure_diagnostics else "context-followup-observation.v1"
     ledger = durable.get("ledger")
     if not isinstance(ledger, dict):
-        return {"schema": "context-followup-observation.v1", "projection_state": "UNKNOWN", "reason": "LEDGER_NOT_SHOWN"}
+        return {"schema": schema, "projection_state": "UNKNOWN", "reason": "LEDGER_NOT_SHOWN"}
     dynamic = ledger.get("dynamic_tasks")
     planned = ledger.get("planned_task_inputs")
     outputs = durable.get("task_results")
@@ -1144,7 +1271,7 @@ def _project_context_followups(durable: dict[str, Any]) -> dict[str, Any]:
     if not all(isinstance(value, expected) for value, expected in (
         (dynamic, list), (planned, dict), (outputs, dict), (gaps, list), (coverage, list), (budget_state, dict)
     )):
-        return {"schema": "context-followup-observation.v1", "projection_state": "UNKNOWN", "reason": "DYNAMIC_LEDGER_FIELDS_NOT_SHOWN"}
+        return {"schema": schema, "projection_state": "UNKNOWN", "reason": "DYNAMIC_LEDGER_FIELDS_NOT_SHOWN"}
 
     tasks = [
         item for item in dynamic
@@ -1316,6 +1443,15 @@ def _project_context_followups(durable: dict[str, Any]) -> dict[str, Any]:
         )
         if coverage_state == "UNKNOWN":
             partial = True
+        if include_closure_diagnostics:
+            closure_raw = (
+                obligation.get("closure_diagnostics")
+                if obligation_binding == "PERSISTED_RECORDS_MATCH"
+                else None
+            )
+            closure_diagnostics = _project_required_context_closure_diagnostics(closure_raw)
+            if closure_diagnostics["state"] == "UNKNOWN":
+                partial = True
 
         input_evidence_ids = task_output.get("input_evidence_ids") if isinstance(task_output, dict) else None
         input_evidence_valid = (
@@ -1365,7 +1501,7 @@ def _project_context_followups(durable: dict[str, Any]) -> dict[str, Any]:
         if not row_budget_valid:
             partial = True
 
-        rows.append({
+        row = {
             "task_id": safe_task_id,
             "proposal_id": _safe_followup_id(proposal_id),
             "parent_task_id": _safe_followup_id(metadata.get("parent_task_id") if isinstance(metadata, dict) else None),
@@ -1402,13 +1538,16 @@ def _project_context_followups(durable: dict[str, Any]) -> dict[str, Any]:
             "reservation_count": len(reservation_keys) if row_budget_valid else "UNKNOWN",
             "settlement_count": sum(1 for key in reservation_keys if key in settlement_map) if row_budget_valid else "UNKNOWN",
             "settlement_statuses": sorted(set(settlement_statuses)) if row_budget_valid else ["UNKNOWN"],
-        })
+        }
+        if include_closure_diagnostics:
+            row["required_context_closure_diagnostics"] = closure_diagnostics
+        rows.append(row)
     if not tasks:
         projection_state = "NO_FOLLOWUP_TASKS_RECORDED" if gap_task_count == 0 else "PARTIAL"
     else:
         projection_state = "PARTIAL" if partial else "OBSERVED_WITH_LIMITATIONS"
     return {
-        "schema": "context-followup-observation.v1",
+        "schema": schema,
         "projection_state": projection_state,
         "observed_followup_task_count": len(tasks),
         "projected_followup_task_count": len(rows),
@@ -1503,7 +1642,8 @@ def _scan(value: Any, secrets: list[str], limit: int = OUTPUT_CAP) -> bytes:
 
 
 def project_case(
-    case: dict[str, Any], durable: dict[str, Any], secrets: list[str], *, include_context_followups: bool = False
+    case: dict[str, Any], durable: dict[str, Any], secrets: list[str], *, include_context_followups: bool = False,
+    include_closure_diagnostics: bool = False,
 ) -> dict[str, Any]:
     findings = durable.get("findings")
     records = durable.get("ledger", {}).get("candidate_records") if isinstance(durable.get("ledger"), dict) else None
@@ -1600,7 +1740,9 @@ def project_case(
         "evidence_index": _project_evidence_index(evidence_index, candidates),
     }
     if include_context_followups:
-        projection["context_followup_observations"] = _project_context_followups(durable)
+        projection["context_followup_observations"] = _project_context_followups(
+            durable, include_closure_diagnostics=include_closure_diagnostics
+        )
     _scan(projection, secrets)
     return projection
 

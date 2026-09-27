@@ -1356,6 +1356,34 @@ def _context_followup_projection_fixture():
             "context_gap_id": "gap-1",
             "task_ids": ["followup-1"],
             "state": "COMPLETE",
+            "closure_diagnostics": {
+                "schema": "required-context-closure-diagnostics.v1",
+                "state": "OBSERVED",
+                "coverage_note_result": "COVERED",
+                "coverage_note_count": 1,
+                "coverage_note_notes_examined_count": 1,
+                "coverage_note_notes_unexamined_after_match_count": 0,
+                "coverage_note_failure_counts": {
+                    "NOTE_NOT_OBJECT": 0,
+                    "STATE_NOT_COVERED": 0,
+                    "BASIS_NOT_STATIC_REVIEW": 0,
+                    "UNIT_OUT_OF_SCOPE": 0,
+                    "NO_RETRIEVED_EVIDENCE_REFERENCE": 0,
+                    "REFERENCE_NOT_IN_TASK_INPUT": 0,
+                    "MATCH": 1,
+                    "NO_COVERAGE_NOTES": 0,
+                    "UNKNOWN": 0,
+                },
+                "required_output_quarantine_count": 0,
+                "required_output_quarantine_by_kind": {
+                    "finding_candidates": 0,
+                    "context_gap_proposals": 0,
+                    "coverage_notes": 0,
+                    "other_required_kind": 0,
+                },
+                "unresolved_context_gap_count": 0,
+                "unresolved_followup_gap_count": 0,
+            },
         }],
     }
     return durable
@@ -1363,9 +1391,10 @@ def _context_followup_projection_fixture():
 
 def test_context_followup_projection_hashes_untrusted_text_and_keeps_delivery_unknown():
     durable = _context_followup_projection_fixture()
-    projected = trial._project_context_followups(durable)
+    projected = trial._project_context_followups(durable, include_closure_diagnostics=True)
 
     assert projected["projection_state"] == "OBSERVED_WITH_LIMITATIONS"
+    assert projected["schema"] == "context-followup-observation.v2"
     assert projected["observed_followup_task_count"] == 1
     assert projected["projected_followup_task_count"] == 1
     row = projected["rows"][0]
@@ -1378,6 +1407,8 @@ def test_context_followup_projection_hashes_untrusted_text_and_keeps_delivery_un
     assert row["retrieval_status"] == "RESOLVED"
     assert row["task_status"] == "SUCCEEDED"
     assert row["coverage_state"] == "COMPLETE"
+    assert row["required_context_closure_diagnostics"]["coverage_note_result"] == "COVERED"
+    assert row["required_context_closure_diagnostics"]["coverage_note_failure_counts"]["MATCH"] == 1
     assert row["provider_calls_reserved"] == row["provider_call_reservations_with_settlement"] == 1
     assert row["actual_provider_calls"] == "UNKNOWN"
     assert row["delivery_binding"] == projected["delivery_binding"] == "UNKNOWN"
@@ -1387,6 +1418,74 @@ def test_context_followup_projection_hashes_untrusted_text_and_keeps_delivery_un
     assert "private-rationale-canary" not in encoded
     assert row["target_value_sha256"] == digest(canonical("private-target-canary"))
     assert row["rationale_sha256"] == digest(canonical("private-rationale-canary"))
+
+
+def test_closure_diagnostic_projection_fails_closed_on_missing_or_forged_data():
+    missing = _context_followup_projection_fixture()
+    del missing["coverage_ledger"][0]["closure_diagnostics"]
+    missing_projection = trial._project_context_followups(missing, include_closure_diagnostics=True)
+    assert missing_projection["projection_state"] == "PARTIAL"
+    assert missing_projection["rows"][0]["required_context_closure_diagnostics"]["state"] == "UNKNOWN"
+
+    forged = _context_followup_projection_fixture()
+    forged["coverage_ledger"][0]["closure_diagnostics"]["coverage_note_failure_counts"]["FREEFORM"] = 1
+    forged_projection = trial._project_context_followups(forged, include_closure_diagnostics=True)
+    assert forged_projection["projection_state"] == "PARTIAL"
+    assert forged_projection["rows"][0]["required_context_closure_diagnostics"]["state"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda row: row.update(coverage_note_result="UNKNOWN"),
+        lambda row: row.update(unresolved_context_gap_count="UNKNOWN"),
+        lambda row: row.update(coverage_note_count=0),
+        lambda row: row.update(required_output_quarantine_count=1),
+        lambda row: row.update(unresolved_followup_gap_count=1),
+        lambda row: row["coverage_note_failure_counts"].update(MATCH=0),
+        lambda row: (
+            row.update(coverage_note_result="NO_COVERING_NOTE"),
+            row["coverage_note_failure_counts"].update(MATCH=0, UNKNOWN=1),
+        ),
+        lambda row: (
+            row.update(coverage_note_count=2, coverage_note_notes_examined_count=2),
+            row["coverage_note_failure_counts"].update(MATCH=2),
+        ),
+    ],
+    ids=[
+        "unknown-note-result",
+        "unknown-gap-count",
+        "note-count-arithmetic",
+        "quarantine-total-mismatch",
+        "nested-gap-exceeds-gap-total",
+        "note-code-total-mismatch",
+        "impossible-unknown-note-classification",
+        "multiple-short-circuit-matches",
+    ],
+)
+def test_closure_projection_downgrades_unknown_or_contradictory_observed_counts(mutate):
+    durable = _context_followup_projection_fixture()
+    diagnostics = durable["coverage_ledger"][0]["closure_diagnostics"]
+    mutate(diagnostics)
+
+    projection = trial._project_context_followups(durable, include_closure_diagnostics=True)
+
+    assert projection["projection_state"] == "PARTIAL"
+    assert projection["rows"][0]["required_context_closure_diagnostics"]["state"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("state", []), ("state", {}), ("coverage_note_result", []), ("coverage_note_result", {})],
+)
+def test_closure_projection_handles_non_string_enum_values_without_raising(field, value):
+    durable = _context_followup_projection_fixture()
+    durable["coverage_ledger"][0]["closure_diagnostics"][field] = value
+
+    projection = trial._project_context_followups(durable, include_closure_diagnostics=True)
+
+    assert projection["projection_state"] == "PARTIAL"
+    assert projection["rows"][0]["required_context_closure_diagnostics"]["state"] == "UNKNOWN"
 
 
 def test_context_followup_projection_is_new_selector_only_and_failure_copies_do_not_prove_delivery():
@@ -1399,9 +1498,18 @@ def test_context_followup_projection_is_new_selector_only_and_failure_copies_do_
 
     assert "context_followup_observations" not in old_projection
     observation = new_projection["context_followup_observations"]
+    assert observation["schema"] == "context-followup-observation.v1"
+    assert "required_context_closure_diagnostics" not in observation["rows"][0]
     assert observation["rows"][0]["task_status"] == "FAILED"
     assert observation["rows"][0]["persisted_metadata_binding"] == "PERSISTED_RECORDS_MATCH"
     assert observation["rows"][0]["delivery_binding"] == "UNKNOWN"
+
+    diagnostics_projection = trial.project_case(
+        case, durable, [], include_context_followups=True, include_closure_diagnostics=True
+    )
+    diagnostics = diagnostics_projection["context_followup_observations"]
+    assert diagnostics["schema"] == "context-followup-observation.v2"
+    assert diagnostics["rows"][0]["required_context_closure_diagnostics"]["state"] == "OBSERVED"
 
 
 @pytest.mark.parametrize(
