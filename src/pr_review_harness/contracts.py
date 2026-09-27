@@ -18,6 +18,7 @@ SPECIALIST_V2 = "specialist-findings.v2"
 SPECIALIST_V3 = "specialist-findings.v3"
 SPECIALIST_V4 = "specialist-findings.v4"
 SPECIALIST_INPUT_V2 = "specialist-input.v2"
+CONTEXT_FOLLOWUP_V1 = "context-followup.v1"
 ADJUDICATION_V1 = "semantic-adjudication.v1"
 ADJUDICATION_V2 = "semantic-adjudication.v2"
 ADJUDICATION_V3 = "semantic-adjudication.v3"
@@ -231,6 +232,76 @@ def validate_gap(item: Any, source_version: str) -> dict[str, Any]:
         "related_evidence_ids": list(value["related_evidence_ids"]),
         "required_lens": value["required_lens"],
     }
+
+
+def validate_context_followup_metadata(item: Any) -> dict[str, Any]:
+    """Validate the bounded, model-visible context follow-up question data.
+
+    This validates shape only. The engine must bind each value to the
+    controller-owned gap record, obligation, parent result, and retrieved
+    evidence before measuring or dispatching the request.
+    """
+    fields = {
+        "contract_version",
+        "snapshot_id",
+        "proposal_id",
+        "parent_task_id",
+        "parent_obligation_ids",
+        "followup_obligation_id",
+        "required_lens",
+        "scope_unit_ids",
+        "evidence_kind",
+        "target",
+        "rationale",
+        "related_candidate_ids",
+        "related_evidence_ids",
+        "retrieved_evidence_ids",
+    }
+    value = _require_fields(item, fields, "invalid_context_followup")
+    if value["contract_version"] != CONTEXT_FOLLOWUP_V1:
+        raise ContractIssue("invalid_context_followup_version")
+    for key in ("snapshot_id", "proposal_id", "parent_task_id", "followup_obligation_id"):
+        if not _is_text(value[key], 256):
+            raise ContractIssue("invalid_context_followup_identity")
+    if (
+        not isinstance(value["required_lens"], str)
+        or value["required_lens"] not in _LENSES
+        or not isinstance(value["evidence_kind"], str)
+        or value["evidence_kind"] not in _EVIDENCE_KINDS
+    ):
+        raise ContractIssue("invalid_context_followup_scope")
+    for key in ("parent_obligation_ids", "scope_unit_ids"):
+        refs = value[key]
+        if (
+            not isinstance(refs, list)
+            or not refs
+            or len(refs) > MAX_REF_COUNT
+            or any(not _is_text(ref, 256) for ref in refs)
+            or len(refs) != len(set(refs))
+        ):
+            raise ContractIssue("invalid_context_followup_scope")
+    target = value["target"]
+    if not isinstance(target, dict) or set(target) != {"kind", "value"}:
+        raise ContractIssue("invalid_context_followup_target")
+    if (
+        not isinstance(target.get("kind"), str)
+        or target.get("kind") not in {"unit", "path", "symbol"}
+        or not _is_text(target.get("value"), 2_000)
+    ):
+        raise ContractIssue("invalid_context_followup_target")
+    if not _is_text(value["rationale"], MAX_GAP_TEXT_BYTES):
+        raise ContractIssue("invalid_context_followup_rationale")
+    for key, allow_empty in (("related_candidate_ids", True), ("related_evidence_ids", True), ("retrieved_evidence_ids", False)):
+        refs = value[key]
+        if (
+            not isinstance(refs, list)
+            or len(refs) > MAX_REF_COUNT
+            or (not allow_empty and not refs)
+            or any(not _is_text(ref, 256) for ref in refs)
+            or len(refs) != len(set(refs))
+        ):
+            raise ContractIssue("invalid_context_followup_references")
+    return value
 
 
 def validate_coverage_note(item: Any, source_version: str) -> dict[str, Any]:
