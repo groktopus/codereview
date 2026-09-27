@@ -8,6 +8,7 @@ import sys
 import pytest
 
 from scripts import run_real_case_trial as trial
+from scripts.provider_config_from_env import configurations_from_environment
 
 sys.path.insert(0, str(trial.ROOT / "src"))
 from pr_review_harness.claim_transport import ClaimTransport
@@ -362,7 +363,7 @@ def test_private_configuration_contains_only_credential_references(tmp_path, mon
     monkeypatch.setenv("LLM_BASE_URL", trial.EXPECTED_LLM_ENDPOINT)
     monkeypatch.setenv("LLM_MODEL", trial.EXPECTED_LLM_MODEL)
     monkeypatch.setenv("LLM_API_KEY", "llm-secret-canary")
-    monkeypatch.setenv("JEV_BASE_URL", trial.EXPECTED_JEV_ENDPOINT)
+    monkeypatch.setenv("JEV_BASE_URL", trial.EXPECTED_JEV_BASE_URL)
     monkeypatch.setenv("JEV_MODEL", trial.EXPECTED_JEV_ALIAS)
     monkeypatch.setenv("JEV_API_KEY", "jev-secret-canary")
     provider, decision, scan_values = trial.build_configs(tmp_path / "private")
@@ -387,7 +388,7 @@ def test_prepare_and_live_decision_configs_match_claim_transport_contract(tmp_pa
         "LLM_BASE_URL": trial.EXPECTED_LLM_ENDPOINT,
         "LLM_MODEL": trial.EXPECTED_LLM_MODEL,
         "LLM_API_KEY": "llm-contract-test-key",
-        "JEV_BASE_URL": trial.EXPECTED_JEV_ENDPOINT,
+        "JEV_BASE_URL": trial.EXPECTED_JEV_BASE_URL,
         "JEV_MODEL": trial.EXPECTED_JEV_ALIAS,
         "JEV_API_KEY": "jev-contract-test-key",
     }.items():
@@ -398,6 +399,57 @@ def test_prepare_and_live_decision_configs_match_claim_transport_contract(tmp_pa
     assert set(live_decision_data) == {"kind", "endpoint", "model", "api_key_env"}
     assert make_provider(load_provider_config(str(live_provider))).max_response_bytes == 16_000
     assert make_decision_provider(live_decision_data) is not None
+
+
+def test_live_configs_use_production_translator_and_allow_its_trailing_slash_normalization(tmp_path, monkeypatch):
+    environment = {
+        "LLM_BASE_URL": trial.EXPECTED_LLM_ENDPOINT + "/",
+        "LLM_MODEL": trial.EXPECTED_LLM_MODEL,
+        "LLM_API_KEY": "llm-contract-test-key",
+        "JEV_BASE_URL": trial.EXPECTED_JEV_BASE_URL + "/",
+        "JEV_MODEL": trial.EXPECTED_JEV_ALIAS,
+        "JEV_API_KEY": "jev-contract-test-key",
+    }
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+
+    translated_provider, translated_decision = configurations_from_environment(environment)
+    provider_path, decision_path, scan_values = trial.build_configs(tmp_path / "private")
+    assert trial.read_json(provider_path)["base_url"] == translated_provider["base_url"] == trial.EXPECTED_LLM_ENDPOINT
+    assert trial.read_json(decision_path)["endpoint"] == translated_decision["endpoint"] == trial.EXPECTED_JEV_ENDPOINT
+    assert trial.EXPECTED_JEV_BASE_URL + "/" in scan_values
+    for configured_value in (trial.EXPECTED_JEV_BASE_URL, trial.EXPECTED_JEV_BASE_URL + "/"):
+        with pytest.raises(trial.TrialError, match="credential_scan_failed"):
+            trial._scan({"candidate_text": f"configured value: {configured_value}"}, scan_values)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("LLM_BASE_URL", "https://wrong.example.invalid/v1"),
+        ("LLM_BASE_URL", "not a url"),
+        ("JEV_BASE_URL", "https://wrong.example.invalid/v1"),
+        ("JEV_BASE_URL", "https://api.typesafe.ai/v1/systemone"),
+        ("JEV_BASE_URL", "https://[malformed/v1"),
+        ("LLM_MODEL", "openai/gpt-6-luna-paid"),
+        ("JEV_MODEL", "jev-other"),
+    ],
+)
+def test_live_configs_reject_invalid_or_non_pinned_translated_identity(tmp_path, monkeypatch, name, value):
+    for key, item in {
+        "LLM_BASE_URL": trial.EXPECTED_LLM_ENDPOINT,
+        "LLM_MODEL": trial.EXPECTED_LLM_MODEL,
+        "LLM_API_KEY": "llm-contract-test-key",
+        "JEV_BASE_URL": trial.EXPECTED_JEV_BASE_URL,
+        "JEV_MODEL": trial.EXPECTED_JEV_ALIAS,
+        "JEV_API_KEY": "jev-contract-test-key",
+    }.items():
+        monkeypatch.setenv(key, item)
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(trial.TrialError, match="provider_identity_configuration_mismatch"):
+        trial.build_configs(tmp_path / "private")
+    assert not (tmp_path / "private").exists()
 
 
 def test_shared_case_and_matrix_deadline_uses_smaller_remaining_budget(monkeypatch):
@@ -647,7 +699,7 @@ def test_provider_failure_marks_actual_usage_unknown_and_keeps_no_secret_values(
         "LLM_BASE_URL": trial.EXPECTED_LLM_ENDPOINT,
         "LLM_MODEL": trial.EXPECTED_LLM_MODEL,
         "LLM_API_KEY": llm_key,
-        "JEV_BASE_URL": trial.EXPECTED_JEV_ENDPOINT,
+        "JEV_BASE_URL": trial.EXPECTED_JEV_BASE_URL,
         "JEV_MODEL": trial.EXPECTED_JEV_ALIAS,
         "JEV_API_KEY": jev_key,
     }.items():
