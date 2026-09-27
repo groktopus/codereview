@@ -6,7 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from pr_review_harness.engine import run_review
+from pr_review_harness.engine import _bind_specialist_input, _canonical, run_review
 from pr_review_harness.planner import plan_review
 from pr_review_harness.providers import OpenAIProvider
 from pr_review_harness.snapshot import collect_snapshot
@@ -528,11 +528,27 @@ def test_required_selected_context_over_cap_is_typed_skip_without_dispatch(tmp_p
     )
     task = plan_review(snap, profile)["tasks"][0]
     unit = snap["inventory"][0]
-    unit_only = [snap["evidence"][eid] for eid in task["evidence_ids"] if eid in unit["review_context_evidence_ids"]]
-    selected_context_size = sum(
-        len(json.dumps(item, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()) for item in unit_only
-    )
-    limits = {**LIMITS, "max_input_bytes_per_task": selected_context_size + 1}
+    unit_only_ids = [eid for eid in task["evidence_ids"] if eid in unit["review_context_evidence_ids"]]
+    required_ids = list(task["required_context_ids"])
+
+    def bound_request(context_ids):
+        evidence_ids = list(dict.fromkeys(unit_only_ids + context_ids))
+        candidate = {
+            **task,
+            "unit_ids": [unit["unit_id"]],
+            "scope_unit_ids": [unit["unit_id"]],
+            "evidence_ids": evidence_ids,
+            "base_context_ids": context_ids,
+            "required_context_ids": required_ids,
+        }
+        evidence = [snap["evidence"][eid] for eid in evidence_ids]
+        bound = _bind_specialist_input(candidate, snap, profile, evidence)
+        return len(_canonical({"task": bound, "evidence": evidence}))
+
+    unit_only_size = bound_request([])
+    required_size = bound_request(required_ids)
+    assert unit_only_size < required_size
+    limits = {**LIMITS, "max_input_bytes_per_task": unit_only_size}
     provider = EmptyProvider()
     result = run_review(
         snap,
