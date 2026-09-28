@@ -23,12 +23,27 @@ def test_shadow_preparation_is_manual_trusted_and_read_only():
     prepare = text.split("  live_writer:", 1)[0]
     assert "on:\n  workflow_dispatch:\n" in text
     assert text.count("  contents: read\n") == 3
-    assert "if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in text
+    assert "if: inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch'" in prepare
+    live = text.split("  live_writer:", 1)[1]
+    assert "if: inputs.run_live_writer == true && github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in live
     assert "${{ secrets." not in prepare
     assert "PUBLISH_REVIEW" not in text
     assert "--run-provider-trial" not in text
     assert "--prepare-only" in text
     assert WORKFLOW.name == "private-shadow-capture.yml"
+
+
+def test_historical_prepare_is_skipped_for_pr457_and_artifact_names_its_case():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    prepare = text.split("  prepare:\n", 1)[1].split("  live_writer:", 1)[0]
+    assert "name: PR-464 provider-free preparation" in prepare
+    assert (
+        "if: inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch' "
+        "&& github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'"
+    ) in prepare
+    assert "private-shadow-preflight-PR-464-${{ github.run_id }}-${{ github.run_attempt }}" in prepare
+    assert "${{ secrets." not in prepare
+    assert "--prepare-only" in prepare
 
 
 def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():

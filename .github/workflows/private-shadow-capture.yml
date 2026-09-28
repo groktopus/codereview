@@ -26,7 +26,8 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    name: PR-464 provider-free preparation
+    if: inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -235,7 +236,7 @@ jobs:
         if: steps.sanitize.outputs.validated == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: private-shadow-preflight-${{ github.run_id }}
+          name: private-shadow-preflight-PR-464-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/private-shadow-sanitized/summary.json
             ${{ runner.temp }}/private-shadow-sanitized/manifest.json
