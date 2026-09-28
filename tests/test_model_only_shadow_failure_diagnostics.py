@@ -107,4 +107,9 @@ def test_live_prepare_uses_sanitized_failure_extractor_before_any_secrets():
     writer_step = live.split("- name: Run only the ten pinned read-only writer calls", 1)[1].split(
         "- name: Sanitize the completed writer capture", 1
     )[0]
-    assert "if: false" in identity_step and "if: false" in writer_step
+    assert "if: steps.exact-preflight.outputs.verified == 'true'" in identity_step
+    assert (
+        "if: steps.exact-preflight.outputs.verified == 'true' && "
+        "steps.provider-identity.outputs.validated == 'true'"
+    ) in writer_step
+    assert "if: false" not in identity_step and "if: false" not in writer_step

@@ -41,6 +41,11 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     ) < live.index("Run only the ten pinned read-only writer calls")
     assert "writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" in live
     assert 'prepare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}' in text
+    assert "earlier prepare failure's" in live and "remains unisolated" in live
+    assert (
+        "if: steps.exact-preflight.outputs.verified == 'true' && "
+        "steps.provider-identity.outputs.validated == 'true'"
+    ) in live
     assert 'private-shadow-prepare-output' in text and 'private-shadow-live-output' in live
     assert "LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}" in live
     assert "LLM_MODEL: ${{ secrets.LLM_MODEL }}" in live

@@ -377,9 +377,11 @@ jobs:
             > "$RUNNER_TEMP/private-shadow-preparation/live-preflight-receipt.json"
           echo 'verified=true' >> "$GITHUB_OUTPUT"
 
+      # A later provider-free hosted run passed; the earlier prepare failure's
+      # cause remains unisolated. Live dispatch depends on this fresh exact pin.
       - name: Check writer secret names and exact configured identity without printing values
         id: provider-identity
-        if: false # Temporarily disabled while the hosted provider-free preflight failure is diagnosed.
+        if: steps.exact-preflight.outputs.verified == 'true'
         env:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
@@ -393,7 +395,7 @@ jobs:
 
       - name: Run only the ten pinned read-only writer calls
         id: writer
-        if: false # Do not dispatch a provider until the hosted preflight failure is resolved.
+        if: steps.exact-preflight.outputs.verified == 'true' && steps.provider-identity.outputs.validated == 'true'
         working-directory: trusted-runner
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted-runner/src
