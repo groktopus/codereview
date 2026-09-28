@@ -26,6 +26,8 @@ All model judgments are advisory. Unknowns, abstentions, incomplete output, and 
 
 Human adjudication is unavailable for this project. Do not leave it as a presumed future source of labels or use model-generated labels to fill that role. Retain any model-produced screen with `reviewer_kind: model_teacher`; `unknown` or missing provenance is never human. The model-only evidence track can qualify whether a bounded, read-only shadow was executed and audited. It cannot estimate semantic accuracy, precision, recall, error rates, calibration, or truth.
 
+The hosted preparation/live-writer observations and the remaining full-path evidence criterion are recorded in [`experiments/model-only-shadow-hosted-runs-2026-09-28.md`](experiments/model-only-shadow-hosted-runs-2026-09-28.md).
+
 Use the roles for different questions, not as votes on one answer:
 
 1. The writer LLM reviews the frozen case and trusted profile and emits candidate findings with stable IDs and source references.
