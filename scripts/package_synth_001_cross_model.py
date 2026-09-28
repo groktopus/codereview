@@ -23,11 +23,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from materialize_seeded_writer_synth_001 import MaterializeError  # noqa: E402
 from verify_synth_001_preflight import VerifyError, _document, _read, verify  # noqa: E402
 
+from pr_review_harness.contracts import MAX_ITEMS, MAX_TEXT_BYTES  # noqa: E402
 from pr_review_harness.cross_model_package import build_cross_model_package  # noqa: E402
 from pr_review_harness.evaluation import EvaluationError  # noqa: E402
 
 IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v1.json"
-IDENTITY_SHA256 = "a4cedb98134d87051213ba8419595df1e75d6c81518a846a61299f32b6c4e9f5"
+IDENTITY_SHA256 = "05b6a6999188657f2b45efbaae285bfc0736e70634782a984b512245bcdfa83b"
 FIXTURE_DIR = ROOT / "examples/evaluation/seeded-writer-synth-001"
 PROFILE_PATH = ROOT / "experiments/synth-001-writer-profile-v1.json"
 LIMITS_PATH = ROOT / "experiments/synth-001-writer-limits-v1.json"
@@ -165,7 +166,7 @@ def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[di
     return materialization, prepared, verification, repo
 
 
-def _check_configuration(contract: dict[str, Any], verification: dict[str, Any]) -> None:
+def _check_configuration(contract: dict[str, Any], verification: dict[str, Any]) -> dict[str, int]:
     expected = contract["configuration"]
     files = {
         "profile_sha256": PROFILE_PATH,
@@ -182,6 +183,19 @@ def _check_configuration(contract: dict[str, Any], verification: dict[str, Any])
     for key in ("runtime", "module_count", "module_tree_sha256"):
         if verification.get(key) != expected[key]:
             _fail("package_runtime_identity_mismatch")
+    # The provider configuration hash and module-tree pin were checked above.
+    # These are the same explicit provider values and code defaults used by
+    # OpenAIProvider when it validates captured writer responses.
+    validation_limits = {
+        "max_output_items": provider.get("max_output_items", MAX_ITEMS),
+        "max_item_text_bytes": min(provider.get("max_item_text_bytes", MAX_TEXT_BYTES), MAX_TEXT_BYTES),
+    }
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 1
+        for value in validation_limits.values()
+    ) or validation_limits["max_output_items"] > MAX_ITEMS:
+        _fail("package_provider_validation_limits_invalid")
+    return validation_limits
 
 
 def _check_capture_and_packet(
@@ -301,7 +315,7 @@ def package_synth_001(
     shadow_root = _safe_child(preflight_dir, shadow_root, must_exist=True)
     output_dir = _safe_child(preflight_dir, output_dir, must_exist=False)
     materialization, prepared, verification, repo = _preflight_bundle(preflight_dir, contract)
-    _check_configuration(contract, verification)
+    writer_validation_limits = _check_configuration(contract, verification)
     if case_packet_path.parent != (capture_root / "case-packets").resolve(strict=True):
         _fail("writer_packet_outside_capture")
     _check_capture_and_packet(capture_root, case_packet_path, verification, prepared, contract)
@@ -319,6 +333,7 @@ def package_synth_001(
     return build_cross_model_package(
         corpus_value=corpus, case_packet_path=case_packet_path,
         capture_root=capture_root, shadow_root=shadow_root, output_dir=output_dir,
+        writer_validation_limits=writer_validation_limits,
     )
 
 
