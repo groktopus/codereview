@@ -379,7 +379,7 @@ jobs:
 
       - name: Check writer secret names and exact configured identity without printing values
         id: provider-identity
-        if: false # Keep disabled until the same-job writer capture and cleanup path is reviewed.
+        if: steps.exact-preflight.outputs.verified == 'true'
         env:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
@@ -393,7 +393,7 @@ jobs:
 
       - name: Run only the ten pinned read-only writer calls
         id: writer
-        if: false # Keep provider dispatch disabled until the complete capture path is reviewed.
+        if: steps.exact-preflight.outputs.verified == 'true' && steps.provider-identity.outputs.validated == 'true'
         working-directory: trusted-runner
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted-runner/src
@@ -434,15 +434,12 @@ jobs:
             --output-dir "$RUNNER_TEMP/private-writer-sanitized" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
-      # Staged scaffold only. Keep both steps disabled until same-job gates are
-      # wired to the dispatch-bound exact request checks and verified.
-      # The claim-auditor request depends on Jev output, so it is checked only
-      # after the Jev response and immediately before claim dispatch.
-      # On activation, require writer-sanitize success and the matching stage
-      # preflight output on both config and dispatch steps.
+      # AuditDispatchGuard checks each exact serialized request immediately
+      # before its adapter dispatches. The claim request is checked only after
+      # the Jev response has shaped it; no future request hash is fabricated.
       - name: Build private model-only audit configs
         id: audit-config
-        if: false # Do not expose audit credentials until same-job gates are reviewed.
+        if: steps.writer-sanitize.outputs.validated == 'true'
         working-directory: trusted-runner
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted-runner/src
@@ -461,7 +458,7 @@ jobs:
 
       - name: Run one bounded model-only audit packet
         id: shadow-audit
-        if: false # Keep provider dispatch disabled pending stage-local preflight.
+        if: steps.writer-sanitize.outputs.validated == 'true' && steps.audit-config.outputs.validated == 'true'
         working-directory: trusted-runner
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted-runner/src
