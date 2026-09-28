@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "deadline_seconds": 600,
+  "max_concurrent_scopes": 4,
+  "max_provider_calls": 10,
+  "max_retries_per_task": 0,
+  "max_context_bytes": 8000000,
+  "max_snapshot_context_bytes": 300000,
+  "max_input_bytes_per_task": 128000,
+  "max_output_bytes_per_task": 32768,
+  "max_output_bytes": 2097152,
+  "max_output_tokens": 1800,
+  "max_context_retrievals": 8,
+  "max_followup_tasks": 0
+}
