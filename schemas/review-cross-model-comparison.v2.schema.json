@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "review-cross-model-comparison.v2.schema.json",
+  "title": "Byte-bound advisory cross-model relation assertions",
+  "description": "Verifies structured relation presence in bounded local response bytes. Does not establish semantic truth, accuracy, or a release gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "comparison_id", "corpus_id", "dataset_version", "procedure", "cases"],
+  "properties": {
+    "contract_version": {"const": "review-cross-model-comparison.v2"},
+    "comparison_id": {"$ref": "#/$defs/id"},
+    "corpus_id": {"$ref": "#/$defs/id"},
+    "dataset_version": {"type": "string", "minLength": 1, "maxLength": 256},
+    "procedure": {"type": "object", "additionalProperties": false, "required": ["revision", "frozen_sha256"], "properties": {"revision": {"$ref": "#/$defs/id"}, "frozen_sha256": {"$ref": "#/$defs/hash"}}, "description": "Frozen relation extraction procedure identity."},
+    "cases": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/case"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "identity": {"type": "object", "additionalProperties": true, "required": ["case_id"], "properties": {"case_id": {"$ref": "#/$defs/id"}}, "description": "Must exactly equal the validated corpus identity for this case."},
+    "call": {"type": "object", "additionalProperties": false, "required": ["call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id"], "properties": {"call_id": {"$ref": "#/$defs/id"}, "request_sha256": {"$ref": "#/$defs/hash"}, "request_artifact_id": {"$ref": "#/$defs/id"}, "response_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}], "description": "SHA-256 of exact structured response content bytes captured before parsing or re-serialization; null when no complete response arrived."}, "response_artifact_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}}},
+    "run": {"type": "object", "additionalProperties": false, "required": ["role", "status", "run_id", "provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision", "calls", "calls_manifest_sha256"], "properties": {"role": {"enum": ["writer", "jev", "source_auditor", "claim_auditor"]}, "status": {"enum": ["completed", "incomplete", "failed", "unavailable", "abstained", "not_run"]}, "run_id": {"type": ["string", "null"]}, "provider_id": {"type": ["string", "null"]}, "model_id": {"type": ["string", "null"]}, "runtime_id": {"type": ["string", "null"]}, "prompt_revision": {"type": ["string", "null"]}, "rubric_revision": {"type": ["string", "null"]}, "calls": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/call"}}, "calls_manifest_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]}}},
+    "record": {"type": "object", "additionalProperties": false, "required": ["role", "record_id"], "properties": {"role": {"enum": ["writer", "jev", "source_auditor", "claim_auditor"]}, "record_id": {"$ref": "#/$defs/id"}}},
+    "assertion": {"type": "object", "additionalProperties": false, "required": ["assertion_id", "pair", "relation", "reporter_role", "reporter_run_id", "reporter_call_id", "response_artifact_id", "json_pointer", "left_record_id", "right_record_id"], "properties": {"assertion_id": {"$ref": "#/$defs/id"}, "pair": {"enum": ["writer_jev", "jev_claim_auditor"]}, "relation": {"enum": ["MATCH", "DISAGREEMENT", "NO_COUNTERPART", "ABSTAINED", "INCOMPLETE", "NOT_RUN", "UNKNOWN"]}, "reporter_role": {"enum": ["jev", "claim_auditor"]}, "reporter_run_id": {"$ref": "#/$defs/id"}, "reporter_call_id": {"$ref": "#/$defs/id"}, "response_artifact_id": {"$ref": "#/$defs/id"}, "json_pointer": {"type": "string", "maxLength": 2048}, "left_record_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}, "right_record_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}}},
+    "case": {"type": "object", "additionalProperties": false, "required": ["case_id", "identity", "runs", "records", "assertions"], "properties": {"case_id": {"$ref": "#/$defs/id"}, "identity": {"$ref": "#/$defs/identity"}, "runs": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/run"}}, "records": {"type": "array", "maxItems": 60000, "items": {"$ref": "#/$defs/record"}}, "assertions": {"type": "array", "maxItems": 20000, "items": {"$ref": "#/$defs/assertion"}}}}
+  }
+}
