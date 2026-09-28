@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -96,14 +97,38 @@ def _packet_candidates(capture_root: Path) -> tuple[dict[str, Any], bytes, list[
     manifest, manifest_raw = _read_json(root / "manifest.json", MAX_CAPTURE_MANIFEST_BYTES)
     if manifest.get("contract_version") != "model-only-shadow-case.v1" or manifest.get("private_artifacts") is not True:
         raise ValueError("capture_manifest_invalid")
+    inventory = manifest.get("case_packet_inventory")
+    if (not isinstance(inventory, dict) or set(inventory) != {"schema", "packets"}
+            or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
+            or not isinstance(inventory.get("packets"), list)
+            or not 1 <= len(inventory["packets"]) <= 128):
+        raise ValueError("capture_packet_inventory_missing_or_invalid")
     packet_dir = root / "case-packets"
     if packet_dir.is_symlink() or not packet_dir.is_dir() or stat.S_IMODE(packet_dir.stat().st_mode) != 0o700:
         raise ValueError("case_packet_directory_invalid")
     rows = []
-    for path in sorted(packet_dir.glob("*.json")):
+    inventory_by_path: dict[str, str] = {}
+    for item in inventory["packets"]:
+        if (not isinstance(item, dict) or set(item) != {"path", "sha256"}
+                or not isinstance(item.get("path"), str) or Path(item["path"]).name != item["path"]
+                or not item["path"].endswith(".json") or not isinstance(item.get("sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) or item["path"] in inventory_by_path):
+            raise ValueError("capture_packet_inventory_invalid")
+        inventory_by_path[item["path"]] = item["sha256"]
+    try:
+        entries = list(packet_dir.iterdir())
+    except OSError:
+        raise ValueError("case_packet_directory_invalid") from None
+    if {path.name for path in entries} != set(inventory_by_path):
+        raise ValueError("capture_packet_inventory_mismatch")
+    for path in sorted(entries):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("case_packet_file_invalid")
         if len(rows) >= 128:
             raise ValueError("case_packet_count_exceeds_limit")
         packet, raw = _read_json(path, MAX_CASE_BYTES)
+        if hashlib.sha256(raw).hexdigest() != inventory_by_path[path.name]:
+            raise ValueError("capture_packet_inventory_mismatch")
         if packet.get("contract_version") != "model-only-shadow-case.v1":
             raise ValueError("case_packet_contract_invalid")
         if packet.get("case_id") != manifest.get("case_id"):

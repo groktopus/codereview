@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import stat
@@ -45,13 +46,33 @@ def _capture(root: Path, packets: list[dict]) -> Path:
     root.mkdir(mode=0o700)
     packet_dir = root / "case-packets"
     packet_dir.mkdir(mode=0o700)
+    inventory = []
+    for index, packet in enumerate(packets):
+        path = packet_dir / f"packet-{index}.json"
+        raw = json.dumps(packet).encode()
+        path.write_bytes(raw)
+        inventory.append({"path": path.name, "sha256": hashlib.sha256(raw).hexdigest()})
     (root / "manifest.json").write_text(json.dumps({
         "contract_version": "model-only-shadow-case.v1", "case_id": "PR-464", "private_artifacts": True,
         "snapshot_id": CASE_IDENTITY["snapshot_id"], "snapshot_hash": CASE_IDENTITY["snapshot_hash"],
+        "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": inventory},
     }))
-    for index, packet in enumerate(packets):
-        (packet_dir / f"packet-{index}.json").write_text(json.dumps(packet))
     return root
+
+
+def test_packet_inventory_detects_missing_packet_from_multi_candidate_task(tmp_path):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first"),
+                                             _packet("PR-464", "candidate-b", "task-first")])
+    (root / "case-packets" / "packet-1.json").unlink()
+    with pytest.raises(ValueError, match="capture_packet_inventory_mismatch"):
+        RUNNER._packet_candidates(root)
+
+
+def test_packet_inventory_detects_packet_content_change(tmp_path):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
+    (root / "case-packets" / "packet-0.json").write_text(json.dumps(_packet("PR-464", None, "task-first")))
+    with pytest.raises(ValueError, match="capture_packet_inventory_mismatch"):
+        RUNNER._packet_candidates(root)
 
 
 def test_selection_uses_pinned_task_order_then_packet_digest(tmp_path):
