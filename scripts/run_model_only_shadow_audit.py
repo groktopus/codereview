@@ -185,11 +185,13 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
     if len(task_ids) != len(requests) or len(task_ids) != len(set(task_ids)) or not task_ids:
         raise ValueError("writer_plan_tasks_invalid")
     rank = {task_id: index for index, task_id in enumerate(task_ids)}
+    packet_task_ids: set[str] = set()
     for _candidate_id, _path, packet, _raw in packets:
         task = packet.get("source_task")
         task_id = task.get("task_id") if isinstance(task, dict) else None
         if task_id not in rank:
             raise ValueError("packet_task_not_in_plan")
+        packet_task_ids.add(task_id)
         snapshot = packet.get("snapshot")
         if not isinstance(snapshot, dict) or any(snapshot.get(key) != value for key, value in {
             "snapshot_id": expected_identity["snapshot_id"], "snapshot_hash": expected_identity["snapshot_hash"],
@@ -197,6 +199,8 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
             "profile_version": expected_identity["profile_version"], "profile_hash": expected_identity["profile_hash"],
         }.items()):
             raise ValueError("packet_plan_identity_mismatch")
+    if packet_task_ids != set(task_ids):
+        raise ValueError("case_packet_task_coverage_mismatch")
     return sorted(packets, key=lambda row: (
         rank[row[2]["source_task"]["task_id"]], hashlib.sha256(row[3]).hexdigest()
     ))
@@ -220,6 +224,7 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
             "candidate_packet_count": 0, "selected_packet_sha256": hashlib.sha256(packet_raw).hexdigest(),
             "capture_manifest_sha256": capture_hash,
             "roles": {role: "not_run" for role in ("source_auditor", "jev", "claim_auditor")},
+            "role_call_counts": {role: 0 for role in ("source_auditor", "jev", "claim_auditor")},
         }
         _write_receipt(receipt_path, receipt)
         return receipt
@@ -264,6 +269,9 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         ).hexdigest(),
         "roles": {role: roles.get(role, {}).get("status", "not_run") for role in
                   ("source_auditor", "jev", "claim_auditor")},
+        "role_call_counts": {role: len(roles.get(role, {}).get("calls", [])) for role in
+                              ("source_auditor", "jev", "claim_auditor")
+                              if isinstance(roles.get(role), dict)},
     }
     _write_receipt(receipt_path, receipt)
     return receipt

@@ -5,6 +5,8 @@ import json
 import stat
 from pathlib import Path
 
+import pytest
+
 SPEC = importlib.util.spec_from_file_location(
     "model_only_shadow_runner", Path(__file__).resolve().parents[1] / "scripts/run_model_only_shadow_audit.py"
 )
@@ -64,6 +66,15 @@ def test_selection_uses_pinned_task_order_then_packet_digest(tmp_path):
     assert RUNNER._select_packet(RUNNER._task_order(plan, rows))[0] == "candidate-z"
 
 
+def test_packet_task_coverage_must_match_every_pinned_writer_task(tmp_path):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", None, "task-first")])
+    _, _, rows = RUNNER._packet_candidates(root)
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first", "task-missing"])))
+    with pytest.raises(ValueError, match="case_packet_task_coverage_mismatch"):
+        RUNNER._task_order(plan, rows)
+
+
 def test_candidate_free_capture_emits_incomplete_hash_only_receipt_without_provider_config(tmp_path):
     root = _capture(tmp_path / "capture", [_packet("PR-464", None, "task-first")])
     receipt_path = tmp_path / "sanitized" / "shadow-receipt.json"
@@ -117,6 +128,7 @@ def test_sanitizer_rejects_untrusted_case_text_and_accepts_zero_candidate_receip
         "audit_provider_calls": 0, "candidate_packet_count": 0,
         "selected_packet_sha256": "a" * 64, "capture_manifest_sha256": "b" * 64,
         "roles": {role: "not_run" for role in ("source_auditor", "jev", "claim_auditor")},
+        "role_call_counts": {role: 0 for role in ("source_auditor", "jev", "claim_auditor")},
     }
     source = tmp_path / "input.json"
     source.write_text(json.dumps(receipt))
@@ -132,3 +144,25 @@ def test_sanitizer_rejects_untrusted_case_text_and_accepts_zero_candidate_receip
         assert str(exc) == "receipt_identity_invalid"
     else:
         raise AssertionError("untrusted case text was accepted")
+
+
+def test_sanitizer_rejects_contradictory_terminal_call_and_candidate_accounting():
+    receipt = {
+        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
+        "terminal_state": "completed", "reason": "one_candidate_selected",
+        "audit_provider_calls": 3, "candidate_packet_count": 1,
+        "selected_candidate_sha256": "c" * 64, "selected_packet_sha256": "a" * 64,
+        "capture_manifest_sha256": "b" * 64, "shadow_manifest_sha256": "d" * 64,
+        "roles": {role: "completed" for role in ("source_auditor", "jev", "claim_auditor")},
+        "role_call_counts": {role: 1 for role in ("source_auditor", "jev", "claim_auditor")},
+    }
+    SANITIZER._valid(receipt)
+    invalid = dict(receipt, reason="no_writer_candidate")
+    with pytest.raises(SANITIZER.ReceiptError, match="candidate_selection_reason_mismatch"):
+        SANITIZER._valid(invalid)
+    invalid = dict(receipt, audit_provider_calls=2)
+    with pytest.raises(SANITIZER.ReceiptError, match="receipt_role_call_counts_invalid"):
+        SANITIZER._valid(invalid)
+    invalid = dict(receipt, terminal_state="source_audit_failed")
+    with pytest.raises(SANITIZER.ReceiptError, match="terminal_role_accounting_mismatch"):
+        SANITIZER._valid(invalid)

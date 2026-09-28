@@ -57,7 +57,7 @@ def _unique(pairs):
 
 def _valid(receipt: dict[str, Any]) -> None:
     base = {"schema", "case_id", "terminal_state", "reason", "audit_provider_calls", "candidate_packet_count",
-            "selected_packet_sha256", "capture_manifest_sha256", "roles"}
+            "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts"}
     optional = {"selected_candidate_sha256", "shadow_manifest_sha256"}
     if frozenset(receipt) not in {frozenset(base), frozenset(base | optional)}:
         raise ReceiptError("receipt_fields_invalid")
@@ -78,6 +78,14 @@ def _valid(receipt: dict[str, Any]) -> None:
     roles = receipt.get("roles")
     if not isinstance(roles, dict) or set(roles) != ROLES or any(value not in ROLE_STATES for value in roles.values()):
         raise ReceiptError("receipt_role_states_invalid")
+    role_calls = receipt.get("role_call_counts")
+    if (not isinstance(role_calls, dict) or set(role_calls) != ROLES
+            or any(isinstance(value, bool) or not isinstance(value, int) or value not in {0, 1}
+                   for value in role_calls.values())
+            or sum(role_calls.values()) != calls):
+        raise ReceiptError("receipt_role_call_counts_invalid")
+    if any(roles[role] == "not_run" and role_calls[role] != 0 for role in ROLES):
+        raise ReceiptError("not_run_role_has_call")
     if count == 0:
         if (set(receipt) != base or receipt["terminal_state"] != "incomplete" or calls != 0
                 or receipt["reason"] != "no_writer_candidate" or set(roles.values()) != {"not_run"}):
@@ -88,6 +96,28 @@ def _valid(receipt: dict[str, Any]) -> None:
                 or not isinstance(receipt["shadow_manifest_sha256"], str)
                 or not HASH.fullmatch(receipt["shadow_manifest_sha256"])):
             raise ReceiptError("selected_candidate_receipt_invalid")
+        if receipt["reason"] != ("one_candidate_selected" if count == 1 else "bounded_single_candidate_selection"):
+            raise ReceiptError("candidate_selection_reason_mismatch")
+        terminal = receipt["terminal_state"]
+        source, jev, claim = (roles["source_auditor"], roles["jev"], roles["claim_auditor"])
+        source_calls, jev_calls, claim_calls = (
+            role_calls["source_auditor"], role_calls["jev"], role_calls["claim_auditor"]
+        )
+        eligible = {"completed", "abstained"}
+        consistent = (
+            (terminal == "completed" and source in eligible and jev in eligible and claim == "completed"
+             and (source_calls, jev_calls, claim_calls) == (1, 1, 1))
+            or (terminal == "claim_audit_abstained" and source in eligible and jev in eligible and claim == "abstained"
+                and (source_calls, jev_calls, claim_calls) == (1, 1, 1))
+            or (terminal == "source_audit_failed" and source == "failed" and jev == "not_run" and claim == "not_run"
+                and source_calls in {0, 1} and jev_calls == claim_calls == 0)
+            or (terminal == "jev_assessment_failed" and source in eligible and jev in {"failed", "incomplete"} and claim == "not_run"
+                and source_calls == 1 and jev_calls in {0, 1} and claim_calls == 0)
+            or (terminal == "claim_audit_failed" and source in eligible and jev in eligible and claim == "failed"
+                and source_calls == jev_calls == 1 and claim_calls in {0, 1})
+        )
+        if not consistent:
+            raise ReceiptError("terminal_role_accounting_mismatch")
 
 
 def sanitize(input_path: Path, output_dir: Path) -> dict[str, Any]:
