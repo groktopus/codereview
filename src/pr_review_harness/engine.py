@@ -1189,6 +1189,7 @@ def run_review(
     claim_assessor: Any = None,
     max_claim_assessments: int = 0,
     private_capture_dir: str | None = None,
+    private_capture_case_id: str | None = None,
 ) -> dict:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1507,6 +1508,7 @@ def run_review(
                 provider=provider,
                 request_byte_limit=input_cap,
                 response_byte_limit=output_cap,
+                corpus_case_id=private_capture_case_id,
             )
             private_capture.export_source_tasks(
                 [

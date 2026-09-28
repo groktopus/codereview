@@ -78,6 +78,10 @@ def _parser() -> argparse.ArgumentParser:
         help="opt in to a new private local exact-byte writer capture directory (not for Actions)",
     )
     review.add_argument(
+        "--private-shadow-case-id",
+        help="fixed corpus case ID for exported packets; requires --private-shadow-capture",
+    )
+    review.add_argument(
         "--max-claim-assessments",
         type=int,
         choices=range(5),
@@ -530,6 +534,9 @@ def _run_one(
     max_claim_assessments: int = 0,
 ) -> dict:
     capture_dir = getattr(args, "private_shadow_capture", None)
+    capture_case_id = getattr(args, "private_shadow_case_id", None)
+    if capture_case_id is not None and capture_dir is None:
+        raise ValueError("private shadow case ID requires private shadow capture")
     if capture_dir and (
         getattr(args, "command", "review") != "review" or getattr(args, "resume", False)
         or getattr(args, "prepare_only", False) or getattr(args, "dry_run", False)
@@ -895,6 +902,7 @@ def _run_one(
             check_adapter=GitHubCheckAdapter(),
             context_retriever=ContextRetriever(args.repo),
             private_capture_dir=capture_dir,
+            private_capture_case_id=capture_case_id,
             **review_kwargs,
         )
     except EnginePreflightError:

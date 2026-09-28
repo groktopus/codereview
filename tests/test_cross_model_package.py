@@ -13,6 +13,7 @@ from pr_review_harness.claim_assessment import _question_id
 from pr_review_harness.cross_model_package import build_cross_model_package
 from pr_review_harness.cross_model_v2 import calls_manifest_sha256
 from pr_review_harness.evaluation import EvaluationError
+from pr_review_harness.private_capture import CONTENT_TRANSFORM, PrivateShadowCapture, write_provider_exchange
 
 ROOT = Path(__file__).resolve().parents[1]
 DIMENSIONS = (
@@ -43,8 +44,11 @@ def _role(role, response_id, request_id, request, response, status="completed"):
 
 
 def _fixture(tmp_path, *, duplicate_candidate=False):
-    corpus = json.loads((ROOT / "examples/evaluation/corpus.json").read_text())
+    corpus = deepcopy(json.loads((ROOT / "examples/evaluation/corpus.json").read_text()))
     identity = corpus["cases"][0]["identity"]
+    profile = {"profile_id": identity["profile"]["profile_id"], "version": identity["profile"]["version"],
+               "required_lenses": ["correctness"]}
+    identity["profile"]["sha256"] = _sha(_json_bytes(profile, ascii_only=True))
     case_id = identity["case_id"]
     writer_run_id = "writer-run-1"
     task_id = "task-7"
@@ -57,8 +61,8 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
     snapshot_body = {
         "repository": "magnus919/SlopSearX", "repository_url": "https://github.com/magnus919/SlopSearX",
         "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
-        "profile_version": identity["profile"]["version"], "profile_hash": identity["profile"]["sha256"],
-        "inventory": [], "evidence": {"ev-1": {key: value for key, value in evidence.items() if key != "evidence_id"}},
+        "profile_version": profile["version"], "profile_hash": identity["profile"]["sha256"],
+        "inventory": [], "evidence": {"ev-1": evidence},
         "gaps": [], "trusted_context_refs": [],
     }
     snapshot = {"snapshot_id": identity["snapshot_id"], **snapshot_body,
@@ -74,9 +78,6 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
         **{key: raw_candidate[key] for key in ("title", "observation", "consequence", "rule_or_contract", "evidence_refs")},
     }
     capture_root = tmp_path / "capture"
-    (capture_root / "requests").mkdir(parents=True)
-    (capture_root / "responses").mkdir()
-    (capture_root / "case-packets").mkdir()
     task_payload = {"task": source_task, "evidence": [evidence]}
     writer_request = _json_bytes({"model": "writer-model", "messages": [
         {"role": "system", "content": "review"}, {"role": "user", "content": _json_bytes(task_payload).decode()},
@@ -84,36 +85,29 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
     writer_findings = [raw_candidate, deepcopy(raw_candidate)] if duplicate_candidate else [raw_candidate]
     writer_response = _json_bytes({"contract_version": "specialist-findings.v4", "finding_candidates": writer_findings,
                                    "context_gap_proposals": [], "coverage_notes": []})
-    call_id = "call-a1b2c3d4"
-    request_id, response_id = f"request-{call_id}", f"response-{call_id}"
-    (capture_root / "requests" / f"{call_id}.bin").write_bytes(writer_request)
-    (capture_root / "responses" / f"{call_id}.bin").write_bytes(writer_response)
-    writer_call = {"call_id": call_id, "request_sha256": _sha(writer_request), "request_artifact_id": request_id,
-                   "response_sha256": _sha(writer_response), "response_artifact_id": response_id}
-    writer_run = {
-        "role": "writer", "status": "completed", "run_id": writer_run_id, "provider_id": "writer-provider",
-        "model_id": "writer-model", "runtime_id": "writer-adapter-v1", "prompt_revision": "writer-prompt-v1",
-        "rubric_revision": "specialist-findings.v4", "calls": [writer_call],
-        "calls_manifest_sha256": calls_manifest_sha256([writer_call]),
+    writer_provider = type("WriterProvider", (), {"identity": {
+        "provider_id": "writer-provider", "model_id": "writer-model", "adapter_version": "writer-adapter-v1",
+    }})()
+    capture = PrivateShadowCapture(
+        capture_root, case_id=writer_run_id, corpus_case_id=case_id, snapshot=snapshot,
+        source_task=writer_run_id, provider=writer_provider, request_byte_limit=128_000, response_byte_limit=32_768,
+    )
+    capture.export_source_tasks([{"task": source_task, "evidence": [evidence]}],
+                                profile_id=identity["profile"]["profile_id"])
+    capture_spec = capture.begin_call(run_id=writer_run_id, task_id=task_id, attempt=1)
+    capture_spec.update(root=str(capture_root), provider=capture.provider_identity)
+    receipt = write_provider_exchange(capture_spec, writer_request, writer_response, "completed", "b" * 64, CONTENT_TRANSFORM)
+    capture.reconcile(capture_spec)
+    result = {
+        "snapshot_id": snapshot["snapshot_id"], "run_id": writer_run_id,
+        "findings": [{"assessment_records": [{"candidate_id": writer_candidate["candidate_id"], "task_id": task_id}]}],
+        "task_results": {task_id: {"status": "SUCCEEDED", "payload": {"finding_candidates": writer_findings}}},
     }
-    packet = {"contract_version": "model-only-shadow-case.v1", "case_id": case_id, "snapshot": snapshot,
-              "source_task": source_task, "source_evidence": [evidence], "writer_run": writer_run,
-              "writer_candidate": writer_candidate, "profile_id": identity["profile"]["profile_id"]}
-    packet_path = capture_root / "case-packets" / f"{case_id}.json"
-    packet_path.write_bytes(_json_bytes(packet))
-    receipt = {
-        "call_id": call_id, "case_id": writer_run_id, "run_id": writer_run_id, "snapshot_id": snapshot["snapshot_id"],
-        "snapshot_hash": snapshot["snapshot_hash"], "task_id": task_id, "attempt": 1, "provider": "writer-provider",
-        "status": "completed", "request_artifact_id": request_id, "request_sha256": _sha(writer_request),
-        "response_artifact_id": response_id, "response_sha256": _sha(writer_response),
-        "response_envelope_sha256": "b" * 64, "content_transform": "openai-chat-completions.message-content.utf8.v1",
-    }
-    capture_manifest = {"contract_version": "model-only-shadow-case.v1", "case_id": writer_run_id,
-                        "snapshot_id": snapshot["snapshot_id"], "snapshot_hash": snapshot["snapshot_hash"],
-                        "source_task": writer_run_id,
-                        "provider": {"provider_id": "writer-provider", "model_id": "writer-model", "adapter_version": "writer-adapter-v1"},
-                        "calls": [receipt], "private_artifacts": True}
-    (capture_root / "manifest.json").write_bytes(_json_bytes(capture_manifest))
+    packet_path = capture.export_case_packets(result, profile=profile)[0]
+    packet = json.loads(packet_path.read_text())
+    assert packet["case_id"] == case_id
+    assert packet["writer_run"]["run_id"] == writer_run_id
+    assert receipt["status"] == "completed"
 
     shadow_root = tmp_path / "shadow"
     private = shadow_root / "private"
@@ -162,7 +156,7 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
         "jev": ("jev-request", "jev-response", jev_request, jev_response),
         "claim_auditor": ("claim-auditor-request", "claim-auditor-response", claim_request, claim_response),
     }
-    roles = {"writer": writer_run}
+    roles = {"writer": packet["writer_run"]}
     for role, (request_id, response_id, request_raw, response_raw) in role_data.items():
         (private / f"{role.replace('_', '-')}.request.json").write_bytes(request_raw)
         (private / f"{role.replace('_', '-')}.response.json").write_bytes(response_raw)
