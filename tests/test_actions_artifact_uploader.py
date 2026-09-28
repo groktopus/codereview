@@ -234,6 +234,7 @@ def test_node_action_passes_runtime_credentials_only_to_bounded_python_child(tmp
         'test -n "$ACTIONS_RUNTIME_TOKEN" || exit 11\n'
         'test -n "$ACTIONS_RESULTS_URL" || exit 12\n'
         'test -n "$GITHUB_TOKEN" || exit 13\n'
+        'test "$PR_REVIEW_ANALYSIS_WORKFLOW_NAME" = "PR Review Analysis" || exit 20\n'
         'test -z "$NOUS_API_KEY" || exit 14\n'
         'test -z "$TYPESAFE_API_KEY" || exit 15\n'
         'test -z "$GITHUB_ACTOR" || exit 16\n'
@@ -249,6 +250,7 @@ def test_node_action_passes_runtime_credentials_only_to_bounded_python_child(tmp
         "TMPDIR": str(tmp_path),
         "GITHUB_WORKSPACE": str(Path(__file__).parents[1]),
         "GITHUB_TOKEN": "read-token",
+        "PR_REVIEW_ANALYSIS_WORKFLOW_NAME": "PR Review Analysis",
         "ACTIONS_RUNTIME_TOKEN": "runtime-token",
         "ACTIONS_RESULTS_URL": "https://results.actions.githubusercontent.com/",
         "NOUS_API_KEY": "must-not-enter-python-child",

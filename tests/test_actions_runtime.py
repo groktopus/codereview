@@ -166,6 +166,33 @@ def test_publisher_run_must_match_protected_workflow_sha_not_pr_head():
     assert result.reason == "publisher_run_identity_mismatch"
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("base_sha", "f" * 40), ("head_sha", "e" * 40)],
+)
+def test_canary_rejects_a_pr_that_moved_after_the_upstream_run(field, value):
+    pull = api_record("pull_request")
+    pull["base" if field == "base_sha" else "head"]["sha"] = value
+    transport = FakeReadTransport(overrides={"pull_request": pull})
+
+    result = verify_read_only_actions_context(expectation(), "read-token", transport=transport)
+
+    assert result.state == "UNKNOWN"
+    assert result.reason == "pull_request_identity_mismatch"
+    assert [call[1] for call in transport.calls].count("https://api.github.com/repos/owner/repo/pulls/44") == 1
+
+
+def test_canary_does_not_retry_failed_read_or_claim_freshness():
+    transport = FakeReadTransport(statuses={"publisher_run": 503})
+
+    result = verify_read_only_actions_context(expectation(), "read-token", transport=transport)
+
+    assert result.state == "UNKNOWN"
+    assert result.reason == "github_read_unavailable"
+    assert len(transport.calls) == 3
+    assert sum("/actions/runs/900001/attempts/2" in call[1] for call in transport.calls) == 1
+
+
 def test_api_json_duplicate_keys_nonfinite_and_excessive_nesting_fail_closed():
     class RawTransport(FakeReadTransport):
         def __init__(self, body):
@@ -192,6 +219,7 @@ def test_canary_input_uses_platform_event_and_repository_policy_not_actor_contex
     event = {
         "repository": {"id": 8123},
         "workflow_run": {
+            "name": "PR Review Analysis",
             "id": 731245,
             "run_attempt": 3,
             "pull_requests": [{"number": 44, "base": {"sha": BASE}, "head": {"sha": HEAD}}],
@@ -210,6 +238,7 @@ def test_canary_input_uses_platform_event_and_repository_policy_not_actor_contex
         "GITHUB_ACTOR": "attacker-chosen-context",
         "PR_REVIEW_PUBLISHER_WORKFLOW_ID": "904",
         "PR_REVIEW_ANALYSIS_WORKFLOW_ID": "563",
+        "PR_REVIEW_ANALYSIS_WORKFLOW_NAME": "PR Review Analysis",
         "PR_REVIEW_ANALYSIS_WORKFLOW_PATH": ".github/workflows/pr-analysis-caller.yml",
         "PR_REVIEW_ANALYSIS_WORKFLOW_REF": "refs/heads/main",
         "PR_REVIEW_PUBLISHER_ACTOR": "review-agent[bot]",
@@ -227,6 +256,32 @@ def test_canary_input_uses_platform_event_and_repository_policy_not_actor_contex
     assert result["artifact_upload_state"] == "UPLOADED"
     assert result["artifact_id"] == 73
     assert result["safe_to_publish"] is False
+
+
+def test_canary_rejects_workflow_name_that_does_not_match_trigger_contract():
+    environ = {
+        "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_RUN_ID": "900001",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_SHA": PUBLISH_SHA,
+        "PR_REVIEW_PUBLISHER_WORKFLOW_ID": "904",
+        "PR_REVIEW_ANALYSIS_WORKFLOW_ID": "563",
+        "PR_REVIEW_ANALYSIS_WORKFLOW_NAME": "PR Review Analysis",
+        "PR_REVIEW_ANALYSIS_WORKFLOW_PATH": ".github/workflows/pr-analysis-caller.yml",
+        "PR_REVIEW_ANALYSIS_WORKFLOW_REF": "refs/heads/main",
+    }
+    event = {
+        "repository": {"id": 8123},
+        "workflow_run": {
+            "name": "Renamed or unrelated workflow",
+            "id": 731245,
+            "run_attempt": 3,
+            "pull_requests": [{"number": 44, "base": {"sha": BASE}, "head": {"sha": HEAD}}],
+        },
+    }
+    with pytest.raises(ActionsRuntimeError, match="workflow_event_name_mismatch"):
+        canary_expectation_from_environment(environ, json.dumps(event).encode())
 
 
 def test_untrusted_or_missing_runtime_policy_only_produces_unknown_artifact(tmp_path):
@@ -254,6 +309,7 @@ def test_environment_event_rejects_duplicate_or_malformed_identity_fields():
         "GITHUB_SHA": PUBLISH_SHA,
         "PR_REVIEW_PUBLISHER_WORKFLOW_ID": "904",
         "PR_REVIEW_ANALYSIS_WORKFLOW_ID": "563",
+        "PR_REVIEW_ANALYSIS_WORKFLOW_NAME": "PR Review Analysis",
         "PR_REVIEW_ANALYSIS_WORKFLOW_PATH": ".github/workflows/pr-analysis-caller.yml",
         "PR_REVIEW_ANALYSIS_WORKFLOW_REF": "refs/heads/main",
     }
@@ -340,6 +396,46 @@ def test_official_sdk_bridge_uses_exact_filename_real_subprocess_and_scoped_env(
     assert child_env["ACTIONS_RESULTS_URL"] == "https://results-receiver.actions.githubusercontent.com/"
     assert not {"GITHUB_TOKEN", "GH_TOKEN", "NOUS_API_KEY", "NODE_OPTIONS"} & child_env.keys()
     assert child_env["PR_REVIEW_UPLOAD_INPUT"].endswith("/input.json")
+
+
+def test_official_sdk_bridge_rejects_receipt_bytes_that_change_after_hashing(tmp_path):
+    if not shutil.which("node"):
+        pytest.skip("Node.js is not available")
+    helper_dir = tmp_path / "bridge"
+    helper_dir.mkdir()
+    script = Path(__file__).parents[1] / "scripts/actions-artifact-uploader/upload.mjs"
+    test_script = helper_dir / "upload.mjs"
+    test_script.write_bytes(script.read_bytes())
+    fake_artifact_package(helper_dir)
+    marker = tmp_path / "artifact-sdk-called"
+    package_source = helper_dir / "node_modules/@actions/artifact/index.js"
+    package_source.write_text(
+        "import {writeFileSync} from 'node:fs';\n"
+        f"export class DefaultArtifactClient {{ async uploadArtifact() {{ writeFileSync({json.dumps(str(marker))}, 'called'); return {{id:77,size:1}} }} }}\n"
+    )
+    real_popen = subprocess.Popen
+
+    def mutate_then_spawn(argv, **kwargs):
+        manifest = json.loads(Path(kwargs["env"]["PR_REVIEW_UPLOAD_INPUT"]).read_text())
+        content = Path(kwargs["env"]["PR_REVIEW_UPLOAD_INPUT"]).parent / manifest["content_file"]
+        content.write_bytes(b"tampered")
+        return real_popen(argv, **kwargs)
+
+    result = OfficialActionsArtifactUploader(
+        script_path=test_script,
+        environ=uploader_environment(),
+        popen=mutate_then_spawn,
+    ).upload(
+        run_id=900001,
+        artifact_name="test-canary",
+        filename="exact-name.json",
+        content=b'{"canary":true}\n',
+        timeout_seconds=3,
+    )
+
+    assert result.status == "UNAVAILABLE"
+    assert result.reason_code == "artifact_upload_failed"
+    assert not marker.exists()
 
 
 @pytest.mark.parametrize(
