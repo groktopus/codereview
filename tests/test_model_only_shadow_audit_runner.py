@@ -104,13 +104,12 @@ def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
     assert hashlib.sha256((REPO_ROOT / policy["profile_path"]).read_bytes()).hexdigest() == policy["profile_sha256"]
 
 
-def test_current_pr457_plan_rejects_current_audit_limits():
+def test_current_pr457_plan_accepts_current_audit_limits():
     plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
     plan, _ = RUNNER._read_json(plan_path, 256_000)
     plan_budget = RUNNER._plan_budget(plan)
     limits = RUNNER._load_limits(RUNNER.DEFAULT_LIMITS)
-    with pytest.raises(ValueError, match="audit_limits_exceed_plan_budget"):
-        RUNNER._validate_plan_budget(plan_budget, limits)
+    RUNNER._validate_plan_budget(plan_budget, limits)
 
 
 def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, monkeypatch):
@@ -308,19 +307,19 @@ def test_over_budget_audit_fails_before_provider_config_or_transport(
 
 def test_budget_guard_accepts_exact_caps_and_rejects_each_over_limit_dimension():
     limits = {
-        "deadline_seconds": 12, "max_input_bytes_per_task": 64000,
+        "deadline_seconds": 90, "max_input_bytes_per_task": 64000,
         "max_output_bytes_per_task": 64000, "max_output_tokens": 1800,
         "max_provider_calls": 3, "max_retries": 0,
-        "total_provider_deadline_seconds": 36,
+        "total_provider_deadline_seconds": 270,
     }
     plan_budget = {
-        "audit_max_deadline_seconds_per_call": 12,
+        "audit_max_deadline_seconds_per_call": 90,
         "audit_max_input_bytes_per_call": 64000,
         "audit_max_output_tokens_per_llm_call": 1800,
         "audit_max_provider_calls": 3,
         "audit_max_response_bytes_per_call": 64000,
         "audit_max_retries": 0,
-        "total_provider_deadline_seconds_max": 636,
+        "total_provider_deadline_seconds_max": 870,
         "writer_deadline_seconds": 600,
     }
     RUNNER._validate_plan_budget(plan_budget, limits)
@@ -337,7 +336,7 @@ def test_budget_guard_accepts_exact_caps_and_rejects_each_over_limit_dimension()
         candidate[actual] += 1
         with pytest.raises(ValueError, match="audit_limits_exceed_plan_budget"):
             RUNNER._validate_plan_budget(plan_budget, candidate)
-    candidate = dict(limits, total_provider_deadline_seconds=37)
+    candidate = dict(limits, total_provider_deadline_seconds=271)
     with pytest.raises(ValueError, match="combined_deadline_exceeds_plan_budget"):
         RUNNER._validate_plan_budget(plan_budget, candidate)
 
