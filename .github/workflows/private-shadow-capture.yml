@@ -501,12 +501,14 @@ jobs:
             --output-dir "$RUNNER_TEMP/private-shadow-audit-sanitized" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
-      - name: Upload only the hash-only writer receipt
+      - name: Upload only the hash-only writer accounting artifacts
         if: always() && steps.writer-sanitize.outputs.validated == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: private-shadow-writer-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/private-writer-sanitized/writer-receipt.json
+          path: |
+            ${{ runner.temp }}/private-writer-sanitized/writer-receipt.json
+            ${{ runner.temp }}/private-writer-sanitized/writer-outcomes.json
           if-no-files-found: error
           retention-days: 7
 

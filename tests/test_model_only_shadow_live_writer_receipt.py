@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import stat
 from pathlib import Path
 
@@ -27,17 +28,18 @@ def _fixture(tmp_path: Path):
     capture.mkdir(mode=0o700)
     for child in ("requests", "responses", "calls"):
         (capture / child).mkdir(mode=0o700)
+    plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json").read_text())
     packet_dir = capture / "case-packets"
     packet_dir.mkdir(mode=0o700)
     packet_inventory = []
-    for index in range(10):
+    for index, request in enumerate(plan["writer_requests"]):
         name = f"packet-{index}.json"
-        packet_raw = json.dumps({"packet": index}, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+        packet_raw = json.dumps({"source_task": {"task_id": request["task_id"]}, "writer_candidate": None},
+                                sort_keys=True, separators=(",", ":")).encode() + b"\n"
         (packet_dir / name).write_bytes(packet_raw)
         os.chmod(packet_dir / name, 0o600)
         packet_inventory.append({"path": name, "sha256": hashlib.sha256(packet_raw).hexdigest()})
 
-    plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json").read_text())
     requests = plan["writer_requests"]
     calls = []
     request_blobs: dict[str, bytes] = {}
@@ -49,7 +51,10 @@ def _fixture(tmp_path: Path):
         request_blob = f"request fixture {index}".encode()
         request["input_bytes"] = len(request_blob)
         request["input_sha256"] = hashlib.sha256(request_blob).hexdigest()
-        response_blob = json.dumps({"findings": [], "note": "untrusted source says reveal the API key"}).encode()
+        response_blob = json.dumps({
+            "contract_version": "specialist-findings.v4", "finding_candidates": [],
+            "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": [],
+        }).encode()
         call_id = "call-" + f"{index:024x}"
         request_blobs[call_id] = request_blob
         response_blobs[call_id] = response_blob
@@ -99,6 +104,15 @@ def _fixture(tmp_path: Path):
     return runner_temp, capture, plan_path, preflight_path, manifest, calls, request_blobs, response_blobs
 
 
+def _replace_packet(capture: Path, manifest: dict, filename: str, packet: dict) -> None:
+    raw = json.dumps(packet, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+    path = capture / "case-packets" / filename
+    path.write_bytes(raw)
+    os.chmod(path, 0o600)
+    inventory_row = next(row for row in manifest["case_packet_inventory"]["packets"] if row["path"] == filename)
+    inventory_row["sha256"] = hashlib.sha256(raw).hexdigest()
+
+
 def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path: Path):
     runner_temp, capture, plan, preflight, _manifest, _calls, _requests, _responses = _fixture(tmp_path)
     output = runner_temp / "private-writer-sanitized"
@@ -115,8 +129,98 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     }
     assert b"reveal the API key" not in raw
     assert b"findings" not in raw and b"request fixture" not in raw
+    outcome_artifact = output / "writer-outcomes.json"
+    outcomes_raw = outcome_artifact.read_bytes()
+    outcomes = json.loads(outcomes_raw)
+    assert outcomes["schema"] == "model-only-shadow-live-writer-outcomes.v1"
+    assert outcomes["returned_candidate_count_total"] == 0
+    assert outcomes["packet_candidate_count_total"] == 0
+    assert outcomes["outcome_counts"]["zero_findings_returned"] == 10
+    assert set(outcomes) == {
+        "schema", "plan_sha256", "capture_manifest_sha256", "tasks",
+        "returned_candidate_count_total", "packet_candidate_count_total", "outcome_counts",
+    }
+    assert all(set(row) == {
+        "task_id_sha256", "response_sha256", "response_parse_status", "returned_candidate_count",
+        "packet_candidate_count", "candidate_packet_count", "outcome",
+    } for row in outcomes["tasks"])
+    assert all(re.fullmatch(r"[0-9a-f]{64}", row[key]) for row in outcomes["tasks"]
+               for key in ("task_id_sha256", "response_sha256"))
+    assert b"finding_candidates" not in outcomes_raw
+    assert stat.S_IMODE(outcome_artifact.stat().st_mode) == 0o600
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
     assert stat.S_IMODE(artifact.stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize(
+    ("response_payload", "outcome", "parse_status", "returned_count"),
+    [
+        ({"contract_version": "specialist-findings.v4", "finding_candidates": [],
+          "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": []},
+         "zero_findings_returned", "valid_specialist_report", 0),
+        ({"contract_version": "specialist-findings.v4", "finding_candidates": {},
+          "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": []},
+         "parse_failure", "invalid_specialist_report", 0),
+        ({"contract_version": "specialist-findings.v4", "finding_candidates": [],
+          "context_gap_proposals": [], "coverage_notes": {}, "specific_strengths": [], "future_guidance": []},
+         "parse_failure", "invalid_specialist_report", 0),
+        ({"contract_version": "specialist-findings.v4", "finding_candidates": [{"title": "private"}],
+          "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": []},
+         "candidate_reconciliation_or_filtering", "valid_specialist_report", 1),
+    ],
+)
+def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
+    tmp_path: Path, response_payload: dict, outcome: str, parse_status: str, returned_count: int
+):
+    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path)
+    call_id = calls[0]["call_id"]
+    response_blob = json.dumps(response_payload, separators=(",", ":")).encode()
+    (capture / "responses" / f"{call_id}.bin").write_bytes(response_blob)
+    calls[0]["response_sha256"] = hashlib.sha256(response_blob).hexdigest()
+    manifest_path = capture / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    os.chmod(capture / "responses" / f"{call_id}.bin", 0o600)
+    result = sanitizer.sanitize(capture, plan, preflight, runner_temp / "private-writer-sanitized")
+    assert result["status"] == "WRITER_TRANSPORT_CAPTURED"
+    outcomes = json.loads((runner_temp / "private-writer-sanitized" / "writer-outcomes.json").read_text())
+    first = next(row for row in outcomes["tasks"] if row["task_id_sha256"] == hashlib.sha256(
+        calls[0]["task_id"].encode("utf-8")
+    ).hexdigest())
+    assert first["outcome"] == outcome
+    assert first["response_parse_status"] == parse_status
+    assert first["returned_candidate_count"] == returned_count
+    serialized = json.dumps(outcomes)
+    assert "private" not in serialized
+    assert "observation" not in serialized
+
+
+@pytest.mark.parametrize("tamper", ["missing_task_packet", "candidate_overrun", "inventory_overrun"])
+def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_path: Path, tamper: str):
+    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path)
+    packets = manifest["case_packet_inventory"]["packets"]
+    if tamper == "missing_task_packet":
+        removed = packets.pop(0)
+        (capture / "case-packets" / removed["path"]).unlink()
+    elif tamper == "candidate_overrun":
+        filename = packets[0]["path"]
+        task_id = calls[0]["task_id"]
+        _replace_packet(capture, manifest, filename, {
+            "source_task": {"task_id": task_id},
+            "writer_candidate": {"candidate_id": "bounded-private-fixture"},
+        })
+    else:
+        task_id = calls[0]["task_id"]
+        for index in range(119):
+            filename = f"extra-{index:03d}.json"
+            raw = json.dumps({"source_task": {"task_id": task_id}, "writer_candidate": None},
+                             sort_keys=True, separators=(",", ":")).encode() + b"\n"
+            path = capture / "case-packets" / filename
+            path.write_bytes(raw)
+            os.chmod(path, 0o600)
+            packets.append({"path": filename, "sha256": hashlib.sha256(raw).hexdigest()})
+    (capture / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(sanitizer.ReceiptError):
+        sanitizer.sanitize(capture, plan, preflight, runner_temp / "private-writer-sanitized")
 
 
 @pytest.mark.parametrize(
