@@ -34,6 +34,15 @@ EXPECTED_LLM = ("https://inference-api.nousresearch.com/v1", "openai/gpt-6-luna"
 EXPECTED_JEV = ("https://api.typesafe.ai/v1/systemone", "jev-latest")
 
 
+class PreDispatchFailure(ValueError):
+    """A bounded failure receipt for validation/setup failures before audit calls."""
+
+    def __init__(self, stage: str, code: str):
+        super().__init__("audit pre-dispatch validation failed")
+        self.stage = stage
+        self.code = code
+
+
 def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -98,6 +107,10 @@ def _packet_candidates(capture_root: Path) -> tuple[dict[str, Any], bytes, list[
     manifest, manifest_raw = _read_json(root / "manifest.json", MAX_CAPTURE_MANIFEST_BYTES)
     if manifest.get("contract_version") != "model-only-shadow-case.v1" or manifest.get("private_artifacts") is not True:
         raise ValueError("capture_manifest_invalid")
+    run_identity = manifest.get("case_id")
+    if (not isinstance(run_identity, str)
+            or not re.fullmatch(r"writer-live-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", run_identity)):
+        raise ValueError("capture_run_identity_invalid")
     inventory = manifest.get("case_packet_inventory")
     if (not isinstance(inventory, dict) or set(inventory) != {"schema", "packets"}
             or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
@@ -132,8 +145,9 @@ def _packet_candidates(capture_root: Path) -> tuple[dict[str, Any], bytes, list[
             raise ValueError("capture_packet_inventory_mismatch")
         if packet.get("contract_version") != "model-only-shadow-case.v1":
             raise ValueError("case_packet_contract_invalid")
-        if packet.get("case_id") != manifest.get("case_id"):
-            raise ValueError("case_packet_identity_mismatch")
+        # The manifest case_id identifies this writer execution (for example,
+        # writer-live-<run>-<attempt>); packets identify the frozen corpus case.
+        # Bind packet case IDs to the trusted plan in _task_order instead.
         candidate = packet.get("writer_candidate")
         if candidate is None:
             candidate_id = ""
@@ -189,6 +203,22 @@ def _validate_provider_identity(provider: dict[str, Any], jev: dict[str, Any]) -
             or (jev.get("endpoint"), jev.get("model")) != EXPECTED_JEV
             or jev.get("api_key_env") != "JEV_API_KEY"):
         raise ValueError("jev_identity_mismatch")
+
+
+def _predispatch_failure(receipt_path: Path, stage: str, code: str) -> PreDispatchFailure:
+    # Deliberately omit exception text, packet content, candidate IDs, and paths.
+    receipt = {
+        "schema": "model-only-shadow-audit-predispatch-failure.v1",
+        "case_id": "PR-464",
+        "terminal_state": "failed_before_dispatch",
+        "failure_stage": stage,
+        "failure_code": code,
+        "audit_provider_calls": 0,
+    }
+    _write_receipt(receipt_path, receipt)
+    return PreDispatchFailure(stage, code)
+
+
 def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], bytes]],
                 manifest: dict[str, Any] | None = None) -> list[tuple[str, Path, dict[str, Any], bytes]]:
     plan, _ = _read_json(plan_path, 256_000)
@@ -196,8 +226,12 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
     requests = plan.get("writer_requests")
     if plan.get("schema") != "model-only-shadow-live-writer-plan.v1" or not isinstance(case, dict) or not isinstance(requests, list):
         raise ValueError("writer_plan_invalid")
-    case_ids = {row[2].get("case_id") for row in packets}
-    if case_ids != {case.get("case_id")}:
+    plan_case_id = case.get("case_id")
+    packet_case_ids = [row[2].get("case_id") for row in packets]
+    if (not isinstance(plan_case_id, str) or not plan_case_id
+            or any(not isinstance(value, str) or not value for value in packet_case_ids)):
+        raise ValueError("writer_plan_case_invalid")
+    if set(packet_case_ids) != {plan_case_id}:
         raise ValueError("writer_plan_case_mismatch")
     expected_identity = {
         "case_id": case.get("case_id"), "snapshot_id": case.get("snapshot_id"),
@@ -206,19 +240,21 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
         "profile_hash": case.get("profile_file_sha256"),
     }
     if manifest is not None and any(manifest.get(key) != value for key, value in {
-        "case_id": expected_identity["case_id"], "snapshot_id": expected_identity["snapshot_id"],
+        "snapshot_id": expected_identity["snapshot_id"],
         "snapshot_hash": expected_identity["snapshot_hash"],
     }.items()):
         raise ValueError("capture_plan_identity_mismatch")
     task_ids = [item.get("task_id") for item in requests if isinstance(item, dict)]
-    if len(task_ids) != len(requests) or len(task_ids) != len(set(task_ids)) or not task_ids:
+    if (len(task_ids) != len(requests) or not task_ids
+            or any(not isinstance(task_id, str) or not task_id for task_id in task_ids)
+            or len(task_ids) != len(set(task_ids))):
         raise ValueError("writer_plan_tasks_invalid")
     rank = {task_id: index for index, task_id in enumerate(task_ids)}
     packet_task_ids: set[str] = set()
     for _candidate_id, _path, packet, _raw in packets:
         task = packet.get("source_task")
         task_id = task.get("task_id") if isinstance(task, dict) else None
-        if task_id not in rank:
+        if not isinstance(task_id, str) or not task_id or task_id not in rank:
             raise ValueError("packet_task_not_in_plan")
         packet_task_ids.add(task_id)
         snapshot = packet.get("snapshot")
@@ -238,9 +274,18 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
 def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         output_root: Path, receipt_path: Path, plan_path: Path = DEFAULT_PLAN,
         limits_path: Path = DEFAULT_LIMITS) -> dict[str, Any]:
-    manifest, manifest_raw, packets = _packet_candidates(capture_root)
-    packets = _task_order(plan_path, packets, manifest)
-    limits = _load_limits(limits_path)
+    try:
+        manifest, manifest_raw, packets = _packet_candidates(capture_root)
+    except (OSError, ValueError, RecursionError):
+        raise _predispatch_failure(receipt_path, "capture_validation", "capture_invalid") from None
+    try:
+        packets = _task_order(plan_path, packets, manifest)
+    except (OSError, TypeError, ValueError, RecursionError):
+        raise _predispatch_failure(receipt_path, "plan_binding", "plan_binding_invalid") from None
+    try:
+        limits = _load_limits(limits_path)
+    except (OSError, ValueError, RecursionError):
+        raise _predispatch_failure(receipt_path, "limits_validation", "limits_invalid") from None
     capture_hash = hashlib.sha256(manifest_raw).hexdigest()
     candidates = [row for row in packets if row[0]]
     selected = _select_packet(packets)
@@ -260,30 +305,47 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
 
     # Plan task order is trusted and fixed; packet digest breaks ties within one task.
     candidate_id, _packet_path, packet, packet_raw = selected
-    if output_root.exists() or output_root.is_symlink():
-        raise ValueError("private_output_exists")
-    source_config, _ = _read_json(provider_config_path, 16_000)
-    jev_config, _ = _read_json(jev_config_path, 16_000)
-    _validate_provider_identity(source_config, jev_config)
-    source_config["timeout_seconds"] = limits["deadline_seconds"]
-    source_config["max_request_bytes"] = limits["max_input_bytes_per_task"]
-    source_config["max_response_bytes"] = limits["max_output_bytes_per_task"]
-    source_config["max_output_tokens"] = limits["max_output_tokens"]
-    claim_config = dict(source_config)
-    source_provider = OpenAIProvider(source_config)
-    claim_provider = OpenAIProvider(claim_config)
-    jev_config["timeout_seconds"] = limits["deadline_seconds"]
-    jev_config["max_response_bytes"] = limits["max_output_bytes_per_task"]
-    jev_transport = ClaimTransport.from_decision_config(jev_config)
-    jev_transport.max_request_bytes = limits["max_input_bytes_per_task"]
-    jev_transport.max_response_bytes = limits["max_output_bytes_per_task"]
-    jev_transport.timeout_seconds = limits["deadline_seconds"]
-    dispatch_guard = AuditDispatchGuard(limits)
-    result = run_shadow_audit(
-        packet, source_provider=source_provider, jev_transport=jev_transport,
-        claim_provider=claim_provider, limits=limits, output_dir=output_root,
-        before_dispatch=dispatch_guard.check,
-    )
+    try:
+        if output_root.exists() or output_root.is_symlink():
+            raise ValueError("private_output_exists")
+        source_config, _ = _read_json(provider_config_path, 16_000)
+        jev_config, _ = _read_json(jev_config_path, 16_000)
+        _validate_provider_identity(source_config, jev_config)
+        source_config["timeout_seconds"] = limits["deadline_seconds"]
+        source_config["max_request_bytes"] = limits["max_input_bytes_per_task"]
+        source_config["max_response_bytes"] = limits["max_output_bytes_per_task"]
+        source_config["max_output_tokens"] = limits["max_output_tokens"]
+        claim_config = dict(source_config)
+        source_provider = OpenAIProvider(source_config)
+        claim_provider = OpenAIProvider(claim_config)
+        jev_transport = ClaimTransport.from_decision_config(jev_config)
+        jev_transport.timeout_seconds = limits["deadline_seconds"]
+        jev_transport.max_request_bytes = limits["max_input_bytes_per_task"]
+        jev_transport.max_response_bytes = limits["max_output_bytes_per_task"]
+        dispatch_guard = AuditDispatchGuard(limits)
+    except (OSError, ValueError, ProviderError, RecursionError):
+        raise _predispatch_failure(receipt_path, "provider_setup", "provider_setup_invalid") from None
+
+    dispatched_roles: set[str] = set()
+
+    def before_dispatch(role: str, request_bytes: bytes) -> None:
+        dispatch_guard.check(role, request_bytes)
+        dispatched_roles.add(role)
+
+    try:
+        result = run_shadow_audit(
+            packet, source_provider=source_provider, jev_transport=jev_transport,
+            claim_provider=claim_provider, limits=limits, output_dir=output_root,
+            before_dispatch=before_dispatch,
+        )
+    except (OSError, ValueError, ProviderError, RecursionError):
+        # This hook records a role only after deterministic checks pass,
+        # immediately before control returns to the provider transport.
+        if not dispatched_roles:
+            raise _predispatch_failure(
+                receipt_path, "audit_validation", "audit_input_invalid"
+            ) from None
+        raise
     audit_manifest = result["manifest"]
     roles = audit_manifest.get("roles", {})
     terminal = audit_manifest.get("terminal_state", "incomplete")
