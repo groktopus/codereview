@@ -88,6 +88,98 @@ def test_untrusted_exception_text_is_not_retained_or_logged(tmp_path: Path, monk
     monkeypatch.setattr(cli, "_load_json", original)
 
 
+def test_run_pipeline_fallback_is_bounded_and_keeps_specific_stage(tmp_path: Path, monkeypatch):
+    import pr_review_harness.cli as cli
+    import pr_review_harness.planner as planner
+
+    tracker = diagnostic.StageTracker()
+    original_run_one = cli._run_one
+    original_plan_review = planner.plan_review
+
+    def failing_run_one(*_args, **_kwargs):
+        planner.plan_review({}, {}, "AUTO")
+
+    def failing_plan(*_args, **_kwargs):
+        raise ValueError("untrusted diagnostic marker")
+
+    monkeypatch.setattr(cli, "_run_one", failing_run_one)
+    monkeypatch.setattr(planner, "plan_review", failing_plan)
+    _cli, _emit, restore = diagnostic._install_tracking(tracker)
+    try:
+        try:
+            cli._run_one(None, "", "", {}, {}, None, None, "run")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected the injected pipeline failure")
+        assert tracker.failed_stage == "planning"
+        assert "untrusted diagnostic marker" not in repr(tracker.__dict__)
+    finally:
+        restore()
+        monkeypatch.setattr(cli, "_run_one", original_run_one)
+        monkeypatch.setattr(planner, "plan_review", original_plan_review)
+
+
+def test_run_pipeline_fallback_classifies_untracked_failure(tmp_path: Path, monkeypatch):
+    import pr_review_harness.cli as cli
+
+    tracker = diagnostic.StageTracker()
+    original_run_one = cli._run_one
+
+    def fail(*_args, **_kwargs):
+        raise ValueError("source-controlled text must not escape")
+
+    monkeypatch.setattr(cli, "_run_one", fail)
+    _cli, _emit, restore = diagnostic._install_tracking(tracker)
+    try:
+        try:
+            cli._run_one(None, "", "", {}, {}, None, None, "run")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected the injected pipeline failure")
+        assert tracker.failed_stage == "review_pipeline_unclassified"
+        assert "source-controlled text" not in repr(tracker.__dict__)
+    finally:
+        restore()
+        monkeypatch.setattr(cli, "_run_one", original_run_one)
+
+
+def test_check_ingestion_failure_is_classified_by_call_site(monkeypatch):
+    import pr_review_harness.checks as checks
+
+    tracker = diagnostic.StageTracker()
+    original_ingest = checks.ingest_check_runs
+
+    def fail(*_args, **_kwargs):
+        raise ValueError("untrusted check payload")
+
+    monkeypatch.setattr(checks, "ingest_check_runs", fail)
+    _cli, _emit, restore = diagnostic._install_tracking(tracker)
+    try:
+        try:
+            import pr_review_harness.cli as cli
+
+            cli._validate_historical_checks(
+                {"repository": "owner/repo", "required_checks": []},
+                {
+                    "repository": "owner/repo", "head_sha": "a" * 40,
+                    "pull_request_number": 1, "runs": [],
+                },
+                "b" * 40,
+                "a" * 40,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected the injected check-ingestion failure")
+        assert tracker.failed_stage == "historical_checks_validation"
+        assert "untrusted check payload" not in repr(tracker.__dict__)
+    finally:
+        restore()
+        monkeypatch.setattr(checks, "ingest_check_runs", original_ingest)
+
+
 def stat_mode(path: Path) -> int:
     import stat
 

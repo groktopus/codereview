@@ -14,7 +14,8 @@ STAGES = {
     "profile_configuration", "limits_validation", "provider_configuration",
     "historical_checks_load", "historical_checks_validation", "snapshot_collection",
     "planning", "task_preparation", "request_evidence_selection", "request_serialization",
-    "configuration_setup", "cli_preflight_unclassified",
+    "historical_snapshot_binding", "review_option_validation", "run_identity_validation",
+    "review_pipeline_unclassified", "configuration_setup", "cli_preflight_unclassified",
 }
 
 
@@ -25,6 +26,7 @@ class StageReceiptError(RuntimeError):
 class StageTracker:
     def __init__(self) -> None:
         self.failed_stage: str | None = None
+        self.active_stage: str | None = None
 
     def wrap(self, stage: str, function: Callable[..., Any]) -> Callable[..., Any]:
         def tracked(*args: Any, **kwargs: Any) -> Any:
@@ -69,7 +71,7 @@ def _write_stage(path: Path, exit_code: int, stage: str) -> None:
 
 
 def _install_tracking(tracker: StageTracker) -> tuple[Any, Any, Callable[[], None]]:
-    from pr_review_harness import cli, engine, planner, providers
+    from pr_review_harness import checks, cli, engine, planner, providers
 
     original_load_json = cli._load_json
 
@@ -84,19 +86,50 @@ def _install_tracking(tracker: StageTracker) -> tuple[Any, Any, Callable[[], Non
                 tracker.failed_stage = stage
             raise
 
+    original_ingest = checks.ingest_check_runs
+    original_validate_checks = cli._validate_historical_checks
+
+    def tracked_validate_checks(*args: Any, **kwargs: Any) -> Any:
+        previous_stage = tracker.active_stage
+        tracker.active_stage = "historical_checks_validation"
+        try:
+            return original_validate_checks(*args, **kwargs)
+        except BaseException:
+            if tracker.failed_stage is None:
+                tracker.failed_stage = "historical_checks_validation"
+            raise
+        finally:
+            tracker.active_stage = previous_stage
+
+    def tracked_ingest(*args: Any, **kwargs: Any) -> Any:
+        stage = tracker.active_stage or "historical_snapshot_binding"
+        try:
+            return original_ingest(*args, **kwargs)
+        except BaseException:
+            if tracker.failed_stage is None:
+                tracker.failed_stage = stage
+            raise
+
     patches = [
         (cli, "_load_json", tracked_load_json),
         (cli, "_read_limits", tracker.wrap("limits_validation", cli._read_limits)),
         (providers, "load_provider_config", tracker.wrap("provider_configuration", providers.load_provider_config)),
         (cli, "_load_historical_checks", tracker.wrap("historical_checks_load", cli._load_historical_checks)),
-        (cli, "_validate_historical_checks", tracker.wrap("historical_checks_validation", cli._validate_historical_checks)),
+        (cli, "_validate_historical_checks", tracked_validate_checks),
         (cli, "collect_snapshot", tracker.wrap("snapshot_collection", cli.collect_snapshot)),
+        (cli, "_rebind_snapshot_evidence_references", tracker.wrap(
+            "historical_snapshot_binding", cli._rebind_snapshot_evidence_references
+        )),
+        (checks, "ingest_check_runs", tracked_ingest),
         (planner, "plan_review", tracker.wrap("planning", planner.plan_review)),
         (engine, "prepare_plan_tasks", tracker.wrap("task_preparation", engine.prepare_plan_tasks)),
         (engine, "_evidence_for", tracker.wrap("request_evidence_selection", engine._evidence_for)),
         (providers.OpenAIProvider, "serialize_review_request", tracker.wrap(
             "request_serialization", providers.OpenAIProvider.serialize_review_request
         )),
+        (cli, "_claim_assessment_cap", tracker.wrap("review_option_validation", cli._claim_assessment_cap)),
+        (cli, "_validate_run_id", tracker.wrap("run_identity_validation", cli._validate_run_id)),
+        (cli, "_run_one", tracker.wrap("review_pipeline_unclassified", cli._run_one)),
         (cli, "_configs", tracker.wrap("configuration_setup", cli._configs)),
     ]
     originals = [(owner, name, getattr(owner, name)) for owner, name, _replacement in patches]
