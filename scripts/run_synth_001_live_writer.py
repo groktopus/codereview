@@ -62,7 +62,7 @@ def _prepare(work: Path, repo: Path, materialization: dict[str, str]) -> tuple[P
     prepared_path = work / "prepared.json"
     env = os.environ.copy()
     # The prepare step is provider-free even when invoked on a credentialed runner.
-    for key in ("LLM_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN"):
+    for key in ("LLM_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_EVENT_PATH"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(ROOT / "src")
     command = [

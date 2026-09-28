@@ -9,15 +9,42 @@ import pytest
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from run_synth_001_live_writer import RunnerError, run_preflight, validate_receipt_bundle  # noqa: E402
+import run_synth_001_live_writer as runner  # noqa: E402
+
+RunnerError = runner.RunnerError
+run_preflight = runner.run_preflight
+validate_receipt_bundle = runner.validate_receipt_bundle
+
+
+def _use_ci_runtime_for_verification_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep production's pinned runtime while testing receipt flow on matrix Python."""
+    original_verify = runner.verify
+
+    def verify_with_test_runtime(*args, **kwargs):
+        kwargs["expected_python_identity"] = {
+            "implementation": sys.implementation.name,
+            "version": sys.version.split()[0],
+        }
+        return original_verify(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "verify", verify_with_test_runtime)
 
 
 def _receipt_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    _use_ci_runtime_for_verification_tests(monkeypatch)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     result = run_preflight()
     work = Path(result["artifact_directory"])
     repo = work / "repo"
     return result, work, repo
+
+
+def test_prepare_subprocess_ignores_ambient_github_event_path(monkeypatch, tmp_path):
+    event = tmp_path / "workflow-event.json"
+    event.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    result, _work, _repo = _receipt_paths(monkeypatch, tmp_path)
+    assert result["status"] == "MATCHED_PROVIDER_FREE_PREPARE"
 
 
 def test_same_run_provider_free_preflight_emits_exact_bounded_bundle(monkeypatch, tmp_path):
