@@ -292,8 +292,8 @@ def _cardinality_identity_for_test():
         "runtime_source_commit": "a" * 40,
         "diagnostic_script_sha256": "b" * 64,
         "runtime_tree_sha256": "c" * 64,
-        "runtime_module_count": 29,
-        "runtime_module_hashes": {f"pr_review_harness/mod{i}.py": "d" * 64 for i in range(29)},
+        "runtime_module_count": 30,
+        "runtime_module_hashes": {f"pr_review_harness/mod{i}.py": "d" * 64 for i in range(30)},
         "installed_source_match": True,
         "fixture_suite_sha256": "e" * 64,
         "generated_profile_sha256": "f" * 64,
@@ -696,7 +696,7 @@ def _complete_transport_arm(transport, *, trace_bytes=500_000):
         "runtime_tree_sha256": "1" * 64,
         "runtime_source_commit": "2" * 40,
         "runtime_source_tree_dirty": False,
-        "runtime_module_hashes": {f"pr_review_harness/m{i}.py": "3" * 64 for i in range(29)},
+        "runtime_module_hashes": {f"pr_review_harness/m{i}.py": "3" * 64 for i in range(30)},
         "diagnostic_script_sha256": "4" * 64,
         "fixture_suite_sha256": "5" * 64,
         "generated_profile_sha256": "6" * 64,
@@ -768,7 +768,7 @@ def _mock_transport_pair_inputs(monkeypatch, tmp_path, run_arms):
         base_sha="8" * 40, head_sha="9" * 40,
     )
     prepared = SimpleNamespace(suite_sha256="5" * 64, profile_path=profile, profile={}, cases=(case,))
-    module_files = {f"src/pr_review_harness/m{i}.py": "3" * 64 for i in range(29)}
+    module_files = {f"src/pr_review_harness/m{i}.py": "3" * 64 for i in range(30)}
     monkeypatch.setattr(diagnostic, "_runtime_provenance", lambda *_: {
         "runtime_tree_sha256": "1" * 64,
         "source_fingerprint": {"git_revision": "2" * 40, "working_tree_dirty": False, "file_hashes": module_files},

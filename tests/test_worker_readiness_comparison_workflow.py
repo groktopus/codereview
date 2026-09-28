@@ -158,7 +158,7 @@ def test_workflow_pins_sources_builds_both_wheels_and_checks_complete_module_ide
     assert "path: baseline-source" in text and "path: candidate-source" in text
     assert "${{ github.workspace }}/baseline-source" in text
     assert "${{ github.workspace }}/candidate-source" in text
-    assert 'expected_module_count = 28 if label == "BASELINE" else 29' in text
+    assert 'expected_module_count = 28 if label == "BASELINE" else 30' in text
     assert '"module_counts_per_runtime"' in text
     assert "source_modules != installed_modules" in text
     assert '"git", "-C", str(source), "rev-parse", "HEAD^"' in text
