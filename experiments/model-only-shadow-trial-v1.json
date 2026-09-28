@@ -6,7 +6,7 @@
     "repository": "magnus919/SlopSearX",
     "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
     "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
-    "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+    "snapshot_sha256": "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
     "runtime_sha": "5873c3f1b297a96c49b78cbcb7be674ab70b3cea",
     "runtime_module_tree_sha256": "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4",
     "runtime_inventory_sha256": "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0",
