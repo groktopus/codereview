@@ -20,6 +20,7 @@ SPEC.loader.exec_module(extractor)
 def test_extractor_returns_only_whitelisted_cli_error_fields(tmp_path: Path):
     path = tmp_path / "cli-output.json"
     path.write_text('{"error":"preflight_rejected","exit_code":2}', encoding="utf-8")
+    os.chmod(path, 0o600)
     assert extractor.extract(path, 2) == {"error": "preflight_rejected", "exit_code": 2}
 
 
@@ -39,6 +40,7 @@ def test_extractor_rejects_unexpected_or_malformed_payload_without_echoing_it(
 ):
     path = tmp_path / "cli-output.json"
     path.write_text(payload, encoding="utf-8")
+    os.chmod(path, 0o600)
     with pytest.raises(extractor.DiagnosticError):
         extractor.extract(path, exit_code)
     completed = subprocess.run(
@@ -55,6 +57,7 @@ def test_extractor_rejects_unexpected_or_malformed_payload_without_echoing_it(
 def test_extractor_refuses_symlink_and_non_regular_inputs(tmp_path: Path):
     target = tmp_path / "target.json"
     target.write_text('{"error":"preflight_rejected","exit_code":2}', encoding="utf-8")
+    os.chmod(target, 0o600)
     link = tmp_path / "link.json"
     link.symlink_to(target)
     with pytest.raises(extractor.DiagnosticError):
@@ -65,6 +68,24 @@ def test_extractor_refuses_symlink_and_non_regular_inputs(tmp_path: Path):
         extractor.extract(fifo, 2)
 
 
+def test_extractor_accepts_only_fixed_stage_receipt_and_matching_exit_code(tmp_path: Path):
+    path = tmp_path / "stage.json"
+    path.write_text(json.dumps({
+        "schema": "pr-review-prepare-stage-diagnostic.v1", "stage": "snapshot_collection", "exit_code": 2,
+    }))
+    os.chmod(path, 0o600)
+    assert extractor.extract_stage(path, 2) == "snapshot_collection"
+    for value in (
+        {"schema": "pr-review-prepare-stage-diagnostic.v1", "stage": "source_text", "exit_code": 2},
+        {"schema": "pr-review-prepare-stage-diagnostic.v1", "stage": "planning", "exit_code": 1},
+        {"schema": "pr-review-prepare-stage-diagnostic.v1", "stage": "planning", "exit_code": 2, "detail": "secret"},
+    ):
+        path.write_text(json.dumps(value))
+        os.chmod(path, 0o600)
+        with pytest.raises(extractor.DiagnosticError):
+            extractor.extract_stage(path, 2)
+
+
 def test_live_prepare_uses_sanitized_failure_extractor_before_any_secrets():
     workflow = (ROOT / ".github/workflows/private-shadow-capture.yml").read_text(encoding="utf-8")
     live = workflow.split("  live_writer:", 1)[1]
@@ -72,7 +93,18 @@ def test_live_prepare_uses_sanitized_failure_extractor_before_any_secrets():
         "- name: Verify the exact plan", 1
     )[0]
     assert "2>/dev/null" in prepare
+    assert "run_pr_review_stage_diagnostic.py" in prepare
     assert "extract_pr_review_failure_code.py" in prepare
+    assert "--stage-input \"$RUNNER_TEMP/private-shadow-preparation/stage-diagnostic.json\"" in prepare
     assert "--input \"$RUNNER_TEMP/private-shadow-preparation/prepared.json\"" in prepare
     assert "exit \"$cli_exit_code\"" in prepare
-    assert live.index("extract_pr_review_failure_code.py") < live.index("Check writer secret names and exact configured identity")
+    assert live.index("run_pr_review_stage_diagnostic.py") < live.index(
+        "Check writer secret names and exact configured identity"
+    )
+    identity_step = live.split("- name: Check writer secret names and exact configured identity", 1)[1].split(
+        "- name: Run only the ten pinned read-only writer calls", 1
+    )[0]
+    writer_step = live.split("- name: Run only the ten pinned read-only writer calls", 1)[1].split(
+        "- name: Sanitize the completed writer capture", 1
+    )[0]
+    assert "if: false" in identity_step and "if: false" in writer_step
