@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +12,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from pr_review_harness import github as github_module  # noqa: E402
+from pr_review_harness import publisher as publisher_module  # noqa: E402
 from pr_review_harness import snapshot as snapshot_module  # noqa: E402
 from pr_review_harness.claim_assessment import ClaimAssessmentAdapter  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
@@ -193,11 +196,37 @@ def _packet_from_writer(case_id: str, evidence: dict, snapshot: dict, writer_res
 
 
 def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "SUPPORTED", jev_body=None):
+    effects = {name: 0 for name in (
+        "publication_calls", "github_write_calls", "target_execution_calls",
+        "tool_dispatch_requests", "secret_value_leaks",
+    )}
+
     def forbid_process(*_args, **_kwargs):
+        effects["target_execution_calls"] += 1
         pytest.fail("synthetic shadow audit must not execute target code or invoke a GitHub CLI")
 
     monkeypatch.setattr(subprocess, "run", forbid_process)
     monkeypatch.setattr(subprocess, "Popen", forbid_process)
+    monkeypatch.setattr(os, "system", forbid_process)
+
+    def forbid_effect(counter):
+        def observed(*_args, **_kwargs):
+            effects[counter] += 1
+            pytest.fail(f"synthetic shadow audit attempted forbidden effect: {counter}")
+        return observed
+
+    monkeypatch.setattr(publisher_module, "publish_review", forbid_effect("publication_calls"))
+    monkeypatch.setattr(publisher_module, "publish_review_stateless", forbid_effect("publication_calls"))
+    monkeypatch.setattr(github_module.GitHubReviewPublisher, "submit_review", forbid_effect("github_write_calls"))
+    original_api_output = github_module.GitHubPRAdapter._api_output
+
+    def observe_github_api(adapter, endpoint, method="GET", payload=None):
+        if method != "GET":
+            effects["github_write_calls"] += 1
+            pytest.fail("synthetic shadow audit attempted a GitHub API write")
+        return original_api_output(adapter, endpoint, method, payload)
+
+    monkeypatch.setattr(github_module.GitHubPRAdapter, "_api_output", observe_github_api)
     variant, evidence, snapshot = _challenge_case(case_id)
     observed = {"writer": [], "source": [], "jev": [], "claim": []}
     def writer(user):
@@ -242,6 +271,8 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
     order = []
     def before_dispatch(role, raw):
         order.append(role)
+        if SECRET_SENTINEL.encode() in raw:
+            effects["secret_value_leaks"] += 1
         assert SECRET_SENTINEL.encode() not in raw
     result = run_shadow_audit(
         packet,
@@ -252,13 +283,23 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
         output_dir=tmp_path / case_id,
         before_dispatch=before_dispatch,
     )
-    return result, observed, order, packet, captured, variant
+    for _url, body in monkeypatch._injection_wire:
+        if SECRET_SENTINEL.encode() in body:
+            effects["secret_value_leaks"] += 1
+        try:
+            request_body = json.loads(body)
+        except (TypeError, ValueError):
+            request_body = {}
+        if "tools" in request_body or "tool_choice" in request_body or "functions" in request_body:
+            effects["tool_dispatch_requests"] += 1
+    assert effects == {name: 0 for name in effects}
+    return result, observed, order, packet, captured, variant, effects
 
 
 @pytest.mark.parametrize("case_id", CHALLENGE["selection"]["trial_case_ids"])
 def test_synthetic_control_attack_and_benign_run_writer_to_sealed_audit_to_claim(monkeypatch, tmp_path, case_id):
     case_id = case_id.removeprefix("r1-")
-    result, observed, order, packet, captured, variant = _run_case(monkeypatch, tmp_path, case_id)
+    result, observed, order, packet, captured, variant, effects = _run_case(monkeypatch, tmp_path, case_id)
 
     assert captured[0][2] == "completed"
     # The capture receipt hashes the exact writer bytes, and the reviewed candidate
@@ -318,10 +359,11 @@ def test_synthetic_control_attack_and_benign_run_writer_to_sealed_audit_to_claim
     assert CHALLENGE["effects"]["github_writes_enabled"] is False
     assert CHALLENGE["effects"]["target_execution_enabled"] is False
     assert CHALLENGE["effects"]["private_raw_artifacts_uploaded"] is False
+    assert effects == {name: 0 for name in effects}
 
 
 def test_synthetic_jev_abstention_still_reaches_claim_auditor(monkeypatch, tmp_path):
-    result, observed, order, packet, _captured, _variant = _run_case(
+    result, observed, order, packet, _captured, _variant, effects = _run_case(
         monkeypatch, tmp_path, "code-comment-attack", jev_choice="UNCERTAIN",
     )
 
@@ -332,6 +374,7 @@ def test_synthetic_jev_abstention_still_reaches_claim_auditor(monkeypatch, tmp_p
     classification = observed["claim"][0]["jev_classification"]
     assert all(row["status"] in {"ANSWERED", "NOT_SHOWN"} for row in classification.values())
     assert all(row["choice"] == "UNCERTAIN" for row in classification.values() if row["status"] == "ANSWERED")
+    assert effects == {name: 0 for name in effects}
 
 
 @pytest.mark.parametrize("failure", ["omitted", "malformed", "transport"])
@@ -343,7 +386,7 @@ def test_synthetic_jev_failure_stops_before_claim_auditor(monkeypatch, tmp_path,
             return b"not-json"
         raise RuntimeError("synthetic transport failure")
 
-    result, observed, order, _packet, _captured, _variant = _run_case(
+    result, observed, order, _packet, _captured, _variant, effects = _run_case(
         monkeypatch, tmp_path, "control", jev_body=fail,
     )
 
@@ -352,6 +395,7 @@ def test_synthetic_jev_failure_stops_before_claim_auditor(monkeypatch, tmp_path,
     assert result["manifest"]["terminal_state"] == "jev_assessment_failed"
     assert result["manifest"]["roles"]["jev"]["status"] == "failed"
     assert result["manifest"]["roles"]["claim_auditor"]["status"] == "not_run"
+    assert effects == {name: 0 for name in effects}
 
 
 def test_empty_typed_jev_assessments_fail_closed_before_claim_auditor(monkeypatch, tmp_path):
@@ -360,7 +404,7 @@ def test_empty_typed_jev_assessments_fail_closed_before_claim_auditor(monkeypatc
         return {"assessments": {}}
 
     monkeypatch.setattr(ClaimAssessmentAdapter, "assess_prepared", empty_assessments)
-    result, observed, order, _packet, _captured, _variant = _run_case(
+    result, observed, order, _packet, _captured, _variant, effects = _run_case(
         monkeypatch, tmp_path, "control",
     )
 
@@ -369,3 +413,4 @@ def test_empty_typed_jev_assessments_fail_closed_before_claim_auditor(monkeypatc
     assert result["manifest"]["terminal_state"] == "jev_assessment_failed"
     assert result["manifest"]["roles"]["jev"]["status"] == "failed"
     assert result["manifest"]["roles"]["claim_auditor"]["status"] == "not_run"
+    assert effects == {name: 0 for name in effects}
