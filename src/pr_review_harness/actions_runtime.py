@@ -460,6 +460,14 @@ def canary_expectation_from_environment(environ: Mapping[str, str], event_bytes:
     if not isinstance(pull_requests, list) or len(pull_requests) != 1 or not isinstance(pull_requests[0], dict):
         raise ActionsRuntimeError("workflow_event_pr_binding_missing_or_ambiguous")
     pull = pull_requests[0]
+    expected_workflow_name = environ.get("PR_REVIEW_ANALYSIS_WORKFLOW_NAME")
+    if (
+        not isinstance(expected_workflow_name, str)
+        or not expected_workflow_name
+        or len(expected_workflow_name) > 128
+        or upstream.get("name") != expected_workflow_name
+    ):
+        raise ActionsRuntimeError("workflow_event_name_mismatch")
     base = pull.get("base") if isinstance(pull.get("base"), dict) else {}
     head = pull.get("head") if isinstance(pull.get("head"), dict) else {}
     values = {

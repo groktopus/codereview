@@ -173,6 +173,7 @@ def test_documented_caller_name_matches_the_actual_workflow_run_filter():
 
     assert _top_level_yaml_scalar(caller, "name") == "PR Review Analysis"
     assert _caller_triggers_canary(caller, publisher)
+    assert "PR_REVIEW_ANALYSIS_WORKFLOW_NAME: PR Review Analysis" in publisher
     assert not _caller_triggers_canary(caller.replace("name: PR Review Analysis\n", "", 1), publisher)
     assert not _caller_triggers_canary(
         caller.replace("name: PR Review Analysis", "name: Unrelated Workflow", 1), publisher
