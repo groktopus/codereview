@@ -663,10 +663,12 @@ def run_shadow_audit(
         }
         answer_statuses = [row.get("status") for row in jev_result["assessments"].values()]
         choices = [row.get("choice") for row in jev_result["assessments"].values() if row.get("status") == "ANSWERED"]
-        if not choices:
-            jev_status = "abstained"
+        if not answer_statuses or any(value in {"FAILED", "INVALID", "OMITTED", "NOT_RUN"} for value in answer_statuses):
+            jev_status = "failed"
         elif any(value not in {"ANSWERED", "NOT_SHOWN"} for value in answer_statuses):
             jev_status = "incomplete"
+        elif not choices:
+            jev_status = "abstained"
         elif all(choice in {"UNCERTAIN", "UNKNOWN"} for choice in choices):
             jev_status = "abstained"
         else:
