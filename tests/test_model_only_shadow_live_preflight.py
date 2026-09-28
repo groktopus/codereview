@@ -11,15 +11,19 @@ from scripts import verify_model_only_shadow_live_preflight as preflight
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_PATH = ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v1.json"
+PLAN_457_PATH = ROOT / "experiments" / "model-only-shadow-live-pr457-plan-v1.json"
 
 
-def _plan() -> tuple[dict, bytes]:
-    raw = PLAN_PATH.read_bytes()
+def _plan(path: Path = PLAN_PATH) -> tuple[dict, bytes]:
+    raw = path.read_bytes()
     return json.loads(raw), raw
 
 
 def _prepared(plan: dict) -> dict:
     case = plan["case"]
+    request_count = plan["budget"]["writer_exact_call_count"]
+    request_bytes = sum(row["input_bytes"] for row in plan["writer_requests"])
+    remaining_slots = 10 - request_count
     requests = []
     for row in plan["writer_requests"]:
         requests.append({
@@ -39,9 +43,9 @@ def _prepared(plan: dict) -> dict:
         "capacity": {
             "configured_max_provider_calls": 10,
             "configured_max_input_bytes_per_task": 128000,
-            "exact_primary_call_demand": 10,
-            "exact_primary_serialized_input_bytes": 893359,
-            "remaining_global_call_slots_after_primary": 0,
+            "exact_primary_call_demand": request_count,
+            "exact_primary_serialized_input_bytes": request_bytes,
+            "remaining_global_call_slots_after_primary": remaining_slots,
         },
         "checks": {
             "check_evidence_hash": case["check_evidence_sha256"],
@@ -52,7 +56,7 @@ def _prepared(plan: dict) -> dict:
         "no_provider_calls": True,
         "no_target_code_execution": True,
         "primary_requests": requests,
-        "scope": {"coverage_obligations": [{} for _ in range(22)]},
+        "scope": {"coverage_obligations": [{} for _ in range(case["scope_obligations"])]},
         "snapshot": {
             "base_sha": case["base_sha"],
             "head_sha": case["head_sha"],
@@ -76,7 +80,7 @@ def test_exact_preflight_matches_ten_pinned_writer_requests_without_dispatch():
         "status": "PLAN_MATCHED_PROVIDER_FREE",
         "case_id": "PR-464",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
-        "plan_sha256": preflight.EXPECTED_PLAN_SHA256,
+        "plan_sha256": preflight.EXPECTED_PLAN_SHA256["PR-464"],
         "writer_calls_planned": 10,
         "writer_request_bytes_total": 893359,
         "writer_request_bytes_max": 96462,
@@ -85,6 +89,36 @@ def test_exact_preflight_matches_ten_pinned_writer_requests_without_dispatch():
         "target_code_execution": False,
         "publication_enabled": False,
     }
+
+
+def test_exact_preflight_matches_six_pr457_writer_requests_without_dispatch():
+    plan, raw = _plan(PLAN_457_PATH)
+    receipt = preflight.verify(plan, _prepared(plan), plan_bytes=raw)
+    assert receipt == {
+        "schema": "model-only-shadow-live-preflight-receipt.v1",
+        "status": "PLAN_MATCHED_PROVIDER_FREE",
+        "case_id": "PR-457",
+        "snapshot_sha256": plan["case"]["snapshot_sha256"],
+        "plan_sha256": preflight.EXPECTED_PLAN_SHA256["PR-457"],
+        "writer_calls_planned": 6,
+        "writer_request_bytes_total": 469539,
+        "writer_request_bytes_max": 118490,
+        "audit_request_cap_bytes": 64000,
+        "provider_calls": 0,
+        "target_code_execution": False,
+        "publication_enabled": False,
+    }
+
+
+def test_case_plan_cannot_be_cross_bound_or_extended():
+    plan457, bytes457 = _plan(PLAN_457_PATH)
+    prepared464 = _prepared(_plan()[0])
+    with pytest.raises(preflight.PreflightError):
+        preflight.verify(plan457, prepared464, plan_bytes=bytes457)
+    bad_plan = copy.deepcopy(plan457)
+    bad_plan["writer_requests"].append(copy.deepcopy(bad_plan["writer_requests"][0]))
+    with pytest.raises(preflight.PreflightError):
+        preflight.verify(bad_plan, _prepared(plan457), plan_bytes=bytes457)
 
 
 @pytest.mark.parametrize("mutation", ["snapshot", "missing_request", "request_hash", "extra_request"])

@@ -83,6 +83,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     review.add_argument(
         "--private-shadow-preflight-case-id",
+        choices=["PR-457", "PR-464"],
         help="apply the frozen private-shadow snapshot hash for provider-free prepare-only; creates no capture",
     )
     review.add_argument("--private-shadow-plan", help="trusted exact writer request plan for strict private capture")
@@ -694,7 +695,7 @@ def _run_one(
         raise ValueError("private shadow case ID requires private shadow capture")
     if preflight_case_id is not None and (
         not getattr(args, "prepare_only", False) or capture_dir is not None
-        or preflight_case_id != "PR-464"
+        or preflight_case_id not in {"PR-457", "PR-464"}
     ):
         raise ValueError("private shadow preflight case requires matching prepare-only without capture")
     if capture_dir and (
