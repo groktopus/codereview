@@ -380,6 +380,7 @@ jobs:
       - name: Check writer secret names and exact configured identity without printing values
         id: provider-identity
         if: steps.exact-preflight.outputs.verified == 'true'
+        working-directory: trusted-runner
         env:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}

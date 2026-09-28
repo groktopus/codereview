@@ -39,6 +39,18 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     assert live.index("Verify the exact plan and write the fresh provider-free receipt") < live.index(
         "Check writer secret names and exact configured identity without printing values"
     ) < live.index("Run only the ten pinned read-only writer calls")
+    exact_preflight = live.split("- name: Verify the exact plan and write the fresh provider-free receipt", 1)[1].split(
+        "- name: Check writer secret names and exact configured identity without printing values", 1
+    )[0]
+    provider_identity = live.split(
+        "- name: Check writer secret names and exact configured identity without printing values", 1
+    )[1].split("- name: Run only the ten pinned read-only writer calls", 1)[0]
+    writer = live.split("- name: Run only the ten pinned read-only writer calls", 1)[1].split(
+        "- name: Sanitize the completed writer capture", 1
+    )[0]
+    assert "working-directory: trusted-runner" in exact_preflight
+    assert "working-directory: trusted-runner" in provider_identity
+    assert "working-directory: trusted-runner" in writer
     assert "writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" in live
     assert 'prepare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}' in text
     assert 'private-shadow-prepare-output' in text and 'private-shadow-live-output' in live
