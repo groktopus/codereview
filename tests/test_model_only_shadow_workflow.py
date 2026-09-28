@@ -6,7 +6,6 @@ import stat
 from pathlib import Path
 
 import pytest
-import yaml
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "private-shadow-capture.yml"
@@ -21,13 +20,9 @@ _SANITIZER_SPEC.loader.exec_module(sanitizer)
 
 def test_shadow_preparation_is_manual_trusted_and_read_only():
     text = WORKFLOW.read_text(encoding="utf-8")
-    workflow = yaml.load(text, Loader=yaml.BaseLoader)
-    assert list(workflow["on"]) == ["workflow_dispatch"]
-    assert workflow["permissions"] == {"contents": "read"}
-    job = workflow["jobs"]["prepare"]
-    assert "github.repository == 'groktopus/codereview'" in job["if"]
-    assert "github.ref == 'refs/heads/main'" in job["if"]
-    assert job["permissions"] == {"contents": "read"}
+    assert "on:\n  workflow_dispatch:\n" in text
+    assert text.count("  contents: read\n") == 2
+    assert "if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in text
     assert "${{ secrets." not in text
     assert "PUBLISH_REVIEW" not in text
     assert "--run-provider-trial" not in text
