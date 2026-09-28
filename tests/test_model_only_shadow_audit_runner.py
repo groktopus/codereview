@@ -42,7 +42,7 @@ def _plan(task_ids: list[str]) -> dict:
             "writer_requests": [{"task_id": task_id} for task_id in task_ids]}
 
 
-def _capture(root: Path, packets: list[dict]) -> Path:
+def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer-live-123-1") -> Path:
     root.mkdir(mode=0o700)
     packet_dir = root / "case-packets"
     packet_dir.mkdir(mode=0o700)
@@ -53,7 +53,7 @@ def _capture(root: Path, packets: list[dict]) -> Path:
         path.write_bytes(raw)
         inventory.append({"path": path.name, "sha256": hashlib.sha256(raw).hexdigest()})
     (root / "manifest.json").write_text(json.dumps({
-        "contract_version": "model-only-shadow-case.v1", "case_id": "PR-464", "private_artifacts": True,
+        "contract_version": "model-only-shadow-case.v1", "case_id": manifest_case_id, "private_artifacts": True,
         "snapshot_id": CASE_IDENTITY["snapshot_id"], "snapshot_hash": CASE_IDENTITY["snapshot_hash"],
         "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": inventory},
     }))
@@ -73,6 +73,73 @@ def test_packet_inventory_detects_packet_content_change(tmp_path):
     (root / "case-packets" / "packet-0.json").write_text(json.dumps(_packet("PR-464", None, "task-first")))
     with pytest.raises(ValueError, match="capture_packet_inventory_mismatch"):
         RUNNER._packet_candidates(root)
+
+
+def test_writer_run_identity_may_differ_from_packet_corpus_identity(tmp_path):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
+    manifest, _, rows = RUNNER._packet_candidates(root)
+    assert manifest["case_id"] == "writer-live-123-1"
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+    ordered = RUNNER._task_order(plan, rows, manifest)
+    assert ordered[0][2]["case_id"] == "PR-464"
+
+
+def test_tampered_packet_corpus_identity_fails_before_provider_setup_and_writes_receipt(tmp_path, monkeypatch):
+    root = _capture(tmp_path / "capture", [_packet("untrusted-case", "candidate-a", "task-first")])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+    receipt_path = tmp_path / "receipt" / "failure.json"
+
+    def forbidden_provider(_config):
+        raise AssertionError("provider construction must not occur before plan binding")
+
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", forbidden_provider)
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
+                   tmp_path / "raw-audit", receipt_path, plan)
+
+    assert error.value.stage == "plan_binding"
+    assert not (tmp_path / "raw-audit").exists()
+    failure = json.loads(receipt_path.read_text())
+    assert failure == {
+        "schema": "model-only-shadow-audit-predispatch-failure.v1",
+        "case_id": "PR-464", "terminal_state": "failed_before_dispatch",
+        "failure_stage": "plan_binding", "failure_code": "plan_binding_invalid",
+        "audit_provider_calls": 0,
+    }
+    sanitized = tmp_path / "sanitized-failure"
+    SANITIZER.sanitize(receipt_path, sanitized)
+    assert json.loads((sanitized / "shadow-audit-receipt.json").read_text()) == failure
+
+
+def test_audit_input_rejection_writes_receipt_only_when_dispatch_guard_is_unspent(tmp_path):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+    provider_config = tmp_path / "provider.json"
+    provider_config.write_text(json.dumps({
+        "kind": "openai_compatible", "base_url": RUNNER.EXPECTED_LLM[0],
+        "model": RUNNER.EXPECTED_LLM[1], "api_key_env": "LLM_API_KEY",
+    }))
+    jev_config = tmp_path / "jev.json"
+    jev_config.write_text(json.dumps({
+        "kind": "typesafe", "endpoint": RUNNER.EXPECTED_JEV[0],
+        "model": RUNNER.EXPECTED_JEV[1], "api_key_env": "JEV_API_KEY",
+    }))
+    receipt_path = tmp_path / "receipt" / "failure.json"
+
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, provider_config, jev_config, tmp_path / "raw-audit", receipt_path, plan)
+
+    assert error.value.stage == "audit_validation"
+    assert not (tmp_path / "raw-audit").exists()
+    failure = json.loads(receipt_path.read_text())
+    assert failure["failure_stage"] == "audit_validation"
+    assert failure["failure_code"] == "audit_input_invalid"
+    assert failure["audit_provider_calls"] == 0
+    sanitized = tmp_path / "sanitized-audit-failure"
+    SANITIZER.sanitize(receipt_path, sanitized)
 
 
 def test_selection_uses_pinned_task_order_then_packet_digest(tmp_path):

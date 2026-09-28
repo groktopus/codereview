@@ -21,6 +21,8 @@ ROLES = {"source_auditor", "jev", "claim_auditor"}
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}\Z")
 ROLE_STATES = {"completed", "abstained", "failed", "incomplete", "not_run", "unavailable"}
+PREDISPATCH_STAGES = {"capture_validation", "plan_binding", "limits_validation", "provider_setup", "audit_validation"}
+PREDISPATCH_CODES = {"capture_invalid", "plan_binding_invalid", "limits_invalid", "provider_setup_invalid", "audit_input_invalid"}
 
 
 def _read(path: Path) -> tuple[dict[str, Any], bytes]:
@@ -56,6 +58,25 @@ def _unique(pairs):
 
 
 def _valid(receipt: dict[str, Any]) -> None:
+    failure_fields = {"schema", "case_id", "terminal_state", "failure_stage", "failure_code", "audit_provider_calls"}
+    if receipt.get("schema") == "model-only-shadow-audit-predispatch-failure.v1":
+        stage = receipt.get("failure_stage")
+        code = receipt.get("failure_code")
+        if (set(receipt) != failure_fields or receipt.get("case_id") != "PR-464"
+                or receipt.get("terminal_state") != "failed_before_dispatch"
+                or not isinstance(stage, str) or stage not in PREDISPATCH_STAGES
+                or not isinstance(code, str) or code not in PREDISPATCH_CODES
+                or isinstance(receipt.get("audit_provider_calls"), bool)
+                or receipt.get("audit_provider_calls") != 0):
+            raise ReceiptError("predispatch_receipt_invalid")
+        matching_codes = {
+            "capture_validation": "capture_invalid", "plan_binding": "plan_binding_invalid",
+            "limits_validation": "limits_invalid", "provider_setup": "provider_setup_invalid",
+            "audit_validation": "audit_input_invalid",
+        }
+        if code != matching_codes[stage]:
+            raise ReceiptError("predispatch_receipt_invalid")
+        return
     base = {"schema", "case_id", "terminal_state", "reason", "audit_provider_calls", "candidate_packet_count",
             "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts"}
     optional = {"selected_candidate_sha256", "shadow_manifest_sha256"}
