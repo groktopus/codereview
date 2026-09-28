@@ -36,6 +36,104 @@ _PROVIDER_CONTRACT_VERSIONS = frozenset(
 )
 _MAX_PROVIDER_RESPONSE_BYTES = 64 * 1024 * 1024 + 1
 _MAX_PROVIDER_ELAPSED_MS = 24 * 60 * 60 * 1000
+_LOCAL_HTTP_EXCHANGE_STATES = frozenset(
+    {
+        "REQUEST_SERIALIZED",
+        "REQUEST_ATTEMPTED",
+        "HTTP_RESPONSE_RECEIVED",
+        "HTTP_ERROR_RESPONSE",
+        "TRANSPORT_FAILURE",
+        "UNKNOWN",
+    }
+)
+
+
+def _safe_local_http_exchange(value: Any) -> dict | None:
+    """Validate the versioned local observation while dropping unapproved fields."""
+    if not isinstance(value, dict) or value.get("contract_version") != "local-http-exchange.v1":
+        return None
+    state = value.get("state")
+    request_hash = value.get("request_sha256")
+    endpoint_hash = value.get("endpoint_sha256")
+    request_bytes = value.get("request_bytes")
+
+    def valid_hash(item: Any) -> bool:
+        return isinstance(item, str) and len(item) == 64 and all(c in "0123456789abcdef" for c in item)
+
+    if (
+        not isinstance(state, str)
+        or state not in _LOCAL_HTTP_EXCHANGE_STATES
+        or value.get("delivery_observation") != "UNKNOWN"
+        or value.get("request_serialized") is not True
+        or type(value.get("request_attempted")) is not bool
+        or not valid_hash(request_hash)
+        or (not valid_hash(endpoint_hash) and not (state == "REQUEST_SERIALIZED" and endpoint_hash is None))
+        or type(request_bytes) is not int
+        or not 0 <= request_bytes <= _MAX_PROVIDER_RESPONSE_BYTES
+    ):
+        return None
+    attempted = value["request_attempted"]
+    status = value.get("http_status")
+    response_hash = value.get("response_sha256")
+    response_bytes = value.get("response_bytes")
+    response_complete = value.get("response_complete")
+    has_response_bytes = response_hash is not None or response_bytes is not None
+    if not has_response_bytes and response_complete is not None:
+        return None
+    if state in {"REQUEST_SERIALIZED", "REQUEST_ATTEMPTED", "TRANSPORT_FAILURE"} and (
+        status is not None or has_response_bytes or response_complete is not None
+    ):
+        return None
+    if state == "REQUEST_SERIALIZED" and attempted:
+        return None
+    if state in {"REQUEST_ATTEMPTED", "TRANSPORT_FAILURE"} and not attempted:
+        return None
+    if state in {"HTTP_RESPONSE_RECEIVED", "HTTP_ERROR_RESPONSE"} and (
+        not attempted or type(status) is not int or not 100 <= status <= 599
+    ):
+        return None
+    if state in {"HTTP_RESPONSE_RECEIVED", "HTTP_ERROR_RESPONSE"} and not has_response_bytes:
+        return None
+    if state == "UNKNOWN" and (status is not None or has_response_bytes or response_complete is not None):
+        return None
+    safe = {
+        "contract_version": "local-http-exchange.v1",
+        "state": state,
+        "delivery_observation": "UNKNOWN",
+        "request_serialized": True,
+        "request_attempted": attempted,
+        "request_sha256": request_hash,
+        "request_bytes": request_bytes,
+    }
+    if valid_hash(endpoint_hash):
+        safe["endpoint_sha256"] = endpoint_hash
+    for name, limit in (("provider_id", 128), ("model_id", 256)):
+        item = value.get(name)
+        if isinstance(item, str) and item and len(item) <= limit and not any(ord(ch) < 32 for ch in item):
+            safe[name] = item
+    if status is not None and type(status) is int and 100 <= status <= 599:
+        safe["http_status"] = status
+    if response_hash is not None or response_bytes is not None:
+        if (
+            not valid_hash(response_hash)
+            or type(response_bytes) is not int
+            or not 0 <= response_bytes <= _MAX_PROVIDER_RESPONSE_BYTES
+            or type(response_complete) is not bool
+        ):
+            return None
+        safe.update(
+            {
+                "response_sha256": response_hash,
+                "response_bytes": response_bytes,
+                "response_complete": response_complete,
+            }
+        )
+    elapsed = value.get("elapsed_ms")
+    if type(elapsed) is int and 0 <= elapsed <= _MAX_PROVIDER_ELAPSED_MS:
+        safe["elapsed_ms"] = elapsed
+    elif type(elapsed) is float and math.isfinite(elapsed) and 0 <= elapsed <= _MAX_PROVIDER_ELAPSED_MS:
+        safe["elapsed_ms"] = elapsed
+    return safe
 
 
 def _safe_provider_metadata(meta: dict, output_limit: int) -> dict:
@@ -53,6 +151,9 @@ def _safe_provider_metadata(meta: dict, output_limit: int) -> dict:
         sources.append(provenance)
 
     for source in sources:
+        exchange = _safe_local_http_exchange(source.get("local_http_exchange"))
+        if exchange is not None:
+            safe["local_http_exchange"] = exchange
         for key in ("request_hash", "response_hash"):
             value = source.get(key)
             if isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value):
@@ -565,11 +666,7 @@ def wait_for_any(invocations: list[IsolatedInvocation], timeout: float | None = 
             owners[handle] = invocation
     now = time.monotonic()
     nearest_deadline_remaining = max(0.0, min(invocation._deadline for invocation in active) - now)
-    wait_seconds = (
-        nearest_deadline_remaining
-        if timeout is None
-        else min(timeout, nearest_deadline_remaining)
-    )
+    wait_seconds = nearest_deadline_remaining if timeout is None else min(timeout, nearest_deadline_remaining)
     ready = set(wait_connections(handles, timeout=wait_seconds))
     ready_ids = {id(owners[handle]) for handle in ready if handle in owners}
     return [invocation for invocation in active if id(invocation) in ready_ids]

@@ -288,6 +288,123 @@ def _bounded_response(response: Any, cap: int, deadline: float) -> bytes:
     return bytes(chunks)
 
 
+_LOCAL_HTTP_EXCHANGE_VERSION = "local-http-exchange.v1"
+
+
+def _endpoint_identity_hash(endpoint: str) -> str:
+    """Hash a normalized endpoint identity without retaining its URL."""
+    parsed = urlsplit(endpoint)
+    scheme = parsed.scheme.lower()
+    host = (parsed.hostname or "").lower()
+    try:
+        port = parsed.port
+    except ValueError:
+        raise ProviderError("invalid_endpoint") from None
+    default_port = 443 if scheme == "https" else 80
+    authority = host if port is None or port == default_port else f"{host}:{port}"
+    if ":" in host and not host.startswith("["):
+        authority = f"[{host}]" if port is None or port == default_port else f"[{host}]:{port}"
+    normalized = f"{scheme}://{authority}{parsed.path.rstrip('/')}"
+    if parsed.query:
+        normalized += f"?{parsed.query}"
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _local_http_exchange(
+    *,
+    endpoint: str | None,
+    provider_id: str | None,
+    model_id: str | None,
+    request_bytes: bytes,
+    state: str = "REQUEST_SERIALIZED",
+    request_attempted: bool = False,
+    status: int | None = None,
+    response: bytes | None = None,
+    response_complete: bool | None = None,
+    response_observation: dict[str, Any] | None = None,
+    elapsed_ms: float | None = None,
+) -> dict[str, Any]:
+    """Return a closed, local-only receipt; it is not proof of remote consumption."""
+    record: dict[str, Any] = {
+        "contract_version": _LOCAL_HTTP_EXCHANGE_VERSION,
+        "state": state,
+        "delivery_observation": "UNKNOWN",
+        "request_serialized": True,
+        "request_attempted": request_attempted,
+        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_bytes": len(request_bytes),
+    }
+    if endpoint is not None:
+        record["endpoint_sha256"] = _endpoint_identity_hash(endpoint)
+    if (
+        isinstance(provider_id, str)
+        and provider_id
+        and len(provider_id) <= 128
+        and not any(ord(ch) < 32 for ch in provider_id)
+    ):
+        record["provider_id"] = provider_id
+    if isinstance(model_id, str) and model_id and len(model_id) <= 256 and not any(ord(ch) < 32 for ch in model_id):
+        record["model_id"] = model_id
+    if status is not None:
+        record["http_status"] = status
+    if response is not None:
+        record["response_sha256"] = hashlib.sha256(response).hexdigest()
+        record["response_bytes"] = len(response)
+        record["response_complete"] = response_complete is True
+    elif response_observation is not None:
+        response_hash = response_observation.get("response_hash")
+        response_bytes = response_observation.get("response_bytes")
+        if (
+            isinstance(response_hash, str)
+            and len(response_hash) == 64
+            and type(response_bytes) is int
+            and response_bytes >= 0
+        ):
+            record["response_sha256"] = response_hash
+            record["response_bytes"] = response_bytes
+            record["response_complete"] = response_observation.get("output_truncated") is False
+    if elapsed_ms is not None and math.isfinite(elapsed_ms) and elapsed_ms >= 0:
+        record["elapsed_ms"] = round(elapsed_ms, 2)
+    return record
+
+
+def _http_error_response_observation(exc: HTTPError, cap: int, deadline: float) -> dict[str, Any]:
+    """Hash at most the configured response cap from an HTTP error body."""
+    try:
+        raw = _bounded_response(exc, cap, deadline)
+        return {"response_hash": hashlib.sha256(raw).hexdigest(), "response_bytes": len(raw), "output_truncated": False}
+    except Exception as error:
+        metadata = getattr(error, "meta", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        observed_hash = metadata.get("response_hash")
+        observed_bytes = metadata.get("response_bytes")
+        if not (
+            isinstance(observed_hash, str)
+            and len(observed_hash) == 64
+            and type(observed_bytes) is int
+            and observed_bytes >= 0
+        ):
+            observed_hash = hashlib.sha256(b"").hexdigest()
+            observed_bytes = 0
+        return {"response_hash": observed_hash, "response_bytes": observed_bytes, "output_truncated": True}
+
+
+def _attach_exchange(exc: ProviderError, exchange: dict[str, Any]) -> None:
+    exc.meta = {**exc.meta, "local_http_exchange": exchange}
+
+
+def _attach_unknown_exchange(exc: Exception, exchange: dict[str, Any]) -> None:
+    """Preserve an unexpected adapter exception while carrying only safe metadata."""
+    meta = getattr(exc, "meta", {})
+    try:
+        exc.meta = {**(meta if isinstance(meta, dict) else {}), "local_http_exchange": exchange}
+    except (AttributeError, TypeError):
+        # The original exception still controls call semantics; in this rare
+        # case the isolated worker may only report that the exchange is unknown.
+        return
+
+
 def _env_credential(env_name: Any, *, required: bool = True) -> str | None:
     if env_name is None and not required:
         return None
@@ -487,10 +604,22 @@ class OpenAIProvider:
         request_bytes = self._request_bytes(system, user, schema, limits)
         if len(request_bytes) > input_cap:
             raise ProviderError("request_exceeds_limit")
+        endpoint = self.base_url + "/chat/completions"
+        provider_id = self.identity.get("provider_id")
+        exchange = _local_http_exchange(
+            endpoint=endpoint,
+            provider_id=provider_id if isinstance(provider_id, str) else None,
+            model_id=self.model,
+            request_bytes=request_bytes,
+        )
         # Access the environment only at dispatch, never during configuration loading.
-        token = _env_credential(self.api_key_env)
+        try:
+            token = _env_credential(self.api_key_env)
+        except ProviderError as exc:
+            _attach_exchange(exc, exchange)
+            raise
         request = Request(
-            self.base_url + "/chat/completions",
+            endpoint,
             data=request_bytes,
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             method="POST",
@@ -498,10 +627,46 @@ class OpenAIProvider:
         started = time.monotonic()
         deadline_at = started + timeout
         request_hash = hashlib.sha256(request_bytes).hexdigest()
+        exchange = _local_http_exchange(
+            endpoint=endpoint,
+            provider_id=provider_id if isinstance(provider_id, str) else None,
+            model_id=self.model,
+            request_bytes=request_bytes,
+            state="REQUEST_ATTEMPTED",
+            request_attempted=True,
+        )
         try:
-            with _HTTP_OPENER.open(request, timeout=timeout) as response:
-                raw = _bounded_response(response, output_cap, deadline_at)
+            response = _HTTP_OPENER.open(request, timeout=timeout)
+            with response:
                 status = response.status
+                try:
+                    raw = _bounded_response(response, output_cap, deadline_at)
+                except ProviderError as exc:
+                    exchange = _local_http_exchange(
+                        endpoint=endpoint,
+                        provider_id=provider_id if isinstance(provider_id, str) else None,
+                        model_id=self.model,
+                        request_bytes=request_bytes,
+                        state="HTTP_RESPONSE_RECEIVED",
+                        request_attempted=True,
+                        status=status,
+                        response_observation=exc.meta,
+                        elapsed_ms=(time.monotonic() - started) * 1000,
+                    )
+                    _attach_exchange(exc, exchange)
+                    raise
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=provider_id if isinstance(provider_id, str) else None,
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="HTTP_RESPONSE_RECEIVED",
+                request_attempted=True,
+                status=status,
+                response=raw,
+                response_complete=True,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
         except ProviderError as exc:
             exc.meta = {
                 **exc.meta,
@@ -511,6 +676,18 @@ class OpenAIProvider:
             }
             raise
         except HTTPError as exc:
+            error_response = _http_error_response_observation(exc, output_cap, deadline_at)
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=provider_id if isinstance(provider_id, str) else None,
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="HTTP_ERROR_RESPONSE",
+                request_attempted=True,
+                status=exc.code,
+                response_observation=error_response,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
             raise ProviderError(
                 f"http_status_{exc.code}",
                 meta={
@@ -518,17 +695,40 @@ class OpenAIProvider:
                     "http_status": exc.code,
                     "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
                     "provider_contract_version": contract_version,
+                    "local_http_exchange": exchange,
                 },
             ) from None
         except (URLError, TimeoutError, OSError):
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=provider_id if isinstance(provider_id, str) else None,
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="TRANSPORT_FAILURE",
+                request_attempted=True,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
             raise ProviderError(
                 "provider_deadline_exceeded" if time.monotonic() >= deadline_at else "transport_failed",
                 meta={
                     "request_hash": request_hash,
                     "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
                     "provider_contract_version": contract_version,
+                    "local_http_exchange": exchange,
                 },
             ) from None
+        except Exception as exc:
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=provider_id if isinstance(provider_id, str) else None,
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="UNKNOWN",
+                request_attempted=True,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
+            _attach_unknown_exchange(exc, exchange)
+            raise
         if token.encode("utf-8") in raw:
             raise ProviderError(
                 "provider_response_contains_credential",
@@ -539,6 +739,7 @@ class OpenAIProvider:
                     "http_status": status,
                     "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
                     "provider_contract_version": contract_version,
+                    "local_http_exchange": exchange,
                 },
             )
         base_meta = {
@@ -546,6 +747,7 @@ class OpenAIProvider:
             "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
             "request_hash": request_hash,
             "response_hash": hashlib.sha256(raw).hexdigest(),
+            "local_http_exchange": exchange,
         }
         envelope: Any = None
         try:
@@ -1146,8 +1348,19 @@ class DecisionProvider:
         if self.model is not None:
             payload["model"] = self.model
         request_bytes = _json_bytes(payload, input_cap, "request")
-        token = _env_credential(self.api_key_env)
-        endpoint = self._endpoint_url()
+        endpoint_hint = self.endpoint
+        exchange = _local_http_exchange(
+            endpoint=endpoint_hint,
+            provider_id=self.identity["provider_id"],
+            model_id=self.model,
+            request_bytes=request_bytes,
+        )
+        try:
+            token = _env_credential(self.api_key_env)
+            endpoint = self._endpoint_url()
+        except ProviderError as exc:
+            _attach_exchange(exc, exchange)
+            raise
         request = Request(
             endpoint,
             data=request_bytes,
@@ -1157,19 +1370,101 @@ class DecisionProvider:
         started = time.monotonic()
         deadline_at = started + timeout
         request_hash = hashlib.sha256(request_bytes).hexdigest()
+        exchange = _local_http_exchange(
+            endpoint=endpoint,
+            provider_id=self.identity["provider_id"],
+            model_id=self.model,
+            request_bytes=request_bytes,
+            state="REQUEST_ATTEMPTED",
+            request_attempted=True,
+        )
         try:
-            with _HTTP_OPENER.open(request, timeout=timeout) as response:
-                raw = _bounded_response(response, output_cap, deadline_at)
+            response = _HTTP_OPENER.open(request, timeout=timeout)
+            with response:
                 status = response.status
+                try:
+                    raw = _bounded_response(response, output_cap, deadline_at)
+                except ProviderError as exc:
+                    exchange = _local_http_exchange(
+                        endpoint=endpoint,
+                        provider_id=self.identity["provider_id"],
+                        model_id=self.model,
+                        request_bytes=request_bytes,
+                        state="HTTP_RESPONSE_RECEIVED",
+                        request_attempted=True,
+                        status=status,
+                        response_observation=exc.meta,
+                        elapsed_ms=(time.monotonic() - started) * 1000,
+                    )
+                    _attach_exchange(exc, exchange)
+                    raise
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=self.identity["provider_id"],
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="HTTP_RESPONSE_RECEIVED",
+                request_attempted=True,
+                status=status,
+                response=raw,
+                response_complete=True,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
         except HTTPError as exc:
+            error_response = _http_error_response_observation(exc, output_cap, deadline_at)
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=self.identity["provider_id"],
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="HTTP_ERROR_RESPONSE",
+                request_attempted=True,
+                status=exc.code,
+                response_observation=error_response,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
             raise ProviderError(
-                f"http_status_{exc.code}", meta={"request_hash": request_hash, "http_status": exc.code}
+                f"http_status_{exc.code}",
+                meta={
+                    "request_hash": request_hash,
+                    "http_status": exc.code,
+                    "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
+                    "local_http_exchange": exchange,
+                },
             ) from None
         except (URLError, TimeoutError, OSError):
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=self.identity["provider_id"],
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="TRANSPORT_FAILURE",
+                request_attempted=True,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
             raise ProviderError(
                 "provider_deadline_exceeded" if time.monotonic() >= deadline_at else "transport_failed",
-                meta={"request_hash": request_hash},
+                meta={
+                    "request_hash": request_hash,
+                    "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
+                    "local_http_exchange": exchange,
+                },
             ) from None
+        except ProviderError as exc:
+            _attach_exchange(exc, exchange)
+            raise
+        except Exception as exc:
+            exchange = _local_http_exchange(
+                endpoint=endpoint,
+                provider_id=self.identity["provider_id"],
+                model_id=self.model,
+                request_bytes=request_bytes,
+                state="UNKNOWN",
+                request_attempted=True,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
+            _attach_unknown_exchange(exc, exchange)
+            raise
         if token.encode("utf-8") in raw:
             raise ProviderError(
                 "provider_response_contains_credential",
@@ -1178,6 +1473,7 @@ class DecisionProvider:
                     "response_hash": hashlib.sha256(raw).hexdigest(),
                     "response_bytes": len(raw),
                     "http_status": status,
+                    "local_http_exchange": exchange,
                 },
             )
         try:
@@ -1248,8 +1544,11 @@ class DecisionProvider:
                 and response_model != self.model
             ):
                 raise ProviderError("model_identity_mismatch")
+        except ProviderError as exc:
+            _attach_exchange(exc, exchange)
+            raise
         except (KeyError, TypeError, ValueError, UnicodeDecodeError):
-            raise ProviderError("malformed_native_response") from None
+            raise ProviderError("malformed_native_response", meta={"local_http_exchange": exchange}) from None
         result = {
             "payload": {
                 "primitive": "Choice" if self.primitive in {"choice-risk", "choice-injection-v1"} else "Noul",
@@ -1272,6 +1571,7 @@ class DecisionProvider:
                 "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
                 "request_hash": hashlib.sha256(request_bytes).hexdigest(),
                 "response_hash": hashlib.sha256(raw).hexdigest(),
+                "local_http_exchange": exchange,
                 "question_hash": hashlib.sha256(question.encode("utf-8")).hexdigest(),
                 "input_hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
                 "native_contract": self.identity["native_contract"],
