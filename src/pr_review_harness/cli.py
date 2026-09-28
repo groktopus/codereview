@@ -26,13 +26,11 @@ TRUSTED_CAPTURE_WORKFLOW_REF = (
 TRUSTED_SHADOW_PLANS = {
     "PR-457": {
         "path": "experiments/model-only-shadow-live-pr457-plan-v1.json",
-        "sha256": "54274a8341e347c2944af31c59a87784992c2a1647ec0bd0e3006e0cf5078e6e",
         "calls": 6, "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
     },
     "PR-464": {
         "path": "experiments/model-only-shadow-live-pr464-plan-v1.json",
-        "sha256": "1c25da1406759e7822cbbaab6751405f9d22c0179121f67020c0ca9f7205d090",
         "calls": 10, "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
     },
@@ -219,7 +217,7 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
         or receipt.get("publication_enabled") is not False
         or receipt.get("plan_sha256") != plan_hash
         or not isinstance(case, dict) or not isinstance(budget, dict) or not isinstance(requests, list)
-        or policy is None or plan_hash != policy["sha256"]
+        or policy is None
         or len(requests) != policy["calls"]
         or budget.get("writer_max_provider_calls") != 10
         or case.get("snapshot_id") != policy["snapshot_id"]

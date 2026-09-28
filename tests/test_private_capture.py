@@ -462,6 +462,7 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
         "budget": {
             "writer_exact_call_count": 1, "writer_max_request_bytes": 128_000,
             "writer_max_response_bytes": 32_768, "writer_max_output_tokens": 1_800,
+            "writer_max_provider_calls": 10,
         },
         "writer_requests": [
             {key: row[key] for key in ("task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap")}
@@ -479,6 +480,13 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
         "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(), "case_id": "PR-464",
         "snapshot_sha256": capture_snapshot_hash, "writer_calls_planned": 1,
     }))
+    # This fixture exercises one request. The checked-in policy covers the
+    # real ten-request PR-464 plan; replace only the test-local bounds here.
+    monkeypatch.setitem(cli.TRUSTED_SHADOW_PLANS, "PR-464", {
+        **cli.TRUSTED_SHADOW_PLANS["PR-464"], "calls": 1,
+        "snapshot_id": prepared["snapshot"]["snapshot_id"],
+        "snapshot_sha256": capture_snapshot_hash,
+    })
     output_dir = tmp_path / "ordinary-output"
     capture_dir = tmp_path / "private-capture"
     args = [
@@ -510,6 +518,11 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     assert packet["snapshot"]["snapshot_hash"] == _json_hash(
         {k: v for k, v in packet["snapshot"].items() if k not in {"snapshot_id", "snapshot_hash"}}
     )
+    # The receipt binds the exact plan bytes, including formatting. A fresh
+    # semantic equivalent plan with a stale receipt must be rejected.
+    plan_path.write_bytes(plan_bytes + b" ")
+    with pytest.raises(ValueError, match="private shadow preflight receipt mismatch"):
+        cli._load_private_shadow_pins(str(plan_path), str(receipt_path))
 
 
 def _trusted_capture_env(monkeypatch, runner_temp):
