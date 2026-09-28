@@ -150,7 +150,7 @@ def _validate_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(writer, dict) or set(writer) != role_fields or writer.get("role") != "writer" or writer.get("status") not in {"completed", "incomplete", "failed", "unavailable", "abstained", "not_run"}:
         raise ShadowAuditError("writer_run_invalid")
     calls = writer.get("calls")
-    if not isinstance(calls, list) or writer.get("calls_manifest_sha256") != _calls_manifest_hash(calls):
+    if not isinstance(calls, list):
         raise ShadowAuditError("writer_run_invalid")
     if writer["status"] == "not_run":
         if writer["run_id"] is not None or calls or writer["calls_manifest_sha256"] is not None:
@@ -158,15 +158,27 @@ def _validate_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
         if any(writer[field] is not None for field in ("provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision")):
             raise ShadowAuditError("writer_run_invalid")
     else:
+        if writer.get("calls_manifest_sha256") != _calls_manifest_hash(calls):
+            raise ShadowAuditError("writer_run_invalid")
         _safe_token(writer["run_id"], "writer_run_invalid")
         for field in ("provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision"):
             if not isinstance(writer[field], str) or not _SAFE_METADATA.fullmatch(writer[field]):
                 raise ShadowAuditError("writer_run_invalid")
     for call in calls:
-        if not isinstance(call, dict) or set(call) != call_fields or not _SHA256.fullmatch(str(call.get("request_sha256", ""))) or not isinstance(call.get("request_artifact_id"), str) or not _SAFE_TOKEN.fullmatch(call["request_artifact_id"]):
+        if not isinstance(call, dict) or set(call) != call_fields or not isinstance(call.get("call_id"), str) or not _SAFE_TOKEN.fullmatch(call["call_id"]):
+            raise ShadowAuditError("writer_run_invalid")
+        request_hash, request_artifact = call.get("request_sha256"), call.get("request_artifact_id")
+        if (request_hash is None) != (request_artifact is None) or (
+            request_hash is not None and (
+                not isinstance(request_hash, str) or not _SHA256.fullmatch(request_hash)
+                or not isinstance(request_artifact, str) or not _SAFE_TOKEN.fullmatch(request_artifact)
+            )
+        ):
             raise ShadowAuditError("writer_run_invalid")
         response_hash, response_artifact = call.get("response_sha256"), call.get("response_artifact_id")
         if (response_hash is None) != (response_artifact is None) or (response_hash is not None and (not isinstance(response_hash, str) or not _SHA256.fullmatch(response_hash) or not isinstance(response_artifact, str) or not _SAFE_TOKEN.fullmatch(response_artifact))):
+            raise ShadowAuditError("writer_run_invalid")
+        if request_hash is None and response_hash is not None:
             raise ShadowAuditError("writer_run_invalid")
     if value["writer_candidate"] is not None and writer["status"] not in {"completed", "incomplete", "abstained"}:
         raise ShadowAuditError("writer_run_invalid")

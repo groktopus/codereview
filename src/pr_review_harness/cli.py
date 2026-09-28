@@ -20,6 +20,9 @@ from .snapshot import SnapshotError, bind_repository_url, collect_snapshot, rece
 
 MAX_HISTORICAL_CHECKS_BYTES = 2_000_000
 MAX_HISTORICAL_CHECK_RUNS = 2_000
+TRUSTED_CAPTURE_WORKFLOW_REF = (
+    "groktopus/codereview/.github/workflows/private-shadow-capture.yml@refs/heads/main"
+)
 
 
 class _ArgumentError(Exception):
@@ -69,6 +72,11 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--effect-policy", choices=["READ_ONLY", "PUBLISH_REVIEW"], default="READ_ONLY")
     review.add_argument("--dry-run", action="store_true")
     review.add_argument("--prepare-only", action="store_true", help="snapshot and size exact primary requests without provider dispatch")
+    review.add_argument(
+        "--private-shadow-capture",
+        metavar="DIR",
+        help="opt in to a new private local exact-byte writer capture directory (not for Actions)",
+    )
     review.add_argument(
         "--max-claim-assessments",
         type=int,
@@ -138,6 +146,48 @@ def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError("historical check evidence contains duplicate JSON keys")
         result[key] = value
     return result
+
+
+def _validate_private_capture_target(capture_dir: str, output_dir: str) -> None:
+    """Keep the opt-in local, or confine it to one trusted manual workflow."""
+    if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
+        return
+    trusted = (
+        os.environ.get("PR_REVIEW_TRUSTED_PRIVATE_CAPTURE") == "1"
+        and os.environ.get("GITHUB_REPOSITORY") == "groktopus/codereview"
+        and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and os.environ.get("GITHUB_REF") == "refs/heads/main"
+        and os.environ.get("GITHUB_WORKFLOW_REF") == TRUSTED_CAPTURE_WORKFLOW_REF
+        and re.fullmatch(r"[0-9a-f]{40}", os.environ.get("GITHUB_SHA", "")) is not None
+    )
+    runner_temp_value = os.environ.get("RUNNER_TEMP")
+    if not trusted or not runner_temp_value:
+        raise ValueError("private capture in Actions requires the trusted main-branch manual workflow")
+    runner_temp = Path(runner_temp_value)
+    requested = Path(capture_dir).expanduser()
+    if not runner_temp.is_absolute() or not requested.is_absolute():
+        raise ValueError("trusted private capture paths must be absolute")
+
+    def contains_symlink(path: Path) -> bool:
+        current = Path(path.anchor)
+        for part in path.parts[1:]:
+            current = current / part
+            if current.is_symlink():
+                return True
+        return False
+
+    if contains_symlink(runner_temp) or not runner_temp.is_dir():
+        raise ValueError("trusted private capture temp root is unavailable")
+    temp_real = runner_temp.absolute()
+    if (
+        ".." in requested.parts or requested.parent.absolute() != temp_real
+        or requested.exists() or contains_symlink(requested)
+    ):
+        raise ValueError("trusted private capture must be a new direct child of RUNNER_TEMP")
+    output = Path(output_dir).expanduser().resolve()
+    resolved = temp_real / requested.name
+    if output == resolved or output.is_relative_to(resolved) or resolved.is_relative_to(output):
+        raise ValueError("private capture and uploaded output directories must be separate")
 
 
 def _reject_json_constant(_value: str) -> Any:
@@ -479,6 +529,14 @@ def _run_one(
     claim_assessor=None,
     max_claim_assessments: int = 0,
 ) -> dict:
+    capture_dir = getattr(args, "private_shadow_capture", None)
+    if capture_dir and (
+        getattr(args, "command", "review") != "review" or getattr(args, "resume", False)
+        or getattr(args, "prepare_only", False) or getattr(args, "dry_run", False)
+    ):
+        raise ValueError("private shadow capture requires a fresh local non-resume review")
+    if capture_dir:
+        _validate_private_capture_target(capture_dir, args.output)
     if getattr(args, "effect_policy", "READ_ONLY") != "READ_ONLY":
         raise ValueError("PUBLISH_REVIEW is disabled")
     if (
@@ -614,6 +672,15 @@ def _run_one(
         )
     else:
         snapshot["freshness_basis"] = "HISTORICAL_SNAPSHOT"
+    if capture_dir:
+        # Frozen case snapshots retain the collector's identity-independent
+        # hash algorithm even when CLI freshness provenance was augmented.
+        snap_hash_payload = {
+            k: v for k, v in snapshot.items() if k not in {"snapshot_id", "snapshot_hash"}
+        }
+        snapshot["snapshot_hash"] = _sha256(
+            json.dumps(snap_hash_payload, sort_keys=True, separators=(",", ":")).encode()
+        )
     try:
         from .checks import GitHubCheckAdapter
         from .engine import run_review
@@ -827,6 +894,7 @@ def _run_one(
             freshness_check=_freshness(event, snapshot["head_sha"]),
             check_adapter=GitHubCheckAdapter(),
             context_retriever=ContextRetriever(args.repo),
+            private_capture_dir=capture_dir,
             **review_kwargs,
         )
     except EnginePreflightError:
@@ -1062,6 +1130,10 @@ def main(argv=None) -> int:
             return 0
         profile, limits, provider, decision_provider, claim_assessor = _configs(args)
         if args.command == "review":
+            if args.private_shadow_capture and (args.resume or args.prepare_only or args.dry_run):
+                raise ValueError("private shadow capture is incompatible with resume, prepare-only, and dry-run")
+            if args.private_shadow_capture:
+                _validate_private_capture_target(args.private_shadow_capture, args.output)
             historical_check_identity = None
             if args.historical_checks_json:
                 if args.checks_json:

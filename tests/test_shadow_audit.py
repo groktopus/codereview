@@ -14,6 +14,7 @@ from pr_review_harness.shadow_audit import (
     ShadowAuditError,
     _json_hash,
     _not_run,
+    _validate_packet,
     run_shadow_audit,
 )
 
@@ -84,6 +85,8 @@ def _packet(*, candidate=True):
         "calls": calls,
         "calls_manifest_sha256": hashlib.sha256(json.dumps(calls, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest(),
     }
+
+
     return {
         "contract_version": "model-only-shadow-case.v1", "case_id": "case-1",
         "snapshot": _snapshot(), "source_task": {"summary": "Review the handler."},
@@ -103,6 +106,29 @@ def _packet(*, candidate=True):
         } if candidate else None),
         "profile_id": "profile-v1",
     }
+
+
+def test_writer_not_run_and_incomplete_call_bindings_are_representable():
+    packet = _packet(candidate=False)
+    packet["writer_run"] = {
+        "role": "writer", "status": "not_run", "run_id": None,
+        "provider_id": None, "model_id": None, "runtime_id": None,
+        "prompt_revision": None, "rubric_revision": None,
+        "calls": [], "calls_manifest_sha256": None,
+    }
+    _validate_packet(packet)
+
+    packet = _packet(candidate=False)
+    packet["writer_run"]["status"] = "failed"
+    packet["writer_run"]["calls"] = [{
+        "call_id": "writer-call-no-request", "request_sha256": None,
+        "request_artifact_id": None, "response_sha256": None,
+        "response_artifact_id": None,
+    }]
+    packet["writer_run"]["calls_manifest_sha256"] = hashlib.sha256(
+        json.dumps(packet["writer_run"]["calls"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
+    _validate_packet(packet)
 
 
 def _audit_content(role: str) -> bytes:

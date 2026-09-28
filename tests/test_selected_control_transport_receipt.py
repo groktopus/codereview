@@ -175,7 +175,7 @@ def _valid_receipt():
         "diagnostic_script_differs_from_head": False,
         "runtime_source_commit": "a" * 40,
         "runtime_tree_sha256": "1" * 64,
-        "runtime_module_count": 31,
+        "runtime_module_count": 32,
         "runtime_module_hashes": source_modules,
         "fixture_suite_sha256": "2" * 64,
         "generated_profile_sha256": "3" * 64,
