@@ -2,6 +2,10 @@
 
 This document describes the generic provider configuration path wired into the reusable read-only analysis workflow. The workflow source accepts operator-selected endpoints and models through trusted `workflow_call` secrets. That source wiring has not been validated in a hosted run, and no production credential or model-quality claim is made here.
 
+## Trusted target profile selection
+
+The reusable workflow resolves `target_repository` through the checked-in `profiles/targets.json` allowlist before it materializes provider configuration. A binding pins the profile path, exact profile-file SHA-256, and profile version; the selected profile must also declare the same repository and version. The caller cannot provide a profile path or digest, and unsupported repositories fail closed instead of receiving the generic profile. To add a repository, review a mapping entry and matching repository-bound profile into the trusted harness revision, then update the caller to pin that revision. The workflow records the selected binding in `profile-binding.json` with the analysis artifact.
+
 ## Environment contract
 
 | Name | Workflow binding | Purpose | Intended value |

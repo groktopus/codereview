@@ -118,6 +118,8 @@ def test_built_source_archive_contains_authored_source_test_support_without_poll
             "examples/provider.nous-test-stepfun.json",
             "profiles/generic.json",
             "profiles/slopsearx.json",
+            "profiles/targets.json",
+            "scripts/resolve_target_profile.py",
             "tests/test_checks.py",
             "tests/test_injection_trials.py",
             "tests/test_test_matrix.py",

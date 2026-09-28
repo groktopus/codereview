@@ -62,7 +62,8 @@ def _step(source: str, name: str) -> str:
 
 def _python_script(step: str) -> str:
     block = step.split("        run: |\n", 1)[1]
-    lines = block.removeprefix("          python - <<'PY'\n").splitlines()
+    block = re.sub(r"\A          python3? - <<'PY'\n", "", block)
+    lines = block.splitlines()
     script = []
     for line in lines:
         if line.strip() == "PY":
@@ -104,6 +105,58 @@ def _run_event_validator(tmp_path: Path, raw: bytes):
         },
     ):
         namespace["main"]()
+
+
+def _run_repository_identity_preflight(caller_repository: str, target_repository: str):
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
+    namespace = {"__name__": "test_reusable_analysis_repository_identity"}
+    script = _python_script(step)
+    with patch.dict(
+        os.environ,
+        {
+            "HARNESS_REPOSITORY": "groktopus/codereview",
+            "HARNESS_SHA": "a" * 40,
+            "CALLER_REPOSITORY": caller_repository,
+            "TARGET_REPOSITORY": target_repository,
+            "PR_NUMBER": "477",
+            "BASE_REF": "main",
+            "BASE_SHA": BASE_SHA,
+            "HEAD_SHA": HEAD_SHA,
+        },
+    ), patch("subprocess.run") as run:
+        run.return_value.returncode = 0
+        exec(compile(script, "reusable analysis repository identity", "exec"), namespace)
+        return run
+
+
+def test_reusable_analysis_rejects_a_different_caller_before_git_or_checkout():
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
+    namespace = {"__name__": "test_reusable_analysis_repository_identity"}
+    script = _python_script(step)
+    with patch.dict(
+        os.environ,
+        {
+            "HARNESS_REPOSITORY": "groktopus/codereview",
+            "HARNESS_SHA": "a" * 40,
+            "CALLER_REPOSITORY": "attacker/untrusted",
+            "TARGET_REPOSITORY": TARGET_REPOSITORY,
+            "PR_NUMBER": "477",
+            "BASE_REF": "main",
+            "BASE_SHA": BASE_SHA,
+            "HEAD_SHA": HEAD_SHA,
+        },
+    ), patch("subprocess.run") as run:
+        with pytest.raises(SystemExit, match="caller_target_repository_mismatch"):
+            exec(compile(script, "reusable analysis repository identity", "exec"), namespace)
+        run.assert_not_called()
+
+
+def test_reusable_analysis_accepts_the_exact_caller_target_repository():
+    run = _run_repository_identity_preflight(TARGET_REPOSITORY, TARGET_REPOSITORY)
+    run.assert_called_once()
+    assert run.call_args.args[0] == ["git", "check-ref-format", "refs/heads/main"]
 
 
 def _caller_triggers_canary(caller: str, publisher: str) -> bool:
