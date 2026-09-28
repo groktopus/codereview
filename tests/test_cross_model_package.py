@@ -10,7 +10,11 @@ import pytest
 from pr_review_harness.claim_assessment import _DIMENSIONS as JEV_CHOICES
 from pr_review_harness.claim_assessment import CONTRACT_VERSION as JEV_VERSION
 from pr_review_harness.claim_assessment import _question_id
-from pr_review_harness.cross_model_package import build_cross_model_package, validate_model_teacher_packet_identity
+from pr_review_harness.cross_model_package import (
+    _validate_capture_packet_inventory,
+    build_cross_model_package,
+    validate_model_teacher_packet_identity,
+)
 from pr_review_harness.cross_model_v2 import calls_manifest_sha256
 from pr_review_harness.evaluation import EvaluationError
 from pr_review_harness.private_capture import CONTENT_TRANSFORM, PrivateShadowCapture, write_provider_exchange
@@ -28,6 +32,23 @@ def _json_bytes(value, *, ascii_only=False):
 
 def _sha(raw):
     return hashlib.sha256(raw).hexdigest()
+
+
+def test_packager_rejects_world_readable_packet_even_with_matching_hash(tmp_path):
+    packet_dir = tmp_path / "case-packets"
+    packet_dir.mkdir(mode=0o700)
+    packet = packet_dir / "packet-1.json"
+    raw = b'{"case":1}\n'
+    packet.write_bytes(raw)
+    packet.chmod(0o644)
+    capture = {
+        "case_packet_inventory": {
+            "schema": "model-only-shadow-packet-inventory.v1",
+            "packets": [{"path": packet.name, "sha256": _sha(raw)}],
+        },
+    }
+    with pytest.raises(EvaluationError, match="writer_capture_packet_inventory_invalid"):
+        _validate_capture_packet_inventory(tmp_path, capture)
 
 
 def _role(role, response_id, request_id, request, response, status="completed"):

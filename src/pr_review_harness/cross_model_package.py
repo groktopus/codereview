@@ -86,6 +86,12 @@ def _validate_capture_packet_inventory(capture_root: Path, capture: dict[str, An
     if {path.name for path in entries} != set(expected):
         _fail("writer_capture_packet_inventory_mismatch")
     for path in entries:
+        try:
+            packet_info = path.lstat()
+        except OSError:
+            _fail("writer_capture_packet_inventory_invalid")
+        if not stat.S_ISREG(packet_info.st_mode) or stat.S_IMODE(packet_info.st_mode) != 0o600:
+            _fail("writer_capture_packet_inventory_invalid")
         if _sha(_read(path, 4_000_000)) != expected[path.name]:
             _fail("writer_capture_packet_inventory_mismatch")
     return expected
