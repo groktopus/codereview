@@ -82,9 +82,14 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
 
 def test_writer_receipt_upload_runs_after_later_audit_failure_only_when_sanitized():
     text = WORKFLOW.read_text(encoding="utf-8")
+    sanitize = text.split("id: writer-sanitize", 1)[1].split("# AuditDispatchGuard", 1)[0]
     upload = text.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1].split(
         "- name: Upload only the hash-only model-only audit receipt", 1
     )[0]
+    assert "set -euo pipefail" in sanitize
+    assert sanitize.index("sanitize_model_only_shadow_writer_receipt.py") < sanitize.index(
+        "echo 'validated=true' >> \"$GITHUB_OUTPUT\""
+    )
     assert "if: always() && steps.writer-sanitize.outputs.validated == 'true'" in upload
     assert "private-writer-sanitized/writer-receipt.json" in upload
     assert "private-writer-sanitized/writer-outcomes.json" in upload

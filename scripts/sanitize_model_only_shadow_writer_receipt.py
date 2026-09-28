@@ -278,7 +278,7 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     _validate_packet_inventory(root, manifest)
 
     calls = manifest["calls"]
-    if len(calls) != 10:
+    if len(calls) != case_policy["writer_calls"]:
         raise ReceiptError("capture_call_count_mismatch")
     seen: set[str] = set()
     receipts = []
