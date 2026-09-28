@@ -13,6 +13,7 @@ from typing import Any
 from .claim_assessment import _DIMENSIONS as JEV_DIMENSION_CRITERIA
 from .claim_assessment import CONTRACT_VERSION as JEV_CONTRACT_VERSION
 from .claim_assessment import _question_id
+from .contracts import MAX_ITEMS, MAX_TEXT_BYTES, SPECIALIST_V1, ContractIssue, validate_candidate
 from .cross_model_v2 import CONTRACT_VERSION, calls_manifest_sha256, compare_cross_model_v2
 from .evaluation import MAX_INPUT_BYTES, EvaluationError, validate_corpus
 
@@ -37,6 +38,7 @@ _SHADOW_PATHS = {
     "claim-auditor-request": "claim-auditor.request.json",
     "claim-auditor-response": "claim-auditor.response.json",
 }
+_DISPATCH_STATES = {"guard_rejected", "http_attempted", "post_guard_pretransport", "unknown"}
 
 
 def _fail(code: str) -> None:
@@ -189,8 +191,19 @@ def _role_call(run: dict[str, Any], role: str, private_dir: Path, artifact_map: 
     if not isinstance(calls, list) or len(calls) != 1:
         _fail("shadow_call_missing_or_ambiguous")
     call = calls[0]
-    if set(call) != {"call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id"}:
+    call_fields = {"call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id"}
+    if frozenset(call) not in {frozenset(call_fields), frozenset(call_fields | {"dispatch_state"})}:
         _fail("shadow_call_binding_invalid")
+    if "dispatch_state" in call and (
+        not isinstance(call["dispatch_state"], str) or call["dispatch_state"] not in _DISPATCH_STATES
+    ):
+        _fail("shadow_call_binding_invalid")
+    if "dispatch_state" in call and call["dispatch_state"] != "http_attempted":
+        # This package requires a response artifact for every role call. A
+        # response-bearing call cannot represent a guard rejection, a
+        # pre-transport failure, or an unknown dispatch outcome as a verified
+        # provider result. Missing state remains accepted for older captures.
+        _fail("shadow_dispatch_state_not_http_attempted")
     call_id = _expect_id(call["call_id"], "shadow_call_binding_invalid")
     request_id = _expect_id(call["request_artifact_id"], "shadow_call_binding_invalid")
     response_id = _expect_id(call["response_artifact_id"], "shadow_call_binding_invalid")
@@ -208,6 +221,15 @@ def _role_call(run: dict[str, Any], role: str, private_dir: Path, artifact_map: 
     artifact_map[request_id] = request_path
     artifact_map[response_id] = response_path
     return {"call": call, "request": request_raw, "response": response_raw, "call_id": call_id}
+
+
+def _role_for_v2(run: dict[str, Any]) -> dict[str, Any]:
+    """Drop validated dispatch metadata when projecting into the closed v2 call schema."""
+    call_fields = ("call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id")
+    value = dict(run)
+    value["calls"] = [{field: call[field] for field in call_fields} for call in run["calls"]]
+    value["calls_manifest_sha256"] = calls_manifest_sha256(value["calls"])
+    return value
 
 
 _MODEL_TEACHER_CORPUS_ID = "model-only-shadow-pr464-v1"
@@ -290,6 +312,7 @@ def build_cross_model_package(
     *, corpus_value: dict[str, Any], case_packet_path: Path, capture_root: Path,
     shadow_root: Path, output_dir: Path, identity_manifest_value: dict[str, Any] | None = None,
     identity_plan_value: dict[str, Any] | None = None, identity_plan_sha256: str | None = None,
+    writer_validation_limits: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Verify exact writer/audit captures, emit v2 comparison and sanitized report."""
     corpus = validate_corpus(corpus_value)
@@ -388,6 +411,16 @@ def build_cross_model_package(
     task_id = source_task.get("task_id") if isinstance(source_task, dict) else None
     if not isinstance(task_id, str) or not _ID.fullmatch(task_id) or not isinstance(source_evidence, list):
         _fail("writer_task_identity_invalid")
+    if writer_validation_limits is not None and (
+        set(writer_validation_limits) != {"max_output_items", "max_item_text_bytes"}
+        or any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 1
+            for value in writer_validation_limits.values()
+        )
+        or writer_validation_limits["max_output_items"] > MAX_ITEMS
+        or writer_validation_limits["max_item_text_bytes"] > MAX_TEXT_BYTES
+    ):
+        _fail("writer_validation_limits_invalid")
     candidate_occurrences = 0
     candidate_content_occurrences = 0
     for call in packet_calls:
@@ -431,14 +464,43 @@ def build_cross_model_package(
         candidates = writer_payload.get("finding_candidates") if isinstance(writer_payload, dict) else None
         if not isinstance(candidates, list):
             _fail("writer_response_contract_invalid")
-        for index, item in enumerate(candidates):
+        source_version = writer_payload.get("contract_version", SPECIALIST_V1)
+        task_units = source_task.get("unit_ids")
+        valid_unit_ids = set(task_units) if isinstance(task_units, list) and all(
+            isinstance(unit_id, str) for unit_id in task_units
+        ) else None
+        valid_evidence_ids = {
+            item.get("evidence_id") for item in source_evidence
+            if isinstance(item, dict) and isinstance(item.get("evidence_id"), str)
+        }
+        accepted_index = 0
+        for item in candidates:
             if not isinstance(item, dict):
                 continue
-            if all(item.get(field) == candidate.get(field) for field in _WRITER_FIELDS):
+            try:
+                normalized = validate_candidate(item, source_version, valid_unit_ids)
+            except (ContractIssue, TypeError, ValueError):
+                continue
+            if not set(normalized["evidence_refs"]).issubset(valid_evidence_ids):
+                continue
+            if accepted_index and writer_validation_limits is None:
+                _fail("writer_validation_limits_unavailable")
+            if writer_validation_limits is not None:
+                if any(
+                    len(normalized[field].encode("utf-8")) > writer_validation_limits["max_item_text_bytes"]
+                    for field in ("title", "observation", "consequence", "rule_or_contract")
+                ):
+                    continue
+                if accepted_index >= writer_validation_limits["max_output_items"]:
+                    continue
+            if all(normalized.get(field) == candidate.get(field) for field in _WRITER_FIELDS):
                 candidate_content_occurrences += 1
-            candidate_id = _sha(_canonical({"task_id": task_id, "index": index, "raw": item}))[:24]
-            if candidate_id == candidate.get("candidate_id") and all(item.get(field) == candidate.get(field) for field in _WRITER_FIELDS):
+            candidate_id = _sha(_canonical({"task_id": task_id, "index": accepted_index, "raw": normalized}))[:24]
+            if candidate_id == candidate.get("candidate_id") and all(
+                normalized.get(field) == candidate.get(field) for field in _WRITER_FIELDS
+            ):
                 candidate_occurrences += 1
+            accepted_index += 1
         writer_artifacts[call["response_artifact_id"]] = response_path
         writer_calls.append(dict(call))
     if candidate_occurrences != 1 or candidate_content_occurrences != 1:
@@ -513,9 +575,33 @@ def build_cross_model_package(
     claim_records = []
     answers = jev_output["answers"]
     questions = jev_request["questions"]
-    cited_refs = jev_request["state"].get("candidate", {}).get("evidence_refs")
-    if not isinstance(cited_refs, list) or cited_refs != candidate["evidence_refs"]:
+    cited_evidence = jev_request["state"].get("cited_evidence")
+    expected_cited_evidence = [
+        {
+            key: item[key]
+            for key in ("content", "content_hash", "evidence_id", "path", "source_kind", "source_revision", "trust")
+        }
+        | {
+            "line": None,
+            "side": (
+                "BASE" if item["source_revision"] == snapshot["base_sha"]
+                else "HEAD" if item["source_revision"] == snapshot["head_sha"]
+                else None
+            ),
+        }
+        for item in packet["source_evidence"] if item["evidence_id"] in candidate["evidence_refs"]
+    ]
+    if (
+        not isinstance(cited_evidence, list)
+        or any(not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str) for item in cited_evidence)
+        or len({item["evidence_id"] for item in cited_evidence}) != len(cited_evidence)
+        or {item["evidence_id"] for item in cited_evidence} != set(candidate["evidence_refs"])
+        or any(set(item) != set(expected_cited_evidence[0]) for item in cited_evidence)
+        or {item["evidence_id"]: item for item in cited_evidence}
+        != {item["evidence_id"]: item for item in expected_cited_evidence}
+    ):
         _fail("jev_evidence_binding_invalid")
+    cited_refs = candidate["evidence_refs"]
     expected_answer_statuses = []
     choices = []
     for dimension in _DIMENSIONS:
@@ -604,7 +690,7 @@ def build_cross_model_package(
         "rubric_revision": writer["rubric_revision"], "calls": writer_calls,
         "calls_manifest_sha256": calls_manifest_sha256(writer_calls),
     })
-    runs.extend(shadow["roles"][role] for role in ("jev", "source_auditor", "claim_auditor"))
+    runs.extend(_role_for_v2(shadow["roles"][role]) for role in ("jev", "source_auditor", "claim_auditor"))
     if shadow["roles"].get("writer") != writer:
         _fail("shadow_writer_copy_mismatch")
     comparison = {

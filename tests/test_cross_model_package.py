@@ -10,6 +10,7 @@ import pytest
 from pr_review_harness.claim_assessment import _DIMENSIONS as JEV_CHOICES
 from pr_review_harness.claim_assessment import CONTRACT_VERSION as JEV_VERSION
 from pr_review_harness.claim_assessment import _question_id
+from pr_review_harness.contracts import SPECIALIST_V4, validate_candidate
 from pr_review_harness.cross_model_package import (
     _validate_capture_packet_inventory,
     build_cross_model_package,
@@ -24,6 +25,7 @@ DIMENSIONS = (
     "observation_support", "consequence_support", "rule_connection_support",
     "materiality", "missing_context", "introducedness",
 )
+TEST_VALIDATION_LIMITS = {"max_output_items": 32, "max_item_text_bytes": 12_000}
 
 
 def _json_bytes(value, *, ascii_only=False):
@@ -64,7 +66,7 @@ def _role(role, response_id, request_id, request, response, status="completed"):
     }
 
 
-def _fixture(tmp_path, *, duplicate_candidate=False):
+def _fixture(tmp_path, *, duplicate_candidate=False, invalid_predecessor=False):
     corpus = deepcopy(json.loads((ROOT / "examples/evaluation/corpus.json").read_text()))
     identity = corpus["cases"][0]["identity"]
     profile = {"profile_id": identity["profile"]["profile_id"], "version": identity["profile"]["version"],
@@ -88,15 +90,17 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
     }
     snapshot = {"snapshot_id": identity["snapshot_id"], **snapshot_body,
                 "snapshot_hash": _sha(_json_bytes(snapshot_body, ascii_only=True))}
-    source_task = {"task_id": task_id, "summary": "Review the supplied handler."}
+    source_task = {"task_id": task_id, "summary": "Review the supplied handler.", "unit_ids": ["unit-7"]}
     raw_candidate = {
-        "path": "src/example.py", "line": 7, "title": "Missing validation — Über", "observation": "The handler forwards an unchecked value.",
+        "unit_id": "unit-7", "location": {"kind": "line", "path": "src/example.py", "side": "HEAD", "line": 7, "reason": None},
+        "title": "Missing validation — Über", "observation": "The handler forwards an unchecked value.",
         "consequence": "A malformed value may fail unexpectedly.", "rule_or_contract": "Inputs must be validated.",
-        "severity": "medium", "reasoning_kind": "inferred", "evidence_refs": ["ev-1"],
+        "severity": "medium", "reasoning_kind": "inferred", "introducedness": "INTRODUCED", "evidence_refs": ["ev-1"],
     }
+    normalized_candidate = validate_candidate(raw_candidate, SPECIALIST_V4, {"unit-7"})
     writer_candidate = {
-        "candidate_id": _sha(_json_bytes({"task_id": task_id, "index": 0, "raw": raw_candidate}, ascii_only=True))[:24],
-        **{key: raw_candidate[key] for key in ("title", "observation", "consequence", "rule_or_contract", "evidence_refs")},
+        "candidate_id": _sha(_json_bytes({"task_id": task_id, "index": 0, "raw": normalized_candidate}, ascii_only=True))[:24],
+        **{key: normalized_candidate[key] for key in ("title", "observation", "consequence", "rule_or_contract", "evidence_refs")},
     }
     capture_root = tmp_path / "capture"
     task_payload = {"task": source_task, "evidence": [evidence]}
@@ -104,6 +108,8 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
         {"role": "system", "content": "review"}, {"role": "user", "content": _json_bytes(task_payload).decode()},
     ]})
     writer_findings = [raw_candidate, deepcopy(raw_candidate)] if duplicate_candidate else [raw_candidate]
+    if invalid_predecessor:
+        writer_findings.insert(0, {"title": "Invalid candidate dropped by validation"})
     writer_response = _json_bytes({"contract_version": "specialist-findings.v4", "finding_candidates": writer_findings,
                                    "context_gap_proposals": [], "coverage_notes": []})
     writer_provider = type("WriterProvider", (), {"identity": {
@@ -122,7 +128,10 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
     result = {
         "snapshot_id": snapshot["snapshot_id"], "run_id": writer_run_id,
         "findings": [{"assessment_records": [{"candidate_id": writer_candidate["candidate_id"], "task_id": task_id}]}],
-        "task_results": {task_id: {"status": "SUCCEEDED", "payload": {"finding_candidates": writer_findings}}},
+        "task_results": {task_id: {"status": "SUCCEEDED", "payload": {"finding_candidates": [
+            validate_candidate(item, SPECIALIST_V4, {"unit-7"}) for item in writer_findings
+            if item.get("location") is not None
+        ]}}},
     }
     packet_path = capture.export_case_packets(result, profile=profile)[0]
     packet = json.loads(packet_path.read_text())
@@ -143,7 +152,10 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
     ]})
     source_response = _json_bytes({"contract_version": "shadow-source-audit.v1", "status": "completed",
                                    "records": [{"record_id": "source-note-1", "summary": "A grounded observation.", "evidence_refs": ["ev-1"]}]})
-    jev_state = {"candidate": writer_candidate, "cited_evidence": [evidence], "assessment_identity": {
+    jev_cited_evidence = {
+        key: evidence[key] for key in ("content", "content_hash", "evidence_id", "path", "source_kind", "source_revision", "trust")
+    } | {"line": None, "side": "HEAD"}
+    jev_state = {"candidate": writer_candidate, "cited_evidence": [jev_cited_evidence], "assessment_identity": {
         "snapshot_id": snapshot["snapshot_id"], "snapshot_hash": snapshot["snapshot_hash"], "profile_id": packet["profile_id"],
         "profile_hash": snapshot["profile_hash"], "base_sha": snapshot["base_sha"], "head_sha": snapshot["head_sha"]
     }}
@@ -204,7 +216,8 @@ def _fixture(tmp_path, *, duplicate_candidate=False):
 def test_package_verifies_four_role_bytes_and_reports_only_advisory_presence(tmp_path):
     corpus, packet_path, capture_root, shadow_root, out, packet, shadow = _fixture(tmp_path)
     result = build_cross_model_package(corpus_value=corpus, case_packet_path=packet_path,
-                                      capture_root=capture_root, shadow_root=shadow_root, output_dir=out)
+                                      capture_root=capture_root, shadow_root=shadow_root, output_dir=out,
+                                      writer_validation_limits=TEST_VALIDATION_LIMITS)
     report = result["report"]
     assert report["artifact_verification"]["status_counts"]["VERIFIED"] == 8
     assert report["assertion_verification"]["verified_structured_relation_count"] == 6
@@ -216,6 +229,55 @@ def test_package_verifies_four_role_bytes_and_reports_only_advisory_presence(tmp
     assert (out / "comparison-v2.json").stat().st_mode & 0o777 == 0o600
     assert (out / "comparison-report.json").stat().st_mode & 0o777 == 0o600
     assert not any(value in (out / "comparison-report.json").read_text() for value in ("Missing validation", "Über untrusted excerpt"))
+
+
+def test_package_accepts_bound_shadow_dispatch_state_metadata(tmp_path):
+    corpus, packet_path, capture_root, shadow_root, out, _, shadow = _fixture(tmp_path)
+    for role in ("source_auditor", "jev", "claim_auditor"):
+        run = shadow["roles"][role]
+        run["calls"][0]["dispatch_state"] = "http_attempted"
+        run["calls_manifest_sha256"] = calls_manifest_sha256(run["calls"])
+    (shadow_root / "shadow-audit-manifest.json").write_bytes(_json_bytes(shadow, ascii_only=True))
+    result = build_cross_model_package(
+        corpus_value=corpus, case_packet_path=packet_path, capture_root=capture_root,
+        shadow_root=shadow_root, output_dir=out, writer_validation_limits=TEST_VALIDATION_LIMITS,
+    )
+    assert result["report"]["artifact_verification"]["status_counts"]["VERIFIED"] == 8
+
+
+@pytest.mark.parametrize("role", ["source_auditor", "jev", "claim_auditor"])
+@pytest.mark.parametrize(
+    "dispatch_state", ["guard_rejected", "post_guard_pretransport", "unknown"]
+)
+def test_package_rejects_response_bearing_completed_shadow_role_without_http_attempt(
+    tmp_path, role, dispatch_state
+):
+    corpus, packet_path, capture_root, shadow_root, out, _, shadow = _fixture(tmp_path)
+    run = shadow["roles"][role]
+    assert run["status"] == "completed"
+    assert run["calls"][0]["response_artifact_id"]
+    run["calls"][0]["dispatch_state"] = dispatch_state
+    run["calls_manifest_sha256"] = calls_manifest_sha256(run["calls"])
+    (shadow_root / "shadow-audit-manifest.json").write_bytes(_json_bytes(shadow, ascii_only=True))
+    with pytest.raises(EvaluationError, match="shadow_dispatch_state_not_http_attempted"):
+        build_cross_model_package(
+            corpus_value=corpus, case_packet_path=packet_path, capture_root=capture_root,
+            shadow_root=shadow_root, output_dir=out, writer_validation_limits=TEST_VALIDATION_LIMITS,
+        )
+
+
+@pytest.mark.parametrize("dispatch_state", ["unverified_state", [], {}])
+def test_package_rejects_unknown_or_malformed_shadow_dispatch_state(tmp_path, dispatch_state):
+    corpus, packet_path, capture_root, shadow_root, out, _, shadow = _fixture(tmp_path)
+    run = shadow["roles"]["source_auditor"]
+    run["calls"][0]["dispatch_state"] = dispatch_state
+    run["calls_manifest_sha256"] = calls_manifest_sha256(run["calls"])
+    (shadow_root / "shadow-audit-manifest.json").write_bytes(_json_bytes(shadow, ascii_only=True))
+    with pytest.raises(EvaluationError, match="shadow_call_binding_invalid"):
+        build_cross_model_package(
+            corpus_value=corpus, case_packet_path=packet_path, capture_root=capture_root,
+            shadow_root=shadow_root, output_dir=out, writer_validation_limits=TEST_VALIDATION_LIMITS,
+        )
 
 
 def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
@@ -292,7 +354,55 @@ def test_duplicate_matching_writer_candidate_fails_even_when_hashes_are_bound(tm
     corpus, packet_path, capture_root, shadow_root, out, _, _ = _fixture(tmp_path, duplicate_candidate=True)
     with pytest.raises(EvaluationError, match="writer_candidate_response_missing_or_ambiguous"):
         build_cross_model_package(corpus_value=corpus, case_packet_path=packet_path,
-                                  capture_root=capture_root, shadow_root=shadow_root, output_dir=out)
+                                  capture_root=capture_root, shadow_root=shadow_root, output_dir=out,
+                                  writer_validation_limits=TEST_VALIDATION_LIMITS)
+
+
+def test_normalized_candidate_identity_uses_accepted_ordinal_after_invalid_raw_candidate(tmp_path):
+    corpus, packet_path, capture_root, shadow_root, out, packet, _ = _fixture(
+        tmp_path, invalid_predecessor=True,
+    )
+    result = build_cross_model_package(
+        corpus_value=corpus, case_packet_path=packet_path, capture_root=capture_root,
+        shadow_root=shadow_root, output_dir=out,
+    )
+    assert result["report"]["artifact_verification"]["status_counts"]["VERIFIED"] == 8
+    assert packet["writer_candidate"]["candidate_id"]
+
+
+def test_package_fails_closed_when_prior_candidate_ordinal_needs_unbound_limits(tmp_path):
+    corpus, packet_path, capture_root, shadow_root, out, _, _ = _fixture(
+        tmp_path, duplicate_candidate=True,
+    )
+    with pytest.raises(EvaluationError, match="writer_validation_limits_unavailable"):
+        build_cross_model_package(
+            corpus_value=corpus, case_packet_path=packet_path, capture_root=capture_root,
+            shadow_root=shadow_root, output_dir=out,
+        )
+
+
+def test_synth_candidate_validation_limits_follow_hash_bound_provider_config(tmp_path, monkeypatch):
+    import scripts.package_synth_001_cross_model as synth_package
+
+    contract = synth_package._identity()
+    configuration = contract["configuration"]
+    verification = {
+        "runtime": configuration["runtime"],
+        "module_count": configuration["module_count"],
+        "module_tree_sha256": configuration["module_tree_sha256"],
+    }
+    assert synth_package._check_configuration(contract, verification) == {
+        "max_output_items": 32,
+        "max_item_text_bytes": 12_000,
+    }
+
+    changed_provider = json.loads(synth_package.PROVIDER_PATH.read_text())
+    changed_provider["max_output_items"] = 1
+    changed_provider_path = tmp_path / "changed-provider.json"
+    changed_provider_path.write_text(json.dumps(changed_provider))
+    monkeypatch.setattr(synth_package, "PROVIDER_PATH", changed_provider_path)
+    with pytest.raises(synth_package.PackageError, match="package_configuration_mismatch"):
+        synth_package._check_configuration(contract, verification)
 
 
 def test_writer_request_for_another_task_fails_even_with_updated_receipt_hash(tmp_path):
@@ -325,7 +435,8 @@ def test_writer_request_for_another_task_fails_even_with_updated_receipt_hash(tm
     (capture_root / "manifest.json").write_bytes(_json_bytes(capture))
     with pytest.raises(EvaluationError, match="writer_request_task_binding_mismatch"):
         build_cross_model_package(corpus_value=corpus, case_packet_path=packet_path,
-                                  capture_root=capture_root, shadow_root=shadow_root, output_dir=out)
+                                  capture_root=capture_root, shadow_root=shadow_root, output_dir=out,
+                                  writer_validation_limits=TEST_VALIDATION_LIMITS)
 
 
 def test_claim_audit_cannot_bind_to_a_mutated_jev_classification(tmp_path):
@@ -343,7 +454,8 @@ def test_claim_audit_cannot_bind_to_a_mutated_jev_classification(tmp_path):
     (shadow_root / "shadow-audit-manifest.json").write_bytes(_json_bytes(shadow, ascii_only=True))
     with pytest.raises(EvaluationError, match="jev_classification_response_mismatch"):
         build_cross_model_package(corpus_value=corpus, case_packet_path=packet_path,
-                                  capture_root=capture_root, shadow_root=shadow_root, output_dir=out)
+                                  capture_root=capture_root, shadow_root=shadow_root, output_dir=out,
+                                  writer_validation_limits=TEST_VALIDATION_LIMITS)
 
 
 def test_private_capture_emits_the_packet_and_run_id_join_expected_by_packager(tmp_path):
