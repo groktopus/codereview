@@ -24,10 +24,17 @@ MAX_TREE_ENTRIES = 2048
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MANIFEST_NAME = "recovery-manifest.json"
-SCHEMA = "pr-analysis-recovery-artifact.v1"
+SCHEMA = "pr-analysis-recovery-artifact.v2"
 IDENTITY_KEYS = (
     "workflow_repository",
     "workflow_run_id",
+    "workflow_run_attempt",
+    "workflow_run_head_sha",
+    "run_workflow_ref",
+    "called_workflow_ref",
+    "called_workflow_sha",
+    "called_workflow_repository",
+    "called_workflow_file_path",
     "target_repository",
     "pull_request_number",
     "base_sha",
@@ -153,6 +160,38 @@ def _identity(value: dict[str, Any]) -> dict[str, Any]:
         raise ManifestError("recovery_repository_invalid")
     if not isinstance(value["workflow_run_id"], str) or not re.fullmatch(r"[1-9][0-9]{0,19}", value["workflow_run_id"]):
         raise ManifestError("recovery_run_id_invalid")
+    if not isinstance(value["workflow_run_attempt"], str) or not re.fullmatch(
+        r"[1-9][0-9]{0,5}", value["workflow_run_attempt"]
+    ):
+        raise ManifestError("recovery_run_attempt_invalid")
+    if not REPO.fullmatch(value["called_workflow_repository"]):
+        raise ManifestError("recovery_workflow_repository_invalid")
+    if not SHA1.fullmatch(value["called_workflow_sha"]):
+        raise ManifestError("recovery_workflow_revision_invalid")
+    if not SHA1.fullmatch(value["workflow_run_head_sha"]):
+        raise ManifestError("recovery_run_revision_invalid")
+    workflow_ref = value["called_workflow_ref"]
+    workflow_path = value["called_workflow_file_path"]
+    run_workflow_ref = value["run_workflow_ref"]
+    if value["workflow_repository"].casefold() != value["target_repository"].casefold():
+        raise ManifestError("recovery_workflow_target_mismatch")
+    if value["called_workflow_repository"] != value["harness_repository"]:
+        raise ManifestError("recovery_workflow_repository_mismatch")
+    if (
+        not isinstance(workflow_ref, str)
+        or len(workflow_ref) > 1024
+        or workflow_ref.count("@") != 1
+        or workflow_ref.split("@", 1)[0] != f"{value['called_workflow_repository']}/{workflow_path}"
+        or not re.fullmatch(r"[A-Za-z0-9._/-]{1,256}", workflow_ref.split("@", 1)[1])
+        or workflow_path != ".github/workflows/pr-analysis.yml"
+        or not isinstance(run_workflow_ref, str)
+        or len(run_workflow_ref) > 1024
+        or run_workflow_ref.count("@") != 1
+        or run_workflow_ref.split("@", 1)[0].count("/") < 3
+        or not re.fullmatch(r"[A-Za-z0-9._/-]{1,256}", run_workflow_ref.split("@", 1)[1])
+        or not run_workflow_ref.startswith(f"{value['workflow_repository']}/")
+    ):
+        raise ManifestError("recovery_workflow_identity_invalid")
     if (
         isinstance(value["pull_request_number"], bool)
         or not isinstance(value["pull_request_number"], int)
@@ -215,6 +254,13 @@ def identity_from_inputs(
     artifact_root: Path,
     workflow_repository: str,
     workflow_run_id: str,
+    workflow_run_attempt: str,
+    workflow_run_head_sha: str,
+    run_workflow_ref: str,
+    called_workflow_ref: str,
+    called_workflow_sha: str,
+    called_workflow_repository: str,
+    called_workflow_file_path: str,
     target_repository: str,
     pull_request_number: int,
     base_sha: str,
@@ -251,6 +297,13 @@ def identity_from_inputs(
     identity = {
         "workflow_repository": workflow_repository,
         "workflow_run_id": workflow_run_id,
+        "workflow_run_attempt": workflow_run_attempt,
+        "workflow_run_head_sha": workflow_run_head_sha,
+        "run_workflow_ref": run_workflow_ref,
+        "called_workflow_ref": called_workflow_ref,
+        "called_workflow_sha": called_workflow_sha,
+        "called_workflow_repository": called_workflow_repository,
+        "called_workflow_file_path": called_workflow_file_path,
         "target_repository": target_repository,
         "pull_request_number": pull_request_number,
         "base_sha": base_sha,
@@ -363,6 +416,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--identity-json", type=Path, help="trusted identity JSON produced by the workflow controller")
     parser.add_argument("--workflow-repository")
     parser.add_argument("--workflow-run-id")
+    parser.add_argument("--workflow-run-attempt")
+    parser.add_argument("--workflow-run-head-sha")
+    parser.add_argument("--run-workflow-ref")
+    parser.add_argument("--called-workflow-ref")
+    parser.add_argument("--called-workflow-sha")
+    parser.add_argument("--called-workflow-repository")
+    parser.add_argument("--called-workflow-file-path")
     parser.add_argument("--target-repository")
     parser.add_argument("--pull-request-number", type=int)
     parser.add_argument("--base-sha")
@@ -387,6 +447,13 @@ def main(argv: list[str] | None = None) -> int:
                 (
                     args.workflow_repository,
                     args.workflow_run_id,
+                    args.workflow_run_attempt,
+                    args.workflow_run_head_sha,
+                    args.run_workflow_ref,
+                    args.called_workflow_ref,
+                    args.called_workflow_sha,
+                    args.called_workflow_repository,
+                    args.called_workflow_file_path,
                     args.target_repository,
                     args.pull_request_number,
                     args.base_sha,
@@ -401,6 +468,13 @@ def main(argv: list[str] | None = None) -> int:
                 artifact_root=args.artifact_root,
                 workflow_repository=args.workflow_repository,
                 workflow_run_id=args.workflow_run_id,
+                workflow_run_attempt=args.workflow_run_attempt,
+                workflow_run_head_sha=args.workflow_run_head_sha,
+                run_workflow_ref=args.run_workflow_ref,
+                called_workflow_ref=args.called_workflow_ref,
+                called_workflow_sha=args.called_workflow_sha,
+                called_workflow_repository=args.called_workflow_repository,
+                called_workflow_file_path=args.called_workflow_file_path,
                 target_repository=args.target_repository,
                 pull_request_number=args.pull_request_number,
                 base_sha=args.base_sha,

@@ -307,6 +307,13 @@ jobs:
         env:
           WORKFLOW_REPOSITORY: ${{ github.repository }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.sha }}
+          RUN_WORKFLOW_REF: ${{ github.workflow_ref }}
+          CALLED_WORKFLOW_REF: ${{ job.workflow_ref }}
+          CALLED_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          CALLED_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          CALLED_WORKFLOW_FILE_PATH: ${{ job.workflow_file_path }}
           TARGET_REPOSITORY: ${{ inputs.target_repository }}
           PR_NUMBER: ${{ inputs.pull_request_number }}
           BASE_SHA: ${{ inputs.base_sha }}
@@ -322,6 +329,13 @@ jobs:
             --artifact-root artifacts \
             --workflow-repository "$WORKFLOW_REPOSITORY" \
             --workflow-run-id "$WORKFLOW_RUN_ID" \
+            --workflow-run-attempt "$WORKFLOW_RUN_ATTEMPT" \
+            --workflow-run-head-sha "$WORKFLOW_RUN_HEAD_SHA" \
+            --run-workflow-ref "$RUN_WORKFLOW_REF" \
+            --called-workflow-ref "$CALLED_WORKFLOW_REF" \
+            --called-workflow-sha "$CALLED_WORKFLOW_SHA" \
+            --called-workflow-repository "$CALLED_WORKFLOW_REPOSITORY" \
+            --called-workflow-file-path "$CALLED_WORKFLOW_FILE_PATH" \
             --target-repository "$TARGET_REPOSITORY" \
             --pull-request-number "$PR_NUMBER" \
             --base-sha "$BASE_SHA" \
@@ -335,7 +349,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.recovery-manifest.outcome == 'success'
         with:
-          name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}
+          name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/
           if-no-files-found: warn
           retention-days: 7

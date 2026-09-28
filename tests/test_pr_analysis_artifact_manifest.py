@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import sys
+import threading
+import zipfile
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import intake_pr_analysis_artifact as intake
 import pr_analysis_artifact_manifest as manifest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +33,14 @@ def _fixture(tmp_path: Path):
     identity = {
         "workflow_repository": "owner/caller",
         "workflow_run_id": "42",
-        "target_repository": "owner/project",
+        "workflow_run_attempt": "2",
+        "workflow_run_head_sha": "e" * 40,
+        "run_workflow_ref": "owner/caller/.github/workflows/pr-review.yml@refs/heads/main",
+        "called_workflow_ref": "owner/harness/.github/workflows/pr-analysis.yml@refs/heads/main",
+        "called_workflow_sha": "c" * 40,
+        "called_workflow_repository": "owner/harness",
+        "called_workflow_file_path": ".github/workflows/pr-analysis.yml",
+        "target_repository": "owner/caller",
         "pull_request_number": 7,
         "base_sha": "a" * 40,
         "head_sha": "b" * 40,
@@ -143,6 +154,13 @@ def test_manifest_bounds_tree_walk_and_rejects_oversized_or_special_config(tmp_p
             artifact_root=root,
             workflow_repository=identity["workflow_repository"],
             workflow_run_id=identity["workflow_run_id"],
+            workflow_run_attempt=identity["workflow_run_attempt"],
+            workflow_run_head_sha=identity["workflow_run_head_sha"],
+            run_workflow_ref=identity["run_workflow_ref"],
+            called_workflow_ref=identity["called_workflow_ref"],
+            called_workflow_sha=identity["called_workflow_sha"],
+            called_workflow_repository=identity["called_workflow_repository"],
+            called_workflow_file_path=identity["called_workflow_file_path"],
             target_repository=identity["target_repository"],
             pull_request_number=identity["pull_request_number"],
             base_sha=identity["base_sha"],
@@ -163,6 +181,13 @@ def test_manifest_bounds_tree_walk_and_rejects_oversized_or_special_config(tmp_p
             artifact_root=root,
             workflow_repository=identity["workflow_repository"],
             workflow_run_id=identity["workflow_run_id"],
+            workflow_run_attempt=identity["workflow_run_attempt"],
+            workflow_run_head_sha=identity["workflow_run_head_sha"],
+            run_workflow_ref=identity["run_workflow_ref"],
+            called_workflow_ref=identity["called_workflow_ref"],
+            called_workflow_sha=identity["called_workflow_sha"],
+            called_workflow_repository=identity["called_workflow_repository"],
+            called_workflow_file_path=identity["called_workflow_file_path"],
             target_repository=identity["target_repository"],
             pull_request_number=identity["pull_request_number"],
             base_sha=identity["base_sha"],
@@ -249,7 +274,218 @@ def test_reusable_workflow_emits_hash_only_manifest_before_standard_artifact_upl
     assert "recovery-inputs" not in step
     assert "artifacts/provider" not in step and "artifacts/decision" not in step
     assert "LLM_API_KEY" not in step and "JEV_API_KEY" not in step
+    assert "WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}" in step
+    assert "WORKFLOW_RUN_HEAD_SHA: ${{ github.sha }}" in step
+    assert "RUN_WORKFLOW_REF: ${{ github.workflow_ref }}" in step
+    assert "CALLED_WORKFLOW_REF: ${{ job.workflow_ref }}" in step
+    assert "CALLED_WORKFLOW_SHA: ${{ job.workflow_sha }}" in step
+    assert "CALLED_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}" in step
+    assert "CALLED_WORKFLOW_FILE_PATH: ${{ job.workflow_file_path }}" in step
     upload = workflow[end:]
     assert "if: always() && steps.recovery-manifest.outcome == 'success'" in upload
-    assert "name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}" in upload
+    assert "name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}-${{ github.run_attempt }}" in upload
     assert "path: artifacts/" in upload
+
+
+def _intake_fixture(tmp_path: Path):
+    root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path)
+    manifest.create_manifest(
+        root,
+        identity,
+        checkpoint=checkpoint,
+        profile=profile,
+        provider_config=provider,
+        decision_config=decision,
+    )
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(root.rglob("*")):
+            if path.is_file():
+                archive.write(path, path.relative_to(root).as_posix())
+    archive_bytes = archive_buffer.getvalue()
+    run = {
+        "id": 42,
+        "run_attempt": 2,
+        "workflow_id": 77,
+        "status": "completed",
+        "conclusion": "cancelled",
+        "path": ".github/workflows/pr-review.yml@main",
+        "head_sha": "e" * 40,
+        "repository": {"id": 99, "full_name": "owner/caller"},
+        "pull_requests": [
+            {
+                "number": 7,
+                "base": {"sha": "a" * 40},
+                "head": {"sha": "b" * 40},
+            }
+        ],
+        "referenced_workflows": [
+            {
+                "path": "owner/harness/.github/workflows/pr-analysis.yml@main",
+                "sha": "c" * 40,
+                "ref": "refs/heads/main",
+            }
+        ],
+    }
+    listing = {
+        "total_count": 1,
+        "artifacts": [
+            {
+                "id": 501,
+                "name": "pr-review-7-42-2",
+                "size_in_bytes": len(archive_bytes),
+                "expired": False,
+                "digest": "sha256:" + hashlib.sha256(archive_bytes).hexdigest(),
+                "workflow_run": {"id": 42, "repository_id": 99, "head_sha": "e" * 40},
+            }
+        ],
+    }
+    return identity, json.dumps(run).encode(), json.dumps(listing).encode(), archive_bytes
+
+
+def test_read_only_intake_binds_run_attempt_pr_artifact_and_manifest(tmp_path):
+    identity, run, listing, archive = _intake_fixture(tmp_path)
+    output = tmp_path / "recovered"
+    result = intake.intake_pr_analysis_artifact(
+        run_response=run,
+        artifacts_response=listing,
+        archive_bytes=archive,
+        expected_identity=identity,
+        output_dir=output,
+    )
+    assert result["status"] == "CONSISTENCY_VALIDATED"
+    assert result["authenticated_fetch_performed"] is False
+    assert result["expected_identity_independently_trusted"] is False
+    assert result["resume_authorized"] is False
+    assert result["artifact_id"] == 501
+    assert result["files"] == 2
+    recovered = output / "artifact"
+    assert manifest.verify_manifest(recovered, identity)["identity"] == identity
+    assert (recovered / "review" / "pr-7-42.json").is_file()
+
+
+@pytest.mark.parametrize(
+    ("change_run", "change_listing", "error"),
+    [
+        ({"run_attempt": 1}, None, "recovery_run_binding_mismatch"),
+        ({"conclusion": "success"}, None, "recovery_run_binding_mismatch"),
+        ({"status": "in_progress"}, None, "recovery_run_binding_mismatch"),
+        ({"pull_requests": []}, None, "recovery_run_binding_mismatch"),
+        (
+            {
+                "referenced_workflows": [
+                    {
+                        "path": "owner/harness/.github/workflows/pr-analysis.yml@main",
+                        "sha": "f" * 40,
+                        "ref": "refs/heads/main",
+                    }
+                ]
+            },
+            None,
+            "recovery_run_binding_mismatch",
+        ),
+        (
+            {"pull_requests": [{"number": 7, "base": {"sha": "f" * 40}, "head": {"sha": "b" * 40}}]},
+            None,
+            "recovery_run_pr_binding_mismatch",
+        ),
+        (None, {"duplicate": True}, "recovery_artifact_not_unique"),
+    ],
+)
+def test_intake_rejects_wrong_run_pr_or_ambiguous_artifact(tmp_path, change_run, change_listing, error):
+    identity, run_raw, listing_raw, archive = _intake_fixture(tmp_path)
+    run = json.loads(run_raw)
+    listing = json.loads(listing_raw)
+    if change_run:
+        run.update(change_run)
+    if change_listing:
+        listing["artifacts"].append(dict(listing["artifacts"][0]))
+        listing["total_count"] = 2
+    with pytest.raises(manifest.ManifestError, match=error):
+        intake.intake_pr_analysis_artifact(
+            run_response=json.dumps(run).encode(),
+            artifacts_response=json.dumps(listing).encode(),
+            archive_bytes=archive,
+            expected_identity=identity,
+            output_dir=tmp_path / "recovered",
+        )
+
+
+def test_intake_rejects_zip_traversal_and_oversized_api_bytes(tmp_path):
+    identity, run_raw, listing_raw, archive = _intake_fixture(tmp_path)
+    malicious_buffer = io.BytesIO()
+    with zipfile.ZipFile(malicious_buffer, "w", compression=zipfile.ZIP_STORED) as malicious:
+        malicious.writestr("../escape", b"x")
+    malicious_archive = malicious_buffer.getvalue()
+    listing = json.loads(listing_raw)
+    listing["artifacts"][0]["size_in_bytes"] = len(malicious_archive)
+    listing["artifacts"][0]["digest"] = "sha256:" + hashlib.sha256(malicious_archive).hexdigest()
+    with pytest.raises(manifest.ManifestError, match="recovery_archive_path_invalid"):
+        intake.intake_pr_analysis_artifact(
+            run_response=run_raw,
+            artifacts_response=json.dumps(listing).encode(),
+            archive_bytes=malicious_archive,
+            expected_identity=identity,
+            output_dir=tmp_path / "recovered",
+        )
+    with pytest.raises(manifest.ManifestError, match="recovery_api_response_too_large"):
+        intake.intake_pr_analysis_artifact(
+            run_response=b" " * (intake.MAX_API_BYTES + 1),
+            artifacts_response=listing_raw,
+            archive_bytes=archive,
+            expected_identity=identity,
+            output_dir=tmp_path / "recovered-too-large",
+        )
+
+
+def test_intake_refuses_existing_empty_destination(tmp_path):
+    identity, run, listing, archive = _intake_fixture(tmp_path)
+    output = tmp_path / "reserved"
+    output.mkdir()
+    with pytest.raises(manifest.ManifestError, match="recovery_output_must_be_new"):
+        intake.intake_pr_analysis_artifact(
+            run_response=run,
+            artifacts_response=listing,
+            archive_bytes=archive,
+            expected_identity=identity,
+            output_dir=output,
+        )
+
+
+def test_intake_atomically_reserves_destination_for_competing_calls(tmp_path, monkeypatch):
+    identity, run, listing, archive = _intake_fixture(tmp_path)
+    output = tmp_path / "racing"
+    both_staged = threading.Barrier(2)
+    reserve = intake._reserve_output_directory
+
+    def synchronized_reserve(path):
+        both_staged.wait(timeout=5)
+        reserve(path)
+
+    monkeypatch.setattr(intake, "_reserve_output_directory", synchronized_reserve)
+    successes = []
+    failures = []
+
+    def attempt():
+        try:
+            successes.append(
+                intake.intake_pr_analysis_artifact(
+                    run_response=run,
+                    artifacts_response=listing,
+                    archive_bytes=archive,
+                    expected_identity=identity,
+                    output_dir=output,
+                )
+            )
+        except manifest.ManifestError as exc:
+            failures.append(str(exc))
+
+    threads = [threading.Thread(target=attempt) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(successes) == 1
+    assert failures == ["recovery_output_must_be_new"]
+    assert manifest.verify_manifest(output / "artifact", identity)
