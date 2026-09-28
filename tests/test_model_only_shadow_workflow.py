@@ -35,6 +35,7 @@ def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     assert "5873c3f1b297a96c49b78cbcb7be674ab70b3cea" in text
     assert "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0" in text
     assert "--mode staged-pr464 --prepare-only --input-contract specialist-input-v2" in text
+    assert 'mkdir -m 700 -p "$RUNNER_TEMP/private-shadow-preparation"' not in text
     upload = text.split("- name: Upload only the sanitized preparation receipt", 1)[1]
     assert "${{ runner.temp }}/private-shadow-sanitized/summary.json" in upload
     assert "${{ runner.temp }}/private-shadow-sanitized/manifest.json" in upload
