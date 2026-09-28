@@ -342,7 +342,7 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -m 700 "$RUNNER_TEMP/private-shadow-prepare-output"
-          python3 -m pr_review_harness review \
+          if python3 -m pr_review_harness review \
             --repo "$GITHUB_WORKSPACE/target-repo" \
             --base 20a743f0434a1843aa00068483f608f1e213b2af \
             --head bffc26f9e4bf95aca0c252e88a2396d03ece854c \
@@ -353,7 +353,15 @@ jobs:
             --mode AUTO --effect-policy READ_ONLY \
             --run-id "prepare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --output "$RUNNER_TEMP/private-shadow-prepare-output" --prepare-only --json \
-            > "$RUNNER_TEMP/private-shadow-preparation/prepared.json"
+            > "$RUNNER_TEMP/private-shadow-preparation/prepared.json" 2>/dev/null; then
+            :
+          else
+            cli_exit_code=$?
+            python3 scripts/extract_pr_review_failure_code.py \
+              --input "$RUNNER_TEMP/private-shadow-preparation/prepared.json" \
+              --exit-code "$cli_exit_code"
+            exit "$cli_exit_code"
+          fi
 
       - name: Verify the exact plan and write the fresh provider-free receipt
         id: exact-preflight
