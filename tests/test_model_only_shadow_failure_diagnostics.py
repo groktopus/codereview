@@ -89,7 +89,7 @@ def test_extractor_accepts_only_fixed_stage_receipt_and_matching_exit_code(tmp_p
 def test_live_prepare_uses_sanitized_failure_extractor_before_any_secrets():
     workflow = (ROOT / ".github/workflows/private-shadow-capture.yml").read_text(encoding="utf-8")
     live = workflow.split("  live_writer:", 1)[1]
-    prepare = live.split("- name: Prepare the exact current-runtime writer requests without credentials", 1)[1].split(
+    prepare = live.split("- name: Prepare the selected exact writer requests without credentials", 1)[1].split(
         "- name: Verify the exact plan", 1
     )[0]
     assert "2>/dev/null" in prepare
@@ -102,9 +102,9 @@ def test_live_prepare_uses_sanitized_failure_extractor_before_any_secrets():
         "Check writer secret names and exact configured identity"
     )
     identity_step = live.split("- name: Check writer secret names and exact configured identity", 1)[1].split(
-        "- name: Run only the ten pinned read-only writer calls", 1
+        "- name: Run only the selected pinned read-only writer calls", 1
     )[0]
-    writer_step = live.split("- name: Run only the ten pinned read-only writer calls", 1)[1].split(
+    writer_step = live.split("- name: Run only the selected pinned read-only writer calls", 1)[1].split(
         "- name: Sanitize the completed writer capture", 1
     )[0]
     assert "if: steps.exact-preflight.outputs.verified == 'true'" in identity_step
