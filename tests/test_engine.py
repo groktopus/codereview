@@ -12,8 +12,67 @@ import pr_review_harness.engine as engine_module
 from pr_review_harness.engine import EnginePreflightError, prepare_plan_tasks, render_report, run_review
 from pr_review_harness.evidence import ContextRetriever
 from pr_review_harness.planner import plan_review
+from pr_review_harness.private_capture import CONTENT_TRANSFORM
 from pr_review_harness.providers import OpenAIProvider, _validate_specialist
 from pr_review_harness.snapshot import collect_snapshot
+
+
+class PinnedCaptureProbeProvider:
+    """Offline fake that records captured request bytes, then fails without transport."""
+
+    identity = {"provider_id": "capture-probe", "model_id": "offline-probe-v1"}
+    max_request_bytes = 128_000
+    max_response_bytes = 32_768
+    max_output_tokens = 1_800
+    max_output_items = 10
+
+    def serialize_review_request(self, task, evidence, limits):
+        return json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
+
+    def review_with_capture(self, task, evidence, limits, capture_spec, capture_sink):
+        request = self.serialize_review_request(task, evidence, limits)
+        if (
+            capture_spec.get("strict_request_pin") is not True
+            or hashlib.sha256(request).hexdigest() != capture_spec.get("expected_request_sha256")
+        ):
+            raise ValueError("fake_request_pin_mismatch")
+        capture_sink(capture_spec, request, None, "failed", None, None)
+        raise RuntimeError("offline_fake_transport_not_configured")
+
+
+class AdjudicatingCaptureProbeProvider(PinnedCaptureProbeProvider):
+    def review_with_capture(self, task, evidence, limits, capture_spec, capture_sink):
+        request = self.serialize_review_request(task, evidence, limits)
+        if hashlib.sha256(request).hexdigest() != capture_spec.get("expected_request_sha256"):
+            raise ValueError("fake_request_pin_mismatch")
+        refs = [item["evidence_id"] for item in evidence]
+        payload = {
+            "contract_version": "specialist-findings.v4",
+            "finding_candidates": [{
+                "unit_id": task["unit_ids"][0],
+                "location": {"kind": "line", "path": evidence[0]["path"], "side": "HEAD", "line": 1, "reason": None},
+                "title": "Candidate for offline adjudication probe",
+                "observation": "The changed value is used without validation.",
+                "consequence": "Malformed values may fail unexpectedly.",
+                "rule_or_contract": "Inputs should be validated before use.",
+                "severity": "low", "reasoning_kind": "inferred", "evidence_refs": refs,
+                "introducedness": "INTRODUCED",
+            }],
+            "context_gap_proposals": [],
+            "coverage_notes": [{
+                "unit_id": unit_id, "state": "COVERED", "reason_code": "STATIC_REVIEW",
+                "evidence_refs": refs, "coverage_basis": "STATIC_REVIEW",
+            } for unit_id in task["unit_ids"]],
+            "specific_strengths": [], "future_guidance": [],
+        }
+        response = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        capture_sink(capture_spec, request, response, "completed", "b" * 64, CONTENT_TRANSFORM)
+        return {"payload": payload, "usage": {}, "provenance": {"provider": "offline-capture-probe"}}
+
+    def adjudicate(self, _candidate, _evidence, limits):
+        Path(limits["fake_adjudication_marker"]).write_text("called", encoding="utf-8")
+        raise RuntimeError("offline_fake_adjudication_not_configured")
+
 
 LIMITS = {
     "deadline_seconds": 2,
@@ -845,6 +904,124 @@ def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_ch
 
     assert provider.calls == 0
     assert not (tmp_path / "r1.json").exists()
+
+
+def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path):
+    provider = PinnedCaptureProbeProvider()
+    snapshot = make_snapshot()
+    prof = profile(("correctness", "tests", "design", "security", "performance", "maintainability"))
+    snapshot["profile_hash"] = hashlib.sha256(json.dumps(
+        prof, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode()).hexdigest()
+    snapshot["snapshot_hash"] = hashlib.sha256(json.dumps(
+        {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode()).hexdigest()
+    limits = {
+        **LIMITS,
+        "max_provider_calls": 10,
+        "max_retries_per_task": 0,
+        "max_followup_tasks": 0,
+        "max_context_bytes": 1_000_000,
+        "max_output_bytes": 200_000,
+        "max_input_bytes_per_task": 128_000,
+        "max_output_bytes_per_task": 32_768,
+        "max_output_tokens": 1_800,
+    }
+    plan = plan_review(snapshot, prof, "AUTO")
+    prepared, _skipped = prepare_plan_tasks(snapshot, plan, prof, limits, provider)
+    writer_tasks = [task for task in prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"]
+    assert len(writer_tasks) == 6
+    from pr_review_harness.engine import _evidence_for
+
+    pins = {}
+    for task in writer_tasks:
+        evidence = _evidence_for(task, snapshot, limits["max_input_bytes_per_task"])
+        request = provider.serialize_review_request(task, evidence, limits)
+        pins[task["task_id"]] = {
+            "task_id": task["task_id"],
+            "input_sha256": hashlib.sha256(request).hexdigest(),
+            "input_bytes": len(request),
+            "lens": task["lens"],
+            "output_bytes_cap": 32_768,
+            "output_tokens_cap": 1_800,
+        }
+
+    capture_dir = tmp_path / "capture-six-of-ten"
+    result = run_review(
+        snapshot, plan, prof, provider, None, limits, str(tmp_path / "results"), "six-of-ten",
+        private_capture_dir=str(capture_dir), private_capture_case_id="PR-457",
+        private_capture_request_pins=pins,
+        private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": snapshot["snapshot_hash"]},
+    )
+    captured_requests = list((capture_dir / "requests").glob("*.bin"))
+    assert len(captured_requests) == 6
+    assert {hashlib.sha256(path.read_bytes()).hexdigest() for path in captured_requests} == {
+        pin["input_sha256"] for pin in pins.values()
+    }
+    assert result["budget"]["provider_calls_limit"] == 10
+    assert result["budget"]["provider_calls_reserved"] == 6
+
+    below_cap_limits = {**limits, "max_provider_calls": 5}
+    below_cap_dir = tmp_path / "capture-below-cap"
+    with pytest.raises(EnginePreflightError, match="review request is invalid"):
+        run_review(
+            snapshot, plan, prof, provider, None, below_cap_limits, str(tmp_path / "results"), "below-cap",
+            private_capture_dir=str(below_cap_dir), private_capture_case_id="PR-457",
+            private_capture_request_pins=pins,
+            private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": snapshot["snapshot_hash"]},
+        )
+    assert not below_cap_dir.exists()
+
+
+def test_private_capture_skips_semantic_adjudication_for_valid_candidate(tmp_path):
+    provider = AdjudicatingCaptureProbeProvider()
+    snapshot = make_snapshot()
+    prof = profile()
+    snapshot["profile_hash"] = hashlib.sha256(json.dumps(
+        prof, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode()).hexdigest()
+    snapshot["snapshot_hash"] = hashlib.sha256(json.dumps(
+        {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode()).hexdigest()
+    marker = tmp_path / "adjudication-called"
+    limits = {
+        **LIMITS,
+        "max_provider_calls": 10,
+        "max_retries_per_task": 0,
+        "max_followup_tasks": 0,
+        "max_input_bytes_per_task": 128_000,
+        "max_output_bytes_per_task": 32_768,
+        "max_output_tokens": 1_800,
+        "fake_adjudication_marker": str(marker),
+    }
+    plan = plan_review(snapshot, prof, "AUTO")
+    prepared, _skipped = prepare_plan_tasks(snapshot, plan, prof, limits, provider)
+    writer_task = next(task for task in prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS")
+    from pr_review_harness.engine import _evidence_for
+
+    evidence = _evidence_for(writer_task, snapshot, limits["max_input_bytes_per_task"])
+    request = provider.serialize_review_request(writer_task, evidence, limits)
+    pins = {writer_task["task_id"]: {
+        "task_id": writer_task["task_id"], "input_sha256": hashlib.sha256(request).hexdigest(),
+        "input_bytes": len(request), "lens": writer_task["lens"],
+        "output_bytes_cap": 32_768, "output_tokens_cap": 1_800,
+    }}
+
+    capture_dir = tmp_path / "capture-no-adjudication"
+    result = run_review(
+        snapshot, plan, prof, provider, None, limits, str(tmp_path / "results"), "capture-no-adjudication",
+        private_capture_dir=str(capture_dir), private_capture_case_id="PR-457",
+        private_capture_request_pins=pins,
+        private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": snapshot["snapshot_hash"]},
+    )
+    assert len(result["findings"]) == 1
+    assert result["ledger"]["candidate_records"][0]["validation_state"] == "VALID"
+    assert result["findings"][0]["semantic_assessment"] is None
+    assert result["budget"]["provider_calls_reserved"] == 1
+    assert not marker.exists()
+    assert len(list((capture_dir / "requests").glob("*.bin"))) == 1
 
 
 def _add_trusted_policy(snapshot, text):
