@@ -27,7 +27,7 @@ from pr_review_harness.cross_model_package import build_cross_model_package  # n
 from pr_review_harness.evaluation import EvaluationError  # noqa: E402
 
 IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v1.json"
-IDENTITY_SHA256 = "c08c8eea5100abce4728d638f7da06ca34ba4fff30ae958e67b90e56a1dbf34f"
+IDENTITY_SHA256 = "a4cedb98134d87051213ba8419595df1e75d6c81518a846a61299f32b6c4e9f5"
 FIXTURE_DIR = ROOT / "examples/evaluation/seeded-writer-synth-001"
 PROFILE_PATH = ROOT / "experiments/synth-001-writer-profile-v1.json"
 LIMITS_PATH = ROOT / "experiments/synth-001-writer-limits-v1.json"
@@ -117,6 +117,17 @@ def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[di
     if set(bundle) != expected_bundle_fields:
         _fail("preflight_bundle_shape_invalid")
     expected_preflight = contract["preflight"]
+    # The live runner receipt carries operational counters and serialized
+    # request bounds. Snapshot and evidence-index identities are established
+    # by the verifier below; the descriptor digest is checked against the
+    # prepared request in _check_capture_and_packet.
+    bundle_preflight_keys = {
+        "lens", "output_bytes_cap", "output_tokens_cap", "max_provider_calls",
+        "planned_provider_calls", "dispatched_provider_calls", "retries",
+        "context_retrievals", "followups", "claim_assessments",
+        "publication_enabled", "target_code_execution", "request_sha256",
+        "request_bytes",
+    }
     expected_bundle = {
         "schema": "synth-001-live-preflight-bundle.v1",
         "job_nonce": nonce,
@@ -124,7 +135,7 @@ def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[di
         "materialization_sha256": _sha(materialization_raw),
         "prepared_sha256": _sha(prepared_raw),
         "verification_sha256": _sha(verification_raw),
-        **expected_preflight,
+        **{key: expected_preflight[key] for key in bundle_preflight_keys},
         "decision_provider": None,
     }
     if any(bundle.get(key) != value for key, value in expected_bundle.items()):
@@ -164,7 +175,7 @@ def _check_configuration(contract: dict[str, Any], verification: dict[str, Any])
     for key, path in files.items():
         if _hash_file(path, 32_000) != expected[key]:
             _fail("package_configuration_mismatch")
-    provider, _ = _document(PROVIDER_PATH, 32_000)
+    provider, _ = _document(PROVIDER_PATH)
     if (provider.get("provider_id") != expected["provider_id"]
             or provider.get("model") != expected["model"]):
         _fail("package_provider_identity_mismatch")
@@ -199,6 +210,8 @@ def _check_capture_and_packet(
     if (not isinstance(packet_calls, list) or len(packet_calls) != 1
             or not isinstance(capture_calls, list) or len(capture_calls) != 1
             or not isinstance(writer, dict) or writer.get("status") != "completed"
+            # The pinned v1 profile has no profile_id; its exporter writes
+            # "unknown" as a fallback, which does not identify a named profile.
             or packet.get("profile_id") != expected["profile"]["profile_id"]):
         _fail("writer_call_cardinality_mismatch")
     call = packet_calls[0]

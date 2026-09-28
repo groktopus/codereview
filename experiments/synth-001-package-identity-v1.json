@@ -15,7 +15,11 @@
       "base_sha": "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
       "head_sha": "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
       "changed_path": "auth.py",
-      "tracked_paths": ["auth.py", "caller.py", "contract.md"]
+      "tracked_paths": [
+        "auth.py",
+        "caller.py",
+        "contract.md"
+      ]
     }
   },
   "preflight": {
@@ -45,7 +49,10 @@
     "provider_id": "synth_001_prepare_only",
     "model": "openai/gpt-6-luna",
     "adapter_version": "0.2",
-    "runtime": {"implementation": "cpython", "version": "3.14.7"},
+    "runtime": {
+      "implementation": "cpython",
+      "version": "3.14.7"
+    },
     "module_count": 34,
     "module_tree_sha256": "9e0eff9069a80a3c9dfb979ebbc96b5587761b4e9e86a578a3aad6edc1a0813d"
   },
@@ -54,20 +61,25 @@
     "corpus_id": "seeded-writer-synth-001-four-role",
     "dataset_version": "2026-09-28.1",
     "sampling_frame": "pilot_internal",
-    "expected_arms": ["harness"],
+    "expected_arms": [
+      "harness"
+    ],
     "case": {
       "identity": {
         "case_id": "SYNTH-001",
         "family_id": "seeded-writer-synth-001",
         "split": "challenge",
-        "repository": {"owner": "synthetic", "name": "seeded-writer-synth-001"},
+        "repository": {
+          "owner": "synthetic",
+          "name": "seeded-writer-synth-001"
+        },
         "snapshot_id": "snap-a6c6ac33adda6c436e2cf3cf",
         "base_sha": "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
         "head_sha": "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
         "profile": {
-          "profile_id": "synth-001",
+          "profile_id": "unknown",
           "version": "synth-001-writer-prepare-v1",
-          "sha256": "d62a83f4ecbf0b807770c318bd3222c49c72311455eef19f15d6e3d2c7e1ad58"
+          "sha256": "fb5a1bd2f2404f8d8243783eff7119b98d595683016bc9232ac5b83c20c37326"
         },
         "source_manifest": {
           "manifest_id": "seeded-writer-synth-001-visible-fixture",
@@ -84,5 +96,6 @@
         "expected_forbidden_effects": []
       }
     }
-  }
+  },
+  "profile_id_semantics": "The v1 exporter emitted profile_id=unknown because this frozen profile has no profile_id field; this fallback is not proof of a named profile."
 }
