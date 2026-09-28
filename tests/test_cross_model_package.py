@@ -10,7 +10,7 @@ import pytest
 from pr_review_harness.claim_assessment import _DIMENSIONS as JEV_CHOICES
 from pr_review_harness.claim_assessment import CONTRACT_VERSION as JEV_VERSION
 from pr_review_harness.claim_assessment import _question_id
-from pr_review_harness.cross_model_package import build_cross_model_package
+from pr_review_harness.cross_model_package import build_cross_model_package, validate_model_teacher_packet_identity
 from pr_review_harness.cross_model_v2 import calls_manifest_sha256
 from pr_review_harness.evaluation import EvaluationError
 from pr_review_harness.private_capture import CONTENT_TRANSFORM, PrivateShadowCapture, write_provider_exchange
@@ -195,6 +195,53 @@ def test_package_verifies_four_role_bytes_and_reports_only_advisory_presence(tmp
     assert (out / "comparison-v2.json").stat().st_mode & 0o777 == 0o600
     assert (out / "comparison-report.json").stat().st_mode & 0o777 == 0o600
     assert not any(value in (out / "comparison-report.json").read_text() for value in ("Missing validation", "Über untrusted excerpt"))
+
+
+def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
+    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v1"
+    corpus = json.loads((corpus_root / "corpus.json").read_text())
+    manifest = json.loads((corpus_root / "manifest.json").read_text())
+    case = corpus["cases"][0]["identity"]
+    packet = {
+        "contract_version": "model-only-shadow-case.v1",
+        "case_id": manifest["case_id"],
+        "snapshot": {
+            "snapshot_id": case["snapshot_id"],
+            "snapshot_hash": manifest["snapshot_sha256"],
+            "base_sha": case["base_sha"],
+            "head_sha": case["head_sha"],
+            "profile_version": case["profile"]["version"],
+            "profile_hash": case["profile"]["sha256"],
+        },
+    }
+    validate_model_teacher_packet_identity(corpus, packet, manifest)
+    assert manifest["reviewer_kind"] == "model_teacher"
+    assert manifest["gold_labels"] == {"status": "UNAVAILABLE", "packets_present": 0}
+    assert manifest["accuracy_claims"] == "NOT_ESTIMABLE_FROM_THIS_CORPUS"
+
+    discovery_corpus = json.loads((ROOT / "examples/evaluation/corpus.json").read_text())
+    with pytest.raises(EvaluationError, match="evaluation_identity_manifest_invalid"):
+        validate_model_teacher_packet_identity(discovery_corpus, packet, manifest)
+
+    packet["snapshot"]["snapshot_id"] = "snap-c54e437de81bc6a7e9ae5d6a"
+    with pytest.raises(EvaluationError, match="case_snapshot_corpus_mismatch"):
+        validate_model_teacher_packet_identity(corpus, packet, manifest)
+
+
+def test_model_teacher_corpus_rejects_a_profile_mismatch():
+    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v1"
+    corpus = json.loads((corpus_root / "corpus.json").read_text())
+    manifest = json.loads((corpus_root / "manifest.json").read_text())
+    packet = {
+        "case_id": manifest["case_id"],
+        "snapshot": {
+            "snapshot_id": manifest["snapshot_id"], "snapshot_hash": manifest["snapshot_sha256"],
+            "base_sha": manifest["base_sha"], "head_sha": manifest["head_sha"],
+            "profile_version": "slopsearx-production-v2", "profile_hash": "1" * 64,
+        },
+    }
+    with pytest.raises(EvaluationError, match="case_snapshot_corpus_mismatch"):
+        validate_model_teacher_packet_identity(corpus, packet, manifest)
 
 
 def test_duplicate_matching_writer_candidate_fails_even_when_hashes_are_bound(tmp_path):

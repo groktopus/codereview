@@ -169,9 +169,86 @@ def _role_call(run: dict[str, Any], role: str, private_dir: Path, artifact_map: 
     return {"call": call, "request": request_raw, "response": response_raw, "call_id": call_id}
 
 
+_MODEL_TEACHER_CORPUS_ID = "model-only-shadow-pr464-v1"
+_MODEL_TEACHER_MANIFEST_FIELDS = {
+    "schema", "corpus_id", "dataset_version", "case_id", "repository", "base_sha", "head_sha",
+    "snapshot_id", "snapshot_sha256", "profile_version", "profile_sha256", "evidence_index_sha256",
+    "historical_checks_sha256", "check_evidence_sha256", "plan_path", "plan_sha256", "corpus_path",
+    "corpus_sha256", "reviewer_kind", "evaluation_status", "gold_labels", "accuracy_claims", "interpretation",
+}
+
+
+def validate_model_teacher_packet_identity(
+    corpus_value: dict[str, Any], packet: dict[str, Any], manifest_value: dict[str, Any],
+) -> None:
+    """Require the PR-464 packet to match its frozen, explicitly non-gold manifest."""
+    corpus = validate_corpus(corpus_value)
+    manifest = manifest_value
+    if not isinstance(manifest, dict) or set(manifest) != _MODEL_TEACHER_MANIFEST_FIELDS:
+        _fail("evaluation_identity_manifest_invalid")
+    if (
+        manifest.get("schema") != "model-only-shadow-evaluation-identity.v1"
+        or manifest.get("reviewer_kind") != "model_teacher"
+        or manifest.get("evaluation_status") != "FROZEN_INPUTS_NO_MODEL_OUTPUTS"
+        or manifest.get("gold_labels") != {"status": "UNAVAILABLE", "packets_present": 0}
+        or manifest.get("accuracy_claims") != "NOT_ESTIMABLE_FROM_THIS_CORPUS"
+        or corpus.get("corpus_id") != _MODEL_TEACHER_CORPUS_ID
+        or manifest.get("corpus_id") != corpus.get("corpus_id")
+        or manifest.get("dataset_version") != corpus.get("dataset_version")
+        or manifest.get("plan_path") != "experiments/model-only-shadow-live-pr464-plan-v1.json"
+    ):
+        _fail("evaluation_identity_manifest_invalid")
+    if manifest.get("corpus_sha256") != _sha(_canonical(corpus)):
+        _fail("evaluation_identity_manifest_mismatch")
+    plan_path = Path(__file__).resolve().parents[2] / manifest["plan_path"]
+    plan, plan_raw = _json(plan_path, 1_000_000)
+    if _sha(plan_raw) != manifest.get("plan_sha256"):
+        _fail("evaluation_identity_manifest_mismatch")
+    plan_case = plan.get("case")
+    if not isinstance(plan_case, dict) or any(
+        manifest.get(manifest_key) != plan_case.get(plan_key)
+        for manifest_key, plan_key in (
+            ("case_id", "case_id"), ("repository", "repository"), ("base_sha", "base_sha"),
+            ("head_sha", "head_sha"), ("snapshot_id", "snapshot_id"),
+            ("snapshot_sha256", "snapshot_sha256"), ("profile_version", "profile_version"),
+            ("profile_sha256", "profile_file_sha256"), ("evidence_index_sha256", "evidence_index_sha256"),
+            ("historical_checks_sha256", "historical_checks_sha256"),
+            ("check_evidence_sha256", "check_evidence_sha256"),
+        )
+    ):
+        _fail("evaluation_identity_manifest_mismatch")
+    cases = [case for case in corpus["cases"] if case["identity"]["case_id"] == manifest.get("case_id")]
+    if len(cases) != 1:
+        _fail("evaluation_identity_manifest_mismatch")
+    identity = cases[0]["identity"]
+    expected_repository = identity["repository"]
+    if (
+        manifest.get("repository") != f"{expected_repository['owner']}/{expected_repository['name']}"
+        or manifest.get("base_sha") != identity["base_sha"]
+        or manifest.get("head_sha") != identity["head_sha"]
+        or manifest.get("snapshot_id") != identity["snapshot_id"]
+        or manifest.get("profile_version") != identity["profile"]["version"]
+        or manifest.get("profile_sha256") != identity["profile"]["sha256"]
+        or identity["source_manifest"].get("manifest_id") != "model-only-shadow-live-pr464-plan-v1"
+        or identity["source_manifest"].get("sha256") != manifest.get("plan_sha256")
+    ):
+        _fail("evaluation_identity_manifest_mismatch")
+    snapshot = packet.get("snapshot")
+    if not isinstance(snapshot, dict) or (
+        packet.get("case_id") != manifest["case_id"]
+        or snapshot.get("snapshot_id") != manifest["snapshot_id"]
+        or snapshot.get("snapshot_hash") != manifest["snapshot_sha256"]
+        or snapshot.get("base_sha") != manifest["base_sha"]
+        or snapshot.get("head_sha") != manifest["head_sha"]
+        or snapshot.get("profile_version") != manifest["profile_version"]
+        or snapshot.get("profile_hash") != manifest["profile_sha256"]
+    ):
+        _fail("case_snapshot_corpus_mismatch")
+
+
 def build_cross_model_package(
     *, corpus_value: dict[str, Any], case_packet_path: Path, capture_root: Path,
-    shadow_root: Path, output_dir: Path,
+    shadow_root: Path, output_dir: Path, identity_manifest_value: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Verify exact writer/audit captures, emit v2 comparison and sanitized report."""
     corpus = validate_corpus(corpus_value)
@@ -189,6 +266,10 @@ def build_cross_model_package(
         _fail("case_packet_missing_or_ambiguous")
     if packet.get("contract_version") != "model-only-shadow-case.v1":
         _fail("case_packet_contract_invalid")
+    if corpus.get("corpus_id") == _MODEL_TEACHER_CORPUS_ID:
+        if identity_manifest_value is None:
+            _fail("evaluation_identity_manifest_required")
+        validate_model_teacher_packet_identity(corpus, packet, identity_manifest_value)
     case_id = _expect_id(packet.get("case_id"), "case_packet_identity_invalid")
     matching = [item for item in corpus["cases"] if item["identity"]["case_id"] == case_id]
     if len(matching) != 1:
