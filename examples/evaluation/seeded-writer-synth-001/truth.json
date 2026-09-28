@@ -1,0 +1,16 @@
+{
+  "schema": "seeded-writer-truth.v1",
+  "fixture_id": "SYNTH-001",
+  "model_input": false,
+  "expected_changed_path": "auth.py",
+  "expected_changed_line": "    return True",
+  "expected_behavior": "A caller whose ID differs from the document owner is allowed through the authorization boundary.",
+  "sha256": {
+    "seed.json": "604bf9fa0ebd44002a6950e657c935ef122f3a755a7a4478dc83765d1084d743",
+    "contract.md": "7465acc45428bfa7e8d433fac9bd853f44c51d4d0794a60355c16a887ac6b6b3",
+    "caller.py": "8e3208e4ed04b30281e9e464cef834382f71ef1b44a8b567a64fc8023e344552",
+    "base/auth.py": "5b6887e35b020d0a59133071f284114f61b41c4de753a8292f2b05969eeaa361",
+    "head/auth.py": "4117df17d8a7e46ecca375f671a0a24223c377ce085a378dafedc5e677d3a823"
+  },
+  "model_payload_sha256": "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
+}
