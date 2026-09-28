@@ -57,6 +57,27 @@ def _capture(tmp_path, *, packet_profile=None):
     return capture, spec
 
 
+def test_private_shadow_snapshot_binds_generated_check_evidence_before_hashing(tmp_path):
+    snapshot = {
+        "snapshot_id": "snap-check-bound",
+        "evidence": {
+            "check-1": {
+                "evidence_id": "check-1", "content_hash": "a" * 64,
+                "source_kind": "github_check_run", "trust": "generated_result",
+            },
+        },
+    }
+    cli._bind_private_shadow_evidence_snapshot(snapshot)
+    snapshot["snapshot_hash"] = cli._private_shadow_snapshot_hash(snapshot)
+    capture = PrivateShadowCapture(
+        tmp_path / "check-capture", case_id="run-check", snapshot=snapshot,
+        source_task="run-check", provider=Provider(), request_byte_limit=4096,
+        response_byte_limit=4096, corpus_case_id="PR-464",
+    )
+    assert capture.snapshot["evidence"]["check-1"]["snapshot_id"] == snapshot["snapshot_id"]
+    assert capture.snapshot_hash == snapshot["snapshot_hash"]
+
+
 def test_exported_multi_candidate_packets_are_atomically_inventory_bound(tmp_path):
     profile = {"profile_id": "profile-1", "version": "p1"}
     capture, _ = _capture(tmp_path, packet_profile=profile)
@@ -413,7 +434,8 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     prepare_args = [
         "review", "--repo", str(repo), "--base", base, "--head", head,
         "--profile", str(profile_path), "--provider-config", str(provider_config_path), "--output", str(prepared_dir),
-        "--run-id", "capture-prepare", "--prepare-only", "--json",
+        "--run-id", "capture-prepare", "--prepare-only", "--private-shadow-preflight-case-id", "PR-464",
+        "--max-claim-assessments", "0", "--json",
     ]
     assert cli.main(prepare_args) == 0
     prepared = json.loads(capsys.readouterr().out)
@@ -429,6 +451,8 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
         {key: value for key, value in capture_snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
         sort_keys=True, separators=(",", ":"),
     ).encode())
+    assert prepared["snapshot"]["snapshot_hash"] == capture_snapshot_hash
+    assert not (prepared_dir / "private-capture").exists()
     plan = {
         "schema": "model-only-shadow-live-writer-plan.v1",
         "case": {

@@ -23,8 +23,8 @@ PLAN_MAX_BYTES = 128_000
 PREPARE_MAX_BYTES = 4_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_MODULE_COUNT = 34
-EXPECTED_MODULE_TREE_SHA256 = "43e13c73a81f44ceaadb5c1f7f967f2381577e51083b5204fd743198a017e7a7"
-EXPECTED_PLAN_SHA256 = "618642b79913da4f92c88867b7aa9773a600c797a07ffb192d0119de77f6315a"
+EXPECTED_MODULE_TREE_SHA256 = "c7a6ba8fea38d4277e0144c38267927d30812219eefacee66bf9f58a6e192df6"
+EXPECTED_PLAN_SHA256 = "f9fca82d3ef7d815a6cc8487a64d374fade3944f8591ada7d89362395889650d"
 LIMITS_PATH = ROOT / "experiments" / "model-only-shadow-live-writer-limits-v1.json"
 PROVIDER_PATH = ROOT / "experiments" / "model-only-shadow-live-writer-provider-v1.json"
 
@@ -116,7 +116,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         or case.get("base_sha") != "20a743f0434a1843aa00068483f608f1e213b2af"
         or case.get("head_sha") != "bffc26f9e4bf95aca0c252e88a2396d03ece854c"
         or case.get("snapshot_id") != "snap-e20deb18f2ac6cb39c6ebafd"
-        or case.get("snapshot_sha256") != "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663"
+        or case.get("snapshot_sha256") != "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
         or case.get("profile_version") != "slopsearx-realcase-eval-v2-pr464-context240-window16k"
         or case.get("scope_obligations") != 22
     ):

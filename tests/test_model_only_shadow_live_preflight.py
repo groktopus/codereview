@@ -75,7 +75,7 @@ def test_exact_preflight_matches_ten_pinned_writer_requests_without_dispatch():
         "schema": "model-only-shadow-live-preflight-receipt.v1",
         "status": "PLAN_MATCHED_PROVIDER_FREE",
         "case_id": "PR-464",
-        "snapshot_sha256": "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
+        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
         "plan_sha256": preflight.EXPECTED_PLAN_SHA256,
         "writer_calls_planned": 10,
         "writer_request_bytes_total": 893359,

@@ -102,7 +102,7 @@ def _case_summary(row: dict[str, Any]) -> dict[str, Any]:
         raise ReceiptError("case_receipt_invalid")
     if row.get("primary_calls") != 10 or row.get("primary_serialized_input_bytes") != 893359:
         raise ReceiptError("case_request_plan_mismatch")
-    if row.get("snapshot_hash") != "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663":
+    if row.get("snapshot_hash") != "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868":
         raise ReceiptError("case_snapshot_mismatch")
     for field in (
         "checks_sha256", "evidence_index_sha256", "immutable_patch_sha256",

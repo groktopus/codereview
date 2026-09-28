@@ -81,6 +81,10 @@ def _parser() -> argparse.ArgumentParser:
         "--private-shadow-case-id",
         help="fixed corpus case ID for exported packets; requires --private-shadow-capture",
     )
+    review.add_argument(
+        "--private-shadow-preflight-case-id",
+        help="apply the frozen private-shadow snapshot hash for provider-free prepare-only; creates no capture",
+    )
     review.add_argument("--private-shadow-plan", help="trusted exact writer request plan for strict private capture")
     review.add_argument("--private-shadow-preflight-receipt", help="provider-free receipt matching the writer plan")
     review.add_argument(
@@ -527,6 +531,27 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _private_shadow_snapshot_hash(snapshot: dict) -> str:
+    """Return the identity-independent digest used by frozen shadow packets."""
+    payload = {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}}
+    return _sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode())
+
+
+def _bind_private_shadow_evidence_snapshot(snapshot: dict) -> None:
+    """Bind generated evidence rows to the snapshot before private capture."""
+    evidence = snapshot.get("evidence")
+    snapshot_id = snapshot.get("snapshot_id")
+    if not isinstance(evidence, dict) or not isinstance(snapshot_id, str):
+        raise ValueError("private shadow snapshot evidence is invalid")
+    for item in evidence.values():
+        if not isinstance(item, dict):
+            raise ValueError("private shadow snapshot evidence is invalid")
+        existing = item.get("snapshot_id")
+        if existing is not None and existing != snapshot_id:
+            raise ValueError("private shadow evidence snapshot binding mismatch")
+        item["snapshot_id"] = snapshot_id
+
+
 def _rebind_snapshot_evidence_references(snapshot: dict, old_to_new: dict[str, str]) -> None:
     """Rebind every structured evidence reference after changing snapshot identity.
 
@@ -651,6 +676,7 @@ def _run_one(
 ) -> dict:
     capture_dir = getattr(args, "private_shadow_capture", None)
     capture_case_id = getattr(args, "private_shadow_case_id", None)
+    preflight_case_id = getattr(args, "private_shadow_preflight_case_id", None)
     capture_pins = None
     capture_snapshot_pin = None
     plan_path = getattr(args, "private_shadow_plan", None)
@@ -666,6 +692,11 @@ def _run_one(
         raise ValueError("trusted private capture requires exact request pins")
     if capture_case_id is not None and capture_dir is None:
         raise ValueError("private shadow case ID requires private shadow capture")
+    if preflight_case_id is not None and (
+        not getattr(args, "prepare_only", False) or capture_dir is not None
+        or preflight_case_id != "PR-464"
+    ):
+        raise ValueError("private shadow preflight case requires matching prepare-only without capture")
     if capture_dir and (
         getattr(args, "command", "review") != "review" or getattr(args, "resume", False)
         or getattr(args, "prepare_only", False) or getattr(args, "dry_run", False)
@@ -808,15 +839,19 @@ def _run_one(
         )
     else:
         snapshot["freshness_basis"] = "HISTORICAL_SNAPSHOT"
+    if capture_dir or preflight_case_id is not None:
+        # Historical check-run evidence is generated after the collector has
+        # rebound its original rows. Bind those added rows to this same frozen
+        # snapshot before either preflight hashing or private capture.
+        _bind_private_shadow_evidence_snapshot(snapshot)
     if capture_dir:
         # Frozen case snapshots retain the collector's identity-independent
         # hash algorithm even when CLI freshness provenance was augmented.
-        snap_hash_payload = {
-            k: v for k, v in snapshot.items() if k not in {"snapshot_id", "snapshot_hash"}
-        }
-        snapshot["snapshot_hash"] = _sha256(
-            json.dumps(snap_hash_payload, sort_keys=True, separators=(",", ":")).encode()
-        )
+        snapshot["snapshot_hash"] = _private_shadow_snapshot_hash(snapshot)
+    elif preflight_case_id is not None:
+        # Only the explicit frozen shadow preflight opts into capture's
+        # identity-independent hash; historical review semantics stay intact.
+        snapshot["snapshot_hash"] = _private_shadow_snapshot_hash(snapshot)
     try:
         from .checks import GitHubCheckAdapter
         from .engine import run_review
