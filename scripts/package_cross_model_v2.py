@@ -27,6 +27,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         corpus, _ = _json(args.corpus, 16 * 1024 * 1024)
+        if not isinstance(corpus, dict):
+            raise EvaluationError("package_json_shape_invalid")
         identity_manifest = None
         manifest_path = args.identity_manifest
         if manifest_path is None and corpus.get("corpus_id") == "model-only-shadow-pr464-v1":

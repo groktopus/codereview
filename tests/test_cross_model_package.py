@@ -244,6 +244,23 @@ def test_model_teacher_corpus_rejects_a_profile_mismatch():
         validate_model_teacher_packet_identity(corpus, packet, manifest)
 
 
+@pytest.mark.parametrize("non_object", [[], "not-an-object", 7])
+def test_package_cli_sanitizes_non_object_corpus_values(monkeypatch, capsys, non_object):
+    import scripts.package_cross_model_v2 as cli
+
+    monkeypatch.setattr(cli, "_json", lambda *_args: (non_object, b"invalid-shape"))
+    status = cli.main([
+        "--corpus", "unused.json",
+        "--capture-root", "unused-capture",
+        "--case-packet", "unused-packet.json",
+        "--shadow-root", "unused-shadow",
+        "--output-dir", "unused-output",
+        "--json",
+    ])
+    assert status == 2
+    assert json.loads(capsys.readouterr().out) == {"ok": False, "error_code": "package_json_shape_invalid"}
+
+
 def test_duplicate_matching_writer_candidate_fails_even_when_hashes_are_bound(tmp_path):
     corpus, packet_path, capture_root, shadow_root, out, _, _ = _fixture(tmp_path, duplicate_candidate=True)
     with pytest.raises(EvaluationError, match="writer_candidate_response_missing_or_ambiguous"):
