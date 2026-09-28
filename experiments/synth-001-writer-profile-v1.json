@@ -1,0 +1,17 @@
+{
+  "version": "synth-001-writer-prepare-v1",
+  "context_paths": [
+    "caller.py",
+    "contract.md"
+  ],
+  "required_lenses": [
+    "correctness"
+  ],
+  "allow_empty_approval": true,
+  "effect_policy": "READ_ONLY",
+  "retrieval_context_patterns": [],
+  "trusted_policy_paths": [],
+  "review_criteria": {
+    "correctness": "Review the changed source in the supplied diff against caller.py and contract.md. Identify concrete, source-supported defects introduced by the change as finding candidates; if none are supported, return an empty finding list. Do not execute code or tests, invoke external checks, fetch additional context, publish anything, make claims unsupported by the supplied source, or perform downstream model adjudication. Distinguish direct observations from inferences."
+  }
+}
