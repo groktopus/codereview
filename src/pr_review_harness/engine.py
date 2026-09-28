@@ -1504,7 +1504,7 @@ def run_review(
                 or snapshot.get("snapshot_id") != private_capture_snapshot_pin.get("snapshot_id")
                 or snapshot.get("snapshot_hash") != private_capture_snapshot_pin.get("snapshot_sha256")
                 or not callable(getattr(provider, "serialize_review_request", None))
-                or limits.get("max_provider_calls") != len(private_capture_request_pins)
+                or limits.get("max_provider_calls") < len(private_capture_request_pins)
                 or limits.get("max_retries_per_task") != 0
                 or limits.get("max_followup_tasks") != 0
                 or decision_provider is not None
@@ -2584,7 +2584,10 @@ def run_review(
             reservation_key = None
             causal_roles_valid = False
             semantic_role_refs: set[str] = set()
-            if structurally_valid and provider is not None and callable(getattr(provider, "adjudicate", None)):
+            if (
+                private_capture is None and structurally_valid and provider is not None
+                and callable(getattr(provider, "adjudicate", None))
+            ):
                 try:
                     adjudication_evidence = evidence_cache[task["task_id"]]
                     candidate_hash = _hash(candidate)
