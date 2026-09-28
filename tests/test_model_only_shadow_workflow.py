@@ -45,7 +45,12 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     assert "LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}" in live
     assert "LLM_MODEL: ${{ secrets.LLM_MODEL }}" in live
     assert "LLM_API_KEY: ${{ secrets.LLM_API_KEY }}" in live
-    assert "JEV_API_KEY" not in live and "JEV_BASE_URL" not in live
+    writer_path = live.split("Build private model-only audit configs", 1)[0]
+    assert "JEV_API_KEY" not in writer_path and "JEV_BASE_URL" not in writer_path
+    audit_config = live.split("Build private model-only audit configs", 1)[1].split("      - name:", 1)[0]
+    audit_dispatch = live.split("Run one bounded model-only audit packet", 1)[1].split("      - name:", 1)[0]
+    assert "if: false" in audit_config and "if: false" in audit_dispatch
+    assert "JEV_API_KEY: ${{ secrets.JEV_API_KEY }}" in audit_config
     assert "build_model_only_shadow_writer_provider_config.py" in live
     assert 'private-shadow-runtime-config/provider.json' in live
     assert "--private-shadow-plan" in live and "--private-shadow-preflight-receipt" in live
