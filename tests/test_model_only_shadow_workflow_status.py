@@ -18,6 +18,11 @@ _SPEC = importlib.util.spec_from_file_location(
 assert _SPEC is not None and _SPEC.loader is not None
 STATUS = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(STATUS)
+EXPECTED_STAGES = {
+    "trusted_checkout", "trusted_identity", "exact_preflight", "provider_identity",
+    "writer", "writer_sanitize", "audit_config", "shadow_audit", "audit_sanitize",
+    "writer_artifact_upload", "audit_artifact_upload",
+}
 
 
 def _env(**values: str) -> dict[str, str]:
@@ -34,6 +39,7 @@ def test_status_projection_handles_missing_and_unrecognized_values_fail_closed()
     assert receipt["case_id"] == "unknown"
     assert receipt["run_id"] == receipt["run_attempt"] == "unknown"
     assert receipt["job_status_at_projection"] == "unknown"
+    assert set(receipt["stages"]) == EXPECTED_STAGES
     assert set(receipt["stages"].values()) == {"unknown"}
     assert receipt["writer_call_state"] == receipt["audit_call_state"] == "unknown"
 
@@ -65,6 +71,7 @@ def test_trusted_step_ids_are_scoped_to_live_writer_and_missing_case_step_is_not
     assert "id: trusted-checkout" in live
     assert "id: trusted-identity" in live
     assert "steps.case.outcome" not in live
+    assert "case_selection" not in text
 
 
 @pytest.mark.parametrize(("writer", "writer_sanitize", "upload", "expected"), [
@@ -95,6 +102,19 @@ def test_audit_call_state_requires_a_sanitized_receipt_or_proves_it_never_starte
         shadow_audit="failure", audit_sanitize="success", audit_artifact_upload="success",
     ))
     assert recorded["audit_call_state"] == "accounted_by_sanitized_receipt"
+
+
+def test_trusted_projection_records_every_stage_when_outcomes_are_present():
+    env = _env(**{name: "success" for name in (
+        "trusted_checkout", "trusted_identity", "exact_preflight", "provider_identity",
+        "writer", "writer_sanitize", "audit_config", "shadow_audit", "audit_sanitize",
+        "writer_artifact_upload", "audit_artifact_upload",
+    )})
+    receipt = STATUS.build_receipt(env)
+    assert receipt["projection_mode"] == "trusted_projector"
+    assert set(receipt["stages"]) == EXPECTED_STAGES
+    assert set(receipt["stages"].values()) == {"success"}
+    assert receipt["writer_call_state"] == receipt["audit_call_state"] == "accounted_by_sanitized_receipt"
 
 
 def test_status_file_is_private_and_written_only_to_the_fixed_runner_temp_location(tmp_path, monkeypatch):

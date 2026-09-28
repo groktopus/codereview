@@ -18,7 +18,6 @@ JOB_STATES = {"success", "failure", "cancelled", "unknown"}
 STAGE_ENV = {
     "trusted_checkout": "STATUS_TRUSTED_CHECKOUT",
     "trusted_identity": "STATUS_TRUSTED_IDENTITY",
-    "case_selection": "STATUS_CASE_SELECTION",
     "exact_preflight": "STATUS_EXACT_PREFLIGHT",
     "provider_identity": "STATUS_PROVIDER_IDENTITY",
     "writer": "STATUS_WRITER",

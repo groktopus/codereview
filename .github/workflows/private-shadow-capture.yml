@@ -561,8 +561,7 @@ jobs:
           stages = {
               "trusted_checkout": os.environ.get("STATUS_TRUSTED_CHECKOUT", ""),
               "trusted_identity": os.environ.get("STATUS_TRUSTED_IDENTITY", ""),
-              "case_selection": "unknown", "exact_preflight": "unknown",
-              "provider_identity": "unknown", "writer": "unknown",
+              "exact_preflight": "unknown", "provider_identity": "unknown", "writer": "unknown",
               "writer_sanitize": "unknown", "audit_config": "unknown",
               "shadow_audit": "unknown", "audit_sanitize": "unknown",
               "writer_artifact_upload": "unknown", "audit_artifact_upload": "unknown",
