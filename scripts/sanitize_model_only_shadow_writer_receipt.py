@@ -21,7 +21,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 CALL_ID = re.compile(r"^call-[0-9a-f]{24}$")
-EXPECTED_PLAN_SHA256 = "600a990a9325323c481e8ca82e71170d1b8b1257f3276225299e62a9ba4276e3"
+EXPECTED_PLAN_SHA256 = "8281e491063302a46400da08ee46806178d0bb8b6e1f9c07f066ea07abc8c0a5"
 
 
 class ReceiptError(ValueError):

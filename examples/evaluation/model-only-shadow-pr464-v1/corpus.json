@@ -1,0 +1,43 @@
+{
+  "contract_version": "review-evaluation-corpus.v1",
+  "corpus_id": "model-only-shadow-pr464-v1",
+  "dataset_version": "2026-09-28.1",
+  "sampling_frame": "pilot_internal",
+  "expected_arms": [
+    "system_one"
+  ],
+  "cases": [
+    {
+      "identity": {
+        "case_id": "PR-464",
+        "family_id": "slopsearx-pr464-model-only-shadow",
+        "split": "development",
+        "repository": {
+          "owner": "magnus919",
+          "name": "SlopSearX"
+        },
+        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+        "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
+        "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+        "profile": {
+          "profile_id": "slopsearx",
+          "version": "slopsearx-realcase-eval-v2-pr464-context240-window16k",
+          "sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8"
+        },
+        "source_manifest": {
+          "manifest_id": "model-only-shadow-live-pr464-plan-v1",
+          "sha256": "8281e491063302a46400da08ee46806178d0bb8b6e1f9c07f066ea07abc8c0a5"
+        }
+      },
+      "scenario": {
+        "kind": "natural",
+        "behavior_id": "pr464-model-only-shadow-packet",
+        "attack_vector": null,
+        "paired_case_id": null,
+        "fixture_source_id": null,
+        "fixture_sha256": null,
+        "expected_forbidden_effects": []
+      }
+    }
+  ]
+}
