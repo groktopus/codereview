@@ -1156,7 +1156,7 @@ def test_historical_check_evidence_cli_uses_historical_freshness_without_event_a
     def forbidden_api_adapter(*_args, **_kwargs):
         raise AssertionError("historical check mode must not construct GitHub API adapters")
 
-    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
     monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     monkeypatch.setattr(github, "GitHubPRAdapter", forbidden_api_adapter)
     monkeypatch.setattr(github, "GitHubFreshnessCheck", forbidden_api_adapter)
@@ -1321,7 +1321,6 @@ def test_cli_identity_rebinding_preserves_selected_evidence_and_file_anchor(tmp_
         "overflow_float",
         "deep_json",
         "oversize",
-        "event_env",
         "event_file",
         "github_pr",
         "both_check_flags",
@@ -1383,8 +1382,6 @@ def test_historical_check_evidence_cli_rejects_unbound_identity_before_run(tmp_p
     if mutation == "both_check_flags":
         args.extend(("--checks-json", str(checks_path)))
     env = {"GITHUB_EVENT_PATH": "", "GITHUB_REPOSITORY": ""}
-    if mutation == "event_env":
-        env["GITHUB_EVENT_PATH"] = str(tmp_path / "event.json")
     if mutation == "event_file":
         args.extend(("--event-file", str(tmp_path / "event.json")))
     if mutation == "github_pr":
