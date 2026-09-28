@@ -1407,6 +1407,20 @@ _FOLLOWUP_TARGET_KINDS = frozenset({"unit", "path", "symbol"})
 _FOLLOWUP_LINK_STATES = frozenset({"PERSISTED_RECORDS_MATCH", "PERSISTED_RECORDS_MISMATCH", "UNKNOWN"})
 _FOLLOWUP_HANDOFF_STATES = frozenset({"VERIFIED", "MISMATCH", "UNKNOWN"})
 _FOLLOWUP_PROJECTION_MAX_IDS = 500
+_REQUIRED_CONTEXT_DIAGNOSTIC_MAX_ROWS = 200
+_REQUIRED_CONTEXT_FOLLOWUP_SOURCE_MAX_ROWS = 8
+_REQUIRED_CONTEXT_COVERAGE_REASONS = frozenset({
+    "CONTEXT_GAP_UNRESOLVED",
+    "VALID_RESULT",
+    "CHECK_RESULT_EVIDENCE_INVALID",
+    "REQUIRED_OUTPUT_QUARANTINED",
+    "REQUIRED_CONTEXT_NOT_COVERED",
+    "CHECK_RESULT_UNAVAILABLE",
+    "COVERAGE_NOTE_EVIDENCE_INVALID",
+    "PARTIAL_REVIEW_COVERAGE",
+    "COVERAGE_NOTE_MISSING",
+    "MISSING_RESULT",
+})
 _CLOSURE_NOTE_CODES = frozenset({
     "NOTE_NOT_OBJECT", "STATE_NOT_COVERED", "BASIS_NOT_STATIC_REVIEW", "UNIT_OUT_OF_SCOPE",
     "NO_RETRIEVED_EVIDENCE_REFERENCE", "REFERENCE_NOT_IN_TASK_INPUT", "MATCH", "NO_COVERAGE_NOTES", "UNKNOWN",
@@ -2051,6 +2065,293 @@ def _project_context_followups(
     }
 
 
+def _project_required_context_coverage_diagnostic(
+    case_projection: dict[str, Any], durable: Any
+) -> dict[str, Any]:
+    """Join case projection rows to the corresponding in-memory durable records."""
+    unknown = {
+        "schema": "required-context-coverage-diagnostic.v1",
+        "projection_state": "UNKNOWN",
+        "case_id": "UNKNOWN",
+        "base_sha": "UNKNOWN",
+        "head_sha": "UNKNOWN",
+        "source_followup_projection_schema": "UNKNOWN",
+        "source_followup_projection_state": "UNKNOWN",
+        "followup_source_completeness": "UNKNOWN",
+        "observed_followup_task_count": "UNKNOWN",
+        "projected_followup_task_count": "UNKNOWN",
+        "omitted_followup_task_count": "UNKNOWN",
+        "coverage_source_completeness": "UNKNOWN",
+        "observed_required_context_row_count": "UNKNOWN",
+        "projected_required_context_row_count": 0,
+        "omitted_required_context_row_count": "UNKNOWN",
+        "malformed_coverage_row_count": "UNKNOWN",
+        "rows": [],
+        "limitations": [
+            "NOTE_TEXT_NOT_RETAINED",
+            "PROJECTION_DOES_NOT_RECOMPUTE_COVERAGE_DECISIONS",
+            "FOLLOWUP_HANDOFF_DOES_NOT_PROVE_COVERAGE",
+        ],
+    }
+    durable_ledger = durable.get("ledger") if isinstance(durable, dict) else None
+    coverage_source_rows = durable.get("coverage_ledger") if isinstance(durable, dict) else None
+    if not isinstance(durable_ledger, dict) or not isinstance(durable.get("task_results"), dict):
+        return unknown
+    coverage = case_projection.get("coverage_ledger") if isinstance(case_projection, dict) else None
+    if (
+        not isinstance(coverage, list)
+        or len(coverage) > _REQUIRED_CONTEXT_DIAGNOSTIC_MAX_ROWS
+        or not isinstance(coverage_source_rows, list)
+        or len(coverage_source_rows) > 10_000
+    ):
+        return unknown
+
+    case_id = case_projection.get("case_id") if isinstance(case_projection, dict) else None
+    base_sha = case_projection.get("base_sha") if isinstance(case_projection, dict) else None
+    head_sha = case_projection.get("head_sha") if isinstance(case_projection, dict) else None
+    safe_case_id = case_id if isinstance(case_id, str) and re.fullmatch(r"PR-[0-9]{1,12}", case_id) else "UNKNOWN"
+    safe_base_sha = base_sha if isinstance(base_sha, str) and re.fullmatch(r"[0-9a-f]{40}", base_sha) else "UNKNOWN"
+    safe_head_sha = head_sha if isinstance(head_sha, str) and re.fullmatch(r"[0-9a-f]{40}", head_sha) else "UNKNOWN"
+    if "UNKNOWN" in {safe_case_id, safe_base_sha, safe_head_sha}:
+        return unknown
+
+    coverage_source_is_complete = (
+        len(coverage_source_rows) < _REQUIRED_CONTEXT_DIAGNOSTIC_MAX_ROWS
+        and all(isinstance(row, dict) for row in coverage_source_rows)
+        and _project_coverage(coverage_source_rows) == coverage
+    )
+
+    required_rows = [
+        row for row in coverage
+        if isinstance(row, dict) and row.get("obligation_kind") == "REQUIRED_CONTEXT"
+    ]
+    known_obligation_kinds = {"CHANGED_UNIT_LENS", "PROJECT_CHECK", "REQUIRED_CONTEXT", "POLICY_LENS"}
+    malformed_count = sum(
+        1
+        for row in coverage_source_rows
+        if not isinstance(row, dict) or row.get("obligation_kind") not in known_obligation_kinds
+    )
+    coverage_source_completeness = "COMPLETE" if coverage_source_is_complete else "UNKNOWN"
+    followup_projection = case_projection.get("context_followup_observations") if isinstance(case_projection, dict) else None
+    followup_rows = (
+        followup_projection.get("rows")
+        if isinstance(followup_projection, dict)
+        and followup_projection.get("schema") == "context-followup-observation.v3"
+        else None
+    )
+    followup_projection_available = (
+        isinstance(followup_rows, list)
+        and len(followup_rows) <= _REQUIRED_CONTEXT_FOLLOWUP_SOURCE_MAX_ROWS
+    )
+    followup_state = (
+        followup_projection.get("projection_state")
+        if isinstance(followup_projection, dict)
+        else "UNKNOWN"
+    )
+    observed_followups = (
+        followup_projection.get("observed_followup_task_count")
+        if isinstance(followup_projection, dict)
+        else None
+    )
+    projected_followups = (
+        followup_projection.get("projected_followup_task_count")
+        if isinstance(followup_projection, dict)
+        else None
+    )
+    omitted_followups = (
+        followup_projection.get("omitted_followup_task_count")
+        if isinstance(followup_projection, dict)
+        else None
+    )
+    followup_counts_valid = (
+        all(
+            isinstance(value, int) and not isinstance(value, bool) and value >= 0
+            for value in (observed_followups, projected_followups, omitted_followups)
+        )
+        and followup_projection_available
+        and projected_followups == len(followup_rows)
+        and observed_followups == projected_followups + omitted_followups
+        and projected_followups <= _REQUIRED_CONTEXT_FOLLOWUP_SOURCE_MAX_ROWS
+    )
+    followup_source_is_complete = (
+        followup_projection_available
+        and followup_counts_valid
+        and omitted_followups == 0
+        and followup_state in {"OBSERVED_WITH_LIMITATIONS", "NO_FOLLOWUP_TASKS_RECORDED"}
+        and (
+            followup_state != "NO_FOLLOWUP_TASKS_RECORDED"
+            or (observed_followups == 0 and projected_followups == 0)
+        )
+    )
+    if not followup_projection_available:
+        followup_rows = []
+    rows: list[dict[str, Any]] = []
+    partial = bool(
+        malformed_count
+        or len(required_rows) > _REQUIRED_CONTEXT_DIAGNOSTIC_MAX_ROWS
+        or coverage_source_completeness == "UNKNOWN"
+        or not followup_source_is_complete
+    )
+    duplicate_obligations: set[str] = set()
+    seen_obligations: set[str] = set()
+    for item in required_rows:
+        obligation_id = item.get("obligation_id")
+        if isinstance(obligation_id, str):
+            if obligation_id in seen_obligations:
+                duplicate_obligations.add(obligation_id)
+            seen_obligations.add(obligation_id)
+
+    for item in required_rows[:_REQUIRED_CONTEXT_DIAGNOSTIC_MAX_ROWS]:
+        obligation_id_raw = item.get("obligation_id")
+        obligation_id = _safe_followup_id(obligation_id_raw)
+        if obligation_id == "UNKNOWN" or obligation_id in duplicate_obligations:
+            partial = True
+        state = _safe_followup_enum(item.get("state"), _FOLLOWUP_COVERAGE_STATES)
+        reason_raw = item.get("reason_code")
+        reason_code = (
+            reason_raw
+            if isinstance(reason_raw, str) and reason_raw in _REQUIRED_CONTEXT_COVERAGE_REASONS
+            else "UNKNOWN"
+        )
+        if state == "UNKNOWN" or reason_code == "UNKNOWN":
+            partial = True
+
+        task_ids_raw = item.get("task_ids")
+        task_ids_valid = (
+            isinstance(task_ids_raw, list)
+            and len(task_ids_raw) <= 100
+            and all(_safe_followup_id(task_id) != "UNKNOWN" for task_id in task_ids_raw)
+            and len(task_ids_raw) == len(set(task_ids_raw))
+        )
+        task_ids = list(task_ids_raw) if task_ids_valid else []
+        if not task_ids_valid:
+            partial = True
+
+        same_obligation = [
+            row for row in followup_rows
+            if isinstance(row, dict) and row.get("followup_obligation_id") == obligation_id
+        ] if obligation_id != "UNKNOWN" else []
+        task_rows = [
+            row for row in followup_rows
+            if isinstance(row, dict) and row.get("task_id") in task_ids
+        ]
+        task_row_ids = [row.get("task_id") for row in same_obligation if isinstance(row.get("task_id"), str)]
+        if (
+            obligation_id == "UNKNOWN"
+            or obligation_id in duplicate_obligations
+            or not task_ids_valid
+            or not followup_source_is_complete
+        ):
+            followup_binding = "UNKNOWN"
+        elif same_obligation:
+            if (
+                any(_safe_followup_id(row.get("task_id")) == "UNKNOWN" for row in same_obligation)
+                or len(task_row_ids) != len(set(task_row_ids))
+            ):
+                followup_binding = "UNKNOWN"
+            elif set(task_row_ids) != set(task_ids):
+                followup_binding = "MISMATCH"
+            elif any(row.get("followup_obligation_id") != obligation_id for row in task_rows):
+                followup_binding = "MISMATCH"
+            else:
+                followup_binding = "MATCH"
+        elif task_rows:
+            followup_binding = "MISMATCH"
+        elif any(":followup:" in task_id for task_id in task_ids):
+            followup_binding = "UNKNOWN"
+        elif not followup_projection_available:
+            followup_binding = "UNKNOWN"
+        else:
+            followup_binding = "NOT_APPLICABLE"
+        if followup_binding in {"UNKNOWN", "MISMATCH"}:
+            partial = True
+
+        linked_rows = same_obligation if followup_binding == "MATCH" else []
+        linked_closures = [
+            _project_required_context_closure_diagnostics(row.get("required_context_closure_diagnostics"))
+            for row in linked_rows
+        ]
+        if linked_closures and all(value == linked_closures[0] for value in linked_closures):
+            closure = linked_closures[0]
+            closure_binding = "MATCH" if closure["state"] != "UNKNOWN" else "UNKNOWN"
+        elif linked_closures:
+            closure = _project_required_context_closure_diagnostics(None)
+            closure_binding = "MISMATCH"
+        else:
+            closure = _project_required_context_closure_diagnostics(None)
+            closure_binding = "UNKNOWN"
+        if closure_binding != "MATCH":
+            partial = True
+
+        linked_followups = [
+            {
+                "task_id": _safe_followup_id(row.get("task_id")),
+                "task_status": _safe_followup_enum(row.get("task_status"), _FOLLOWUP_TASK_STATUSES),
+                "handoff_binding": _safe_followup_enum(
+                    row.get("retrieved_evidence_handoff_binding"), _FOLLOWUP_HANDOFF_STATES
+                ),
+            }
+            for row in linked_rows
+        ]
+        if any(
+            row["task_id"] == "UNKNOWN"
+            or row["task_status"] == "UNKNOWN"
+            or row["handoff_binding"] == "UNKNOWN"
+            for row in linked_followups
+        ):
+            partial = True
+
+        rows.append({
+            "obligation_id": obligation_id,
+            "coverage_state": state,
+            "coverage_reason_code": reason_code,
+            "task_ids": task_ids if task_ids_valid else "UNKNOWN",
+            "followup_observation_binding": followup_binding,
+            "closure_observation_binding": closure_binding,
+            "linked_followups": linked_followups,
+            "closure_diagnostics": closure,
+        })
+
+    omitted = max(0, len(required_rows) - len(rows))
+    return {
+        "schema": "required-context-coverage-diagnostic.v1",
+        "projection_state": (
+            "PARTIAL" if partial
+            else "NOT_APPLICABLE" if not required_rows
+            else "OBSERVED"
+        ),
+        "case_id": safe_case_id,
+        "base_sha": safe_base_sha,
+        "head_sha": safe_head_sha,
+        "source_followup_projection_schema": (
+            "context-followup-observation.v3" if followup_projection_available else "UNKNOWN"
+        ),
+        "source_followup_projection_state": (
+            followup_state
+            if isinstance(followup_state, str)
+            and followup_state in {
+                "OBSERVED_WITH_LIMITATIONS", "PARTIAL", "NO_FOLLOWUP_TASKS_RECORDED", "UNKNOWN"
+            }
+            else "UNKNOWN"
+        ),
+        "followup_source_completeness": "COMPLETE" if followup_source_is_complete else "UNKNOWN",
+        "observed_followup_task_count": observed_followups if followup_counts_valid else "UNKNOWN",
+        "projected_followup_task_count": projected_followups if followup_counts_valid else "UNKNOWN",
+        "omitted_followup_task_count": omitted_followups if followup_counts_valid else "UNKNOWN",
+        "coverage_source_completeness": coverage_source_completeness,
+        "observed_required_context_row_count": len(required_rows),
+        "projected_required_context_row_count": len(rows),
+        "omitted_required_context_row_count": omitted,
+        "malformed_coverage_row_count": malformed_count,
+        "rows": rows,
+        "limitations": [
+            "NOTE_TEXT_NOT_RETAINED",
+            "PROJECTION_DOES_NOT_RECOMPUTE_COVERAGE_DECISIONS",
+            "FOLLOWUP_HANDOFF_DOES_NOT_PROVE_COVERAGE",
+        ],
+    }
+
+
 def primary_receipts(prepared: dict[str, Any], input_contract: str = "specialist-input-v1") -> Any:
     value = prepared["value"]
     snapshot = value["snapshot"]
@@ -2128,6 +2429,7 @@ def _scan(value: Any, secrets: list[str], limit: int = OUTPUT_CAP) -> bytes:
 def project_case(
     case: dict[str, Any], durable: dict[str, Any], secrets: list[str], *, include_context_followups: bool = False,
     include_closure_diagnostics: bool = False, include_context_handoff: bool = False,
+    include_required_context_coverage_diagnostic: bool = False,
 ) -> dict[str, Any]:
     findings = durable.get("findings")
     records = durable.get("ledger", {}).get("candidate_records") if isinstance(durable.get("ledger"), dict) else None
@@ -2228,6 +2530,18 @@ def project_case(
             durable,
             include_closure_diagnostics=include_closure_diagnostics or include_context_handoff,
             include_handoff_observation=include_context_handoff,
+        )
+    if include_required_context_coverage_diagnostic:
+        diagnostic_input = projection
+        if not include_context_handoff:
+            diagnostic_input = {
+                **projection,
+                "context_followup_observations": _project_context_followups(
+                    durable, include_closure_diagnostics=True, include_handoff_observation=True
+                ),
+            }
+        projection["required_context_coverage_diagnostic"] = _project_required_context_coverage_diagnostic(
+            diagnostic_input, durable
         )
     _scan(projection, secrets)
     return projection

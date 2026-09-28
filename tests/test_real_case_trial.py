@@ -1602,6 +1602,182 @@ def test_context_followup_v3_observes_persisted_handoff_without_claiming_deliver
         assert secret not in encoded
 
 
+def test_required_context_coverage_diagnostic_v1_links_partial_coverage_to_note_state():
+    durable = _valid_context_followup_handoff_fixture()
+    coverage_row = durable["coverage_ledger"][0]
+    coverage_row.update(state="PARTIAL", reason_code="REQUIRED_CONTEXT_NOT_COVERED")
+    closure = coverage_row["closure_diagnostics"]
+    closure.update(coverage_note_result="NO_COVERING_NOTE")
+    closure["coverage_note_failure_counts"].update(STATE_NOT_COVERED=1, MATCH=0)
+    closure.update(coverage_note_count=1, coverage_note_notes_examined_count=1)
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+
+    v3 = trial.project_case(case, durable, [], include_context_handoff=True)
+    with_diagnostic = trial.project_case(
+        case, durable, [], include_context_handoff=True,
+        include_required_context_coverage_diagnostic=True,
+    )
+    diagnostic_only = trial.project_case(
+        case, durable, [], include_required_context_coverage_diagnostic=True
+    )
+    diagnostic = with_diagnostic["required_context_coverage_diagnostic"]
+    row = diagnostic["rows"][0]
+
+    assert {key: value for key, value in with_diagnostic.items() if key != "required_context_coverage_diagnostic"} == v3
+    assert "context_followup_observations" not in diagnostic_only
+    assert diagnostic_only["required_context_coverage_diagnostic"]["projection_state"] == "OBSERVED"
+    assert diagnostic["schema"] == "required-context-coverage-diagnostic.v1"
+    assert diagnostic["projection_state"] == "OBSERVED"
+    assert diagnostic["case_id"] == "PR-464"
+    assert diagnostic["base_sha"] == case["base_sha"] and diagnostic["head_sha"] == case["head_sha"]
+    assert row["obligation_id"] == "obligation-1"
+    assert row["coverage_state"] == "PARTIAL"
+    assert row["coverage_reason_code"] == "REQUIRED_CONTEXT_NOT_COVERED"
+    assert row["task_ids"] == ["followup-1"]
+    assert row["followup_observation_binding"] == "MATCH"
+    assert row["closure_observation_binding"] == "MATCH"
+    assert row["linked_followups"] == [{
+        "task_id": "followup-1", "task_status": "SUCCEEDED", "handoff_binding": "VERIFIED"
+    }]
+    assert row["closure_diagnostics"]["coverage_note_result"] == "NO_COVERING_NOTE"
+    assert row["closure_diagnostics"]["coverage_note_failure_counts"]["STATE_NOT_COVERED"] == 1
+    assert row["closure_diagnostics"]["coverage_note_failure_counts"]["MATCH"] == 0
+    encoded = json.dumps(diagnostic)
+    for secret in ("private-target-canary", "private-rationale-canary", "ev-retrieved-1"):
+        assert secret not in encoded
+
+
+def test_required_context_coverage_diagnostic_v1_missing_mismatch_and_malformed_are_explicit():
+    durable = _valid_context_followup_handoff_fixture()
+    durable["coverage_ledger"][0].update(state="PARTIAL", reason_code="REQUIRED_CONTEXT_NOT_COVERED")
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+    projected = trial.project_case(case, durable, [], include_context_handoff=True)
+
+    missing = dict(projected)
+    missing.pop("context_followup_observations")
+    missing_row = trial._project_required_context_coverage_diagnostic(
+        missing, durable
+    )["rows"][0]
+    assert missing_row["followup_observation_binding"] == "UNKNOWN"
+    assert missing_row["closure_diagnostics"]["state"] == "UNKNOWN"
+
+    mismatched = copy.deepcopy(projected)
+    mismatched["coverage_ledger"][0]["task_ids"] = ["other-task"]
+    mismatch_row = trial._project_required_context_coverage_diagnostic(
+        mismatched, durable
+    )["rows"][0]
+    assert mismatch_row["followup_observation_binding"] == "MISMATCH"
+    assert mismatch_row["linked_followups"] == []
+
+    malformed = copy.deepcopy(projected)
+    malformed["coverage_ledger"][0]["reason_code"] = "private-reason-canary"
+    malformed["coverage_ledger"][0]["task_ids"] = [{"secret": "private-task-canary"}]
+    malformed_row = trial._project_required_context_coverage_diagnostic(
+        malformed, durable
+    )["rows"][0]
+    assert malformed_row["coverage_reason_code"] == "UNKNOWN"
+    assert malformed_row["task_ids"] == "UNKNOWN"
+    assert malformed_row["followup_observation_binding"] == "UNKNOWN"
+    assert "private-reason-canary" not in json.dumps(malformed_row)
+    assert "private-task-canary" not in json.dumps(malformed_row)
+
+
+def test_required_context_coverage_diagnostic_v1_marks_source_cap_boundary_unknown():
+    durable = _valid_context_followup_handoff_fixture()
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+    projected = trial.project_case(case, durable, [], include_context_handoff=True)
+    projected["coverage_ledger"].extend(
+        {"obligation_id": f"unit-obligation-{index}", "obligation_kind": "CHANGED_UNIT_LENS"}
+        for index in range(199)
+    )
+
+    diagnostic = trial._project_required_context_coverage_diagnostic(
+        projected, durable
+    )
+
+    assert diagnostic["coverage_source_completeness"] == "UNKNOWN"
+    assert diagnostic["projection_state"] == "PARTIAL"
+
+
+def test_required_context_coverage_diagnostic_v1_reports_no_required_context_as_not_applicable():
+    projected = {
+        "case_id": "PR-464",
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+        "coverage_ledger": [{"obligation_kind": "PROJECT_CHECK"}],
+        "context_followup_observations": {
+            "schema": "context-followup-observation.v3",
+            "projection_state": "NO_FOLLOWUP_TASKS_RECORDED",
+            "observed_followup_task_count": 0,
+            "projected_followup_task_count": 0,
+            "omitted_followup_task_count": 0,
+            "rows": [],
+        },
+    }
+
+    source_coverage = [{"obligation_kind": "PROJECT_CHECK"}]
+    source_durable = {"ledger": {}, "task_results": {}, "coverage_ledger": source_coverage}
+    diagnostic = trial._project_required_context_coverage_diagnostic(projected, source_durable)
+
+    assert diagnostic["projection_state"] == "NOT_APPLICABLE"
+    assert diagnostic["observed_required_context_row_count"] == 0
+    assert diagnostic["rows"] == []
+
+
+def test_required_context_coverage_diagnostic_v1_truncated_followup_source_cannot_match():
+    durable = _valid_context_followup_handoff_fixture()
+    durable["coverage_ledger"][0].update(state="PARTIAL", reason_code="REQUIRED_CONTEXT_NOT_COVERED")
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+    projected = trial.project_case(case, durable, [], include_context_handoff=True)
+    followup_projection = projected["context_followup_observations"]
+    followup_projection["projection_state"] = "PARTIAL"
+    followup_projection["observed_followup_task_count"] = 9
+    followup_projection["projected_followup_task_count"] = 8
+    followup_projection["omitted_followup_task_count"] = 1
+    followup_projection["rows"] *= 8
+
+    diagnostic = trial._project_required_context_coverage_diagnostic(
+        projected, durable
+    )
+    row = diagnostic["rows"][0]
+
+    assert diagnostic["projection_state"] == "PARTIAL"
+    assert diagnostic["followup_source_completeness"] == "UNKNOWN"
+    assert diagnostic["source_followup_projection_state"] == "PARTIAL"
+    assert row["followup_observation_binding"] == "UNKNOWN"
+    assert row["closure_observation_binding"] == "UNKNOWN"
+    assert row["linked_followups"] == []
+
+
+def test_required_context_coverage_diagnostic_v1_rejects_ambiguous_case_or_lossy_coverage_source():
+    durable = _valid_context_followup_handoff_fixture()
+    durable["coverage_ledger"][0].update(state="PARTIAL", reason_code="REQUIRED_CONTEXT_NOT_COVERED")
+    case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
+    projected = trial.project_case(
+        case, durable, [], include_context_handoff=True,
+        include_required_context_coverage_diagnostic=True,
+    )
+    diagnostic_input = dict(projected)
+    diagnostic_input["case_id"] = "not-a-case-id"
+    ambiguous = trial._project_required_context_coverage_diagnostic(
+        diagnostic_input, durable
+    )
+    projected_only = trial._project_required_context_coverage_diagnostic(projected, projected)
+    malformed_source = copy.deepcopy(durable)
+    malformed_source["coverage_ledger"].append("malformed-row-canary")
+    lossy = trial._project_required_context_coverage_diagnostic(
+        projected, malformed_source
+    )
+
+    assert ambiguous["projection_state"] == "UNKNOWN"
+    assert ambiguous["case_id"] == "UNKNOWN"
+    assert projected_only["projection_state"] == "UNKNOWN"
+    assert projected_only["coverage_source_completeness"] == "UNKNOWN"
+    assert lossy["projection_state"] == "PARTIAL"
+    assert lossy["coverage_source_completeness"] == "UNKNOWN"
+    assert "malformed-row-canary" not in json.dumps(lossy)
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     [
