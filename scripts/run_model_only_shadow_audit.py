@@ -30,6 +30,7 @@ MAX_CAPTURE_MANIFEST_BYTES = 256_000
 MAX_RECEIPT_BYTES = 64_000
 DEFAULT_PLAN = ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json"
 DEFAULT_LIMITS = ROOT / "experiments/model-only-shadow-audit-limits-v1.json"
+PROFILE_RELATIVE_PATH = "docs/real-case-trial-v1/profiles/PR-464.json"
 EXPECTED_LLM = ("https://inference-api.nousresearch.com/v1", "openai/gpt-6-luna")
 EXPECTED_JEV = ("https://api.typesafe.ai/v1/systemone", "jev-latest")
 
@@ -233,11 +234,22 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
         raise ValueError("writer_plan_case_invalid")
     if set(packet_case_ids) != {plan_case_id}:
         raise ValueError("writer_plan_case_mismatch")
+    prepare_contract = plan.get("prepare_contract")
+    if (not isinstance(prepare_contract, dict)
+            or prepare_contract.get("profile_path") != PROFILE_RELATIVE_PATH):
+        raise ValueError("writer_plan_profile_path_invalid")
+    profile, profile_raw = _read_json(ROOT / PROFILE_RELATIVE_PATH, 256_000)
+    if hashlib.sha256(profile_raw).hexdigest() != case.get("profile_file_sha256"):
+        raise ValueError("profile_file_hash_mismatch")
+    canonical_profile = json.dumps(
+        profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+    ).encode("utf-8")
+    snapshot_profile_hash = hashlib.sha256(canonical_profile).hexdigest()
     expected_identity = {
         "case_id": case.get("case_id"), "snapshot_id": case.get("snapshot_id"),
         "snapshot_hash": case.get("snapshot_sha256"), "base_sha": case.get("base_sha"),
         "head_sha": case.get("head_sha"), "profile_version": case.get("profile_version"),
-        "profile_hash": case.get("profile_file_sha256"),
+        "profile_hash": snapshot_profile_hash,
     }
     if manifest is not None and any(manifest.get(key) != value for key, value in {
         "snapshot_id": expected_identity["snapshot_id"],

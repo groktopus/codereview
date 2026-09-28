@@ -14,6 +14,12 @@ SPEC = importlib.util.spec_from_file_location(
 RUNNER = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(RUNNER)
+_PROFILE_BYTES = b'{\n  "profile_id": "profile-v1"\n}\n'
+_PROFILE_OBJECT = json.loads(_PROFILE_BYTES)
+_PROFILE_FILE_SHA256 = hashlib.sha256(_PROFILE_BYTES).hexdigest()
+_PROFILE_SNAPSHOT_SHA256 = hashlib.sha256(
+    json.dumps(_PROFILE_OBJECT, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+).hexdigest()
 SANITIZER_SPEC = importlib.util.spec_from_file_location(
     "shadow_audit_receipt_sanitizer", Path(__file__).resolve().parents[1] / "scripts/sanitize_model_only_shadow_audit_receipt.py"
 )
@@ -22,8 +28,16 @@ assert SANITIZER_SPEC.loader is not None
 SANITIZER_SPEC.loader.exec_module(SANITIZER)
 CASE_IDENTITY = {
     "snapshot_id": "snap-test", "snapshot_hash": "a" * 64, "base_sha": "b" * 40,
-    "head_sha": "c" * 40, "profile_version": "profile-v1", "profile_hash": "d" * 64,
+    "head_sha": "c" * 40, "profile_version": "profile-v1", "profile_hash": _PROFILE_SNAPSHOT_SHA256,
 }
+
+
+@pytest.fixture(autouse=True)
+def trusted_profile_file(tmp_path, monkeypatch):
+    path = tmp_path / RUNNER.PROFILE_RELATIVE_PATH
+    path.parent.mkdir(parents=True)
+    path.write_bytes(_PROFILE_BYTES)
+    monkeypatch.setattr(RUNNER, "ROOT", tmp_path)
 
 
 def _packet(case_id: str, candidate_id: str | None, task_id: str) -> dict:
@@ -38,7 +52,8 @@ def _plan(task_ids: list[str]) -> dict:
             "case": {"case_id": "PR-464", "snapshot_id": CASE_IDENTITY["snapshot_id"],
                      "snapshot_sha256": CASE_IDENTITY["snapshot_hash"], "base_sha": CASE_IDENTITY["base_sha"],
                      "head_sha": CASE_IDENTITY["head_sha"], "profile_version": CASE_IDENTITY["profile_version"],
-                     "profile_file_sha256": CASE_IDENTITY["profile_hash"]},
+                     "profile_file_sha256": _PROFILE_FILE_SHA256},
+            "prepare_contract": {"profile_path": RUNNER.PROFILE_RELATIVE_PATH},
             "writer_requests": [{"task_id": task_id} for task_id in task_ids]}
 
 
@@ -83,6 +98,18 @@ def test_writer_run_identity_may_differ_from_packet_corpus_identity(tmp_path):
     plan.write_text(json.dumps(_plan(["task-first"])))
     ordered = RUNNER._task_order(plan, rows, manifest)
     assert ordered[0][2]["case_id"] == "PR-464"
+
+
+def test_plan_binds_raw_profile_file_pin_to_canonical_snapshot_profile_hash(tmp_path):
+    assert _PROFILE_FILE_SHA256 != _PROFILE_SNAPSHOT_SHA256
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
+    _, _, rows = RUNNER._packet_candidates(root)
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+
+    ordered = RUNNER._task_order(plan, rows)
+
+    assert ordered[0][2]["snapshot"]["profile_hash"] == _PROFILE_SNAPSHOT_SHA256
 
 
 def test_tampered_packet_corpus_identity_fails_before_provider_setup_and_writes_receipt(tmp_path, monkeypatch):
