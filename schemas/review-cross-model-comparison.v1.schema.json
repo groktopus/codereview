@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "review-cross-model-comparison.v1.schema.json",
+  "title": "Advisory cross-model comparison record",
+  "description": "Source-bound writer, Jev, and auditor provenance plus explicit advisory relations. This schema does not encode truth, accuracy, or a release gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "comparison_id", "corpus_id", "dataset_version", "procedure", "cases"],
+  "properties": {
+    "contract_version": {"const": "review-cross-model-comparison.v1"},
+    "comparison_id": {"$ref": "#/$defs/id"},
+    "corpus_id": {"$ref": "#/$defs/id"},
+    "dataset_version": {"type": "string", "minLength": 1, "maxLength": 256},
+    "procedure": {
+      "type": "object", "additionalProperties": false,
+      "required": ["revision", "relation_origin", "frozen_sha256"],
+      "properties": {
+        "revision": {"$ref": "#/$defs/id"},
+        "relation_origin": {"const": "declared_reporter_relation"},
+        "frozen_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "cases": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/case"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}(?:[0-9a-f]{24})?$"},
+    "case": {
+      "type": "object", "additionalProperties": false,
+      "required": ["case_id", "identity", "runs", "anchors", "records", "units"],
+      "properties": {
+        "case_id": {"$ref": "#/$defs/id"},
+        "identity": {"$ref": "#/$defs/corpusIdentity", "description": "Must exactly equal this case's validated review-evaluation-corpus.v1 identity."},
+        "runs": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/run"}},
+        "anchors": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/anchor"}},
+        "records": {"type": "array", "maxItems": 6000, "items": {"$ref": "#/$defs/record"}},
+        "units": {"type": "array", "maxItems": 20000, "items": {"$ref": "#/$defs/unit"}}
+      }
+    },
+    "corpusIdentity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["case_id", "family_id", "split", "repository", "snapshot_id", "base_sha", "head_sha", "profile", "source_manifest"],
+      "properties": {
+        "case_id": {"$ref": "#/$defs/id"},
+        "family_id": {"$ref": "#/$defs/id"},
+        "split": {"enum": ["development", "heldout", "challenge"]},
+        "repository": {
+          "type": "object", "additionalProperties": false, "required": ["owner", "name"],
+          "properties": {"owner": {"type": "string", "minLength": 1, "maxLength": 128}, "name": {"type": "string", "minLength": 1, "maxLength": 128}}
+        },
+        "snapshot_id": {"$ref": "#/$defs/id"},
+        "base_sha": {"$ref": "#/$defs/commit"},
+        "head_sha": {"$ref": "#/$defs/commit"},
+        "profile": {
+          "type": "object", "additionalProperties": false, "required": ["profile_id", "version", "sha256"],
+          "properties": {"profile_id": {"$ref": "#/$defs/id"}, "version": {"$ref": "#/$defs/id"}, "sha256": {"$ref": "#/$defs/hash"}}
+        },
+        "source_manifest": {
+          "type": "object", "additionalProperties": false, "required": ["manifest_id", "sha256"],
+          "properties": {"manifest_id": {"$ref": "#/$defs/id"}, "sha256": {"$ref": "#/$defs/hash"}}
+        }
+      }
+    },
+    "run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "status", "run_id", "provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision", "input_sha256", "input_artifact_id", "output_sha256", "artifact_id"],
+      "properties": {
+        "role": {"enum": ["writer", "jev", "auditor"]},
+        "status": {"enum": ["completed", "incomplete", "failed", "unavailable", "abstained", "not_run"]},
+        "run_id": {"type": ["string", "null"]}, "provider_id": {"type": ["string", "null"]},
+        "model_id": {"type": ["string", "null"]}, "runtime_id": {"type": ["string", "null"]},
+        "prompt_revision": {"type": ["string", "null"]}, "rubric_revision": {"type": ["string", "null"]},
+        "input_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+        "input_artifact_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "output_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+        "artifact_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}
+      }
+    },
+    "anchor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["anchor_id", "path", "line_start", "line_end"],
+      "properties": {
+        "anchor_id": {"$ref": "#/$defs/id"}, "path": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "line_start": {"type": "integer", "minimum": 1}, "line_end": {"type": "integer", "minimum": 1}
+      }
+    },
+    "record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "record_id", "record_kind", "anchor_ids"],
+      "properties": {"role": {"enum": ["writer", "jev", "auditor"]}, "record_id": {"$ref": "#/$defs/id"}, "record_kind": {"enum": ["finding", "classification", "audit", "no_counterpart", "abstention", "failure"]}, "anchor_ids": {"type": "array", "maxItems": 500, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}
+    },
+    "slot": {
+      "type": "object", "additionalProperties": false, "required": ["state", "record_id"],
+      "properties": {"state": {"enum": ["record", "no_counterpart", "abstained", "incomplete", "not_run"]}, "record_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}}
+    },
+    "unit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pair", "unit_id", "left", "right", "relation", "relation_reporter", "reporter_record_id"],
+      "properties": {
+        "pair": {"enum": ["writer_jev", "jev_auditor"]}, "unit_id": {"$ref": "#/$defs/id"},
+        "relation_reporter": {"enum": ["jev", "auditor"]}, "reporter_record_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "left": {"$ref": "#/$defs/slot"}, "right": {"$ref": "#/$defs/slot"},
+        "relation": {"enum": ["MATCH", "DISAGREEMENT", "NO_COUNTERPART", "ABSTAINED", "INCOMPLETE", "NOT_RUN"]}
+      }
+    }
+  }
+}
