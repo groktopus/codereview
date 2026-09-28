@@ -14,7 +14,7 @@ from typing import Any
 from selected_control_trace_attribution import _transport_pair_complete
 
 MAX_RECEIPT_BYTES = 65_536
-MODULE_COUNT = 30
+MODULE_COUNT = 31
 TOP_LEVEL = {
     "contract_version", "pair_state", "reason", "diagnostic_head_sha", "diagnostic_script_sha256",
     "diagnostic_script_differs_from_head", "runtime_source_commit", "runtime_tree_sha256",

@@ -152,9 +152,8 @@ jobs:
                   path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                   for path in sorted(package_source.glob("*.py")) if path.is_file()
               }
-              # BASELINE_SHA pins the pre-comparator runtime (28 modules); the PR
-              # candidate includes cross_model.py and cross_model_v2.py (30). Keep inventories exact.
-              expected_module_count = 28 if label == "BASELINE" else 30
+              # BASELINE_SHA pins 28 modules; the candidate adds three modules (31).
+              expected_module_count = 28 if label == "BASELINE" else 31
               if len(source_modules) != expected_module_count:
                   raise SystemExit("source_module_count_invalid")
               code = (

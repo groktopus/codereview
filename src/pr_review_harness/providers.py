@@ -592,6 +592,7 @@ class OpenAIProvider:
         schema: dict[str, Any],
         limits: dict[str, Any],
         contract_version: str,
+        capture_exchange: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         _mapping(limits, "limits")
         input_cap = _limits_int(limits, "max_input_bytes_per_task", self.max_request_bytes)
@@ -753,7 +754,10 @@ class OpenAIProvider:
         try:
             envelope = json.loads(raw)
         except (ValueError, UnicodeDecodeError):
-            raise ProviderError("malformed_provider_response", meta=base_meta) from None
+            error_meta = dict(base_meta)
+            if capture_exchange:
+                error_meta["_audit_exchange"] = {"response_bytes": raw}
+            raise ProviderError("malformed_provider_response", meta=error_meta) from None
         usage = envelope.get("usage", {}) if isinstance(envelope, dict) else {}
         if not isinstance(usage, dict):
             usage = {}
@@ -809,6 +813,8 @@ class OpenAIProvider:
                 "provider_contract_version": contract_version,
             },
         }
+        if capture_exchange:
+            meta["_audit_exchange"] = {"response_bytes": raw}
         try:
             choices = envelope["choices"]
             if not isinstance(choices, list) or len(choices) != 1:
@@ -822,6 +828,8 @@ class OpenAIProvider:
             parsed = json.loads(content)
             if not isinstance(parsed, dict):
                 raise ValueError
+            if capture_exchange:
+                meta["_audit_exchange"]["structured_response_bytes"] = content.encode("utf-8")
         except ProviderError as exc:
             exc.meta = meta
             raise
@@ -1092,6 +1100,144 @@ class OpenAIProvider:
         meta["provenance"]["provider_contract_version"] = payload["source_contract_version"]
         return {"payload": payload, **meta}
 
+    def review_with_capture(
+        self,
+        task: dict[str, Any],
+        evidence: list[dict[str, Any]],
+        limits: dict[str, Any],
+        capture_spec: dict[str, Any],
+        capture_sink: Any,
+    ) -> dict[str, Any]:
+        """Run one specialist call and send only bounded body/content bytes to an opt-in sink.
+
+        The sink owns private-file creation and returns a hash-bound receipt. No
+        headers, credentials, endpoint URL, or raw HTTP envelope are passed to it.
+        """
+        if not callable(capture_sink):
+            raise ProviderError("capture_sink_required")
+        system, user, schema = self._review_parts(task, evidence)
+        request_bytes = self._request_bytes(system, user, schema, limits)
+        response_content: bytes | None = None
+        response_envelope: bytes | None = None
+        response_envelope_sha256: str | None = None
+        status = "failed"
+        sink_called = False
+
+        def seal() -> dict[str, Any]:
+            import hashlib
+
+            nonlocal sink_called
+            if sink_called:
+                raise ProviderError("capture_sink_failed")
+            sink_called = True
+            try:
+                receipt = capture_sink(
+                    capture_spec,
+                    request_bytes,
+                    response_content,
+                    status,
+                    response_envelope_sha256 or (
+                        hashlib.sha256(response_envelope).hexdigest() if response_envelope is not None else None
+                    ),
+                    "openai-chat-completions.message-content.utf8.v1",
+                )
+            except Exception:
+                raise ProviderError("capture_sink_failed") from None
+            fields = {
+                "call_id", "request_sha256", "request_artifact_id", "response_sha256",
+                "response_artifact_id", "status",
+            }
+            if not isinstance(receipt, dict) or set(receipt) != fields:
+                raise ProviderError("capture_receipt_invalid")
+            call_id = receipt.get("call_id")
+            request_hash = receipt.get("request_sha256")
+            request_artifact = receipt.get("request_artifact_id")
+            response_hash = receipt.get("response_sha256")
+            response_artifact = receipt.get("response_artifact_id")
+            if (
+                not isinstance(call_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", call_id)
+                or not isinstance(request_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", request_hash)
+                or request_hash != hashlib.sha256(request_bytes).hexdigest()
+                or not isinstance(request_artifact, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", request_artifact)
+                or receipt["status"] != status
+                or (response_hash is None) != (response_artifact is None)
+                or (response_content is None and response_hash is not None)
+                or (response_content is not None and response_hash != hashlib.sha256(response_content).hexdigest())
+                or (response_hash is not None and (
+                    not isinstance(response_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", response_hash)
+                    or not isinstance(response_artifact, str)
+                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", response_artifact)
+                ))
+            ):
+                raise ProviderError("capture_receipt_invalid")
+            return receipt
+
+        try:
+            parsed, meta = self._call(
+                system=system,
+                user=user,
+                schema=schema,
+                limits=limits,
+                contract_version=contracts.SPECIALIST_V4,
+                capture_exchange=True,
+            )
+            exchange = meta.pop("_audit_exchange", {})
+            response_content = exchange.get("structured_response_bytes")
+            response_envelope = exchange.get("response_bytes")
+            if isinstance(response_envelope, bytes):
+                response_envelope_sha256 = hashlib.sha256(response_envelope).hexdigest()
+            valid_ids = {item.get("evidence_id") for item in evidence if isinstance(item, dict)}
+            try:
+                payload = _validate_specialist(
+                    parsed,
+                    valid_evidence_ids=valid_ids,
+                    valid_unit_ids=set(task.get("unit_ids", [])),
+                    max_items=self.max_output_items,
+                    max_candidate_text_bytes=self.max_item_text_bytes,
+                )
+            except ProviderError as exc:
+                exc.meta = meta
+                raise
+            meta["provenance"]["provider_contract_version"] = payload["source_contract_version"]
+            status = "completed"
+            receipt = seal()
+            return {"payload": payload, **meta, "capture_receipt": receipt}
+        except ProviderError as exc:
+            exchange = exc.meta.pop("_audit_exchange", {})
+            if response_content is None and isinstance(exchange, dict):
+                candidate = exchange.get("structured_response_bytes")
+                response_content = candidate if isinstance(candidate, bytes) else None
+            if response_envelope is None and isinstance(exchange, dict):
+                candidate = exchange.get("response_bytes")
+                response_envelope = candidate if isinstance(candidate, bytes) else None
+            if isinstance(response_envelope, bytes):
+                response_envelope_sha256 = hashlib.sha256(response_envelope).hexdigest()
+            if response_envelope_sha256 is None:
+                local_exchange = exc.meta.get("local_http_exchange")
+                if isinstance(local_exchange, dict) and local_exchange.get("response_complete") is True:
+                    observed_hash = local_exchange.get("response_sha256")
+                    if isinstance(observed_hash, str) and re.fullmatch(r"[0-9a-f]{64}", observed_hash):
+                        response_envelope_sha256 = observed_hash
+            status = (
+                "incomplete" if exc.code == "model_output_incomplete"
+                else "unavailable" if exc.code in {"transport_failed", "provider_deadline_exceeded", "credential_unavailable"}
+                else "failed"
+            )
+            if not sink_called:
+                exc.meta["capture_receipt"] = seal()
+            raise
+        except Exception as exc:
+            if not sink_called:
+                meta = getattr(exc, "meta", {})
+                local_exchange = meta.get("local_http_exchange") if isinstance(meta, dict) else None
+                if isinstance(local_exchange, dict) and local_exchange.get("response_complete") is True:
+                    observed_hash = local_exchange.get("response_sha256")
+                    if isinstance(observed_hash, str) and re.fullmatch(r"[0-9a-f]{64}", observed_hash):
+                        response_envelope_sha256 = observed_hash
+                receipt = seal()
+                raise ProviderError("provider_call_failed", meta={"capture_receipt": receipt}) from None
+            raise ProviderError("provider_call_failed") from None
+
     def adjudicate(
         self, candidate: dict[str, Any], evidence: list[dict[str, Any]], limits: dict[str, Any]
     ) -> dict[str, Any]:
@@ -1222,6 +1368,49 @@ class OpenAIProvider:
             {"candidate": candidate, "evidence": evidence},
             schema,
         )
+
+    def audit_json(
+        self,
+        *,
+        system: str,
+        user: dict[str, Any],
+        schema: dict[str, Any],
+        limits: dict[str, Any],
+        contract_version: str,
+    ) -> dict[str, Any]:
+        """Make one bounded structured call and return its exact local wire bytes.
+
+        Raw bytes are exposed only through this explicit audit method so a caller
+        can seal them as local provenance artifacts. Ordinary review/adjudication
+        results continue to contain hashes and sanitized metadata only.
+        """
+        request_bytes = self._request_bytes(system, user, schema, limits)
+        try:
+            payload, meta = self._call(
+                system=system,
+                user=user,
+                schema=schema,
+                limits=limits,
+                contract_version=contract_version,
+                capture_exchange=True,
+            )
+        except ProviderError as exc:
+            exchange = exc.meta.pop("_audit_exchange", {})
+            exc.meta["audit_exchange"] = {
+                "request_bytes": request_bytes,
+                "response_bytes": exchange.get("response_bytes"),
+            }
+            raise
+        exchange = meta.pop("_audit_exchange", {})
+        return {
+            "payload": payload,
+            "provenance": meta["provenance"],
+            "usage": meta["usage"],
+            "audit_exchange": {
+                "request_bytes": request_bytes,
+                "response_bytes": exchange.get("response_bytes"),
+            },
+        }
 
 
 class DecisionProvider:
