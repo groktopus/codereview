@@ -316,7 +316,10 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     _git(repo, "add", "handler.py")
     _git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "head")
     head = _git(repo, "rev-parse", "HEAD")
-    profile = {"version": "pilot-v1", "required_lenses": ["correctness"], "context_paths": []}
+    profile = {
+        "version": "pilot-v1", "repository": "owner/repo",
+        "required_lenses": ["correctness"], "context_paths": [],
+    }
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps(profile))
     provider_config_path = tmp_path / "provider.json"
@@ -331,6 +334,35 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     provider = CaptureAwareProvider()
     monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    # Actions injects this variable for every workflow, including a trusted
+    # provider-free historical prepare. The explicit historical document and
+    # revisions must take precedence without opening the ambient event file.
+    monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
+    from pr_review_harness.checks import make_check_runs_document
+
+    historical_checks_path = tmp_path / "historical-checks.json"
+    historical_checks = make_check_runs_document(
+        "owner/repo", 1, head, [], captured_at="2026-09-28T12:00:00Z"
+    )
+    historical_checks["base_sha"] = base
+    historical_checks_path.write_text(json.dumps(historical_checks))
+
+    historical_prepare_args = [
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(profile_path), "--provider-config", str(provider_config_path),
+        "--historical-checks-json", str(historical_checks_path),
+        "--output", str(tmp_path / "historical-prepared-output"),
+        "--run-id", "historical-capture-prepare", "--prepare-only", "--json",
+    ]
+    assert cli.main(historical_prepare_args) == 0
+    historical_prepared = json.loads(capsys.readouterr().out)
+    assert historical_prepared["status"] == "PREPARED_ONLY"
+    assert historical_prepared["checks"]["historical_check_identity"]["head_sha"] == head
+    assert historical_prepared["no_provider_calls"] is True
+
+    # The historical prepare explicitly consumed the checked-in evidence and
+    # ignored the ambient Actions event file. Preserve the original non-event
+    # fixture for the capture-binding portion of this test.
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     prepared_dir = tmp_path / "prepared-output"
     prepare_args = [
@@ -342,6 +374,7 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     prepared = json.loads(capsys.readouterr().out)
     assert prepared["status"] == "PREPARED_ONLY"
     assert prepared["capacity"]["exact_primary_call_demand"] == 1
+    assert prepared["no_provider_calls"] is True
     # The capture route applies the frozen-snapshot hash contract after CLI
     # freshness provenance is attached. Recompute that same identity for this
     # fixture rather than binding the collector's earlier pre-provenance hash.

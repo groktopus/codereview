@@ -23,8 +23,8 @@ PLAN_MAX_BYTES = 128_000
 PREPARE_MAX_BYTES = 4_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_MODULE_COUNT = 33
-EXPECTED_MODULE_TREE_SHA256 = "93c49428632b179c734180f0784d87b3c391e916962ac5b4c5a9fc0281163123"
-EXPECTED_PLAN_SHA256 = "218da5b8011e0d9e391721a6e96114e9aa80f738c49eef2deb0f3c41f47d8db2"
+EXPECTED_MODULE_TREE_SHA256 = "dd0557a2f452ff6d4780b76c33a668dec5a96a42ee3dfe5209ac73f38a670fde"
+EXPECTED_PLAN_SHA256 = "600a990a9325323c481e8ca82e71170d1b8b1257f3276225299e62a9ba4276e3"
 LIMITS_PATH = ROOT / "experiments" / "model-only-shadow-live-writer-limits-v1.json"
 PROVIDER_PATH = ROOT / "experiments" / "model-only-shadow-live-writer-provider-v1.json"
 
@@ -141,7 +141,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
     ):
         if not isinstance(runtime.get(field), str) or not SHA256.fullmatch(runtime[field]):
             raise PreflightError("plan_runtime_hash_invalid")
-    if runtime.get("plan_generated_from_revision") != "69bf1527f88e66994bb3c7e72391a8df911d9c51":
+    if runtime.get("plan_generated_from_revision") != "eeb8ff4a73b6f1f9088df84d338ddebb16d1973b":
         raise PreflightError("plan_runtime_revision_invalid")
     identity = plan.get("provider_identity")
     if not isinstance(identity, dict) or identity != {

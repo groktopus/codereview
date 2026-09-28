@@ -458,6 +458,22 @@ def _github_pr(args) -> dict | None:
     return event
 
 
+def _event_file_input(args) -> str | None:
+    """Resolve event input while honoring an explicit historical evidence mode.
+
+    GitHub Actions always supplies GITHUB_EVENT_PATH. An explicit historical
+    check document with explicit revisions selects an offline evidence path,
+    so the ambient runner event is not an input unless the caller explicitly
+    supplied --event-file.
+    """
+    explicit = getattr(args, "event_file", None)
+    if explicit:
+        return explicit
+    if getattr(args, "historical_checks_json", None):
+        return None
+    return os.environ.get("GITHUB_EVENT_PATH")
+
+
 def _validate_historical_checks(profile: dict, document: dict, base: str | None, head: str | None) -> dict:
     """Validate captured check evidence without claiming current GitHub state."""
     if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", base):
@@ -1214,7 +1230,7 @@ def main(argv=None) -> int:
         if getattr(args, "prepare_only", False):
             if args.command != "review" or args.dry_run:
                 raise ValueError("--prepare-only is available only for a non-dry-run review")
-            if args.github_pr or args.event_file or os.environ.get("GITHUB_EVENT_PATH"):
+            if args.github_pr or _event_file_input(args):
                 raise ValueError("--prepare-only requires explicit historical revisions without a GitHub event")
             if not args.provider_config:
                 raise ValueError("--prepare-only requires --provider-config for exact request sizing")
@@ -1227,7 +1243,7 @@ def main(argv=None) -> int:
                 "command": args.command,
                 "repository": os.path.realpath(args.repo),
                 "profile_path": os.path.realpath(args.profile),
-                "event_file": (getattr(args, "event_file", None) or os.environ.get("GITHUB_EVENT_PATH")),
+                "event_file": _event_file_input(args),
                 "provider_configured": bool(args.provider_config),
                 "decision_provider_configured": bool(args.decision_config),
                 "limits_path": os.path.realpath(args.limits) if args.limits else None,
@@ -1261,7 +1277,7 @@ def main(argv=None) -> int:
             if args.historical_checks_json:
                 if args.checks_json:
                     raise ValueError("--checks-json and --historical-checks-json are mutually exclusive")
-                if args.github_pr or args.event_file or os.environ.get("GITHUB_EVENT_PATH"):
+                if args.github_pr or args.event_file:
                     raise ValueError("--historical-checks-json cannot be combined with a GitHub PR or event")
                 event = None
                 checks_document = _load_historical_checks(args.historical_checks_json)

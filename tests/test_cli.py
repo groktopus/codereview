@@ -700,6 +700,23 @@ def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, mo
     assert "diagnostic_artifact_path" not in output
 
 
+def test_prepare_only_without_historical_checks_rejects_ambient_event(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli
+
+    repo, base, head, profile_path = fixture_repo(tmp_path)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
+    assert cli.main([
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(profile_path), "--provider-config", str(tmp_path / "provider.json"),
+        "--output", str(tmp_path / "prepare-output"), "--prepare-only", "--json",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out) == {
+        "error": "preflight_rejected",
+        "exit_code": 2,
+    }
+
+
 def test_recent_runtime_failure_returns_same_diagnostic_path_and_exit_one(tmp_path, monkeypatch, capsys):
     cli, review_argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path, report_failure="render")
     repo = Path(review_argv[review_argv.index("--repo") + 1])
@@ -1156,7 +1173,7 @@ def test_historical_check_evidence_cli_uses_historical_freshness_without_event_a
     def forbidden_api_adapter(*_args, **_kwargs):
         raise AssertionError("historical check mode must not construct GitHub API adapters")
 
-    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
     monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     monkeypatch.setattr(github, "GitHubPRAdapter", forbidden_api_adapter)
     monkeypatch.setattr(github, "GitHubFreshnessCheck", forbidden_api_adapter)
@@ -1321,7 +1338,6 @@ def test_cli_identity_rebinding_preserves_selected_evidence_and_file_anchor(tmp_
         "overflow_float",
         "deep_json",
         "oversize",
-        "event_env",
         "event_file",
         "github_pr",
         "both_check_flags",
@@ -1383,8 +1399,6 @@ def test_historical_check_evidence_cli_rejects_unbound_identity_before_run(tmp_p
     if mutation == "both_check_flags":
         args.extend(("--checks-json", str(checks_path)))
     env = {"GITHUB_EVENT_PATH": "", "GITHUB_REPOSITORY": ""}
-    if mutation == "event_env":
-        env["GITHUB_EVENT_PATH"] = str(tmp_path / "event.json")
     if mutation == "event_file":
         args.extend(("--event-file", str(tmp_path / "event.json")))
     if mutation == "github_pr":
