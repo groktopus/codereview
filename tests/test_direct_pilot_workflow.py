@@ -381,6 +381,11 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
         1,
     )
     reusable_command = reusable_review.split("        run: |\n", 1)[1]
+    reusable_command = reusable_command.replace(
+        '          test "$(sha256sum "$PROFILE" | cut -d\' \' -f1)" = "$EXPECTED_PROFILE_SHA256"\n',
+        "",
+        1,
+    )
     assert direct_command.rstrip() == reusable_command.rstrip()
     assert "PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json" in direct_review
     assert "env GITHUB_REPOSITORY=magnus919/SlopSearX pr-review review" in direct_review

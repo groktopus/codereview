@@ -65,6 +65,7 @@ jobs:
         env:
           HARNESS_REPOSITORY: ${{ inputs.harness_repository }}
           HARNESS_SHA: ${{ inputs.harness_sha }}
+          CALLER_REPOSITORY: ${{ github.repository }}
           TARGET_REPOSITORY: ${{ inputs.target_repository }}
           PR_NUMBER: ${{ inputs.pull_request_number }}
           BASE_REF: ${{ inputs.base_ref }}
@@ -79,6 +80,10 @@ jobs:
               raise SystemExit('harness_revision_must_be_full_immutable_sha')
           if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', os.environ['TARGET_REPOSITORY']):
               raise SystemExit('target_repository_invalid')
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', os.environ['CALLER_REPOSITORY']):
+              raise SystemExit('caller_repository_invalid')
+          if os.environ['CALLER_REPOSITORY'] != os.environ['TARGET_REPOSITORY']:
+              raise SystemExit('caller_target_repository_mismatch')
           if not os.environ['PR_NUMBER'].isdigit() or int(os.environ['PR_NUMBER']) < 1:
               raise SystemExit('pull_request_number_invalid')
           base_ref = os.environ['BASE_REF']
@@ -253,6 +258,14 @@ jobs:
           if __name__ == "__main__":
               main()
           PY
+      - name: Resolve the exact trusted profile for this target repository
+        id: resolve-profile
+        env:
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+        run: |
+          python scripts/resolve_target_profile.py \
+            --github-output "$GITHUB_OUTPUT" \
+            --binding-artifact artifacts/profile-binding.json
       - name: Materialize private provider configuration from trusted secrets
         env:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
@@ -272,9 +285,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
-          PROFILE: ${{ inputs.target_repository == 'magnus919/SlopSearX' && 'profiles/slopsearx.json' || 'profiles/generic.json' }}
+          PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}
+          EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}
           OBJECT_STORE: ${{ runner.temp }}/target.git
         run: |
+          test "$(sha256sum "$PROFILE" | cut -d' ' -f1)" = "$EXPECTED_PROFILE_SHA256"
           mkdir -p artifacts
           env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review \
             --repo "$OBJECT_STORE" \
