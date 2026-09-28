@@ -301,8 +301,39 @@ jobs:
             --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
             --mode AUTO \
             --json > artifacts/review-result.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: Record recovery identity and artifact digests
+        id: recovery-manifest
         if: always()
+        env:
+          WORKFLOW_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          HARNESS_REPOSITORY: ${{ inputs.harness_repository }}
+          HARNESS_SHA: ${{ inputs.harness_sha }}
+          PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}
+          EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}
+          PROVIDER_CONFIG: ${{ runner.temp }}/pr-review-provider-config/provider.json
+          DECISION_CONFIG: ${{ runner.temp }}/pr-review-provider-config/decision.json
+        run: |
+          python scripts/pr_analysis_artifact_manifest.py \
+            --artifact-root artifacts \
+            --workflow-repository "$WORKFLOW_REPOSITORY" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" \
+            --target-repository "$TARGET_REPOSITORY" \
+            --pull-request-number "$PR_NUMBER" \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA" \
+            --harness-repository "$HARNESS_REPOSITORY" \
+            --harness-sha "$HARNESS_SHA" \
+            --expected-profile-sha256 "$EXPECTED_PROFILE_SHA256" \
+            --profile "$PROFILE" \
+            --provider-config "$PROVIDER_CONFIG" \
+            --decision-config "$DECISION_CONFIG"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && steps.recovery-manifest.outcome == 'success'
         with:
           name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}
           path: artifacts/
