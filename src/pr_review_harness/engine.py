@@ -1190,6 +1190,8 @@ def run_review(
     max_claim_assessments: int = 0,
     private_capture_dir: str | None = None,
     private_capture_case_id: str | None = None,
+    private_capture_request_pins: dict[str, dict] | None = None,
+    private_capture_snapshot_pin: dict[str, str] | None = None,
 ) -> dict:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1489,6 +1491,42 @@ def run_review(
     if private_capture_dir is not None:
         if resume or not callable(getattr(provider, "review_with_capture", None)):
             raise EnginePreflightError("invalid_review_request", "private capture requires a fresh capture-capable provider")
+        if private_capture_request_pins is not None:
+            planned = [
+                task for task in primary_tasks
+                if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"
+            ]
+            if (
+                not isinstance(private_capture_request_pins, dict)
+                or len(private_capture_request_pins) != len(planned)
+                or {task.get("task_id") for task in planned} != set(private_capture_request_pins)
+                or not isinstance(private_capture_snapshot_pin, dict)
+                or snapshot.get("snapshot_id") != private_capture_snapshot_pin.get("snapshot_id")
+                or snapshot.get("snapshot_hash") != private_capture_snapshot_pin.get("snapshot_sha256")
+                or not callable(getattr(provider, "serialize_review_request", None))
+                or limits.get("max_provider_calls") != len(private_capture_request_pins)
+                or limits.get("max_retries_per_task") != 0
+                or limits.get("max_followup_tasks") != 0
+                or decision_provider is not None
+                or max_claim_assessments != 0
+            ):
+                raise EnginePreflightError("invalid_review_request", "private capture plan binding mismatch")
+            for task in planned:
+                task_id = task.get("task_id")
+                pin = private_capture_request_pins.get(task_id)
+                if not isinstance(pin, dict):
+                    raise EnginePreflightError("invalid_review_request", "private capture task is not pinned")
+                request_bytes = provider.serialize_review_request(task, evidence_cache[task_id], limits)
+                if (
+                    hashlib.sha256(request_bytes).hexdigest() != pin.get("input_sha256")
+                    or len(request_bytes) != pin.get("input_bytes")
+                    or task.get("lens") != pin.get("lens")
+                    or min(provider.max_response_bytes, limits["max_output_bytes_per_task"])
+                    != pin.get("output_bytes_cap")
+                    or min(provider.max_output_tokens, limits["max_output_tokens"])
+                    != pin.get("output_tokens_cap")
+                ):
+                    raise EnginePreflightError("invalid_review_request", "private capture request bytes changed")
         call_cap = limits["max_provider_calls"]
         input_cap = min(limits["max_input_bytes_per_task"], input_ceiling)
         output_cap = limits["max_output_bytes_per_task"]
@@ -1715,6 +1753,16 @@ def run_review(
                 "root": str(private_capture.root),
                 "provider": private_capture.provider_identity,
             })
+            if private_capture_request_pins is not None:
+                pin = private_capture_request_pins.get(task_id)
+                if not isinstance(pin, dict):
+                    private_capture.finalize_pending(capture_spec["call_id"], "failed")
+                    raise EnginePreflightError("invalid_review_request", "private capture task is not pinned")
+                capture_spec.update({
+                    "strict_request_pin": True,
+                    "expected_task_id": task_id,
+                    "expected_request_sha256": pin["input_sha256"],
+                })
         args = (task, snapshot, profile, invocation_limits) if is_check else (
             (task, evidence, invocation_limits, capture_spec, write_provider_exchange)
             if capturing else (task, evidence, invocation_limits)
