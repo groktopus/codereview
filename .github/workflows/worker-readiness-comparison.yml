@@ -152,7 +152,10 @@ jobs:
                   path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                   for path in sorted(package_source.glob("*.py")) if path.is_file()
               }
-              if len(source_modules) != 28:
+              # BASELINE_SHA pins the pre-comparator runtime (28 modules); the PR
+              # candidate adds cross_model.py (29). Keep each source inventory exact.
+              expected_module_count = 28 if label == "BASELINE" else 29
+              if len(source_modules) != expected_module_count:
                   raise SystemExit("source_module_count_invalid")
               code = (
                   "import hashlib,json,pr_review_harness, pathlib; "
@@ -215,7 +218,10 @@ jobs:
               "baseline_kind": "observer_diagnostic_compatibility_backport",
               "candidate_sha": os.environ["CANDIDATE_SHA"],
               "source_and_wheel_identity_verified": True,
-              "modules_per_runtime": 28,
+              "module_counts_per_runtime": {
+                  label: records[label.lower()]["source_module_count"]
+                  for label in ("BASELINE", "CANDIDATE")
+              },
               "observer_id": observer_contract["observer_id"],
               "observer_source_sha256": records["candidate"]["source_module_sha256"][observer_name],
               "syscall_scope": expected_scope,
