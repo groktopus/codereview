@@ -80,6 +80,18 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     assert "audit_or_jev_dispatched" in (ROOT / "scripts" / "sanitize_model_only_shadow_writer_receipt.py").read_text()
 
 
+def test_writer_receipt_upload_runs_after_later_audit_failure_only_when_sanitized():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    upload = text.split("- name: Upload only the hash-only writer receipt", 1)[1].split(
+        "- name: Upload only the hash-only model-only audit receipt", 1
+    )[0]
+    assert "if: always() && steps.writer-sanitize.outputs.validated == 'true'" in upload
+    assert "private-writer-sanitized/writer-receipt.json" in upload
+    assert "private-writer-capture" not in upload
+    assert "writer-result.json" not in upload
+    assert "writer-stage-diagnostic.json" not in upload
+
+
 def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     text = WORKFLOW.read_text(encoding="utf-8")
     live = text.split("  live_writer:", 1)[1]
@@ -150,6 +162,17 @@ def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     assert text.index("Upload only the sanitized preparation receipt") < text.index("Remove private preparation workspace")
 
 
+def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():
+    legacy = json.loads(BUDGET.read_text(encoding="utf-8"))
+    live = json.loads((ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v1.json").read_text())
+    historical_hash = "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663"
+    capture_hash = "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
+    assert legacy["case"]["snapshot_sha256"] == historical_hash
+    assert live["case"]["snapshot_sha256"] == capture_hash
+    assert historical_hash in (ROOT / "scripts" / "sanitize_model_only_shadow_preflight.py").read_text()
+    assert capture_hash in (ROOT / "scripts" / "verify_model_only_shadow_live_preflight.py").read_text()
+
+
 def test_budget_manifest_has_finite_shared_limits_and_planned_provider_identity():
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     assert budget["schema"] == "model-only-shadow-trial-budget.v1"
@@ -186,7 +209,7 @@ def _receipt_fixture(tmp_path: Path, *, extra_manifest_key: bool = False):
         "immutable_patch_sha256": digest, "primary_calls": 10,
         "primary_descriptor_sha256": digest, "primary_serialized_input_bytes": 893359,
         "profile_sha256": digest, "scope_count": 22, "scope_sha256": digest,
-        "snapshot_hash": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "snapshot_hash": "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
         "status": "PREPARED_NOT_RUN",
     }
     summary = {"schema": "historical-real-case-trial-manifest.v2", "status": "PREPARED_NOT_RUN", "cases": [case]}

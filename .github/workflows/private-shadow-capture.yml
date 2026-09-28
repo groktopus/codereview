@@ -502,7 +502,7 @@ jobs:
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
       - name: Upload only the hash-only writer receipt
-        if: steps.writer-sanitize.outputs.validated == 'true'
+        if: always() && steps.writer-sanitize.outputs.validated == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: private-shadow-writer-${{ github.run_id }}-${{ github.run_attempt }}
