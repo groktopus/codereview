@@ -28,6 +28,7 @@ def test_shadow_preparation_is_manual_trusted_and_read_only():
     assert "PUBLISH_REVIEW" not in text
     assert "--run-provider-trial" not in text
     assert "--prepare-only" in text
+    assert "--private-shadow-preflight-case-id PR-464 --max-claim-assessments 0" in text
     assert WORKFLOW.name == "private-shadow-capture.yml"
 
 
@@ -112,6 +113,28 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     assert "PUBLISH_REVIEW" not in text and "gh pr review" not in text
 
 
+def test_live_writer_failure_reports_only_allowlisted_json_and_stage_code():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    live = text.split("  live_writer:", 1)[1]
+    writer = live.split("- name: Run only the ten pinned read-only writer calls", 1)[1].split(
+        "- name: Sanitize the completed writer capture", 1
+    )[0]
+    assert "scripts/run_pr_review_stage_diagnostic.py" in writer
+    assert "--stage-output \"$RUNNER_TEMP/private-shadow-preparation/writer-stage-diagnostic.json\"" in writer
+    assert "--input \"$RUNNER_TEMP/private-shadow-preparation/writer-result.json\"" in writer
+    assert "--stage-input \"$RUNNER_TEMP/private-shadow-preparation/writer-stage-diagnostic.json\"" in writer
+    assert "--exit-code \"$cli_exit_code\"" in writer
+    assert "--json > \"$RUNNER_TEMP/private-shadow-preparation/writer-result.json\" 2>/dev/null; then" in writer
+    assert "python3 scripts/extract_pr_review_failure_code.py" in writer
+    assert "exit \"$cli_exit_code\"" in writer
+    upload = live.split("- name: Upload only the hash-only writer receipt", 1)[1].split(
+        "- name: Remove private live-writer workspace", 1
+    )[0]
+    assert "writer-result.json" not in upload
+    assert "writer-stage-diagnostic.json" not in upload
+    assert '"private-shadow-preparation"' in live.split("- name: Remove private live-writer workspace", 1)[1]
+
+
 def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "5873c3f1b297a96c49b78cbcb7be674ab70b3cea" in text
@@ -163,7 +186,7 @@ def _receipt_fixture(tmp_path: Path, *, extra_manifest_key: bool = False):
         "immutable_patch_sha256": digest, "primary_calls": 10,
         "primary_descriptor_sha256": digest, "primary_serialized_input_bytes": 893359,
         "profile_sha256": digest, "scope_count": 22, "scope_sha256": digest,
-        "snapshot_hash": "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
+        "snapshot_hash": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
         "status": "PREPARED_NOT_RUN",
     }
     summary = {"schema": "historical-real-case-trial-manifest.v2", "status": "PREPARED_NOT_RUN", "cases": [case]}
