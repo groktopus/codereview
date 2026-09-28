@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-EXPECTED_PLAN_SHA256 = "21db31740045790e8995ddccd04412f82952aea24ed8e2b606748b74fe41135e"
+EXPECTED_PLAN_SHA256 = "7f8dc044ed29b8641f4700d17351a3e595f324df55eb5b8a08b77461e450eccb"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 

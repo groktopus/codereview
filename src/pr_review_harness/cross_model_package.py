@@ -56,6 +56,41 @@ def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _validate_capture_packet_inventory(capture_root: Path, capture: dict[str, Any]) -> dict[str, str]:
+    inventory = capture.get("case_packet_inventory")
+    if (not isinstance(inventory, dict) or set(inventory) != {"schema", "packets"}
+            or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
+            or not isinstance(inventory.get("packets"), list)
+            or not 1 <= len(inventory["packets"]) <= 128):
+        _fail("writer_capture_packet_inventory_invalid")
+    expected: dict[str, str] = {}
+    for row in inventory["packets"]:
+        if (not isinstance(row, dict) or set(row) != {"path", "sha256"}
+                or not isinstance(row.get("path"), str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\.json", row["path"])
+                or not isinstance(row.get("sha256"), str) or not _SHA.fullmatch(row["sha256"])
+                or row["path"] in expected):
+            _fail("writer_capture_packet_inventory_invalid")
+        expected[row["path"]] = row["sha256"]
+    packet_dir = capture_root / "case-packets"
+    try:
+        info = packet_dir.lstat()
+    except OSError:
+        _fail("writer_capture_packet_inventory_invalid")
+    if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700:
+        _fail("writer_capture_packet_inventory_invalid")
+    try:
+        entries = list(packet_dir.iterdir())
+    except OSError:
+        _fail("writer_capture_packet_inventory_invalid")
+    if {path.name for path in entries} != set(expected):
+        _fail("writer_capture_packet_inventory_mismatch")
+    for path in entries:
+        if _sha(_read(path, 4_000_000)) != expected[path.name]:
+            _fail("writer_capture_packet_inventory_mismatch")
+    return expected
+
+
 def _read(path: Path, limit: int = MAX_INPUT_BYTES) -> bytes:
     """Read one bounded regular file, refusing symlinks and path traversal."""
     if ".." in path.parts:
@@ -254,9 +289,12 @@ def build_cross_model_package(
     corpus = validate_corpus(corpus_value)
     packet, packet_raw = _json(case_packet_path, 4_000_000)
     capture, _ = _json(capture_root / "manifest.json", 4_000_000)
+    inventory_paths = _validate_capture_packet_inventory(capture_root, capture)
     shadow, _ = _json(shadow_root / "shadow-audit-manifest.json", 4_000_000)
     if case_packet_path.absolute().parent != (capture_root / "case-packets").absolute():
         _fail("case_packet_outside_capture")
+    if inventory_paths.get(case_packet_path.name) != _sha(packet_raw):
+        _fail("writer_capture_packet_inventory_mismatch")
     matching_packet_paths = []
     for candidate_path in sorted((capture_root / "case-packets").glob("*.json")):
         candidate_packet, _ = _json(candidate_path, 4_000_000)
@@ -289,7 +327,7 @@ def build_cross_model_package(
     ):
         _fail("case_snapshot_corpus_mismatch")
     if (
-        set(capture) != {"contract_version", "case_id", "snapshot_id", "snapshot_hash", "source_task", "provider", "calls", "private_artifacts"}
+        set(capture) != {"contract_version", "case_id", "snapshot_id", "snapshot_hash", "source_task", "provider", "calls", "private_artifacts", "case_packet_inventory"}
         or capture.get("contract_version") != "model-only-shadow-case.v1"
         or capture.get("case_id") != packet.get("writer_run", {}).get("run_id")
         or capture.get("snapshot_id") != snapshot["snapshot_id"]

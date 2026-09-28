@@ -298,6 +298,9 @@ def test_writer_request_for_another_task_fails_even_with_updated_receipt_hash(tm
     (shadow_root / "shadow-audit-manifest.json").write_bytes(_json_bytes(shadow, ascii_only=True))
     capture = json.loads((capture_root / "manifest.json").read_text())
     capture["calls"][0]["request_sha256"] = _sha(request)
+    for inventory_row in capture["case_packet_inventory"]["packets"]:
+        if inventory_row["path"] == packet_path.name:
+            inventory_row["sha256"] = _sha(packet_path.read_bytes())
     (capture_root / "manifest.json").write_bytes(_json_bytes(capture))
     with pytest.raises(EvaluationError, match="writer_request_task_binding_mismatch"):
         build_cross_model_package(corpus_value=corpus, case_packet_path=packet_path,

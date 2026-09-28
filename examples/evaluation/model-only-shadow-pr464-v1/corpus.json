@@ -18,7 +18,7 @@
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "source_manifest": {
           "manifest_id": "model-only-shadow-live-pr464-plan-v1",
-          "sha256": "21db31740045790e8995ddccd04412f82952aea24ed8e2b606748b74fe41135e"
+          "sha256": "7f8dc044ed29b8641f4700d17351a3e595f324df55eb5b8a08b77461e450eccb"
         },
         "split": "development"
       },
@@ -35,7 +35,7 @@
   ],
   "contract_version": "review-evaluation-corpus.v1",
   "corpus_id": "model-only-shadow-pr464-v1",
-  "dataset_version": "2026-09-28.2",
+  "dataset_version": "2026-09-28.3",
   "expected_arms": [
     "system_one"
   ],

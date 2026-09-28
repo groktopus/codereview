@@ -252,10 +252,9 @@ class PrivateShadowCapture:
             raise ValueError("case packet findings invalid")
         reconciled_pairs = _reconciled_candidate_pairs(findings)
         packet_dir = self.root / "case-packets"
-        packet_dir.mkdir(mode=0o700)
-        os.chmod(packet_dir, 0o700)
+        if packet_dir.exists() or packet_dir.is_symlink():
+            raise ValueError("case packet directory already exists")
         call_values = list(self._calls.values())
-        packets: list[Path] = []
         provider_id = self.provider_identity.get("provider_id", self.provider_identity.get("provider", "openai-compatible"))
         model_id = self.provider_identity.get("model_id", self.provider_identity.get("model", "unreported"))
         version = self.provider_identity.get("adapter_version", "0.2")
@@ -263,6 +262,10 @@ class PrivateShadowCapture:
         if self.snapshot.get("profile_hash") != observed_profile_hash:
             raise ValueError("case packet profile hash mismatch")
         rubric_revision = "profile-sha256-" + observed_profile_hash
+        staging_dir = self.root / (".case-packets-staging-" + _sha(os.urandom(24))[:20])
+        staging_dir.mkdir(mode=0o700)
+        os.chmod(staging_dir, 0o700)
+        inventory: list[dict[str, str]] = []
         for task_id, row in self._source_task_rows.items():
             task_calls = [call for call in call_values if call.get("task_id") == task_id]
             task_result = task_results.get(task_id, {})
@@ -334,10 +337,23 @@ class PrivateShadowCapture:
                     "writer_run": writer_run, "writer_candidate": candidate,
                     "profile_id": self._profile_id,
                 }
-                path = packet_dir / f"{packet_file_id}.json"
-                self._write_packet(path, packet)
-                packets.append(path)
-        return packets
+                path = staging_dir / f"{packet_file_id}.json"
+                packet_raw = _canonical(packet) + b"\n"
+                _write_private(path, packet_raw, limit=MAX_TOTAL_BYTES)
+                inventory.append({"path": path.name, "sha256": _sha(packet_raw)})
+        if not inventory or len(inventory) > 128:
+            raise ValueError("case packet inventory count invalid")
+        manifest_path = self.root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if "case_packet_inventory" in manifest:
+            raise ValueError("case packet inventory already exists")
+        manifest["case_packet_inventory"] = {
+            "schema": "model-only-shadow-packet-inventory.v1",
+            "packets": sorted(inventory, key=lambda item: item["path"]),
+        }
+        os.replace(staging_dir, packet_dir)
+        self._replace_json(manifest_path, manifest)
+        return [packet_dir / item["path"] for item in sorted(inventory, key=lambda item: item["path"])]
 
     def _write_packet(self, path: Path, packet: dict) -> None:
         _write_private(path, _canonical(packet) + b"\n", limit=MAX_TOTAL_BYTES)
