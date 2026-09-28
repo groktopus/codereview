@@ -257,19 +257,38 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
     }
 
 
-def _validate_trusted_private_plan_paths(plan_path: str, receipt_path: str) -> None:
+def _canonical_private_input_path(value: str) -> Path:
+    path = Path(value)
+    if not path.is_absolute() or os.path.normpath(value) != value:
+        raise ValueError("trusted private preflight paths required")
+    try:
+        current = Path(path.anchor)
+        for component in path.parts[1:]:
+            current = current / component
+            if stat.S_ISLNK(current.lstat().st_mode):
+                raise ValueError("trusted private preflight paths required")
+        if path.resolve(strict=True) != path:
+            raise ValueError("trusted private preflight paths required")
+    except OSError:
+        raise ValueError("trusted private preflight paths required") from None
+    return path
+
+
+def _validate_trusted_private_plan_paths(plan_path: str, receipt_path: str, case_id: str) -> None:
     if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
         return
     workspace = os.environ.get("GITHUB_WORKSPACE")
     runner_temp = os.environ.get("RUNNER_TEMP")
-    if not workspace or not runner_temp:
+    policy = TRUSTED_SHADOW_PLANS.get(case_id)
+    if not workspace or not runner_temp or policy is None:
         raise ValueError("trusted private preflight paths unavailable")
-    expected_plans = {
-        (Path(workspace) / "trusted-runner" / policy["path"]).absolute()
-        for policy in TRUSTED_SHADOW_PLANS.values()
-    }
-    expected_receipt = Path(runner_temp) / "private-shadow-preparation" / "live-preflight-receipt.json"
-    if Path(plan_path).absolute() not in expected_plans or Path(receipt_path).absolute() != expected_receipt.absolute():
+    supplied_plan = _canonical_private_input_path(plan_path)
+    supplied_receipt = _canonical_private_input_path(receipt_path)
+    trusted_workspace = _canonical_private_input_path(workspace)
+    trusted_runner_temp = _canonical_private_input_path(runner_temp)
+    expected_plan = trusted_workspace / "trusted-runner" / policy["path"]
+    expected_receipt = trusted_runner_temp / "private-shadow-preparation" / "live-preflight-receipt.json"
+    if supplied_plan != expected_plan or supplied_receipt != expected_receipt:
         raise ValueError("trusted private preflight paths required")
 
 
@@ -710,7 +729,7 @@ def _run_one(
     if bool(plan_path) != bool(receipt_path):
         raise ValueError("private shadow plan and preflight receipt must be provided together")
     if capture_dir and plan_path and receipt_path:
-        _validate_trusted_private_plan_paths(plan_path, receipt_path)
+        _validate_trusted_private_plan_paths(plan_path, receipt_path, capture_case_id)
         capture_pins, capture_snapshot_pin = _load_private_shadow_pins(plan_path, receipt_path)
         if capture_case_id != capture_snapshot_pin.get("case_id"):
             raise ValueError("private shadow case does not match plan")
@@ -1295,6 +1314,15 @@ def main(argv=None) -> int:
                 raise ValueError("--prepare-only requires explicit historical revisions without a GitHub event")
             if not args.provider_config:
                 raise ValueError("--prepare-only requires --provider-config for exact request sizing")
+        if args.command == "review" and args.private_shadow_capture:
+            plan_path = args.private_shadow_plan
+            receipt_path = args.private_shadow_preflight_receipt
+            if bool(plan_path) != bool(receipt_path):
+                raise ValueError("private shadow plan and preflight receipt must be provided together")
+            if plan_path and receipt_path:
+                _validate_trusted_private_plan_paths(
+                    plan_path, receipt_path, args.private_shadow_case_id
+                )
         if args.dry_run:
             if args.command == "recent" and not 1 <= args.count <= 100:
                 raise ValueError("count must be between 1 and 100")
