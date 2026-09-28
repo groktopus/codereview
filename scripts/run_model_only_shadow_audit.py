@@ -226,8 +226,12 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
     requests = plan.get("writer_requests")
     if plan.get("schema") != "model-only-shadow-live-writer-plan.v1" or not isinstance(case, dict) or not isinstance(requests, list):
         raise ValueError("writer_plan_invalid")
-    case_ids = {row[2].get("case_id") for row in packets}
-    if case_ids != {case.get("case_id")}:
+    plan_case_id = case.get("case_id")
+    packet_case_ids = [row[2].get("case_id") for row in packets]
+    if (not isinstance(plan_case_id, str) or not plan_case_id
+            or any(not isinstance(value, str) or not value for value in packet_case_ids)):
+        raise ValueError("writer_plan_case_invalid")
+    if set(packet_case_ids) != {plan_case_id}:
         raise ValueError("writer_plan_case_mismatch")
     expected_identity = {
         "case_id": case.get("case_id"), "snapshot_id": case.get("snapshot_id"),
@@ -241,14 +245,16 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
     }.items()):
         raise ValueError("capture_plan_identity_mismatch")
     task_ids = [item.get("task_id") for item in requests if isinstance(item, dict)]
-    if len(task_ids) != len(requests) or len(task_ids) != len(set(task_ids)) or not task_ids:
+    if (len(task_ids) != len(requests) or not task_ids
+            or any(not isinstance(task_id, str) or not task_id for task_id in task_ids)
+            or len(task_ids) != len(set(task_ids))):
         raise ValueError("writer_plan_tasks_invalid")
     rank = {task_id: index for index, task_id in enumerate(task_ids)}
     packet_task_ids: set[str] = set()
     for _candidate_id, _path, packet, _raw in packets:
         task = packet.get("source_task")
         task_id = task.get("task_id") if isinstance(task, dict) else None
-        if task_id not in rank:
+        if not isinstance(task_id, str) or not task_id or task_id not in rank:
             raise ValueError("packet_task_not_in_plan")
         packet_task_ids.add(task_id)
         snapshot = packet.get("snapshot")
@@ -274,7 +280,7 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         raise _predispatch_failure(receipt_path, "capture_validation", "capture_invalid") from None
     try:
         packets = _task_order(plan_path, packets, manifest)
-    except (OSError, ValueError, RecursionError):
+    except (OSError, TypeError, ValueError, RecursionError):
         raise _predispatch_failure(receipt_path, "plan_binding", "plan_binding_invalid") from None
     try:
         limits = _load_limits(limits_path)

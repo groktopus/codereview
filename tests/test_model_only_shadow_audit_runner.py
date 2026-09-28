@@ -113,6 +113,37 @@ def test_tampered_packet_corpus_identity_fails_before_provider_setup_and_writes_
     assert json.loads((sanitized / "shadow-audit-receipt.json").read_text()) == failure
 
 
+@pytest.mark.parametrize("malformed", ["case_id", "task_id"])
+def test_unhashable_packet_identity_fails_closed_with_plan_binding_receipt(tmp_path, monkeypatch, malformed):
+    packet = _packet("PR-464", "candidate-a", "task-first")
+    if malformed == "case_id":
+        packet["case_id"] = []
+    else:
+        packet["source_task"]["task_id"] = []
+    root = _capture(tmp_path / "capture", [packet])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+    receipt_path = tmp_path / "receipt" / "failure.json"
+
+    def forbidden_provider(_config):
+        raise AssertionError("provider construction must not occur before plan binding")
+
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", forbidden_provider)
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
+                   tmp_path / "raw-audit", receipt_path, plan)
+
+    assert error.value.stage == "plan_binding"
+    assert error.value.code == "plan_binding_invalid"
+    assert not (tmp_path / "raw-audit").exists()
+    failure = json.loads(receipt_path.read_text())
+    assert failure["failure_stage"] == "plan_binding"
+    assert failure["failure_code"] == "plan_binding_invalid"
+    assert failure["audit_provider_calls"] == 0
+    sanitized = tmp_path / "sanitized-failure"
+    SANITIZER.sanitize(receipt_path, sanitized)
+
+
 def test_audit_input_rejection_writes_receipt_only_when_dispatch_guard_is_unspent(tmp_path):
     root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
     plan = tmp_path / "plan.json"
