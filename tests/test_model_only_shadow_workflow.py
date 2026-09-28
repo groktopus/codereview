@@ -20,14 +20,42 @@ _SANITIZER_SPEC.loader.exec_module(sanitizer)
 
 def test_shadow_preparation_is_manual_trusted_and_read_only():
     text = WORKFLOW.read_text(encoding="utf-8")
+    prepare = text.split("  live_writer:", 1)[0]
     assert "on:\n  workflow_dispatch:\n" in text
-    assert text.count("  contents: read\n") == 2
+    assert text.count("  contents: read\n") == 3
     assert "if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in text
-    assert "${{ secrets." not in text
+    assert "${{ secrets." not in prepare
     assert "PUBLISH_REVIEW" not in text
     assert "--run-provider-trial" not in text
     assert "--prepare-only" in text
     assert WORKFLOW.name == "private-shadow-capture.yml"
+
+
+def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "run_live_writer:" in text and "default: false" in text
+    live = text.split("  live_writer:", 1)[1]
+    assert "if: inputs.run_live_writer == true && github.event_name == 'workflow_dispatch'" in live
+    assert live.index("Verify the exact plan and write the fresh provider-free receipt") < live.index(
+        "Check writer secret names and exact configured identity without printing values"
+    ) < live.index("Run only the ten pinned read-only writer calls")
+    assert "writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" in live
+    assert 'prepare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}' in text
+    assert 'private-shadow-prepare-output' in text and 'private-shadow-live-output' in live
+    assert "LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}" in live
+    assert "LLM_MODEL: ${{ secrets.LLM_MODEL }}" in live
+    assert "LLM_API_KEY: ${{ secrets.LLM_API_KEY }}" in live
+    assert "JEV_API_KEY" not in live and "JEV_BASE_URL" not in live
+    assert "build_model_only_shadow_writer_provider_config.py" in live
+    assert 'private-shadow-runtime-config/provider.json' in live
+    assert "--private-shadow-plan" in live and "--private-shadow-preflight-receipt" in live
+    assert "--max-claim-assessments 0" in live
+    assert "--private-shadow-capture" in live
+    assert "Sanitize the completed writer capture" in live
+    upload = live.split("- name: Upload only the hash-only writer receipt", 1)[1].split("      - name:", 1)[0]
+    assert "private-writer-sanitized/writer-receipt.json" in upload
+    assert "private-writer-capture" not in upload and "private-shadow-preparation" not in upload
+    assert "audit_or_jev_dispatched" in (ROOT / "scripts" / "sanitize_model_only_shadow_writer_receipt.py").read_text()
 
 
 def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
@@ -36,7 +64,7 @@ def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     assert "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0" in text
     assert "--mode staged-pr464 --prepare-only --input-contract specialist-input-v2" in text
     assert 'mkdir -m 700 -p "$RUNNER_TEMP/private-shadow-preparation"' not in text
-    upload = text.split("- name: Upload only the sanitized preparation receipt", 1)[1]
+    upload = text.split("- name: Upload only the sanitized preparation receipt", 1)[1].split("      - name:", 1)[0]
     assert "${{ runner.temp }}/private-shadow-sanitized/summary.json" in upload
     assert "${{ runner.temp }}/private-shadow-sanitized/manifest.json" in upload
     assert "private-shadow-preparation/summary.json" not in upload
