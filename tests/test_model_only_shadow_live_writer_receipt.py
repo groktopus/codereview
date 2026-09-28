@@ -104,6 +104,15 @@ def _fixture(tmp_path: Path):
     return runner_temp, capture, plan_path, preflight_path, manifest, calls, request_blobs, response_blobs
 
 
+def _replace_packet(capture: Path, manifest: dict, filename: str, packet: dict) -> None:
+    raw = json.dumps(packet, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+    path = capture / "case-packets" / filename
+    path.write_bytes(raw)
+    os.chmod(path, 0o600)
+    inventory_row = next(row for row in manifest["case_packet_inventory"]["packets"] if row["path"] == filename)
+    inventory_row["sha256"] = hashlib.sha256(raw).hexdigest()
+
+
 def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path: Path):
     runner_temp, capture, plan, preflight, _manifest, _calls, _requests, _responses = _fixture(tmp_path)
     output = runner_temp / "private-writer-sanitized"
@@ -180,6 +189,35 @@ def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
     serialized = json.dumps(outcomes)
     assert "private" not in serialized
     assert "observation" not in serialized
+
+
+@pytest.mark.parametrize("tamper", ["missing_task_packet", "candidate_overrun", "inventory_overrun"])
+def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_path: Path, tamper: str):
+    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path)
+    packets = manifest["case_packet_inventory"]["packets"]
+    if tamper == "missing_task_packet":
+        removed = packets.pop(0)
+        (capture / "case-packets" / removed["path"]).unlink()
+    elif tamper == "candidate_overrun":
+        filename = packets[0]["path"]
+        task_id = calls[0]["task_id"]
+        _replace_packet(capture, manifest, filename, {
+            "source_task": {"task_id": task_id},
+            "writer_candidate": {"candidate_id": "bounded-private-fixture"},
+        })
+    else:
+        task_id = calls[0]["task_id"]
+        for index in range(119):
+            filename = f"extra-{index:03d}.json"
+            raw = json.dumps({"source_task": {"task_id": task_id}, "writer_candidate": None},
+                             sort_keys=True, separators=(",", ":")).encode() + b"\n"
+            path = capture / "case-packets" / filename
+            path.write_bytes(raw)
+            os.chmod(path, 0o600)
+            packets.append({"path": filename, "sha256": hashlib.sha256(raw).hexdigest()})
+    (capture / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(sanitizer.ReceiptError):
+        sanitizer.sanitize(capture, plan, preflight, runner_temp / "private-writer-sanitized")
 
 
 @pytest.mark.parametrize(

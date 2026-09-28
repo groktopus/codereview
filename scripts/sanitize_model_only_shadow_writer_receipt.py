@@ -136,6 +136,8 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
                               response_rows: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Summarize the model-output to packet boundary without retaining content."""
     inventory = manifest["case_packet_inventory"]["packets"]
+    if len(inventory) > 128:
+        raise ReceiptError("capture_packet_inventory_invalid")
     packet_candidates: dict[str, int] = {}
     packet_counts: dict[str, int] = {}
     for item in inventory:
@@ -152,10 +154,14 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
             packet_candidates[task_id] = packet_candidates.get(task_id, 0) + 1
 
     rows = []
+    if set(packet_counts) != set(response_rows):
+        raise ReceiptError("capture_packet_task_coverage_mismatch")
     for task_id in sorted(response_rows):
         response = response_rows[task_id]
         returned = response["returned_candidate_count"]
         packet_count = packet_candidates.get(task_id, 0)
+        if packet_count > returned:
+            raise ReceiptError("capture_packet_candidate_count_exceeds_returned")
         if response["response_parse_status"] != "valid_specialist_report":
             outcome = "parse_failure"
         elif returned == 0:
