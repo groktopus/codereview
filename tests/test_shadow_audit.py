@@ -197,7 +197,9 @@ def _jev_response(request_bytes: bytes) -> bytes:
 
 
 def _limits():
-    return {"max_input_bytes_per_task": 64_000, "max_output_bytes_per_task": 64_000, "deadline_seconds": 3}
+    return {"max_input_bytes_per_task": 64_000, "max_output_bytes_per_task": 64_000,
+            "max_output_tokens": 1_800, "max_provider_calls": 3, "max_retries": 0,
+            "total_provider_deadline_seconds": 9, "deadline_seconds": 3}
 
 
 def test_pipeline_seals_blind_source_audit_before_jev_and_keeps_views_separate(monkeypatch, tmp_path):
@@ -223,13 +225,20 @@ def test_pipeline_seals_blind_source_audit_before_jev_and_keeps_views_separate(m
         return _jev_response(raw)
 
     output = tmp_path / "run"
+    stage_dispatches = []
+    def preflight(role, raw):
+        stage_dispatches.append((role, raw))
     result = run_shadow_audit(
         _packet(), source_provider=_provider(monkeypatch, "source-model", source_response),
         jev_transport=jev_transport, claim_provider=_provider(monkeypatch, "claim-model", claim_response),
-        limits=_limits(), output_dir=output,
+        limits=_limits(), output_dir=output, before_dispatch=preflight,
     )
     assert [stage for stage, _ in dispatched] == ["source", "claim"]
     assert len(jev_calls) == 1
+    assert [row[0] for row in stage_dispatches] == ["source_auditor", "jev", "claim_auditor"]
+    assert json.loads(stage_dispatches[0][1])["messages"][1]["content"]
+    assert json.loads(stage_dispatches[1][1])["model"] == "jev-latest"
+    assert json.loads(stage_dispatches[2][1])["messages"][1]["content"]
     assert result["manifest"]["terminal_state"] == "completed"
     assert result["manifest"]["roles"]["source_auditor"]["calls"][0]["response_sha256"]
     for artifact_id, path in result["artifact_paths"].items():

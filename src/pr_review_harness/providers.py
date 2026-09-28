@@ -14,7 +14,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -595,6 +595,7 @@ class OpenAIProvider:
         capture_exchange: bool = False,
         expected_request_sha256: str | None = None,
         serialized_request_bytes: bytes | None = None,
+        before_dispatch: Callable[[bytes], None] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         _mapping(limits, "limits")
         input_cap = _limits_int(limits, "max_input_bytes_per_task", self.max_request_bytes)
@@ -623,6 +624,10 @@ class OpenAIProvider:
                 raise ProviderError("request_pin_invalid")
             if hashlib.sha256(request_bytes).hexdigest() != expected_request_sha256:
                 raise ProviderError("request_pin_mismatch")
+        # Stage-local policy runs on the exact bytes that will be sent and
+        # before credential lookup. A rejected request makes no HTTP attempt.
+        if before_dispatch is not None:
+            before_dispatch(request_bytes)
         endpoint = self.base_url + "/chat/completions"
         provider_id = self.identity.get("provider_id")
         exchange = _local_http_exchange(
@@ -1411,6 +1416,7 @@ class OpenAIProvider:
         schema: dict[str, Any],
         limits: dict[str, Any],
         contract_version: str,
+        before_dispatch: Callable[[bytes], None] | None = None,
     ) -> dict[str, Any]:
         """Make one bounded structured call and return its exact local wire bytes.
 
@@ -1427,6 +1433,8 @@ class OpenAIProvider:
                 limits=limits,
                 contract_version=contract_version,
                 capture_exchange=True,
+                serialized_request_bytes=request_bytes,
+                before_dispatch=before_dispatch,
             )
         except ProviderError as exc:
             exchange = exc.meta.pop("_audit_exchange", {})

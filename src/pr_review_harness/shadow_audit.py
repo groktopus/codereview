@@ -18,6 +18,7 @@ from typing import Any, Callable, Mapping
 
 from .claim_assessment import ClaimAssessmentAdapter, ClaimAssessmentError
 from .providers import OpenAIProvider, ProviderError
+from .shadow_preflight import AuditDispatchGuard
 
 CONTRACT_VERSION = "model-only-shadow-audit.v1"
 SOURCE_PROMPT_REVISION = "source-only-audit.v1"
@@ -413,8 +414,9 @@ def _not_run(role: str) -> dict[str, Any]:
 
 
 class _CapturingNativeCall:
-    def __init__(self, transport: Callable[[bytes, float, int], bytes]):
+    def __init__(self, transport: Callable[[bytes, float, int], bytes], before_dispatch: Callable[[bytes], None] | None = None):
         self.transport = transport
+        self.before_dispatch = before_dispatch
         self.request_bytes: bytes | None = None
         self.response_bytes: bytes | None = None
         self.error_code: str | None = None
@@ -422,6 +424,8 @@ class _CapturingNativeCall:
     def __call__(self, request_bytes: bytes, deadline_seconds: float, max_response_bytes: int) -> bytes:
         self.request_bytes = bytes(request_bytes)
         try:
+            if self.before_dispatch is not None:
+                self.before_dispatch(self.request_bytes)
             result = self.transport(request_bytes, deadline_seconds, max_response_bytes)
         except Exception as exc:
             self.error_code = getattr(exc, "code", "transport_failed")
@@ -441,6 +445,7 @@ def run_shadow_audit(
     claim_provider: OpenAIProvider,
     limits: Mapping[str, Any],
     output_dir: Path,
+    before_dispatch: Callable[[str, bytes], None] | None = None,
 ) -> dict[str, Any]:
     """Run source-only LLM -> Jev -> claim-facing LLM once each, with no retries."""
     case = _validate_packet(packet)
@@ -454,6 +459,24 @@ def run_shadow_audit(
     deadline = limits_value.get("deadline_seconds")
     if isinstance(deadline, bool) or not isinstance(deadline, (float, int)) or deadline <= 0 or deadline > 120:
         raise ShadowAuditError("limits_invalid")
+    output_tokens = limits_value.get("max_output_tokens")
+    max_calls = limits_value.get("max_provider_calls", 3)
+    retries = limits_value.get("max_retries", 0)
+    total_deadline = limits_value.get("total_provider_deadline_seconds", deadline * 3)
+    if (
+        isinstance(output_tokens, bool) or not isinstance(output_tokens, int) or not 1 <= output_tokens <= 1800
+        or isinstance(max_calls, bool) or max_calls != 3
+        or isinstance(retries, bool) or retries != 0
+        or isinstance(total_deadline, bool) or not isinstance(total_deadline, (int, float))
+        or total_deadline <= 0 or total_deadline > 270
+    ):
+        raise ShadowAuditError("limits_invalid")
+    dispatch_guard = AuditDispatchGuard(limits_value)
+
+    def dispatch_check(role: str, request_bytes: bytes) -> None:
+        dispatch_guard.check(role, request_bytes)
+        if before_dispatch is not None:
+            before_dispatch(role, request_bytes)
     if not isinstance(source_provider, OpenAIProvider) or not isinstance(claim_provider, OpenAIProvider):
         raise ShadowAuditError("openai_provider_required")
     output_dir = Path(output_dir)
@@ -532,6 +555,7 @@ def run_shadow_audit(
             schema=_schema_source(),
             limits=limits_value,
             contract_version="shadow-source-audit.v1",
+            before_dispatch=lambda raw: dispatch_check("source_auditor", raw),
         )
         exchange = reply["audit_exchange"]
         request_bytes = exchange["request_bytes"]
@@ -610,7 +634,10 @@ def run_shadow_audit(
         return finish()
 
     # Stage 2: Jev assesses exactly the writer candidate and its cited evidence.
-    native_capture = _CapturingNativeCall(jev_transport)
+    native_capture = _CapturingNativeCall(
+        jev_transport,
+        lambda raw: dispatch_check("jev", raw),
+    )
     jev_adapter = ClaimAssessmentAdapter(native_capture, getattr(jev_transport, "model", "jev-latest"))
     jev_status = "failed"
     jev_call: dict[str, Any] = {}
@@ -705,6 +732,7 @@ def run_shadow_audit(
             schema=_schema_claim(),
             limits=limits_value,
             contract_version="shadow-claim-audit.v1",
+            before_dispatch=lambda raw: dispatch_check("claim_auditor", raw),
         )
         exchange = reply["audit_exchange"]
         request_bytes = exchange["request_bytes"]

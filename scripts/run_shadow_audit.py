@@ -18,6 +18,17 @@ sys.path.insert(0, str(ROOT / "src"))
 from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
 from pr_review_harness.shadow_audit import MAX_CASE_BYTES, run_shadow_audit  # noqa: E402
+from pr_review_harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
+
+LEGACY_AUDIT_LIMITS = {
+    "max_input_bytes_per_task": 64_000,
+    "max_output_bytes_per_task": 64_000,
+    "max_output_tokens": 1_800,
+    "deadline_seconds": 12,
+    "max_provider_calls": 3,
+    "max_retries": 0,
+    "total_provider_deadline_seconds": 36,
+}
 
 
 def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -86,17 +97,15 @@ def main(argv: list[str] | None = None) -> int:
         source_provider = OpenAIProvider(source_config)
         claim_provider = OpenAIProvider(claim_config)
         jev_transport = ClaimTransport.from_decision_config(jev_config)
+        dispatch_guard = AuditDispatchGuard(LEGACY_AUDIT_LIMITS)
         result = run_shadow_audit(
             packet,
             source_provider=source_provider,
             jev_transport=jev_transport,
             claim_provider=claim_provider,
-            limits={
-                "max_input_bytes_per_task": 64_000,
-                "max_output_bytes_per_task": 64_000,
-                "deadline_seconds": 12,
-            },
+            limits=dict(LEGACY_AUDIT_LIMITS),
             output_dir=args.output_dir,
+            before_dispatch=dispatch_guard.check,
         )
     except (OSError, ValueError, ProviderError) as exc:
         code = getattr(exc, "code", None)

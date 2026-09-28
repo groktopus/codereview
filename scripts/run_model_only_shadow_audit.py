@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
 from pr_review_harness.shadow_audit import MAX_CASE_BYTES, run_shadow_audit  # noqa: E402
+from pr_review_harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
 
 MAX_CAPTURE_MANIFEST_BYTES = 256_000
 MAX_RECEIPT_BYTES = 64_000
@@ -173,6 +174,9 @@ def _load_limits(path: Path) -> dict[str, Any]:
         "max_output_bytes_per_task": expected["max_response_bytes_per_call"],
         "max_output_tokens": expected["max_output_tokens_per_llm_call"],
         "deadline_seconds": expected["deadline_seconds_per_call"],
+        "max_provider_calls": expected["max_provider_calls"],
+        "max_retries": expected["max_retries"],
+        "total_provider_deadline_seconds": expected["total_provider_deadline_seconds"],
     }
 
 
@@ -271,9 +275,14 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     jev_config["timeout_seconds"] = limits["deadline_seconds"]
     jev_config["max_response_bytes"] = limits["max_output_bytes_per_task"]
     jev_transport = ClaimTransport.from_decision_config(jev_config)
+    jev_transport.max_request_bytes = limits["max_input_bytes_per_task"]
+    jev_transport.max_response_bytes = limits["max_output_bytes_per_task"]
+    jev_transport.timeout_seconds = limits["deadline_seconds"]
+    dispatch_guard = AuditDispatchGuard(limits)
     result = run_shadow_audit(
         packet, source_provider=source_provider, jev_transport=jev_transport,
         claim_provider=claim_provider, limits=limits, output_dir=output_root,
+        before_dispatch=dispatch_guard.check,
     )
     audit_manifest = result["manifest"]
     roles = audit_manifest.get("roles", {})
