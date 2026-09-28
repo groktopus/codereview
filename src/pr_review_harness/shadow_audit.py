@@ -420,16 +420,29 @@ class _CapturingNativeCall:
         self.request_bytes: bytes | None = None
         self.response_bytes: bytes | None = None
         self.error_code: str | None = None
+        self.dispatch_state = "unknown"
 
     def __call__(self, request_bytes: bytes, deadline_seconds: float, max_response_bytes: int) -> bytes:
         self.request_bytes = bytes(request_bytes)
         try:
             if self.before_dispatch is not None:
-                self.before_dispatch(self.request_bytes)
+                try:
+                    self.before_dispatch(self.request_bytes)
+                except ProviderError as exc:
+                    self.dispatch_state = "guard_rejected" if exc.code.startswith("audit_") else "unknown"
+                    raise
+            self.dispatch_state = "post_guard_pretransport"
             result = self.transport(request_bytes, deadline_seconds, max_response_bytes)
         except Exception as exc:
             self.error_code = getattr(exc, "code", "transport_failed")
+            transport_state = getattr(self.transport, "last_dispatch_state", None)
+            if transport_state in {"http_attempted", "post_guard_pretransport"}:
+                self.dispatch_state = transport_state
             raise
+        transport_state = getattr(self.transport, "last_dispatch_state", None)
+        self.dispatch_state = transport_state if transport_state in {
+            "http_attempted", "post_guard_pretransport"
+        } else "unknown"
         if not isinstance(result, bytes) or len(result) > max_response_bytes:
             self.error_code = "malformed_native_response"
             raise ClaimAssessmentError("malformed_native_response")
@@ -572,6 +585,7 @@ def run_shadow_audit(
             "request_artifact_id": source_request_id,
             "response_sha256": _sha(output_bytes),
             "response_artifact_id": source_response_id,
+            "dispatch_state": exchange.get("dispatch_state", "unknown"),
         }
         source_model_id = reply["provenance"].get("provider_reported_model_id") or source_model_id
         base_manifest["transport_response_sha256"]["source_auditor"] = _sha(transport_bytes)
@@ -592,6 +606,7 @@ def run_shadow_audit(
                 "request_artifact_id": request_id,
                 "response_sha256": None,
                 "response_artifact_id": None,
+                "dispatch_state": exchange.get("dispatch_state", "unknown"),
             }
             if isinstance(transport_bytes, bytes):
                 put("source-auditor-transport-response", "private/source-auditor.transport-response.json", transport_bytes)
@@ -660,13 +675,16 @@ def run_shadow_audit(
             "call_id": "jev-call-1",
             "request_sha256": _sha(prepared.request_bytes), "request_artifact_id": jev_request_id,
             "response_sha256": _sha(native_capture.response_bytes), "response_artifact_id": jev_response_id,
+            "dispatch_state": native_capture.dispatch_state,
         }
         answer_statuses = [row.get("status") for row in jev_result["assessments"].values()]
         choices = [row.get("choice") for row in jev_result["assessments"].values() if row.get("status") == "ANSWERED"]
-        if not choices:
-            jev_status = "abstained"
+        if not answer_statuses or any(value in {"FAILED", "INVALID", "OMITTED", "NOT_RUN"} for value in answer_statuses):
+            jev_status = "failed"
         elif any(value not in {"ANSWERED", "NOT_SHOWN"} for value in answer_statuses):
             jev_status = "incomplete"
+        elif not choices:
+            jev_status = "abstained"
         elif all(choice in {"UNCERTAIN", "UNKNOWN"} for choice in choices):
             jev_status = "abstained"
         else:
@@ -682,6 +700,7 @@ def run_shadow_audit(
                 "request_artifact_id": jev_req_id,
                 "response_sha256": _sha(native_capture.response_bytes) if native_capture.response_bytes is not None else None,
                 "response_artifact_id": "jev-response" if native_capture.response_bytes is not None else None,
+                "dispatch_state": native_capture.dispatch_state,
             }
             if native_capture.response_bytes is not None and "jev-response" not in artifact_paths:
                 put("jev-response", "private/jev.response.json", native_capture.response_bytes)
@@ -746,6 +765,7 @@ def run_shadow_audit(
         claim_call = {
             "call_id": "claim-auditor-call-1", "request_sha256": _sha(request_bytes), "request_artifact_id": claim_request_id,
             "response_sha256": _sha(output_bytes), "response_artifact_id": claim_response_id,
+            "dispatch_state": exchange.get("dispatch_state", "unknown"),
         }
         claim_model_id = reply["provenance"].get("provider_reported_model_id") or claim_model_id
         base_manifest["transport_response_sha256"]["claim_auditor"] = _sha(transport_bytes)
@@ -764,6 +784,7 @@ def run_shadow_audit(
             claim_call = {
                 "call_id": "claim-auditor-call-1", "request_sha256": _sha(request_bytes), "request_artifact_id": request_id,
                 "response_sha256": None, "response_artifact_id": None,
+                "dispatch_state": exchange.get("dispatch_state", "unknown"),
             }
             if isinstance(transport_bytes, bytes):
                 put("claim-auditor-transport-response", "private/claim-auditor.transport-response.json", transport_bytes)

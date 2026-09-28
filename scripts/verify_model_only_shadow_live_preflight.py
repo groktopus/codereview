@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed verification for the pinned PR-464 writer request plan.
+"""Fail-closed verification for the pinned PR-457 and PR-464 writer plans.
 
 This verifier consumes provider-free CLI preparation JSON and a committed plan.
 It emits a hash/count-only receipt; it never reads credentials or dispatches a
@@ -23,8 +23,12 @@ PLAN_MAX_BYTES = 128_000
 PREPARE_MAX_BYTES = 4_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_MODULE_COUNT = 34
-EXPECTED_MODULE_TREE_SHA256 = "c7a6ba8fea38d4277e0144c38267927d30812219eefacee66bf9f58a6e192df6"
-EXPECTED_PLAN_SHA256 = "f9fca82d3ef7d815a6cc8487a64d374fade3944f8591ada7d89362395889650d"
+EXPECTED_MODULE_TREE_SHA256 = "130b62b453e2b9ce1ad8d2160afa4e54e44a6f4cc936a1b9fdc1bce37b364293"
+EXPECTED_PLAN_SHA256 = {"PR-457": "ee8016931b1e1200e571668a7e01e0f6c9c9d8409e223e1d17055ecdb1dc8331", "PR-464": "dff9abb492fc7cf1d893937c2de3c0aa5d848e6faeb00a59fbe91be0c0833bbf"}
+CASE_CONTRACTS = {
+    "PR-457": {"repository": "magnus919/SlopSearX", "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e", "head_sha": "595f143607961d21d162efe76518d86e416d2548", "snapshot_id": "snap-24293f430e4f8006a52bac18", "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea", "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95", "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k", "profile_file_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918", "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977", "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311", "scope_obligations": 14, "request_count": 6, "request_bytes_total": 469539, "request_bytes_max": 118490, "remaining_call_slots": 4},
+    "PR-464": {"repository": "magnus919/SlopSearX", "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af", "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c", "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd", "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868", "evidence_index_sha256": "0b75fca3258bd3d75ed3d260467ec130f639f2afc59519e5f603f4d4a176e30c", "profile_version": "slopsearx-realcase-eval-v2-pr464-context240-window16k", "profile_file_sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8", "historical_checks_sha256": "7198ac6bf02d3887fb065205e4ffbd48d435657027d4d5fa73168bdc900c359f", "check_evidence_sha256": "7187d1097d94930be5b3faf1a584cd409ecaae3f9f33789bfd6df78f5a451e7b", "scope_obligations": 22, "request_count": 10, "request_bytes_total": 893359, "request_bytes_max": 96462, "remaining_call_slots": 0},
+}
 LIMITS_PATH = ROOT / "experiments" / "model-only-shadow-live-writer-limits-v1.json"
 PROVIDER_PATH = ROOT / "experiments" / "model-only-shadow-live-writer-provider-v1.json"
 
@@ -85,6 +89,10 @@ def _integer(value: Any, *, minimum: int = 0) -> bool:
 
 
 def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    case_id = plan.get("case", {}).get("case_id") if isinstance(plan.get("case"), dict) else None
+    contract = CASE_CONTRACTS.get(case_id)
+    if contract is None:
+        raise PreflightError("plan_case_identity_invalid")
     if set(plan) != {
         "schema", "status", "case", "runtime", "provider_identity", "budget", "writer_requests",
         "prepare_contract",
@@ -95,12 +103,12 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
     if plan.get("status") != "PREPARE_ONLY_PINNED_PLAN_NO_PROVIDER_DISPATCH":
         raise PreflightError("plan_status_invalid")
     if plan.get("prepare_contract") != {
-        "profile_path": "docs/real-case-trial-v1/profiles/PR-464.json",
-        "historical_checks_path": "docs/real-case-trial-v1/checks/PR-464.json",
+        "profile_path": f"docs/real-case-trial-v1/profiles/{case_id}.json",
+        "historical_checks_path": f"docs/real-case-trial-v1/checks/{case_id}.json",
         "limits_path": "experiments/model-only-shadow-live-writer-limits-v1.json",
         "provider_config_path": "experiments/model-only-shadow-live-writer-provider-v1.json",
         "mode": "AUTO", "effect_policy": "READ_ONLY", "prepare_only": True,
-        "json_output": True, "capture_case_id": "PR-464", "provider_calls_before_preflight": 0,
+        "json_output": True, "capture_case_id": case_id, "provider_calls_before_preflight": 0,
     }:
         raise PreflightError("plan_prepare_contract_invalid")
     case = plan.get("case")
@@ -110,16 +118,12 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         "historical_checks_sha256", "check_evidence_sha256", "scope_obligations",
     }:
         raise PreflightError("plan_case_invalid")
-    if (
-        case.get("case_id") != "PR-464"
-        or case.get("repository") != "magnus919/SlopSearX"
-        or case.get("base_sha") != "20a743f0434a1843aa00068483f608f1e213b2af"
-        or case.get("head_sha") != "bffc26f9e4bf95aca0c252e88a2396d03ece854c"
-        or case.get("snapshot_id") != "snap-e20deb18f2ac6cb39c6ebafd"
-        or case.get("snapshot_sha256") != "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
-        or case.get("profile_version") != "slopsearx-realcase-eval-v2-pr464-context240-window16k"
-        or case.get("scope_obligations") != 22
-    ):
+    case_contract_fields = {
+        "repository", "base_sha", "head_sha", "snapshot_id", "snapshot_sha256",
+        "evidence_index_sha256", "profile_version", "profile_file_sha256",
+        "historical_checks_sha256", "check_evidence_sha256", "scope_obligations",
+    }
+    if case != {key: contract[key] for key in case_contract_fields} | {"case_id": case_id}:
         raise PreflightError("plan_case_identity_invalid")
     for field in (
         "snapshot_sha256", "evidence_index_sha256", "profile_file_sha256",
@@ -141,7 +145,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
     ):
         if not isinstance(runtime.get(field), str) or not SHA256.fullmatch(runtime[field]):
             raise PreflightError("plan_runtime_hash_invalid")
-    if runtime.get("plan_generated_from_revision") != "c5c55b976a204e1ef2e3607dadef195fa68a90ba":
+    if runtime.get("plan_generated_from_revision") != "e3889daec76f761d7c585f4cb8ba51217122a28f":
         raise PreflightError("plan_runtime_revision_invalid")
     identity = plan.get("provider_identity")
     if not isinstance(identity, dict) or identity != {
@@ -154,7 +158,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         raise PreflightError("plan_provider_identity_invalid")
     budget = plan.get("budget")
     expected_budget = {
-        "writer_exact_call_count": 10, "writer_max_provider_calls": 10,
+        "writer_exact_call_count": contract["request_count"], "writer_max_provider_calls": 10,
         "writer_max_retries_per_task": 0, "writer_max_request_bytes": 128000,
         "writer_max_response_bytes": 32768, "writer_max_output_tokens": 1800,
         "writer_deadline_seconds": 600, "writer_max_concurrent_scopes": 4,
@@ -162,15 +166,15 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         "writer_summary_slots": 0, "writer_optional_stage_slots": 0,
         "audit_max_provider_calls": 3, "audit_max_input_bytes_per_call": 64000,
         "audit_max_response_bytes_per_call": 64000, "audit_max_output_tokens_per_llm_call": 1800,
-        "audit_max_deadline_seconds_per_call": 12, "audit_max_retries": 0,
-        "total_provider_calls_max": 13, "total_provider_deadline_seconds_max": 636,
+        "audit_max_deadline_seconds_per_call": 90, "audit_max_retries": 0,
+        "total_provider_calls_max": 13, "total_provider_deadline_seconds_max": 870,
         "target_code_execution": False, "publication_enabled": False,
     }
     if budget != expected_budget:
         raise PreflightError("plan_budget_invalid")
     rows = plan.get("writer_requests")
     expected_fields = {"task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap"}
-    if not isinstance(rows, list) or len(rows) != 10:
+    if not isinstance(rows, list) or len(rows) != contract["request_count"]:
         raise PreflightError("plan_request_count_invalid")
     seen: set[str] = set()
     for row in rows:
@@ -188,13 +192,16 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
             raise PreflightError("plan_request_hash_invalid")
         if row.get("output_bytes_cap") != 32768 or row.get("output_tokens_cap") != 1800:
             raise PreflightError("plan_request_output_budget_invalid")
-    if sum(row["input_bytes"] for row in rows) != 893359 or max(row["input_bytes"] for row in rows) != 96462:
+    if (sum(row["input_bytes"] for row in rows) != contract["request_bytes_total"]
+            or max(row["input_bytes"] for row in rows) != contract["request_bytes_max"]):
         raise PreflightError("plan_request_totals_invalid")
     return rows
 
 
 def verify(plan: dict[str, Any], prepared: dict[str, Any], *, plan_bytes: bytes) -> dict[str, Any]:
-    if hashlib.sha256(plan_bytes).hexdigest() != EXPECTED_PLAN_SHA256:
+    case_id = plan.get("case", {}).get("case_id") if isinstance(plan.get("case"), dict) else None
+    contract = CASE_CONTRACTS.get(case_id)
+    if contract is None or hashlib.sha256(plan_bytes).hexdigest() != EXPECTED_PLAN_SHA256[case_id]:
         raise PreflightError("plan_hash_mismatch")
     requests = _plan_requests(plan)
     limits, limits_bytes = _read_json(LIMITS_PATH, 16_000)
@@ -274,9 +281,9 @@ def verify(plan: dict[str, Any], prepared: dict[str, Any], *, plan_bytes: bytes)
         capacity.get(key) != expected for key, expected in {
             "configured_max_provider_calls": 10,
             "configured_max_input_bytes_per_task": 128000,
-            "exact_primary_call_demand": 10,
-            "exact_primary_serialized_input_bytes": 893359,
-            "remaining_global_call_slots_after_primary": 0,
+            "exact_primary_call_demand": contract["request_count"],
+            "exact_primary_serialized_input_bytes": contract["request_bytes_total"],
+            "remaining_global_call_slots_after_primary": contract["remaining_call_slots"],
         }.items()
     ):
         raise PreflightError("prepare_capacity_mismatch")

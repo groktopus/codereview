@@ -20,7 +20,7 @@ sanitizer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(sanitizer)
 
 
-def _fixture(tmp_path: Path):
+def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR-464"):
     runner_temp = tmp_path / "runner"
     runner_temp.mkdir(mode=0o700)
     os.chmod(runner_temp, 0o700)
@@ -28,7 +28,8 @@ def _fixture(tmp_path: Path):
     capture.mkdir(mode=0o700)
     for child in ("requests", "responses", "calls"):
         (capture / child).mkdir(mode=0o700)
-    plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json").read_text())
+    plan_name = case_id.lower().replace("-", "")
+    plan = json.loads((ROOT / f"experiments/model-only-shadow-live-{plan_name}-plan-v1.json").read_text())
     packet_dir = capture / "case-packets"
     packet_dir.mkdir(mode=0o700)
     packet_inventory = []
@@ -83,7 +84,17 @@ def _fixture(tmp_path: Path):
     plan_path = runner_temp / "plan.json"
     plan_bytes = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode() + b"\n"
     plan_path.write_bytes(plan_bytes)
-    sanitizer.EXPECTED_PLAN_SHA256 = hashlib.sha256(plan_bytes).hexdigest()
+    plan_hash = hashlib.sha256(plan_bytes).hexdigest()
+    policy = {"plan_sha256": plan_hash, "writer_calls": len(plan["writer_requests"])}
+    monkeypatch.setattr(sanitizer, "EXPECTED_PLAN_SHA256", plan_hash, raising=False)
+    monkeypatch.setattr(sanitizer, "case_for_plan_path", lambda _path, _root: (case_id, policy))
+
+    def validate_fixture_plan(_plan: dict, raw: bytes) -> tuple[str, dict]:
+        if hashlib.sha256(raw).hexdigest() != policy["plan_sha256"]:
+            raise ValueError("shadow_plan_binding_invalid")
+        return case_id, policy
+
+    monkeypatch.setattr(sanitizer, "validate_plan_binding", validate_fixture_plan)
     preflight_path = runner_temp / "preflight.json"
     preflight = {
         "schema": "model-only-shadow-live-preflight-receipt.v1", "status": "PLAN_MATCHED_PROVIDER_FREE",
@@ -113,14 +124,14 @@ def _replace_packet(capture: Path, manifest: dict, filename: str, packet: dict) 
     inventory_row["sha256"] = hashlib.sha256(raw).hexdigest()
 
 
-def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path: Path):
-    runner_temp, capture, plan, preflight, _manifest, _calls, _requests, _responses = _fixture(tmp_path)
+def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path: Path, monkeypatch):
+    runner_temp, capture, plan, preflight, _manifest, _calls, _requests, _responses = _fixture(tmp_path, monkeypatch)
     output = runner_temp / "private-writer-sanitized"
     result = sanitizer.sanitize(capture, plan, preflight, output)
     artifact = output / "writer-receipt.json"
     raw = artifact.read_bytes()
     assert result["status"] == "WRITER_TRANSPORT_CAPTURED"
-    assert result["writer_call_count"] == 10
+    assert result["writer_call_count"] == len(_manifest["calls"])
     assert set(result) == {
         "schema", "status", "case_id", "snapshot_id", "snapshot_sha256", "plan_sha256",
         "provider_id", "model_id", "writer_call_count", "writer_request_bytes_total",
@@ -135,7 +146,7 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     assert outcomes["schema"] == "model-only-shadow-live-writer-outcomes.v1"
     assert outcomes["returned_candidate_count_total"] == 0
     assert outcomes["packet_candidate_count_total"] == 0
-    assert outcomes["outcome_counts"]["zero_findings_returned"] == 10
+    assert outcomes["outcome_counts"]["zero_findings_returned"] == len(_manifest["calls"])
     assert set(outcomes) == {
         "schema", "plan_sha256", "capture_manifest_sha256", "tasks",
         "returned_candidate_count_total", "packet_candidate_count_total", "outcome_counts",
@@ -150,6 +161,54 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     assert stat.S_IMODE(outcome_artifact.stat().st_mode) == 0o600
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
     assert stat.S_IMODE(artifact.stat().st_mode) == 0o600
+
+
+def test_pr457_sanitizer_accepts_its_six_call_closed_plan(tmp_path: Path, monkeypatch):
+    runner_temp, capture, plan, preflight, manifest, *_ = _fixture(tmp_path, monkeypatch, "PR-457")
+    result = sanitizer.sanitize(capture, plan, preflight, runner_temp / "private-writer-sanitized")
+    assert result["writer_call_count"] == 6
+    assert result["case_id"] == "PR-457"
+
+
+@pytest.mark.parametrize(("case_id", "call_count"), [
+    ("PR-457", 5), ("PR-457", 7), ("PR-457", 10),
+    ("PR-464", 6), ("PR-464", 9), ("PR-464", 11),
+])
+def test_sanitizer_rejects_call_count_outside_pinned_case_policy_without_receipt(
+    tmp_path: Path, monkeypatch, case_id: str, call_count: int,
+):
+    runner_temp, capture, plan, preflight, manifest, *_ = _fixture(tmp_path, monkeypatch, case_id)
+    pinned_count = len(manifest["calls"])
+    if call_count < pinned_count:
+        manifest["calls"] = manifest["calls"][:call_count]
+    else:
+        manifest["calls"] = manifest["calls"] + [dict(manifest["calls"][0]) for _ in range(call_count - pinned_count)]
+    (capture / "manifest.json").write_text(json.dumps(manifest))
+    output = runner_temp / "private-writer-sanitized"
+    with pytest.raises(sanitizer.ReceiptError, match="capture_call_count_mismatch"):
+        sanitizer.sanitize(capture, plan, preflight, output)
+    assert not output.exists()
+
+
+def test_sanitizer_rejects_cross_case_plan_binding(tmp_path: Path, monkeypatch):
+    runner_temp, capture, plan, preflight, _manifest, *_ = _fixture(tmp_path, monkeypatch, "PR-457")
+    policy = sanitizer.case_for_plan_path(plan, ROOT)[1]
+    monkeypatch.setattr(sanitizer, "validate_plan_binding", lambda _plan, _raw: ("PR-464", policy))
+    output = runner_temp / "private-writer-sanitized"
+    with pytest.raises(sanitizer.ReceiptError, match="plan_hash_mismatch"):
+        sanitizer.sanitize(capture, plan, preflight, output)
+    assert not output.exists()
+
+
+def test_sanitizer_rejects_tampered_plan_before_receipt_creation(tmp_path: Path, monkeypatch):
+    runner_temp, capture, plan, preflight, _manifest, *_ = _fixture(tmp_path, monkeypatch, "PR-457")
+    parsed = json.loads(plan.read_text())
+    parsed["case"]["case_id"] = "PR-464"
+    plan.write_text(json.dumps(parsed, sort_keys=True, separators=(",", ":")) + "\n")
+    output = runner_temp / "private-writer-sanitized"
+    with pytest.raises(sanitizer.ReceiptError, match="plan_hash_mismatch"):
+        sanitizer.sanitize(capture, plan, preflight, output)
+    assert not output.exists()
 
 
 @pytest.mark.parametrize(
@@ -170,9 +229,9 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     ],
 )
 def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
-    tmp_path: Path, response_payload: dict, outcome: str, parse_status: str, returned_count: int
+    tmp_path: Path, monkeypatch, response_payload: dict, outcome: str, parse_status: str, returned_count: int
 ):
-    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path)
+    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path, monkeypatch)
     call_id = calls[0]["call_id"]
     response_blob = json.dumps(response_payload, separators=(",", ":")).encode()
     (capture / "responses" / f"{call_id}.bin").write_bytes(response_blob)
@@ -195,8 +254,8 @@ def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
 
 
 @pytest.mark.parametrize("tamper", ["missing_task_packet", "candidate_overrun", "inventory_overrun"])
-def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_path: Path, tamper: str):
-    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path)
+def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_path: Path, monkeypatch, tamper: str):
+    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path, monkeypatch)
     packets = manifest["case_packet_inventory"]["packets"]
     if tamper == "missing_task_packet":
         removed = packets.pop(0)
@@ -227,8 +286,8 @@ def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_p
     "tamper", ["missing_call", "request_bytes", "malformed_response", "manifest_extension", "snapshot_hash",
                "missing_packet", "altered_packet"]
 )
-def test_sanitizer_rejects_tampered_or_incomplete_capture(tmp_path: Path, tamper: str):
-    runner_temp, capture, plan, preflight, manifest, calls, requests, responses = _fixture(tmp_path)
+def test_sanitizer_rejects_tampered_or_incomplete_capture(tmp_path: Path, monkeypatch, tamper: str):
+    runner_temp, capture, plan, preflight, manifest, calls, requests, responses = _fixture(tmp_path, monkeypatch)
     if tamper == "missing_call":
         manifest["calls"].pop()
     elif tamper == "request_bytes":

@@ -8,6 +8,14 @@ on:
         required: false
         type: boolean
         default: false
+      live_case:
+        description: Fixed case used by the live writer and three-role audit
+        required: false
+        type: choice
+        options:
+          - PR-464
+          - PR-457
+        default: PR-464
 
 permissions:
   contents: read
@@ -18,7 +26,8 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    name: PR-464 provider-free preparation
+    if: inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -227,7 +236,7 @@ jobs:
         if: steps.sanitize.outputs.validated == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: private-shadow-preflight-${{ github.run_id }}
+          name: private-shadow-preflight-PR-464-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/private-shadow-sanitized/summary.json
             ${{ runner.temp }}/private-shadow-sanitized/manifest.json
@@ -297,25 +306,60 @@ jobs:
               raise SystemExit("trusted_runner_revision_mismatch")
           PY
 
+      - name: Select one fixed live case
+        id: case
+        env:
+          SELECTED_CASE: ${{ inputs.live_case }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          contracts = {
+              "PR-464": {
+                  "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
+                  "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+              },
+              "PR-457": {
+                  "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
+                  "head_sha": "595f143607961d21d162efe76518d86e416d2548",
+              },
+          }
+          case_id = os.environ.get("SELECTED_CASE", "PR-464")
+          if case_id not in contracts:
+              raise SystemExit("live_case_invalid")
+          values = {
+              "case_id": case_id,
+              **contracts[case_id],
+              "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v1.json",
+              "profile_path": f"docs/real-case-trial-v1/profiles/{case_id}.json",
+              "checks_path": f"docs/real-case-trial-v1/checks/{case_id}.json",
+          }
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              for key, value in values.items():
+                  output.write(f"{key}={value}\n")
+          PY
+
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.13'
 
-      - name: Check out the fixed read-only SlopSearX case
+      - name: Check out the selected read-only SlopSearX case
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: magnus919/SlopSearX
-          ref: bffc26f9e4bf95aca0c252e88a2396d03ece854c
+          ref: ${{ steps.case.outputs.head_sha }}
           path: target-repo
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify the fixed target commits without running target code
+      - name: Verify the selected target commits without running target code
         working-directory: target-repo
         env:
-          EXPECTED_BASE: 20a743f0434a1843aa00068483f608f1e213b2af
-          EXPECTED_HEAD: bffc26f9e4bf95aca0c252e88a2396d03ece854c
+          EXPECTED_BASE: ${{ steps.case.outputs.base_sha }}
+          EXPECTED_HEAD: ${{ steps.case.outputs.head_sha }}
         run: |
           python3 - <<'PY'
           import os
@@ -335,7 +379,7 @@ jobs:
           umask 077
           mkdir -m 700 "$RUNNER_TEMP/private-shadow-preparation"
 
-      - name: Prepare the exact current-runtime writer requests without credentials
+      - name: Prepare the selected exact writer requests without credentials
         working-directory: trusted-runner
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted-runner/src
@@ -348,14 +392,14 @@ jobs:
             --stage-output "$RUNNER_TEMP/private-shadow-preparation/stage-diagnostic.json" -- \
             review \
             --repo "$GITHUB_WORKSPACE/target-repo" \
-            --base 20a743f0434a1843aa00068483f608f1e213b2af \
-            --head bffc26f9e4bf95aca0c252e88a2396d03ece854c \
-            --profile "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/profiles/PR-464.json" \
-            --historical-checks-json "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/checks/PR-464.json" \
+            --base "${{ steps.case.outputs.base_sha }}" \
+            --head "${{ steps.case.outputs.head_sha }}" \
+            --profile "$GITHUB_WORKSPACE/trusted-runner/${{ steps.case.outputs.profile_path }}" \
+            --historical-checks-json "$GITHUB_WORKSPACE/trusted-runner/${{ steps.case.outputs.checks_path }}" \
             --limits "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-limits-v1.json" \
             --provider-config "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-provider-v1.json" \
             --mode AUTO --effect-policy READ_ONLY \
-            --private-shadow-preflight-case-id PR-464 --max-claim-assessments 0 \
+            --private-shadow-preflight-case-id "${{ steps.case.outputs.case_id }}" --max-claim-assessments 0 \
             --run-id "prepare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --output "$RUNNER_TEMP/private-shadow-prepare-output" --prepare-only --json \
             > "$RUNNER_TEMP/private-shadow-preparation/prepared.json" 2>/dev/null; then
@@ -375,7 +419,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/verify_model_only_shadow_live_preflight.py \
-            --plan experiments/model-only-shadow-live-pr464-plan-v1.json \
+            --plan "${{ steps.case.outputs.plan_path }}" \
             --prepared "$RUNNER_TEMP/private-shadow-preparation/prepared.json" \
             > "$RUNNER_TEMP/private-shadow-preparation/live-preflight-receipt.json"
           echo 'verified=true' >> "$GITHUB_OUTPUT"
@@ -391,11 +435,11 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/build_model_only_shadow_writer_provider_config.py \
-            --plan experiments/model-only-shadow-live-pr464-plan-v1.json \
+            --plan "${{ steps.case.outputs.plan_path }}" \
             --output-dir "$RUNNER_TEMP/private-shadow-runtime-config" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
-      - name: Run only the ten pinned read-only writer calls
+      - name: Run only the selected pinned read-only writer calls
         id: writer
         if: steps.exact-preflight.outputs.verified == 'true' && steps.provider-identity.outputs.validated == 'true'
         working-directory: trusted-runner
@@ -412,18 +456,18 @@ jobs:
             --stage-output "$RUNNER_TEMP/private-shadow-preparation/writer-stage-diagnostic.json" -- \
             review \
             --repo "$GITHUB_WORKSPACE/target-repo" \
-            --base 20a743f0434a1843aa00068483f608f1e213b2af \
-            --head bffc26f9e4bf95aca0c252e88a2396d03ece854c \
-            --profile "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/profiles/PR-464.json" \
-            --historical-checks-json "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/checks/PR-464.json" \
+            --base "${{ steps.case.outputs.base_sha }}" \
+            --head "${{ steps.case.outputs.head_sha }}" \
+            --profile "$GITHUB_WORKSPACE/trusted-runner/${{ steps.case.outputs.profile_path }}" \
+            --historical-checks-json "$GITHUB_WORKSPACE/trusted-runner/${{ steps.case.outputs.checks_path }}" \
             --limits "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-limits-v1.json" \
             --provider-config "$RUNNER_TEMP/private-shadow-runtime-config/provider.json" \
             --mode AUTO --effect-policy READ_ONLY --max-claim-assessments 0 \
             --run-id "writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --output "$RUNNER_TEMP/private-shadow-live-output" \
             --private-shadow-capture "$RUNNER_TEMP/private-writer-capture" \
-            --private-shadow-case-id PR-464 \
-            --private-shadow-plan "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-pr464-plan-v1.json" \
+            --private-shadow-case-id "${{ steps.case.outputs.case_id }}" \
+            --private-shadow-plan "$GITHUB_WORKSPACE/trusted-runner/${{ steps.case.outputs.plan_path }}" \
             --private-shadow-preflight-receipt "$RUNNER_TEMP/private-shadow-preparation/live-preflight-receipt.json" \
             --json > "$RUNNER_TEMP/private-shadow-preparation/writer-result.json" 2>/dev/null; then
           :
@@ -444,7 +488,7 @@ jobs:
           set -euo pipefail
           python3 scripts/sanitize_model_only_shadow_writer_receipt.py \
             --capture-root "$RUNNER_TEMP/private-writer-capture" \
-            --plan experiments/model-only-shadow-live-pr464-plan-v1.json \
+            --plan "${{ steps.case.outputs.plan_path }}" \
             --preflight "$RUNNER_TEMP/private-shadow-preparation/live-preflight-receipt.json" \
             --output-dir "$RUNNER_TEMP/private-writer-sanitized" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
@@ -485,7 +529,7 @@ jobs:
             --capture-root "$RUNNER_TEMP/private-writer-capture" \
             --provider-config "$RUNNER_TEMP/private-shadow-audit-config/provider.json" \
             --jev-config "$RUNNER_TEMP/private-shadow-audit-config/decision.json" \
-            --plan experiments/model-only-shadow-live-pr464-plan-v1.json \
+            --plan "${{ steps.case.outputs.plan_path }}" \
             --limits experiments/model-only-shadow-audit-limits-v1.json \
             --output-root "$RUNNER_TEMP/private-shadow-audit-output" \
             --receipt "$RUNNER_TEMP/private-shadow-audit-receipt/shadow-audit-receipt.json" \
@@ -529,12 +573,13 @@ jobs:
         id: workflow-status
         if: always()
         env:
-          STATUS_CASE_ID: PR-464
+          STATUS_CASE_ID: ${{ steps.case.outputs.case_id }}
           STATUS_RUN_ID: ${{ github.run_id }}
           STATUS_RUN_ATTEMPT: ${{ github.run_attempt }}
           STATUS_JOB: ${{ job.status }}
           STATUS_TRUSTED_CHECKOUT: ${{ steps.trusted-checkout.outcome }}
           STATUS_TRUSTED_IDENTITY: ${{ steps.trusted-identity.outcome }}
+          STATUS_CASE_SELECTION: ${{ steps.case.outcome }}
           STATUS_EXACT_PREFLIGHT: ${{ steps.exact-preflight.outcome }}
           STATUS_PROVIDER_IDENTITY: ${{ steps.provider-identity.outcome }}
           STATUS_WRITER: ${{ steps.writer.outcome }}
@@ -561,7 +606,9 @@ jobs:
           stages = {
               "trusted_checkout": os.environ.get("STATUS_TRUSTED_CHECKOUT", ""),
               "trusted_identity": os.environ.get("STATUS_TRUSTED_IDENTITY", ""),
-              "exact_preflight": "unknown", "provider_identity": "unknown", "writer": "unknown",
+              "case_selection": os.environ.get("STATUS_CASE_SELECTION", ""),
+              "exact_preflight": "unknown",
+              "provider_identity": "unknown", "writer": "unknown",
               "writer_sanitize": "unknown", "audit_config": "unknown",
               "shadow_audit": "unknown", "audit_sanitize": "unknown",
               "writer_artifact_upload": "unknown", "audit_artifact_upload": "unknown",

@@ -13,8 +13,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-EXPECTED_PLAN_SHA256 = "f9fca82d3ef7d815a6cc8487a64d374fade3944f8591ada7d89362395889650d"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "src"))
+from shadow_case_policy import case_for_plan_path, validate_plan_binding  # noqa: E402
 
 
 class ConfigBuildError(ValueError):
@@ -43,6 +46,7 @@ def build(plan_path: Path, output_dir: Path, environ: dict[str, str] | None = No
     if out.parent != runner_temp or out.exists() or out.is_symlink():
         raise ConfigBuildError("private_config_path_invalid")
     try:
+        case_for_plan_path(plan_path, ROOT)
         plan_bytes = plan_path.read_bytes()
         plan = json.loads(
             plan_bytes.decode("utf-8"), object_pairs_hook=_pairs,
@@ -50,8 +54,10 @@ def build(plan_path: Path, output_dir: Path, environ: dict[str, str] | None = No
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError, ConfigBuildError):
         raise ConfigBuildError("trusted_plan_unavailable") from None
-    if hashlib.sha256(plan_bytes).hexdigest() != EXPECTED_PLAN_SHA256:
-        raise ConfigBuildError("trusted_plan_hash_mismatch")
+    try:
+        validate_plan_binding(plan, plan_bytes)
+    except ValueError:
+        raise ConfigBuildError("trusted_plan_hash_mismatch") from None
     identity = plan.get("provider_identity") if isinstance(plan, dict) else None
     runtime = plan.get("runtime") if isinstance(plan, dict) else None
     if (

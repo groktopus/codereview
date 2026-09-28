@@ -23,6 +23,7 @@ TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}\Z")
 ROLE_STATES = {"completed", "abstained", "failed", "incomplete", "not_run", "unavailable"}
 PREDISPATCH_STAGES = {"capture_validation", "plan_binding", "limits_validation", "provider_setup", "audit_validation"}
 PREDISPATCH_CODES = {"capture_invalid", "plan_binding_invalid", "limits_invalid", "provider_setup_invalid", "audit_input_invalid"}
+CASE_IDS = {"PR-457", "PR-464"}
 
 
 def _read(path: Path) -> tuple[dict[str, Any], bytes]:
@@ -62,7 +63,8 @@ def _valid(receipt: dict[str, Any]) -> None:
     if receipt.get("schema") == "model-only-shadow-audit-predispatch-failure.v1":
         stage = receipt.get("failure_stage")
         code = receipt.get("failure_code")
-        if (set(receipt) != failure_fields or receipt.get("case_id") != "PR-464"
+        if (set(receipt) != failure_fields or not isinstance(receipt.get("case_id"), str)
+                or receipt.get("case_id") not in CASE_IDS
                 or receipt.get("terminal_state") != "failed_before_dispatch"
                 or not isinstance(stage, str) or stage not in PREDISPATCH_STAGES
                 or not isinstance(code, str) or code not in PREDISPATCH_CODES
@@ -78,12 +80,14 @@ def _valid(receipt: dict[str, Any]) -> None:
             raise ReceiptError("predispatch_receipt_invalid")
         return
     base = {"schema", "case_id", "terminal_state", "reason", "audit_provider_calls", "candidate_packet_count",
-            "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts"}
+            "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts",
+            "role_dispatched_call_counts", "role_guard_rejected_counts",
+            "role_post_guard_pretransport_counts", "role_unknown_dispatch_counts", "role_request_sha256"}
     optional = {"selected_candidate_sha256", "shadow_manifest_sha256"}
     if frozenset(receipt) not in {frozenset(base), frozenset(base | optional)}:
         raise ReceiptError("receipt_fields_invalid")
     if (receipt.get("schema") != "model-only-shadow-audit-receipt.v1"
-            or receipt.get("case_id") != "PR-464"
+            or not isinstance(receipt.get("case_id"), str) or receipt.get("case_id") not in CASE_IDS
             or receipt.get("terminal_state") not in {"completed", "claim_audit_abstained", "incomplete", "source_audit_failed", "jev_assessment_failed", "claim_audit_failed"}
             or receipt.get("reason") not in {"no_writer_candidate", "one_candidate_selected", "bounded_single_candidate_selection"}):
         raise ReceiptError("receipt_identity_invalid")
@@ -100,11 +104,32 @@ def _valid(receipt: dict[str, Any]) -> None:
     if not isinstance(roles, dict) or set(roles) != ROLES or any(value not in ROLE_STATES for value in roles.values()):
         raise ReceiptError("receipt_role_states_invalid")
     role_calls = receipt.get("role_call_counts")
+    count_maps = {
+        "role_dispatched_call_counts": receipt.get("role_dispatched_call_counts"),
+        "role_guard_rejected_counts": receipt.get("role_guard_rejected_counts"),
+        "role_post_guard_pretransport_counts": receipt.get("role_post_guard_pretransport_counts"),
+        "role_unknown_dispatch_counts": receipt.get("role_unknown_dispatch_counts"),
+    }
     if (not isinstance(role_calls, dict) or set(role_calls) != ROLES
             or any(isinstance(value, bool) or not isinstance(value, int) or value not in {0, 1}
                    for value in role_calls.values())
-            or sum(role_calls.values()) != calls):
+            or any(not isinstance(count_map, dict) or set(count_map) != ROLES
+                   or any(isinstance(value, bool) or not isinstance(value, int) or value not in {0, 1}
+                          for value in count_map.values()) for count_map in count_maps.values())):
         raise ReceiptError("receipt_role_call_counts_invalid")
+    dispatched = count_maps["role_dispatched_call_counts"]
+    rejected = count_maps["role_guard_rejected_counts"]
+    pretransport = count_maps["role_post_guard_pretransport_counts"]
+    unknown = count_maps["role_unknown_dispatch_counts"]
+    hashes = receipt.get("role_request_sha256")
+    if (not isinstance(hashes, dict) or set(hashes) != ROLES
+            or any((role_calls[role] == 0 and hashes[role] is not None)
+                   or (role_calls[role] == 1 and (not isinstance(hashes[role], str) or not HASH.fullmatch(hashes[role])))
+                   for role in ROLES)
+            or any(role_calls[role] != dispatched[role] + rejected[role] + pretransport[role] + unknown[role]
+                   for role in ROLES)
+            or sum(dispatched.values()) != calls):
+        raise ReceiptError("receipt_dispatch_accounting_invalid")
     if any(roles[role] == "not_run" and role_calls[role] != 0 for role in ROLES):
         raise ReceiptError("not_run_role_has_call")
     if count == 0:
@@ -122,7 +147,7 @@ def _valid(receipt: dict[str, Any]) -> None:
         terminal = receipt["terminal_state"]
         source, jev, claim = (roles["source_auditor"], roles["jev"], roles["claim_auditor"])
         source_calls, jev_calls, claim_calls = (
-            role_calls["source_auditor"], role_calls["jev"], role_calls["claim_auditor"]
+            dispatched["source_auditor"], dispatched["jev"], dispatched["claim_auditor"]
         )
         eligible = {"completed", "abstained"}
         consistent = (

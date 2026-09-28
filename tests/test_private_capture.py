@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import cli
-from pr_review_harness.cli import TRUSTED_CAPTURE_WORKFLOW_REF
+from pr_review_harness.cli import TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SHADOW_PLANS
 from pr_review_harness.cross_model_v2 import CONTRACT_VERSION, calls_manifest_sha256, compare_cross_model_v2
 from pr_review_harness.evaluation import validate_corpus
 from pr_review_harness.private_capture import (
@@ -462,6 +462,7 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
         "budget": {
             "writer_exact_call_count": 1, "writer_max_request_bytes": 128_000,
             "writer_max_response_bytes": 32_768, "writer_max_output_tokens": 1_800,
+            "writer_max_provider_calls": 10,
         },
         "writer_requests": [
             {key: row[key] for key in ("task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap")}
@@ -479,6 +480,13 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
         "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(), "case_id": "PR-464",
         "snapshot_sha256": capture_snapshot_hash, "writer_calls_planned": 1,
     }))
+    # This fixture exercises one request. The checked-in policy covers the
+    # real ten-request PR-464 plan; replace only the test-local bounds here.
+    monkeypatch.setitem(cli.TRUSTED_SHADOW_PLANS, "PR-464", {
+        **cli.TRUSTED_SHADOW_PLANS["PR-464"], "calls": 1,
+        "snapshot_id": prepared["snapshot"]["snapshot_id"],
+        "snapshot_sha256": capture_snapshot_hash,
+    })
     output_dir = tmp_path / "ordinary-output"
     capture_dir = tmp_path / "private-capture"
     args = [
@@ -510,6 +518,11 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     assert packet["snapshot"]["snapshot_hash"] == _json_hash(
         {k: v for k, v in packet["snapshot"].items() if k not in {"snapshot_id", "snapshot_hash"}}
     )
+    # The receipt binds the exact plan bytes, including formatting. A fresh
+    # semantic equivalent plan with a stale receipt must be rejected.
+    plan_path.write_bytes(plan_bytes + b" ")
+    with pytest.raises(ValueError, match="private shadow preflight receipt mismatch"):
+        cli._load_private_shadow_pins(str(plan_path), str(receipt_path))
 
 
 def _trusted_capture_env(monkeypatch, runner_temp):
@@ -548,14 +561,88 @@ def test_actions_private_plan_must_come_from_fixed_trusted_checkout_and_receipt_
     receipt_dir.mkdir(mode=0o700)
     expected_receipt = receipt_dir / "live-preflight-receipt.json"
     expected_receipt.write_text("{}")
-    cli._validate_trusted_private_plan_paths(str(expected_plan), str(expected_receipt))
+    cli._validate_trusted_private_plan_paths(str(expected_plan), str(expected_receipt), "PR-464")
 
     forged_plan = tmp_path / "attacker-plan.json"
     forged_receipt = tmp_path / "attacker-receipt.json"
     forged_plan.write_text("{}")
     forged_receipt.write_text("{}")
     with pytest.raises(ValueError, match="trusted private preflight paths required"):
-        cli._validate_trusted_private_plan_paths(str(forged_plan), str(forged_receipt))
+        cli._validate_trusted_private_plan_paths(str(forged_plan), str(forged_receipt), "PR-464")
+
+
+@pytest.mark.parametrize("case_id", ["PR-457", "PR-464"])
+def test_actions_private_plan_paths_are_bound_to_selected_case(tmp_path, monkeypatch, case_id):
+    runner_temp = tmp_path / "runner-temp"
+    workspace = tmp_path / "workspace"
+    runner_temp.mkdir()
+    workspace.mkdir()
+    _trusted_capture_env(monkeypatch, runner_temp)
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+    expected_plan = workspace / "trusted-runner" / TRUSTED_SHADOW_PLANS[case_id]["path"]
+    expected_plan.parent.mkdir(parents=True)
+    expected_plan.write_text("{}")
+    receipt_dir = runner_temp / "private-shadow-preparation"
+    receipt_dir.mkdir()
+    expected_receipt = receipt_dir / "live-preflight-receipt.json"
+    expected_receipt.write_text("{}")
+
+    cli._validate_trusted_private_plan_paths(
+        str(expected_plan), str(expected_receipt), case_id
+    )
+    other_case = "PR-464" if case_id == "PR-457" else "PR-457"
+    with pytest.raises(ValueError, match="trusted private preflight paths required"):
+        cli._validate_trusted_private_plan_paths(
+            str(expected_plan), str(expected_receipt), other_case
+        )
+
+
+@pytest.mark.parametrize("bad_path_kind", ["relative", "traversal", "parent_symlink", "final_symlink", "cross_path"])
+def test_actions_private_plan_path_rejections_precede_provider_setup(
+    tmp_path, monkeypatch, bad_path_kind
+):
+    runner_temp = tmp_path / "runner-temp"
+    workspace = tmp_path / "workspace"
+    runner_temp.mkdir()
+    workspace.mkdir()
+    _trusted_capture_env(monkeypatch, runner_temp)
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+    plan_dir = workspace / "trusted-runner" / "experiments"
+    plan_dir.mkdir(parents=True)
+    plan = plan_dir / TRUSTED_SHADOW_PLANS["PR-457"]["path"].split("/")[-1]
+    plan.write_text("{}")
+    receipt_dir = runner_temp / "private-shadow-preparation"
+    receipt_dir.mkdir()
+    receipt = receipt_dir / "live-preflight-receipt.json"
+    receipt.write_text("{}")
+    supplied_plan, supplied_receipt = str(plan), str(receipt)
+    if bad_path_kind == "relative":
+        supplied_plan = "relative-plan.json"
+    elif bad_path_kind == "traversal":
+        supplied_plan = str(plan_dir / ".." / "experiments" / plan.name)
+    elif bad_path_kind == "parent_symlink":
+        alias = tmp_path / "workspace-alias"
+        alias.symlink_to(workspace, target_is_directory=True)
+        supplied_plan = str(alias / "trusted-runner" / "experiments" / plan.name)
+    elif bad_path_kind == "final_symlink":
+        alias = plan_dir / "plan-alias.json"
+        alias.symlink_to(plan)
+        supplied_plan = str(alias)
+    elif bad_path_kind == "cross_path":
+        supplied_receipt = str(plan)
+
+    calls = []
+    monkeypatch.setattr(cli, "_configs", lambda _args: calls.append("configs"))
+    code = cli.main([
+        "review", "--repo", str(tmp_path), "--profile", str(tmp_path / "profile.json"),
+        "--base", "a" * 40, "--head", "b" * 40,
+        "--private-shadow-capture", str(tmp_path / "capture"),
+        "--private-shadow-case-id", "PR-457",
+        "--private-shadow-plan", supplied_plan,
+        "--private-shadow-preflight-receipt", supplied_receipt, "--json",
+    ])
+    assert code == 2
+    assert calls == []
 
 
 @pytest.mark.parametrize(

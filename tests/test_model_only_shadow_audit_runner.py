@@ -8,6 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from pr_review_harness import claim_transport, providers
+from pr_review_harness.claim_transport import ClaimTransport
+from pr_review_harness.providers import OpenAIProvider, ProviderError
+from pr_review_harness.shadow_audit import _CapturingNativeCall
+from pr_review_harness.shadow_preflight import AuditPreflightError
+
 SPEC = importlib.util.spec_from_file_location(
     "model_only_shadow_runner", Path(__file__).resolve().parents[1] / "scripts/run_model_only_shadow_audit.py"
 )
@@ -26,10 +32,28 @@ SANITIZER_SPEC = importlib.util.spec_from_file_location(
 SANITIZER = importlib.util.module_from_spec(SANITIZER_SPEC)
 assert SANITIZER_SPEC.loader is not None
 SANITIZER_SPEC.loader.exec_module(SANITIZER)
+POLICY_PATH_RESOLVER = RUNNER.case_for_plan_path
+POLICY_VALIDATOR = RUNNER.validate_plan_binding
+REPO_ROOT = Path(__file__).resolve().parents[1]
 CASE_IDENTITY = {
     "snapshot_id": "snap-test", "snapshot_hash": "a" * 64, "base_sha": "b" * 40,
     "head_sha": "c" * 40, "profile_version": "profile-v1", "profile_hash": _PROFILE_SNAPSHOT_SHA256,
 }
+AUDIT_ROLES = ("source_auditor", "jev", "claim_auditor")
+
+
+def _receipt_dispatch_fields(accounting):
+    return {
+        "audit_provider_calls": sum(row["dispatched"] for row in accounting.values()),
+        "role_call_counts": {role: row["attempted"] for role, row in accounting.items()},
+        "role_dispatched_call_counts": {role: row["dispatched"] for role, row in accounting.items()},
+        "role_guard_rejected_counts": {role: row["guard_rejected"] for role, row in accounting.items()},
+        "role_post_guard_pretransport_counts": {
+            role: row["post_guard_pretransport"] for role, row in accounting.items()
+        },
+        "role_unknown_dispatch_counts": {role: row["unknown"] for role, row in accounting.items()},
+        "role_request_sha256": {role: row["request_sha256"] for role, row in accounting.items()},
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -38,6 +62,9 @@ def trusted_profile_file(tmp_path, monkeypatch):
     path.parent.mkdir(parents=True)
     path.write_bytes(_PROFILE_BYTES)
     monkeypatch.setattr(RUNNER, "ROOT", tmp_path)
+    policy = {**RUNNER.CASE_POLICY["PR-464"], "profile_sha256": _PROFILE_FILE_SHA256}
+    monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-464", policy))
+    monkeypatch.setattr(RUNNER, "validate_plan_binding", lambda _plan, _raw: ("PR-464", policy))
 
 
 def _packet(case_id: str, candidate_id: str | None, task_id: str) -> dict:
@@ -47,8 +74,18 @@ def _packet(case_id: str, candidate_id: str | None, task_id: str) -> dict:
             "writer_candidate": None if candidate_id is None else {"candidate_id": candidate_id}}
 
 
-def _plan(task_ids: list[str]) -> dict:
+def _plan(task_ids: list[str], *, budget: dict | None = None) -> dict:
     return {"schema": "model-only-shadow-live-writer-plan.v1",
+            "budget": budget or {
+                "audit_max_deadline_seconds_per_call": 90,
+                "audit_max_input_bytes_per_call": 64000,
+                "audit_max_output_tokens_per_llm_call": 1800,
+                "audit_max_provider_calls": 3,
+                "audit_max_response_bytes_per_call": 64000,
+                "audit_max_retries": 0,
+                "total_provider_deadline_seconds_max": 870,
+                "writer_deadline_seconds": 600,
+            },
             "case": {"case_id": "PR-464", "snapshot_id": CASE_IDENTITY["snapshot_id"],
                      "snapshot_sha256": CASE_IDENTITY["snapshot_hash"], "base_sha": CASE_IDENTITY["base_sha"],
                      "head_sha": CASE_IDENTITY["head_sha"], "profile_version": CASE_IDENTITY["profile_version"],
@@ -73,6 +110,42 @@ def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer
         "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": inventory},
     }))
     return root
+
+
+def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
+    assert RUNNER.DEFAULT_PLAN == REPO_ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json"
+    plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
+    plan_raw = plan_path.read_bytes()
+    plan = json.loads(plan_raw)
+    case_id, policy = POLICY_PATH_RESOLVER(plan_path, REPO_ROOT)
+    validated_case_id, validated_policy = POLICY_VALIDATOR(plan, plan_raw)
+    assert case_id == validated_case_id == "PR-457"
+    assert policy == validated_policy
+    assert plan["prepare_contract"]["profile_path"] == policy["profile_path"]
+    assert hashlib.sha256((REPO_ROOT / policy["profile_path"]).read_bytes()).hexdigest() == policy["profile_sha256"]
+
+
+def test_current_pr457_plan_accepts_current_audit_limits():
+    plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
+    plan, _ = RUNNER._read_json(plan_path, 256_000)
+    plan_budget = RUNNER._plan_budget(plan)
+    limits = RUNNER._load_limits(RUNNER.DEFAULT_LIMITS)
+    RUNNER._validate_plan_budget(plan_budget, limits)
+
+
+def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, monkeypatch):
+    policy = RUNNER.CASE_POLICY["PR-457"]
+    monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-457", policy))
+    receipt_path = tmp_path / "receipt" / "failure.json"
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(tmp_path / "missing-capture", tmp_path / "provider.json", tmp_path / "jev.json",
+                   tmp_path / "raw-audit", receipt_path, tmp_path / "plan.json")
+    assert error.value.stage == "capture_validation"
+    receipt = json.loads(receipt_path.read_text())
+    assert receipt["case_id"] == "PR-457"
+    output = tmp_path / "sanitized"
+    SANITIZER.sanitize(receipt_path, output)
+    assert json.loads((output / "shadow-audit-receipt.json").read_text())["case_id"] == "PR-457"
 
 
 def test_packet_inventory_detects_missing_packet_from_multi_candidate_task(tmp_path):
@@ -200,6 +273,95 @@ def test_audit_input_rejection_writes_receipt_only_when_dispatch_guard_is_unspen
     SANITIZER.sanitize(receipt_path, sanitized)
 
 
+@pytest.mark.parametrize(("actual", "cap", "cap_value", "actual_value"), [
+    ("deadline_seconds", "audit_max_deadline_seconds_per_call", 89, 90),
+    ("max_input_bytes_per_task", "audit_max_input_bytes_per_call", 63999, 64000),
+    ("max_output_bytes_per_task", "audit_max_response_bytes_per_call", 63999, 64000),
+    ("max_output_tokens", "audit_max_output_tokens_per_llm_call", 1799, 1800),
+    ("max_provider_calls", "audit_max_provider_calls", 2, 3),
+    ("max_retries", "audit_max_retries", 0, 1),
+    ("total_provider_deadline_seconds", "total_provider_deadline_seconds_max", 869, 270),
+])
+def test_over_budget_audit_fails_before_provider_config_or_transport(
+    tmp_path, monkeypatch, actual, cap, cap_value, actual_value
+):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
+    plan = tmp_path / "plan.json"
+    budget = {
+        "audit_max_deadline_seconds_per_call": 90,
+        "audit_max_input_bytes_per_call": 64000,
+        "audit_max_output_tokens_per_llm_call": 1800,
+        "audit_max_provider_calls": 3,
+        "audit_max_response_bytes_per_call": 64000,
+        "audit_max_retries": 0,
+        "total_provider_deadline_seconds_max": 870,
+        "writer_deadline_seconds": 600,
+    }
+    budget[cap] = cap_value
+    plan.write_text(json.dumps(_plan(["task-first"], budget=budget)))
+    receipt_path = tmp_path / "receipt" / "failure.json"
+
+    actual_limits = RUNNER._load_limits(RUNNER.DEFAULT_LIMITS)
+    actual_limits[actual] = actual_value
+    monkeypatch.setattr(RUNNER, "_load_limits", lambda _path: actual_limits)
+
+    def forbidden_provider(_config):
+        raise AssertionError("provider construction must not occur for an over-budget plan")
+
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", forbidden_provider)
+    monkeypatch.setattr(RUNNER.ClaimTransport, "from_decision_config",
+                        lambda _config: (_ for _ in ()).throw(AssertionError("transport setup must not occur")))
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
+                   tmp_path / "raw-audit", receipt_path, plan)
+
+    assert error.value.stage == "budget_validation"
+    assert error.value.code == "audit_budget_exceeded"
+    assert not (tmp_path / "raw-audit").exists()
+    assert json.loads(receipt_path.read_text()) == {
+        "schema": "model-only-shadow-audit-predispatch-failure.v1",
+        "case_id": "PR-464", "terminal_state": "failed_before_dispatch",
+        "failure_stage": "budget_validation", "failure_code": "audit_budget_exceeded",
+        "audit_provider_calls": 0,
+    }
+
+
+def test_budget_guard_accepts_exact_caps_and_rejects_each_over_limit_dimension():
+    limits = {
+        "deadline_seconds": 90, "max_input_bytes_per_task": 64000,
+        "max_output_bytes_per_task": 64000, "max_output_tokens": 1800,
+        "max_provider_calls": 3, "max_retries": 0,
+        "total_provider_deadline_seconds": 270,
+    }
+    plan_budget = {
+        "audit_max_deadline_seconds_per_call": 90,
+        "audit_max_input_bytes_per_call": 64000,
+        "audit_max_output_tokens_per_llm_call": 1800,
+        "audit_max_provider_calls": 3,
+        "audit_max_response_bytes_per_call": 64000,
+        "audit_max_retries": 0,
+        "total_provider_deadline_seconds_max": 870,
+        "writer_deadline_seconds": 600,
+    }
+    RUNNER._validate_plan_budget(plan_budget, limits)
+    dimensions = [
+        ("deadline_seconds", "audit_max_deadline_seconds_per_call"),
+        ("max_input_bytes_per_task", "audit_max_input_bytes_per_call"),
+        ("max_output_bytes_per_task", "audit_max_response_bytes_per_call"),
+        ("max_output_tokens", "audit_max_output_tokens_per_llm_call"),
+        ("max_provider_calls", "audit_max_provider_calls"),
+        ("max_retries", "audit_max_retries"),
+    ]
+    for actual, _cap in dimensions:
+        candidate = dict(limits)
+        candidate[actual] += 1
+        with pytest.raises(ValueError, match="audit_limits_exceed_plan_budget"):
+            RUNNER._validate_plan_budget(plan_budget, candidate)
+    candidate = dict(limits, total_provider_deadline_seconds=271)
+    with pytest.raises(ValueError, match="combined_deadline_exceeds_plan_budget"):
+        RUNNER._validate_plan_budget(plan_budget, candidate)
+
+
 def test_selection_uses_pinned_task_order_then_packet_digest(tmp_path):
     root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-late"),
                                              _packet("PR-464", "candidate-z", "task-first")])
@@ -273,8 +435,11 @@ def test_sanitizer_rejects_untrusted_case_text_and_accepts_zero_candidate_receip
         "terminal_state": "incomplete", "reason": "no_writer_candidate",
         "audit_provider_calls": 0, "candidate_packet_count": 0,
         "selected_packet_sha256": "a" * 64, "capture_manifest_sha256": "b" * 64,
-        "roles": {role: "not_run" for role in ("source_auditor", "jev", "claim_auditor")},
-        "role_call_counts": {role: 0 for role in ("source_auditor", "jev", "claim_auditor")},
+        "roles": {role: "not_run" for role in AUDIT_ROLES},
+        **_receipt_dispatch_fields({role: {
+            "attempted": 0, "dispatched": 0, "guard_rejected": 0,
+            "post_guard_pretransport": 0, "unknown": 0, "request_sha256": None,
+        } for role in AUDIT_ROLES}),
     }
     source = tmp_path / "input.json"
     source.write_text(json.dumps(receipt))
@@ -299,16 +464,206 @@ def test_sanitizer_rejects_contradictory_terminal_call_and_candidate_accounting(
         "audit_provider_calls": 3, "candidate_packet_count": 1,
         "selected_candidate_sha256": "c" * 64, "selected_packet_sha256": "a" * 64,
         "capture_manifest_sha256": "b" * 64, "shadow_manifest_sha256": "d" * 64,
-        "roles": {role: "completed" for role in ("source_auditor", "jev", "claim_auditor")},
-        "role_call_counts": {role: 1 for role in ("source_auditor", "jev", "claim_auditor")},
+        "roles": {role: "completed" for role in AUDIT_ROLES},
+        **_receipt_dispatch_fields({role: {
+            "attempted": 1, "dispatched": 1, "guard_rejected": 0,
+            "post_guard_pretransport": 0, "unknown": 0, "request_sha256": str(index) * 64,
+        } for index, role in enumerate(AUDIT_ROLES, 1)}),
     }
     SANITIZER._valid(receipt)
     invalid = dict(receipt, reason="no_writer_candidate")
     with pytest.raises(SANITIZER.ReceiptError, match="candidate_selection_reason_mismatch"):
         SANITIZER._valid(invalid)
     invalid = dict(receipt, audit_provider_calls=2)
-    with pytest.raises(SANITIZER.ReceiptError, match="receipt_role_call_counts_invalid"):
+    with pytest.raises(SANITIZER.ReceiptError, match="receipt_dispatch_accounting_invalid"):
         SANITIZER._valid(invalid)
     invalid = dict(receipt, terminal_state="source_audit_failed")
     with pytest.raises(SANITIZER.ReceiptError, match="terminal_role_accounting_mismatch"):
         SANITIZER._valid(invalid)
+
+
+@pytest.mark.parametrize("rejected_role", AUDIT_ROLES)
+def test_guard_rejection_is_not_counted_as_http_call_and_survives_sanitization(tmp_path, rejected_role):
+    rejected_index = AUDIT_ROLES.index(rejected_role)
+    roles = {}
+    for index, role in enumerate(AUDIT_ROLES):
+        if index < rejected_index:
+            dispatch_state, status = "http_attempted", "completed"
+        elif index == rejected_index:
+            dispatch_state, status = "guard_rejected", "failed"
+        else:
+            dispatch_state, status = None, "not_run"
+        call = [] if dispatch_state is None else [{
+            "dispatch_state": dispatch_state, "request_sha256": hashlib.sha256(role.encode()).hexdigest(),
+        }]
+        roles[role] = {"status": status, "calls": call}
+
+    accounting = RUNNER._dispatch_accounting(roles)
+    fields = _receipt_dispatch_fields(accounting)
+    receipt = {
+        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
+        "terminal_state": {
+            "source_auditor": "source_audit_failed", "jev": "jev_assessment_failed",
+            "claim_auditor": "claim_audit_failed",
+        }[rejected_role],
+        "reason": "one_candidate_selected", "candidate_packet_count": 1,
+        "selected_candidate_sha256": "c" * 64, "selected_packet_sha256": "a" * 64,
+        "capture_manifest_sha256": "b" * 64, "shadow_manifest_sha256": "d" * 64,
+        "roles": {role: data["status"] for role, data in roles.items()}, **fields,
+    }
+    sanitized_dir = tmp_path / rejected_role
+    input_path = tmp_path / f"{rejected_role}.json"
+    input_path.write_text(json.dumps(receipt))
+    SANITIZER.sanitize(input_path, sanitized_dir)
+    sanitized = json.loads((sanitized_dir / "shadow-audit-receipt.json").read_text())
+    assert sanitized["audit_provider_calls"] == rejected_index
+    assert sanitized["role_guard_rejected_counts"][rejected_role] == 1
+    assert sanitized["role_dispatched_call_counts"][rejected_role] == 0
+    assert sanitized["role_request_sha256"][rejected_role] == hashlib.sha256(rejected_role.encode()).hexdigest()
+
+
+@pytest.mark.parametrize("role", ("source_auditor", "claim_auditor"))
+def test_openai_guard_rejection_preserves_request_hash_without_http_attempt(role):
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
+        "model": "fixture", "api_key_env": "AUDIT_TEST_KEY",
+    })
+
+    def reject(_raw):
+        raise AuditPreflightError("audit_request_exceeds_limit")
+
+    with pytest.raises(ProviderError) as caught:
+        provider.audit_json(
+            system=f"{role} fixture", user={"role": role}, schema={"type": "object"},
+            limits={"max_output_tokens": 8}, contract_version="guard-test.v1", before_dispatch=reject,
+        )
+    exchange = caught.value.meta["audit_exchange"]
+    assert exchange["dispatch_state"] == "guard_rejected"
+    assert hashlib.sha256(exchange["request_bytes"]).hexdigest()
+    assert exchange["response_bytes"] is None
+
+
+def test_jev_guard_rejection_preserves_request_hash_without_transport_entry():
+    transport_calls = []
+    capture = _CapturingNativeCall(lambda *_args: transport_calls.append(True) or b"response", lambda _raw: (
+        (_ for _ in ()).throw(AuditPreflightError("audit_request_exceeds_limit"))
+    ))
+    request = b'{"model":"fixture","questions":{}}'
+    with pytest.raises(AuditPreflightError):
+        capture(request, 1, 128)
+    assert capture.dispatch_state == "guard_rejected"
+    assert hashlib.sha256(capture.request_bytes).hexdigest() == hashlib.sha256(request).hexdigest()
+    assert transport_calls == []
+
+
+class _FakeHttpResponse:
+    status = 200
+
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read1(self, size):
+        body, self.body = self.body[:size], self.body[size:]
+        return body
+
+
+class _FakeHttpOpener:
+    def __init__(self, body):
+        self.body = body
+        self.calls = 0
+
+    def open(self, *_args, **_kwargs):
+        self.calls += 1
+        return _FakeHttpResponse(self.body)
+
+
+def test_openai_success_receipt_confirms_http_attempt_at_opener_boundary(monkeypatch):
+    opener = _FakeHttpOpener(json.dumps({
+        "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+        "usage": {}, "model": "fixture",
+    }).encode())
+    monkeypatch.setattr(providers, "_HTTP_OPENER", opener)
+    monkeypatch.setenv("AUDIT_TEST_KEY", "test-key-only")
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
+        "model": "fixture", "api_key_env": "AUDIT_TEST_KEY",
+    })
+    result = provider.audit_json(
+        system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
+        limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+        before_dispatch=lambda _raw: None,
+    )
+    assert opener.calls == 1
+    assert result["audit_exchange"]["dispatch_state"] == "http_attempted"
+
+
+def test_openai_missing_credential_is_post_guard_pretransport_not_a_call(monkeypatch):
+    monkeypatch.delenv("AUDIT_MISSING_KEY", raising=False)
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
+        "model": "fixture", "api_key_env": "AUDIT_MISSING_KEY",
+    })
+    with pytest.raises(ProviderError) as caught:
+        provider.audit_json(
+            system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
+            limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+            before_dispatch=lambda _raw: None,
+        )
+    exchange = caught.value.meta["audit_exchange"]
+    assert exchange["dispatch_state"] == "post_guard_pretransport"
+    assert hashlib.sha256(exchange["request_bytes"]).hexdigest()
+
+
+def test_jev_success_receipt_confirms_http_attempt_at_opener_boundary(monkeypatch):
+    opener = _FakeHttpOpener(b"{}")
+    monkeypatch.setattr(claim_transport, "_HTTP_OPENER", opener)
+    monkeypatch.setattr(claim_transport, "_parse_request", lambda _raw: {"model": "fixture"})
+    monkeypatch.setenv("AUDIT_TEST_KEY", "test-key-only")
+    transport = ClaimTransport({
+        "endpoint": "http://127.0.0.1:12345/v1/systemone", "model": "fixture",
+        "api_key_env": "AUDIT_TEST_KEY",
+    })
+    capture = _CapturingNativeCall(transport)
+    assert capture(b'{"model":"fixture"}', 1, 128) == b"{}"
+    assert opener.calls == 1
+    assert capture.dispatch_state == "http_attempted"
+
+
+def test_jev_missing_credential_is_post_guard_pretransport_not_a_call(monkeypatch):
+    monkeypatch.setattr(claim_transport, "_parse_request", lambda _raw: {"model": "fixture"})
+    monkeypatch.delenv("AUDIT_MISSING_KEY", raising=False)
+    transport = ClaimTransport({
+        "endpoint": "http://127.0.0.1:12345/v1/systemone", "model": "fixture",
+        "api_key_env": "AUDIT_MISSING_KEY",
+    })
+    capture = _CapturingNativeCall(transport)
+    with pytest.raises(ProviderError):
+        capture(b'{"model":"fixture"}', 1, 128)
+    assert capture.dispatch_state == "post_guard_pretransport"
+    assert hashlib.sha256(capture.request_bytes).hexdigest()
+
+
+def test_completed_sanitized_receipt_cannot_include_unconfirmed_role_call():
+    receipt = {
+        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
+        "terminal_state": "completed", "reason": "one_candidate_selected",
+        "candidate_packet_count": 1, "selected_candidate_sha256": "c" * 64,
+        "selected_packet_sha256": "a" * 64, "capture_manifest_sha256": "b" * 64,
+        "shadow_manifest_sha256": "d" * 64,
+        "roles": {role: "completed" for role in AUDIT_ROLES},
+        **_receipt_dispatch_fields({role: {
+            "attempted": 1, "dispatched": 1, "guard_rejected": 0,
+            "post_guard_pretransport": 0, "unknown": 0, "request_sha256": str(index) * 64,
+        } for index, role in enumerate(AUDIT_ROLES, 1)}),
+    }
+    receipt["role_dispatched_call_counts"]["jev"] = 0
+    receipt["role_guard_rejected_counts"]["jev"] = 1
+    receipt["audit_provider_calls"] = 2
+    with pytest.raises(SANITIZER.ReceiptError, match="terminal_role_accounting_mismatch"):
+        SANITIZER._valid(receipt)
