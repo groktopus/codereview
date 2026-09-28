@@ -330,7 +330,10 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
                 "contract_version", "finding_candidates", "context_gap_proposals", "coverage_notes",
                 "specific_strengths", "future_guidance",
         } or parsed.get("contract_version") != "specialist-findings.v4"
-                or not isinstance(parsed.get("finding_candidates"), list)):
+                or any(not isinstance(parsed.get(field), list) for field in (
+                    "finding_candidates", "context_gap_proposals", "coverage_notes",
+                    "specific_strengths", "future_guidance",
+                ))):
             parse_status = "invalid_specialist_report"
         if isinstance(parsed.get("finding_candidates"), list):
             returned_candidate_count = len(parsed["finding_candidates"])
