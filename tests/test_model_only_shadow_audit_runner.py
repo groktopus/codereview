@@ -53,8 +53,18 @@ def _packet(case_id: str, candidate_id: str | None, task_id: str) -> dict:
             "writer_candidate": None if candidate_id is None else {"candidate_id": candidate_id}}
 
 
-def _plan(task_ids: list[str]) -> dict:
+def _plan(task_ids: list[str], *, budget: dict | None = None) -> dict:
     return {"schema": "model-only-shadow-live-writer-plan.v1",
+            "budget": budget or {
+                "audit_max_deadline_seconds_per_call": 90,
+                "audit_max_input_bytes_per_call": 64000,
+                "audit_max_output_tokens_per_llm_call": 1800,
+                "audit_max_provider_calls": 3,
+                "audit_max_response_bytes_per_call": 64000,
+                "audit_max_retries": 0,
+                "total_provider_deadline_seconds_max": 870,
+                "writer_deadline_seconds": 600,
+            },
             "case": {"case_id": "PR-464", "snapshot_id": CASE_IDENTITY["snapshot_id"],
                      "snapshot_sha256": CASE_IDENTITY["snapshot_hash"], "base_sha": CASE_IDENTITY["base_sha"],
                      "head_sha": CASE_IDENTITY["head_sha"], "profile_version": CASE_IDENTITY["profile_version"],
@@ -92,6 +102,15 @@ def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
     assert policy == validated_policy
     assert plan["prepare_contract"]["profile_path"] == policy["profile_path"]
     assert hashlib.sha256((REPO_ROOT / policy["profile_path"]).read_bytes()).hexdigest() == policy["profile_sha256"]
+
+
+def test_current_pr457_plan_rejects_current_audit_limits():
+    plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
+    plan, _ = RUNNER._read_json(plan_path, 256_000)
+    plan_budget = RUNNER._plan_budget(plan)
+    limits = RUNNER._load_limits(RUNNER.DEFAULT_LIMITS)
+    with pytest.raises(ValueError, match="audit_limits_exceed_plan_budget"):
+        RUNNER._validate_plan_budget(plan_budget, limits)
 
 
 def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, monkeypatch):
@@ -232,6 +251,95 @@ def test_audit_input_rejection_writes_receipt_only_when_dispatch_guard_is_unspen
     assert failure["audit_provider_calls"] == 0
     sanitized = tmp_path / "sanitized-audit-failure"
     SANITIZER.sanitize(receipt_path, sanitized)
+
+
+@pytest.mark.parametrize(("actual", "cap", "cap_value", "actual_value"), [
+    ("deadline_seconds", "audit_max_deadline_seconds_per_call", 89, 90),
+    ("max_input_bytes_per_task", "audit_max_input_bytes_per_call", 63999, 64000),
+    ("max_output_bytes_per_task", "audit_max_response_bytes_per_call", 63999, 64000),
+    ("max_output_tokens", "audit_max_output_tokens_per_llm_call", 1799, 1800),
+    ("max_provider_calls", "audit_max_provider_calls", 2, 3),
+    ("max_retries", "audit_max_retries", 0, 1),
+    ("total_provider_deadline_seconds", "total_provider_deadline_seconds_max", 869, 270),
+])
+def test_over_budget_audit_fails_before_provider_config_or_transport(
+    tmp_path, monkeypatch, actual, cap, cap_value, actual_value
+):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
+    plan = tmp_path / "plan.json"
+    budget = {
+        "audit_max_deadline_seconds_per_call": 90,
+        "audit_max_input_bytes_per_call": 64000,
+        "audit_max_output_tokens_per_llm_call": 1800,
+        "audit_max_provider_calls": 3,
+        "audit_max_response_bytes_per_call": 64000,
+        "audit_max_retries": 0,
+        "total_provider_deadline_seconds_max": 870,
+        "writer_deadline_seconds": 600,
+    }
+    budget[cap] = cap_value
+    plan.write_text(json.dumps(_plan(["task-first"], budget=budget)))
+    receipt_path = tmp_path / "receipt" / "failure.json"
+
+    actual_limits = RUNNER._load_limits(RUNNER.DEFAULT_LIMITS)
+    actual_limits[actual] = actual_value
+    monkeypatch.setattr(RUNNER, "_load_limits", lambda _path: actual_limits)
+
+    def forbidden_provider(_config):
+        raise AssertionError("provider construction must not occur for an over-budget plan")
+
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", forbidden_provider)
+    monkeypatch.setattr(RUNNER.ClaimTransport, "from_decision_config",
+                        lambda _config: (_ for _ in ()).throw(AssertionError("transport setup must not occur")))
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
+                   tmp_path / "raw-audit", receipt_path, plan)
+
+    assert error.value.stage == "budget_validation"
+    assert error.value.code == "audit_budget_exceeded"
+    assert not (tmp_path / "raw-audit").exists()
+    assert json.loads(receipt_path.read_text()) == {
+        "schema": "model-only-shadow-audit-predispatch-failure.v1",
+        "case_id": "PR-464", "terminal_state": "failed_before_dispatch",
+        "failure_stage": "budget_validation", "failure_code": "audit_budget_exceeded",
+        "audit_provider_calls": 0,
+    }
+
+
+def test_budget_guard_accepts_exact_caps_and_rejects_each_over_limit_dimension():
+    limits = {
+        "deadline_seconds": 12, "max_input_bytes_per_task": 64000,
+        "max_output_bytes_per_task": 64000, "max_output_tokens": 1800,
+        "max_provider_calls": 3, "max_retries": 0,
+        "total_provider_deadline_seconds": 36,
+    }
+    plan_budget = {
+        "audit_max_deadline_seconds_per_call": 12,
+        "audit_max_input_bytes_per_call": 64000,
+        "audit_max_output_tokens_per_llm_call": 1800,
+        "audit_max_provider_calls": 3,
+        "audit_max_response_bytes_per_call": 64000,
+        "audit_max_retries": 0,
+        "total_provider_deadline_seconds_max": 636,
+        "writer_deadline_seconds": 600,
+    }
+    RUNNER._validate_plan_budget(plan_budget, limits)
+    dimensions = [
+        ("deadline_seconds", "audit_max_deadline_seconds_per_call"),
+        ("max_input_bytes_per_task", "audit_max_input_bytes_per_call"),
+        ("max_output_bytes_per_task", "audit_max_response_bytes_per_call"),
+        ("max_output_tokens", "audit_max_output_tokens_per_llm_call"),
+        ("max_provider_calls", "audit_max_provider_calls"),
+        ("max_retries", "audit_max_retries"),
+    ]
+    for actual, _cap in dimensions:
+        candidate = dict(limits)
+        candidate[actual] += 1
+        with pytest.raises(ValueError, match="audit_limits_exceed_plan_budget"):
+            RUNNER._validate_plan_budget(plan_budget, candidate)
+    candidate = dict(limits, total_provider_deadline_seconds=37)
+    with pytest.raises(ValueError, match="combined_deadline_exceeds_plan_budget"):
+        RUNNER._validate_plan_budget(plan_budget, candidate)
 
 
 def test_selection_uses_pinned_task_order_then_packet_digest(tmp_path):

@@ -198,6 +198,38 @@ def _load_limits(path: Path) -> dict[str, Any]:
     }
 
 
+def _plan_budget(plan: dict[str, Any]) -> dict[str, int]:
+    budget = plan.get("budget")
+    required = (
+        "audit_max_deadline_seconds_per_call", "audit_max_input_bytes_per_call",
+        "audit_max_output_tokens_per_llm_call", "audit_max_provider_calls",
+        "audit_max_response_bytes_per_call", "audit_max_retries",
+        "total_provider_deadline_seconds_max", "writer_deadline_seconds",
+    )
+    if not isinstance(budget, dict) or any(
+        type(budget.get(key)) is not int or budget[key] < 0 for key in required
+    ):
+        raise ValueError("writer_plan_budget_invalid")
+    return {key: budget[key] for key in required}
+
+
+def _validate_plan_budget(plan_budget: dict[str, int], limits: dict[str, Any]) -> None:
+    """Refuse audit limits that exceed the selected plan before provider setup."""
+    comparisons = (
+        ("deadline_seconds", "audit_max_deadline_seconds_per_call"),
+        ("max_input_bytes_per_task", "audit_max_input_bytes_per_call"),
+        ("max_output_bytes_per_task", "audit_max_response_bytes_per_call"),
+        ("max_output_tokens", "audit_max_output_tokens_per_llm_call"),
+        ("max_provider_calls", "audit_max_provider_calls"),
+        ("max_retries", "audit_max_retries"),
+    )
+    if any(limits[actual] > plan_budget[cap] for actual, cap in comparisons):
+        raise ValueError("audit_limits_exceed_plan_budget")
+    combined_deadline = plan_budget["writer_deadline_seconds"] + limits["total_provider_deadline_seconds"]
+    if combined_deadline > plan_budget["total_provider_deadline_seconds_max"]:
+        raise ValueError("combined_deadline_exceeds_plan_budget")
+
+
 def _validate_provider_identity(provider: dict[str, Any], jev: dict[str, Any]) -> None:
     if (provider.get("kind") != "openai_compatible"
             or (provider.get("base_url"), provider.get("model")) != EXPECTED_LLM
@@ -224,7 +256,8 @@ def _predispatch_failure(receipt_path: Path, case_id: str, stage: str, code: str
 
 
 def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], bytes]],
-                manifest: dict[str, Any] | None = None) -> list[tuple[str, Path, dict[str, Any], bytes]]:
+                manifest: dict[str, Any] | None = None, *,
+                include_budget: bool = False) -> list[tuple[str, Path, dict[str, Any], bytes]] | tuple[list[tuple[str, Path, dict[str, Any], bytes]], dict[str, int]]:
     case_id, policy = case_for_plan_path(plan_path, ROOT)
     plan, plan_bytes = _read_json(plan_path, 256_000)
     bound_case_id, _ = validate_plan_binding(plan, plan_bytes)
@@ -285,9 +318,12 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
             raise ValueError("packet_plan_identity_mismatch")
     if packet_task_ids != set(task_ids):
         raise ValueError("case_packet_task_coverage_mismatch")
-    return sorted(packets, key=lambda row: (
+    ordered = sorted(packets, key=lambda row: (
         rank[row[2]["source_task"]["task_id"]], hashlib.sha256(row[3]).hexdigest()
     ))
+    if include_budget:
+        return ordered, _plan_budget(plan)
+    return ordered
 
 
 def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
@@ -302,13 +338,17 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     except (OSError, ValueError, RecursionError):
         raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid") from None
     try:
-        packets = _task_order(plan_path, packets, manifest)
+        packets, plan_budget = _task_order(plan_path, packets, manifest, include_budget=True)
     except (OSError, TypeError, ValueError, RecursionError):
         raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid") from None
     try:
         limits = _load_limits(limits_path)
     except (OSError, ValueError, RecursionError):
         raise _predispatch_failure(receipt_path, selected_case_id, "limits_validation", "limits_invalid") from None
+    try:
+        _validate_plan_budget(plan_budget, limits)
+    except (KeyError, TypeError, ValueError):
+        raise _predispatch_failure(receipt_path, selected_case_id, "budget_validation", "audit_budget_exceeded") from None
     capture_hash = hashlib.sha256(manifest_raw).hexdigest()
     candidates = [row for row in packets if row[0]]
     selected = _select_packet(packets)
