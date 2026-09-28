@@ -23,6 +23,20 @@ MAX_HISTORICAL_CHECK_RUNS = 2_000
 TRUSTED_CAPTURE_WORKFLOW_REF = (
     "groktopus/codereview/.github/workflows/private-shadow-capture.yml@refs/heads/main"
 )
+TRUSTED_SHADOW_PLANS = {
+    "PR-457": {
+        "path": "experiments/model-only-shadow-live-pr457-plan-v1.json",
+        "sha256": "54274a8341e347c2944af31c59a87784992c2a1647ec0bd0e3006e0cf5078e6e",
+        "calls": 6, "snapshot_id": "snap-24293f430e4f8006a52bac18",
+        "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
+    },
+    "PR-464": {
+        "path": "experiments/model-only-shadow-live-pr464-plan-v1.json",
+        "sha256": "1c25da1406759e7822cbbaab6751405f9d22c0179121f67020c0ca9f7205d090",
+        "calls": 10, "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+    },
+}
 
 
 class _ArgumentError(Exception):
@@ -195,6 +209,8 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
     budget = plan.get("budget")
     case = plan.get("case")
     requests = plan.get("writer_requests")
+    case_id = case.get("case_id") if isinstance(case, dict) else None
+    policy = TRUSTED_SHADOW_PLANS.get(case_id)
     if (
         receipt.get("schema") != "model-only-shadow-live-preflight-receipt.v1"
         or receipt.get("status") != "PLAN_MATCHED_PROVIDER_FREE"
@@ -203,11 +219,17 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
         or receipt.get("publication_enabled") is not False
         or receipt.get("plan_sha256") != plan_hash
         or not isinstance(case, dict) or not isinstance(budget, dict) or not isinstance(requests, list)
+        or policy is None or plan_hash != policy["sha256"]
+        or len(requests) != policy["calls"]
+        or budget.get("writer_max_provider_calls") != 10
+        or case.get("snapshot_id") != policy["snapshot_id"]
+        or case.get("snapshot_sha256") != policy["snapshot_sha256"]
         or receipt.get("case_id") != case.get("case_id")
         or receipt.get("snapshot_sha256") != case.get("snapshot_sha256")
         or budget.get("writer_exact_call_count") != len(requests)
         or receipt.get("writer_calls_planned") != len(requests)
         or not requests
+        or len(requests) != policy["calls"]
     ):
         raise ValueError("private shadow preflight receipt mismatch")
     pins: dict[str, dict] = {}
@@ -242,9 +264,12 @@ def _validate_trusted_private_plan_paths(plan_path: str, receipt_path: str) -> N
     runner_temp = os.environ.get("RUNNER_TEMP")
     if not workspace or not runner_temp:
         raise ValueError("trusted private preflight paths unavailable")
-    expected_plan = Path(workspace) / "trusted-runner" / "experiments" / "model-only-shadow-live-pr464-plan-v1.json"
+    expected_plans = {
+        (Path(workspace) / "trusted-runner" / policy["path"]).absolute()
+        for policy in TRUSTED_SHADOW_PLANS.values()
+    }
     expected_receipt = Path(runner_temp) / "private-shadow-preparation" / "live-preflight-receipt.json"
-    if Path(plan_path).absolute() != expected_plan.absolute() or Path(receipt_path).absolute() != expected_receipt.absolute():
+    if Path(plan_path).absolute() not in expected_plans or Path(receipt_path).absolute() != expected_receipt.absolute():
         raise ValueError("trusted private preflight paths required")
 
 

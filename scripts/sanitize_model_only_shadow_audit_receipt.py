@@ -23,6 +23,7 @@ TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}\Z")
 ROLE_STATES = {"completed", "abstained", "failed", "incomplete", "not_run", "unavailable"}
 PREDISPATCH_STAGES = {"capture_validation", "plan_binding", "limits_validation", "provider_setup", "audit_validation"}
 PREDISPATCH_CODES = {"capture_invalid", "plan_binding_invalid", "limits_invalid", "provider_setup_invalid", "audit_input_invalid"}
+CASE_IDS = {"PR-457", "PR-464"}
 
 
 def _read(path: Path) -> tuple[dict[str, Any], bytes]:
@@ -62,7 +63,8 @@ def _valid(receipt: dict[str, Any]) -> None:
     if receipt.get("schema") == "model-only-shadow-audit-predispatch-failure.v1":
         stage = receipt.get("failure_stage")
         code = receipt.get("failure_code")
-        if (set(receipt) != failure_fields or receipt.get("case_id") != "PR-464"
+        if (set(receipt) != failure_fields or not isinstance(receipt.get("case_id"), str)
+                or receipt.get("case_id") not in CASE_IDS
                 or receipt.get("terminal_state") != "failed_before_dispatch"
                 or not isinstance(stage, str) or stage not in PREDISPATCH_STAGES
                 or not isinstance(code, str) or code not in PREDISPATCH_CODES
@@ -83,7 +85,7 @@ def _valid(receipt: dict[str, Any]) -> None:
     if frozenset(receipt) not in {frozenset(base), frozenset(base | optional)}:
         raise ReceiptError("receipt_fields_invalid")
     if (receipt.get("schema") != "model-only-shadow-audit-receipt.v1"
-            or receipt.get("case_id") != "PR-464"
+            or not isinstance(receipt.get("case_id"), str) or receipt.get("case_id") not in CASE_IDS
             or receipt.get("terminal_state") not in {"completed", "claim_audit_abstained", "incomplete", "source_audit_failed", "jev_assessment_failed", "claim_audit_failed"}
             or receipt.get("reason") not in {"no_writer_candidate", "one_candidate_selected", "bounded_single_candidate_selection"}):
         raise ReceiptError("receipt_identity_invalid")

@@ -28,7 +28,6 @@ def test_shadow_preparation_is_manual_trusted_and_read_only():
     assert "PUBLISH_REVIEW" not in text
     assert "--run-provider-trial" not in text
     assert "--prepare-only" in text
-    assert "--private-shadow-preflight-case-id PR-464 --max-claim-assessments 0" in text
     assert WORKFLOW.name == "private-shadow-capture.yml"
 
 
@@ -39,14 +38,14 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     assert "if: inputs.run_live_writer == true && github.event_name == 'workflow_dispatch'" in live
     assert live.index("Verify the exact plan and write the fresh provider-free receipt") < live.index(
         "Check writer secret names and exact configured identity without printing values"
-    ) < live.index("Run only the ten pinned read-only writer calls")
+    ) < live.index("Run only the selected pinned read-only writer calls")
     exact_preflight = live.split("- name: Verify the exact plan and write the fresh provider-free receipt", 1)[1].split(
         "- name: Check writer secret names and exact configured identity without printing values", 1
     )[0]
     provider_identity = live.split(
         "- name: Check writer secret names and exact configured identity without printing values", 1
-    )[1].split("- name: Run only the ten pinned read-only writer calls", 1)[0]
-    writer = live.split("- name: Run only the ten pinned read-only writer calls", 1)[1].split(
+    )[1].split("- name: Run only the selected pinned read-only writer calls", 1)[0]
+    writer = live.split("- name: Run only the selected pinned read-only writer calls", 1)[1].split(
         "- name: Sanitize the completed writer capture", 1
     )[0]
     assert "working-directory: trusted-runner" in exact_preflight
@@ -132,7 +131,7 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
 def test_live_writer_failure_reports_only_allowlisted_json_and_stage_code():
     text = WORKFLOW.read_text(encoding="utf-8")
     live = text.split("  live_writer:", 1)[1]
-    writer = live.split("- name: Run only the ten pinned read-only writer calls", 1)[1].split(
+    writer = live.split("- name: Run only the selected pinned read-only writer calls", 1)[1].split(
         "- name: Sanitize the completed writer capture", 1
     )[0]
     assert "scripts/run_pr_review_stage_diagnostic.py" in writer
@@ -164,6 +163,21 @@ def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     assert "steps.sanitize.outputs.validated == 'true'" in upload
     assert "private/" not in upload and "capture" not in upload
     assert text.index("Upload only the sanitized preparation receipt") < text.index("Remove private preparation workspace")
+
+
+def test_live_case_selector_is_a_closed_two_case_choice_with_fixed_paths():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    live = text.split("  live_writer:", 1)[1]
+    choice = text.split("      live_case:", 1)[1].split("\n\n", 1)[0]
+    assert "type: choice" in choice
+    assert "- PR-464" in choice and "- PR-457" in choice and "PR-463" not in choice
+    assert "id: case" in live and "case_id not in contracts" in live
+    assert '"plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v1.json"' in live
+    assert '--plan "${{ steps.case.outputs.plan_path }}"' in live
+    assert "ref: ${{ steps.case.outputs.head_sha }}" in live
+    assert '--base "${{ steps.case.outputs.base_sha }}"' in live
+    assert '--private-shadow-case-id "${{ steps.case.outputs.case_id }}"' in live
+    assert '--private-shadow-preflight-case-id "${{ steps.case.outputs.case_id }}" --max-claim-assessments 0' in live
 
 
 def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():

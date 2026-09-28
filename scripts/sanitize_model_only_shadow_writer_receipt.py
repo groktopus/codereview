@@ -19,9 +19,12 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "src"))
+from shadow_case_policy import case_for_plan_path, validate_plan_binding  # noqa: E402
+
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 CALL_ID = re.compile(r"^call-[0-9a-f]{24}$")
-EXPECTED_PLAN_SHA256 = "f9fca82d3ef7d815a6cc8487a64d374fade3944f8591ada7d89362395889650d"
 
 
 class ReceiptError(ValueError):
@@ -219,17 +222,22 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     plan, plan_bytes = _read_json(plan_path, 128_000)
     preflight, _preflight_bytes = _read_json(preflight_path, 16_384)
     plan_hash = hashlib.sha256(plan_bytes).hexdigest()
-    if plan_hash != EXPECTED_PLAN_SHA256:
+    try:
+        case_id, case_policy = case_for_plan_path(plan_path, ROOT)
+        validated_case_id, _ = validate_plan_binding(plan, plan_bytes)
+    except ValueError:
+        raise ReceiptError("plan_hash_mismatch") from None
+    if plan_hash != case_policy["plan_sha256"] or validated_case_id != case_id:
         raise ReceiptError("plan_hash_mismatch")
     case = plan.get("case")
     budget = plan.get("budget")
     requests = plan.get("writer_requests")
     if (
         plan.get("schema") != "model-only-shadow-live-writer-plan.v1"
-        or not isinstance(case, dict) or case.get("case_id") != "PR-464"
-        or not isinstance(budget, dict) or budget.get("writer_exact_call_count") != 10
+        or not isinstance(case, dict) or case.get("case_id") != case_id
+        or not isinstance(budget, dict) or budget.get("writer_exact_call_count") != case_policy["writer_calls"]
         or budget.get("writer_max_retries_per_task") != 0
-        or not isinstance(requests, list) or len(requests) != 10
+        or not isinstance(requests, list) or len(requests) != case_policy["writer_calls"]
         or preflight.get("schema") != "model-only-shadow-live-preflight-receipt.v1"
         or preflight.get("status") != "PLAN_MATCHED_PROVIDER_FREE"
         or preflight.get("plan_sha256") != plan_hash

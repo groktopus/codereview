@@ -48,6 +48,21 @@ def test_builder_materializes_only_the_reviewed_pilot_configuration(tmp_path: Pa
     assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
 
 
+def test_builder_accepts_the_fixed_six_call_pr457_plan_without_changing_provider_caps(tmp_path: Path):
+    runner = tmp_path / "runner"
+    runner.mkdir(mode=0o700)
+    os.chmod(runner, 0o700)
+    plan_path = ROOT / "experiments/model-only-shadow-live-pr457-plan-v1.json"
+    digest = builder.build(plan_path, runner / "private-shadow-runtime-config", _env(runner))
+    plan = json.loads(plan_path.read_text())
+    config = json.loads((runner / "private-shadow-runtime-config/provider.json").read_text())
+    assert plan["budget"]["writer_exact_call_count"] == 6
+    assert plan["budget"]["writer_max_provider_calls"] == 10
+    assert digest == plan["runtime"]["writer_provider_config_sha256"]
+    assert config["max_request_bytes"] == 128000
+    assert config["max_output_tokens"] == 1800
+
+
 def test_builder_fails_closed_on_changed_endpoint_before_writing_config(tmp_path: Path):
     runner = tmp_path / "runner"
     runner.mkdir(mode=0o700)

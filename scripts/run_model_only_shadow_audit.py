@@ -19,7 +19,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
+
+from shadow_case_policy import CASE_POLICY, case_for_plan_path, validate_plan_binding  # noqa: E402
 
 from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
@@ -28,9 +31,9 @@ from pr_review_harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
 
 MAX_CAPTURE_MANIFEST_BYTES = 256_000
 MAX_RECEIPT_BYTES = 64_000
-DEFAULT_PLAN = ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json"
+DEFAULT_PLAN = ROOT / CASE_POLICY["PR-464"]["plan_relative_path"]
 DEFAULT_LIMITS = ROOT / "experiments/model-only-shadow-audit-limits-v1.json"
-PROFILE_RELATIVE_PATH = "docs/real-case-trial-v1/profiles/PR-464.json"
+PROFILE_RELATIVE_PATH = CASE_POLICY["PR-464"]["profile_path"]
 EXPECTED_LLM = ("https://inference-api.nousresearch.com/v1", "openai/gpt-6-luna")
 EXPECTED_JEV = ("https://api.typesafe.ai/v1/systemone", "jev-latest")
 
@@ -206,11 +209,11 @@ def _validate_provider_identity(provider: dict[str, Any], jev: dict[str, Any]) -
         raise ValueError("jev_identity_mismatch")
 
 
-def _predispatch_failure(receipt_path: Path, stage: str, code: str) -> PreDispatchFailure:
+def _predispatch_failure(receipt_path: Path, case_id: str, stage: str, code: str) -> PreDispatchFailure:
     # Deliberately omit exception text, packet content, candidate IDs, and paths.
     receipt = {
         "schema": "model-only-shadow-audit-predispatch-failure.v1",
-        "case_id": "PR-464",
+        "case_id": case_id,
         "terminal_state": "failed_before_dispatch",
         "failure_stage": stage,
         "failure_code": code,
@@ -222,7 +225,11 @@ def _predispatch_failure(receipt_path: Path, stage: str, code: str) -> PreDispat
 
 def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], bytes]],
                 manifest: dict[str, Any] | None = None) -> list[tuple[str, Path, dict[str, Any], bytes]]:
-    plan, _ = _read_json(plan_path, 256_000)
+    case_id, policy = case_for_plan_path(plan_path, ROOT)
+    plan, plan_bytes = _read_json(plan_path, 256_000)
+    bound_case_id, _ = validate_plan_binding(plan, plan_bytes)
+    if bound_case_id != case_id:
+        raise ValueError("writer_plan_binding_invalid")
     case = plan.get("case")
     requests = plan.get("writer_requests")
     if plan.get("schema") != "model-only-shadow-live-writer-plan.v1" or not isinstance(case, dict) or not isinstance(requests, list):
@@ -236,10 +243,10 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
         raise ValueError("writer_plan_case_mismatch")
     prepare_contract = plan.get("prepare_contract")
     if (not isinstance(prepare_contract, dict)
-            or prepare_contract.get("profile_path") != PROFILE_RELATIVE_PATH):
+            or prepare_contract.get("profile_path") != policy["profile_path"]):
         raise ValueError("writer_plan_profile_path_invalid")
-    profile, profile_raw = _read_json(ROOT / PROFILE_RELATIVE_PATH, 256_000)
-    if hashlib.sha256(profile_raw).hexdigest() != case.get("profile_file_sha256"):
+    profile, profile_raw = _read_json(ROOT / policy["profile_path"], 256_000)
+    if hashlib.sha256(profile_raw).hexdigest() != policy["profile_sha256"]:
         raise ValueError("profile_file_hash_mismatch")
     canonical_profile = json.dumps(
         profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
@@ -287,17 +294,21 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         output_root: Path, receipt_path: Path, plan_path: Path = DEFAULT_PLAN,
         limits_path: Path = DEFAULT_LIMITS) -> dict[str, Any]:
     try:
+        selected_case_id, _selected_policy = case_for_plan_path(plan_path, ROOT)
+    except ValueError:
+        raise ValueError("audit_plan_path_invalid") from None
+    try:
         manifest, manifest_raw, packets = _packet_candidates(capture_root)
     except (OSError, ValueError, RecursionError):
-        raise _predispatch_failure(receipt_path, "capture_validation", "capture_invalid") from None
+        raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid") from None
     try:
         packets = _task_order(plan_path, packets, manifest)
     except (OSError, TypeError, ValueError, RecursionError):
-        raise _predispatch_failure(receipt_path, "plan_binding", "plan_binding_invalid") from None
+        raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid") from None
     try:
         limits = _load_limits(limits_path)
     except (OSError, ValueError, RecursionError):
-        raise _predispatch_failure(receipt_path, "limits_validation", "limits_invalid") from None
+        raise _predispatch_failure(receipt_path, selected_case_id, "limits_validation", "limits_invalid") from None
     capture_hash = hashlib.sha256(manifest_raw).hexdigest()
     candidates = [row for row in packets if row[0]]
     selected = _select_packet(packets)
@@ -336,7 +347,7 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         jev_transport.max_response_bytes = limits["max_output_bytes_per_task"]
         dispatch_guard = AuditDispatchGuard(limits)
     except (OSError, ValueError, ProviderError, RecursionError):
-        raise _predispatch_failure(receipt_path, "provider_setup", "provider_setup_invalid") from None
+        raise _predispatch_failure(receipt_path, selected_case_id, "provider_setup", "provider_setup_invalid") from None
 
     dispatched_roles: set[str] = set()
 
@@ -355,7 +366,7 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         # immediately before control returns to the provider transport.
         if not dispatched_roles:
             raise _predispatch_failure(
-                receipt_path, "audit_validation", "audit_input_invalid"
+                receipt_path, selected_case_id, "audit_validation", "audit_input_invalid"
             ) from None
         raise
     audit_manifest = result["manifest"]

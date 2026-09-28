@@ -20,7 +20,7 @@ sanitizer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(sanitizer)
 
 
-def _fixture(tmp_path: Path):
+def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     runner_temp = tmp_path / "runner"
     runner_temp.mkdir(mode=0o700)
     os.chmod(runner_temp, 0o700)
@@ -83,7 +83,11 @@ def _fixture(tmp_path: Path):
     plan_path = runner_temp / "plan.json"
     plan_bytes = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode() + b"\n"
     plan_path.write_bytes(plan_bytes)
-    sanitizer.EXPECTED_PLAN_SHA256 = hashlib.sha256(plan_bytes).hexdigest()
+    plan_hash = hashlib.sha256(plan_bytes).hexdigest()
+    policy = {"plan_sha256": plan_hash, "writer_calls": 10}
+    monkeypatch.setattr(sanitizer, "EXPECTED_PLAN_SHA256", plan_hash, raising=False)
+    monkeypatch.setattr(sanitizer, "case_for_plan_path", lambda _path, _root: ("PR-464", policy))
+    monkeypatch.setattr(sanitizer, "validate_plan_binding", lambda _plan, _raw: ("PR-464", policy))
     preflight_path = runner_temp / "preflight.json"
     preflight = {
         "schema": "model-only-shadow-live-preflight-receipt.v1", "status": "PLAN_MATCHED_PROVIDER_FREE",
@@ -113,8 +117,8 @@ def _replace_packet(capture: Path, manifest: dict, filename: str, packet: dict) 
     inventory_row["sha256"] = hashlib.sha256(raw).hexdigest()
 
 
-def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path: Path):
-    runner_temp, capture, plan, preflight, _manifest, _calls, _requests, _responses = _fixture(tmp_path)
+def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path: Path, monkeypatch):
+    runner_temp, capture, plan, preflight, _manifest, _calls, _requests, _responses = _fixture(tmp_path, monkeypatch)
     output = runner_temp / "private-writer-sanitized"
     result = sanitizer.sanitize(capture, plan, preflight, output)
     artifact = output / "writer-receipt.json"
@@ -170,9 +174,9 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     ],
 )
 def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
-    tmp_path: Path, response_payload: dict, outcome: str, parse_status: str, returned_count: int
+    tmp_path: Path, monkeypatch, response_payload: dict, outcome: str, parse_status: str, returned_count: int
 ):
-    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path)
+    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path, monkeypatch)
     call_id = calls[0]["call_id"]
     response_blob = json.dumps(response_payload, separators=(",", ":")).encode()
     (capture / "responses" / f"{call_id}.bin").write_bytes(response_blob)
@@ -195,8 +199,8 @@ def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
 
 
 @pytest.mark.parametrize("tamper", ["missing_task_packet", "candidate_overrun", "inventory_overrun"])
-def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_path: Path, tamper: str):
-    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path)
+def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_path: Path, monkeypatch, tamper: str):
+    runner_temp, capture, plan, preflight, manifest, calls, _requests, _responses = _fixture(tmp_path, monkeypatch)
     packets = manifest["case_packet_inventory"]["packets"]
     if tamper == "missing_task_packet":
         removed = packets.pop(0)
@@ -227,8 +231,8 @@ def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_p
     "tamper", ["missing_call", "request_bytes", "malformed_response", "manifest_extension", "snapshot_hash",
                "missing_packet", "altered_packet"]
 )
-def test_sanitizer_rejects_tampered_or_incomplete_capture(tmp_path: Path, tamper: str):
-    runner_temp, capture, plan, preflight, manifest, calls, requests, responses = _fixture(tmp_path)
+def test_sanitizer_rejects_tampered_or_incomplete_capture(tmp_path: Path, monkeypatch, tamper: str):
+    runner_temp, capture, plan, preflight, manifest, calls, requests, responses = _fixture(tmp_path, monkeypatch)
     if tamper == "missing_call":
         manifest["calls"].pop()
     elif tamper == "request_bytes":

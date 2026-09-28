@@ -26,6 +26,9 @@ SANITIZER_SPEC = importlib.util.spec_from_file_location(
 SANITIZER = importlib.util.module_from_spec(SANITIZER_SPEC)
 assert SANITIZER_SPEC.loader is not None
 SANITIZER_SPEC.loader.exec_module(SANITIZER)
+POLICY_PATH_RESOLVER = RUNNER.case_for_plan_path
+POLICY_VALIDATOR = RUNNER.validate_plan_binding
+REPO_ROOT = Path(__file__).resolve().parents[1]
 CASE_IDENTITY = {
     "snapshot_id": "snap-test", "snapshot_hash": "a" * 64, "base_sha": "b" * 40,
     "head_sha": "c" * 40, "profile_version": "profile-v1", "profile_hash": _PROFILE_SNAPSHOT_SHA256,
@@ -38,6 +41,9 @@ def trusted_profile_file(tmp_path, monkeypatch):
     path.parent.mkdir(parents=True)
     path.write_bytes(_PROFILE_BYTES)
     monkeypatch.setattr(RUNNER, "ROOT", tmp_path)
+    policy = {**RUNNER.CASE_POLICY["PR-464"], "profile_sha256": _PROFILE_FILE_SHA256}
+    monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-464", policy))
+    monkeypatch.setattr(RUNNER, "validate_plan_binding", lambda _plan, _raw: ("PR-464", policy))
 
 
 def _packet(case_id: str, candidate_id: str | None, task_id: str) -> dict:
@@ -73,6 +79,34 @@ def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer
         "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": inventory},
     }))
     return root
+
+
+def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
+    assert RUNNER.DEFAULT_PLAN == REPO_ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json"
+    plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
+    plan_raw = plan_path.read_bytes()
+    plan = json.loads(plan_raw)
+    case_id, policy = POLICY_PATH_RESOLVER(plan_path, REPO_ROOT)
+    validated_case_id, validated_policy = POLICY_VALIDATOR(plan, plan_raw)
+    assert case_id == validated_case_id == "PR-457"
+    assert policy == validated_policy
+    assert plan["prepare_contract"]["profile_path"] == policy["profile_path"]
+    assert hashlib.sha256((REPO_ROOT / policy["profile_path"]).read_bytes()).hexdigest() == policy["profile_sha256"]
+
+
+def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, monkeypatch):
+    policy = RUNNER.CASE_POLICY["PR-457"]
+    monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-457", policy))
+    receipt_path = tmp_path / "receipt" / "failure.json"
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(tmp_path / "missing-capture", tmp_path / "provider.json", tmp_path / "jev.json",
+                   tmp_path / "raw-audit", receipt_path, tmp_path / "plan.json")
+    assert error.value.stage == "capture_validation"
+    receipt = json.loads(receipt_path.read_text())
+    assert receipt["case_id"] == "PR-457"
+    output = tmp_path / "sanitized"
+    SANITIZER.sanitize(receipt_path, output)
+    assert json.loads((output / "shadow-audit-receipt.json").read_text())["case_id"] == "PR-457"
 
 
 def test_packet_inventory_detects_missing_packet_from_multi_candidate_task(tmp_path):
