@@ -87,7 +87,7 @@ jobs:
               "pr_review_harness/" + path.name: hashlib.sha256(path.read_bytes()).hexdigest()
               for path in sorted(source_dir.glob("*.py")) if path.is_file() and not path.is_symlink()
           }
-          if len(source) != 32:
+          if len(source) != 33:
               raise SystemExit("source_module_inventory_invalid")
           code = (
               "import hashlib,json,pathlib,pr_review_harness; "

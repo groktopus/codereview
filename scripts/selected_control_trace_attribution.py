@@ -801,9 +801,9 @@ def _valid_pair_input_identity(value: Any) -> bool:
         return False
     modules = value.get("runtime_module_hashes")
     if (
-        value.get("runtime_module_count") != 32
+        value.get("runtime_module_count") != 33
         or not isinstance(modules, dict)
-        or len(modules) != 32
+        or len(modules) != 33
         or any(
             not isinstance(name, str)
             or not name.startswith("pr_review_harness/")
@@ -1709,7 +1709,7 @@ def run_transport_pair(
         if isinstance(name, str) and name.startswith("src/pr_review_harness/")
         and name.endswith(".py") and isinstance(digest, str)
     }
-    if len(module_hashes) != 32:
+    if len(module_hashes) != 33:
         raise RuntimeError("runtime_module_inventory_invalid")
     checkout_identity = _diagnostic_checkout_identity()
     work_root = Path(tempfile.mkdtemp(prefix="selected-control-transport-", dir=workdir))
@@ -1922,7 +1922,7 @@ def run_candidate_cardinality_pair(
         and name.endswith(".py")
         and isinstance(digest, str)
     }
-    if len(runtime_modules) != 32:
+    if len(runtime_modules) != 33:
         raise RuntimeError("runtime_module_inventory_invalid")
     work_root = Path(tempfile.mkdtemp(prefix="selected-control-cardinality-", dir=workdir))
     os.chmod(work_root, 0o700)

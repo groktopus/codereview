@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Build an offline, byte-verified v2 comparison from private trial artifacts."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from pr_review_harness.cross_model_package import _json, build_cross_model_package  # noqa: E402
+from pr_review_harness.evaluation import EvaluationError  # noqa: E402
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--corpus", type=Path, required=True, help="fixed, validated evaluation corpus")
+    parser.add_argument("--capture-root", type=Path, required=True, help="private writer capture directory")
+    parser.add_argument("--case-packet", type=Path, required=True, help="one case packet inside capture-root/case-packets")
+    parser.add_argument("--shadow-root", type=Path, required=True, help="one private shadow-audit output directory")
+    parser.add_argument("--output-dir", type=Path, required=True, help="new directory for sanitized v2 input and report")
+    parser.add_argument("--json", action="store_true", required=True, help="emit only sanitized status JSON")
+    args = parser.parse_args(argv)
+    try:
+        corpus, _ = _json(args.corpus, 16 * 1024 * 1024)
+        result = build_cross_model_package(
+            corpus_value=corpus,
+            case_packet_path=args.case_packet,
+            capture_root=args.capture_root,
+            shadow_root=args.shadow_root,
+            output_dir=args.output_dir,
+        )
+    except EvaluationError as exc:
+        print(json.dumps({"ok": False, "error_code": exc.code}, separators=(",", ":")))
+        return 2
+    except (OSError, TypeError, ValueError):
+        print('{"ok":false,"error_code":"package_input_invalid"}')
+        return 2
+    report = result["report"]
+    print(json.dumps({
+        "ok": True,
+        "comparison_id": report["comparison_id"],
+        "case_count": len(report["cases"]),
+        "verified_artifact_count": report["artifact_verification"]["status_counts"]["VERIFIED"],
+        "verified_structured_relation_count": report["assertion_verification"]["verified_structured_relation_count"],
+        "claims": report["claims"],
+        "comparison_path": str(args.output_dir / "comparison-v2.json"),
+        "report_path": str(args.output_dir / "comparison-report.json"),
+    }, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
