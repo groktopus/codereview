@@ -27,6 +27,14 @@ from .budget import (
 )
 from .claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES, ClaimAssessmentError
 from .planner import allow_empty_approve
+from .private_capture import (
+    MAX_CAPTURE_CALLS,
+    MAX_REQUEST_BYTES,
+    MAX_RESPONSE_BYTES,
+    MAX_TOTAL_BYTES,
+    PrivateShadowCapture,
+    write_provider_exchange,
+)
 from .reconcile import consolidate_findings, stable_candidate_id, validate_location
 from .report import render_report as _render_report
 
@@ -1180,6 +1188,7 @@ def run_review(
     check_adapter: Any = None,
     claim_assessor: Any = None,
     max_claim_assessments: int = 0,
+    private_capture_dir: str | None = None,
 ) -> dict:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1475,6 +1484,41 @@ def run_review(
         if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
             _validate_bound_specialist_input(task, snapshot, profile, evidence_cache[task["task_id"]])
 
+    private_capture = None
+    if private_capture_dir is not None:
+        if resume or not callable(getattr(provider, "review_with_capture", None)):
+            raise EnginePreflightError("invalid_review_request", "private capture requires a fresh capture-capable provider")
+        call_cap = limits["max_provider_calls"]
+        input_cap = min(limits["max_input_bytes_per_task"], input_ceiling)
+        output_cap = limits["max_output_bytes_per_task"]
+        if (
+            call_cap > MAX_CAPTURE_CALLS
+            or input_cap > MAX_REQUEST_BYTES
+            or output_cap > MAX_RESPONSE_BYTES
+            or call_cap * (input_cap + output_cap) > MAX_TOTAL_BYTES
+        ):
+            raise EnginePreflightError("invalid_review_request", "private capture capacity exceeds its fixed limits")
+        try:
+            private_capture = PrivateShadowCapture(
+                private_capture_dir,
+                case_id=run_id,
+                snapshot=snapshot,
+                source_task=run_id,
+                provider=provider,
+                request_byte_limit=input_cap,
+                response_byte_limit=output_cap,
+            )
+            private_capture.export_source_tasks(
+                [
+                    {"task": task, "evidence": evidence_cache[task["task_id"]]}
+                    for task in primary_tasks
+                    if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"
+                ],
+                profile_id=str(profile.get("profile_id", profile.get("id", profile.get("name", "unknown")))),
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            raise EnginePreflightError("invalid_review_request", f"private capture unavailable: {type(exc).__name__}") from None
+
     def remaining_call_limits() -> dict:
         return {**limits, "deadline_seconds": max(0.0, budget.remaining_seconds())}
 
@@ -1613,8 +1657,10 @@ def run_review(
         kind = task.get("task_kind", "SPECIALIST_FINDINGS")
         is_check = kind == "DETERMINISTIC_CHECK"
         target = check_adapter if is_check else provider
-        method = "__call__" if is_check else "review"
-        if target is None or not callable(target if is_check else getattr(target, "review", None)):
+        capturing = private_capture is not None and not is_check and kind == "SPECIALIST_FINDINGS"
+        method = "__call__" if is_check else "review_with_capture" if capturing else "review"
+        expected_method = "__call__" if is_check else "review_with_capture" if capturing else "review"
+        if target is None or not callable(target if is_check else getattr(target, expected_method, None)):
             return {
                 "task_id": task_id,
                 "status": "SKIPPED",
@@ -1660,7 +1706,17 @@ def run_review(
                 "attempts": attempt_index,
             }
         invocation_limits = {**remaining_call_limits(), "attempt_index": attempt_index}
-        args = (task, snapshot, profile, invocation_limits) if is_check else (task, evidence, invocation_limits)
+        capture_spec = None
+        if capturing:
+            capture_spec = private_capture.begin_call(run_id=run_id, task_id=task_id, attempt=attempt_index)
+            capture_spec.update({
+                "root": str(private_capture.root),
+                "provider": private_capture.provider_identity,
+            })
+        args = (task, snapshot, profile, invocation_limits) if is_check else (
+            (task, evidence, invocation_limits, capture_spec, write_provider_exchange)
+            if capturing else (task, evidence, invocation_limits)
+        )
         try:
             invocation = IsolatedInvocation(
                 target,
@@ -1673,6 +1729,8 @@ def run_review(
                 output_limit=int(reservation["max_output_bytes"]),
             )
         except Exception as exc:
+            if capture_spec is not None:
+                private_capture.finalize_pending(capture_spec["call_id"], "failed")
             try:
                 budget.settle(reservation_key, output_bytes=None, usage={}, status="FAILED")
             except (ValueError, KeyError):
@@ -1696,6 +1754,7 @@ def run_review(
             "invocation": invocation,
             "evidence": evidence,
             "attempt_index": attempt_index,
+            "capture_spec": capture_spec,
             "started_at": _now(),
         }
 
@@ -1707,6 +1766,11 @@ def run_review(
         invocation = prepared["invocation"]
         try:
             response = invocation.result()
+            if prepared.get("capture_spec") is not None:
+                capture_receipt = private_capture.reconcile(prepared["capture_spec"])
+                if capture_receipt is None or capture_receipt.get("status") != "completed":
+                    private_capture.finalize_pending(prepared["capture_spec"]["call_id"], "failed")
+                    raise ValueError("provider capture receipt missing or incomplete")
             payload, usage, provenance = _unwrap(response)
             if len(_canonical(response)) > int(prepared["reservation"]["max_output_bytes"]):
                 raise ValueError("output_limit")
@@ -1791,6 +1855,12 @@ def run_review(
                 "finished_at": _now(),
             }
         except Exception as exc:
+            if prepared.get("capture_spec") is not None:
+                try:
+                    if private_capture.reconcile(prepared["capture_spec"]) is None:
+                        private_capture.finalize_pending(prepared["capture_spec"]["call_id"], "failed")
+                except (OSError, TypeError, ValueError):
+                    private_capture.finalize_pending(prepared["capture_spec"]["call_id"], "failed")
             meta = getattr(exc, "meta", {})
             usage = meta.get("usage", {}) if isinstance(meta, dict) else {}
             try:
@@ -3696,6 +3766,8 @@ def run_review(
         ledger["events"].append(event)
     saved = {**result, "request_hash": request_hash, "ledger": ledger}
     saved["result_hash"] = _hash(saved)
+    if private_capture is not None:
+        private_capture.export_case_packets(result, profile=profile)
     _atomic_write(output_path, _canonical(saved) + b"\n")
     return saved
 

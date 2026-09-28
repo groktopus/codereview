@@ -152,8 +152,8 @@ jobs:
                   path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                   for path in sorted(package_source.glob("*.py")) if path.is_file()
               }
-              # BASELINE_SHA pins 28 modules; the candidate adds three modules (31).
-              expected_module_count = 28 if label == "BASELINE" else 31
+              # BASELINE_SHA pins 28 modules; the candidate currently has 32.
+              expected_module_count = 28 if label == "BASELINE" else 32
               if len(source_modules) != expected_module_count:
                   raise SystemExit("source_module_count_invalid")
               code = (
