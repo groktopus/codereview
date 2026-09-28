@@ -18,7 +18,7 @@
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "source_manifest": {
           "manifest_id": "model-only-shadow-live-pr464-plan-v1",
-          "sha256": "1c3c883296737404acb2a256729d37c354ca5a3182565f3f48e2b18bb36e921e"
+          "sha256": "9418e4e8f9ee23605726be991cef01e188cefdc7005a4dedfaf8632b31ebb04f"
         },
         "split": "development"
       },

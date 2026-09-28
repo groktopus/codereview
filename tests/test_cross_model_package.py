@@ -245,6 +245,27 @@ def test_package_accepts_bound_shadow_dispatch_state_metadata(tmp_path):
     assert result["report"]["artifact_verification"]["status_counts"]["VERIFIED"] == 8
 
 
+@pytest.mark.parametrize("role", ["source_auditor", "jev", "claim_auditor"])
+@pytest.mark.parametrize(
+    "dispatch_state", ["guard_rejected", "post_guard_pretransport", "unknown"]
+)
+def test_package_rejects_response_bearing_completed_shadow_role_without_http_attempt(
+    tmp_path, role, dispatch_state
+):
+    corpus, packet_path, capture_root, shadow_root, out, _, shadow = _fixture(tmp_path)
+    run = shadow["roles"][role]
+    assert run["status"] == "completed"
+    assert run["calls"][0]["response_artifact_id"]
+    run["calls"][0]["dispatch_state"] = dispatch_state
+    run["calls_manifest_sha256"] = calls_manifest_sha256(run["calls"])
+    (shadow_root / "shadow-audit-manifest.json").write_bytes(_json_bytes(shadow, ascii_only=True))
+    with pytest.raises(EvaluationError, match="shadow_dispatch_state_not_http_attempted"):
+        build_cross_model_package(
+            corpus_value=corpus, case_packet_path=packet_path, capture_root=capture_root,
+            shadow_root=shadow_root, output_dir=out, writer_validation_limits=TEST_VALIDATION_LIMITS,
+        )
+
+
 @pytest.mark.parametrize("dispatch_state", ["unverified_state", [], {}])
 def test_package_rejects_unknown_or_malformed_shadow_dispatch_state(tmp_path, dispatch_state):
     corpus, packet_path, capture_root, shadow_root, out, _, shadow = _fixture(tmp_path)

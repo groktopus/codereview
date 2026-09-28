@@ -198,6 +198,12 @@ def _role_call(run: dict[str, Any], role: str, private_dir: Path, artifact_map: 
         not isinstance(call["dispatch_state"], str) or call["dispatch_state"] not in _DISPATCH_STATES
     ):
         _fail("shadow_call_binding_invalid")
+    if "dispatch_state" in call and call["dispatch_state"] != "http_attempted":
+        # This package requires a response artifact for every role call. A
+        # response-bearing call cannot represent a guard rejection, a
+        # pre-transport failure, or an unknown dispatch outcome as a verified
+        # provider result. Missing state remains accepted for older captures.
+        _fail("shadow_dispatch_state_not_http_attempted")
     call_id = _expect_id(call["call_id"], "shadow_call_binding_invalid")
     request_id = _expect_id(call["request_artifact_id"], "shadow_call_binding_invalid")
     response_id = _expect_id(call["response_artifact_id"], "shadow_call_binding_invalid")
