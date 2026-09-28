@@ -627,7 +627,17 @@ class OpenAIProvider:
         # Stage-local policy runs on the exact bytes that will be sent and
         # before credential lookup. A rejected request makes no HTTP attempt.
         if before_dispatch is not None:
-            before_dispatch(request_bytes)
+            try:
+                before_dispatch(request_bytes)
+            except ProviderError as exc:
+                exc.meta["local_http_exchange"] = _local_http_exchange(
+                    endpoint=self.base_url + "/chat/completions",
+                    provider_id=self.identity.get("provider_id"),
+                    model_id=self.model,
+                    request_bytes=request_bytes,
+                    state="PRE_DISPATCH_GUARD_REJECTED",
+                )
+                raise
         endpoint = self.base_url + "/chat/completions"
         provider_id = self.identity.get("provider_id")
         exchange = _local_http_exchange(
@@ -1438,9 +1448,11 @@ class OpenAIProvider:
             )
         except ProviderError as exc:
             exchange = exc.meta.pop("_audit_exchange", {})
+            local_exchange = exc.meta.get("local_http_exchange")
             exc.meta["audit_exchange"] = {
                 "request_bytes": request_bytes,
                 "response_bytes": exchange.get("response_bytes"),
+                "dispatch_state": _audit_dispatch_state(local_exchange),
             }
             raise
         exchange = meta.pop("_audit_exchange", {})
@@ -1451,8 +1463,22 @@ class OpenAIProvider:
             "audit_exchange": {
                 "request_bytes": request_bytes,
                 "response_bytes": exchange.get("response_bytes"),
+                "dispatch_state": _audit_dispatch_state(meta.get("provenance", {}).get("local_http_exchange")),
             },
         }
+
+
+def _audit_dispatch_state(exchange: Any) -> str:
+    """Classify request progress without claiming remote consumption."""
+    if not isinstance(exchange, dict):
+        return "unknown"
+    if exchange.get("request_attempted") is True:
+        return "http_attempted"
+    if exchange.get("state") == "PRE_DISPATCH_GUARD_REJECTED":
+        return "guard_rejected"
+    if exchange.get("request_serialized") is True:
+        return "post_guard_pretransport"
+    return "unknown"
 
 
 class DecisionProvider:

@@ -31,6 +31,8 @@ from pr_review_harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
 
 MAX_CAPTURE_MANIFEST_BYTES = 256_000
 MAX_RECEIPT_BYTES = 64_000
+AUDIT_ROLES = ("source_auditor", "jev", "claim_auditor")
+DISPATCH_STATES = {"guard_rejected", "post_guard_pretransport", "http_attempted", "unknown"}
 DEFAULT_PLAN = ROOT / CASE_POLICY["PR-464"]["plan_relative_path"]
 DEFAULT_LIMITS = ROOT / "experiments/model-only-shadow-audit-limits-v1.json"
 PROFILE_RELATIVE_PATH = CASE_POLICY["PR-464"]["profile_path"]
@@ -255,6 +257,29 @@ def _predispatch_failure(receipt_path: Path, case_id: str, stage: str, code: str
     return PreDispatchFailure(stage, code)
 
 
+def _dispatch_accounting(roles: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Separate captured request attempts from evidence of an HTTP attempt."""
+    output: dict[str, dict[str, Any]] = {}
+    for role in AUDIT_ROLES:
+        run = roles.get(role, {})
+        calls = run.get("calls", []) if isinstance(run, dict) else []
+        if not isinstance(calls, list):
+            calls = []
+        states = [call.get("dispatch_state") if isinstance(call, dict) else None for call in calls]
+        hashes = [call.get("request_sha256") for call in calls if isinstance(call, dict)
+                  and isinstance(call.get("request_sha256"), str)]
+        counts = {state: sum(value == state for value in states) for state in DISPATCH_STATES}
+        output[role] = {
+            "attempted": len(calls),
+            "dispatched": counts["http_attempted"],
+            "guard_rejected": counts["guard_rejected"],
+            "post_guard_pretransport": counts["post_guard_pretransport"],
+            "unknown": counts["unknown"],
+            "request_sha256": hashes[0] if len(hashes) == 1 else None,
+        }
+    return output
+
+
 def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], bytes]],
                 manifest: dict[str, Any] | None = None, *,
                 include_budget: bool = False) -> list[tuple[str, Path, dict[str, Any], bytes]] | tuple[list[tuple[str, Path, dict[str, Any], bytes]], dict[str, int]]:
@@ -354,14 +379,20 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     selected = _select_packet(packets)
     if selected is None:
         _packet_id, _packet_path, packet, packet_raw = packets[0]
+        zero_counts = {role: 0 for role in AUDIT_ROLES}
         receipt = {
             "schema": "model-only-shadow-audit-receipt.v1",
             "case_id": packet["case_id"], "terminal_state": "incomplete",
             "reason": "no_writer_candidate", "audit_provider_calls": 0,
             "candidate_packet_count": 0, "selected_packet_sha256": hashlib.sha256(packet_raw).hexdigest(),
             "capture_manifest_sha256": capture_hash,
-            "roles": {role: "not_run" for role in ("source_auditor", "jev", "claim_auditor")},
-            "role_call_counts": {role: 0 for role in ("source_auditor", "jev", "claim_auditor")},
+            "roles": {role: "not_run" for role in AUDIT_ROLES},
+            "role_call_counts": dict(zero_counts),
+            "role_dispatched_call_counts": dict(zero_counts),
+            "role_guard_rejected_counts": dict(zero_counts),
+            "role_post_guard_pretransport_counts": dict(zero_counts),
+            "role_unknown_dispatch_counts": dict(zero_counts),
+            "role_request_sha256": {role: None for role in AUDIT_ROLES},
         }
         _write_receipt(receipt_path, receipt)
         return receipt
@@ -389,11 +420,11 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     except (OSError, ValueError, ProviderError, RecursionError):
         raise _predispatch_failure(receipt_path, selected_case_id, "provider_setup", "provider_setup_invalid") from None
 
-    dispatched_roles: set[str] = set()
+    guard_passed_roles: set[str] = set()
 
     def before_dispatch(role: str, request_bytes: bytes) -> None:
         dispatch_guard.check(role, request_bytes)
-        dispatched_roles.add(role)
+        guard_passed_roles.add(role)
 
     try:
         result = run_shadow_audit(
@@ -402,9 +433,9 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
             before_dispatch=before_dispatch,
         )
     except (OSError, ValueError, ProviderError, RecursionError):
-        # This hook records a role only after deterministic checks pass,
-        # immediately before control returns to the provider transport.
-        if not dispatched_roles:
+        # This records budget reservation only; HTTP-attempt evidence is
+        # collected from the provider transports.
+        if not guard_passed_roles:
             raise _predispatch_failure(
                 receipt_path, selected_case_id, "audit_validation", "audit_input_invalid"
             ) from None
@@ -412,13 +443,12 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     audit_manifest = result["manifest"]
     roles = audit_manifest.get("roles", {})
     terminal = audit_manifest.get("terminal_state", "incomplete")
+    dispatch = _dispatch_accounting(roles)
     receipt = {
         "schema": "model-only-shadow-audit-receipt.v1",
         "case_id": packet["case_id"], "terminal_state": terminal,
         "reason": "one_candidate_selected" if len(candidates) == 1 else "bounded_single_candidate_selection",
-        "audit_provider_calls": sum(len(roles.get(role, {}).get("calls", [])) for role in
-                                     ("source_auditor", "jev", "claim_auditor")
-                                     if isinstance(roles.get(role), dict)),
+        "audit_provider_calls": sum(row["dispatched"] for row in dispatch.values()),
         "candidate_packet_count": len(candidates),
         "selected_candidate_sha256": hashlib.sha256(candidate_id.encode("utf-8")).hexdigest(),
         "selected_packet_sha256": hashlib.sha256(packet_raw).hexdigest(),
@@ -426,11 +456,15 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         "shadow_manifest_sha256": hashlib.sha256(
             (output_root / "shadow-audit-manifest.json").read_bytes()
         ).hexdigest(),
-        "roles": {role: roles.get(role, {}).get("status", "not_run") for role in
-                  ("source_auditor", "jev", "claim_auditor")},
-        "role_call_counts": {role: len(roles.get(role, {}).get("calls", [])) for role in
-                              ("source_auditor", "jev", "claim_auditor")
-                              if isinstance(roles.get(role), dict)},
+        "roles": {role: roles.get(role, {}).get("status", "not_run") for role in AUDIT_ROLES},
+        "role_call_counts": {role: row["attempted"] for role, row in dispatch.items()},
+        "role_dispatched_call_counts": {role: row["dispatched"] for role, row in dispatch.items()},
+        "role_guard_rejected_counts": {role: row["guard_rejected"] for role, row in dispatch.items()},
+        "role_post_guard_pretransport_counts": {
+            role: row["post_guard_pretransport"] for role, row in dispatch.items()
+        },
+        "role_unknown_dispatch_counts": {role: row["unknown"] for role, row in dispatch.items()},
+        "role_request_sha256": {role: row["request_sha256"] for role, row in dispatch.items()},
     }
     _write_receipt(receipt_path, receipt)
     return receipt

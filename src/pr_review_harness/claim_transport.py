@@ -313,6 +313,7 @@ class ClaimTransport:
         self.max_response_bytes = _positive_int(
             config.get("max_response_bytes", _MAX_RESPONSE_BYTES), "invalid_response_limit"
         )
+        self.last_dispatch_state = "unknown"
         if self.max_request_bytes > _MAX_REQUEST_BYTES or self.max_response_bytes > _MAX_RESPONSE_BYTES:
             raise ProviderError("invalid_transport_limit")
         self.identity = {
@@ -387,6 +388,7 @@ class ClaimTransport:
         }
 
     def __call__(self, request_bytes: bytes, deadline_seconds: float, max_response_bytes: int) -> bytes:
+        self.last_dispatch_state = "post_guard_pretransport"
         request = _parse_request(request_bytes)
         if request["model"] != self.model:
             raise ProviderError("configured_model_mismatch")
@@ -404,6 +406,7 @@ class ClaimTransport:
         )
         started = time.monotonic()
         deadline_at = started + timeout
+        self.last_dispatch_state = "http_attempted"
         try:
             with _HTTP_OPENER.open(http_request, timeout=timeout) as response:
                 raw = _bounded_response(response, output_cap, deadline_at)
