@@ -201,6 +201,9 @@ def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
     corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v1"
     corpus = json.loads((corpus_root / "corpus.json").read_text())
     manifest = json.loads((corpus_root / "manifest.json").read_text())
+    plan_raw = (ROOT / manifest["plan_path"]).read_bytes()
+    plan = json.loads(plan_raw)
+    plan_sha256 = _sha(plan_raw)
     case = corpus["cases"][0]["identity"]
     packet = {
         "contract_version": "model-only-shadow-case.v1",
@@ -214,24 +217,27 @@ def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
             "profile_hash": case["profile"]["sha256"],
         },
     }
-    validate_model_teacher_packet_identity(corpus, packet, manifest)
+    validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
     assert manifest["reviewer_kind"] == "model_teacher"
     assert manifest["gold_labels"] == {"status": "UNAVAILABLE", "packets_present": 0}
     assert manifest["accuracy_claims"] == "NOT_ESTIMABLE_FROM_THIS_CORPUS"
 
     discovery_corpus = json.loads((ROOT / "examples/evaluation/corpus.json").read_text())
     with pytest.raises(EvaluationError, match="evaluation_identity_manifest_invalid"):
-        validate_model_teacher_packet_identity(discovery_corpus, packet, manifest)
+        validate_model_teacher_packet_identity(discovery_corpus, packet, manifest, plan, plan_sha256)
 
     packet["snapshot"]["snapshot_id"] = "snap-c54e437de81bc6a7e9ae5d6a"
     with pytest.raises(EvaluationError, match="case_snapshot_corpus_mismatch"):
-        validate_model_teacher_packet_identity(corpus, packet, manifest)
+        validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
 
 
 def test_model_teacher_corpus_rejects_a_profile_mismatch():
     corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v1"
     corpus = json.loads((corpus_root / "corpus.json").read_text())
     manifest = json.loads((corpus_root / "manifest.json").read_text())
+    plan_raw = (ROOT / manifest["plan_path"]).read_bytes()
+    plan = json.loads(plan_raw)
+    plan_sha256 = _sha(plan_raw)
     packet = {
         "case_id": manifest["case_id"],
         "snapshot": {
@@ -241,7 +247,7 @@ def test_model_teacher_corpus_rejects_a_profile_mismatch():
         },
     }
     with pytest.raises(EvaluationError, match="case_snapshot_corpus_mismatch"):
-        validate_model_teacher_packet_identity(corpus, packet, manifest)
+        validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
 
 
 @pytest.mark.parametrize("non_object", [[], "not-an-object", 7])

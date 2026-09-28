@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -30,11 +31,23 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(corpus, dict):
             raise EvaluationError("package_json_shape_invalid")
         identity_manifest = None
+        identity_plan = None
+        identity_plan_sha256 = None
         manifest_path = args.identity_manifest
         if manifest_path is None and corpus.get("corpus_id") == "model-only-shadow-pr464-v1":
             manifest_path = args.corpus.parent / "manifest.json"
         if manifest_path is not None:
             identity_manifest, _ = _json(manifest_path, 1_000_000)
+        if corpus.get("corpus_id") == "model-only-shadow-pr464-v1":
+            plan_relative = Path("experiments/model-only-shadow-live-pr464-plan-v1.json")
+            plan_path = next(
+                (parent / plan_relative for parent in args.corpus.resolve().parents if (parent / plan_relative).is_file()),
+                None,
+            )
+            if plan_path is None:
+                raise EvaluationError("evaluation_identity_plan_unavailable")
+            identity_plan, plan_raw = _json(plan_path, 1_000_000)
+            identity_plan_sha256 = hashlib.sha256(plan_raw).hexdigest()
         result = build_cross_model_package(
             corpus_value=corpus,
             case_packet_path=args.case_packet,
@@ -42,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
             shadow_root=args.shadow_root,
             output_dir=args.output_dir,
             identity_manifest_value=identity_manifest,
+            identity_plan_value=identity_plan,
+            identity_plan_sha256=identity_plan_sha256,
         )
     except EvaluationError as exc:
         print(json.dumps({"ok": False, "error_code": exc.code}, separators=(",", ":")))

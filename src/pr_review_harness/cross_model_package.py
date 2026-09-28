@@ -180,6 +180,7 @@ _MODEL_TEACHER_MANIFEST_FIELDS = {
 
 def validate_model_teacher_packet_identity(
     corpus_value: dict[str, Any], packet: dict[str, Any], manifest_value: dict[str, Any],
+    plan_value: dict[str, Any], plan_sha256: str,
 ) -> None:
     """Require the PR-464 packet to match its frozen, explicitly non-gold manifest."""
     corpus = validate_corpus(corpus_value)
@@ -200,11 +201,9 @@ def validate_model_teacher_packet_identity(
         _fail("evaluation_identity_manifest_invalid")
     if manifest.get("corpus_sha256") != _sha(_canonical(corpus)):
         _fail("evaluation_identity_manifest_mismatch")
-    plan_path = Path(__file__).resolve().parents[2] / manifest["plan_path"]
-    plan, plan_raw = _json(plan_path, 1_000_000)
-    if _sha(plan_raw) != manifest.get("plan_sha256"):
+    if plan_sha256 != manifest.get("plan_sha256"):
         _fail("evaluation_identity_manifest_mismatch")
-    plan_case = plan.get("case")
+    plan_case = plan_value.get("case") if isinstance(plan_value, dict) else None
     if not isinstance(plan_case, dict) or any(
         manifest.get(manifest_key) != plan_case.get(plan_key)
         for manifest_key, plan_key in (
@@ -249,6 +248,7 @@ def validate_model_teacher_packet_identity(
 def build_cross_model_package(
     *, corpus_value: dict[str, Any], case_packet_path: Path, capture_root: Path,
     shadow_root: Path, output_dir: Path, identity_manifest_value: dict[str, Any] | None = None,
+    identity_plan_value: dict[str, Any] | None = None, identity_plan_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Verify exact writer/audit captures, emit v2 comparison and sanitized report."""
     corpus = validate_corpus(corpus_value)
@@ -267,9 +267,11 @@ def build_cross_model_package(
     if packet.get("contract_version") != "model-only-shadow-case.v1":
         _fail("case_packet_contract_invalid")
     if corpus.get("corpus_id") == _MODEL_TEACHER_CORPUS_ID:
-        if identity_manifest_value is None:
+        if identity_manifest_value is None or identity_plan_value is None or identity_plan_sha256 is None:
             _fail("evaluation_identity_manifest_required")
-        validate_model_teacher_packet_identity(corpus, packet, identity_manifest_value)
+        validate_model_teacher_packet_identity(
+            corpus, packet, identity_manifest_value, identity_plan_value, identity_plan_sha256,
+        )
     case_id = _expect_id(packet.get("case_id"), "case_packet_identity_invalid")
     matching = [item for item in corpus["cases"] if item["identity"]["case_id"] == case_id]
     if len(matching) != 1:
