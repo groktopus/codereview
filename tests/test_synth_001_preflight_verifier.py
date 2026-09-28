@@ -118,7 +118,12 @@ def test_actual_prepare_only_cli_is_path_independent_and_provider_free(tmp_path:
         prepared_path = tmp_path / f"captured-cli-output-{label}.json"
         env = os.environ.copy()
         env["PYTHONPATH"] = str(ROOT / "src")
-        for name in ("LLM_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN"):
+        # CI sets GITHUB_EVENT_PATH for its pull_request event. This test uses
+        # explicit historical SHAs, and prepare-only intentionally rejects any
+        # GitHub event input, so remove it from the isolated local CLI process.
+        for name in (
+            "LLM_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_EVENT_PATH",
+        ):
             env.pop(name, None)
         completed = subprocess.run(
             [
