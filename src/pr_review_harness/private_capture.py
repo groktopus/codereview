@@ -104,11 +104,13 @@ class PrivateShadowCapture:
     """Owns a new private capture directory and its bounded call receipts."""
 
     def __init__(self, root: str | os.PathLike[str], *, case_id: str, snapshot: dict, source_task: str,
-                 provider: Any, request_byte_limit: int, response_byte_limit: int):
+                 provider: Any, request_byte_limit: int, response_byte_limit: int,
+                 corpus_case_id: str | None = None):
         self.root = Path(root).expanduser()
         if self.root.exists() or self.root.is_symlink():
             raise ValueError("capture directory must be new")
         self.case_id = _safe_id(case_id, "case_id")
+        self.corpus_case_id = _safe_id(corpus_case_id, "corpus_case_id") if corpus_case_id is not None else None
         self.source_task = _safe_id(source_task, "source_task")
         self.snapshot = snapshot
         self.snapshot_id = _safe_id(snapshot.get("snapshot_id"), "snapshot_id")
@@ -309,7 +311,7 @@ class PrivateShadowCapture:
             for candidate in candidates:
                 candidate_id = str(candidate["candidate_id"]) if candidate else "none"
                 suffix = _sha(_canonical([task_id, candidate_id]))[:12]
-                packet_case_id = f"{self.case_id}-{suffix}"
+                packet_file_id = f"{self.corpus_case_id or self.case_id}-{suffix}"
                 calls_digest = calls_manifest_hash
                 if writer_status == "not_run":
                     calls_digest = None
@@ -326,13 +328,13 @@ class PrivateShadowCapture:
                 evidence_rows = row["evidence"]
                 packet = {
                     "contract_version": "model-only-shadow-case.v1",
-                    "case_id": packet_case_id,
+                    "case_id": self.corpus_case_id or packet_file_id,
                     "snapshot": json.loads((self.root / "snapshot.json").read_text(encoding="utf-8")),
                     "source_task": row["task"], "source_evidence": evidence_rows,
                     "writer_run": writer_run, "writer_candidate": candidate,
                     "profile_id": self._profile_id,
                 }
-                path = packet_dir / f"{packet_case_id}.json"
+                path = packet_dir / f"{packet_file_id}.json"
                 self._write_packet(path, packet)
                 packets.append(path)
         return packets

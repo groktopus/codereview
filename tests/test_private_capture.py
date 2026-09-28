@@ -332,7 +332,8 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     args = [
         "review", "--repo", str(repo), "--base", base, "--head", head,
         "--profile", str(profile_path), "--output", str(output_dir),
-        "--private-shadow-capture", str(capture_dir), "--run-id", "capture-run-1", "--json",
+        "--private-shadow-capture", str(capture_dir), "--private-shadow-case-id", "PR-464",
+        "--run-id", "capture-run-1", "--json",
     ]
     assert cli.main(args) == 0
     stdout = capsys.readouterr().out
@@ -343,6 +344,8 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     assert len(packet_paths) == 1
     packet = json.loads(packet_paths[0].read_text())
     _validate_packet(packet)
+    assert packet["case_id"] == "PR-464"
+    assert packet["writer_run"]["run_id"] == "capture-run-1"
     assert packet["writer_candidate"] is not None
     call = packet["writer_run"]["calls"][0]
     request_path = capture_dir / "requests" / f"{call['call_id']}.bin"
