@@ -111,7 +111,8 @@ def extract_stage(path: Path, process_exit_code: int) -> str:
             "profile_configuration", "limits_validation", "provider_configuration",
             "historical_checks_load", "historical_checks_validation", "snapshot_collection",
             "planning", "task_preparation", "request_evidence_selection", "request_serialization",
-            "cli_preflight_unclassified",
+            "historical_snapshot_binding", "review_option_validation", "run_identity_validation",
+            "review_pipeline_unclassified", "configuration_setup", "cli_preflight_unclassified",
         }
         or isinstance(value.get("exit_code"), bool)
         or value.get("exit_code") != process_exit_code
