@@ -700,6 +700,23 @@ def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, mo
     assert "diagnostic_artifact_path" not in output
 
 
+def test_prepare_only_without_historical_checks_rejects_ambient_event(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli
+
+    repo, base, head, profile_path = fixture_repo(tmp_path)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
+    assert cli.main([
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(profile_path), "--provider-config", str(tmp_path / "provider.json"),
+        "--output", str(tmp_path / "prepare-output"), "--prepare-only", "--json",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out) == {
+        "error": "preflight_rejected",
+        "exit_code": 2,
+    }
+
+
 def test_recent_runtime_failure_returns_same_diagnostic_path_and_exit_one(tmp_path, monkeypatch, capsys):
     cli, review_argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path, report_failure="render")
     repo = Path(review_argv[review_argv.index("--repo") + 1])
