@@ -81,6 +81,8 @@ def _parser() -> argparse.ArgumentParser:
         "--private-shadow-case-id",
         help="fixed corpus case ID for exported packets; requires --private-shadow-capture",
     )
+    review.add_argument("--private-shadow-plan", help="trusted exact writer request plan for strict private capture")
+    review.add_argument("--private-shadow-preflight-receipt", help="provider-free receipt matching the writer plan")
     review.add_argument(
         "--max-claim-assessments",
         type=int,
@@ -141,6 +143,104 @@ def _load_json(path: str, label: str) -> dict:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be a JSON object")
     return value
+
+
+def _read_private_json(path: str, limit: int) -> tuple[dict, str]:
+    """Read bounded regular JSON input without following symlinks or blocking on FIFOs."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        source = Path(path)
+        before = source.lstat()
+        if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+            raise ValueError("private shadow plan unavailable")
+        fd = os.open(source, flags)
+        try:
+            opened = os.fstat(fd)
+            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
+                    or opened.st_ino != before.st_ino or opened.st_size > limit):
+                raise ValueError("private shadow plan unavailable")
+            data = bytearray()
+            while len(data) <= limit:
+                block = os.read(fd, min(65536, limit + 1 - len(data)))
+                if not block:
+                    break
+                data.extend(block)
+        finally:
+            os.close(fd)
+    except (OSError, ValueError):
+        raise ValueError("private shadow plan unavailable") from None
+    if len(data) > limit:
+        raise ValueError("private shadow plan unavailable")
+    try:
+        value = json.loads(
+            bytes(data).decode("utf-8"),
+            object_pairs_hook=_unique_json_object,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("invalid_json_constant")),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError):
+        raise ValueError("private shadow plan invalid") from None
+    if not isinstance(value, dict):
+        raise ValueError("private shadow plan invalid")
+    return value, _sha256(bytes(data))
+
+
+def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[str, dict], dict[str, str]]:
+    plan, plan_hash = _read_private_json(plan_path, 128_000)
+    receipt, _receipt_hash = _read_private_json(receipt_path, 16_384)
+    budget = plan.get("budget")
+    case = plan.get("case")
+    requests = plan.get("writer_requests")
+    if (
+        receipt.get("schema") != "model-only-shadow-live-preflight-receipt.v1"
+        or receipt.get("status") != "PLAN_MATCHED_PROVIDER_FREE"
+        or receipt.get("provider_calls") != 0
+        or receipt.get("target_code_execution") is not False
+        or receipt.get("publication_enabled") is not False
+        or receipt.get("plan_sha256") != plan_hash
+        or not isinstance(case, dict) or not isinstance(budget, dict) or not isinstance(requests, list)
+        or receipt.get("case_id") != case.get("case_id")
+        or receipt.get("snapshot_sha256") != case.get("snapshot_sha256")
+        or budget.get("writer_exact_call_count") != len(requests)
+        or receipt.get("writer_calls_planned") != len(requests)
+        or not requests
+    ):
+        raise ValueError("private shadow preflight receipt mismatch")
+    pins: dict[str, dict] = {}
+    for row in requests:
+        if (
+            not isinstance(row, dict) or not isinstance(row.get("task_id"), str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", row["task_id"])
+            or row["task_id"] in pins
+            or not isinstance(row.get("input_sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", row["input_sha256"])
+            or isinstance(row.get("input_bytes"), bool) or not isinstance(row.get("input_bytes"), int)
+            or not 1 <= row["input_bytes"] <= budget.get("writer_max_request_bytes", 0)
+            or row.get("output_bytes_cap") != budget.get("writer_max_response_bytes")
+            or row.get("output_tokens_cap") != budget.get("writer_max_output_tokens")
+        ):
+            raise ValueError("private shadow request pin invalid")
+        pins[row["task_id"]] = {
+            "task_id": row["task_id"], "input_sha256": row["input_sha256"],
+            "input_bytes": row["input_bytes"], "lens": row.get("lens"),
+            "output_bytes_cap": row["output_bytes_cap"], "output_tokens_cap": row["output_tokens_cap"],
+        }
+    return pins, {
+        "case_id": case.get("case_id"), "snapshot_id": case.get("snapshot_id"),
+        "snapshot_sha256": case.get("snapshot_sha256"),
+    }
+
+
+def _validate_trusted_private_plan_paths(plan_path: str, receipt_path: str) -> None:
+    if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
+        return
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    runner_temp = os.environ.get("RUNNER_TEMP")
+    if not workspace or not runner_temp:
+        raise ValueError("trusted private preflight paths unavailable")
+    expected_plan = Path(workspace) / "trusted-runner" / "experiments" / "model-only-shadow-live-pr464-plan-v1.json"
+    expected_receipt = Path(runner_temp) / "private-shadow-preparation" / "live-preflight-receipt.json"
+    if Path(plan_path).absolute() != expected_plan.absolute() or Path(receipt_path).absolute() != expected_receipt.absolute():
+        raise ValueError("trusted private preflight paths required")
 
 
 def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -535,6 +635,19 @@ def _run_one(
 ) -> dict:
     capture_dir = getattr(args, "private_shadow_capture", None)
     capture_case_id = getattr(args, "private_shadow_case_id", None)
+    capture_pins = None
+    capture_snapshot_pin = None
+    plan_path = getattr(args, "private_shadow_plan", None)
+    receipt_path = getattr(args, "private_shadow_preflight_receipt", None)
+    if bool(plan_path) != bool(receipt_path):
+        raise ValueError("private shadow plan and preflight receipt must be provided together")
+    if capture_dir and plan_path and receipt_path:
+        _validate_trusted_private_plan_paths(plan_path, receipt_path)
+        capture_pins, capture_snapshot_pin = _load_private_shadow_pins(plan_path, receipt_path)
+        if capture_case_id != capture_snapshot_pin.get("case_id"):
+            raise ValueError("private shadow case does not match plan")
+    if capture_dir and os.environ.get("GITHUB_ACTIONS", "").lower() == "true" and capture_pins is None:
+        raise ValueError("trusted private capture requires exact request pins")
     if capture_case_id is not None and capture_dir is None:
         raise ValueError("private shadow case ID requires private shadow capture")
     if capture_dir and (
@@ -903,6 +1016,8 @@ def _run_one(
             context_retriever=ContextRetriever(args.repo),
             private_capture_dir=capture_dir,
             private_capture_case_id=capture_case_id,
+            private_capture_request_pins=capture_pins,
+            private_capture_snapshot_pin=capture_snapshot_pin,
             **review_kwargs,
         )
     except EnginePreflightError:

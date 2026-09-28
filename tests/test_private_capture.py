@@ -261,6 +261,9 @@ class CaptureAwareProvider:
     max_output_tokens = 1_800
     max_output_items = 10
 
+    def serialize_review_request(self, task, evidence, limits):
+        return json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
+
     def review_with_capture(self, task, evidence, limits, capture_spec, capture_sink):
         refs = [item["evidence_id"] for item in evidence]
         payload = {
@@ -316,8 +319,10 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     profile = {"version": "pilot-v1", "required_lenses": ["correctness"], "context_paths": []}
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps(profile))
+    provider_config_path = tmp_path / "provider.json"
+    provider_config_path.write_text("{}")
     limits = {
-        "deadline_seconds": 10, "max_concurrent_scopes": 1, "max_provider_calls": 4,
+        "deadline_seconds": 10, "max_concurrent_scopes": 1, "max_provider_calls": 1,
         "max_retries_per_task": 0, "max_context_bytes": 200_000,
         "max_input_bytes_per_task": 128_000, "max_output_bytes_per_task": 32_768,
         "max_output_bytes": 100_000, "max_output_tokens": 1_800,
@@ -327,12 +332,59 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    prepared_dir = tmp_path / "prepared-output"
+    prepare_args = [
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(profile_path), "--provider-config", str(provider_config_path), "--output", str(prepared_dir),
+        "--run-id", "capture-prepare", "--prepare-only", "--json",
+    ]
+    assert cli.main(prepare_args) == 0
+    prepared = json.loads(capsys.readouterr().out)
+    assert prepared["status"] == "PREPARED_ONLY"
+    assert prepared["capacity"]["exact_primary_call_demand"] == 1
+    # The capture route applies the frozen-snapshot hash contract after CLI
+    # freshness provenance is attached. Recompute that same identity for this
+    # fixture rather than binding the collector's earlier pre-provenance hash.
+    capture_snapshot = cli.collect_snapshot(str(repo), base, head, profile, limits)
+    capture_snapshot["freshness_basis"] = "HISTORICAL_SNAPSHOT"
+    capture_snapshot_hash = cli._sha256(json.dumps(
+        {key: value for key, value in capture_snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+        sort_keys=True, separators=(",", ":"),
+    ).encode())
+    plan = {
+        "schema": "model-only-shadow-live-writer-plan.v1",
+        "case": {
+            "case_id": "PR-464", "snapshot_id": prepared["snapshot"]["snapshot_id"],
+            "snapshot_sha256": capture_snapshot_hash,
+        },
+        "budget": {
+            "writer_exact_call_count": 1, "writer_max_request_bytes": 128_000,
+            "writer_max_response_bytes": 32_768, "writer_max_output_tokens": 1_800,
+        },
+        "writer_requests": [
+            {key: row[key] for key in ("task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap")}
+            for row in prepared["primary_requests"]
+        ],
+    }
+    plan_path = tmp_path / "writer-plan.json"
+    plan_bytes = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()
+    plan_path.write_bytes(plan_bytes)
+    receipt_path = tmp_path / "preflight-receipt.json"
+    receipt_path.write_text(json.dumps({
+        "schema": "model-only-shadow-live-preflight-receipt.v1",
+        "status": "PLAN_MATCHED_PROVIDER_FREE", "provider_calls": 0,
+        "target_code_execution": False, "publication_enabled": False,
+        "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(), "case_id": "PR-464",
+        "snapshot_sha256": capture_snapshot_hash, "writer_calls_planned": 1,
+    }))
     output_dir = tmp_path / "ordinary-output"
     capture_dir = tmp_path / "private-capture"
     args = [
         "review", "--repo", str(repo), "--base", base, "--head", head,
         "--profile", str(profile_path), "--output", str(output_dir),
+        "--provider-config", str(provider_config_path),
         "--private-shadow-capture", str(capture_dir), "--private-shadow-case-id", "PR-464",
+        "--private-shadow-plan", str(plan_path), "--private-shadow-preflight-receipt", str(receipt_path),
         "--run-id", "capture-run-1", "--json",
     ]
     assert cli.main(args) == 0
@@ -377,6 +429,31 @@ def test_trusted_actions_capture_gate_accepts_private_direct_child(tmp_path, mon
     runner_temp.mkdir()
     _trusted_capture_env(monkeypatch, runner_temp)
     cli._validate_private_capture_target(str(runner_temp / "capture"), str(tmp_path / "output"))
+
+
+def test_actions_private_plan_must_come_from_fixed_trusted_checkout_and_receipt_slot(tmp_path, monkeypatch):
+    runner_temp = tmp_path / "runner-temp"
+    workspace = tmp_path / "workspace"
+    runner_temp.mkdir()
+    workspace.mkdir()
+    _trusted_capture_env(monkeypatch, runner_temp)
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+    trusted_root = workspace / "trusted-runner"
+    expected_plan = trusted_root / "experiments" / "model-only-shadow-live-pr464-plan-v1.json"
+    expected_plan.parent.mkdir(parents=True)
+    expected_plan.write_text("{}")
+    receipt_dir = runner_temp / "private-shadow-preparation"
+    receipt_dir.mkdir(mode=0o700)
+    expected_receipt = receipt_dir / "live-preflight-receipt.json"
+    expected_receipt.write_text("{}")
+    cli._validate_trusted_private_plan_paths(str(expected_plan), str(expected_receipt))
+
+    forged_plan = tmp_path / "attacker-plan.json"
+    forged_receipt = tmp_path / "attacker-receipt.json"
+    forged_plan.write_text("{}")
+    forged_receipt.write_text("{}")
+    with pytest.raises(ValueError, match="trusted private preflight paths required"):
+        cli._validate_trusted_private_plan_paths(str(forged_plan), str(forged_receipt))
 
 
 @pytest.mark.parametrize(

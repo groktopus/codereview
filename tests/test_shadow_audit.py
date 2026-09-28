@@ -424,3 +424,54 @@ def test_opt_in_writer_capture_rejects_receipt_hashes_that_do_not_bind_passed_by
         provider.review_with_capture({"task_id": "task-1", "unit_ids": ["unit-1"]},
             [{"evidence_id": "ev-1", "content": "safe"}], _limits(), {"case_id": "case-1"}, lying_sink)
     assert attempts == [content]
+
+
+def test_pinned_capture_request_mismatch_stops_before_credential_or_http(monkeypatch):
+    content = json.dumps({
+        "contract_version": "specialist-findings.v4", "finding_candidates": [],
+        "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": [],
+    }, separators=(",", ":")).encode()
+    provider = _provider(monkeypatch, "writer-model", lambda _user: content)
+    task = {"task_id": "task-pinned", "unit_ids": ["unit-1"]}
+    evidence = [{"evidence_id": "ev-1", "content": "safe"}]
+    expected = provider.serialize_review_request(task, evidence, _limits())
+    original = provider._request_bytes
+    monkeypatch.setattr(provider, "_request_bytes", lambda *args: original(*args) + b" ")
+    credential_calls = []
+    http_calls = []
+    monkeypatch.setattr("pr_review_harness.providers._env_credential", lambda _name: credential_calls.append(True))
+    monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", type("NoHTTP", (), {
+        "open": lambda *_args, **_kwargs: http_calls.append(True)
+    })())
+    captured = []
+
+    def sink(spec, request, response, status, _envelope_hash, _transform):
+        captured.append((request, response, status))
+        return {"call_id": "call-1", "request_sha256": hashlib.sha256(request).hexdigest(),
+                "request_artifact_id": "request-1", "response_sha256": None,
+                "response_artifact_id": None, "status": status}
+
+    with pytest.raises(Exception, match="request_pin_mismatch"):
+        provider.review_with_capture(task, evidence, _limits(), {
+            "strict_request_pin": True, "expected_task_id": "task-pinned",
+            "expected_request_sha256": hashlib.sha256(expected).hexdigest(),
+        }, sink)
+    assert credential_calls == []
+    assert http_calls == []
+    assert captured and captured[0][0] == expected + b" "
+    assert captured[0][1] is None and captured[0][2] == "failed"
+
+
+@pytest.mark.parametrize("task,capture_spec,error", [
+    ({"unit_ids": ["unit-1"]}, {"strict_request_pin": True, "expected_task_id": "task-1",
+      "expected_request_sha256": "a" * 64}, "request_task_binding_missing"),
+    ({"task_id": "unlisted-task", "unit_ids": ["unit-1"]}, {"strict_request_pin": True,
+      "expected_task_id": "task-1", "expected_request_sha256": "a" * 64}, "request_task_binding_mismatch"),
+    ({"task_id": "task-1", "unit_ids": ["unit-1"]}, {"strict_request_pin": True,
+      "expected_request_sha256": "a" * 64}, "request_task_binding_missing"),
+])
+def test_pinned_capture_rejects_missing_or_unknown_task_binding(monkeypatch, task, capture_spec, error):
+    provider = _provider(monkeypatch, "writer-model", lambda _user: pytest.fail("must not dispatch"))
+    with pytest.raises(Exception, match=error):
+        provider.review_with_capture(task, [{"evidence_id": "ev-1", "content": "safe"}],
+            _limits(), capture_spec, lambda *_args: pytest.fail("must not capture unbound request"))

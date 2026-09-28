@@ -783,6 +783,66 @@ def test_unknown_required_lens_fails_before_provider_dispatch_or_result_creation
     with pytest.raises(ValueError, match="unsupported lens"):
         run(tmp_path, snap=make_snapshot(), prof=profile(("correctnes",)), provider=provider)
 
+
+def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_changed_requests(tmp_path):
+    class PinProvider:
+        identity = {"provider_id": "pin-test", "model_id": "pin-test-v1"}
+        max_request_bytes = 128_000
+        max_response_bytes = 32_768
+        max_output_tokens = 1_800
+        max_output_items = 10
+
+        def __init__(self):
+            self.mutate = False
+            self.calls = 0
+
+        def serialize_review_request(self, task, evidence, limits):
+            body = json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
+            return body + (b" " if self.mutate else b"")
+
+        def review_with_capture(self, *_args):
+            self.calls += 1
+            pytest.fail("pinned preflight rejection must happen before dispatch")
+
+    provider = PinProvider()
+    snapshot = make_snapshot()
+    prof = profile()
+    limits = {**LIMITS, "max_provider_calls": 1, "max_followup_tasks": 0,
+              "max_input_bytes_per_task": 128_000, "max_output_bytes_per_task": 32_768,
+              "max_output_tokens": 1_800}
+    plan = plan_review(snapshot, prof, "AUTO")
+    prepared, _skipped = prepare_plan_tasks(snapshot, plan, prof, limits, provider)
+    from pr_review_harness.engine import _evidence_for
+
+    writer_tasks = [task for task in prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"]
+    assert len(writer_tasks) == 1
+    pins = {}
+    for task in writer_tasks:
+        evidence = _evidence_for(task, snapshot, limits["max_input_bytes_per_task"])
+        request = provider.serialize_review_request(task, evidence, limits)
+        pins[task["task_id"]] = {
+            "task_id": task["task_id"], "input_sha256": hashlib.sha256(request).hexdigest(),
+            "input_bytes": len(request), "lens": task["lens"], "output_bytes_cap": 32_768,
+            "output_tokens_cap": 1_800,
+        }
+
+    def reject(pin_map, *, mutate=False):
+        provider.mutate = mutate
+        capture_dir = tmp_path / f"capture-{len(list(tmp_path.iterdir()))}"
+        with pytest.raises(EnginePreflightError, match="review request is invalid"):
+            run_review(
+                snapshot, plan, prof, provider, None, limits, str(tmp_path / "results"), "pinned-run",
+                private_capture_dir=str(capture_dir), private_capture_case_id="PR-464",
+                private_capture_request_pins=pin_map,
+                private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": "d" * 64},
+            )
+        assert not capture_dir.exists()
+        assert provider.calls == 0
+
+    reject({})
+    reject({**pins, "unknown-task": {**next(iter(pins.values())), "task_id": "unknown-task"}})
+    reject(pins, mutate=True)
+
     assert provider.calls == 0
     assert not (tmp_path / "r1.json").exists()
 

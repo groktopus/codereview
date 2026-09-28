@@ -593,6 +593,8 @@ class OpenAIProvider:
         limits: dict[str, Any],
         contract_version: str,
         capture_exchange: bool = False,
+        expected_request_sha256: str | None = None,
+        serialized_request_bytes: bytes | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         _mapping(limits, "limits")
         input_cap = _limits_int(limits, "max_input_bytes_per_task", self.max_request_bytes)
@@ -602,9 +604,25 @@ class OpenAIProvider:
         timeout = min(
             self.timeout_seconds, _finite_positive(limits.get("deadline_seconds"), self.timeout_seconds, "deadline")
         )
-        request_bytes = self._request_bytes(system, user, schema, limits)
+        request_bytes = (
+            serialized_request_bytes
+            if serialized_request_bytes is not None
+            else self._request_bytes(system, user, schema, limits)
+        )
+        if not isinstance(request_bytes, bytes):
+            raise ProviderError("request_serialization_invalid")
         if len(request_bytes) > input_cap:
             raise ProviderError("request_exceeds_limit")
+        # A trusted capture plan may pin the exact request body. Check it at
+        # the dispatch boundary, after serialization and before reading a
+        # credential or constructing an HTTP request.
+        if expected_request_sha256 is not None:
+            if not isinstance(expected_request_sha256, str) or not re.fullmatch(
+                r"[0-9a-f]{64}", expected_request_sha256
+            ):
+                raise ProviderError("request_pin_invalid")
+            if hashlib.sha256(request_bytes).hexdigest() != expected_request_sha256:
+                raise ProviderError("request_pin_mismatch")
         endpoint = self.base_url + "/chat/completions"
         provider_id = self.identity.get("provider_id")
         exchange = _local_http_exchange(
@@ -1115,6 +1133,20 @@ class OpenAIProvider:
         """
         if not callable(capture_sink):
             raise ProviderError("capture_sink_required")
+        strict_pin = capture_spec.get("strict_request_pin") is True
+        expected_request_sha256 = None
+        if strict_pin:
+            task_id = task.get("task_id") if isinstance(task, dict) else None
+            expected_task_id = capture_spec.get("expected_task_id")
+            expected_request_sha256 = capture_spec.get("expected_request_sha256")
+            if not isinstance(task_id, str) or not task_id or not isinstance(expected_task_id, str) or not expected_task_id:
+                raise ProviderError("request_task_binding_missing")
+            if task_id != expected_task_id:
+                raise ProviderError("request_task_binding_mismatch")
+            if not isinstance(expected_request_sha256, str) or not re.fullmatch(
+                r"[0-9a-f]{64}", expected_request_sha256
+            ):
+                raise ProviderError("request_pin_invalid")
         system, user, schema = self._review_parts(task, evidence)
         request_bytes = self._request_bytes(system, user, schema, limits)
         response_content: bytes | None = None
@@ -1180,6 +1212,8 @@ class OpenAIProvider:
                 limits=limits,
                 contract_version=contracts.SPECIALIST_V4,
                 capture_exchange=True,
+                expected_request_sha256=expected_request_sha256,
+                serialized_request_bytes=request_bytes,
             )
             exchange = meta.pop("_audit_exchange", {})
             response_content = exchange.get("structured_response_bytes")
