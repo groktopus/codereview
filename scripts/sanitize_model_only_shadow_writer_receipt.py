@@ -21,7 +21,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 CALL_ID = re.compile(r"^call-[0-9a-f]{24}$")
-EXPECTED_PLAN_SHA256 = "21db31740045790e8995ddccd04412f82952aea24ed8e2b606748b74fe41135e"
+EXPECTED_PLAN_SHA256 = "618642b79913da4f92c88867b7aa9773a600c797a07ffb192d0119de77f6315a"
 
 
 class ReceiptError(ValueError):
@@ -97,6 +97,41 @@ def _write_private(path: Path, data: bytes) -> None:
         os.close(fd)
 
 
+def _validate_packet_inventory(root: Path, manifest: dict[str, Any]) -> None:
+    inventory = manifest.get("case_packet_inventory")
+    if (not isinstance(inventory, dict) or set(inventory) != {"schema", "packets"}
+            or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
+            or not isinstance(inventory.get("packets"), list)
+            or not 1 <= len(inventory["packets"]) <= 128):
+        raise ReceiptError("capture_packet_inventory_invalid")
+    expected: dict[str, str] = {}
+    for row in inventory["packets"]:
+        if (not isinstance(row, dict) or set(row) != {"path", "sha256"}
+                or not isinstance(row.get("path"), str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\.json", row["path"])
+                or not isinstance(row.get("sha256"), str) or not SHA256.fullmatch(row["sha256"])
+                or row["path"] in expected):
+            raise ReceiptError("capture_packet_inventory_invalid")
+        expected[row["path"]] = row["sha256"]
+    packet_dir = root / "case-packets"
+    try:
+        info = packet_dir.lstat()
+    except OSError:
+        raise ReceiptError("capture_packet_inventory_invalid") from None
+    if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700:
+        raise ReceiptError("capture_packet_inventory_invalid")
+    try:
+        entries = list(packet_dir.iterdir())
+    except OSError:
+        raise ReceiptError("capture_packet_inventory_invalid") from None
+    if {path.name for path in entries} != set(expected):
+        raise ReceiptError("capture_packet_inventory_mismatch")
+    for path in entries:
+        raw = _read_regular(path, 4_000_000, private=True)
+        if hashlib.sha256(raw).hexdigest() != expected[path.name]:
+            raise ReceiptError("capture_packet_inventory_mismatch")
+
+
 def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_dir: Path) -> dict[str, Any]:
     runner_temp_value = os.environ.get("RUNNER_TEMP")
     if not runner_temp_value:
@@ -147,7 +182,7 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
         expected[row["task_id"]] = row
 
     manifest, _manifest_bytes = _read_json(root / "manifest.json", 256_000)
-    allowed_manifest_keys = {"contract_version", "case_id", "snapshot_id", "snapshot_hash", "source_task", "provider", "calls", "private_artifacts"}
+    allowed_manifest_keys = {"contract_version", "case_id", "snapshot_id", "snapshot_hash", "source_task", "provider", "calls", "private_artifacts", "case_packet_inventory"}
     if set(manifest) != allowed_manifest_keys or manifest.get("contract_version") != "model-only-shadow-case.v1":
         raise ReceiptError("capture_manifest_invalid")
     if (
@@ -164,6 +199,7 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     }
     if provider != expected_provider:
         raise ReceiptError("provider_identity_mismatch")
+    _validate_packet_inventory(root, manifest)
 
     calls = manifest["calls"]
     if len(calls) != 10:

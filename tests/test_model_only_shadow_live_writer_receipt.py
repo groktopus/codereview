@@ -27,6 +27,15 @@ def _fixture(tmp_path: Path):
     capture.mkdir(mode=0o700)
     for child in ("requests", "responses", "calls"):
         (capture / child).mkdir(mode=0o700)
+    packet_dir = capture / "case-packets"
+    packet_dir.mkdir(mode=0o700)
+    packet_inventory = []
+    for index in range(10):
+        name = f"packet-{index}.json"
+        packet_raw = json.dumps({"packet": index}, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+        (packet_dir / name).write_bytes(packet_raw)
+        os.chmod(packet_dir / name, 0o600)
+        packet_inventory.append({"path": name, "sha256": hashlib.sha256(packet_raw).hexdigest()})
 
     plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v1.json").read_text())
     requests = plan["writer_requests"]
@@ -63,7 +72,7 @@ def _fixture(tmp_path: Path):
         path = capture / "responses" / f"{call_id}.bin"
         path.write_bytes(data)
         os.chmod(path, 0o600)
-    for directory in (capture, capture / "requests", capture / "responses", capture / "calls"):
+    for directory in (capture, capture / "requests", capture / "responses", capture / "calls", packet_dir):
         os.chmod(directory, 0o700)
 
     plan_path = runner_temp / "plan.json"
@@ -82,6 +91,7 @@ def _fixture(tmp_path: Path):
         "contract_version": "model-only-shadow-case.v1", "case_id": run_id,
         "snapshot_id": plan["case"]["snapshot_id"], "snapshot_hash": plan["case"]["snapshot_sha256"],
         "source_task": run_id, "provider": provider, "calls": calls, "private_artifacts": True,
+        "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": packet_inventory},
     }
     manifest_path = capture / "manifest.json"
     manifest_path.write_text(json.dumps(manifest))
@@ -110,7 +120,8 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
 
 
 @pytest.mark.parametrize(
-    "tamper", ["missing_call", "request_bytes", "malformed_response", "manifest_extension", "snapshot_hash"]
+    "tamper", ["missing_call", "request_bytes", "malformed_response", "manifest_extension", "snapshot_hash",
+               "missing_packet", "altered_packet"]
 )
 def test_sanitizer_rejects_tampered_or_incomplete_capture(tmp_path: Path, tamper: str):
     runner_temp, capture, plan, preflight, manifest, calls, requests, responses = _fixture(tmp_path)
@@ -127,6 +138,10 @@ def test_sanitizer_rejects_tampered_or_incomplete_capture(tmp_path: Path, tamper
         manifest["source_excerpt"] = "private source text"
     elif tamper == "snapshot_hash":
         manifest["snapshot_hash"] = "0" * 64
+    elif tamper == "missing_packet":
+        (capture / "case-packets" / "packet-9.json").unlink()
+    elif tamper == "altered_packet":
+        (capture / "case-packets" / "packet-9.json").write_bytes(b'{"packet":"changed"}\n')
     (capture / "manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(sanitizer.ReceiptError):
         sanitizer.sanitize(capture, plan, preflight, runner_temp / "private-writer-sanitized")

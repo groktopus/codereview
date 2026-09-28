@@ -16,6 +16,7 @@ from pr_review_harness.private_capture import (
     CONTENT_TRANSFORM,
     MAX_REQUEST_BYTES,
     PrivateShadowCapture,
+    _canonical,
     _reconciled_candidate_pairs,
     write_provider_exchange,
 )
@@ -27,10 +28,12 @@ class Provider:
     identity = {"provider_id": "openai-compatible", "model_id": "fixture", "adapter_version": "test-v1", "api_key": "must-not-copy"}
 
 
-def _capture(tmp_path):
+def _capture(tmp_path, *, packet_profile=None):
     snapshot = {
         "snapshot_id": "snap-abc",
-        "profile_hash": "b" * 64, "profile_version": "p1", "base_sha": "e" * 40, "head_sha": "c" * 40,
+        "profile_hash": (hashlib.sha256(json.dumps(packet_profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
+                         if packet_profile is not None else "b" * 64),
+        "profile_version": "p1", "base_sha": "e" * 40, "head_sha": "c" * 40,
         "repository": "magnus919/SlopSearX", "repository_url": "https://github.com/magnus919/SlopSearX",
         "inventory": [], "gaps": [], "trusted_context_refs": [],
         "evidence": {"ev-1": {"evidence_id": "ev-1", "snapshot_id": "snap-abc", "content": "untrusted"}},
@@ -52,6 +55,48 @@ def _capture(tmp_path):
     spec = capture.begin_call(run_id="run-1", task_id="task-1", attempt=0)
     spec.update(root=str(capture.root), provider=capture.provider_identity, attempt=0)
     return capture, spec
+
+
+def test_exported_multi_candidate_packets_are_atomically_inventory_bound(tmp_path):
+    profile = {"profile_id": "profile-1", "version": "p1"}
+    capture, _ = _capture(tmp_path, packet_profile=profile)
+    candidates = [
+        {"title": "One", "observation": "A", "consequence": "B", "rule_or_contract": "C", "evidence_refs": ["ev-1"]},
+        {"title": "Two", "observation": "D", "consequence": "E", "rule_or_contract": "F", "evidence_refs": ["ev-1"]},
+    ]
+    pairs = []
+    for index, candidate in enumerate(candidates):
+        candidate_id = hashlib.sha256(_canonical({"task_id": "task-1", "index": index, "raw": candidate})).hexdigest()[:24]
+        pairs.append({"candidate_id": candidate_id, "task_id": "task-1"})
+    result = {
+        "snapshot_id": capture.snapshot_id, "run_id": "run-1",
+        "findings": [{"assessment_records": pairs}],
+        "task_results": {"task-1": {"status": "SUCCEEDED", "payload": {"finding_candidates": candidates}}},
+    }
+    paths = capture.export_case_packets(result, profile=profile)
+    manifest = json.loads((capture.root / "manifest.json").read_text())
+    inventory = manifest["case_packet_inventory"]
+    assert inventory["schema"] == "model-only-shadow-packet-inventory.v1"
+    assert [row["path"] for row in inventory["packets"]] == sorted(path.name for path in paths)
+    assert len(paths) == 2
+    for row in inventory["packets"]:
+        raw = (capture.root / "case-packets" / row["path"]).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == row["sha256"]
+        assert stat.S_IMODE((capture.root / "case-packets" / row["path"]).stat().st_mode) == 0o600
+
+
+def test_existing_manifest_inventory_rejects_before_packet_directory_publication(tmp_path):
+    profile = {"profile_id": "profile-1", "version": "p1"}
+    capture, _ = _capture(tmp_path, packet_profile=profile)
+    manifest_path = capture.root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["case_packet_inventory"] = {"schema": "preexisting", "packets": []}
+    manifest_path.write_text(json.dumps(manifest))
+    result = {"snapshot_id": capture.snapshot_id, "run_id": "run-1", "findings": [], "task_results": {}}
+    with pytest.raises(ValueError, match="case packet inventory already exists"):
+        capture.export_case_packets(result, profile=profile)
+    assert not (capture.root / "case-packets").exists()
+    assert json.loads(manifest_path.read_text())["case_packet_inventory"]["schema"] == "preexisting"
 
 
 def test_exact_prompt_injection_bytes_are_private_and_bound(tmp_path):
