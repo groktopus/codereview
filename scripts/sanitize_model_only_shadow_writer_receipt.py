@@ -132,6 +132,68 @@ def _validate_packet_inventory(root: Path, manifest: dict[str, Any]) -> None:
             raise ReceiptError("capture_packet_inventory_mismatch")
 
 
+def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: str,
+                              response_rows: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Summarize the model-output to packet boundary without retaining content."""
+    inventory = manifest["case_packet_inventory"]["packets"]
+    packet_candidates: dict[str, int] = {}
+    packet_counts: dict[str, int] = {}
+    for item in inventory:
+        packet, _raw = _read_json(root / "case-packets" / item["path"], 4_000_000)
+        source_task = packet.get("source_task")
+        task_id = source_task.get("task_id") if isinstance(source_task, dict) else None
+        if not isinstance(task_id, str) or task_id not in response_rows:
+            raise ReceiptError("capture_packet_task_invalid")
+        packet_counts[task_id] = packet_counts.get(task_id, 0) + 1
+        candidate = packet.get("writer_candidate")
+        if candidate is not None and not isinstance(candidate, dict):
+            raise ReceiptError("capture_packet_candidate_invalid")
+        if candidate is not None:
+            packet_candidates[task_id] = packet_candidates.get(task_id, 0) + 1
+
+    rows = []
+    for task_id in sorted(response_rows):
+        response = response_rows[task_id]
+        returned = response["returned_candidate_count"]
+        packet_count = packet_candidates.get(task_id, 0)
+        if response["response_parse_status"] != "valid_specialist_report":
+            outcome = "parse_failure"
+        elif returned == 0:
+            outcome = "zero_findings_returned"
+        elif packet_count == 0:
+            outcome = "candidate_reconciliation_or_filtering"
+        elif packet_count < returned:
+            outcome = "candidate_reconciliation_or_filtering"
+        else:
+            outcome = "candidates_preserved_in_packets"
+        rows.append({
+            "task_id_sha256": hashlib.sha256(task_id.encode("utf-8")).hexdigest(),
+            "response_sha256": response["response_sha256"],
+            "response_parse_status": response["response_parse_status"],
+            "returned_candidate_count": returned,
+            "packet_candidate_count": packet_count,
+            "candidate_packet_count": packet_counts.get(task_id, 0),
+            "outcome": outcome,
+        })
+    return {
+        "schema": "model-only-shadow-live-writer-outcomes.v1",
+        "plan_sha256": plan_hash,
+        "capture_manifest_sha256": hashlib.sha256(
+            (root / "manifest.json").read_bytes()
+        ).hexdigest(),
+        "tasks": rows,
+        "returned_candidate_count_total": sum(row["returned_candidate_count"] for row in rows),
+        "packet_candidate_count_total": sum(row["packet_candidate_count"] for row in rows),
+        "outcome_counts": {
+            status: sum(row["outcome"] == status for row in rows)
+            for status in (
+                "zero_findings_returned", "parse_failure",
+                "candidate_reconciliation_or_filtering", "candidates_preserved_in_packets",
+            )
+        },
+    }
+
+
 def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_dir: Path) -> dict[str, Any]:
     runner_temp_value = os.environ.get("RUNNER_TEMP")
     if not runner_temp_value:
@@ -208,6 +270,7 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     receipts = []
     total_request_bytes = 0
     total_response_bytes = 0
+    response_rows: dict[str, dict[str, Any]] = {}
     run_id = manifest["case_id"]
     if manifest.get("source_task") != run_id:
         raise ReceiptError("capture_run_identity_mismatch")
@@ -255,9 +318,24 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
             raise ReceiptError("structured_response_invalid") from None
         if not isinstance(parsed, dict):
             raise ReceiptError("structured_response_invalid")
+        parse_status = "valid_specialist_report"
+        returned_candidate_count = 0
+        if (set(parsed) != {
+                "contract_version", "finding_candidates", "context_gap_proposals", "coverage_notes",
+                "specific_strengths", "future_guidance",
+        } or parsed.get("contract_version") != "specialist-findings.v4"
+                or not isinstance(parsed.get("finding_candidates"), list)):
+            parse_status = "invalid_specialist_report"
+        if isinstance(parsed.get("finding_candidates"), list):
+            returned_candidate_count = len(parsed["finding_candidates"])
         seen.add(task_id)
         total_request_bytes += len(request)
         total_response_bytes += len(response)
+        response_rows[task_id] = {
+            "response_sha256": call["response_sha256"],
+            "response_parse_status": parse_status,
+            "returned_candidate_count": returned_candidate_count,
+        }
         receipts.append({
             "task_id": task_id,
             "request_sha256": call["request_sha256"], "request_bytes": len(request),
@@ -279,8 +357,12 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     }
     output_path.mkdir(mode=0o700)
     os.chmod(output_path, 0o700)
+    outcomes = _writer_outcome_accounting(root, manifest, plan_hash, response_rows)
     _write_private(output_path / "writer-receipt.json", json.dumps(
         output, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8") + b"\n")
+    _write_private(output_path / "writer-outcomes.json", json.dumps(
+        outcomes, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8") + b"\n")
     return output
 

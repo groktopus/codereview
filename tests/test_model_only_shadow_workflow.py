@@ -74,19 +74,21 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     assert "--max-claim-assessments 0" in live
     assert "--private-shadow-capture" in live
     assert "Sanitize the completed writer capture" in live
-    upload = live.split("- name: Upload only the hash-only writer receipt", 1)[1].split("      - name:", 1)[0]
+    upload = live.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1].split("      - name:", 1)[0]
     assert "private-writer-sanitized/writer-receipt.json" in upload
+    assert "private-writer-sanitized/writer-outcomes.json" in upload
     assert "private-writer-capture" not in upload and "private-shadow-preparation" not in upload
     assert "audit_or_jev_dispatched" in (ROOT / "scripts" / "sanitize_model_only_shadow_writer_receipt.py").read_text()
 
 
 def test_writer_receipt_upload_runs_after_later_audit_failure_only_when_sanitized():
     text = WORKFLOW.read_text(encoding="utf-8")
-    upload = text.split("- name: Upload only the hash-only writer receipt", 1)[1].split(
+    upload = text.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1].split(
         "- name: Upload only the hash-only model-only audit receipt", 1
     )[0]
     assert "if: always() && steps.writer-sanitize.outputs.validated == 'true'" in upload
     assert "private-writer-sanitized/writer-receipt.json" in upload
+    assert "private-writer-sanitized/writer-outcomes.json" in upload
     assert "private-writer-capture" not in upload
     assert "writer-result.json" not in upload
     assert "writer-stage-diagnostic.json" not in upload
@@ -116,10 +118,11 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     assert all(role in guard for role in ("source_auditor", '"jev"', "claim_auditor"))
     assert '"max_packets": 1' in (ROOT / "experiments" / "model-only-shadow-audit-limits-v1.json").read_text()
 
-    uploads = live.split("      - name: Upload only the hash-only writer receipt", 1)[1].split(
+    uploads = live.split("      - name: Upload only the hash-only writer accounting artifacts", 1)[1].split(
         "      - name: Remove private live-writer workspace", 1
     )[0]
     assert "private-writer-sanitized/writer-receipt.json" in uploads
+    assert "private-writer-sanitized/writer-outcomes.json" in uploads
     assert "private-shadow-audit-sanitized/shadow-audit-receipt.json" in uploads
     assert "private-writer-capture" not in uploads
     assert "private-shadow-audit-output" not in uploads
@@ -140,7 +143,7 @@ def test_live_writer_failure_reports_only_allowlisted_json_and_stage_code():
     assert "--json > \"$RUNNER_TEMP/private-shadow-preparation/writer-result.json\" 2>/dev/null; then" in writer
     assert "python3 scripts/extract_pr_review_failure_code.py" in writer
     assert "exit \"$cli_exit_code\"" in writer
-    upload = live.split("- name: Upload only the hash-only writer receipt", 1)[1].split(
+    upload = live.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1].split(
         "- name: Remove private live-writer workspace", 1
     )[0]
     assert "writer-result.json" not in upload
