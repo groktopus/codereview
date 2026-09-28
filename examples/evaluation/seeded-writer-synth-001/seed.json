@@ -1,0 +1,11 @@
+{
+  "schema": "seeded-writer-fixture.v1",
+  "fixture_id": "SYNTH-001",
+  "seed": 457001,
+  "visible_files": [
+    "contract.md",
+    "caller.py",
+    "base/auth.py",
+    "head/auth.py"
+  ]
+}
