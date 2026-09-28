@@ -123,12 +123,16 @@ def _validate_run(raw: bytes, expected: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(repository, dict):
         raise ManifestError("recovery_run_binding_mismatch")
     pull_requests = run.get("pull_requests")
+    run_attempt = run.get("run_attempt")
+    repository_name = repository.get("full_name")
     if (
         str(run.get("id")) != expected["workflow_run_id"]
-        or run.get("run_attempt") != int(expected["workflow_run_attempt"])
+        or isinstance(run_attempt, bool)
+        or run_attempt != int(expected["workflow_run_attempt"])
         or run.get("status") != "completed"
         or run.get("conclusion") not in {"cancelled", "failure", "timed_out"}
-        or repository.get("full_name", "").casefold() != expected["workflow_repository"].casefold()
+        or not isinstance(repository_name, str)
+        or repository_name.casefold() != expected["workflow_repository"].casefold()
         or not _positive_int(repository.get("id"))
         or not _positive_int(run.get("workflow_id"))
         or run.get("head_sha") != expected["workflow_run_head_sha"]
@@ -141,6 +145,7 @@ def _validate_run(raw: bytes, expected: dict[str, Any]) -> dict[str, Any]:
     pull = pull_requests[0]
     if (
         not isinstance(pull, dict)
+        or isinstance(pull.get("number"), bool)
         or pull.get("number") != expected["pull_request_number"]
         or not isinstance(pull.get("base"), dict)
         or not isinstance(pull.get("head"), dict)

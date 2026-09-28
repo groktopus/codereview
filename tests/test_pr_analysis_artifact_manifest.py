@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import fetch_pr_analysis_artifact as fetch
 import intake_pr_analysis_artifact as intake
 import pr_analysis_artifact_manifest as manifest
 
@@ -489,3 +490,204 @@ def test_intake_atomically_reserves_destination_for_competing_calls(tmp_path, mo
     assert len(successes) == 1
     assert failures == ["recovery_output_must_be_new"]
     assert manifest.verify_manifest(output / "artifact", identity)
+
+
+def _fetch_fixture(tmp_path: Path, *, empty_run_prs=False):
+    identity, _, listing_raw, archive = _intake_fixture(tmp_path)
+    run = {
+        "id": 42,
+        "run_attempt": 2,
+        "workflow_id": 77,
+        "status": "completed",
+        "conclusion": "cancelled",
+        "path": ".github/workflows/pr-review.yml@main",
+        "head_sha": "e" * 40,
+        "repository": {"id": 99, "full_name": "owner/caller"},
+        "pull_requests": [] if empty_run_prs else [{"number": 7, "base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}],
+        "referenced_workflows": [
+            {
+                "path": "owner/harness/.github/workflows/pr-analysis.yml@main",
+                "sha": "c" * 40,
+                "ref": "refs/heads/main",
+            }
+        ],
+    }
+    pull = {
+        "number": 7,
+        "state": "open",
+        "base": {"sha": "a" * 40, "repo": {"full_name": "owner/caller"}},
+        "head": {"sha": "b" * 40, "repo": {"full_name": "contributor/project"}},
+    }
+    trusted = {
+        "schema_version": fetch.SCHEMA,
+        "workflow_repository": "owner/caller",
+        "workflow_run_id": "42",
+        "workflow_run_attempt": "2",
+        "run_workflow_ref": "owner/caller/.github/workflows/pr-review.yml@refs/heads/main",
+        "target_repository": "owner/caller",
+        "pull_request_number": 7,
+        "harness_repository": "owner/harness",
+        "harness_sha": "c" * 40,
+        "called_workflow_ref": "owner/harness/.github/workflows/pr-analysis.yml@refs/heads/main",
+        "called_workflow_sha": "c" * 40,
+        "called_workflow_repository": "owner/harness",
+        "called_workflow_file_path": ".github/workflows/pr-analysis.yml",
+    }
+    storage_url = "https://productionresultssa12.blob.core.windows.net/actions-results/signed?sig=test"
+    api = "https://api.github.com"
+    owner, repo = "owner", "caller"
+    routes = {
+        f"{api}/repos/{owner}/{repo}/actions/runs/42/attempts/2": fetch.HttpResponse(200, {}, json.dumps(run).encode()),
+        f"{api}/repos/{owner}/{repo}/pulls/7": fetch.HttpResponse(200, {}, json.dumps(pull).encode()),
+        f"{api}/repos/{owner}/{repo}/actions/runs/42/artifacts?per_page=100": fetch.HttpResponse(200, {}, listing_raw),
+        f"{api}/repos/{owner}/{repo}/actions/artifacts/501/zip": fetch.HttpResponse(
+            302, {"Location": storage_url}, b""
+        ),
+        storage_url: fetch.HttpResponse(200, {}, archive),
+    }
+    return trusted, routes, archive, api, storage_url
+
+
+class _FakeHttpTransport:
+    def __init__(self, routes):
+        self.routes = routes
+        self.calls = []
+
+    def get(self, url, *, headers, limit):
+        self.calls.append((url, dict(headers), limit))
+        return self.routes[url]
+
+
+def test_authenticated_fetch_uses_exact_api_bindings_and_strips_redirect_auth(tmp_path):
+    trusted, routes, archive, api, storage_url = _fetch_fixture(tmp_path, empty_run_prs=True)
+    transport = _FakeHttpTransport(routes)
+    result = fetch.fetch_and_intake(
+        request_value=trusted,
+        token="read-only-actions-token",
+        output_dir=tmp_path / "fetched",
+        transport=transport,
+        api_base=api,
+    )
+    assert result["status"] == "FETCHED_CONSISTENCY_VALIDATED"
+    assert result["authenticated_fetch_performed"] is True
+    assert result["current_pr_binding"] == "verified_by_authenticated_lookup"
+    assert result["resume_authorized"] is False
+    assert result["files"] == 2
+    assert result["artifact_path"] == str(tmp_path / "fetched" / "artifact")
+    assert transport.calls[0][0].endswith("/actions/runs/42/attempts/2")
+    assert len(archive) == routes[storage_url].body.__len__()
+    assert [call[0] for call in transport.calls] == list(routes)
+    assert all(call[1].get("Authorization") == "Bearer read-only-actions-token" for call in transport.calls[:-1])
+    assert "Authorization" not in transport.calls[-1][1]
+    assert manifest.verify_manifest(
+        tmp_path / "fetched" / "artifact",
+        {
+            **manifest._identity(intake._unpack_archive(archive)[1]["identity"]),
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+        },
+    )
+
+
+def test_fetch_rejects_malformed_called_workflow_identity_before_network(tmp_path):
+    trusted, routes, _archive, api, _storage = _fetch_fixture(tmp_path)
+    trusted["called_workflow_sha"] = "not-a-commit"
+    transport = _FakeHttpTransport(routes)
+    with pytest.raises(fetch.FetchError, match="trusted_request_identity_invalid"):
+        fetch.fetch_and_intake(
+            request_value=trusted,
+            token="read-only-actions-token",
+            output_dir=tmp_path / "invalid-request",
+            transport=transport,
+            api_base=api,
+        )
+    assert transport.calls == []
+
+
+def test_authenticated_fetch_rejects_untrusted_redirect_before_second_request(tmp_path):
+    trusted, routes, _archive, api, _storage = _fetch_fixture(tmp_path)
+    download_url = f"{api}/repos/owner/caller/actions/artifacts/501/zip"
+    routes[download_url] = fetch.HttpResponse(302, {"Location": "https://attacker.invalid/steal?token=redirect"}, b"")
+    transport = _FakeHttpTransport(routes)
+    with pytest.raises(fetch.FetchError, match="artifact_redirect_invalid"):
+        fetch.fetch_and_intake(
+            request_value=trusted,
+            token="read-only-actions-token",
+            output_dir=tmp_path / "blocked",
+            transport=transport,
+            api_base=api,
+        )
+    assert all("attacker.invalid" not in call[0] for call in transport.calls)
+
+
+def test_authenticated_fetch_rejects_current_pr_drift_before_artifact_download(tmp_path):
+    trusted, routes, _archive, api, _storage = _fetch_fixture(tmp_path)
+    pull_url = f"{api}/repos/owner/caller/pulls/7"
+    pull = json.loads(routes[pull_url].body)
+    pull["head"]["sha"] = "f" * 40
+    routes[pull_url] = fetch.HttpResponse(200, {}, json.dumps(pull).encode())
+    transport = _FakeHttpTransport(routes)
+    with pytest.raises(fetch.FetchError, match="recovery_run_pr_binding_mismatch"):
+        fetch.fetch_and_intake(
+            request_value=trusted,
+            token="read-only-actions-token",
+            output_dir=tmp_path / "stale",
+            transport=transport,
+            api_base=api,
+        )
+    assert not any("/actions/artifacts/501/zip" in call[0] for call in transport.calls)
+
+
+def test_fetch_rejects_non_github_api_base_and_oversized_api_body(tmp_path):
+    trusted, routes, _archive, _api, _storage = _fetch_fixture(tmp_path)
+    with pytest.raises(fetch.FetchError, match="api_base_invalid"):
+        fetch.fetch_and_intake(
+            request_value=trusted,
+            token="read-only-actions-token",
+            output_dir=tmp_path / "wrong-api",
+            transport=_FakeHttpTransport(routes),
+            api_base="https://attacker.invalid",
+        )
+    transport = _FakeHttpTransport(routes)
+    first_url = next(iter(routes))
+    transport.routes[first_url] = fetch.HttpResponse(200, {}, b"x" * (fetch.API_LIMIT + 1))
+    with pytest.raises(fetch.FetchError, match="recovery_response_too_large"):
+        fetch.fetch_and_intake(
+            request_value=trusted,
+            token="read-only-actions-token",
+            output_dir=tmp_path / "large-api",
+            transport=transport,
+        )
+
+
+def test_fetch_cli_reads_named_token_without_printing_it(tmp_path, monkeypatch, capsys):
+    trusted, _routes, _archive, _api, _storage = _fetch_fixture(tmp_path)
+    request_path = tmp_path / "trusted-request.json"
+    request_path.write_text(json.dumps(trusted), encoding="utf-8")
+    token = "cli-secret-that-must-not-be-printed"
+    monkeypatch.setenv("TEST_ACTIONS_READ_TOKEN", token)
+    monkeypatch.setattr(
+        fetch,
+        "fetch_and_intake",
+        lambda **kwargs: {
+            "status": "FETCHED_CONSISTENCY_VALIDATED",
+            "authenticated_fetch_performed": True,
+            "resume_authorized": False,
+        },
+    )
+    assert (
+        fetch.main(
+            [
+                "--trusted-request",
+                str(request_path),
+                "--output-dir",
+                str(tmp_path / "cli-output"),
+                "--token-env",
+                "TEST_ACTIONS_READ_TOKEN",
+            ]
+        )
+        == 0
+    )
+    captured = capsys.readouterr()
+    assert token not in captured.out + captured.err
+    assert json.loads(captured.out)["resume_authorized"] is False
