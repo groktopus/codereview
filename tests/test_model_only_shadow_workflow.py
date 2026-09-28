@@ -33,7 +33,7 @@ def test_shadow_preparation_is_manual_trusted_and_read_only():
 def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "5873c3f1b297a96c49b78cbcb7be674ab70b3cea" in text
-    assert "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4" in text
+    assert "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0" in text
     assert "--mode staged-pr464 --prepare-only --input-contract specialist-input-v2" in text
     upload = text.split("- name: Upload only the sanitized preparation receipt", 1)[1]
     assert "${{ runner.temp }}/private-shadow-sanitized/summary.json" in upload
@@ -52,6 +52,8 @@ def test_budget_manifest_has_finite_shared_limits_and_planned_provider_identity(
     assert case["case_id"] == "PR-464"
     assert case["base_sha"] == "20a743f0434a1843aa00068483f608f1e213b2af"
     assert case["head_sha"] == "bffc26f9e4bf95aca0c252e88a2396d03ece854c"
+    assert case["runtime_inventory_sha256"] == "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0"
+    assert case["runtime_module_tree_sha256"] == "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4"
     limits = budget["budgets"]
     assert limits["writer_calls_max"] + limits["audit_calls_max"] == limits["total_provider_calls_max"] == 13
     assert limits["max_request_bytes_per_call"] == 128_000

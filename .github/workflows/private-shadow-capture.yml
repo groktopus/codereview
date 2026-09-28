@@ -70,7 +70,7 @@ jobs:
           set -euo pipefail
           {
             echo 'runtime_sha=5873c3f1b297a96c49b78cbcb7be674ab70b3cea'
-            echo 'runtime_module_tree=d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4'
+            echo 'runtime_inventory_sha256=1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0'
             echo 'contract=specialist-input-v2'
           } >> "$GITHUB_OUTPUT"
 
@@ -119,16 +119,16 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
               stream.write(f"wheel_sha256={digest}\n")
               stream.write(f"module_count={len(modules)}\n")
-              stream.write("module_tree=" + hashlib.sha256(json.dumps(modules, sort_keys=True, separators=(",", ":")).encode()).hexdigest() + "\n")
+              stream.write("inventory_sha256=" + hashlib.sha256(json.dumps(modules, sort_keys=True, separators=(",", ":")).encode()).hexdigest() + "\n")
           PY
 
       - name: Verify the frozen runtime inventory
         env:
           EXPECTED_MODULE_COUNT: '28'
-          EXPECTED_MODULE_TREE: ${{ steps.runtime-pin.outputs.runtime_module_tree }}
+          EXPECTED_INVENTORY_SHA256: ${{ steps.runtime-pin.outputs.runtime_inventory_sha256 }}
           EXPECTED_RUNTIME_SHA: ${{ steps.runtime-pin.outputs.runtime_sha }}
           ACTUAL_MODULE_COUNT: ${{ steps.runtime-wheel.outputs.module_count }}
-          ACTUAL_MODULE_TREE: ${{ steps.runtime-wheel.outputs.module_tree }}
+          ACTUAL_INVENTORY_SHA256: ${{ steps.runtime-wheel.outputs.inventory_sha256 }}
           RUNTIME_SOURCE: ${{ github.workspace }}/trusted-runtime
         run: |
           python3 - <<'PY'
@@ -137,8 +137,8 @@ jobs:
 
           if os.environ.get("ACTUAL_MODULE_COUNT") != os.environ.get("EXPECTED_MODULE_COUNT"):
               raise SystemExit("runtime_module_count_mismatch")
-          if os.environ.get("ACTUAL_MODULE_TREE") != os.environ.get("EXPECTED_MODULE_TREE"):
-              raise SystemExit("runtime_module_tree_mismatch")
+          if os.environ.get("ACTUAL_INVENTORY_SHA256") != os.environ.get("EXPECTED_INVENTORY_SHA256"):
+              raise SystemExit("runtime_inventory_mismatch")
           result = subprocess.run(["git", "-C", os.environ["RUNTIME_SOURCE"], "rev-parse", "HEAD"],
                                   check=False, capture_output=True, text=True, timeout=10)
           if result.returncode or result.stdout.strip() != os.environ.get("EXPECTED_RUNTIME_SHA"):
@@ -167,6 +167,11 @@ jobs:
               "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
           ):
               raise SystemExit("frozen_case_identity_mismatch")
+          if (
+              case.get("runtime_inventory_sha256") != "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0"
+              or case.get("runtime_module_tree_sha256") != "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4"
+          ):
+              raise SystemExit("frozen_runtime_hash_contract_mismatch")
           if budget != {
               "writer_calls_max": 10, "audit_calls_max": 3, "total_provider_calls_max": 13,
               "max_request_bytes_per_call": 128000, "max_response_bytes_per_call": 32768,
