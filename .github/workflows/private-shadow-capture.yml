@@ -195,7 +195,6 @@ jobs:
           RUNTIME_WHEEL_SHA256: ${{ steps.runtime-wheel.outputs.wheel_sha256 }}
         run: |
           set -euo pipefail
-          mkdir -m 700 -p "$RUNNER_TEMP/private-shadow-preparation"
           python3 scripts/run_real_case_trial.py \
             --mode staged-pr464 --prepare-only --input-contract specialist-input-v2 \
             --artifacts "$RUNNER_TEMP/private-shadow-preparation" \
