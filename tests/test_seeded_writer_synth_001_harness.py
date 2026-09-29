@@ -14,11 +14,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_model_only_shadow_audit as shadow_audit_runner  # noqa: E402
 
+from pr_review_harness import providers as provider_module  # noqa: E402
 from pr_review_harness.engine import _evidence_for, prepare_plan_tasks, run_review  # noqa: E402
 from pr_review_harness.planner import plan_review  # noqa: E402
-from pr_review_harness import providers as provider_module  # noqa: E402
-from pr_review_harness.providers import OpenAIProvider  # noqa: E402
-from pr_review_harness.providers import ProviderError  # noqa: E402
+from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
 from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
 
 FIXTURE = ROOT / "examples/evaluation/seeded-writer-synth-001"
