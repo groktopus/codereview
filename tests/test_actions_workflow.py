@@ -245,6 +245,8 @@ def test_documented_caller_name_matches_the_actual_workflow_run_filter():
     assert _caller_triggers_canary(caller, publisher)
     assert _top_level_yaml_scalar(pilot, "name") == "SlopSearX read-only review pilot"
     assert not _caller_triggers_canary(pilot, publisher)
+    assert "  workflow_dispatch:" in pilot
+    assert "target_repository: magnus919/SlopSearX" in pilot
     assert "PR_REVIEW_ANALYSIS_WORKFLOW_NAME: PR Review Analysis" in publisher
     assert not _caller_triggers_canary(caller.replace("name: PR Review Analysis\n", "", 1), publisher)
     assert not _caller_triggers_canary(
