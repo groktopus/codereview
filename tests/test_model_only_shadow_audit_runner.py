@@ -646,6 +646,29 @@ def test_sanitizer_accepts_bounded_source_only_no_candidate_receipt(receipt):
     assert receipt["roles"]["claim_auditor"] == "not_run"
 
 
+def test_sanitizer_accepts_only_consistent_zero_attempt_source_failure(tmp_path):
+    receipt = _candidate_free_receipt(source_status="failed", source_state=None)
+    SANITIZER._valid(receipt)
+    source = tmp_path / "source-predispatch-failure.json"
+    source.write_text(json.dumps(receipt))
+    output = tmp_path / "source-predispatch-sanitized"
+    SANITIZER.sanitize(source, output)
+    assert json.loads((output / "shadow-audit-receipt.json").read_text()) == receipt
+
+    contradictory = [
+        {**receipt, "terminal_state": "completed"},
+        {**receipt, "audit_provider_calls": 1},
+        {**receipt, "roles": {**receipt["roles"], "jev": "completed"}},
+        {**receipt, "roles": {**receipt["roles"], "source_auditor": "abstained"}},
+        {**receipt, "role_request_sha256": {
+            **receipt["role_request_sha256"], "source_auditor": "c" * 64,
+        }},
+    ]
+    for invalid in contradictory:
+        with pytest.raises(SANITIZER.ReceiptError):
+            SANITIZER._valid(invalid)
+
+
 @pytest.mark.parametrize("mutate", [
     lambda receipt: receipt.update(disposition="PASS"),
     lambda receipt: receipt["roles"].update(claim_auditor="completed"),
