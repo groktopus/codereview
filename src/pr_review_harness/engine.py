@@ -1545,7 +1545,12 @@ def run_review(
                 "max_output_bytes_per_task": 64_000,
                 "max_output_tokens": 1_800,
             }
-            profile_id = _private_capture_profile_id(profile)
+            try:
+                profile_id = _private_capture_profile_id(profile)
+            except (TypeError, ValueError) as exc:
+                raise EnginePreflightError(
+                    "invalid_review_request", "private capture profile identity is invalid"
+                ) from exc
             for task in primary_tasks:
                 if task.get("task_kind", "SPECIALIST_FINDINGS") != "SPECIALIST_FINDINGS":
                     continue
