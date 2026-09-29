@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import stat
 import sys
 from pathlib import Path
@@ -23,6 +24,8 @@ _CLI_SPEC = importlib.util.spec_from_file_location("run_shadow_audit_cli", Path(
 _CLI = importlib.util.module_from_spec(_CLI_SPEC)
 _CLI_SPEC.loader.exec_module(_CLI)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from run_sealed_source_record_jev import main as sealed_source_jev_main  # noqa: E402
+from run_sealed_source_record_jev import run_private_artifact_decision  # noqa: E402
 from sealed_source_record_integration import (  # noqa: E402
     SealedSourceIntegrationError,
     run_sealed_no_candidate_decision,
@@ -677,3 +680,167 @@ def test_pinned_capture_rejects_missing_or_unknown_task_binding(monkeypatch, tas
     with pytest.raises(Exception, match=error):
         provider.review_with_capture(task, [{"evidence_id": "ev-1", "content": "safe"}],
             _limits(), capture_spec, lambda *_args: pytest.fail("must not capture unbound request"))
+
+
+def test_private_operator_bridge_emits_hash_only_receipt_and_counts_external_calls(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    artifact_dir = tmp_path / "sealed"
+    source_run = run_shadow_audit(
+        packet, source_provider=source_provider,
+        jev_transport=lambda *_: pytest.fail("candidate Jev path must not run"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=artifact_dir,
+    )
+    assert source_run["manifest"]["roles"]["source_auditor"]["calls"][0]["dispatch_state"] == "http_attempted"
+
+    # The generic packet is a shape fixture; exercise the integration after its
+    # independent frozen-identity gate, which is covered by the rejection test.
+    import sealed_source_record_integration
+    monkeypatch.setattr(sealed_source_record_integration, "_validate_frozen_pr464", lambda _packet: "a" * 64)
+    calls = []
+
+    def jev_transport(raw, timeout, cap):
+        native = json.loads(raw)
+        calls.append((native, timeout, cap))
+        question_id = next(iter(native["questions"]))
+        choices = list(native["questions"][question_id]["criteria"])
+        choice = "SUPPORTED"
+        return json.dumps({
+            "model": "jev-1.13.0",
+            "answers": {question_id: {
+                "type": "choice", "choice": choice,
+                "probabilities": {name: float(name == choice) for name in choices}, "confidence": 0.8,
+            }},
+        }).encode()
+
+    receipt_dir = tmp_path / "receipt"
+    receipt = run_private_artifact_decision(
+        artifact_dir,
+        {"kind": "typesafe", "endpoint": "https://api.typesafe.ai/v1/systemone",
+         "model": "jev-latest", "api_key_env": "TEST_JEV_KEY"},
+        receipt_dir,
+        jev_transport=jev_transport,
+    )
+    assert len(calls) == 1
+    assert calls[0][1] <= 90 and calls[0][2] <= 64_000
+    assert "candidate" not in calls[0][0]["state"] and "writer_claim" not in calls[0][0]["state"]
+    assert receipt["external_provider_calls"] == {"source_auditor": 1, "jev": 1, "total": 2}
+    assert receipt["source_dispatch_state"] == receipt["jev_dispatch_state"] == "http_attempted"
+    assert receipt["transport_invocations_including_local_source_replay"] == 2
+    assert receipt["retries"] == 0 and receipt["publication_enabled"] is False
+    assert "advisory_choice" not in receipt and "probabilities" not in json.dumps(receipt)
+    assert "A source-grounded observation." not in json.dumps(receipt)
+    assert stat.S_IMODE(receipt_dir.stat().st_mode) == 0o700
+    receipt_path = receipt_dir / "source-record-jev-receipt.json"
+    assert stat.S_IMODE(receipt_path.stat().st_mode) == 0o600
+    assert json.loads(receipt_path.read_text()) == receipt
+
+
+def test_private_operator_bridge_rejects_non_http_source_before_jev(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    artifact_dir = tmp_path / "sealed-not-dispatched"
+    run_shadow_audit(
+        packet, source_provider=source_provider,
+        jev_transport=lambda *_: pytest.fail("candidate Jev path must not run"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=artifact_dir,
+    )
+    import sealed_source_record_integration
+    monkeypatch.setattr(sealed_source_record_integration, "_validate_frozen_pr464", lambda _packet: "a" * 64)
+    manifest_path = artifact_dir / "shadow-audit-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["roles"]["source_auditor"]["calls"][0]["dispatch_state"] = "guard_rejected"
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")))
+    os.chmod(manifest_path, 0o600)
+    calls = []
+    with pytest.raises(SealedSourceIntegrationError, match="source_provider_call_not_observed"):
+        run_private_artifact_decision(
+            artifact_dir,
+            {"kind": "typesafe", "endpoint": "https://api.typesafe.ai/v1/systemone",
+             "model": "jev-latest", "api_key_env": "TEST_JEV_KEY"},
+            tmp_path / "must-not-exist",
+            jev_transport=lambda *_: calls.append(True) or b"{}",
+        )
+    assert calls == []
+    assert not (tmp_path / "must-not-exist").exists()
+
+
+def test_private_operator_bridge_rejects_non_frozen_case_before_jev(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    artifact_dir = tmp_path / "not-pr464"
+    run_shadow_audit(
+        packet, source_provider=source_provider,
+        jev_transport=lambda *_: pytest.fail("candidate Jev path must not run"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=artifact_dir,
+    )
+    calls = []
+    with pytest.raises(SealedSourceIntegrationError, match="frozen_pr464_identity_invalid"):
+        run_private_artifact_decision(
+            artifact_dir,
+            {"kind": "typesafe", "endpoint": "https://api.typesafe.ai/v1/systemone",
+             "model": "jev-latest", "api_key_env": "TEST_JEV_KEY"},
+            tmp_path / "must-not-exist",
+            jev_transport=lambda *_: calls.append(True) or b"{}",
+        )
+    assert calls == []
+
+
+def test_frozen_pr464_validator_loads_checked_in_plan_corpus_and_identity(monkeypatch):
+    import sealed_source_record_integration
+
+    seen = {}
+
+    def validate_identity(corpus, identity, plan, plan_raw, packet):
+        seen.update(corpus=corpus, identity=identity, plan=plan, plan_raw=plan_raw, packet=packet)
+
+    monkeypatch.setattr(sealed_source_record_integration, "validate_identity", validate_identity)
+    packet = {"case_id": "PR-464", "profile_id": "slopsearx"}
+    plan_hash = sealed_source_record_integration._validate_frozen_pr464(packet)
+    assert plan_hash == hashlib.sha256(seen["plan_raw"]).hexdigest()
+    assert seen["plan"]["case"]["case_id"] == "PR-464"
+    assert seen["identity"]["case_id"] == "PR-464"
+    assert seen["corpus"]["cases"][0]["identity"]["case_id"] == "PR-464"
+    assert seen["packet"] is packet
+
+
+def test_private_operator_bridge_keeps_jev_not_run_when_source_abstains(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _source_content([], "abstained"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    artifact_dir = tmp_path / "source-abstained"
+    run_shadow_audit(
+        packet, source_provider=source_provider,
+        jev_transport=lambda *_: pytest.fail("candidate Jev path must not run"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=artifact_dir,
+    )
+    import sealed_source_record_integration
+    monkeypatch.setattr(sealed_source_record_integration, "_validate_frozen_pr464", lambda _packet: "a" * 64)
+    jev_calls = []
+    receipt = run_private_artifact_decision(
+        artifact_dir,
+        {"kind": "typesafe", "endpoint": "https://api.typesafe.ai/v1/systemone",
+         "model": "jev-latest", "api_key_env": "TEST_JEV_KEY"},
+        tmp_path / "source-abstained-receipt",
+        jev_transport=lambda *_: jev_calls.append(True) or b"{}",
+    )
+    assert jev_calls == []
+    assert receipt["external_provider_calls"] == {"source_auditor": 1, "jev": 0, "total": 1}
+    assert receipt["jev_transport_invocations"] == 0
+    assert receipt["jev_status"] == "not_run"
+    assert receipt["jev_dispatch_state"] == "not_run"
+    assert receipt["transport_invocations_including_local_source_replay"] == 1
+
+
+def test_private_operator_cli_requires_explicit_live_before_reading_or_dispatching(tmp_path):
+    with pytest.raises(SystemExit) as exit_info:
+        sealed_source_jev_main([
+            "--artifacts", str(tmp_path / "missing-artifacts"),
+            "--jev-config", str(tmp_path / "missing-config.json"),
+            "--output-dir", str(tmp_path / "receipt"),
+        ])
+    assert exit_info.value.code == 2
+    assert not (tmp_path / "receipt").exists()

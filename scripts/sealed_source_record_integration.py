@@ -1,6 +1,7 @@
 """Offline bridge from a sealed no-candidate shadow audit to source-record Jev.
 
-This script-only helper is not wired into the hosted runner, workflow, or CLI.
+This helper is not wired into the hosted runner or workflow. The separate
+``run_sealed_source_record_jev.py`` operator CLI uses it only for frozen PR464.
 It checks the internal consistency of a supplied ``run_shadow_audit`` result's
 packet, snapshot, source request, response, and source-audit-seal bindings
 before replaying the source response into the separate typed Jev path. These
@@ -17,6 +18,8 @@ import stat
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from model_only_shadow_evaluation_identity import validate_identity
+from shadow_case_policy import validate_plan_binding
 from source_record_decision import run_source_record_decision
 
 from pr_review_harness.shadow_audit import (
@@ -29,6 +32,10 @@ from pr_review_harness.shadow_audit import (
 )
 
 MAX_ARTIFACT_BYTES = 4_000_000
+ROOT = Path(__file__).resolve().parents[1]
+PR464_CORPUS = ROOT / "examples/evaluation/model-only-shadow-pr464-v2/corpus.json"
+PR464_IDENTITY = ROOT / "examples/evaluation/model-only-shadow-pr464-v2/manifest.json"
+PR464_PLAN = ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json"
 
 
 class SealedSourceIntegrationError(ValueError):
@@ -91,6 +98,25 @@ def _source_user(packet: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _validate_frozen_pr464(packet: dict[str, Any]) -> str:
+    """Bind the no-candidate packet to the checked-in PR464 identity and plan."""
+    try:
+        plan_raw = PR464_PLAN.read_bytes()
+        plan = _decode(plan_raw)
+        case_id, _policy = validate_plan_binding(plan, plan_raw)
+        corpus = _decode(PR464_CORPUS.read_bytes())
+        identity = _decode(PR464_IDENTITY.read_bytes())
+        validate_identity(corpus, identity, plan, plan_raw, packet)
+        case_identity = corpus["cases"][0]["identity"]
+        if packet.get("profile_id") != case_identity["profile"]["profile_id"]:
+            raise ValueError("profile_id_mismatch")
+    except Exception:
+        raise SealedSourceIntegrationError("frozen_pr464_identity_invalid") from None
+    if case_id != "PR-464" or packet.get("case_id") != "PR-464":
+        raise SealedSourceIntegrationError("frozen_pr464_identity_invalid")
+    return hashlib.sha256(plan_raw).hexdigest()
+
+
 def run_sealed_no_candidate_decision(
     shadow_result: Mapping[str, Any],
     *,
@@ -98,6 +124,7 @@ def run_sealed_no_candidate_decision(
     jev_transport: Callable[[bytes, float, int], bytes],
     deadline_seconds: float = 90.0,
     clock: Callable[[], float] | None = None,
+    require_frozen_pr464: bool = False,
 ) -> dict[str, Any]:
     """Classify at most one sealed source record and retain incomplete overall status."""
     if not isinstance(shadow_result, Mapping) or set(shadow_result) != {"manifest", "artifact_paths"}:
@@ -122,6 +149,7 @@ def run_sealed_no_candidate_decision(
         raise SealedSourceIntegrationError("case_packet_invalid") from None
     if _sha(packet_raw) != manifest.get("case_packet_sha256") or packet["writer_candidate"] is not None:
         raise SealedSourceIntegrationError("no_candidate_packet_binding_invalid")
+    plan_sha256 = _validate_frozen_pr464(packet) if require_frozen_pr464 else None
     snapshot_raw = _artifact(paths, "case-snapshot")
     if snapshot_raw != _canonical(packet["snapshot"]):
         raise SealedSourceIntegrationError("snapshot_artifact_binding_invalid")
@@ -141,6 +169,8 @@ def run_sealed_no_candidate_decision(
             or not isinstance(calls, list) or len(calls) != 1 or not isinstance(calls[0], dict)):
         raise SealedSourceIntegrationError("source_audit_not_sealed")
     call = calls[0]
+    if require_frozen_pr464 and call.get("dispatch_state") != "http_attempted":
+        raise SealedSourceIntegrationError("source_provider_call_not_observed")
     response_raw = _artifact(paths, "source-auditor-response", 64_000)
     request_raw = _artifact(paths, "source-auditor-request", 64_000)
     if (call.get("response_artifact_id") != "source-auditor-response"
@@ -199,7 +229,7 @@ def run_sealed_no_candidate_decision(
     if clock is not None:
         decision_kwargs["clock"] = clock
     advisory = run_source_record_decision(**decision_kwargs)
-    return {
+    result = {
         "contract_version": "sealed-no-candidate-source-record.v1",
         "subject_kind": "frozen_case",
         "subject_id_sha256": hashlib.sha256(packet["case_id"].encode()).hexdigest(),
@@ -209,6 +239,10 @@ def run_sealed_no_candidate_decision(
         "disposition": "not_set",
         "writer_comparison": "not_applicable",
         "shadow_manifest_sha256": _sha(manifest_raw),
+        "source_auditor_request_sha256": call.get("request_sha256"),
         "source_response_sha256": _sha(response_raw),
         "advisory_source_record_decision": advisory,
     }
+    if plan_sha256 is not None:
+        result["plan_sha256"] = plan_sha256
+    return result

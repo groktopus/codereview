@@ -166,8 +166,10 @@ class SourceRecordTransport:
         self.endpoint, self.model, self.api_key_env = endpoint, model, credential_env
         self.timeout_seconds, self.max_request_bytes, self.max_response_bytes = float(timeout), request_cap, response_cap
         self._opener, self._clock = _SOURCE_RECORD_OPENER if opener is None else opener, clock
+        self.last_dispatch_state = "unknown"
 
     def __call__(self, request_bytes: bytes, deadline_seconds: float, max_response_bytes: int) -> bytes:
+        self.last_dispatch_state = "unknown"
         _transport_native_request(request_bytes, configured_model=self.model, request_cap=self.max_request_bytes)
         if isinstance(deadline_seconds, bool) or not isinstance(deadline_seconds, (int, float)) or not math.isfinite(deadline_seconds) or deadline_seconds <= 0:
             raise SourceRecordTransportError("invalid_source_record_deadline")
@@ -179,6 +181,7 @@ class SourceRecordTransport:
         request = Request(self.endpoint, data=request_bytes,
                           headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method="POST")
         deadline_at = self._clock() + timeout
+        self.last_dispatch_state = "http_attempted"
         try:
             with self._opener.open(request, timeout=timeout) as response:
                 raw = _read_bounded(response, output_cap, deadline_at, self._clock)
