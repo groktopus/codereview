@@ -4,6 +4,7 @@ import re
 import subprocess
 import textwrap
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -118,6 +119,8 @@ def _run_repository_identity_preflight(caller_repository: str, target_repository
             "HARNESS_REPOSITORY": "groktopus/codereview",
             "HARNESS_SHA": "a" * 40,
             "CALLER_REPOSITORY": caller_repository,
+            "CALLER_REF": "refs/heads/main",
+            "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main",
             "TARGET_REPOSITORY": target_repository,
             "PR_NUMBER": "477",
             "BASE_REF": "main",
@@ -157,6 +160,68 @@ def test_reusable_analysis_accepts_the_exact_caller_target_repository():
     run = _run_repository_identity_preflight(TARGET_REPOSITORY, TARGET_REPOSITORY)
     run.assert_called_once()
     assert run.call_args.args[0] == ["git", "check-ref-format", "refs/heads/main"]
+
+
+def test_reusable_analysis_accepts_only_the_pinned_central_pilot_pair_on_main():
+    run = _run_repository_identity_preflight("groktopus/codereview", TARGET_REPOSITORY)
+    run.assert_called_once()
+    assert run.call_args.args[0] == ["git", "check-ref-format", "refs/heads/main"]
+
+
+@pytest.mark.parametrize(
+    ("caller", "target", "caller_ref"),
+    [
+        ("attacker/untrusted", TARGET_REPOSITORY, "refs/heads/main"),
+        ("groktopus/codereview", "attacker/target", "refs/heads/main"),
+        ("groktopus/codereview", TARGET_REPOSITORY, "refs/heads/feature"),
+    ],
+)
+def test_reusable_analysis_rejects_other_cross_repository_pairs(caller, target, caller_ref):
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
+    script = _python_script(step)
+    with patch.dict(
+        os.environ,
+        {
+            "HARNESS_REPOSITORY": "groktopus/codereview",
+            "HARNESS_SHA": "a" * 40,
+            "CALLER_REPOSITORY": caller,
+            "CALLER_REF": caller_ref,
+            "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main",
+            "TARGET_REPOSITORY": target,
+            "PR_NUMBER": "477",
+            "BASE_REF": "main",
+            "BASE_SHA": BASE_SHA,
+            "HEAD_SHA": HEAD_SHA,
+        },
+    ), patch("subprocess.run") as run:
+        with pytest.raises(SystemExit, match="caller_target_repository_mismatch"):
+            exec(compile(script, "reusable analysis repository identity", "exec"), {})
+        run.assert_not_called()
+
+
+def test_reusable_analysis_rejects_other_central_workflows():
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
+    script = _python_script(step)
+    with patch.dict(
+        os.environ,
+        {
+            "HARNESS_REPOSITORY": "groktopus/codereview",
+            "HARNESS_SHA": "a" * 40,
+            "CALLER_REPOSITORY": "groktopus/codereview",
+            "CALLER_REF": "refs/heads/main",
+            "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/other.yml@refs/heads/main",
+            "TARGET_REPOSITORY": TARGET_REPOSITORY,
+            "PR_NUMBER": "477",
+            "BASE_REF": "main",
+            "BASE_SHA": BASE_SHA,
+            "HEAD_SHA": HEAD_SHA,
+        },
+    ), patch("subprocess.run") as run:
+        with pytest.raises(SystemExit, match="caller_target_repository_mismatch"):
+            exec(compile(script, "reusable analysis repository identity", "exec"), {})
+        run.assert_not_called()
 
 
 def _caller_triggers_canary(caller: str, publisher: str) -> bool:
@@ -447,6 +512,50 @@ def test_production_analysis_fetches_immutable_pr_base_after_api_identity_check(
     )
     assert git("--git-dir", store, "rev-parse", "refs/pr/base") == base_sha
     assert git("--git-dir", remote, "rev-parse", "refs/heads/main") == advanced_main
+
+
+@pytest.mark.parametrize(
+    ("current", "reason"),
+    [
+        (
+            {"state": "open", "draft": True, "base_sha": BASE_SHA, "head_sha": HEAD_SHA},
+            "target_pull_request_not_open_ready",
+        ),
+        (
+            {"state": "open", "draft": False, "base_sha": "d" * 40, "head_sha": HEAD_SHA},
+            "target_pull_request_revision_mismatch",
+        ),
+        (
+            {"state": "open", "draft": False, "base_sha": BASE_SHA, "head_sha": "e" * 40},
+            "target_pull_request_revision_mismatch",
+        ),
+    ],
+)
+def test_production_analysis_stops_before_object_fetch_for_draft_or_stale_identity(
+    monkeypatch, tmp_path, current, reason
+):
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = _step(source, "Validate pinned source and PR identity, then acquire bare target objects")
+    script = _python_script(step)
+    monkeypatch.setenv("HARNESS_SHA", "a" * 40)
+    monkeypatch.setenv("TARGET_REPOSITORY", TARGET_REPOSITORY)
+    monkeypatch.setenv("PR_NUMBER", "477")
+    monkeypatch.setenv("BASE_REF", "main")
+    monkeypatch.setenv("BASE_SHA", BASE_SHA)
+    monkeypatch.setenv("HEAD_SHA", HEAD_SHA)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "groktopus/codereview")
+    monkeypatch.setenv("OBJECT_STORE", str(tmp_path / "target.git"))
+    monkeypatch.setenv("EVENT_OUTPUT", str(tmp_path / "event.json"))
+
+    with patch("pr_review_harness.github.GitHubPRAdapter") as adapter, patch("subprocess.run") as run:
+        adapter.return_value.pull_request.return_value = current
+        run.return_value = SimpleNamespace(stdout="a" * 40 + "\n")
+        with pytest.raises(SystemExit, match=reason):
+            exec(compile(script, "reusable analysis source preflight", "exec"), {"__name__": "__main__"})
+
+    adapter.return_value.pull_request.assert_called_once_with(TARGET_REPOSITORY, 477)
+    assert run.call_count == 1
+    assert run.call_args.args[0] == ("git", "rev-parse", "HEAD")
 
 
 def test_historical_free_model_workflow_remains_separate_from_production_provider_config():

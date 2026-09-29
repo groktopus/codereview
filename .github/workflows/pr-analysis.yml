@@ -66,6 +66,8 @@ jobs:
           HARNESS_REPOSITORY: ${{ inputs.harness_repository }}
           HARNESS_SHA: ${{ inputs.harness_sha }}
           CALLER_REPOSITORY: ${{ github.repository }}
+          CALLER_REF: ${{ github.ref }}
+          CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
           TARGET_REPOSITORY: ${{ inputs.target_repository }}
           PR_NUMBER: ${{ inputs.pull_request_number }}
           BASE_REF: ${{ inputs.base_ref }}
@@ -82,8 +84,18 @@ jobs:
               raise SystemExit('target_repository_invalid')
           if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', os.environ['CALLER_REPOSITORY']):
               raise SystemExit('caller_repository_invalid')
-          if os.environ['CALLER_REPOSITORY'] != os.environ['TARGET_REPOSITORY']:
-              raise SystemExit('caller_target_repository_mismatch')
+          caller = os.environ['CALLER_REPOSITORY']
+          target = os.environ['TARGET_REPOSITORY']
+          if caller != target:
+              central_pilot = (
+                  caller == 'groktopus/codereview'
+                  and os.environ['CALLER_REF'] == 'refs/heads/main'
+                  and os.environ['CALLER_WORKFLOW_REF']
+                  == 'groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main'
+                  and target == 'magnus919/SlopSearX'
+              )
+              if not central_pilot:
+                  raise SystemExit('caller_target_repository_mismatch')
           if not os.environ['PR_NUMBER'].isdigit() or int(os.environ['PR_NUMBER']) < 1:
               raise SystemExit('pull_request_number_invalid')
           base_ref = os.environ['BASE_REF']
