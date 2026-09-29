@@ -448,6 +448,70 @@ def test_sealed_no_candidate_integration_rejects_mutated_snapshot_artifact(monke
         )
 
 
+def test_sealed_no_candidate_accepts_frozen_v3_sized_source_request(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    shadow_result = run_shadow_audit(
+        packet, source_provider=source_provider, jev_transport=lambda *_: pytest.fail("candidate Jev must not run"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=tmp_path / "v3-sized-source-request",
+    )
+    import sealed_source_record_integration as sealed_source
+
+    frozen_plan = json.loads(sealed_source.PR464_PLAN.read_bytes())
+    assert frozen_plan["budget"]["audit_max_input_bytes_per_call"] == sealed_source.MAX_SOURCE_AUDITOR_REQUEST_BYTES
+    request_path = shadow_result["artifact_paths"]["source-auditor-request"]
+    request = request_path.read_bytes()
+    assert len(request) < 64_000
+    padded_request = request + b" " * (74_521 - len(request))
+    assert len(padded_request) == 74_521
+    request_path.write_bytes(padded_request)
+    call = shadow_result["manifest"]["roles"]["source_auditor"]["calls"][0]
+    call["request_sha256"] = hashlib.sha256(padded_request).hexdigest()
+    manifest_path = shadow_result["artifact_paths"]["shadow-audit-manifest"]
+    manifest_path.write_bytes(sealed_source._canonical(shadow_result["manifest"]))
+
+    result = run_sealed_no_candidate_decision(
+        shadow_result, expected_jev_model_id="jev-latest",
+        jev_transport=lambda raw, _timeout, _cap: _jev_response(raw),
+    )
+    assert result["source_auditor_request_sha256"] == hashlib.sha256(padded_request).hexdigest()
+    assert result["terminal_state"] == "incomplete"
+    assert result["advisory_source_record_decision"]["jev_status"] == "completed"
+
+
+@pytest.mark.parametrize(("request_bytes", "error"), [
+    (b"x" * 96_001, "sealed_source_artifact_invalid"),
+    (b"{malformed-json", "sealed_source_json_invalid"),
+])
+def test_sealed_no_candidate_rejects_oversized_or_malformed_source_request(
+    monkeypatch, tmp_path, request_bytes, error,
+):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    shadow_result = run_shadow_audit(
+        packet, source_provider=source_provider, jev_transport=lambda *_: pytest.fail("candidate Jev must not run"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=tmp_path / f"bad-source-request-{error}",
+    )
+    import sealed_source_record_integration as sealed_source
+
+    request_path = shadow_result["artifact_paths"]["source-auditor-request"]
+    request_path.write_bytes(request_bytes)
+    call = shadow_result["manifest"]["roles"]["source_auditor"]["calls"][0]
+    call["request_sha256"] = hashlib.sha256(request_bytes).hexdigest()
+    manifest_path = shadow_result["artifact_paths"]["shadow-audit-manifest"]
+    manifest_path.write_bytes(sealed_source._canonical(shadow_result["manifest"]))
+    jev_calls = []
+
+    with pytest.raises(SealedSourceIntegrationError, match=error):
+        run_sealed_no_candidate_decision(
+            shadow_result, expected_jev_model_id="jev-latest",
+            jev_transport=lambda *args: jev_calls.append(args),
+        )
+    assert jev_calls == []
+
+
 def test_sealed_no_candidate_integration_rejects_a_candidate_audit_role(monkeypatch, tmp_path):
     packet = _packet(candidate=False)
     source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
