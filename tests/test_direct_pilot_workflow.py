@@ -391,6 +391,14 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
         "",
         1,
     )
+    # Keep the historical diagnostic's default limits and zero candidate cap;
+    # remove only the two explicit ordinary-path additions.
+    bounded_claim_cap = "            --max-claim-assessments 1 \\\n"
+    assert reusable_command.count(bounded_claim_cap) == 1
+    reusable_command = reusable_command.replace(bounded_claim_cap, "", 1)
+    review_limits = "            --limits profiles/ordinary-review-limits-v1.json \\\n"
+    assert reusable_command.count(review_limits) == 1
+    reusable_command = reusable_command.replace(review_limits, "", 1)
     assert direct_command.rstrip() == reusable_command.rstrip()
     assert "PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json" in direct_review
     assert "env GITHUB_REPOSITORY=magnus919/SlopSearX pr-review review" in direct_review
@@ -403,6 +411,7 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
     assert "--mode AUTO" in direct_review
     assert "--json > artifacts/review-result.json" in direct_review
     assert "--limits" not in direct_review
+    assert "--max-claim-assessments" not in direct_review
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" not in direct_review
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in reusable_review
 

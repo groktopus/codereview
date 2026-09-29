@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from pr_review_harness.cli import _limits, _read_limits
+
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-publish.yml"
 ANALYSIS_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-analysis.yml"
 TEST_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/review-commits.yml"
@@ -358,6 +360,25 @@ def test_production_analysis_uses_fixed_bounded_claim_assessment_and_preserves_r
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
     assert "--artifact-root artifacts" in manifest_step
     assert 'DECISION_CONFIG: ${{ runner.temp }}/pr-review-provider-config/decision.json' in manifest_step
+
+
+def test_ordinary_context_budget_is_a_trusted_single_override_and_fixed_in_workflow():
+    limits_path = Path(__file__).parents[1] / "profiles/ordinary-review-limits-v1.json"
+    policy = json.loads(limits_path.read_text(encoding="utf-8"))
+    assert policy == {"schema_version": "1.0", "max_context_bytes": 600000}
+
+    baseline = _limits()
+    resolved = _read_limits(SimpleNamespace(limits=str(limits_path)))
+    changed = {key for key in baseline if baseline[key] != resolved[key]}
+    assert changed == {"max_context_bytes"}
+    assert resolved["max_context_bytes"] == 600000
+
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    review_step = _step(source, "Produce a bounded read-only report from the bare target object store")
+    review_command = review_step.split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
+    assert '--limits profiles/ordinary-review-limits-v1.json \\' in review_command
+    assert "inputs.limits" not in source
+    assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
 
 
 def test_production_analysis_creates_redirect_parent_before_cli_starts():
