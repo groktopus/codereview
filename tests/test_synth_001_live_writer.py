@@ -10,28 +10,33 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_synth_001_live_writer as runner  # noqa: E402
+from frozen_runtime import build_frozen_runtime_root  # noqa: E402
 
 RunnerError = runner.RunnerError
 run_preflight = runner.run_preflight
 validate_receipt_bundle = runner.validate_receipt_bundle
 
 
-def _use_ci_runtime_for_verification_tests(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep production's pinned runtime while testing receipt flow on matrix Python."""
+def _receipt_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    frozen_runtime = build_frozen_runtime_root(tmp_path)
+    # Exercise the historical CLI source as well as the historical verifier.
+    # The fixed fixture/profile/config paths are module constants and remain
+    # rooted in the checkout; _prepare uses ROOT only for CLI import and cwd.
+    monkeypatch.setattr(runner, "ROOT", frozen_runtime)
     original_verify = runner.verify
 
-    def verify_with_test_runtime(*args, **kwargs):
+    def verify_with_frozen_runtime(*args, **kwargs):
+        updated = list(args)
+        updated[7] = frozen_runtime
+        # Keep the verifier's fixed production pin intact while making tests
+        # portable across the repository's supported CI Python matrix.
         kwargs["expected_python_identity"] = {
             "implementation": sys.implementation.name,
             "version": sys.version.split()[0],
         }
-        return original_verify(*args, **kwargs)
+        return original_verify(*updated, **kwargs)
 
-    monkeypatch.setattr(runner, "verify", verify_with_test_runtime)
-
-
-def _receipt_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    _use_ci_runtime_for_verification_tests(monkeypatch)
+    monkeypatch.setattr(runner, "verify", verify_with_frozen_runtime)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     result = run_preflight()
     work = Path(result["artifact_directory"])
