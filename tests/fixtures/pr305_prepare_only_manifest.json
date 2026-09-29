@@ -1,0 +1,1834 @@
+{
+  "checks": {
+    "check_evidence_hash": "8a7b9c6a2acca91b39e6f9d93888bcc296db07344310c58ff34f43a8982bbc70",
+    "check_results": {
+      "external:portal-browser": {
+        "outcome": "UNKNOWN",
+        "reason": "check_run_missing_or_ambiguous"
+      },
+      "external:portal-contract": {
+        "outcome": "UNKNOWN",
+        "reason": "check_run_missing_or_ambiguous"
+      }
+    },
+    "historical_check_identity": {
+      "base_sha": "00accc58a42eaa470e12831498b572cab2483981",
+      "check_document_sha256": "c3db3f059906716c0225787132116248464d8632b3404ca0f822acf88c95d27e",
+      "head_sha": "90165dd65be3595006171d7abef34a082c90a71d",
+      "pull_request_number": 305,
+      "repository": "magnus919/SlopSearX"
+    }
+  },
+  "fixture_metadata": {
+    "identity_note": "Frozen target identity is magnus919/SlopSearX PR 305 at the recorded base/head; fixture retains hashes/counts only.",
+    "purpose": "sanitized provider-free prepare-only scheduler test fixture",
+    "source_artifact_sha256": "f2bd9c5e8264b88d88c52e90e9350927bfa193a579c4d7c07251b0bf5881c3d7",
+    "source_run": "PR305 prepare-only replay for base/head below; no provider calls or target-code execution",
+    "stripped_fields": [
+      "source text",
+      "prompts",
+      "full evidence",
+      "credentials",
+      "provider endpoint"
+    ]
+  },
+  "no_provider_calls": true,
+  "no_target_code_execution": true,
+  "primary_requests": [
+    {
+      "admitted": true,
+      "input_bytes": 57570,
+      "input_sha256": "8a0baf496a03284eafd6a7e753ad93d571acb8724064faa44722af2275100ff9",
+      "lens": "correctness",
+      "obligation_ids": [
+        "unit:unit-ea84213b01d0c1ffc1ab:lens:correctness",
+        "unit:unit-f751016de50fd6f01e5e:lens:correctness",
+        "unit:unit-3ab7b2a3af312d0b4319:lens:correctness"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3712de981ddcc0d1:chunk-1",
+      "unit_ids": [
+        "unit-ea84213b01d0c1ffc1ab",
+        "unit-f751016de50fd6f01e5e",
+        "unit-3ab7b2a3af312d0b4319"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 46936,
+      "input_sha256": "e3666d287dd23d58ceaf20396188153af8fd440e6b17e459ff775b8361e260a7",
+      "lens": "correctness",
+      "obligation_ids": [
+        "unit:unit-f1dcabcdb97f34fae272:lens:correctness",
+        "unit:unit-7987e6276214e873ed93:lens:correctness",
+        "unit:unit-9ec6727d1355643feb4e:lens:correctness"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3712de981ddcc0d1:chunk-2",
+      "unit_ids": [
+        "unit-f1dcabcdb97f34fae272",
+        "unit-7987e6276214e873ed93",
+        "unit-9ec6727d1355643feb4e"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 59815,
+      "input_sha256": "2f9151a5f596f6ae11ca3114ec604bba1bd76fb896e54970ee5c72a75cceb0bb",
+      "lens": "correctness",
+      "obligation_ids": [
+        "unit:unit-d857a6647fc0642fe459:lens:correctness",
+        "unit:unit-aebd3928a0ba4dea2753:lens:correctness"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3712de981ddcc0d1:chunk-3",
+      "unit_ids": [
+        "unit-d857a6647fc0642fe459",
+        "unit-aebd3928a0ba4dea2753"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 35414,
+      "input_sha256": "7586ed0bdf45dc57a8fbb460fe911efb8d9c0bd8fc6997fa07901858418f72ad",
+      "lens": "correctness",
+      "obligation_ids": [
+        "unit:unit-a375830d2b400d606450:lens:correctness",
+        "unit:unit-67025298a4db54c233ed:lens:correctness"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3712de981ddcc0d1:chunk-4",
+      "unit_ids": [
+        "unit-a375830d2b400d606450",
+        "unit-67025298a4db54c233ed"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 53849,
+      "input_sha256": "fefb226a96774596ac223af15079f59312194c4716d54b8727df5553e6443f4f",
+      "lens": "correctness",
+      "obligation_ids": [
+        "unit:unit-88843d283a9cbb959387:lens:correctness"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3712de981ddcc0d1:chunk-5",
+      "unit_ids": [
+        "unit-88843d283a9cbb959387"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 57566,
+      "input_sha256": "57061c34a558f0393735e7f0077ea86ea6b23dfefa0833fa15d08f4a9e1974fd",
+      "lens": "tests",
+      "obligation_ids": [
+        "unit:unit-ea84213b01d0c1ffc1ab:lens:tests",
+        "unit:unit-f751016de50fd6f01e5e:lens:tests",
+        "unit:unit-3ab7b2a3af312d0b4319:lens:tests"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-32a9005bc7e1f5cf:chunk-1",
+      "unit_ids": [
+        "unit-ea84213b01d0c1ffc1ab",
+        "unit-f751016de50fd6f01e5e",
+        "unit-3ab7b2a3af312d0b4319"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 46932,
+      "input_sha256": "1cf93fd95130a64ce49b4202187adce66744c467a41d8b8bce091d3fb69b3103",
+      "lens": "tests",
+      "obligation_ids": [
+        "unit:unit-f1dcabcdb97f34fae272:lens:tests",
+        "unit:unit-7987e6276214e873ed93:lens:tests",
+        "unit:unit-9ec6727d1355643feb4e:lens:tests"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-32a9005bc7e1f5cf:chunk-2",
+      "unit_ids": [
+        "unit-f1dcabcdb97f34fae272",
+        "unit-7987e6276214e873ed93",
+        "unit-9ec6727d1355643feb4e"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 59817,
+      "input_sha256": "a1ba71110e0a44578f8e2901e93e36421da144c79ffb6a7bfbc26d9450eb5ee1",
+      "lens": "tests",
+      "obligation_ids": [
+        "unit:unit-d857a6647fc0642fe459:lens:tests",
+        "unit:unit-aebd3928a0ba4dea2753:lens:tests"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-32a9005bc7e1f5cf:chunk-3",
+      "unit_ids": [
+        "unit-d857a6647fc0642fe459",
+        "unit-aebd3928a0ba4dea2753"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 35416,
+      "input_sha256": "5ee0f14625ce491e2eefef94cf7f084c3dabd46facbef6f0aa375c5b12cf6f7d",
+      "lens": "tests",
+      "obligation_ids": [
+        "unit:unit-a375830d2b400d606450:lens:tests",
+        "unit:unit-67025298a4db54c233ed:lens:tests"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-32a9005bc7e1f5cf:chunk-4",
+      "unit_ids": [
+        "unit-a375830d2b400d606450",
+        "unit-67025298a4db54c233ed"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 53857,
+      "input_sha256": "5a15e9d5c17f44a516e89fc00e9c32bb6fda573499d5b89d25a39f9c5405fbda",
+      "lens": "tests",
+      "obligation_ids": [
+        "unit:unit-88843d283a9cbb959387:lens:tests"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-32a9005bc7e1f5cf:chunk-5",
+      "unit_ids": [
+        "unit-88843d283a9cbb959387"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 57342,
+      "input_sha256": "c173ba9d362544bfc2603bf1dce9326bedc1cb14a160f9918b0d64555e46eafb",
+      "lens": "design",
+      "obligation_ids": [
+        "unit:unit-ea84213b01d0c1ffc1ab:lens:design",
+        "unit:unit-f751016de50fd6f01e5e:lens:design",
+        "unit:unit-3ab7b2a3af312d0b4319:lens:design"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-8e838a61f3c09606:chunk-1",
+      "unit_ids": [
+        "unit-ea84213b01d0c1ffc1ab",
+        "unit-f751016de50fd6f01e5e",
+        "unit-3ab7b2a3af312d0b4319"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 46708,
+      "input_sha256": "edc7f78a0be293c7bef4080e90bdfe4c49cefb1736a054d29d8a4bbccbd95a7f",
+      "lens": "design",
+      "obligation_ids": [
+        "unit:unit-f1dcabcdb97f34fae272:lens:design",
+        "unit:unit-7987e6276214e873ed93:lens:design",
+        "unit:unit-9ec6727d1355643feb4e:lens:design"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-8e838a61f3c09606:chunk-2",
+      "unit_ids": [
+        "unit-f1dcabcdb97f34fae272",
+        "unit-7987e6276214e873ed93",
+        "unit-9ec6727d1355643feb4e"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 59592,
+      "input_sha256": "a0474afc81990cd61a76ba937e83948bb93b2cae8b08ffa9d0cb110158ac5659",
+      "lens": "design",
+      "obligation_ids": [
+        "unit:unit-d857a6647fc0642fe459:lens:design",
+        "unit:unit-aebd3928a0ba4dea2753:lens:design"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-8e838a61f3c09606:chunk-3",
+      "unit_ids": [
+        "unit-d857a6647fc0642fe459",
+        "unit-aebd3928a0ba4dea2753"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 40083,
+      "input_sha256": "39210798301a1c143b8ea4a6fbbddb982a6e9d02cef89db2ae4f626eed7643c7",
+      "lens": "design",
+      "obligation_ids": [
+        "unit:unit-a375830d2b400d606450:lens:design",
+        "unit:unit-3472f1fd51ff56b4bcc3:lens:design",
+        "unit:unit-67025298a4db54c233ed:lens:design"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-8e838a61f3c09606:chunk-4",
+      "unit_ids": [
+        "unit-a375830d2b400d606450",
+        "unit-3472f1fd51ff56b4bcc3",
+        "unit-67025298a4db54c233ed"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 53631,
+      "input_sha256": "eaf98e7a1a7053d02cb26558d5b04e9fd49db2eef5242a7dbd502326e54383cc",
+      "lens": "design",
+      "obligation_ids": [
+        "unit:unit-88843d283a9cbb959387:lens:design"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-8e838a61f3c09606:chunk-5",
+      "unit_ids": [
+        "unit-88843d283a9cbb959387"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 57534,
+      "input_sha256": "9e35cdecd0b477b225e7999612ed914239200ce1654c8f58e65868d4e8a3aac4",
+      "lens": "security",
+      "obligation_ids": [
+        "unit:unit-ea84213b01d0c1ffc1ab:lens:security",
+        "unit:unit-f751016de50fd6f01e5e:lens:security",
+        "unit:unit-3ab7b2a3af312d0b4319:lens:security"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-095d7e8f91ab61bf:chunk-1",
+      "unit_ids": [
+        "unit-ea84213b01d0c1ffc1ab",
+        "unit-f751016de50fd6f01e5e",
+        "unit-3ab7b2a3af312d0b4319"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 46900,
+      "input_sha256": "ac67d668c8c26c28ce0be0d66462d7f734b776869febaf11573103a4a202e6e7",
+      "lens": "security",
+      "obligation_ids": [
+        "unit:unit-f1dcabcdb97f34fae272:lens:security",
+        "unit:unit-7987e6276214e873ed93:lens:security",
+        "unit:unit-9ec6727d1355643feb4e:lens:security"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-095d7e8f91ab61bf:chunk-2",
+      "unit_ids": [
+        "unit-f1dcabcdb97f34fae272",
+        "unit-7987e6276214e873ed93",
+        "unit-9ec6727d1355643feb4e"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 59782,
+      "input_sha256": "e4a20edc96e9e3d8718115d2dd606ca657c8225b81b8db10eb61bf4590763a55",
+      "lens": "security",
+      "obligation_ids": [
+        "unit:unit-d857a6647fc0642fe459:lens:security",
+        "unit:unit-aebd3928a0ba4dea2753:lens:security"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-095d7e8f91ab61bf:chunk-3",
+      "unit_ids": [
+        "unit-d857a6647fc0642fe459",
+        "unit-aebd3928a0ba4dea2753"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 35381,
+      "input_sha256": "46c3eff6095ea3ce3f601ee23766de55e8cf51946ffb82fddb3d3062a7a20cdb",
+      "lens": "security",
+      "obligation_ids": [
+        "unit:unit-a375830d2b400d606450:lens:security",
+        "unit:unit-67025298a4db54c233ed:lens:security"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-095d7e8f91ab61bf:chunk-4",
+      "unit_ids": [
+        "unit-a375830d2b400d606450",
+        "unit-67025298a4db54c233ed"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 53819,
+      "input_sha256": "91dfaf46a0f6e37a55dbe04017f662abc8a24f6a892df33fe55434309b30516d",
+      "lens": "security",
+      "obligation_ids": [
+        "unit:unit-88843d283a9cbb959387:lens:security"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-095d7e8f91ab61bf:chunk-5",
+      "unit_ids": [
+        "unit-88843d283a9cbb959387"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 57365,
+      "input_sha256": "eaf8450102e6d8c1274e250886c0cd29280685b96a12faf0b0d74b7edfc09f9d",
+      "lens": "performance",
+      "obligation_ids": [
+        "unit:unit-ea84213b01d0c1ffc1ab:lens:performance",
+        "unit:unit-f751016de50fd6f01e5e:lens:performance",
+        "unit:unit-3ab7b2a3af312d0b4319:lens:performance"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-7cdfcc6375fc6fb9:chunk-1",
+      "unit_ids": [
+        "unit-ea84213b01d0c1ffc1ab",
+        "unit-f751016de50fd6f01e5e",
+        "unit-3ab7b2a3af312d0b4319"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 46731,
+      "input_sha256": "06586e3717bd690d6bca7579fe46862902e6cc425f5a431d5139252639094853",
+      "lens": "performance",
+      "obligation_ids": [
+        "unit:unit-f1dcabcdb97f34fae272:lens:performance",
+        "unit:unit-7987e6276214e873ed93:lens:performance",
+        "unit:unit-9ec6727d1355643feb4e:lens:performance"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-7cdfcc6375fc6fb9:chunk-2",
+      "unit_ids": [
+        "unit-f1dcabcdb97f34fae272",
+        "unit-7987e6276214e873ed93",
+        "unit-9ec6727d1355643feb4e"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 59610,
+      "input_sha256": "7e99ee7a6f8aa84dbab328c44f51610cf574ac364700aaef8cf1857e0ce61d62",
+      "lens": "performance",
+      "obligation_ids": [
+        "unit:unit-d857a6647fc0642fe459:lens:performance",
+        "unit:unit-aebd3928a0ba4dea2753:lens:performance"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-7cdfcc6375fc6fb9:chunk-3",
+      "unit_ids": [
+        "unit-d857a6647fc0642fe459",
+        "unit-aebd3928a0ba4dea2753"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 40106,
+      "input_sha256": "227c7be1bda74296d0a5f4898987d628ac61cb9facad4146e83201a674e1b46c",
+      "lens": "performance",
+      "obligation_ids": [
+        "unit:unit-a375830d2b400d606450:lens:performance",
+        "unit:unit-3472f1fd51ff56b4bcc3:lens:performance",
+        "unit:unit-67025298a4db54c233ed:lens:performance"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-7cdfcc6375fc6fb9:chunk-4",
+      "unit_ids": [
+        "unit-a375830d2b400d606450",
+        "unit-3472f1fd51ff56b4bcc3",
+        "unit-67025298a4db54c233ed"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 53644,
+      "input_sha256": "775005726ed0878465bf54d848629f2faedc02eb04dcf911681532c427c43945",
+      "lens": "performance",
+      "obligation_ids": [
+        "unit:unit-88843d283a9cbb959387:lens:performance"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-7cdfcc6375fc6fb9:chunk-5",
+      "unit_ids": [
+        "unit-88843d283a9cbb959387"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 57539,
+      "input_sha256": "b6d6641b17bc943d928d91d8ff48299e5f6e14704ac92596d9e3e714c1f175a9",
+      "lens": "maintainability",
+      "obligation_ids": [
+        "unit:unit-ea84213b01d0c1ffc1ab:lens:maintainability",
+        "unit:unit-f751016de50fd6f01e5e:lens:maintainability",
+        "unit:unit-3ab7b2a3af312d0b4319:lens:maintainability"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-14af508ccbf88557:chunk-1",
+      "unit_ids": [
+        "unit-ea84213b01d0c1ffc1ab",
+        "unit-f751016de50fd6f01e5e",
+        "unit-3ab7b2a3af312d0b4319"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 46905,
+      "input_sha256": "08deb7509902d5a2dcfa36ccaf5084b99601701db00d2d077794541d81082b6d",
+      "lens": "maintainability",
+      "obligation_ids": [
+        "unit:unit-f1dcabcdb97f34fae272:lens:maintainability",
+        "unit:unit-7987e6276214e873ed93:lens:maintainability",
+        "unit:unit-9ec6727d1355643feb4e:lens:maintainability"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-14af508ccbf88557:chunk-2",
+      "unit_ids": [
+        "unit-f1dcabcdb97f34fae272",
+        "unit-7987e6276214e873ed93",
+        "unit-9ec6727d1355643feb4e"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 59780,
+      "input_sha256": "02033e5b5a28df8332582fb7c20260c29b4963bf7a59a65918506dd78c9191a6",
+      "lens": "maintainability",
+      "obligation_ids": [
+        "unit:unit-d857a6647fc0642fe459:lens:maintainability",
+        "unit:unit-aebd3928a0ba4dea2753:lens:maintainability"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-14af508ccbf88557:chunk-3",
+      "unit_ids": [
+        "unit-d857a6647fc0642fe459",
+        "unit-aebd3928a0ba4dea2753"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 40280,
+      "input_sha256": "4c5bb2d42eaf26f460147b27ad16e02a46fad0441cf37697c39aa7717c39b57c",
+      "lens": "maintainability",
+      "obligation_ids": [
+        "unit:unit-a375830d2b400d606450:lens:maintainability",
+        "unit:unit-3472f1fd51ff56b4bcc3:lens:maintainability",
+        "unit:unit-67025298a4db54c233ed:lens:maintainability"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-14af508ccbf88557:chunk-4",
+      "unit_ids": [
+        "unit-a375830d2b400d606450",
+        "unit-3472f1fd51ff56b4bcc3",
+        "unit-67025298a4db54c233ed"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 53810,
+      "input_sha256": "0820f5175647d866bb142e6c8bd6f5205a9b89c9f5fc5e60a95fbad7c2246378",
+      "lens": "maintainability",
+      "obligation_ids": [
+        "unit:unit-88843d283a9cbb959387:lens:maintainability"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-14af508ccbf88557:chunk-5",
+      "unit_ids": [
+        "unit-88843d283a9cbb959387"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 57343,
+      "input_sha256": "59424c5408bdfcaa95cd0242f9f575cb64e6c8c1594bc2bd0c667644a3a1fe72",
+      "lens": "project_specific",
+      "obligation_ids": [
+        "unit:unit-ea84213b01d0c1ffc1ab:lens:project_specific",
+        "unit:unit-f751016de50fd6f01e5e:lens:project_specific",
+        "unit:unit-3ab7b2a3af312d0b4319:lens:project_specific"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3dc9d99bdfa18345:chunk-1",
+      "unit_ids": [
+        "unit-ea84213b01d0c1ffc1ab",
+        "unit-f751016de50fd6f01e5e",
+        "unit-3ab7b2a3af312d0b4319"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 46709,
+      "input_sha256": "8c7a0c053c4d7a26ca1fc259643bc2b45bc2396096f6362e678526e0ee1b12df",
+      "lens": "project_specific",
+      "obligation_ids": [
+        "unit:unit-f1dcabcdb97f34fae272:lens:project_specific",
+        "unit:unit-7987e6276214e873ed93:lens:project_specific",
+        "unit:unit-9ec6727d1355643feb4e:lens:project_specific"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3dc9d99bdfa18345:chunk-2",
+      "unit_ids": [
+        "unit-f1dcabcdb97f34fae272",
+        "unit-7987e6276214e873ed93",
+        "unit-9ec6727d1355643feb4e"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 59583,
+      "input_sha256": "67e20e0a4c5633c38fedadc22c317fd5a5232b15b99d6d73794cd9a3c9ff96e4",
+      "lens": "project_specific",
+      "obligation_ids": [
+        "unit:unit-d857a6647fc0642fe459:lens:project_specific",
+        "unit:unit-aebd3928a0ba4dea2753:lens:project_specific"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3dc9d99bdfa18345:chunk-3",
+      "unit_ids": [
+        "unit-d857a6647fc0642fe459",
+        "unit-aebd3928a0ba4dea2753"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 40084,
+      "input_sha256": "7cbd11140b7c2fb38ab7c4c5b7ca58f10aeb1ff6203dc653c90a5660ffbb2430",
+      "lens": "project_specific",
+      "obligation_ids": [
+        "unit:unit-a375830d2b400d606450:lens:project_specific",
+        "unit:unit-3472f1fd51ff56b4bcc3:lens:project_specific",
+        "unit:unit-67025298a4db54c233ed:lens:project_specific"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3dc9d99bdfa18345:chunk-4",
+      "unit_ids": [
+        "unit-a375830d2b400d606450",
+        "unit-3472f1fd51ff56b4bcc3",
+        "unit-67025298a4db54c233ed"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 53612,
+      "input_sha256": "078a44335a888ba9e1a72c139cba012adc9f8fb6ae8ab4a564ca0382143a7dc5",
+      "lens": "project_specific",
+      "obligation_ids": [
+        "unit:unit-88843d283a9cbb959387:lens:project_specific"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e"
+      ],
+      "task_id": "task-3dc9d99bdfa18345:chunk-5",
+      "unit_ids": [
+        "unit-88843d283a9cbb959387"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 51634,
+      "input_sha256": "32ffad1c73012072a95ade0c4bb61f588db241c56538483d840b9ecc44fd7d32",
+      "lens": "correctness",
+      "obligation_ids": [
+        "unit:unit-3472f1fd51ff56b4bcc3:lens:correctness"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e",
+        "ev-294522a7a02b1edd65ee0c3a"
+      ],
+      "task_id": "task-d31a309ba7cd0daf:chunk-1",
+      "unit_ids": [
+        "unit-3472f1fd51ff56b4bcc3"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 51642,
+      "input_sha256": "94df52cf4e84cb236420349ed0bfb4b446238275cf054058a14b257420f4313e",
+      "lens": "tests",
+      "obligation_ids": [
+        "unit:unit-3472f1fd51ff56b4bcc3:lens:tests"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e",
+        "ev-294522a7a02b1edd65ee0c3a"
+      ],
+      "task_id": "task-6680e0c466c1e0e2:chunk-1",
+      "unit_ids": [
+        "unit-3472f1fd51ff56b4bcc3"
+      ]
+    },
+    {
+      "admitted": true,
+      "input_bytes": 51604,
+      "input_sha256": "93d676e483c0768277c5acbf307327779e7339f8eddf89e64069b7375a879624",
+      "lens": "security",
+      "obligation_ids": [
+        "unit:unit-3472f1fd51ff56b4bcc3:lens:security"
+      ],
+      "request_input_contract": "specialist-input.v2",
+      "required_context_ids": [
+        "ev-c6e46013081985b9ae1af861",
+        "ev-d7c52bb416b76de2d66fe67e",
+        "ev-294522a7a02b1edd65ee0c3a"
+      ],
+      "task_id": "task-a763d090ecc7dfb6:chunk-1",
+      "unit_ids": [
+        "unit-3472f1fd51ff56b4bcc3"
+      ]
+    }
+  ],
+  "scope": {
+    "coverage_obligations": [
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-ea84213b01d0c1ffc1ab:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-ea84213b01d0c1ffc1ab"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-ea84213b01d0c1ffc1ab:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-ea84213b01d0c1ffc1ab"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-ea84213b01d0c1ffc1ab:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-ea84213b01d0c1ffc1ab"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-ea84213b01d0c1ffc1ab:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-ea84213b01d0c1ffc1ab"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-ea84213b01d0c1ffc1ab:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-ea84213b01d0c1ffc1ab"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-ea84213b01d0c1ffc1ab:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-ea84213b01d0c1ffc1ab"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-ea84213b01d0c1ffc1ab:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-ea84213b01d0c1ffc1ab"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-f751016de50fd6f01e5e:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f751016de50fd6f01e5e"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-f751016de50fd6f01e5e:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f751016de50fd6f01e5e"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-f751016de50fd6f01e5e:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f751016de50fd6f01e5e"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-f751016de50fd6f01e5e:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f751016de50fd6f01e5e"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-f751016de50fd6f01e5e:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f751016de50fd6f01e5e"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-f751016de50fd6f01e5e:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f751016de50fd6f01e5e"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-f751016de50fd6f01e5e:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f751016de50fd6f01e5e"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-3ab7b2a3af312d0b4319:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3ab7b2a3af312d0b4319"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-3ab7b2a3af312d0b4319:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3ab7b2a3af312d0b4319"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-3ab7b2a3af312d0b4319:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3ab7b2a3af312d0b4319"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-3ab7b2a3af312d0b4319:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3ab7b2a3af312d0b4319"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-3ab7b2a3af312d0b4319:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3ab7b2a3af312d0b4319"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-3ab7b2a3af312d0b4319:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3ab7b2a3af312d0b4319"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-3ab7b2a3af312d0b4319:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3ab7b2a3af312d0b4319"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-f1dcabcdb97f34fae272:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f1dcabcdb97f34fae272"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-f1dcabcdb97f34fae272:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f1dcabcdb97f34fae272"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-f1dcabcdb97f34fae272:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f1dcabcdb97f34fae272"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-f1dcabcdb97f34fae272:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f1dcabcdb97f34fae272"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-f1dcabcdb97f34fae272:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f1dcabcdb97f34fae272"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-f1dcabcdb97f34fae272:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f1dcabcdb97f34fae272"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-f1dcabcdb97f34fae272:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-f1dcabcdb97f34fae272"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-7987e6276214e873ed93:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-7987e6276214e873ed93"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-7987e6276214e873ed93:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-7987e6276214e873ed93"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-7987e6276214e873ed93:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-7987e6276214e873ed93"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-7987e6276214e873ed93:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-7987e6276214e873ed93"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-7987e6276214e873ed93:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-7987e6276214e873ed93"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-7987e6276214e873ed93:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-7987e6276214e873ed93"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-7987e6276214e873ed93:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-7987e6276214e873ed93"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-9ec6727d1355643feb4e:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-9ec6727d1355643feb4e:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-9ec6727d1355643feb4e:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-9ec6727d1355643feb4e:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-9ec6727d1355643feb4e:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-9ec6727d1355643feb4e:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-9ec6727d1355643feb4e:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-d857a6647fc0642fe459:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-d857a6647fc0642fe459:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-d857a6647fc0642fe459:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-d857a6647fc0642fe459:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-d857a6647fc0642fe459:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-d857a6647fc0642fe459:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-d857a6647fc0642fe459:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-aebd3928a0ba4dea2753:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-aebd3928a0ba4dea2753"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-aebd3928a0ba4dea2753:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-aebd3928a0ba4dea2753"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-aebd3928a0ba4dea2753:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-aebd3928a0ba4dea2753"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-aebd3928a0ba4dea2753:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-aebd3928a0ba4dea2753"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-aebd3928a0ba4dea2753:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-aebd3928a0ba4dea2753"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-aebd3928a0ba4dea2753:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-aebd3928a0ba4dea2753"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-aebd3928a0ba4dea2753:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-aebd3928a0ba4dea2753"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-a375830d2b400d606450:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-a375830d2b400d606450"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-a375830d2b400d606450:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-a375830d2b400d606450"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-a375830d2b400d606450:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-a375830d2b400d606450"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-a375830d2b400d606450:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-a375830d2b400d606450"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-a375830d2b400d606450:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-a375830d2b400d606450"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-a375830d2b400d606450:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-a375830d2b400d606450"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-a375830d2b400d606450:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-a375830d2b400d606450"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-3472f1fd51ff56b4bcc3:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-3472f1fd51ff56b4bcc3:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-3472f1fd51ff56b4bcc3:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-3472f1fd51ff56b4bcc3:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-3472f1fd51ff56b4bcc3:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-3472f1fd51ff56b4bcc3:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-3472f1fd51ff56b4bcc3:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-67025298a4db54c233ed:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-67025298a4db54c233ed"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-67025298a4db54c233ed:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-67025298a4db54c233ed"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-67025298a4db54c233ed:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-67025298a4db54c233ed"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-67025298a4db54c233ed:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-67025298a4db54c233ed"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-67025298a4db54c233ed:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-67025298a4db54c233ed"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-67025298a4db54c233ed:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-67025298a4db54c233ed"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-67025298a4db54c233ed:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-67025298a4db54c233ed"
+        ]
+      },
+      {
+        "lens": "correctness",
+        "obligation_id": "unit:unit-88843d283a9cbb959387:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      },
+      {
+        "lens": "tests",
+        "obligation_id": "unit:unit-88843d283a9cbb959387:lens:tests",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      },
+      {
+        "lens": "design",
+        "obligation_id": "unit:unit-88843d283a9cbb959387:lens:design",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      },
+      {
+        "lens": "security",
+        "obligation_id": "unit:unit-88843d283a9cbb959387:lens:security",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      },
+      {
+        "lens": "performance",
+        "obligation_id": "unit:unit-88843d283a9cbb959387:lens:performance",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      },
+      {
+        "lens": "maintainability",
+        "obligation_id": "unit:unit-88843d283a9cbb959387:lens:maintainability",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      },
+      {
+        "lens": "project_specific",
+        "obligation_id": "unit:unit-88843d283a9cbb959387:lens:project_specific",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      },
+      {
+        "check_binding_id": "external:portal-contract",
+        "obligation_id": "check:portal-impact-evidence",
+        "obligation_kind": "PROJECT_CHECK",
+        "reason": "Base AGENTS requires portal impact and relevant contract-check evidence. This static pilot does not execute target code; evidence absent stays explicit.",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e",
+          "unit-d857a6647fc0642fe459",
+          "unit-a375830d2b400d606450",
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "check_binding_id": "external:portal-browser",
+        "obligation_id": "check:portal-browser-evidence",
+        "obligation_kind": "PROJECT_CHECK",
+        "reason": "Base AGENTS requires portal impact and relevant browser-journey check evidence. This static pilot does not execute target code; evidence absent stays explicit.",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-9ec6727d1355643feb4e",
+          "unit-d857a6647fc0642fe459",
+          "unit-a375830d2b400d606450",
+          "unit-3472f1fd51ff56b4bcc3"
+        ]
+      },
+      {
+        "obligation_id": "context:25",
+        "obligation_kind": "REQUIRED_CONTEXT",
+        "reason": "changed_hunk_exceeds_window_limit",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ]
+      },
+      {
+        "obligation_id": "context:26",
+        "obligation_kind": "REQUIRED_CONTEXT",
+        "reason": "changed_hunk_exceeds_window_limit",
+        "required": true,
+        "scope_unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ]
+      }
+    ],
+    "planned_task_scopes": [
+      {
+        "obligation_ids": [
+          "unit:unit-ea84213b01d0c1ffc1ab:lens:correctness",
+          "unit:unit-f751016de50fd6f01e5e:lens:correctness",
+          "unit:unit-3ab7b2a3af312d0b4319:lens:correctness",
+          "unit:unit-f1dcabcdb97f34fae272:lens:correctness",
+          "unit:unit-7987e6276214e873ed93:lens:correctness",
+          "unit:unit-9ec6727d1355643feb4e:lens:correctness",
+          "unit:unit-d857a6647fc0642fe459:lens:correctness",
+          "unit:unit-aebd3928a0ba4dea2753:lens:correctness",
+          "unit:unit-a375830d2b400d606450:lens:correctness",
+          "unit:unit-67025298a4db54c233ed:lens:correctness",
+          "unit:unit-88843d283a9cbb959387:lens:correctness"
+        ],
+        "task_id": "task-3712de981ddcc0d1",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-ea84213b01d0c1ffc1ab:lens:tests",
+          "unit:unit-f751016de50fd6f01e5e:lens:tests",
+          "unit:unit-3ab7b2a3af312d0b4319:lens:tests",
+          "unit:unit-f1dcabcdb97f34fae272:lens:tests",
+          "unit:unit-7987e6276214e873ed93:lens:tests",
+          "unit:unit-9ec6727d1355643feb4e:lens:tests",
+          "unit:unit-d857a6647fc0642fe459:lens:tests",
+          "unit:unit-aebd3928a0ba4dea2753:lens:tests",
+          "unit:unit-a375830d2b400d606450:lens:tests",
+          "unit:unit-67025298a4db54c233ed:lens:tests",
+          "unit:unit-88843d283a9cbb959387:lens:tests"
+        ],
+        "task_id": "task-32a9005bc7e1f5cf",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-ea84213b01d0c1ffc1ab:lens:design",
+          "unit:unit-f751016de50fd6f01e5e:lens:design",
+          "unit:unit-3ab7b2a3af312d0b4319:lens:design",
+          "unit:unit-f1dcabcdb97f34fae272:lens:design",
+          "unit:unit-7987e6276214e873ed93:lens:design",
+          "unit:unit-9ec6727d1355643feb4e:lens:design",
+          "unit:unit-d857a6647fc0642fe459:lens:design",
+          "unit:unit-aebd3928a0ba4dea2753:lens:design",
+          "unit:unit-a375830d2b400d606450:lens:design",
+          "unit:unit-3472f1fd51ff56b4bcc3:lens:design",
+          "unit:unit-67025298a4db54c233ed:lens:design",
+          "unit:unit-88843d283a9cbb959387:lens:design"
+        ],
+        "task_id": "task-8e838a61f3c09606",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-ea84213b01d0c1ffc1ab:lens:security",
+          "unit:unit-f751016de50fd6f01e5e:lens:security",
+          "unit:unit-3ab7b2a3af312d0b4319:lens:security",
+          "unit:unit-f1dcabcdb97f34fae272:lens:security",
+          "unit:unit-7987e6276214e873ed93:lens:security",
+          "unit:unit-9ec6727d1355643feb4e:lens:security",
+          "unit:unit-d857a6647fc0642fe459:lens:security",
+          "unit:unit-aebd3928a0ba4dea2753:lens:security",
+          "unit:unit-a375830d2b400d606450:lens:security",
+          "unit:unit-67025298a4db54c233ed:lens:security",
+          "unit:unit-88843d283a9cbb959387:lens:security"
+        ],
+        "task_id": "task-095d7e8f91ab61bf",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-ea84213b01d0c1ffc1ab:lens:performance",
+          "unit:unit-f751016de50fd6f01e5e:lens:performance",
+          "unit:unit-3ab7b2a3af312d0b4319:lens:performance",
+          "unit:unit-f1dcabcdb97f34fae272:lens:performance",
+          "unit:unit-7987e6276214e873ed93:lens:performance",
+          "unit:unit-9ec6727d1355643feb4e:lens:performance",
+          "unit:unit-d857a6647fc0642fe459:lens:performance",
+          "unit:unit-aebd3928a0ba4dea2753:lens:performance",
+          "unit:unit-a375830d2b400d606450:lens:performance",
+          "unit:unit-3472f1fd51ff56b4bcc3:lens:performance",
+          "unit:unit-67025298a4db54c233ed:lens:performance",
+          "unit:unit-88843d283a9cbb959387:lens:performance"
+        ],
+        "task_id": "task-7cdfcc6375fc6fb9",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-ea84213b01d0c1ffc1ab:lens:maintainability",
+          "unit:unit-f751016de50fd6f01e5e:lens:maintainability",
+          "unit:unit-3ab7b2a3af312d0b4319:lens:maintainability",
+          "unit:unit-f1dcabcdb97f34fae272:lens:maintainability",
+          "unit:unit-7987e6276214e873ed93:lens:maintainability",
+          "unit:unit-9ec6727d1355643feb4e:lens:maintainability",
+          "unit:unit-d857a6647fc0642fe459:lens:maintainability",
+          "unit:unit-aebd3928a0ba4dea2753:lens:maintainability",
+          "unit:unit-a375830d2b400d606450:lens:maintainability",
+          "unit:unit-3472f1fd51ff56b4bcc3:lens:maintainability",
+          "unit:unit-67025298a4db54c233ed:lens:maintainability",
+          "unit:unit-88843d283a9cbb959387:lens:maintainability"
+        ],
+        "task_id": "task-14af508ccbf88557",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-ea84213b01d0c1ffc1ab:lens:project_specific",
+          "unit:unit-f751016de50fd6f01e5e:lens:project_specific",
+          "unit:unit-3ab7b2a3af312d0b4319:lens:project_specific",
+          "unit:unit-f1dcabcdb97f34fae272:lens:project_specific",
+          "unit:unit-7987e6276214e873ed93:lens:project_specific",
+          "unit:unit-9ec6727d1355643feb4e:lens:project_specific",
+          "unit:unit-d857a6647fc0642fe459:lens:project_specific",
+          "unit:unit-aebd3928a0ba4dea2753:lens:project_specific",
+          "unit:unit-a375830d2b400d606450:lens:project_specific",
+          "unit:unit-3472f1fd51ff56b4bcc3:lens:project_specific",
+          "unit:unit-67025298a4db54c233ed:lens:project_specific",
+          "unit:unit-88843d283a9cbb959387:lens:project_specific"
+        ],
+        "task_id": "task-3dc9d99bdfa18345",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-3472f1fd51ff56b4bcc3:lens:correctness"
+        ],
+        "task_id": "task-d31a309ba7cd0daf",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-3472f1fd51ff56b4bcc3:lens:tests"
+        ],
+        "task_id": "task-6680e0c466c1e0e2",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "unit:unit-3472f1fd51ff56b4bcc3:lens:security"
+        ],
+        "task_id": "task-a763d090ecc7dfb6",
+        "task_kind": "SPECIALIST_FINDINGS"
+      },
+      {
+        "obligation_ids": [
+          "check:portal-impact-evidence"
+        ],
+        "task_id": "task-4daf4c1da3ce93d1",
+        "task_kind": "DETERMINISTIC_CHECK"
+      },
+      {
+        "obligation_ids": [
+          "check:portal-browser-evidence"
+        ],
+        "task_id": "task-0348b81beeb3bc85",
+        "task_kind": "DETERMINISTIC_CHECK"
+      }
+    ],
+    "required_context_gaps": [
+      {
+        "line_ranges": [
+          [
+            1,
+            445
+          ]
+        ],
+        "max_window_bytes": 12000,
+        "path": "engines/exa.py",
+        "reason": "changed_hunk_exceeds_window_limit",
+        "required": true,
+        "side": "HEAD",
+        "source_kind": "source_window",
+        "unit_ids": [
+          "unit-d857a6647fc0642fe459"
+        ],
+        "window_bytes": 19186
+      },
+      {
+        "line_ranges": [
+          [
+            1,
+            520
+          ]
+        ],
+        "max_window_bytes": 12000,
+        "path": "tests/test_exa.py",
+        "reason": "changed_hunk_exceeds_window_limit",
+        "required": true,
+        "side": "HEAD",
+        "source_kind": "source_window",
+        "unit_ids": [
+          "unit-88843d283a9cbb959387"
+        ],
+        "window_bytes": 22707
+      }
+    ],
+    "required_unadmitted_obligation_ids": [
+      "context:25",
+      "context:26"
+    ]
+  },
+  "snapshot": {
+    "base_sha": "00accc58a42eaa470e12831498b572cab2483981",
+    "head_sha": "90165dd65be3595006171d7abef34a082c90a71d",
+    "profile_file_sha256": "299e7221abd865fc3fbe3aedcba38968f541259c2e222621fcbeedb62937ebad",
+    "profile_version": "slopsearx-production-v5-dependency-context",
+    "provider_identity_sha256": "16f16f0d979a6763e59c73be8288543420e9fb5f06a89e1924726f7f773a3a75",
+    "snapshot_hash": "44dbbab5990430620a59be6ec9814023c739c62fe15f11a1e39ffe9b73f87888",
+    "snapshot_id": "snap-584aa33506017add69773f35"
+  },
+  "status": "PREPARED_ONLY"
+}
