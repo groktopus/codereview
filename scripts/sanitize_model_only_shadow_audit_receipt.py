@@ -133,8 +133,49 @@ def _valid(receipt: dict[str, Any]) -> None:
     if any(roles[role] == "not_run" and role_calls[role] != 0 for role in ROLES):
         raise ReceiptError("not_run_role_has_call")
     if count == 0:
-        if (set(receipt) != base or receipt["terminal_state"] != "incomplete" or calls != 0
-                or receipt["reason"] != "no_writer_candidate" or set(roles.values()) != {"not_run"}):
+        if set(receipt) != base or receipt["terminal_state"] != "incomplete" or receipt["reason"] != "no_writer_candidate":
+            raise ReceiptError("zero_candidate_receipt_invalid")
+        # Preserve historical pre-dispatch receipts, and prepare the same v1
+        # schema for a future source-only run plus at most one advisory source
+        # record Jev call. Candidate claim assessment is never part of this
+        # path. Per-role attempts are already capped at one above, so retries
+        # are structurally impossible and dispatched calls cannot exceed two.
+        legacy_not_run = calls == 0 and set(roles.values()) == {"not_run"} and all(
+            role_calls[role] == dispatched[role] == rejected[role] == pretransport[role] == unknown[role] == 0
+            for role in ROLES
+        )
+        source, jev, claim = (roles["source_auditor"], roles["jev"], roles["claim_auditor"])
+        source_attempted, jev_attempted, claim_attempted = (
+            role_calls["source_auditor"], role_calls["jev"], role_calls["claim_auditor"]
+        )
+        source_completed = source in {"completed", "abstained"}
+        source_failure = source in {"failed", "incomplete"}
+        source_dispatch_evidence = (
+            dispatched["source_auditor"] + rejected["source_auditor"]
+            + pretransport["source_auditor"] + unknown["source_auditor"]
+        )
+        jev_dispatch_evidence = (
+            dispatched["jev"] + rejected["jev"] + pretransport["jev"] + unknown["jev"]
+        )
+        source_valid = (
+            source_attempted == 1 and source_dispatch_evidence == 1
+            and ((source_completed and dispatched["source_auditor"] == 1
+                  and rejected["source_auditor"] == pretransport["source_auditor"] == unknown["source_auditor"] == 0)
+                 or (source_failure and dispatched["source_auditor"] in {0, 1}))
+        )
+        jev_not_run = jev == "not_run" and jev_attempted == jev_dispatch_evidence == 0
+        jev_ran_after_source = (
+            source == "completed" and jev_attempted == jev_dispatch_evidence == 1
+            and jev in {"completed", "abstained", "failed", "incomplete"}
+            and (jev not in {"completed", "abstained"} or
+                 (dispatched["jev"] == 1 and rejected["jev"] == pretransport["jev"] == unknown["jev"] == 0))
+        )
+        new_source_only = (
+            calls <= 2 and claim == "not_run" and claim_attempted == 0
+            and all(count_maps[field]["claim_auditor"] == 0 for field in count_maps)
+            and source_valid and (jev_not_run or jev_ran_after_source)
+        )
+        if not (legacy_not_run or new_source_only):
             raise ReceiptError("zero_candidate_receipt_invalid")
     else:
         if (set(receipt) != base | optional or not isinstance(receipt["selected_candidate_sha256"], str)

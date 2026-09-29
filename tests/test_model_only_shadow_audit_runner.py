@@ -56,6 +56,31 @@ def _receipt_dispatch_fields(accounting):
     }
 
 
+def _candidate_free_receipt(*, source_status="completed", jev_status="not_run",
+                            source_state="http_attempted", jev_state=None):
+    accounting = {}
+    states = {"source_auditor": source_state, "jev": jev_state, "claim_auditor": None}
+    for role, state in states.items():
+        row = {"attempted": int(state is not None), "dispatched": 0, "guard_rejected": 0,
+               "post_guard_pretransport": 0, "unknown": 0,
+               "request_sha256": hashlib.sha256(role.encode()).hexdigest() if state is not None else None}
+        if state is not None:
+            key = {
+                "http_attempted": "dispatched", "guard_rejected": "guard_rejected",
+                "post_guard_pretransport": "post_guard_pretransport", "unknown": "unknown",
+            }[state]
+            row[key] = 1
+        accounting[role] = row
+    return {
+        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
+        "terminal_state": "incomplete", "reason": "no_writer_candidate",
+        "candidate_packet_count": 0, "selected_packet_sha256": "a" * 64,
+        "capture_manifest_sha256": "b" * 64,
+        "roles": {"source_auditor": source_status, "jev": jev_status, "claim_auditor": "not_run"},
+        **_receipt_dispatch_fields(accounting),
+    }
+
+
 @pytest.fixture(autouse=True)
 def trusted_profile_file(tmp_path, monkeypatch):
     path = tmp_path / RUNNER.PROFILE_RELATIVE_PATH
@@ -455,6 +480,49 @@ def test_sanitizer_rejects_untrusted_case_text_and_accepts_zero_candidate_receip
         assert str(exc) == "receipt_identity_invalid"
     else:
         raise AssertionError("untrusted case text was accepted")
+
+
+@pytest.mark.parametrize(("receipt",), [
+    (_candidate_free_receipt(),),
+    (_candidate_free_receipt(source_status="completed", jev_status="completed", jev_state="http_attempted"),),
+    (_candidate_free_receipt(source_status="completed", jev_status="failed", jev_state="post_guard_pretransport"),),
+    (_candidate_free_receipt(source_status="abstained", jev_status="not_run", jev_state=None),),
+    (_candidate_free_receipt(source_status="failed", jev_status="not_run", source_state="unknown"),),
+])
+def test_sanitizer_accepts_bounded_source_only_no_candidate_receipt(receipt):
+    SANITIZER._valid(receipt)
+    assert receipt["candidate_packet_count"] == 0
+    assert receipt["terminal_state"] == "incomplete"
+    assert receipt["reason"] == "no_writer_candidate"
+    assert receipt["audit_provider_calls"] <= 2
+    assert receipt["role_call_counts"]["source_auditor"] == 1
+    assert receipt["role_call_counts"]["claim_auditor"] == 0
+    assert receipt["roles"]["claim_auditor"] == "not_run"
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda receipt: receipt.update(disposition="PASS"),
+    lambda receipt: receipt["roles"].update(claim_auditor="completed"),
+    lambda receipt: receipt["role_call_counts"].update(claim_auditor=1),
+    lambda receipt: receipt["role_call_counts"].update(source_auditor=2),
+    lambda receipt: receipt.update(audit_provider_calls=3),
+    lambda receipt: receipt.update(audit_provider_calls=1),
+    lambda receipt: receipt["role_dispatched_call_counts"].update(source_auditor=0),
+])
+def test_sanitizer_rejects_false_or_inconsistent_no_candidate_receipts(mutate):
+    receipt = _candidate_free_receipt(source_status="completed", jev_status="completed", jev_state="http_attempted")
+    mutate(receipt)
+    with pytest.raises(SANITIZER.ReceiptError):
+        SANITIZER._valid(receipt)
+
+
+def test_sanitizer_rejects_jev_call_without_completed_source_or_after_abstention():
+    for receipt in (
+        _candidate_free_receipt(source_status="failed", jev_status="failed", jev_state="http_attempted"),
+        _candidate_free_receipt(source_status="abstained", jev_status="completed", jev_state="http_attempted"),
+    ):
+        with pytest.raises(SANITIZER.ReceiptError):
+            SANITIZER._valid(receipt)
 
 
 def test_sanitizer_rejects_contradictory_terminal_call_and_candidate_accounting():
