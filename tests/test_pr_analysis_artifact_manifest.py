@@ -20,8 +20,10 @@ import pr_analysis_artifact_manifest as manifest  # noqa: E402
 from pr_review_harness.recovery_inputs import canonical as recovery_canonical  # noqa: E402
 from pr_review_harness.recovery_inputs import make_packet  # noqa: E402
 
+CENTRAL_PILOT_SHA = "9a3fc8db361b7a6a753af83fc12e3b8c9df74f45"
 
-def _fixture(tmp_path: Path):
+
+def _fixture(tmp_path: Path, *, central_pilot: bool = False):
     root = tmp_path / "artifacts"
     review = root / "review"
     review.mkdir(parents=True)
@@ -58,6 +60,21 @@ def _fixture(tmp_path: Path):
         "snapshot_id": "snapshot-42",
         "request_hash": "d" * 64,
     }
+    if central_pilot:
+        identity.update(
+            {
+                "workflow_repository": "groktopus/codereview",
+                "run_workflow_ref": manifest.CENTRAL_PILOT_CALLER_REF,
+                "called_workflow_ref": (
+                    f"groktopus/codereview/.github/workflows/pr-analysis.yml@{CENTRAL_PILOT_SHA}"
+                ),
+                "called_workflow_sha": CENTRAL_PILOT_SHA,
+                "called_workflow_repository": "groktopus/codereview",
+                "target_repository": "magnus919/SlopSearX",
+                "harness_repository": "groktopus/codereview",
+                "harness_sha": CENTRAL_PILOT_SHA,
+            }
+        )
     checkpoint = {
         "run_id": "pr-7-42",
         "base_sha": "a" * 40,
@@ -71,7 +88,7 @@ def _fixture(tmp_path: Path):
     checkpoint_path.write_text(json.dumps(checkpoint, sort_keys=True) + "\n", encoding="utf-8")
     (root / "review-result.json").write_text('{"status":"INCOMPLETE"}\n', encoding="utf-8")
     event = {
-        "repository": "owner/caller",
+        "repository": identity["target_repository"],
         "pull_request_number": 7,
         "event_id": "42",
         "base_sha": "a" * 40,
@@ -79,7 +96,7 @@ def _fixture(tmp_path: Path):
     }
     checks = {
         "schema_version": "1.0",
-        "repository": "owner/caller",
+        "repository": identity["target_repository"],
         "pull_request_number": 7,
         "head_sha": "b" * 40,
         "captured_at": "2026-09-28T12:00:00Z",
@@ -110,6 +127,41 @@ def test_manifest_binds_normal_pr_checkpoint_without_persisting_configs(tmp_path
     assert b"https://example.invalid" not in artifact_bytes
     assert b"LLM_API_KEY" not in artifact_bytes
     assert b"JEV_API_KEY" not in artifact_bytes
+
+
+def test_manifest_binds_the_exact_central_pilot_caller_separately_from_target(tmp_path):
+    root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path, central_pilot=True)
+    result = manifest.create_manifest(
+        root, identity, checkpoint=checkpoint, profile=profile, provider_config=provider, decision_config=decision
+    )
+
+    assert result["identity"]["workflow_repository"] == "groktopus/codereview"
+    assert result["identity"]["target_repository"] == "magnus919/SlopSearX"
+    assert manifest.verify_manifest(root, identity) == result
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("workflow_repository", "attacker/caller"),
+        ("target_repository", "attacker/target"),
+        ("run_workflow_ref", "groktopus/codereview/.github/workflows/other.yml@refs/heads/main"),
+        ("harness_repository", "attacker/harness"),
+        ("called_workflow_repository", "attacker/harness"),
+        ("called_workflow_sha", "f" * 40),
+    ],
+)
+def test_central_manifest_rejects_caller_target_or_workflow_tampering(tmp_path, field, value):
+    root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path, central_pilot=True)
+    manifest.create_manifest(
+        root, identity, checkpoint=checkpoint, profile=profile, provider_config=provider, decision_config=decision
+    )
+    saved = json.loads((root / manifest.MANIFEST_NAME).read_bytes())
+    saved["identity"][field] = value
+    (root / manifest.MANIFEST_NAME).write_bytes(manifest.canonical(saved))
+
+    with pytest.raises(manifest.ManifestError, match="recovery_workflow_target_mismatch"):
+        manifest.verify_manifest(root, identity)
 
 
 @pytest.mark.parametrize(
@@ -330,8 +382,8 @@ def test_reusable_workflow_emits_hash_only_manifest_before_standard_artifact_upl
     assert "path: artifacts/" in upload
 
 
-def _intake_fixture(tmp_path: Path):
-    root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path)
+def _intake_fixture(tmp_path: Path, *, central_pilot: bool = False):
+    root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path, central_pilot=central_pilot)
     manifest.create_manifest(
         root,
         identity,
@@ -352,9 +404,9 @@ def _intake_fixture(tmp_path: Path):
         "workflow_id": 77,
         "status": "completed",
         "conclusion": "cancelled",
-        "path": ".github/workflows/pr-review.yml@main",
+        "path": identity["run_workflow_ref"].split("/", 2)[2],
         "head_sha": "e" * 40,
-        "repository": {"id": 99, "full_name": "owner/caller"},
+        "repository": {"id": 99, "full_name": identity["workflow_repository"]},
         "pull_requests": [
             {
                 "number": 7,
@@ -364,9 +416,9 @@ def _intake_fixture(tmp_path: Path):
         ],
         "referenced_workflows": [
             {
-                "path": "owner/harness/.github/workflows/pr-analysis.yml@main",
-                "sha": "c" * 40,
-                "ref": "refs/heads/main",
+                "path": identity["called_workflow_ref"],
+                "sha": identity["called_workflow_sha"],
+                "ref": identity["called_workflow_ref"].split("@", 1)[1],
             }
         ],
     }
@@ -534,53 +586,54 @@ def test_intake_atomically_reserves_destination_for_competing_calls(tmp_path, mo
     assert manifest.verify_manifest(output / "artifact", identity)
 
 
-def _fetch_fixture(tmp_path: Path, *, empty_run_prs=False):
-    identity, _, listing_raw, archive = _intake_fixture(tmp_path)
+def _fetch_fixture(tmp_path: Path, *, empty_run_prs=False, central_pilot: bool = False):
+    identity, _, listing_raw, archive = _intake_fixture(tmp_path, central_pilot=central_pilot)
     run = {
         "id": 42,
         "run_attempt": 2,
         "workflow_id": 77,
         "status": "completed",
         "conclusion": "cancelled",
-        "path": ".github/workflows/pr-review.yml@main",
+        "path": identity["run_workflow_ref"].split("/", 2)[2],
         "head_sha": "e" * 40,
-        "repository": {"id": 99, "full_name": "owner/caller"},
+        "repository": {"id": 99, "full_name": identity["workflow_repository"]},
         "pull_requests": [] if empty_run_prs else [{"number": 7, "base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}],
         "referenced_workflows": [
             {
-                "path": "owner/harness/.github/workflows/pr-analysis.yml@main",
-                "sha": "c" * 40,
-                "ref": "refs/heads/main",
+                "path": identity["called_workflow_ref"],
+                "sha": identity["called_workflow_sha"],
+                "ref": identity["called_workflow_ref"].split("@", 1)[1],
             }
         ],
     }
     pull = {
         "number": 7,
         "state": "open",
-        "base": {"sha": "a" * 40, "repo": {"full_name": "owner/caller"}},
+        "base": {"sha": "a" * 40, "repo": {"full_name": identity["target_repository"]}},
         "head": {"sha": "b" * 40, "repo": {"full_name": "contributor/project"}},
     }
     trusted = {
         "schema_version": fetch.SCHEMA,
-        "workflow_repository": "owner/caller",
+        "workflow_repository": identity["workflow_repository"],
         "workflow_run_id": "42",
         "workflow_run_attempt": "2",
-        "run_workflow_ref": "owner/caller/.github/workflows/pr-review.yml@refs/heads/main",
-        "target_repository": "owner/caller",
+        "run_workflow_ref": identity["run_workflow_ref"],
+        "target_repository": identity["target_repository"],
         "pull_request_number": 7,
-        "harness_repository": "owner/harness",
-        "harness_sha": "c" * 40,
-        "called_workflow_ref": "owner/harness/.github/workflows/pr-analysis.yml@refs/heads/main",
-        "called_workflow_sha": "c" * 40,
-        "called_workflow_repository": "owner/harness",
-        "called_workflow_file_path": ".github/workflows/pr-analysis.yml",
+        "harness_repository": identity["harness_repository"],
+        "harness_sha": identity["harness_sha"],
+        "called_workflow_ref": identity["called_workflow_ref"],
+        "called_workflow_sha": identity["called_workflow_sha"],
+        "called_workflow_repository": identity["called_workflow_repository"],
+        "called_workflow_file_path": identity["called_workflow_file_path"],
     }
     storage_url = "https://productionresultssa12.blob.core.windows.net/actions-results/signed?sig=test"
     api = "https://api.github.com"
-    owner, repo = "owner", "caller"
+    owner, repo = identity["workflow_repository"].split("/", 1)
+    target_owner, target_repo = identity["target_repository"].split("/", 1)
     routes = {
         f"{api}/repos/{owner}/{repo}/actions/runs/42/attempts/2": fetch.HttpResponse(200, {}, json.dumps(run).encode()),
-        f"{api}/repos/{owner}/{repo}/pulls/7": fetch.HttpResponse(200, {}, json.dumps(pull).encode()),
+        f"{api}/repos/{target_owner}/{target_repo}/pulls/7": fetch.HttpResponse(200, {}, json.dumps(pull).encode()),
         f"{api}/repos/{owner}/{repo}/actions/runs/42/artifacts?per_page=100": fetch.HttpResponse(200, {}, listing_raw),
         f"{api}/repos/{owner}/{repo}/actions/artifacts/501/zip": fetch.HttpResponse(
             302, {"Location": storage_url}, b""
@@ -629,6 +682,33 @@ def test_authenticated_fetch_uses_exact_api_bindings_and_strips_redirect_auth(tm
             "head_sha": "b" * 40,
         },
     )
+
+
+def test_central_pilot_manifest_survives_authenticated_fetch_and_offline_intake(tmp_path):
+    trusted, routes, archive, api, storage_url = _fetch_fixture(tmp_path, empty_run_prs=True, central_pilot=True)
+    transport = _FakeHttpTransport(routes)
+    result = fetch.fetch_and_intake(
+        request_value=trusted,
+        token="read-only-actions-token",
+        output_dir=tmp_path / "central-fetched",
+        transport=transport,
+        api_base=api,
+    )
+
+    urls = [call[0] for call in transport.calls]
+    assert result["status"] == "FETCHED_CONSISTENCY_VALIDATED"
+    assert f"{api}/repos/groktopus/codereview/actions/runs/42/attempts/2" in urls
+    assert f"{api}/repos/magnus919/SlopSearX/pulls/7" in urls
+    assert f"{api}/repos/groktopus/codereview/actions/runs/42/artifacts?per_page=100" in urls
+    assert urls[-1] == storage_url
+    assert manifest.verify_manifest(
+        tmp_path / "central-fetched" / "artifact",
+        {
+            **manifest._identity(intake._unpack_archive(archive)[1]["identity"]),
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+        },
+    )["identity"]["target_repository"] == "magnus919/SlopSearX"
 
 
 def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_capture(tmp_path, capsys):
@@ -800,6 +880,34 @@ def test_fetch_rejects_malformed_called_workflow_identity_before_network(tmp_pat
             transport=transport,
             api_base=api,
         )
+    assert transport.calls == []
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("workflow_repository", "attacker/caller"),
+        ("target_repository", "attacker/target"),
+        ("run_workflow_ref", "groktopus/codereview/.github/workflows/other.yml@refs/heads/main"),
+        ("harness_repository", "attacker/harness"),
+        ("called_workflow_repository", "attacker/harness"),
+        ("called_workflow_sha", "f" * 40),
+    ],
+)
+def test_fetch_rejects_central_pilot_request_tampering_before_network(tmp_path, field, value):
+    trusted, routes, _archive, api, _storage = _fetch_fixture(tmp_path, central_pilot=True)
+    trusted[field] = value
+    transport = _FakeHttpTransport(routes)
+
+    with pytest.raises(fetch.FetchError, match="trusted_request_identity_invalid"):
+        fetch.fetch_and_intake(
+            request_value=trusted,
+            token="read-only-actions-token",
+            output_dir=tmp_path / "invalid-central-request",
+            transport=transport,
+            api_base=api,
+        )
+
     assert transport.calls == []
 
 
