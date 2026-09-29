@@ -14,6 +14,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
+from frozen_runtime import build_frozen_runtime_root  # noqa: E402
 from materialize_seeded_writer_synth_001 import materialize  # noqa: E402
 from verify_synth_001_preflight import PYTHON_IDENTITY, SOURCE_REVISION, VerifyError, verify  # noqa: E402
 
@@ -29,8 +30,6 @@ CURRENT_PYTHON_IDENTITY = {
     "implementation": sys.implementation.name,
     "version": sys.version.split()[0],
 }
-
-
 def _setup(tmp_path: Path) -> tuple[Path, Path]:
     repo = tmp_path / "repo"
     receipt = materialize(FIXTURE, repo)
@@ -39,7 +38,14 @@ def _setup(tmp_path: Path) -> tuple[Path, Path]:
     return repo, receipt_path
 
 
-def _verify(repo: Path, receipt: Path, prepared: Path = PREPARED, profile: Path = PROFILE) -> dict:
+def _verify(
+    repo: Path,
+    receipt: Path,
+    prepared: Path = PREPARED,
+    profile: Path = PROFILE,
+    *,
+    source_root: Path | None = None,
+) -> dict:
     document = json.loads(prepared.read_text())
     snapshot = collect_snapshot(
         str(repo), "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
@@ -50,7 +56,10 @@ def _verify(repo: Path, receipt: Path, prepared: Path = PREPARED, profile: Path 
     adjusted = receipt.parent / "prepared-at-current-path.json"
     adjusted.write_text(json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n")
     return verify(
-        receipt, adjusted, repo, FIXTURE, profile, LIMITS, PROVIDER, ROOT,
+        receipt, adjusted, repo, FIXTURE, profile, LIMITS, PROVIDER,
+        # `source_root` is the historical implementation pin under test. The
+        # verifier still checks its fixed CPython 3.14.7 runtime identity.
+        build_frozen_runtime_root(receipt.parent) if source_root is None else source_root,
         expected_python_identity=CURRENT_PYTHON_IDENTITY,
     )
 
@@ -111,8 +120,10 @@ def test_verifier_rejects_dirty_materialized_repository(tmp_path: Path):
         _verify(repo, receipt)
 
 
-def test_actual_prepare_only_cli_is_path_independent_and_provider_free(tmp_path: Path):
+def test_current_cli_output_matches_historical_prepare_request_pin(tmp_path: Path):
+    """Compatibility check only; historical CLI execution is covered separately."""
     verified = []
+    historical_runtime = build_frozen_runtime_root(tmp_path)
     for label in ("first", "second"):
         repo, receipt = _setup(tmp_path / f"{label}-distinct-temp-location")
         materialization = json.loads(receipt.read_text())
@@ -145,8 +156,8 @@ def test_actual_prepare_only_cli_is_path_independent_and_provider_free(tmp_path:
         assert output["no_target_code_execution"] is True
         assert len(output["primary_requests"]) == 1
         result = verify(
-            receipt, prepared_path, repo, FIXTURE, PROFILE, LIMITS, PROVIDER, ROOT,
-            expected_python_identity=CURRENT_PYTHON_IDENTITY,
+            receipt, prepared_path, repo, FIXTURE, PROFILE, LIMITS, PROVIDER,
+            historical_runtime, expected_python_identity=CURRENT_PYTHON_IDENTITY,
         )
         assert result["result"] == "MATCHED_PROVIDER_FREE_PREPARE"
         assert result["request_sha256"] == "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
@@ -162,6 +173,12 @@ def test_actual_prepare_only_cli_is_path_independent_and_provider_free(tmp_path:
     assert first == second
 
 
+def test_verifier_rejects_current_checkout_against_historical_runtime_pin(tmp_path: Path):
+    repo, receipt = _setup(tmp_path)
+    with pytest.raises(VerifyError, match="runtime_tree_mismatch"):
+        _verify(repo, receipt, source_root=ROOT)
+
+
 def test_verifier_rejects_forged_path_bound_snapshot_hash(tmp_path: Path):
     repo, receipt = _setup(tmp_path)
     prepared = json.loads(PREPARED.read_text())
@@ -169,4 +186,7 @@ def test_verifier_rejects_forged_path_bound_snapshot_hash(tmp_path: Path):
     forged = tmp_path / "forged-snapshot-hash.json"
     forged.write_text(json.dumps(prepared, sort_keys=True, separators=(",", ":")) + "\n")
     with pytest.raises(VerifyError, match="snapshot_identity_mismatch"):
-        verify(receipt, forged, repo, FIXTURE, PROFILE, LIMITS, PROVIDER, ROOT)
+        verify(
+            receipt, forged, repo, FIXTURE, PROFILE, LIMITS, PROVIDER,
+            build_frozen_runtime_root(tmp_path), expected_python_identity=CURRENT_PYTHON_IDENTITY,
+        )
