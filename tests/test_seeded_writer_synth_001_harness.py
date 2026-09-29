@@ -1,16 +1,27 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
-from pr_review_harness.engine import run_review
-from pr_review_harness.planner import plan_review
-from pr_review_harness.snapshot import collect_snapshot
+import pytest
 
 ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import run_model_only_shadow_audit as shadow_audit_runner  # noqa: E402
+
+from pr_review_harness import providers as provider_module  # noqa: E402
+from pr_review_harness.engine import _evidence_for, prepare_plan_tasks, run_review  # noqa: E402
+from pr_review_harness.planner import plan_review  # noqa: E402
+from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
+from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
+
 FIXTURE = ROOT / "examples/evaluation/seeded-writer-synth-001"
+_OFFLINE_PROVIDER_KEY = "provider-free-test-key"
 LIMITS = {
     "deadline_seconds": 10,
     "max_concurrent_scopes": 1,
@@ -25,6 +36,105 @@ LIMITS = {
 }
 
 
+class _LocalHTTPResponse:
+    def __init__(self, body: bytes):
+        self.body = body
+        self.status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self, size: int = -1) -> bytes:
+        if size < 0:
+            size = len(self.body)
+        result, self.body = self.body[:size], self.body[size:]
+        return result
+
+
+class _LocalHTTPTransport:
+    """Capture the production HTTP request and return only in-process bytes."""
+
+    def __init__(self, response_body: bytes):
+        self.response_body = response_body
+        self.requests = []
+
+    def open(self, request, timeout):
+        self.requests.append((request, timeout))
+        return _LocalHTTPResponse(self.response_body)
+
+
+def test_openai_transport_binds_request_and_parses_response_locally(monkeypatch):
+    """Exercise generic production transport/parser plumbing; the payload is not model evidence."""
+    fixture_id = "SYNTH-001"
+    task_id = "synth-001-task"
+    system = "Review the frozen synthetic source evidence."
+    user = {"case_id": fixture_id, "task": {"task_id": task_id}, "evidence": []}
+    schema = {"type": "object", "properties": {"fixture_id": {"type": "string"}}}
+    limits = {"max_input_bytes_per_task": 20_000, "max_output_bytes_per_task": 4096,
+              "deadline_seconds": 2}
+    payload = {"fixture_id": fixture_id, "task_id": task_id, "status": "parsed"}
+    content = json.dumps(payload, separators=(",", ":"))
+    response_body = json.dumps({
+        "id": "local-response-1", "model": "fixture-reviewer",
+        "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+        "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
+    }, separators=(",", ":")).encode("utf-8")
+    transport = _LocalHTTPTransport(response_body)
+    monkeypatch.setattr(provider_module, "_HTTP_OPENER", transport)
+    monkeypatch.setenv("UNSET_SYNTH_CONTROL_KEY", _OFFLINE_PROVIDER_KEY)
+
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://offline.invalid/v1",
+        "model": "fixture-reviewer", "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+        "provider_id": "provider-free-transport-test", "semantic_adjudication": False,
+    })
+    request_bytes = provider._serialize_request_body(system, user, schema, limits)
+    request_sha256 = hashlib.sha256(request_bytes).hexdigest()
+    parsed, metadata = provider._call(
+        system=system, user=user, schema=schema, limits=limits,
+        contract_version="openai-transport-test.v1", capture_exchange=True,
+        expected_request_sha256=request_sha256, serialized_request_bytes=request_bytes,
+    )
+
+    assert parsed == payload
+    assert len(transport.requests) == 1
+    request, timeout = transport.requests[0]
+    assert request.data == request_bytes
+    assert hashlib.sha256(request.data).hexdigest() == request_sha256
+    assert fixture_id.encode() in request.data and task_id.encode() in request.data
+    assert request.get_method() == "POST"
+    assert timeout <= limits["deadline_seconds"]
+    assert metadata["_audit_exchange"]["response_bytes"] == response_body
+    assert metadata["_audit_exchange"]["structured_response_bytes"] == content.encode("utf-8")
+    assert metadata["provenance"]["request_hash"] == request_sha256
+    assert metadata["provenance"]["request_id"] == "local-response-1"
+    assert _OFFLINE_PROVIDER_KEY not in repr(metadata)
+
+
+def test_openai_transport_rejects_malformed_envelope_and_inner_json(monkeypatch):
+    """Both production response parsing layers fail closed on malformed bytes."""
+    monkeypatch.setenv("UNSET_SYNTH_CONTROL_KEY", _OFFLINE_PROVIDER_KEY)
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://offline.invalid/v1",
+        "model": "fixture-reviewer", "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+    })
+    system, user, schema = "system", {"case_id": "SYNTH-001"}, {"type": "object"}
+    limits = {"max_input_bytes_per_task": 2000, "max_output_bytes_per_task": 2000,
+              "deadline_seconds": 2}
+    malformed_responses = (
+        b'{"choices": [',
+        json.dumps({"choices": [{"finish_reason": "stop", "message": {"content": "{"}}]}).encode(),
+    )
+    for response_body in malformed_responses:
+        monkeypatch.setattr(provider_module, "_HTTP_OPENER", _LocalHTTPTransport(response_body))
+        with pytest.raises(ProviderError, match="malformed_provider_response"):
+            provider._call(system=system, user=user, schema=schema, limits=limits,
+                           contract_version="openai-transport-test.v1", capture_exchange=True)
+
+
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
     return subprocess.run(
         ["git", "-C", str(repo), *args],
@@ -36,7 +146,8 @@ def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
     ).stdout.strip()
 
 
-def _synthetic_repo(tmp_path: Path) -> tuple[Path, str, str, dict]:
+def _synthetic_repo(tmp_path: Path, *, seeded_defect: bool = True) -> tuple[Path, str, str, dict]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     seed = json.loads((FIXTURE / "seed.json").read_text())
     visible = {relative: (FIXTURE / relative).read_text() for relative in seed["visible_files"]}
     repo = tmp_path / "repo"
@@ -64,7 +175,9 @@ def _synthetic_repo(tmp_path: Path) -> tuple[Path, str, str, dict]:
     _git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "synthetic base", env=fixed_commit_time)
     base = _git(repo, "rev-parse", "HEAD")
 
-    reviewed_auth.write_text(visible["head/auth.py"])
+    reviewed_auth.write_text(
+        visible["head/auth.py"] if seeded_defect else visible["base/auth.py"] + "# behavior-preserving fixture edit\n"
+    )
     _git(repo, "add", "-A")
     fixed_commit_time["GIT_AUTHOR_DATE"] = "2026-01-01T00:00:01+00:00"
     fixed_commit_time["GIT_COMMITTER_DATE"] = "2026-01-01T00:00:01+00:00"
@@ -73,6 +186,7 @@ def _synthetic_repo(tmp_path: Path) -> tuple[Path, str, str, dict]:
 
     profile = {
         "version": "seeded-writer-synth-001-v1",
+        "profile_id": "synth-001",
         "required_lenses": ["correctness"],
         "allow_empty_approve": True,
         "context_paths": ["contract.md", "caller.py"],
@@ -81,6 +195,137 @@ def _synthetic_repo(tmp_path: Path) -> tuple[Path, str, str, dict]:
         "auth.py", "caller.py", "contract.md"
     }
     return repo, base, head, profile
+
+
+class _SerializedFixtureProvider(OpenAIProvider):
+    """Use production serialization and specialist validation with a fixed response."""
+
+    def __init__(self, candidate_enabled: bool):
+        super().__init__({
+            "kind": "openai_compatible",
+            "base_url": "https://offline.invalid/v1",
+            "model": "fixture-reviewer",
+            "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+            "provider_id": "provider-free-sensitivity-control",
+            "semantic_adjudication": False,
+        })
+        self.candidate_enabled = candidate_enabled
+
+    def _fixture_payload(self, task, evidence):
+        diff = next(row for row in evidence if row.get("source_kind") == "diff")
+        candidates = []
+        if self.candidate_enabled:
+            candidates = [{
+                "unit_id": task["unit_ids"][0],
+                "location": {
+                    "kind": "line", "path": diff["path"], "side": "HEAD", "line": 2, "reason": None,
+                },
+                "title": "Synthetic authorization bypass",
+                "observation": "The seeded change makes the authorization predicate unconditional.",
+                "consequence": "A caller may access another owner's document.",
+                "rule_or_contract": "The supplied contract requires matching caller and owner IDs.",
+                "severity": "high", "reasoning_kind": "inferred", "introducedness": "INTRODUCED",
+                "evidence_refs": [diff["evidence_id"]],
+            }]
+        return {
+            "contract_version": "specialist-findings.v4",
+            "finding_candidates": candidates,
+            "context_gap_proposals": [],
+            "coverage_notes": [{
+                "unit_id": unit_id, "state": "COVERED", "reason_code": "fixture_scope_reviewed",
+                "evidence_refs": [diff["evidence_id"]], "coverage_basis": "STATIC_REVIEW",
+            } for unit_id in task["unit_ids"]],
+            "specific_strengths": [], "future_guidance": [],
+        }
+
+    def _call(self, *, system, user, schema, limits, contract_version, capture_exchange=False,
+              expected_request_sha256=None, serialized_request_bytes=None, before_dispatch=None,
+              on_http_attempt=None):
+        assert capture_exchange is True
+        expected = self._serialize_request_body(system, user, schema, limits)
+        assert serialized_request_bytes == expected
+        assert hashlib.sha256(expected).hexdigest() == expected_request_sha256
+        payload = self._fixture_payload(user["task"], user["evidence"])
+        content = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        return json.loads(content), {
+            "usage": {}, "provenance": {"provider": "provider-free-sensitivity-control"},
+            "_audit_exchange": {
+                "structured_response_bytes": content,
+                "response_bytes": b'{"fixture":"provider-free"}',
+            },
+        }
+
+
+def test_provider_free_seeded_writer_control_roundtrips_serialization_validation_reconciliation_and_packet_selection(
+    tmp_path,
+):
+    """Construction-defined responses test plumbing, not model sensitivity or response parsing."""
+    selected = []
+    for label, seeded_defect in (("defect", True), ("benign", False)):
+        repo, base, head, profile = _synthetic_repo(tmp_path / label, seeded_defect=seeded_defect)
+        snapshot = collect_snapshot(str(repo), base, head, profile, LIMITS)
+        provider = _SerializedFixtureProvider(candidate_enabled=seeded_defect)
+        plan = plan_review(snapshot, profile, "AUTO")
+        limits = {
+            **LIMITS, "max_provider_calls": 1, "max_retries_per_task": 0,
+            "max_followup_tasks": 0, "max_output_tokens": 1_800,
+            "max_output_bytes_per_task": 16_000, "max_input_bytes_per_task": 45_000,
+        }
+        tasks, _skipped = prepare_plan_tasks(snapshot, plan, profile, limits, provider)
+        writer_tasks = [task for task in tasks if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"]
+        assert len(writer_tasks) == 1
+        task = writer_tasks[0]
+        evidence = _evidence_for(task, snapshot, limits["max_input_bytes_per_task"])
+        request_bytes = provider.serialize_review_request(task, evidence, limits)
+        request_pin = {
+            task["task_id"]: {
+                "task_id": task["task_id"], "input_sha256": hashlib.sha256(request_bytes).hexdigest(),
+                "input_bytes": len(request_bytes), "lens": task["lens"],
+                "output_bytes_cap": 16_000, "output_tokens_cap": 1_800,
+            }
+        }
+        capture_dir = tmp_path / f"capture-{label}"
+        result = run_review(
+            snapshot, plan, profile, provider, None, limits, str(tmp_path / f"results-{label}"),
+            f"writer-live-synth-{label}", max_claim_assessments=0,
+            private_capture_dir=str(capture_dir), private_capture_case_id="SYNTH-001",
+            private_capture_request_pins=request_pin,
+            private_capture_snapshot_pin={"snapshot_id": snapshot["snapshot_id"],
+                                          "snapshot_sha256": snapshot["snapshot_hash"]},
+        )
+        captured_requests = list((capture_dir / "requests").glob("*.bin"))
+        assert len(captured_requests) == 1
+        assert captured_requests[0].read_bytes() == request_bytes
+        captured_responses = list((capture_dir / "responses").glob("*.bin"))
+        assert len(captured_responses) == 1
+        expected_payload = provider._fixture_payload(task, evidence)
+        expected_response_bytes = json.dumps(
+            expected_payload, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
+        assert captured_responses[0].read_bytes() == expected_response_bytes
+        captured_payload = json.loads(captured_responses[0].read_bytes())
+        assert captured_payload == expected_payload
+        validated_payload = result["task_results"][task["task_id"]]["payload"]
+        assert captured_payload["contract_version"] == validated_payload["source_contract_version"]
+        assert len(captured_payload["finding_candidates"]) == len(validated_payload["finding_candidates"])
+        if captured_payload["finding_candidates"]:
+            raw_candidate = captured_payload["finding_candidates"][0]
+            validated_candidate = validated_payload["finding_candidates"][0]
+            assert {key: validated_candidate[key] for key in raw_candidate} == raw_candidate
+        assert captured_payload["coverage_notes"] == validated_payload["coverage_notes"]
+        packet_rows = shadow_audit_runner._packet_candidates(capture_dir)[2]
+        packet_path = shadow_audit_runner._select_packet(packet_rows)
+        if seeded_defect:
+            assert result["findings"]
+            assert packet_path is not None
+            assert packet_path[2]["writer_candidate"]["title"] == "Synthetic authorization bypass"
+        else:
+            assert result["findings"] == []
+            assert packet_path is None
+            assert all(row[2]["writer_candidate"] is None for row in packet_rows)
+        selected.append(packet_path)
+
+    assert selected[0] is not None and selected[1] is None
 
 
 class _LoopbackStyleFakeReviewProvider:
