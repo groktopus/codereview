@@ -74,6 +74,7 @@ def test_source_record_transport_sends_only_pinned_native_contract(monkeypatch):
     raw = _native_source_record_request()
 
     assert transport(raw, 7, 1024) == b'{"model":"jev-1.2.3","answers":{}}'
+    assert transport.last_dispatch_state == "http_attempted"
     request, timeout = opener.calls[0]
     assert len(opener.calls) == 1
     assert request.full_url == "https://api.typesafe.ai/v1/systemone"
@@ -122,6 +123,7 @@ def test_source_record_transport_rejects_oversized_request_before_http(monkeypat
     with pytest.raises(SourceRecordTransportError, match="source_request_exceeds_limit"):
         transport(_native_source_record_request(), 5, 1024)
     assert opener.calls == []
+    assert transport.last_dispatch_state == "unknown"
 
 
 def test_source_record_transport_failure_is_sanitized_and_never_retried(monkeypatch):
