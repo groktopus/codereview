@@ -19,12 +19,15 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from shadow_case_policy import CASE_POLICY  # noqa: E402
+
 PLAN_MAX_BYTES = 128_000
 PREPARE_MAX_BYTES = 4_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_MODULE_COUNT = 35
-EXPECTED_MODULE_TREE_SHA256 = "3a891f5c35efb120555502880139945284040c7a35c9a262149687872edf4986"
-EXPECTED_PLAN_SHA256 = {"PR-457": "3207c554d4271a746d248778a65e663bf84e0728fb21e2e30834c27818e1dd84", "PR-464": "250a6df08587685b5c93d5216d5cf385bf5664a46db9b0ba650a203e4e23300e"}
+EXPECTED_MODULE_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
+EXPECTED_PLAN_SHA256 = {case_id: policy["plan_sha256"] for case_id, policy in CASE_POLICY.items()}
 CASE_CONTRACTS = {
     "PR-457": {"repository": "magnus919/SlopSearX", "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e", "head_sha": "595f143607961d21d162efe76518d86e416d2548", "snapshot_id": "snap-24293f430e4f8006a52bac18", "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea", "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95", "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k", "profile_file_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918", "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977", "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311", "scope_obligations": 14, "request_count": 6, "request_bytes_total": 469539, "request_bytes_max": 118490, "remaining_call_slots": 4},
     "PR-464": {"repository": "magnus919/SlopSearX", "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af", "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c", "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd", "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868", "evidence_index_sha256": "0b75fca3258bd3d75ed3d260467ec130f639f2afc59519e5f603f4d4a176e30c", "profile_version": "slopsearx-realcase-eval-v2-pr464-context240-window16k", "profile_file_sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8", "historical_checks_sha256": "7198ac6bf02d3887fb065205e4ffbd48d435657027d4d5fa73168bdc900c359f", "check_evidence_sha256": "7187d1097d94930be5b3faf1a584cd409ecaae3f9f33789bfd6df78f5a451e7b", "scope_obligations": 22, "request_count": 10, "request_bytes_total": 893359, "request_bytes_max": 96462, "remaining_call_slots": 0},
@@ -98,7 +101,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         "prepare_contract",
     }:
         raise PreflightError("plan_schema_invalid")
-    if plan.get("schema") != "model-only-shadow-live-writer-plan.v1":
+    if plan.get("schema") != "model-only-shadow-live-writer-plan.v2":
         raise PreflightError("plan_contract_invalid")
     if plan.get("status") != "PREPARE_ONLY_PINNED_PLAN_NO_PROVIDER_DISPATCH":
         raise PreflightError("plan_status_invalid")
@@ -145,7 +148,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
     ):
         if not isinstance(runtime.get(field), str) or not SHA256.fullmatch(runtime[field]):
             raise PreflightError("plan_runtime_hash_invalid")
-    if runtime.get("plan_generated_from_revision") != "42e5d5bad7cc4f22f3be6fdd6ce99560edd275ea":
+    if runtime.get("plan_generated_from_revision") != "f6fd5158c567a2ace10e1abd63465a23cd12fc51":
         raise PreflightError("plan_runtime_revision_invalid")
     identity = plan.get("provider_identity")
     if not isinstance(identity, dict) or identity != {
@@ -164,7 +167,8 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         "writer_deadline_seconds": 600, "writer_max_concurrent_scopes": 4,
         "writer_followup_slots": 0, "writer_claim_assessment_slots": 0,
         "writer_summary_slots": 0, "writer_optional_stage_slots": 0,
-        "audit_max_provider_calls": 3, "audit_max_input_bytes_per_call": 64000,
+        "audit_max_provider_calls": 3,
+        "audit_max_input_bytes_per_call": 120000 if case_id == "PR-457" else 96000,
         "audit_max_response_bytes_per_call": 64000, "audit_max_output_tokens_per_llm_call": 1800,
         "audit_max_deadline_seconds_per_call": 90, "audit_max_retries": 0,
         "total_provider_calls_max": 13, "total_provider_deadline_seconds_max": 870,

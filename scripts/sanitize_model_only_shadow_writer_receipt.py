@@ -300,7 +300,7 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     budget = plan.get("budget")
     requests = plan.get("writer_requests")
     if (
-        plan.get("schema") != "model-only-shadow-live-writer-plan.v1"
+        plan.get("schema") != case_policy["plan_schema"]
         or not isinstance(case, dict) or case.get("case_id") != case_id
         or not isinstance(budget, dict) or budget.get("writer_exact_call_count") != case_policy["writer_calls"]
         or budget.get("writer_max_retries_per_task") != 0

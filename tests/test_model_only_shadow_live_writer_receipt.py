@@ -29,7 +29,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR
     for child in ("requests", "responses", "calls"):
         (capture / child).mkdir(mode=0o700)
     plan_name = case_id.lower().replace("-", "")
-    plan = json.loads((ROOT / f"experiments/model-only-shadow-live-{plan_name}-plan-v2.json").read_text())
+    plan = json.loads((ROOT / f"experiments/model-only-shadow-live-{plan_name}-plan-v3.json").read_text())
     packet_dir = capture / "case-packets"
     packet_dir.mkdir(mode=0o700)
     packet_inventory = []
@@ -89,7 +89,11 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR
     plan_bytes = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode() + b"\n"
     plan_path.write_bytes(plan_bytes)
     plan_hash = hashlib.sha256(plan_bytes).hexdigest()
-    policy = {"plan_sha256": plan_hash, "writer_calls": len(plan["writer_requests"])}
+    policy = {
+        "plan_sha256": plan_hash,
+        "plan_schema": plan["schema"],
+        "writer_calls": len(plan["writer_requests"]),
+    }
     monkeypatch.setattr(sanitizer, "EXPECTED_PLAN_SHA256", plan_hash, raising=False)
     monkeypatch.setattr(sanitizer, "case_for_plan_path", lambda _path, _root: (case_id, policy))
 

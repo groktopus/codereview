@@ -64,7 +64,9 @@ def main(argv: list[str] | None = None) -> int:
             validate_identity(corpus, identity_manifest, identity_plan, plan_raw, packet)
             # Keep the module-tree-pinned in-package identity gate unchanged.
             # PR-457 is validated here before entering the generic packager.
-            if corpus.get("corpus_id") != "model-only-shadow-pr464-v1":
+            if corpus.get("corpus_id") not in {
+                "model-only-shadow-pr464-v1", "model-only-shadow-pr464-v2", "model-only-shadow-pr464-v3",
+            }:
                 identity_manifest = None
                 identity_plan = None
                 identity_plan_sha256 = None

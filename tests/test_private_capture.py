@@ -426,6 +426,7 @@ def test_capture_artifacts_bind_to_valid_v2_writer_call(tmp_path):
 
 class CaptureAwareProvider:
     identity = {"provider_id": "fake-openai", "model_id": "capture-fixture", "adapter_version": "fake-v1"}
+    model = "capture-fixture"
     max_request_bytes = 128_000
     max_response_bytes = 32_768
     max_output_tokens = 1_800
@@ -433,6 +434,11 @@ class CaptureAwareProvider:
 
     def serialize_review_request(self, task, evidence, limits):
         return json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
+
+    def _serialize_request_body(self, system, user, schema, limits):
+        from pr_review_harness.providers import OpenAIProvider
+
+        return OpenAIProvider._serialize_request_body(self, system, user, schema, limits)
 
     def review_with_capture(self, task, evidence, limits, capture_spec, capture_sink):
         refs = [item["evidence_id"] for item in evidence]
@@ -615,7 +621,7 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     assert prepared["snapshot"]["snapshot_hash"] == capture_snapshot_hash
     assert not (prepared_dir / "private-capture").exists()
     plan = {
-        "schema": "model-only-shadow-live-writer-plan.v1",
+        "schema": "model-only-shadow-live-writer-plan.v2",
         "case": {
             "case_id": "PR-464",
             "snapshot_id": prepared["snapshot"]["snapshot_id"],
@@ -627,6 +633,7 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
             "writer_max_response_bytes": 32_768,
             "writer_max_output_tokens": 1_800,
             "writer_max_provider_calls": 10,
+            "audit_max_input_bytes_per_call": 96_000,
         },
         "writer_requests": [
             {
@@ -760,7 +767,7 @@ def test_actions_private_plan_must_come_from_fixed_trusted_checkout_and_receipt_
     _trusted_capture_env(monkeypatch, runner_temp)
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
     trusted_root = workspace / "trusted-runner"
-    expected_plan = trusted_root / "experiments" / "model-only-shadow-live-pr464-plan-v2.json"
+    expected_plan = trusted_root / "experiments" / "model-only-shadow-live-pr464-plan-v3.json"
     expected_plan.parent.mkdir(parents=True)
     expected_plan.write_text("{}")
     receipt_dir = runner_temp / "private-shadow-preparation"

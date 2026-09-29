@@ -320,12 +320,14 @@ jobs:
               "PR-464": {
                   "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
                   "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
-                  "corpus_path": "examples/evaluation/model-only-shadow-pr464-v2/corpus.json",
+                  "corpus_path": "examples/evaluation/model-only-shadow-pr464-v3/corpus.json",
+                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-v2.json",
               },
               "PR-457": {
                   "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
                   "head_sha": "595f143607961d21d162efe76518d86e416d2548",
-                  "corpus_path": "examples/evaluation/model-only-shadow-pr457-v2/corpus.json",
+                  "corpus_path": "examples/evaluation/model-only-shadow-pr457-v3/corpus.json",
+                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-v3.json",
               },
           }
           case_id = os.environ.get("SELECTED_CASE", "PR-464")
@@ -334,7 +336,7 @@ jobs:
           values = {
               "case_id": case_id,
               **contracts[case_id],
-              "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v2.json",
+              "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v3.json",
               "profile_path": f"docs/real-case-trial-v1/profiles/{case_id}.json",
               "checks_path": f"docs/real-case-trial-v1/checks/{case_id}.json",
               "corpus_path": contracts[case_id]["corpus_path"],
@@ -567,13 +569,33 @@ jobs:
             --provider-config "$RUNNER_TEMP/private-shadow-audit-config/provider.json" \
             --jev-config "$RUNNER_TEMP/private-shadow-audit-config/decision.json" \
             --plan "${{ steps.case.outputs.plan_path }}" \
-            --limits experiments/model-only-shadow-audit-limits-v1.json \
+            --limits "${{ steps.case.outputs.audit_limits_path }}" \
             --output-root "$RUNNER_TEMP/private-shadow-audit-output" \
             --receipt "$RUNNER_TEMP/private-shadow-audit-receipt/shadow-audit-receipt.json" \
             --source-only-no-candidate \
             --selection-receipt "$RUNNER_TEMP/private-shadow-preparation/packet-selection.json" \
+            --source-dispatch-receipt "$RUNNER_TEMP/private-shadow-source-accounting/source-dispatch-accounting.json" \
             --live > /dev/null
           echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Validate and sanitize source HTTP-attempt accounting
+        id: source-accounting-sanitize
+        if: always() && steps.shadow-audit.outcome != 'skipped'
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          python3 scripts/sanitize_source_dispatch_accounting.py \
+            --input "$RUNNER_TEMP/private-shadow-source-accounting/source-dispatch-accounting.json" \
+            --output-dir "$RUNNER_TEMP/private-shadow-source-accounting-sanitized" > /dev/null
+          echo 'validated=true' >> "$GITHUB_OUTPUT"
+          python3 - "$RUNNER_TEMP/private-shadow-source-accounting-sanitized/source-dispatch-accounting.json" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          value = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as output:
+              output.write(f"attempts={value['source_http_attempts']}\n")
+          PY
 
       - name: Validate and sanitize the model-only audit receipt
         id: audit-sanitize
@@ -718,6 +740,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload only source HTTP-attempt accounting
+        id: source-accounting-upload
+        if: always() && steps.source-accounting-sanitize.outputs.validated == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: private-shadow-source-accounting-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-shadow-source-accounting-sanitized/source-dispatch-accounting.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload only the hash-only sealed Jev receipt
         id: sealed-jev-artifact-upload
         if: always() && steps.sealed-jev.outputs.validated == 'true'
@@ -746,6 +778,9 @@ jobs:
           STATUS_AUDIT_CONFIG: ${{ steps.audit-config.outcome }}
           STATUS_SHADOW_AUDIT: ${{ steps.shadow-audit.outcome }}
           STATUS_AUDIT_SANITIZE: ${{ steps.audit-sanitize.outcome }}
+          STATUS_SOURCE_ACCOUNTING_SANITIZE: ${{ steps.source-accounting-sanitize.outcome }}
+          STATUS_SOURCE_ACCOUNTING_UPLOAD: ${{ steps.source-accounting-upload.outcome }}
+          STATUS_SOURCE_HTTP_ATTEMPTS: ${{ steps.source-accounting-sanitize.outputs.attempts }}
           STATUS_WRITER_ARTIFACT_UPLOAD: ${{ steps.writer-artifact-upload.outcome }}
           STATUS_AUDIT_ARTIFACT_UPLOAD: ${{ steps.audit-artifact-upload.outcome }}
         run: |
@@ -770,13 +805,14 @@ jobs:
               "provider_identity": "unknown", "writer": "unknown",
               "writer_sanitize": "unknown", "audit_config": "unknown",
               "shadow_audit": "unknown", "audit_sanitize": "unknown",
+              "source_accounting_sanitize": "unknown", "source_accounting_upload": "unknown",
               "writer_artifact_upload": "unknown", "audit_artifact_upload": "unknown",
           }
           stages = {key: value if value in allowed_outcomes else "unknown" for key, value in stages.items()}
           case_id = os.environ.get("STATUS_CASE_ID", "")
           job_status = os.environ.get("STATUS_JOB", "")
           receipt = {
-              "schema": "model-only-shadow-workflow-status.v1",
+              "schema": "model-only-shadow-workflow-status.v2",
               "case_id": case_id if case_id in {"PR-457", "PR-464"} else "unknown",
               "run_id": os.environ.get("STATUS_RUN_ID", "") if re.fullmatch(r"[0-9]{1,20}", os.environ.get("STATUS_RUN_ID", "")) else "unknown",
               "run_attempt": os.environ.get("STATUS_RUN_ATTEMPT", "") if re.fullmatch(r"[0-9]{1,20}", os.environ.get("STATUS_RUN_ATTEMPT", "")) else "unknown",
@@ -785,6 +821,7 @@ jobs:
               "stages": stages,
               "writer_call_state": "unknown",
               "audit_call_state": "unknown",
+              "source_http_attempts": "unknown",
           }
           runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
           directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -835,6 +872,7 @@ jobs:
               "private-writer-capture", "private-writer-sanitized",
               "private-shadow-audit-config", "private-shadow-audit-output",
               "private-shadow-audit-receipt", "private-shadow-audit-sanitized",
+              "private-shadow-source-accounting", "private-shadow-source-accounting-sanitized",
               "private-shadow-jev-sanitized",
               "private-shadow-status", "private-cross-model-package",
           ):

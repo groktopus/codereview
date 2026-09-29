@@ -25,6 +25,10 @@ class PinnedCaptureProbeProvider:
     max_response_bytes = 32_768
     max_output_tokens = 1_800
     max_output_items = 10
+    model = "offline-probe-v1"
+
+    def _serialize_request_body(self, system, user, schema, limits):
+        return OpenAIProvider._serialize_request_body(self, system, user, schema, limits)
 
     def serialize_review_request(self, task, evidence, limits):
         return json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
@@ -846,6 +850,7 @@ def test_unknown_required_lens_fails_before_provider_dispatch_or_result_creation
 def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_changed_requests(tmp_path):
     class PinProvider:
         identity = {"provider_id": "pin-test", "model_id": "pin-test-v1"}
+        model = "pin-test-v1"
         max_request_bytes = 128_000
         max_response_bytes = 32_768
         max_output_tokens = 1_800
@@ -858,6 +863,9 @@ def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_ch
         def serialize_review_request(self, task, evidence, limits):
             body = json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
             return body + (b" " if self.mutate else b"")
+
+        def _serialize_request_body(self, system, user, schema, limits):
+            return OpenAIProvider._serialize_request_body(self, system, user, schema, limits)
 
         def review_with_capture(self, *_args):
             self.calls += 1
@@ -911,7 +919,7 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
     snapshot = make_snapshot()
     prof = profile(("correctness", "tests", "design", "security", "performance", "maintainability"))
     frozen_plan = json.loads(
-        (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v2.json").read_text()
+        (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v3.json").read_text()
     )
     prof["repository"] = frozen_plan["case"]["repository"]
     snapshot["profile_hash"] = hashlib.sha256(json.dumps(

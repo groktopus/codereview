@@ -90,11 +90,12 @@ jobs:
         timeout-minutes: 3
         run: python -m pip install '.[dev]'
 
-      - name: Match the frozen plan without provider dispatch
+      - name: Rehearse frozen capture and source audit without provider dispatch
         timeout-minutes: 3
         env:
           PR464_SOURCE_REPO: ${{ github.workspace }}/slopsearx-source
-        run: python -m pytest -q -s tests/test_frozen_pr464_capture_integration.py -k prepare_only
+          PR464_RUN_FULL_CAPTURE: '1'
+        run: python -m pytest -q -s tests/test_frozen_pr464_source_audit_preflight.py tests/test_frozen_pr464_capture_integration.py
 
   build:
     name: Build wheel and source distribution

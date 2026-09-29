@@ -11,7 +11,9 @@ import stat
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "model-only-shadow-workflow-status.v1"
+# v2 adds source-accounting sanitizer/upload stages and the source HTTP-attempt
+# enum; strict v1 consumers should reject this receipt rather than ignore fields.
+SCHEMA = "model-only-shadow-workflow-status.v2"
 CASES = {"PR-457", "PR-464"}
 OUTCOMES = {"success", "failure", "cancelled", "skipped", "unknown"}
 JOB_STATES = {"success", "failure", "cancelled", "unknown"}
@@ -26,6 +28,8 @@ STAGE_ENV = {
     "audit_config": "STATUS_AUDIT_CONFIG",
     "shadow_audit": "STATUS_SHADOW_AUDIT",
     "audit_sanitize": "STATUS_AUDIT_SANITIZE",
+    "source_accounting_sanitize": "STATUS_SOURCE_ACCOUNTING_SANITIZE",
+    "source_accounting_upload": "STATUS_SOURCE_ACCOUNTING_UPLOAD",
     "writer_artifact_upload": "STATUS_WRITER_ARTIFACT_UPLOAD",
     "audit_artifact_upload": "STATUS_AUDIT_ARTIFACT_UPLOAD",
 }
@@ -50,6 +54,10 @@ def build_receipt(env: dict[str, str]) -> dict[str, Any]:
     audit_sanitize = stages["audit_sanitize"]
     writer_upload = stages["writer_artifact_upload"]
     audit_upload = stages["audit_artifact_upload"]
+    source_accounting = _choice(env.get("STATUS_SOURCE_HTTP_ATTEMPTS", ""), {"0", "1", "unknown"})
+    if (stages["source_accounting_sanitize"] != "success"
+            or stages["source_accounting_upload"] != "success"):
+        source_accounting = "unknown"
     writer_calls = (
         "not_started" if writer == "skipped"
         else "accounted_by_sanitized_receipt"
@@ -72,6 +80,7 @@ def build_receipt(env: dict[str, str]) -> dict[str, Any]:
         "stages": stages,
         "writer_call_state": writer_calls,
         "audit_call_state": audit_calls,
+        "source_http_attempts": source_accounting,
     }
 
 

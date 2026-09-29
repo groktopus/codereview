@@ -1,0 +1,28 @@
+{
+  "schema": "synth-001-preflight-proposal-evidence.v1",
+  "proposal_id": "synth-001-v3-pending-runtime",
+  "status": "PROVIDER_FREE_PREPARE_MATCHED_RUNTIME_PIN_PENDING",
+  "prepared_from_revision": "cd6ceaa0b9120b328a5e75d86f2a0729ce6052fd",
+  "interim_runtime_observation": {
+    "source_revision": "cd6ceaa0b9120b328a5e75d86f2a0729ce6052fd",
+    "module_count": 35,
+    "module_tree_sha256": "838fb5619048fb1bb4bcf84ad8721bb6d7cba37ce9464a3b5089ee9d3080b6c5",
+    "final_pin_status": "NOT_FROZEN"
+  },
+  "no_provider_calls": true,
+  "no_target_code_execution": true,
+  "fixture_id": "SYNTH-001",
+  "base_sha": "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
+  "head_sha": "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
+  "snapshot_id": "snap-a6c6ac33adda6c436e2cf3cf",
+  "snapshot_hash": "348d9914ef0e489a2a4928ce9d5978be82ecbc51a944122fb12beaeb125e65e3",
+  "request_sha256": "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d",
+  "request_bytes": 11687,
+  "materialization_sha256": "510cf3c61eae681a0cf7a97552e0366f107fc6eec52d3ab4d740cde6486f1457",
+  "prepared_output_sha256": "596b272814b8eacc4d69b670bc2dcf867a0865a250801bc3e56eb5ad9bb11a39",
+  "verification_sha256": "3a004bf1b1e691cebee8ed80fa1fe068699de1e5b3a3c5fea483ec320d3c5001",
+  "preflight_bundle_sha256": "e4957b1e18b7cacc9d1ea91ce2a0e0d3b854f7a926c79b19f4133c6435c4175e",
+  "prior_identity_path": "experiments/synth-001-package-identity-v2.json",
+  "prior_identity_sha256": "038097276dee407c07a2ddea138c7d9060294aefa6e40867874f3a242e7befeb",
+  "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME"
+}

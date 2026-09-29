@@ -232,7 +232,23 @@ def _role_for_v2(run: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-_MODEL_TEACHER_CORPUS_ID = "model-only-shadow-pr464-v1"
+_MODEL_TEACHER_IDENTITIES = {
+    "model-only-shadow-pr464-v1": {
+        "plan_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v1",
+        "manifest_id": "model-only-shadow-live-pr464-plan-v2",
+    },
+    "model-only-shadow-pr464-v2": {
+        "plan_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v1",
+        "manifest_id": "model-only-shadow-live-pr464-plan-v2",
+    },
+    "model-only-shadow-pr464-v3": {
+        "plan_path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v2",
+        "manifest_id": "model-only-shadow-live-pr464-plan-v3",
+    },
+}
 _MODEL_TEACHER_MANIFEST_FIELDS = {
     "schema", "corpus_id", "dataset_version", "case_id", "repository", "base_sha", "head_sha",
     "snapshot_id", "snapshot_sha256", "profile_version", "profile_sha256", "evidence_index_sha256",
@@ -250,16 +266,17 @@ def validate_model_teacher_packet_identity(
     manifest = manifest_value
     if not isinstance(manifest, dict) or set(manifest) != _MODEL_TEACHER_MANIFEST_FIELDS:
         _fail("evaluation_identity_manifest_invalid")
+    identity_policy = _MODEL_TEACHER_IDENTITIES.get(corpus.get("corpus_id"))
     if (
         manifest.get("schema") != "model-only-shadow-evaluation-identity.v1"
         or manifest.get("reviewer_kind") != "model_teacher"
         or manifest.get("evaluation_status") != "FROZEN_INPUTS_NO_MODEL_OUTPUTS"
         or manifest.get("gold_labels") != {"status": "UNAVAILABLE", "packets_present": 0}
         or manifest.get("accuracy_claims") != "NOT_ESTIMABLE_FROM_THIS_CORPUS"
-        or corpus.get("corpus_id") != _MODEL_TEACHER_CORPUS_ID
+        or identity_policy is None
         or manifest.get("corpus_id") != corpus.get("corpus_id")
         or manifest.get("dataset_version") != corpus.get("dataset_version")
-        or manifest.get("plan_path") != "experiments/model-only-shadow-live-pr464-plan-v2.json"
+        or manifest.get("plan_path") != identity_policy["plan_path"]
     ):
         _fail("evaluation_identity_manifest_invalid")
     if manifest.get("corpus_sha256") != _sha(_canonical(corpus)):
@@ -267,15 +284,19 @@ def validate_model_teacher_packet_identity(
     if plan_sha256 != manifest.get("plan_sha256"):
         _fail("evaluation_identity_manifest_mismatch")
     plan_case = plan_value.get("case") if isinstance(plan_value, dict) else None
-    if not isinstance(plan_case, dict) or any(
-        manifest.get(manifest_key) != plan_case.get(plan_key)
-        for manifest_key, plan_key in (
-            ("case_id", "case_id"), ("repository", "repository"), ("base_sha", "base_sha"),
-            ("head_sha", "head_sha"), ("snapshot_id", "snapshot_id"),
-            ("snapshot_sha256", "snapshot_sha256"), ("profile_version", "profile_version"),
-            ("profile_sha256", "profile_file_sha256"), ("evidence_index_sha256", "evidence_index_sha256"),
-            ("historical_checks_sha256", "historical_checks_sha256"),
-            ("check_evidence_sha256", "check_evidence_sha256"),
+    if (
+        not isinstance(plan_case, dict)
+        or plan_value.get("schema") != identity_policy["plan_schema"]
+        or any(
+            manifest.get(manifest_key) != plan_case.get(plan_key)
+            for manifest_key, plan_key in (
+                ("case_id", "case_id"), ("repository", "repository"), ("base_sha", "base_sha"),
+                ("head_sha", "head_sha"), ("snapshot_id", "snapshot_id"),
+                ("snapshot_sha256", "snapshot_sha256"), ("profile_version", "profile_version"),
+                ("profile_sha256", "profile_file_sha256"), ("evidence_index_sha256", "evidence_index_sha256"),
+                ("historical_checks_sha256", "historical_checks_sha256"),
+                ("check_evidence_sha256", "check_evidence_sha256"),
+            )
         )
     ):
         _fail("evaluation_identity_manifest_mismatch")
@@ -291,7 +312,7 @@ def validate_model_teacher_packet_identity(
         or manifest.get("snapshot_id") != identity["snapshot_id"]
         or manifest.get("profile_version") != identity["profile"]["version"]
         or manifest.get("profile_sha256") != identity["profile"]["sha256"]
-        or identity["source_manifest"].get("manifest_id") != "model-only-shadow-live-pr464-plan-v2"
+        or identity["source_manifest"].get("manifest_id") != identity_policy["manifest_id"]
         or identity["source_manifest"].get("sha256") != manifest.get("plan_sha256")
     ):
         _fail("evaluation_identity_manifest_mismatch")
@@ -333,7 +354,7 @@ def build_cross_model_package(
         _fail("case_packet_missing_or_ambiguous")
     if packet.get("contract_version") != "model-only-shadow-case.v1":
         _fail("case_packet_contract_invalid")
-    if corpus.get("corpus_id") == _MODEL_TEACHER_CORPUS_ID:
+    if corpus.get("corpus_id") in _MODEL_TEACHER_IDENTITIES:
         if identity_manifest_value is None or identity_plan_value is None or identity_plan_sha256 is None:
             _fail("evaluation_identity_manifest_required")
         validate_model_teacher_packet_identity(

@@ -21,7 +21,8 @@ _SPEC.loader.exec_module(STATUS)
 EXPECTED_STAGES = {
     "trusted_checkout", "trusted_identity", "case_selection", "exact_preflight",
     "provider_identity", "writer", "writer_sanitize", "audit_config", "shadow_audit",
-    "audit_sanitize", "writer_artifact_upload", "audit_artifact_upload",
+    "audit_sanitize", "source_accounting_sanitize", "source_accounting_upload",
+    "writer_artifact_upload", "audit_artifact_upload",
 }
 
 
@@ -36,12 +37,14 @@ def _env(**values: str) -> dict[str, str]:
 
 def test_status_projection_handles_missing_and_unrecognized_values_fail_closed():
     receipt = STATUS.build_receipt({})
+    assert receipt["schema"] == "model-only-shadow-workflow-status.v2"
     assert receipt["case_id"] == "unknown"
     assert receipt["run_id"] == receipt["run_attempt"] == "unknown"
     assert receipt["job_status_at_projection"] == "unknown"
     assert set(receipt["stages"]) == EXPECTED_STAGES
     assert set(receipt["stages"].values()) == {"unknown"}
     assert receipt["writer_call_state"] == receipt["audit_call_state"] == "unknown"
+    assert receipt["source_http_attempts"] == "unknown"
 
     hostile = STATUS.build_receipt(_env(case_id="PR-999", writer="success", writer_sanitize="", job="secret"))
     assert hostile["case_id"] == "unknown"
@@ -81,11 +84,26 @@ def test_audit_call_state_requires_a_sanitized_receipt_or_proves_it_never_starte
     assert recorded["audit_call_state"] == "accounted_by_sanitized_receipt"
 
 
+@pytest.mark.parametrize("attempts", ["0", "1", "unknown"])
+def test_source_attempt_projection_requires_sanitized_receipt_and_upload(attempts):
+    values = {"source_accounting_sanitize": "success", "source_accounting_upload": "success"}
+    recorded = STATUS.build_receipt(_env(**values, source_http_attempts=attempts))
+    assert recorded["source_http_attempts"] == attempts
+    missing_upload = STATUS.build_receipt(_env(
+        source_accounting_sanitize="success", source_accounting_upload="skipped",
+        source_http_attempts=attempts,
+    ))
+    assert missing_upload["source_http_attempts"] == "unknown"
+    invalid = STATUS.build_receipt(_env(**values, source_http_attempts="2"))
+    assert invalid["source_http_attempts"] == "unknown"
+
+
 def test_trusted_projection_records_every_stage_when_outcomes_are_present():
     env = _env(**{name: "success" for name in (
         "trusted_checkout", "trusted_identity", "case_selection", "exact_preflight",
         "provider_identity", "writer", "writer_sanitize", "audit_config", "shadow_audit",
-        "audit_sanitize", "writer_artifact_upload", "audit_artifact_upload",
+        "audit_sanitize", "source_accounting_sanitize", "source_accounting_upload",
+        "writer_artifact_upload", "audit_artifact_upload",
     )})
     receipt = STATUS.build_receipt(env)
     assert receipt["projection_mode"] == "trusted_projector"

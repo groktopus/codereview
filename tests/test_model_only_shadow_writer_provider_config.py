@@ -32,13 +32,13 @@ def test_builder_materializes_only_the_reviewed_pilot_configuration(tmp_path: Pa
     runner.mkdir(mode=0o700)
     os.chmod(runner, 0o700)
     digest = builder.build(
-        ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json",
         runner / "private-shadow-runtime-config", _env(runner),
     )
     config_path = runner / "private-shadow-runtime-config/provider.json"
     config_bytes = config_path.read_bytes()
     config = json.loads(config_bytes)
-    plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json").read_text())
+    plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json").read_text())
     assert digest == plan["runtime"]["writer_provider_config_sha256"]
     assert config["base_url"] == "https://inference-api.nousresearch.com/v1"
     assert config["model"] == "openai/gpt-6-luna"
@@ -52,7 +52,7 @@ def test_builder_accepts_the_fixed_six_call_pr457_plan_without_changing_provider
     runner = tmp_path / "runner"
     runner.mkdir(mode=0o700)
     os.chmod(runner, 0o700)
-    plan_path = ROOT / "experiments/model-only-shadow-live-pr457-plan-v2.json"
+    plan_path = ROOT / "experiments/model-only-shadow-live-pr457-plan-v3.json"
     digest = builder.build(plan_path, runner / "private-shadow-runtime-config", _env(runner))
     plan = json.loads(plan_path.read_text())
     config = json.loads((runner / "private-shadow-runtime-config/provider.json").read_text())
@@ -70,5 +70,5 @@ def test_builder_fails_closed_on_changed_endpoint_before_writing_config(tmp_path
     env = _env(runner)
     env["LLM_BASE_URL"] = "https://attacker.example/v1"
     with pytest.raises(builder.ConfigBuildError, match="writer_provider_identity_mismatch"):
-        builder.build(ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json", runner / "config", env)
+        builder.build(ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json", runner / "config", env)
     assert not (runner / "config").exists()

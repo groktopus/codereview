@@ -145,6 +145,12 @@ def _valid(receipt: dict[str, Any]) -> None:
             for role in ROLES
         )
         source, jev, claim = (roles["source_auditor"], roles["jev"], roles["claim_auditor"])
+        source_failed_before_attempt = (
+            calls == 0 and source == "failed" and jev == claim == "not_run"
+            and all(role_calls[role] == 0 for role in ROLES)
+            and all(count_map[role] == 0 for count_map in count_maps.values() for role in ROLES)
+            and all(hashes[role] is None for role in ROLES)
+        )
         source_attempted, jev_attempted, claim_attempted = (
             role_calls["source_auditor"], role_calls["jev"], role_calls["claim_auditor"]
         )
@@ -175,7 +181,7 @@ def _valid(receipt: dict[str, Any]) -> None:
             and all(count_maps[field]["claim_auditor"] == 0 for field in count_maps)
             and source_valid and (jev_not_run or jev_ran_after_source)
         )
-        if not (legacy_not_run or new_source_only):
+        if not (legacy_not_run or source_failed_before_attempt or new_source_only):
             raise ReceiptError("zero_candidate_receipt_invalid")
     else:
         if (set(receipt) != base | optional or not isinstance(receipt["selected_candidate_sha256"], str)

@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
 from materialize_seeded_writer_synth_001 import materialize  # noqa: E402
-from verify_synth_001_preflight import PYTHON_IDENTITY, VerifyError, verify  # noqa: E402
+from verify_synth_001_preflight import PYTHON_IDENTITY, SOURCE_REVISION, VerifyError, verify  # noqa: E402
 
 from pr_review_harness.cli import _read_limits  # noqa: E402
 from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
@@ -64,7 +64,7 @@ def test_exact_provider_free_plan_verifies_and_emits_bounded_hash_receipt(tmp_pa
     result = _verify(repo, receipt)
     assert result["result"] == "MATCHED_PROVIDER_FREE_PREPARE"
     assert result["fixture_id"] == "SYNTH-001"
-    assert result["source_revision"] == "42e5d5bad7cc4f22f3be6fdd6ce99560edd275ea"
+    assert result["source_revision"] == SOURCE_REVISION
     assert result["request_bytes"] == 11_687
     assert result["lens"] == "correctness"
     assert result["output_bytes_cap"] == 16_000

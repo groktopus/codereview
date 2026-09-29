@@ -8,8 +8,10 @@ from typing import Any
 
 CASE_POLICY: dict[str, dict[str, Any]] = {
     "PR-457": {
-        "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v2.json",
-        "plan_sha256": "3207c554d4271a746d248778a65e663bf84e0728fb21e2e30834c27818e1dd84",
+        "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
+        "plan_sha256": "f586a799c845c0f0c05260f325d77ea7d6d0d4cb602edb23bcbc0e1312264d6d",
+        "plan_schema": "model-only-shadow-live-writer-plan.v2",
+        "audit_input_limit": 120_000,
         "writer_calls": 6,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
@@ -17,8 +19,10 @@ CASE_POLICY: dict[str, dict[str, Any]] = {
         "profile_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
     },
     "PR-464": {
-        "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
-        "plan_sha256": "250a6df08587685b5c93d5216d5cf385bf5664a46db9b0ba650a203e4e23300e",
+        "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
+        "plan_sha256": "d488a2f1eec7db9818bb5b44865863ae39f6293197643cae89cebc7ad9ceba9b",
+        "plan_schema": "model-only-shadow-live-writer-plan.v2",
+        "audit_input_limit": 96_000,
         "writer_calls": 10,
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
@@ -51,13 +55,14 @@ def validate_plan_binding(plan: dict[str, Any], plan_bytes: bytes) -> tuple[str,
     requests = plan.get("writer_requests")
     if (
         hashlib.sha256(plan_bytes).hexdigest() != policy["plan_sha256"]
-        or plan.get("schema") != "model-only-shadow-live-writer-plan.v1"
+        or plan.get("schema") != policy["plan_schema"]
         or case.get("snapshot_id") != policy["snapshot_id"]
         or case.get("snapshot_sha256") != policy["snapshot_sha256"]
         or case.get("profile_file_sha256") != policy["profile_sha256"]
         or not isinstance(budget, dict)
         or budget.get("writer_exact_call_count") != policy["writer_calls"]
         or budget.get("writer_max_provider_calls") != 10
+        or budget.get("audit_max_input_bytes_per_call") != policy["audit_input_limit"]
         or not isinstance(requests, list)
         or len(requests) != policy["writer_calls"]
     ):
