@@ -165,6 +165,8 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     )[0]
     assert "source-record-jev-receipt.json" in jev_upload and "retention-days: 7" in jev_upload
     assert "private-shadow-jev-sanitized/source-record-jev-receipt.json" in jev_upload
+    assert "source-record-jev-advisory-summary.json" not in text
+    assert "--write-private-advisory-summary" not in jev_step
     assert "private-writer-sanitized/packet-selection.json" in uploads
     cleanup = live.split("- name: Remove private live-writer workspace", 1)[1]
     assert '"private-shadow-jev-sanitized"' in cleanup
