@@ -137,9 +137,9 @@ def run_sealed_no_candidate_decision(
 
     source_role = roles.get("source_auditor") if isinstance(roles, dict) else None
     calls = source_role.get("calls") if isinstance(source_role, dict) else None
-    if (not isinstance(source_role, dict) or source_role.get("status") != "completed"
+    if (not isinstance(source_role, dict) or source_role.get("status") not in {"completed", "abstained"}
             or not isinstance(calls, list) or len(calls) != 1 or not isinstance(calls[0], dict)):
-        raise SealedSourceIntegrationError("source_audit_not_completed")
+        raise SealedSourceIntegrationError("source_audit_not_sealed")
     call = calls[0]
     response_raw = _artifact(paths, "source-auditor-response", 64_000)
     request_raw = _artifact(paths, "source-auditor-request", 64_000)
@@ -156,7 +156,7 @@ def run_sealed_no_candidate_decision(
         "snapshot_id": snapshot["snapshot_id"],
         "snapshot_hash": snapshot["snapshot_hash"],
         "source_auditor_run_id": source_role.get("run_id"),
-        "source_auditor_status": "completed",
+        "source_auditor_status": source_role["status"],
         "source_response_sha256": _sha(response_raw),
         "sealed_before_claim_dispatch": True,
     }
