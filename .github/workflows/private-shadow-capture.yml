@@ -9,7 +9,7 @@ on:
         type: boolean
         default: false
       live_case:
-        description: Fixed case used by the live writer and three-role audit
+        description: Fixed case for the bounded writer-only and source-only PR-464 trial
         required: false
         type: choice
         options:
@@ -265,7 +265,7 @@ jobs:
           PY
 
   live_writer:
-    if: inputs.run_live_writer == true && github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    if: inputs.run_live_writer == true && inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -496,12 +496,46 @@ jobs:
             --output-dir "$RUNNER_TEMP/private-writer-sanitized" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
+      - name: Select the frozen no-candidate packet without provider calls
+        id: packet-selection
+        if: steps.writer-sanitize.outputs.validated == 'true'
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          python3 scripts/select_frozen_pr464_no_candidate_packet.py \
+            --capture-root "$RUNNER_TEMP/private-writer-capture" \
+            --plan "${{ steps.case.outputs.plan_path }}" \
+            --preflight "$RUNNER_TEMP/private-shadow-preparation/live-preflight-receipt.json" \
+            --writer-receipt "$RUNNER_TEMP/private-writer-sanitized/writer-receipt.json" \
+            --writer-outcomes "$RUNNER_TEMP/private-writer-sanitized/writer-outcomes.json" \
+            > "$RUNNER_TEMP/private-shadow-preparation/packet-selection.json"
+          python3 - "$RUNNER_TEMP/private-shadow-preparation/packet-selection.json" \
+            "$RUNNER_TEMP/private-writer-sanitized/packet-selection.json" <<'PY'
+          import json
+          import os
+          import shutil
+          import sys
+          from pathlib import Path
+
+          source, retained = map(Path, sys.argv[1:])
+          result = json.loads(source.read_text(encoding="utf-8"))
+          if (result.get("case_id") != "PR-464" or result.get("writer_calls") != 10
+                  or result.get("audit_provider_calls") != 0
+                  or result.get("publication_enabled") is not False
+                  or result.get("target_code_execution") is not False):
+              raise SystemExit("frozen_packet_selection_invalid")
+          shutil.copyfile(source, retained)
+          os.chmod(retained, 0o600)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write("validated=true\n")
+          PY
+
       # AuditDispatchGuard checks each exact serialized request immediately
       # before its adapter dispatches. The claim request is checked only after
       # the Jev response has shaped it; no future request hash is fabricated.
       - name: Build private model-only audit configs
         id: audit-config
-        if: steps.writer-sanitize.outputs.validated == 'true'
+        if: steps.packet-selection.outputs.validated == 'true'
         working-directory: trusted-runner
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted-runner/src
@@ -520,7 +554,7 @@ jobs:
 
       - name: Run one bounded model-only audit packet
         id: shadow-audit
-        if: steps.writer-sanitize.outputs.validated == 'true' && steps.audit-config.outputs.validated == 'true'
+        if: steps.packet-selection.outputs.validated == 'true' && steps.audit-config.outputs.validated == 'true'
         working-directory: trusted-runner
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted-runner/src
@@ -536,6 +570,8 @@ jobs:
             --limits experiments/model-only-shadow-audit-limits-v1.json \
             --output-root "$RUNNER_TEMP/private-shadow-audit-output" \
             --receipt "$RUNNER_TEMP/private-shadow-audit-receipt/shadow-audit-receipt.json" \
+            --source-only-no-candidate \
+            --selection-receipt "$RUNNER_TEMP/private-shadow-preparation/packet-selection.json" \
             --live > /dev/null
           echo 'completed=true' >> "$GITHUB_OUTPUT"
 
@@ -550,11 +586,53 @@ jobs:
             --output-dir "$RUNNER_TEMP/private-shadow-audit-sanitized" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
+      - name: Confirm exactly one source call and no candidate before sealed Jev
+        id: source-only-gate
+        if: steps.shadow-audit.outcome == 'success' && steps.audit-sanitize.outputs.validated == 'true'
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/private-shadow-audit-sanitized/shadow-audit-receipt.json" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          receipt = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if (receipt.get("case_id") != "PR-464" or receipt.get("candidate_packet_count") != 0
+                  or receipt.get("reason") != "no_writer_candidate"
+                  or receipt.get("audit_provider_calls") != 1
+                  or receipt.get("role_dispatched_call_counts") != {
+                      "source_auditor": 1, "jev": 0, "claim_auditor": 0,
+                  }
+                  or not isinstance(receipt.get("roles"), dict)
+                  or receipt["roles"].get("source_auditor") not in {"completed", "abstained"}
+                  or receipt["roles"].get("jev") != "not_run"
+                  or receipt["roles"].get("claim_auditor") != "not_run"):
+              raise SystemExit("source_only_receipt_contract_invalid")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as output:
+              output.write("validated=true\n")
+          PY
+
+      - name: Run one sealed source-record Jev call
+        id: sealed-jev
+        if: steps.source-only-gate.outputs.validated == 'true'
+        working-directory: trusted-runner
+        env:
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 scripts/run_sealed_source_record_jev.py \
+            --artifacts "$RUNNER_TEMP/private-shadow-audit-output" \
+            --jev-config "$RUNNER_TEMP/private-shadow-audit-config/decision.json" \
+            --output-dir "$RUNNER_TEMP/private-shadow-jev-sanitized" \
+            --live > /dev/null
+          echo 'validated=true' >> "$GITHUB_OUTPUT"
+
       # Both selected PR cases have frozen v2 corpus identities. Package private bytes on-runner
       # and project the result to a bounded receipt; do not upload either here.
       - name: Gate cross-model packaging on a completed candidate audit
         id: package-selection
-        if: steps.case.outputs.corpus_path != '' && steps.shadow-audit.outcome == 'success' && steps.audit-sanitize.outputs.validated == 'true'
+        if: steps.case.outputs.case_id != 'PR-464' && steps.case.outputs.corpus_path != '' && steps.shadow-audit.outcome == 'success' && steps.audit-sanitize.outputs.validated == 'true'
         working-directory: trusted-runner
         run: |
           set -euo pipefail
@@ -620,6 +698,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload only the hash-only selected packet receipt
+        id: packet-selection-upload
+        if: always() && steps.packet-selection.outputs.validated == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: private-shadow-packet-selection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-writer-sanitized/packet-selection.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload only the hash-only model-only audit receipt
         id: audit-artifact-upload
         if: always() && steps.audit-sanitize.outputs.validated == 'true'
@@ -627,6 +715,16 @@ jobs:
         with:
           name: private-shadow-audit-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/private-shadow-audit-sanitized/shadow-audit-receipt.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload only the hash-only sealed Jev receipt
+        id: sealed-jev-artifact-upload
+        if: always() && steps.sealed-jev.outputs.validated == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: private-shadow-source-record-jev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-shadow-jev-sanitized/source-record-jev-receipt.json
           if-no-files-found: error
           retention-days: 7
 
@@ -737,6 +835,7 @@ jobs:
               "private-writer-capture", "private-writer-sanitized",
               "private-shadow-audit-config", "private-shadow-audit-output",
               "private-shadow-audit-receipt", "private-shadow-audit-sanitized",
+              "private-shadow-jev-sanitized",
               "private-shadow-status", "private-cross-model-package",
           ):
               path = root / name
