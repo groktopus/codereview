@@ -28,7 +28,7 @@ from pr_review_harness.cross_model_package import build_cross_model_package  # n
 from pr_review_harness.evaluation import EvaluationError  # noqa: E402
 
 IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v2.json"
-IDENTITY_SHA256 = "49458af2a2cd26fb17396baa0380d7efc0db5ec0101beb299f3c376bcc576b8f"
+IDENTITY_SHA256 = "038097276dee407c07a2ddea138c7d9060294aefa6e40867874f3a242e7befeb"
 FIXTURE_DIR = ROOT / "examples/evaluation/seeded-writer-synth-001"
 PROFILE_PATH = ROOT / "experiments/synth-001-writer-profile-v1.json"
 LIMITS_PATH = ROOT / "experiments/synth-001-writer-limits-v1.json"

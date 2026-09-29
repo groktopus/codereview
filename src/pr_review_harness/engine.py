@@ -115,6 +115,46 @@ class EnginePreflightError(ValueError):
         super().__init__(safe_detail or self._DETAILS[reason])
 
 
+def _private_capture_profile_id(profile: dict[str, Any]) -> str:
+    """Resolve a capture-local alias; repository and snapshot hashes bind provenance.
+
+    A repository basename is intentionally compatible with frozen corpora, not
+    globally unique across owners. The hashed profile and snapshot identities
+    remain the binding when two repositories share a basename. ``unknown`` is
+    retained only for legacy profiles with no identity fields or repository.
+    """
+    from .private_capture import _safe_id
+
+    for key in ("profile_id", "id", "name"):
+        if key in profile:
+            try:
+                return _safe_id(profile[key], "profile_id")
+            except ValueError:
+                raise ValueError("private capture profile identity is invalid") from None
+
+    if "repository" not in profile:
+        return "unknown"
+
+    repository = profile["repository"]
+    owner = repo = None
+    if isinstance(repository, dict):
+        owner = repository.get("owner")
+        repo = repository.get("repo", repository.get("name"))
+    elif isinstance(repository, str) and repository.count("/") == 1:
+        owner, repo = repository.split("/", 1)
+    component = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}")
+    if (
+        isinstance(owner, str)
+        and isinstance(repo, str)
+        and component.fullmatch(owner)
+        and component.fullmatch(repo)
+        and owner not in {".", ".."}
+        and repo not in {".", ".."}
+    ):
+        return _safe_id(repo.lower(), "profile_id")
+    raise ValueError("private capture repository identity is invalid")
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -1538,6 +1578,7 @@ def run_review(
         ):
             raise EnginePreflightError("invalid_review_request", "private capture capacity exceeds its fixed limits")
         try:
+            capture_profile_id = _private_capture_profile_id(profile)
             private_capture = PrivateShadowCapture(
                 private_capture_dir,
                 case_id=run_id,
@@ -1554,7 +1595,7 @@ def run_review(
                     for task in primary_tasks
                     if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"
                 ],
-                profile_id=str(profile.get("profile_id", profile.get("id", profile.get("name", "unknown")))),
+                profile_id=capture_profile_id,
             )
         except (OSError, TypeError, ValueError) as exc:
             raise EnginePreflightError("invalid_review_request", f"private capture unavailable: {type(exc).__name__}") from None
