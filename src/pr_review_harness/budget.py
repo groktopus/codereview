@@ -39,6 +39,7 @@ _MAX_PROVIDER_ELAPSED_MS = 24 * 60 * 60 * 1000
 _LOCAL_HTTP_EXCHANGE_STATES = frozenset(
     {
         "REQUEST_SERIALIZED",
+        "PRE_DISPATCH_GUARD_REJECTED",
         "REQUEST_ATTEMPTED",
         "HTTP_RESPONSE_RECEIVED",
         "HTTP_ERROR_RESPONSE",
@@ -80,11 +81,11 @@ def _safe_local_http_exchange(value: Any) -> dict | None:
     has_response_bytes = response_hash is not None or response_bytes is not None
     if not has_response_bytes and response_complete is not None:
         return None
-    if state in {"REQUEST_SERIALIZED", "REQUEST_ATTEMPTED", "TRANSPORT_FAILURE"} and (
+    if state in {"REQUEST_SERIALIZED", "PRE_DISPATCH_GUARD_REJECTED", "REQUEST_ATTEMPTED", "TRANSPORT_FAILURE"} and (
         status is not None or has_response_bytes or response_complete is not None
     ):
         return None
-    if state == "REQUEST_SERIALIZED" and attempted:
+    if state in {"REQUEST_SERIALIZED", "PRE_DISPATCH_GUARD_REJECTED"} and attempted:
         return None
     if state in {"REQUEST_ATTEMPTED", "TRANSPORT_FAILURE"} and not attempted:
         return None
@@ -151,6 +152,9 @@ def _safe_provider_metadata(meta: dict, output_limit: int) -> dict:
         sources.append(provenance)
 
     for source in sources:
+        dispatch_state = source.get("dispatch_state")
+        if dispatch_state in {"http_attempted", "post_guard_pretransport"}:
+            safe["dispatch_state"] = dispatch_state
         exchange = _safe_local_http_exchange(source.get("local_http_exchange"))
         if exchange is not None:
             safe["local_http_exchange"] = exchange
@@ -185,6 +189,65 @@ def _safe_provider_metadata(meta: dict, output_limit: int) -> dict:
     if type(actual_output_bytes) is not int or not 0 <= actual_output_bytes <= _MAX_PROVIDER_RESPONSE_BYTES:
         safe.pop("actual_output_bytes", None)
     return safe
+
+
+def _settlement_observation(usage: Any, provenance: Any) -> dict[str, Any]:
+    """Retain only numeric usage and local dispatch evidence for run accounting."""
+    usage = usage if isinstance(usage, dict) else {}
+    provenance = provenance if isinstance(provenance, dict) else {}
+    nested_provenance = provenance.get("provenance")
+    nested_provenance = nested_provenance if isinstance(nested_provenance, dict) else {}
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+    if type(input_tokens) is not int or input_tokens < 0:
+        input_tokens = None
+    if type(output_tokens) is not int or output_tokens < 0:
+        output_tokens = None
+    observation: dict[str, Any] = {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "token_usage_known": input_tokens is not None and output_tokens is not None,
+    }
+
+    elapsed = provenance.get("elapsed_ms", nested_provenance.get("elapsed_ms"))
+    if type(elapsed) is int and 0 <= elapsed <= _MAX_PROVIDER_ELAPSED_MS:
+        observation["elapsed_ms"] = elapsed
+    elif type(elapsed) is float and math.isfinite(elapsed) and 0 <= elapsed <= _MAX_PROVIDER_ELAPSED_MS:
+        observation["elapsed_ms"] = elapsed
+
+    exchange = _safe_local_http_exchange(
+        provenance.get("local_http_exchange", nested_provenance.get("local_http_exchange"))
+    )
+    if exchange is not None:
+        observation["http_attempt_observed"] = exchange["request_attempted"]
+    else:
+        dispatch = provenance.get("dispatch_state", nested_provenance.get("dispatch_state"))
+        if dispatch == "http_attempted":
+            observation["http_attempt_observed"] = True
+        elif dispatch == "post_guard_pretransport":
+            observation["http_attempt_observed"] = False
+
+    estimated = provenance.get("estimated_cost_usd", nested_provenance.get("estimated_cost_usd"))
+    if isinstance(estimated, (int, float)) and not isinstance(estimated, bool):
+        try:
+            estimated_float = float(estimated)
+        except OverflowError:
+            estimated_float = math.inf
+        if math.isfinite(estimated_float) and estimated_float >= 0:
+            observation["estimated_cost_usd"] = round(estimated_float, 10)
+    billed = provenance.get("billed_cost_usd", nested_provenance.get("billed_cost_usd"))
+    if (
+        provenance.get("billed_cost_known", nested_provenance.get("billed_cost_known")) is True
+        and isinstance(billed, (int, float))
+        and not isinstance(billed, bool)
+    ):
+        try:
+            billed_float = float(billed)
+        except OverflowError:
+            billed_float = math.inf
+        if math.isfinite(billed_float) and billed_float >= 0:
+            observation["billed_cost_usd"] = round(billed_float, 10)
+    return observation
 
 
 def _canonical(value: Any) -> bytes:
@@ -246,6 +309,11 @@ class BudgetLedger:
                 estimate.get("max_output_bytes", self.limits["max_output_bytes_per_task"]), "max_output_bytes"
             ),
             "max_cost_microunits": None if cost is None else _nonnegative_int(cost, "max_cost_microunits"),
+            "estimated_cost_microunits": (
+                None
+                if estimate.get("estimated_cost_microunits") is None
+                else _nonnegative_int(estimate["estimated_cost_microunits"], "estimated_cost_microunits")
+            ),
             "reservation_kind": estimate.get("reservation_kind", "unknown"),
             "deadline_seconds": float(estimate.get("deadline_seconds", self.remaining_seconds())),
             # Remaining time is transient. A resumed identical request must
@@ -330,7 +398,15 @@ class BudgetLedger:
             self.state["followup_tasks"] = len(existing)
             self._persist()
 
-    def settle(self, key: str, *, output_bytes: int | None, usage: dict, status: str) -> None:
+    def settle(
+        self,
+        key: str,
+        *,
+        output_bytes: int | None,
+        usage: dict,
+        status: str,
+        provenance: dict | None = None,
+    ) -> None:
         """Append actual usage while keeping unavailable billing explicitly unknown."""
         with self._lock:
             reservation = self.state["reservations"].get(key)
@@ -340,6 +416,7 @@ class BudgetLedger:
                 "status": status,
                 "actual_output_bytes": output_bytes,
                 "usage": usage if isinstance(usage, dict) else {},
+                "observation": _settlement_observation(usage, provenance),
                 "billed_cost_microunits": (usage or {}).get("billed_cost_microunits"),
                 "estimated_cost_microunits": (usage or {}).get("estimated_cost_microunits"),
                 "settled_at_epoch": time.time(),
@@ -408,6 +485,32 @@ class BudgetLedger:
             billed = [settlements.get(r["key"], {}).get("billed_cost_microunits") for r in provider_reservations]
             estimated = [settlements.get(r["key"], {}).get("estimated_cost_microunits") for r in provider_reservations]
 
+            observations = [
+                value if isinstance(value, dict) else {}
+                for reservation in provider_reservations
+                for value in [settlements.get(reservation["key"], {}).get("observation", {})]
+            ]
+            known_token = [item for item in observations if item.get("token_usage_known") is True]
+            known_input_tokens = [
+                item["input_tokens"] for item in observations if type(item.get("input_tokens")) is int
+            ]
+            known_output_tokens = [
+                item["output_tokens"] for item in observations if type(item.get("output_tokens")) is int
+            ]
+            known_latency = [item["elapsed_ms"] for item in observations if "elapsed_ms" in item]
+            known_attempts = [item.get("http_attempt_observed") for item in observations]
+            attempt_true = sum(value is True for value in known_attempts)
+            attempt_false = sum(value is False for value in known_attempts)
+            known_estimates = [item["estimated_cost_usd"] for item in observations if "estimated_cost_usd" in item]
+            known_billed_usd = [item["billed_cost_usd"] for item in observations if "billed_cost_usd" in item]
+            reserved_price_estimates = [
+                r["estimated_cost_microunits"]
+                for r in provider_reservations
+                if isinstance(r.get("estimated_cost_microunits"), int)
+                and not isinstance(r.get("estimated_cost_microunits"), bool)
+                and r["estimated_cost_microunits"] >= 0
+            ]
+
             def valid_billed(value: Any) -> bool:
                 return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
@@ -426,12 +529,48 @@ class BudgetLedger:
                 "followup_tasks_reserved": self.state.get("followup_tasks", 0),
                 "followup_tasks_limit": self.limits["max_followup_tasks"],
                 "cost_reserved_microunits": sum(r.get("max_cost_microunits") or 0 for r in reservations),
+                "cost_price_estimate_microunits_reserved": sum(reserved_price_estimates),
+                "cost_price_estimate_calls_known": len(reserved_price_estimates),
+                "cost_price_estimate_calls_unknown": len(provider_reservations) - len(reserved_price_estimates),
+                "cost_price_estimate_complete": bool(provider_reservations)
+                and len(reserved_price_estimates) == len(provider_reservations),
                 "cost_limit_microunits": self.limits.get("max_cost_microunits"),
                 "cost_billed_microunits": sum(v for v in billed if valid_billed(v)),
                 "cost_billing_known": bool(billed) and all(valid_billed(v) for v in billed),
                 "cost_estimated_microunits": sum(v for v in estimated if valid_estimate(v)),
                 "cost_estimate_known": bool(estimated) and all(valid_estimate(v) for v in estimated),
                 "cost": sum(billed) if bool(billed) and all(valid_billed(v) for v in billed) else "UNKNOWN",
+                "provider_observability": {
+                    "provider_calls_reserved": len(provider_reservations),
+                    "http_attempts_observed": attempt_true,
+                    "http_attempts_not_observed": attempt_false,
+                    "dispatch_state_unknown": len(provider_reservations) - attempt_true - attempt_false,
+                    "input_tokens_observed": sum(known_input_tokens),
+                    "output_tokens_observed": sum(known_output_tokens),
+                    "input_token_calls_known": len(known_input_tokens),
+                    "output_token_calls_known": len(known_output_tokens),
+                    "token_usage_calls_known": len(known_token),
+                    "token_usage_calls_unknown": len(provider_reservations) - len(known_token),
+                    "token_usage_complete": bool(provider_reservations)
+                    and len(known_token) == len(provider_reservations),
+                    "request_latency_observations": len(known_latency),
+                    "request_latency_ms_total": round(sum(known_latency), 2),
+                    "request_latency_ms_max": max(known_latency) if known_latency else None,
+                    "request_latency_calls_unknown": len(provider_reservations) - len(known_latency),
+                    "estimated_cost_usd_observed": round(sum(known_estimates), 10),
+                    "estimated_cost_calls_known": len(known_estimates),
+                    "estimated_cost_calls_unknown": len(provider_reservations) - len(known_estimates),
+                    "estimated_cost_complete": bool(provider_reservations)
+                    and len(known_estimates) == len(provider_reservations),
+                    "billed_cost_usd_observed": round(sum(known_billed_usd), 10),
+                    "billed_cost_calls_known": len(known_billed_usd),
+                    "billed_cost_calls_unknown": len(provider_reservations) - len(known_billed_usd),
+                    "billed_cost_complete": bool(provider_reservations)
+                    and len(known_billed_usd) == len(provider_reservations),
+                    "billed_cost_usd": round(sum(known_billed_usd), 10)
+                    if provider_reservations and len(known_billed_usd) == len(provider_reservations)
+                    else "UNKNOWN",
+                },
                 "budget_breaches": list(self.state.get("budget_breaches", [])),
             }
 

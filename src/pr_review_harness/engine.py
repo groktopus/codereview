@@ -925,6 +925,62 @@ def _stable_finding_id(run_id: str, candidate: dict) -> str:
     return "finding-" + _hash({"run_id": run_id, "candidate": candidate})[:16]
 
 
+def _decision_observability(task_results: dict, claim_rows: list[dict]) -> dict[str, Any]:
+    """Count only explicit structured outcomes; never infer abstention from missing data."""
+    task_statuses: dict[str, int] = {}
+    check_outcomes: dict[str, int] = {}
+    coverage_states: dict[str, int] = {}
+    for task in task_results.values():
+        if not isinstance(task, dict):
+            continue
+        status = task.get("status")
+        if isinstance(status, str):
+            task_statuses[status] = task_statuses.get(status, 0) + 1
+        payload = task.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        outcome = payload.get("outcome")
+        if isinstance(outcome, str) and outcome in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}:
+            check_outcomes[outcome] = check_outcomes.get(outcome, 0) + 1
+        notes = payload.get("coverage_notes", [])
+        if not isinstance(notes, list):
+            continue
+        for note in notes:
+            if isinstance(note, dict) and note.get("state") in {"COVERED", "PARTIAL", "NOT_COVERED"}:
+                state = note["state"]
+                coverage_states[state] = coverage_states.get(state, 0) + 1
+
+    answer_statuses: dict[str, int] = {}
+    uncertain_choices = 0
+    unknown_choices = 0
+    for row in claim_rows:
+        assessments = row.get("assessments") if isinstance(row, dict) else None
+        if not isinstance(assessments, dict):
+            continue
+        for assessment in assessments.values():
+            if not isinstance(assessment, dict):
+                continue
+            status = assessment.get("status")
+            if isinstance(status, str):
+                answer_statuses[status] = answer_statuses.get(status, 0) + 1
+            choice = assessment.get("choice")
+            if choice == "UNCERTAIN":
+                uncertain_choices += 1
+            elif choice == "UNKNOWN":
+                unknown_choices += 1
+    return {
+        "task_status_counts": task_statuses,
+        "check_outcome_counts": check_outcomes,
+        "coverage_note_state_counts": coverage_states,
+        "claim_answer_status_counts": answer_statuses,
+        "claim_uncertain_choices": uncertain_choices,
+        "claim_unknown_choices": unknown_choices,
+        # The current Choice contract represents uncertainty and omission, not a
+        # separate abstained answer. Keep those statuses visible and distinct.
+        "explicit_abstention_supported": False,
+    }
+
+
 def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
     findings = result["findings"]
     blockers = [f for f in findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"]
@@ -1954,7 +2010,13 @@ def run_review(
                             )
                     payload[field] = accepted
                 payload["quarantined_items"] = quarantined
-            budget.settle(key, output_bytes=len(_canonical(response)), usage=usage, status="SUCCEEDED")
+            budget.settle(
+                key,
+                output_bytes=len(_canonical(response)),
+                usage=usage,
+                status="SUCCEEDED",
+                provenance=provenance,
+            )
             return {
                 "task_id": task_id,
                 "task_kind": prepared["kind"],
@@ -2001,6 +2063,7 @@ def run_review(
                     output_bytes=meta.get("actual_output_bytes") if isinstance(meta, dict) else None,
                     usage=usage,
                     status="INVALID" if isinstance(exc, ValueError) else "FAILED",
+                    provenance=meta if isinstance(meta, dict) else {},
                 )
             except (ValueError, KeyError):
                 pass
@@ -3290,7 +3353,13 @@ def run_review(
                 )
                 if not response_valid:
                     status = "FAILED"
-                budget.settle(reservation_key, output_bytes=output_bytes, usage=usage, status=status)
+                budget.settle(
+                    reservation_key,
+                    output_bytes=output_bytes,
+                    usage=usage,
+                    status=status,
+                    provenance=provenance,
+                )
                 record_update = {
                     "status": status,
                     "normalized_result_hash": _hash(response),
@@ -3365,6 +3434,7 @@ def run_review(
                             output_bytes=settlement_bytes,
                             usage=meta.get("usage", {}) if isinstance(meta.get("usage"), dict) else {},
                             status="INTERRUPTED_UNKNOWN" if uncertain else "FAILED",
+                            provenance=meta,
                         )
                     except (ValueError, KeyError):
                         pass
@@ -3801,6 +3871,9 @@ def run_review(
         result["claim_assessments"] = [
             ledger["claim_assessments"][candidate_id] for candidate_id in sorted(ledger["claim_assessments"])
         ]
+    result["decision_observability"] = _decision_observability(
+        task_results, result.get("claim_assessments", [])
+    )
     result["disposition"] = _reduce(
         result,
         approval_authority,
@@ -3855,7 +3928,13 @@ def run_review(
                 lock=call_lock,
             )
             payload, usage, provenance = _unwrap(response)
-            budget.settle(reservation_key, output_bytes=len(_canonical(response)), usage=usage, status="SUCCEEDED")
+            budget.settle(
+                reservation_key,
+                output_bytes=len(_canonical(response)),
+                usage=usage,
+                status="SUCCEEDED",
+                provenance=provenance,
+            )
             advisory_assessment = {
                 "status": "RECEIVED",
                 "result": payload,
@@ -3873,6 +3952,7 @@ def run_review(
                     output_bytes=meta.get("actual_output_bytes") if isinstance(meta, dict) else None,
                     usage=usage,
                     status="FAILED",
+                    provenance=meta if isinstance(meta, dict) else {},
                 )
             except (ValueError, KeyError):
                 pass
