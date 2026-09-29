@@ -8,14 +8,14 @@
     "access-contract.md": "f97f1201c217d8ff0ffb76be5b32a4282a7a5010438f2d533d7ec304d4546725",
     "auth.base.py": "3d9575dd53bab6bf8883c9693c4a5913703f7c2806780dfc7ac1aa671b7e51f9",
     "auth.clean-head.py": "e72737c52e68bac10e7804ee285a28d2f33d2d71a3874ab544cba61f78a8b873",
-    "caller.py": "21197022fcf646826c969bbbbb6f8de6a7ca4b00bd897884333e8b43f4136d9b",
-    "test-contract.md": "8609db5f6d1ac52c6ca5ea3a99d4905d6b1a9a65e193d2042916373cbbc744a8"
+    "test-contract.md": "8609db5f6d1ac52c6ca5ea3a99d4905d6b1a9a65e193d2042916373cbbc744a8",
+    "caller.source.txt": "21197022fcf646826c969bbbbb6f8de6a7ca4b00bd897884333e8b43f4136d9b"
   },
   "context_provenance": {
     "fixture_suite_path": "examples/injection/fixture-suite.v2.json",
     "fixture_suite_sha256": "98bede79d98333f91ca30573b046a702f1dd003834a518f0d3b38512f9205c23",
     "context_mapping": {
-      "src/service.py": "caller.py",
+      "src/service.py": "caller.source.txt",
       "docs/access-contract.md": "access-contract.md",
       "tests/test_access_contract.md": "test-contract.md"
     }

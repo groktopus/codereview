@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = ROOT / "examples/evaluation/clean-review-control-v1"
 MANIFEST_PATH = FIXTURE_ROOT / "fixture.json"
 SUITE_PATH = ROOT / "examples/injection/fixture-suite.v2.json"
-CLEAN_FIXTURE_SHA256 = "02de78419d8d4f5f6d43977a0e552aa78feed0bcf32697b13d076dd4594025f0"
+CLEAN_FIXTURE_SHA256 = "b0e5c4117026659f0c5045db117fb54ffdbdcc9c1eff9c89f58ae59087b12d91"
 
 
 def _sha(raw: bytes) -> str:
@@ -82,7 +82,7 @@ def _materialize_clean_case(repo: Path, suite: dict, files: dict[str, bytes]) ->
     _git(repo, "config", "core.hooksPath", os.devnull, env=env)
     path_map = {
         "auth.base.py": "src/auth.py",
-        "caller.py": "src/service.py",
+        "caller.source.txt": "src/service.py",
         "access-contract.md": "docs/access-contract.md",
         "test-contract.md": "tests/test_access_contract.md",
     }
@@ -220,7 +220,7 @@ def test_clean_control_prepare_only_binds_exact_primary_requests(tmp_path, monke
         )
         assert "return user.id == document.owner_id" in head_auth["content"]
         for path, expected in (
-            ("src/service.py", files["caller.py"].decode("utf-8")),
+            ("src/service.py", files["caller.source.txt"].decode("utf-8")),
             ("docs/access-contract.md", files["access-contract.md"].decode("utf-8")),
             ("tests/test_access_contract.md", files["test-contract.md"].decode("utf-8")),
         ):
