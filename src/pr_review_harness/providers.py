@@ -596,6 +596,7 @@ class OpenAIProvider:
         expected_request_sha256: str | None = None,
         serialized_request_bytes: bytes | None = None,
         before_dispatch: Callable[[bytes], None] | None = None,
+        on_http_attempt: Callable[[], None] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         _mapping(limits, "limits")
         input_cap = _limits_int(limits, "max_input_bytes_per_task", self.max_request_bytes)
@@ -669,8 +670,19 @@ class OpenAIProvider:
             state="REQUEST_ATTEMPTED",
             request_attempted=True,
         )
+        http_attempt_callback_called = False
+
+        def mark_http_attempt() -> None:
+            nonlocal http_attempt_callback_called
+            if on_http_attempt is not None and not http_attempt_callback_called:
+                # Set first so a callback failure caught below cannot cause a
+                # second persistence attempt or change its accounting meaning.
+                http_attempt_callback_called = True
+                on_http_attempt()
+
         try:
             response = _HTTP_OPENER.open(request, timeout=timeout)
+            mark_http_attempt()
             with response:
                 status = response.status
                 try:
@@ -702,6 +714,7 @@ class OpenAIProvider:
                 elapsed_ms=(time.monotonic() - started) * 1000,
             )
         except ProviderError as exc:
+            mark_http_attempt()
             exc.meta = {
                 **exc.meta,
                 "request_hash": request_hash,
@@ -710,6 +723,7 @@ class OpenAIProvider:
             }
             raise
         except HTTPError as exc:
+            mark_http_attempt()
             error_response = _http_error_response_observation(exc, output_cap, deadline_at)
             exchange = _local_http_exchange(
                 endpoint=endpoint,
@@ -733,6 +747,7 @@ class OpenAIProvider:
                 },
             ) from None
         except (URLError, TimeoutError, OSError):
+            mark_http_attempt()
             exchange = _local_http_exchange(
                 endpoint=endpoint,
                 provider_id=provider_id if isinstance(provider_id, str) else None,
@@ -752,6 +767,7 @@ class OpenAIProvider:
                 },
             ) from None
         except Exception as exc:
+            mark_http_attempt()
             exchange = _local_http_exchange(
                 endpoint=endpoint,
                 provider_id=provider_id if isinstance(provider_id, str) else None,
@@ -1427,6 +1443,7 @@ class OpenAIProvider:
         limits: dict[str, Any],
         contract_version: str,
         before_dispatch: Callable[[bytes], None] | None = None,
+        on_http_attempt: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """Make one bounded structured call and return its exact local wire bytes.
 
@@ -1445,6 +1462,7 @@ class OpenAIProvider:
                 capture_exchange=True,
                 serialized_request_bytes=request_bytes,
                 before_dispatch=before_dispatch,
+                on_http_attempt=on_http_attempt,
             )
         except ProviderError as exc:
             exchange = exc.meta.pop("_audit_exchange", {})

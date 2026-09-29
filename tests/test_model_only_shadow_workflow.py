@@ -158,6 +158,7 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     assert "private-writer-sanitized/writer-receipt.json" in uploads
     assert "private-writer-sanitized/writer-outcomes.json" in uploads
     assert "private-shadow-audit-sanitized/shadow-audit-receipt.json" in uploads
+    assert "private-shadow-source-accounting-sanitized/source-dispatch-accounting.json" in uploads
     assert "private-writer-capture" not in uploads
     assert "private-shadow-audit-output" not in uploads
     jev_upload = live.split("- name: Upload only the hash-only sealed Jev receipt", 1)[1].split(
@@ -168,6 +169,16 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     assert "private-writer-sanitized/packet-selection.json" in uploads
     cleanup = live.split("- name: Remove private live-writer workspace", 1)[1]
     assert '"private-shadow-jev-sanitized"' in cleanup
+    accounting_sanitize = live.split("- name: Validate and sanitize source HTTP-attempt accounting", 1)[1].split(
+        "- name:", 1
+    )[0]
+    accounting_upload = live.split("- name: Upload only source HTTP-attempt accounting", 1)[1].split(
+        "- name:", 1
+    )[0]
+    assert "if: always() && steps.shadow-audit.outcome != 'skipped'" in accounting_sanitize
+    assert "if: always() && steps.source-accounting-sanitize.outputs.validated == 'true'" in accounting_upload
+    assert "--source-dispatch-receipt" in live
+    assert "private-shadow-source-accounting-sanitized" in cleanup
     assert "PUBLISH_REVIEW" not in text and "gh pr review" not in text
 
 

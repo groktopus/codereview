@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
+import source_dispatch_accounting  # noqa: E402
 from shadow_case_policy import CASE_POLICY, case_for_plan_path, validate_plan_binding  # noqa: E402
 
 from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
@@ -354,7 +355,8 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
 def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         output_root: Path, receipt_path: Path, plan_path: Path = DEFAULT_PLAN,
         limits_path: Path = DEFAULT_LIMITS, *, source_only_no_candidate: bool = False,
-        selection_receipt_path: Path | None = None) -> dict[str, Any]:
+        selection_receipt_path: Path | None = None,
+        source_dispatch_receipt_path: Path | None = None) -> dict[str, Any]:
     try:
         selected_case_id, _selected_policy = case_for_plan_path(plan_path, ROOT)
     except ValueError:
@@ -443,6 +445,8 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
 
     # Plan task order is trusted and fixed; packet digest breaks ties within one task.
     candidate_id, _packet_path, packet, packet_raw = selected
+    if source_only_no_candidate and source_dispatch_receipt_path is not None:
+        source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "unknown", create=True)
     try:
         if output_root.exists() or output_root.is_symlink():
             raise ValueError("private_output_exists")
@@ -462,6 +466,8 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         jev_transport.max_response_bytes = limits["max_output_bytes_per_task"]
         dispatch_guard = AuditDispatchGuard(limits)
     except (OSError, ValueError, ProviderError, RecursionError):
+        if source_only_no_candidate and source_dispatch_receipt_path is not None:
+            source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "0")
         raise _predispatch_failure(receipt_path, selected_case_id, "provider_setup", "provider_setup_invalid") from None
 
     guard_passed_roles: set[str] = set()
@@ -475,11 +481,17 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
             packet, source_provider=source_provider, jev_transport=jev_transport,
             claim_provider=claim_provider, limits=limits, output_dir=output_root,
             before_dispatch=before_dispatch,
+            on_source_http_attempt=(
+                lambda: source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "1")
+                if source_only_no_candidate and source_dispatch_receipt_path is not None else None
+            ),
         )
     except (OSError, ValueError, ProviderError, RecursionError):
         # This records budget reservation only; HTTP-attempt evidence is
         # collected from the provider transports.
         if not guard_passed_roles:
+            if source_only_no_candidate and source_dispatch_receipt_path is not None:
+                source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "0")
             raise _predispatch_failure(
                 receipt_path, selected_case_id, "audit_validation", "audit_input_invalid"
             ) from None
@@ -487,6 +499,9 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     audit_manifest = result["manifest"]
     roles = audit_manifest.get("roles", {})
     terminal = audit_manifest.get("terminal_state", "incomplete")
+    if source_only_no_candidate and source_dispatch_receipt_path is not None:
+        source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id,
+                                         source_dispatch_accounting.classify_source_call(roles))
     dispatch = _dispatch_accounting(roles)
     receipt = {
         "schema": "model-only-shadow-audit-receipt.v1",
@@ -529,6 +544,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="for frozen PR464 no-candidate captures, run only one source auditor before sealed Jev")
     parser.add_argument("--selection-receipt", type=Path,
                         help="hash-only frozen PR464 packet selector receipt required with source-only mode")
+    parser.add_argument("--source-dispatch-receipt", type=Path,
+                        help="private durable source HTTP-attempt accounting receipt")
     parser.add_argument("--live", action="store_true", help="dispatch at most three bounded provider calls")
     args = parser.parse_args(argv)
     if not args.live:
@@ -537,7 +554,8 @@ def main(argv: list[str] | None = None) -> int:
         receipt = run(args.capture_root, args.provider_config, args.jev_config, args.output_root,
                       args.receipt, args.plan, args.limits,
                       source_only_no_candidate=args.source_only_no_candidate,
-                      selection_receipt_path=args.selection_receipt)
+                      selection_receipt_path=args.selection_receipt,
+                      source_dispatch_receipt_path=args.source_dispatch_receipt)
     except (OSError, ValueError, ProviderError) as exc:
         code = getattr(exc, "code", None)
         if not isinstance(code, str) or not code.isidentifier():

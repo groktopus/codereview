@@ -5,6 +5,7 @@ import importlib.util
 import json
 import stat
 from pathlib import Path
+from urllib.error import URLError
 
 import pytest
 
@@ -482,12 +483,13 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
             assert raw == request
 
     def source_only_audit(packet, *, source_provider, jev_transport, claim_provider, limits,
-                          output_dir, before_dispatch):
+                          output_dir, before_dispatch, on_source_http_attempt=None):
         assert packet["writer_candidate"] is None
         assert source_provider is not claim_provider
         assert jev_transport.timeout_seconds == limits["deadline_seconds"]
         output_dir.mkdir(mode=0o700)
         before_dispatch("source_auditor", request)
+        on_source_http_attempt()
         observed.append(request_hash)
         manifest = {
             "terminal_state": "incomplete",
@@ -506,9 +508,11 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
     monkeypatch.setattr(RUNNER, "ClaimTransport", FakeClaimTransport)
     monkeypatch.setattr(RUNNER, "AuditDispatchGuard", FakeDispatchGuard)
     monkeypatch.setattr(RUNNER, "run_shadow_audit", source_only_audit)
+    source_dispatch_path = tmp_path / "source-accounting" / "source-dispatch-accounting.json"
     receipt = RUNNER.run(
         root, provider_config, jev_config, tmp_path / "raw-audit", receipt_path, plan,
         source_only_no_candidate=True, selection_receipt_path=selection_path,
+        source_dispatch_receipt_path=source_dispatch_path,
     )
     assert observed == [request_hash]
     assert receipt["reason"] == "no_writer_candidate"
@@ -516,6 +520,7 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
     assert receipt["audit_provider_calls"] == 1
     assert receipt["role_call_counts"] == {"source_auditor": 1, "jev": 0, "claim_auditor": 0}
     assert receipt["role_dispatched_call_counts"] == {"source_auditor": 1, "jev": 0, "claim_auditor": 0}
+    assert json.loads(source_dispatch_path.read_text())["source_http_attempts"] == "1"
     assert set(receipt) == {
         "schema", "case_id", "terminal_state", "reason", "audit_provider_calls", "candidate_packet_count",
         "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts",
@@ -738,6 +743,7 @@ def test_openai_guard_rejection_preserves_request_hash_without_http_attempt(role
         provider.audit_json(
             system=f"{role} fixture", user={"role": role}, schema={"type": "object"},
             limits={"max_output_tokens": 8}, contract_version="guard-test.v1", before_dispatch=reject,
+            on_http_attempt=lambda: (_ for _ in ()).throw(AssertionError("opener was not entered")),
         )
     exchange = caught.value.meta["audit_exchange"]
     assert exchange["dispatch_state"] == "guard_rejected"
@@ -785,6 +791,15 @@ class _FakeHttpOpener:
         return _FakeHttpResponse(self.body)
 
 
+class _FailingHttpOpener:
+    def __init__(self):
+        self.calls = 0
+
+    def open(self, *_args, **_kwargs):
+        self.calls += 1
+        raise URLError("private transport detail")
+
+
 def test_openai_success_receipt_confirms_http_attempt_at_opener_boundary(monkeypatch):
     opener = _FakeHttpOpener(json.dumps({
         "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
@@ -796,13 +811,61 @@ def test_openai_success_receipt_confirms_http_attempt_at_opener_boundary(monkeyp
         "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
         "model": "fixture", "api_key_env": "AUDIT_TEST_KEY",
     })
+    events = []
     result = provider.audit_json(
         system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
         limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
         before_dispatch=lambda _raw: None,
+        on_http_attempt=lambda: events.append("attempt"),
     )
     assert opener.calls == 1
+    assert events == ["attempt"]
     assert result["audit_exchange"]["dispatch_state"] == "http_attempted"
+
+
+def test_openai_opener_exception_still_persists_one_attempt(monkeypatch, tmp_path):
+    opener = _FailingHttpOpener()
+    monkeypatch.setattr(providers, "_HTTP_OPENER", opener)
+    monkeypatch.setenv("AUDIT_TEST_KEY", "test-key-only")
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
+        "model": "fixture", "api_key_env": "AUDIT_TEST_KEY",
+    })
+    receipt_path = tmp_path / "accounting" / "source.json"
+    RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "unknown", create=True)
+    with pytest.raises(ProviderError):
+        provider.audit_json(
+            system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
+            limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+            before_dispatch=lambda _raw: None,
+            on_http_attempt=lambda: RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "1"),
+        )
+    assert opener.calls == 1
+    assert json.loads(receipt_path.read_text())["source_http_attempts"] == "1"
+
+
+def test_pretransport_callback_failure_leaves_attempt_unknown(monkeypatch, tmp_path):
+    opener = _FakeHttpOpener(b"{}")
+    monkeypatch.setattr(providers, "_HTTP_OPENER", opener)
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
+        "model": "fixture", "api_key_env": "AUDIT_MISSING_KEY",
+    })
+    receipt_path = tmp_path / "accounting" / "source.json"
+    RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "unknown", create=True)
+
+    def reject(_raw):
+        raise AuditPreflightError("audit_request_exceeds_limit")
+
+    with pytest.raises(ProviderError):
+        provider.audit_json(
+            system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
+            limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+            before_dispatch=reject,
+            on_http_attempt=lambda: RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "1"),
+        )
+    assert opener.calls == 0
+    assert json.loads(receipt_path.read_text())["source_http_attempts"] == "unknown"
 
 
 def test_openai_missing_credential_is_post_guard_pretransport_not_a_call(monkeypatch):
@@ -811,14 +874,17 @@ def test_openai_missing_credential_is_post_guard_pretransport_not_a_call(monkeyp
         "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
         "model": "fixture", "api_key_env": "AUDIT_MISSING_KEY",
     })
+    events = []
     with pytest.raises(ProviderError) as caught:
         provider.audit_json(
             system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
             limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
             before_dispatch=lambda _raw: None,
+            on_http_attempt=lambda: events.append("attempt"),
         )
     exchange = caught.value.meta["audit_exchange"]
     assert exchange["dispatch_state"] == "post_guard_pretransport"
+    assert events == []
     assert hashlib.sha256(exchange["request_bytes"]).hexdigest()
 
 

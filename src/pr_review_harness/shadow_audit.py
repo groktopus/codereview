@@ -459,6 +459,7 @@ def run_shadow_audit(
     limits: Mapping[str, Any],
     output_dir: Path,
     before_dispatch: Callable[[str, bytes], None] | None = None,
+    on_source_http_attempt: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Run source-only LLM -> Jev -> claim-facing LLM once each, with no retries."""
     case = _validate_packet(packet)
@@ -569,6 +570,7 @@ def run_shadow_audit(
             limits=limits_value,
             contract_version="shadow-source-audit.v1",
             before_dispatch=lambda raw: dispatch_check("source_auditor", raw),
+            on_http_attempt=on_source_http_attempt,
         )
         exchange = reply["audit_exchange"]
         request_bytes = exchange["request_bytes"]
