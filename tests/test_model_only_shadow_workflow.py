@@ -25,7 +25,7 @@ def test_shadow_preparation_is_manual_trusted_and_read_only():
     assert text.count("  contents: read\n") == 3
     assert "if: inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch'" in prepare
     live = text.split("  live_writer:", 1)[1]
-    assert "if: inputs.run_live_writer == true && github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in live
+    assert "if: inputs.run_live_writer == true && inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in live
     assert "${{ secrets." not in prepare
     assert "PUBLISH_REVIEW" not in text
     assert "--run-provider-trial" not in text
@@ -50,7 +50,7 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "run_live_writer:" in text and "default: false" in text
     live = text.split("  live_writer:", 1)[1]
-    assert "if: inputs.run_live_writer == true && github.event_name == 'workflow_dispatch'" in live
+    assert "if: inputs.run_live_writer == true && inputs.live_case == 'PR-464' && github.event_name == 'workflow_dispatch'" in live
     assert live.index("Verify the exact plan and write the fresh provider-free receipt") < live.index(
         "Check writer secret names and exact configured identity without printing values"
     ) < live.index("Run only the selected pinned read-only writer calls")
@@ -76,9 +76,9 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     assert "JEV_API_KEY" not in writer_path and "JEV_BASE_URL" not in writer_path
     audit_config = live.split("Build private model-only audit configs", 1)[1].split("      - name:", 1)[0]
     audit_dispatch = live.split("Run one bounded model-only audit packet", 1)[1].split("      - name:", 1)[0]
-    assert "if: steps.writer-sanitize.outputs.validated == 'true'" in audit_config
+    assert "if: steps.packet-selection.outputs.validated == 'true'" in audit_config
     assert (
-        "if: steps.writer-sanitize.outputs.validated == 'true' && "
+        "if: steps.packet-selection.outputs.validated == 'true' && "
         "steps.audit-config.outputs.validated == 'true'"
     ) in audit_dispatch
     assert "JEV_API_KEY: ${{ secrets.JEV_API_KEY }}" in audit_config
@@ -87,6 +87,8 @@ def test_live_writer_is_opt_in_preflighted_and_uploads_only_sanitized_receipt():
     assert "--private-shadow-plan" in live and "--private-shadow-preflight-receipt" in live
     assert "--max-claim-assessments 0" in live
     assert "--private-shadow-capture" in live
+    assert "--source-only-no-candidate" in live
+    assert "--selection-receipt \"$RUNNER_TEMP/private-shadow-preparation/packet-selection.json\"" in live
     assert "Sanitize the completed writer capture" in live
     upload = live.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1].split("      - name:", 1)[0]
     assert "private-writer-sanitized/writer-receipt.json" in upload
@@ -123,11 +125,24 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     audit_config = live.index("id: audit-config")
     audit = live.index("id: shadow-audit")
     audit_receipt = live.index("id: audit-sanitize")
-    assert preflight < identity < writer < writer_receipt < audit_config < audit < audit_receipt
+    selector = live.index("id: packet-selection")
+    source_gate = live.index("id: source-only-gate")
+    sealed_jev = live.index("id: sealed-jev\n")
+    assert preflight < identity < writer < writer_receipt < selector < audit_config < audit < audit_receipt < source_gate < sealed_jev
     assert "if: steps.exact-preflight.outputs.verified == 'true'" in live[identity:writer]
     assert "steps.provider-identity.outputs.validated == 'true'" in live[writer:writer_receipt]
-    assert "if: steps.writer-sanitize.outputs.validated == 'true'" in live[audit_config:audit]
+    assert "if: steps.packet-selection.outputs.validated == 'true'" in live[audit_config:audit]
     assert "steps.audit-config.outputs.validated == 'true'" in live[audit:audit_receipt]
+    assert "writer_calls\") != 10" in live[selector:audit_config]
+    assert "audit_provider_calls\") != 0" in live[selector:audit_config]
+    source_gate_script = live[source_gate:sealed_jev]
+    assert '"source_auditor": 1, "jev": 0, "claim_auditor": 0' in source_gate_script
+    assert 'receipt["roles"].get("source_auditor") not in {"completed", "abstained"}' in source_gate_script
+    assert 'receipt["roles"].get("jev") != "not_run"' in source_gate_script
+    assert 'receipt["roles"].get("claim_auditor") != "not_run"' in source_gate_script
+    jev_step = live[sealed_jev:live.index("id: package-selection")]
+    assert "run_sealed_source_record_jev.py" in jev_step and "--live" in jev_step
+    assert "claim_auditor" not in jev_step
 
     audit_runner = (ROOT / "scripts" / "run_model_only_shadow_audit.py").read_text(encoding="utf-8")
     guard = (ROOT / "src" / "pr_review_harness" / "shadow_preflight.py").read_text(encoding="utf-8")
@@ -145,6 +160,14 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     assert "private-shadow-audit-sanitized/shadow-audit-receipt.json" in uploads
     assert "private-writer-capture" not in uploads
     assert "private-shadow-audit-output" not in uploads
+    jev_upload = live.split("- name: Upload only the hash-only sealed Jev receipt", 1)[1].split(
+        "- name:", 1
+    )[0]
+    assert "source-record-jev-receipt.json" in jev_upload and "retention-days: 7" in jev_upload
+    assert "private-shadow-jev-sanitized/source-record-jev-receipt.json" in jev_upload
+    assert "private-writer-sanitized/packet-selection.json" in uploads
+    cleanup = live.split("- name: Remove private live-writer workspace", 1)[1]
+    assert '"private-shadow-jev-sanitized"' in cleanup
     assert "PUBLISH_REVIEW" not in text and "gh pr review" not in text
 
 

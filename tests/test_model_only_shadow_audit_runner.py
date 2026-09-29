@@ -426,6 +426,140 @@ def test_candidate_free_capture_emits_incomplete_hash_only_receipt_without_provi
     assert '"writer_candidate":' not in raw and "source_evidence" not in raw and "selected_candidate_id" not in raw
 
 
+def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never_claim(tmp_path, monkeypatch):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", None, "task-first")])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+    packet_path = root / "case-packets" / "packet-0.json"
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(json.dumps({
+        "schema": "frozen-pr464-no-candidate-selection.v1", "case_id": "PR-464",
+        "packet_path": "case-packets/packet-0.json",
+        "selected_packet_sha256": hashlib.sha256(packet_path.read_bytes()).hexdigest(),
+        "capture_manifest_sha256": hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
+        "plan_sha256": hashlib.sha256(plan.read_bytes()).hexdigest(),
+        "snapshot_sha256": CASE_IDENTITY["snapshot_hash"],
+        "selected_task_sha256": hashlib.sha256(b"task-first").hexdigest(),
+        "writer_calls": 10, "audit_provider_calls": 0,
+        "publication_enabled": False, "target_code_execution": False,
+    }))
+    provider_config = tmp_path / "provider.json"
+    provider_config.write_text(json.dumps({
+        "kind": "openai_compatible", "base_url": RUNNER.EXPECTED_LLM[0],
+        "model": RUNNER.EXPECTED_LLM[1], "api_key_env": "LLM_API_KEY",
+    }))
+    jev_config = tmp_path / "jev.json"
+    jev_config.write_text(json.dumps({
+        "kind": "typesafe", "endpoint": RUNNER.EXPECTED_JEV[0],
+        "model": RUNNER.EXPECTED_JEV[1], "api_key_env": "JEV_API_KEY",
+    }))
+    receipt_path = tmp_path / "receipt" / "source-only.json"
+    request = b'{"source_only":"one-call"}'
+    request_hash = hashlib.sha256(request).hexdigest()
+    observed = []
+
+    class FakeProvider:
+        def __init__(self, config):
+            self.identity = {"provider_id": "operator_openai_compatible", "model_id": config["model"]}
+
+    class FakeJevTransport:
+        def __init__(self):
+            self.timeout_seconds = 0
+            self.max_request_bytes = 0
+            self.max_response_bytes = 0
+
+    class FakeClaimTransport:
+        @staticmethod
+        def from_decision_config(_config):
+            return FakeJevTransport()
+
+    class FakeDispatchGuard:
+        def __init__(self, _limits):
+            pass
+
+        def check(self, role, raw):
+            assert role == "source_auditor"
+            assert raw == request
+
+    def source_only_audit(packet, *, source_provider, jev_transport, claim_provider, limits,
+                          output_dir, before_dispatch):
+        assert packet["writer_candidate"] is None
+        assert source_provider is not claim_provider
+        assert jev_transport.timeout_seconds == limits["deadline_seconds"]
+        output_dir.mkdir(mode=0o700)
+        before_dispatch("source_auditor", request)
+        observed.append(request_hash)
+        manifest = {
+            "terminal_state": "incomplete",
+            "roles": {
+                "source_auditor": {"status": "completed", "calls": [{
+                    "dispatch_state": "http_attempted", "request_sha256": request_hash,
+                }]},
+                "jev": {"status": "not_run", "calls": []},
+                "claim_auditor": {"status": "not_run", "calls": []},
+            },
+        }
+        (output_dir / "shadow-audit-manifest.json").write_text(json.dumps(manifest))
+        return {"manifest": manifest, "artifact_paths": {}}
+
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", FakeProvider)
+    monkeypatch.setattr(RUNNER, "ClaimTransport", FakeClaimTransport)
+    monkeypatch.setattr(RUNNER, "AuditDispatchGuard", FakeDispatchGuard)
+    monkeypatch.setattr(RUNNER, "run_shadow_audit", source_only_audit)
+    receipt = RUNNER.run(
+        root, provider_config, jev_config, tmp_path / "raw-audit", receipt_path, plan,
+        source_only_no_candidate=True, selection_receipt_path=selection_path,
+    )
+    assert observed == [request_hash]
+    assert receipt["reason"] == "no_writer_candidate"
+    assert receipt["candidate_packet_count"] == 0
+    assert receipt["audit_provider_calls"] == 1
+    assert receipt["role_call_counts"] == {"source_auditor": 1, "jev": 0, "claim_auditor": 0}
+    assert receipt["role_dispatched_call_counts"] == {"source_auditor": 1, "jev": 0, "claim_auditor": 0}
+    assert set(receipt) == {
+        "schema", "case_id", "terminal_state", "reason", "audit_provider_calls", "candidate_packet_count",
+        "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts",
+        "role_dispatched_call_counts", "role_guard_rejected_counts", "role_post_guard_pretransport_counts",
+        "role_unknown_dispatch_counts", "role_request_sha256",
+    }
+    sanitized = tmp_path / "sanitized-source-only"
+    SANITIZER.sanitize(receipt_path, sanitized)
+    assert json.loads((sanitized / "shadow-audit-receipt.json").read_text()) == receipt
+
+
+def test_source_only_selection_mismatch_fails_before_provider_setup(tmp_path, monkeypatch):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", None, "task-first")])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps({"schema": "wrong"}))
+    receipt_path = tmp_path / "receipt" / "source-only.json"
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", lambda _config: (_ for _ in ()).throw(
+        AssertionError("selection mismatch must fail before provider setup")))
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, tmp_path / "provider.json", tmp_path / "jev.json", tmp_path / "raw-audit",
+                   receipt_path, plan, source_only_no_candidate=True, selection_receipt_path=selection)
+    assert error.value.code == "capture_invalid"
+    assert json.loads(receipt_path.read_text())["audit_provider_calls"] == 0
+    assert not (tmp_path / "raw-audit").exists()
+
+
+def test_source_only_opt_in_fails_before_provider_setup_when_candidate_exists(tmp_path, monkeypatch):
+    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan(["task-first"])))
+    receipt_path = tmp_path / "receipt" / "source-only.json"
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", lambda _config: (_ for _ in ()).throw(
+        AssertionError("candidate presence must fail before provider setup")))
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, tmp_path / "provider.json", tmp_path / "jev.json", tmp_path / "raw-audit",
+                   receipt_path, plan, source_only_no_candidate=True)
+    assert error.value.code == "capture_invalid"
+    assert not (tmp_path / "raw-audit").exists()
+    failure = json.loads(receipt_path.read_text())
+    assert failure["audit_provider_calls"] == 0
+
+
 def test_plan_order_and_hash_tie_break_do_not_use_candidate_text(tmp_path):
     root = _capture(tmp_path / "capture", [_packet("PR-464", "zzz", "task-first"),
                                              _packet("PR-464", "aaa", "task-first")])

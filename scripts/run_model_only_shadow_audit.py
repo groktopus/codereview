@@ -353,7 +353,8 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
 
 def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         output_root: Path, receipt_path: Path, plan_path: Path = DEFAULT_PLAN,
-        limits_path: Path = DEFAULT_LIMITS) -> dict[str, Any]:
+        limits_path: Path = DEFAULT_LIMITS, *, source_only_no_candidate: bool = False,
+        selection_receipt_path: Path | None = None) -> dict[str, Any]:
     try:
         selected_case_id, _selected_policy = case_for_plan_path(plan_path, ROOT)
     except ValueError:
@@ -378,24 +379,67 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     candidates = [row for row in packets if row[0]]
     selected = _select_packet(packets)
     if selected is None:
-        _packet_id, _packet_path, packet, packet_raw = packets[0]
-        zero_counts = {role: 0 for role in AUDIT_ROLES}
-        receipt = {
-            "schema": "model-only-shadow-audit-receipt.v1",
-            "case_id": packet["case_id"], "terminal_state": "incomplete",
-            "reason": "no_writer_candidate", "audit_provider_calls": 0,
-            "candidate_packet_count": 0, "selected_packet_sha256": hashlib.sha256(packet_raw).hexdigest(),
-            "capture_manifest_sha256": capture_hash,
-            "roles": {role: "not_run" for role in AUDIT_ROLES},
-            "role_call_counts": dict(zero_counts),
-            "role_dispatched_call_counts": dict(zero_counts),
-            "role_guard_rejected_counts": dict(zero_counts),
-            "role_post_guard_pretransport_counts": dict(zero_counts),
-            "role_unknown_dispatch_counts": dict(zero_counts),
-            "role_request_sha256": {role: None for role in AUDIT_ROLES},
-        }
-        _write_receipt(receipt_path, receipt)
-        return receipt
+        if not source_only_no_candidate:
+            _packet_id, _packet_path, packet, packet_raw = packets[0]
+            zero_counts = {role: 0 for role in AUDIT_ROLES}
+            receipt = {
+                "schema": "model-only-shadow-audit-receipt.v1",
+                "case_id": packet["case_id"], "terminal_state": "incomplete",
+                "reason": "no_writer_candidate", "audit_provider_calls": 0,
+                "candidate_packet_count": 0, "selected_packet_sha256": hashlib.sha256(packet_raw).hexdigest(),
+                "capture_manifest_sha256": capture_hash,
+                "roles": {role: "not_run" for role in AUDIT_ROLES},
+                "role_call_counts": dict(zero_counts),
+                "role_dispatched_call_counts": dict(zero_counts),
+                "role_guard_rejected_counts": dict(zero_counts),
+                "role_post_guard_pretransport_counts": dict(zero_counts),
+                "role_unknown_dispatch_counts": dict(zero_counts),
+                "role_request_sha256": {role: None for role in AUDIT_ROLES},
+            }
+            _write_receipt(receipt_path, receipt)
+            return receipt
+        if selected_case_id != "PR-464":
+            raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid")
+        if selection_receipt_path is None:
+            raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid")
+        try:
+            selection, _ = _read_json(selection_receipt_path, 16_000)
+            plan, plan_raw = _read_json(plan_path, 256_000)
+            selection_fields = {
+                "schema", "case_id", "packet_path", "selected_packet_sha256", "capture_manifest_sha256",
+                "plan_sha256", "snapshot_sha256", "selected_task_sha256", "writer_calls",
+                "audit_provider_calls", "publication_enabled", "target_code_execution",
+            }
+            if (set(selection) != selection_fields
+                    or selection.get("schema") != "frozen-pr464-no-candidate-selection.v1"
+                    or selection.get("case_id") != "PR-464"
+                    or selection.get("writer_calls") != 10 or selection.get("audit_provider_calls") != 0
+                    or selection.get("publication_enabled") is not False
+                    or selection.get("target_code_execution") is not False
+                    or selection.get("capture_manifest_sha256") != capture_hash
+                    or selection.get("plan_sha256") != hashlib.sha256(plan_raw).hexdigest()
+                    or selection.get("snapshot_sha256") != plan.get("case", {}).get("snapshot_sha256")):
+                raise ValueError("selection_receipt_invalid")
+            selected_path = selection.get("packet_path")
+            if (not isinstance(selected_path, str) or not re.fullmatch(r"case-packets/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json", selected_path)
+                    or not isinstance(selection.get("selected_packet_sha256"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", selection["selected_packet_sha256"])
+                    or not isinstance(selection.get("selected_task_sha256"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", selection["selected_task_sha256"])):
+                raise ValueError("selection_receipt_invalid")
+            matches = [row for row in packets if row[1].relative_to(capture_root).as_posix() == selected_path]
+            if (len(matches) != 1 or matches[0][0] or hashlib.sha256(matches[0][3]).hexdigest() != selection["selected_packet_sha256"]
+                    or hashlib.sha256(matches[0][2]["source_task"]["task_id"].encode("utf-8")).hexdigest()
+                    != selection["selected_task_sha256"]):
+                raise ValueError("selection_receipt_invalid")
+            selected = matches[0]
+        except (OSError, KeyError, TypeError, ValueError, RecursionError):
+            raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid") from None
+        # The frozen PR464 path runs one source-only audit here. Its no-candidate
+        # result is sealed locally, then run_sealed_source_record_jev.py may make
+        # one distinct Jev call. The normal three-role path remains unchanged.
+    elif source_only_no_candidate:
+        raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid")
 
     # Plan task order is trusted and fixed; packet digest breaks ties within one task.
     candidate_id, _packet_path, packet, packet_raw = selected
@@ -447,15 +491,12 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     receipt = {
         "schema": "model-only-shadow-audit-receipt.v1",
         "case_id": packet["case_id"], "terminal_state": terminal,
-        "reason": "one_candidate_selected" if len(candidates) == 1 else "bounded_single_candidate_selection",
+        "reason": ("no_writer_candidate" if not candidates else "one_candidate_selected"
+                   if len(candidates) == 1 else "bounded_single_candidate_selection"),
         "audit_provider_calls": sum(row["dispatched"] for row in dispatch.values()),
         "candidate_packet_count": len(candidates),
-        "selected_candidate_sha256": hashlib.sha256(candidate_id.encode("utf-8")).hexdigest(),
         "selected_packet_sha256": hashlib.sha256(packet_raw).hexdigest(),
         "capture_manifest_sha256": capture_hash,
-        "shadow_manifest_sha256": hashlib.sha256(
-            (output_root / "shadow-audit-manifest.json").read_bytes()
-        ).hexdigest(),
         "roles": {role: roles.get(role, {}).get("status", "not_run") for role in AUDIT_ROLES},
         "role_call_counts": {role: row["attempted"] for role, row in dispatch.items()},
         "role_dispatched_call_counts": {role: row["dispatched"] for role, row in dispatch.items()},
@@ -466,6 +507,11 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         "role_unknown_dispatch_counts": {role: row["unknown"] for role, row in dispatch.items()},
         "role_request_sha256": {role: row["request_sha256"] for role, row in dispatch.items()},
     }
+    if candidates:
+        receipt["selected_candidate_sha256"] = hashlib.sha256(candidate_id.encode("utf-8")).hexdigest()
+        receipt["shadow_manifest_sha256"] = hashlib.sha256(
+            (output_root / "shadow-audit-manifest.json").read_bytes()
+        ).hexdigest()
     _write_receipt(receipt_path, receipt)
     return receipt
 
@@ -479,13 +525,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
     parser.add_argument("--limits", type=Path, default=DEFAULT_LIMITS)
+    parser.add_argument("--source-only-no-candidate", action="store_true",
+                        help="for frozen PR464 no-candidate captures, run only one source auditor before sealed Jev")
+    parser.add_argument("--selection-receipt", type=Path,
+                        help="hash-only frozen PR464 packet selector receipt required with source-only mode")
     parser.add_argument("--live", action="store_true", help="dispatch at most three bounded provider calls")
     args = parser.parse_args(argv)
     if not args.live:
         parser.error("provider dispatch requires --live after reviewing private capture and limits")
     try:
         receipt = run(args.capture_root, args.provider_config, args.jev_config, args.output_root,
-                      args.receipt, args.plan, args.limits)
+                      args.receipt, args.plan, args.limits,
+                      source_only_no_candidate=args.source_only_no_candidate,
+                      selection_receipt_path=args.selection_receipt)
     except (OSError, ValueError, ProviderError) as exc:
         code = getattr(exc, "code", None)
         if not isinstance(code, str) or not code.isidentifier():
