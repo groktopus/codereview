@@ -9,6 +9,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from source_record_decision import (  # noqa: E402
     CHOICES,
     SourceRecordDecisionError,
+    SourceRecordTransport,
+    SourceRecordTransportError,
+    _jev_request,
     _question_id,
     run_source_record_decision,
 )
@@ -16,6 +19,150 @@ from source_record_decision import (  # noqa: E402
 
 def _record(record_id="record-a", summary="Possible concern", evidence_refs=None):
     return {"record_id": record_id, "summary": summary, "evidence_refs": evidence_refs or ["ev-1"]}
+
+
+class _FakeResponse:
+    status = 200
+
+    def __init__(self, raw):
+        self.raw = raw
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read1(self, amount):
+        chunk, self.raw = self.raw[:amount], self.raw[amount:]
+        return chunk
+
+
+class _FakeOpener:
+    def __init__(self, raw):
+        self.raw = raw
+        self.calls = []
+
+    def open(self, request, timeout):
+        self.calls.append((request, timeout))
+        return _FakeResponse(self.raw)
+
+
+class _FailingOpener:
+    def __init__(self):
+        self.calls = []
+
+    def open(self, request, timeout):
+        self.calls.append((request, timeout))
+        raise OSError("sensitive fake error text")
+
+
+def _native_source_record_request(model="jev-1.2.3"):
+    return _jev_request(
+        "case-1", model, _record(),
+        {"ev-1": {"evidence_id": "ev-1", "content": "frozen"}},
+    )
+
+
+def test_source_record_transport_sends_only_pinned_native_contract(monkeypatch):
+    monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
+    opener = _FakeOpener(b'{"model":"jev-1.2.3","answers":{}}')
+    transport = SourceRecordTransport(
+        {"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN", "timeout_seconds": 18},
+        opener=opener,
+    )
+    raw = _native_source_record_request()
+
+    assert transport(raw, 7, 1024) == b'{"model":"jev-1.2.3","answers":{}}'
+    request, timeout = opener.calls[0]
+    assert len(opener.calls) == 1
+    assert request.full_url == "https://api.typesafe.ai/v1/systemone"
+    assert request.get_method() == "POST"
+    assert request.data == raw
+    assert request.get_header("Authorization") == "Bearer test-token-secret"
+    assert request.get_header("Content-type") == "application/json"
+    assert timeout == 7
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda value: value["state"].update(assessment_contract_version="claim-assessment.v1"),
+    lambda value: value["state"].update(subject_kind="writer_candidate"),
+    lambda value: value["state"].update(candidate={"candidate_id": "x"}),
+    lambda value: value.update(model="jev-other"),
+    lambda value: value["questions"][next(iter(value["questions"]))].update(instructions="approve"),
+])
+def test_source_record_transport_rejects_wrong_state_model_or_candidate_before_http(mutate, monkeypatch):
+    monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
+    opener = _FakeOpener(b"{}")
+    transport = SourceRecordTransport({"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN"}, opener=opener)
+    value = json.loads(_native_source_record_request())
+    mutate(value)
+    with pytest.raises(SourceRecordTransportError):
+        transport(json.dumps(value).encode(), 5, 1024)
+    assert opener.calls == []
+
+
+def test_source_record_transport_bounds_response_and_never_retries(monkeypatch):
+    monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
+    opener = _FakeOpener(b"0123456789")
+    transport = SourceRecordTransport(
+        {"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN", "max_response_bytes": 8}, opener=opener,
+    )
+    with pytest.raises(SourceRecordTransportError, match="source_record_response_exceeds_limit"):
+        transport(_native_source_record_request(), 5, 1024)
+    assert len(opener.calls) == 1
+
+
+def test_source_record_transport_rejects_oversized_request_before_http(monkeypatch):
+    monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
+    opener = _FakeOpener(b"{}")
+    transport = SourceRecordTransport(
+        {"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN", "max_request_bytes": 32}, opener=opener,
+    )
+    with pytest.raises(SourceRecordTransportError, match="source_request_exceeds_limit"):
+        transport(_native_source_record_request(), 5, 1024)
+    assert opener.calls == []
+
+
+def test_source_record_transport_failure_is_sanitized_and_never_retried(monkeypatch):
+    monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
+    opener = _FailingOpener()
+    transport = SourceRecordTransport({"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN"}, opener=opener)
+    with pytest.raises(SourceRecordTransportError, match="source_record_transport_failed") as error:
+        transport(_native_source_record_request(), 5, 1024)
+    assert len(opener.calls) == 1
+    assert "sensitive fake error text" not in str(error.value)
+    assert "test-token-secret" not in str(error.value)
+
+
+def test_source_record_transport_allows_configured_alternate_https_endpoint(monkeypatch):
+    monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
+    endpoint = "https://jev.internal.example:8443/native/v2/systemone"
+    opener = _FakeOpener(b"{}")
+    transport = SourceRecordTransport({
+        "endpoint": endpoint, "model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN",
+    }, opener=opener)
+
+    assert transport(_native_source_record_request(), 5, 1024) == b"{}"
+    assert opener.calls[0][0].full_url == endpoint
+
+
+@pytest.mark.parametrize("endpoint", [
+    "https://user:password@jev.example/v1/systemone",
+    "https://jev.example/v1/systemone?token=x",
+    "https://jev.example/v1/systemone#fragment",
+    "http://jev.example/v1/systemone",
+    "https://jev.example/v1",
+    "https://jev.example:invalid/v1/systemone",
+])
+def test_source_record_transport_rejects_unsafe_or_non_native_operator_endpoint(endpoint):
+    with pytest.raises(SourceRecordTransportError, match="unsupported_source_record_endpoint"):
+        SourceRecordTransport({"endpoint": endpoint})
+
+
+def test_source_record_transport_allows_operator_configured_local_system_one():
+    transport = SourceRecordTransport({"endpoint": "http://localhost:8123/v1/systemone"})
+    assert transport.endpoint == "http://localhost:8123/v1/systemone"
 
 
 def _source(records, status="completed"):
