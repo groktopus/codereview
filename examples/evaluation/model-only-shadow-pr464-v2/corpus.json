@@ -1,0 +1,43 @@
+{
+  "cases": [
+    {
+      "identity": {
+        "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
+        "case_id": "PR-464",
+        "family_id": "slopsearx-pr464-model-only-shadow",
+        "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8",
+          "version": "slopsearx-realcase-eval-v2-pr464-context240-window16k"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+        "source_manifest": {
+          "manifest_id": "model-only-shadow-live-pr464-plan-v2",
+          "sha256": "fcfadb108b7c11922db293c74bae0d657c6db31c9b87e075b341e21c4167b2d9"
+        },
+        "split": "development"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "pr464-model-only-shadow-packet",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "natural",
+        "paired_case_id": null
+      }
+    }
+  ],
+  "contract_version": "review-evaluation-corpus.v1",
+  "corpus_id": "model-only-shadow-pr464-v1",
+  "dataset_version": "2026-09-28.6",
+  "expected_arms": [
+    "system_one"
+  ],
+  "sampling_frame": "pilot_internal"
+}

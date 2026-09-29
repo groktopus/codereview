@@ -29,7 +29,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR
     for child in ("requests", "responses", "calls"):
         (capture / child).mkdir(mode=0o700)
     plan_name = case_id.lower().replace("-", "")
-    plan = json.loads((ROOT / f"experiments/model-only-shadow-live-{plan_name}-plan-v1.json").read_text())
+    plan = json.loads((ROOT / f"experiments/model-only-shadow-live-{plan_name}-plan-v2.json").read_text())
     packet_dir = capture / "case-packets"
     packet_dir.mkdir(mode=0o700)
     packet_inventory = []

@@ -38,8 +38,9 @@ EVIDENCE_INDEX_CANONICAL_SHA256 = "b52998a8d258e72f5b45f19a48825697330e3bcc629ea
 REQUEST_BYTES = 11_687
 OUTPUT_BYTES_CAP = 16_000
 OUTPUT_TOKENS_CAP = 1_200
-MODULE_COUNT = 34
-MODULE_TREE_SHA256 = "4bc88597b4b091d214440450e0c4af6a207ed534ce922809ce53fc65ac787a41"
+MODULE_COUNT = 35
+MODULE_TREE_SHA256 = "59bd1922c70537ca2dc05f9b3a55811702cfb1e6fd25a8d9bb5b77b064f36210"
+SOURCE_REVISION = "42e5d5bad7cc4f22f3be6fdd6ce99560edd275ea"
 PYTHON_IDENTITY = {"implementation": "cpython", "version": "3.14.7"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
@@ -286,6 +287,7 @@ def verify(
         "output_tokens_cap": OUTPUT_TOKENS_CAP,
         "module_count": count,
         "module_tree_sha256": tree_sha,
+        "source_revision": SOURCE_REVISION,
         "runtime": runtime,
     }
 

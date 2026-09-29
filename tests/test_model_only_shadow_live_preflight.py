@@ -10,8 +10,8 @@ import pytest
 from scripts import verify_model_only_shadow_live_preflight as preflight
 
 ROOT = Path(__file__).resolve().parents[1]
-PLAN_PATH = ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v1.json"
-PLAN_457_PATH = ROOT / "experiments" / "model-only-shadow-live-pr457-plan-v1.json"
+PLAN_PATH = ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v2.json"
+PLAN_457_PATH = ROOT / "experiments" / "model-only-shadow-live-pr457-plan-v2.json"
 
 
 def _plan(path: Path = PLAN_PATH) -> tuple[dict, bytes]:

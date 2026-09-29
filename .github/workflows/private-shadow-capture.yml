@@ -332,7 +332,7 @@ jobs:
           values = {
               "case_id": case_id,
               **contracts[case_id],
-              "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v1.json",
+              "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v2.json",
               "profile_path": f"docs/real-case-trial-v1/profiles/{case_id}.json",
               "checks_path": f"docs/real-case-trial-v1/checks/{case_id}.json",
           }

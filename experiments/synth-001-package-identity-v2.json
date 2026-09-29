@@ -1,0 +1,102 @@
+{
+  "configuration": {
+    "adapter_version": "0.2",
+    "limits_sha256": "1b3cf01229d00bd63e9dcf4140504108b1b697e886baf155a46d95e29536b432",
+    "model": "openai/gpt-6-luna",
+    "module_count": 35,
+    "module_tree_sha256": "59bd1922c70537ca2dc05f9b3a55811702cfb1e6fd25a8d9bb5b77b064f36210",
+    "profile_sha256": "d62a83f4ecbf0b807770c318bd3222c49c72311455eef19f15d6e3d2c7e1ad58",
+    "provider_config_sha256": "8f160c593f4d04d41dcfbc247eb5814c13ded5e88dd5bfdf95d3d78264634d5f",
+    "provider_id": "synth_001_prepare_only",
+    "provider_identity_sha256": "767c2615b9e01ccff12c78a93d0c0f914d53ba2fbf4509567c7f9859a7d615a0",
+    "runtime": {
+      "implementation": "cpython",
+      "version": "3.14.7"
+    },
+    "source_revision": "42e5d5bad7cc4f22f3be6fdd6ce99560edd275ea"
+  },
+  "fixture": {
+    "fixture_id": "SYNTH-001",
+    "materialized": {
+      "base_sha": "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
+      "changed_path": "auth.py",
+      "head_sha": "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
+      "tracked_paths": [
+        "auth.py",
+        "caller.py",
+        "contract.md"
+      ]
+    },
+    "payload_sha256": "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f",
+    "seed": 457001,
+    "visible_file_sha256": {
+      "base/auth.py": "5b6887e35b020d0a59133071f284114f61b41c4de753a8292f2b05969eeaa361",
+      "caller.py": "8e3208e4ed04b30281e9e464cef834382f71ef1b44a8b567a64fc8023e344552",
+      "contract.md": "7465acc45428bfa7e8d433fac9bd853f44c51d4d0794a60355c16a887ac6b6b3",
+      "head/auth.py": "4117df17d8a7e46ecca375f671a0a24223c377ce085a378dafedc5e677d3a823",
+      "seed.json": "604bf9fa0ebd44002a6950e657c935ef122f3a755a7a4478dc83765d1084d743"
+    }
+  },
+  "package_identity": {
+    "case": {
+      "identity": {
+        "base_sha": "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
+        "case_id": "SYNTH-001",
+        "family_id": "seeded-writer-synth-001",
+        "head_sha": "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
+        "profile": {
+          "profile_id": "unknown",
+          "sha256": "fb5a1bd2f2404f8d8243783eff7119b98d595683016bc9232ac5b83c20c37326",
+          "version": "synth-001-writer-prepare-v1"
+        },
+        "repository": {
+          "name": "seeded-writer-synth-001",
+          "owner": "synthetic"
+        },
+        "snapshot_id": "snap-a6c6ac33adda6c436e2cf3cf",
+        "source_manifest": {
+          "manifest_id": "seeded-writer-synth-001-visible-fixture",
+          "sha256": "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
+        },
+        "split": "challenge"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "seeded-writer-authz-boundary",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "synthetic",
+        "paired_case_id": null
+      }
+    },
+    "corpus_id": "seeded-writer-synth-001-four-role",
+    "corpus_version": "review-evaluation-corpus.v1",
+    "dataset_version": "2026-09-28.1",
+    "expected_arms": [
+      "harness"
+    ],
+    "sampling_frame": "pilot_internal"
+  },
+  "preflight": {
+    "claim_assessments": 0,
+    "context_retrievals": 0,
+    "dispatched_provider_calls": 0,
+    "evidence_index_sha256": "034fdbb66f32a5fdbedfacdce793d66c636ce93a961530ecb7827f967fc43bd5",
+    "followups": 0,
+    "lens": "correctness",
+    "max_provider_calls": 1,
+    "output_bytes_cap": 16000,
+    "output_tokens_cap": 1200,
+    "planned_provider_calls": 1,
+    "publication_enabled": false,
+    "request_bytes": 11687,
+    "request_descriptor_sha256": "7c444c1d74564cfa2962ffec76141932101be55861c434b59c8f38181df8d10a",
+    "request_sha256": "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d",
+    "retries": 0,
+    "snapshot_id": "snap-a6c6ac33adda6c436e2cf3cf",
+    "target_code_execution": false
+  },
+  "profile_id_semantics": "The v1 exporter emitted profile_id=unknown because this frozen profile has no profile_id field; this fallback is not proof of a named profile.",
+  "schema": "synth-001-cross-model-package-identity.v1"
+}

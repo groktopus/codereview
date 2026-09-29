@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         if manifest_path is not None:
             identity_manifest, _ = _json(manifest_path, 1_000_000)
         if corpus.get("corpus_id") == "model-only-shadow-pr464-v1":
-            plan_relative = Path("experiments/model-only-shadow-live-pr464-plan-v1.json")
+            plan_relative = Path("experiments/model-only-shadow-live-pr464-plan-v2.json")
             plan_path = next(
                 (parent / plan_relative for parent in args.corpus.resolve().parents if (parent / plan_relative).is_file()),
                 None,
