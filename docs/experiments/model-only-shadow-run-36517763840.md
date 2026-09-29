@@ -2,6 +2,8 @@
 
 The sanitized receipts show that all ten writer calls completed and parsed as valid specialist reports, with zero returned candidates. The workflow projection marked the writer and upload stages successful, while the shadow audit ended `incomplete` with `no_writer_candidate`; Jev, source auditor, and claim auditor each made zero calls. The run therefore records successful transport and report parsing, followed by an incomplete audit. It provides no semantic-quality or review-accuracy result.
 
+The sanitized preflight records runner revision `c05ab8f`, before merged PRs #126 and #127. In particular, the local-only per-task diagnostics introduced by #127 were not present or uploaded in this run.
+
 | Sanitized artifact | Recorded evidence |
 |---|---|
 | `writer-receipt.json` | 10 writer calls; 893,359 request bytes; 13,075 response bytes; `WRITER_TRANSPORT_CAPTURED`; `audit_or_jev_dispatched=false`. |
