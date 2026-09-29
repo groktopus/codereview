@@ -68,7 +68,9 @@ def test_v2_check_evidence_omits_provider_urls_and_ids_without_changing_outcome(
     assert normalized["schema_version"] == "2.0"
     assert original_ingested == resumed_ingested
     assert original_ingested["results"]["unit-tests"]["outcome"] == "PASS"
-    assert all("external_id" not in item and "details_url" not in item for item in original_ingested["evidence"].values())
+    assert all(
+        "external_id" not in item and "details_url" not in item for item in original_ingested["evidence"].values()
+    )
 
 
 def test_v1_check_evidence_keeps_legacy_hash_and_result_schema():

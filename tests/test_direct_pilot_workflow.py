@@ -387,7 +387,7 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
         1,
     )
     reusable_command = reusable_command.replace(
-        '            --capture-recovery-inputs artifacts/recovery-inputs.json \\\n',
+        "            --capture-recovery-inputs artifacts/recovery-inputs.json \\\n",
         "",
         1,
     )

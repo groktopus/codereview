@@ -632,9 +632,13 @@ def _phase_aware_cli(monkeypatch, tmp_path, *, report_failure=None):
 
     monkeypatch.setattr(engine, "run_review", fake_run_review)
     if report_failure == "render":
-        monkeypatch.setattr(engine, "render_report", lambda _result: (_ for _ in ()).throw(ValueError("private payload")))
+        monkeypatch.setattr(
+            engine, "render_report", lambda _result: (_ for _ in ()).throw(ValueError("private payload"))
+        )
     else:
-        monkeypatch.setattr(engine, "render_report", lambda _result: "# Incomplete review\n\nAccepted blocker: finding-blocker\n")
+        monkeypatch.setattr(
+            engine, "render_report", lambda _result: "# Incomplete review\n\nAccepted blocker: finding-blocker\n"
+        )
     if report_failure == "write":
         real_replace = os.replace
 
@@ -645,8 +649,20 @@ def _phase_aware_cli(monkeypatch, tmp_path, *, report_failure=None):
 
         monkeypatch.setattr(os, "replace", fail_markdown_replace)
     argv = [
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--output", str(output_dir), "--run-id", "phase-test", "--json",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile_path),
+        "--output",
+        str(output_dir),
+        "--run-id",
+        "phase-test",
+        "--json",
     ]
     return cli, argv, output_dir
 
@@ -687,11 +703,28 @@ def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, mo
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
-    monkeypatch.setattr(engine, "run_review", lambda *_args, **_kwargs: pytest.fail("preflight must reject before dispatch"))
-    assert cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", "", "--profile", str(profile_path),
-        "--output", str(tmp_path / "preflight-output"), "--json",
-    ]) == 2
+    monkeypatch.setattr(
+        engine, "run_review", lambda *_args, **_kwargs: pytest.fail("preflight must reject before dispatch")
+    )
+    assert (
+        cli.main(
+            [
+                "review",
+                "--repo",
+                str(repo),
+                "--base",
+                base,
+                "--head",
+                "",
+                "--profile",
+                str(profile_path),
+                "--output",
+                str(tmp_path / "preflight-output"),
+                "--json",
+            ]
+        )
+        == 2
+    )
     output = capsys.readouterr().out
     assert json.loads(output) == {
         "error": "explicit base and head revisions are required without a PR/event input",
@@ -706,11 +739,28 @@ def test_prepare_only_without_historical_checks_rejects_ambient_event(tmp_path, 
     repo, base, head, profile_path = fixture_repo(tmp_path)
     monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
     monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
-    assert cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--provider-config", str(tmp_path / "provider.json"),
-        "--output", str(tmp_path / "prepare-output"), "--prepare-only", "--json",
-    ]) == 2
+    assert (
+        cli.main(
+            [
+                "review",
+                "--repo",
+                str(repo),
+                "--base",
+                base,
+                "--head",
+                head,
+                "--profile",
+                str(profile_path),
+                "--provider-config",
+                str(tmp_path / "provider.json"),
+                "--output",
+                str(tmp_path / "prepare-output"),
+                "--prepare-only",
+                "--json",
+            ]
+        )
+        == 2
+    )
     assert json.loads(capsys.readouterr().out) == {
         "error": "preflight_rejected",
         "exit_code": 2,
@@ -725,10 +775,21 @@ def test_recent_runtime_failure_returns_same_diagnostic_path_and_exit_one(tmp_pa
     head = "b" * 40
     monkeypatch.setattr(cli, "recent_commits", lambda *_args: [{"base": base, "head": head, "subject": "fixture"}])
     output_dir.mkdir()
-    assert cli.main([
-        "recent", "--repo", str(repo), "--profile", str(profile),
-        "--output", str(output_dir), "--json",
-    ]) == 1
+    assert (
+        cli.main(
+            [
+                "recent",
+                "--repo",
+                str(repo),
+                "--profile",
+                str(profile),
+                "--output",
+                str(output_dir),
+                "--json",
+            ]
+        )
+        == 1
+    )
     payload = json.loads(capsys.readouterr().out)
     assert payload["command"] == "recent"
     assert payload["runs"][0]["disposition"] == "FAILED"
@@ -748,10 +809,21 @@ def test_recent_valid_incomplete_result_exits_zero(tmp_path, monkeypatch, capsys
         lambda *_args: [{"base": "a" * 40, "head": "b" * 40, "subject": "fixture"}],
     )
     output_dir.mkdir()
-    assert cli.main([
-        "recent", "--repo", str(repo), "--profile", str(profile),
-        "--output", str(output_dir), "--json",
-    ]) == 0
+    assert (
+        cli.main(
+            [
+                "recent",
+                "--repo",
+                str(repo),
+                "--profile",
+                str(profile),
+                "--output",
+                str(output_dir),
+                "--json",
+            ]
+        )
+        == 0
+    )
     payload = json.loads(capsys.readouterr().out)
     assert payload["runs"][0]["disposition"] == "INCOMPLETE"
     assert "error" not in payload["runs"][0]
@@ -776,7 +848,9 @@ def test_runtime_failure_without_a_regular_result_has_no_diagnostic_path(tmp_pat
     from pr_review_harness import engine
 
     cli, argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path)
-    monkeypatch.setattr(engine, "run_review", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("secret detail")))
+    monkeypatch.setattr(
+        engine, "run_review", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("secret detail"))
+    )
     assert cli.main(argv) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload == {"error": "review_runtime_failed", "exit_code": 1}
@@ -1376,9 +1450,7 @@ def test_recovery_inputs_rebuild_original_snapshot_and_reject_check_drift(tmp_pa
         "max_followup_tasks": 0,
     }
     output = tmp_path / "review"
-    args = SimpleNamespace(
-        effect_policy="READ_ONLY", repo=str(repo), mode="AUTO", output=str(output), resume=False
-    )
+    args = SimpleNamespace(effect_policy="READ_ONLY", repo=str(repo), mode="AUTO", output=str(output), resume=False)
     calls = {"count": 0}
 
     class CountingProvider(_InertContextProvider):
@@ -1386,7 +1458,9 @@ def test_recovery_inputs_rebuild_original_snapshot_and_reject_check_drift(tmp_pa
             calls["count"] += 1
             return super().review(task, evidence, task_limits)
 
-    monkeypatch.setattr(cli, "_freshness", lambda current_event, expected: _FakeFreshness(expected) if current_event else None)
+    monkeypatch.setattr(
+        cli, "_freshness", lambda current_event, expected: _FakeFreshness(expected) if current_event else None
+    )
     provider = CountingProvider()
     from pr_review_harness.recovery_inputs import normalize_checks
 
@@ -1476,8 +1550,14 @@ def test_cli_capture_and_resume_flags_reuse_original_event_and_checks(tmp_path, 
     common = ["--repo", str(repo), "--profile", str(profile_path), "--run-id", "pr-7-42", "--json"]
     first_code = cli.main(
         [
-            "review", *common, "--event-file", str(event_path), "--capture-recovery-inputs", str(packet_path),
-            "--output", str(output),
+            "review",
+            *common,
+            "--event-file",
+            str(event_path),
+            "--capture-recovery-inputs",
+            str(packet_path),
+            "--output",
+            str(output),
         ]
     )
     assert first_code == 0

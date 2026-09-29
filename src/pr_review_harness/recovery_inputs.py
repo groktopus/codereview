@@ -58,7 +58,13 @@ def _json(raw: bytes) -> dict[str, Any]:
 def normalize_checks(document: dict[str, Any], *, repository: str, pull_request_number: int, head_sha: str) -> dict:
     """Project provider/API check data to only fields the review ingester consumes."""
     expected_top = {
-        "schema_version", "repository", "pull_request_number", "head_sha", "captured_at", "complete", "runs"
+        "schema_version",
+        "repository",
+        "pull_request_number",
+        "head_sha",
+        "captured_at",
+        "complete",
+        "runs",
     }
     if not isinstance(document, dict) or set(document) != expected_top:
         raise RecoveryInputError("recovery_check_document_invalid")
@@ -88,9 +94,9 @@ def normalize_checks(document: dict[str, Any], *, repository: str, pull_request_
             raise RecoveryInputError("recovery_check_run_invalid")
         row = {field: run.get(field) for field in RUN_FIELDS}
         run_id, app_id = row["id"], row["app_id"]
-        if (run_id is not None and (isinstance(run_id, bool) or not isinstance(run_id, int) or run_id < 1)):
+        if run_id is not None and (isinstance(run_id, bool) or not isinstance(run_id, int) or run_id < 1):
             raise RecoveryInputError("recovery_check_run_invalid")
-        if (app_id is not None and (isinstance(app_id, bool) or not isinstance(app_id, int) or app_id < 1)):
+        if app_id is not None and (isinstance(app_id, bool) or not isinstance(app_id, int) or app_id < 1):
             raise RecoveryInputError("recovery_check_run_invalid")
         for field in ("name", "status"):
             value = row[field]
@@ -116,7 +122,11 @@ def normalize_checks(document: dict[str, Any], *, repository: str, pull_request_
 
 def make_packet(event: dict[str, Any], document: dict[str, Any], source_event_id: str) -> dict:
     if not isinstance(event, dict) or set(event) != {
-        "repository", "pull_request_number", "event_id", "base_sha", "head_sha"
+        "repository",
+        "pull_request_number",
+        "event_id",
+        "base_sha",
+        "head_sha",
     }:
         raise RecoveryInputError("recovery_event_invalid")
     repository = event.get("repository")
@@ -146,7 +156,9 @@ def make_packet(event: dict[str, Any], document: dict[str, Any], source_event_id
     }
 
 
-def validate_packet(packet: dict[str, Any], *, repository: str, run_id: str, base_sha: str | None = None, head_sha: str | None = None) -> dict:
+def validate_packet(
+    packet: dict[str, Any], *, repository: str, run_id: str, base_sha: str | None = None, head_sha: str | None = None
+) -> dict:
     if not isinstance(packet, dict) or set(packet) != {"schema_version", "source_event_id", "event", "checks_document"}:
         raise RecoveryInputError("recovery_inputs_invalid")
     source_event_id = packet.get("source_event_id")
@@ -179,7 +191,9 @@ def validate_packet(packet: dict[str, Any], *, repository: str, run_id: str, bas
     return rebuilt
 
 
-def read_packet(path: str | Path, *, repository: str, run_id: str, base_sha: str | None = None, head_sha: str | None = None) -> tuple[dict, bytes]:
+def read_packet(
+    path: str | Path, *, repository: str, run_id: str, base_sha: str | None = None, head_sha: str | None = None
+) -> tuple[dict, bytes]:
     source = Path(path)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:

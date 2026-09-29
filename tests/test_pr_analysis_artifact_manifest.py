@@ -102,9 +102,9 @@ def test_manifest_binds_normal_pr_checkpoint_without_persisting_configs(tmp_path
     assert result["recovery_inputs"] == {
         "source_event_id": "42",
         "packet_sha256": result["files"]["recovery-inputs.json"]["sha256"],
-        "checks_document_sha256": __import__("hashlib").sha256(
-            recovery_canonical(json.loads((root / "recovery-inputs.json").read_bytes())["checks_document"])
-        ).hexdigest(),
+        "checks_document_sha256": __import__("hashlib")
+        .sha256(recovery_canonical(json.loads((root / "recovery-inputs.json").read_bytes())["checks_document"]))
+        .hexdigest(),
     }
     artifact_bytes = b"".join(path.read_bytes() for path in root.rglob("*") if path.is_file())
     assert b"https://example.invalid" not in artifact_bytes
@@ -150,7 +150,9 @@ def test_manifest_rejects_recovery_input_drift(tmp_path):
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     packet["checks_document"]["captured_at"] = "2026-09-28T12:01:00Z"
     packet_path.write_bytes(recovery_canonical(packet))
-    with pytest.raises(manifest.ManifestError, match="recovery_artifact_inventory_mismatch|recovery_inputs_digest_mismatch"):
+    with pytest.raises(
+        manifest.ManifestError, match="recovery_artifact_inventory_mismatch|recovery_inputs_digest_mismatch"
+    ):
         manifest.verify_manifest(root, identity)
 
 
