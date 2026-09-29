@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import cli
-from pr_review_harness.cli import TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SHADOW_PLANS
+from pr_review_harness.cli import (
+    TRUSTED_CAPTURE_WORKFLOW_REF,
+    TRUSTED_SHADOW_PLANS,
+    TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF,
+)
 from pr_review_harness.cross_model_v2 import CONTRACT_VERSION, calls_manifest_sha256, compare_cross_model_v2
 from pr_review_harness.evaluation import validate_corpus
 from pr_review_harness.private_capture import (
@@ -546,6 +550,14 @@ def test_trusted_actions_capture_gate_accepts_private_direct_child(tmp_path, mon
     cli._validate_private_capture_target(str(runner_temp / "capture"), str(tmp_path / "output"))
 
 
+def test_trusted_actions_capture_gate_accepts_dedicated_synth_workflow(tmp_path, monkeypatch):
+    runner_temp = tmp_path / "runner-temp"
+    runner_temp.mkdir()
+    _trusted_capture_env(monkeypatch, runner_temp)
+    monkeypatch.setenv("GITHUB_WORKFLOW_REF", TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF)
+    cli._validate_private_capture_target(str(runner_temp / "capture"), str(tmp_path / "output"))
+
+
 def test_actions_private_plan_must_come_from_fixed_trusted_checkout_and_receipt_slot(tmp_path, monkeypatch):
     runner_temp = tmp_path / "runner-temp"
     workspace = tmp_path / "workspace"
@@ -651,6 +663,7 @@ def test_actions_private_plan_path_rejections_precede_provider_setup(
         ("GITHUB_REPOSITORY", "someone/else"),
         ("GITHUB_REF", "refs/heads/feature"),
         ("GITHUB_WORKFLOW_REF", "groktopus/codereview/.github/workflows/other.yml@refs/heads/main"),
+        ("GITHUB_WORKFLOW_REF", "groktopus/codereview/.github/workflows/synth-001-live-writer.yml@refs/heads/feature"),
         ("GITHUB_EVENT_NAME", "pull_request"),
         ("PR_REVIEW_TRUSTED_PRIVATE_CAPTURE", "0"),
     ],
