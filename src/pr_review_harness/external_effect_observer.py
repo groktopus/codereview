@@ -389,18 +389,48 @@ def observe_cli(
     cwd: Path,
     env: dict[str, str],
     timeout_seconds: float,
+    trace_max_bytes: int | None = None,
 ) -> dict[str, Any]:
     """Trace one CLI invocation while retaining only bounded sanitized events.
 
     The returned `overall_state` is always UNKNOWN because this syscall scope
     cannot establish absence of effects beyond the observed channels.
     """
+    trace_cap = TRACE_MAX_BYTES if trace_max_bytes is None else trace_max_bytes
+    if (
+        isinstance(trace_cap, bool)
+        or not isinstance(trace_cap, int)
+        or not 0 < trace_cap <= TRACE_MAX_BYTES
+    ):
+        return {
+            "invocation": {"run_status": "INVALID_TRACE_CAP", "exit_code": None},
+            "observer": {
+                "observer_id": OBSERVER_ID,
+                "overall_state": "UNKNOWN",
+                "coverage": "INCOMPLETE",
+                "reason": "trace_cap_invalid",
+                "trace_cap_bytes": None,
+                "events": [],
+            },
+            "cli_result": None,
+        }
     try:
         timeout = float(timeout_seconds)
     except (TypeError, ValueError):
         timeout = 0
     if not 0 < timeout <= MAX_OBSERVER_TIMEOUT_SECONDS:
-        return {"invocation": {"run_status": "INVALID_TIMEOUT", "exit_code": None}, "observer": {"observer_id": OBSERVER_ID, "overall_state": "UNKNOWN", "coverage": "INCOMPLETE", "reason": "timeout_invalid", "events": []}, "cli_result": None}
+        return {
+            "invocation": {"run_status": "INVALID_TIMEOUT", "exit_code": None},
+            "observer": {
+                "observer_id": OBSERVER_ID,
+                "overall_state": "UNKNOWN",
+                "coverage": "INCOMPLETE",
+                "reason": "timeout_invalid",
+                "trace_cap_bytes": trace_cap,
+                "events": [],
+            },
+            "cli_result": None,
+        }
     started = time.monotonic()
     deadline = started + timeout
     try:
@@ -413,6 +443,7 @@ def observe_cli(
         "channel_state": "UNKNOWN",
         "coverage": "INCOMPLETE",
         "scope": SYSCALL_SCOPE,
+        "trace_cap_bytes": trace_cap,
         "source_sha256": identity.get("source_sha256"),
         "events": [],
     }
@@ -470,7 +501,7 @@ def observe_cli(
         pipes = {
             stdout_fd: (process.stdout, CLI_STDOUT_MAX_BYTES),
             stderr_fd: (process.stderr, CLI_STDERR_MAX_BYTES),
-            trace_read: (None, TRACE_MAX_BYTES),
+            trace_read: (None, trace_cap),
         }
         captures = {fd: bytearray() for fd in pipes if fd != trace_read}
         byte_counts = {fd: 0 for fd in pipes}

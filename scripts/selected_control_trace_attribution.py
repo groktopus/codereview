@@ -53,6 +53,9 @@ MAX_HTTP_REQUEST_BYTES = 64_000
 MAX_HTTP_RESPONSE_BYTES = 32_768
 MAX_SUMMARY_BYTES = 65_536
 TRANSPORT_PAIR_DEADLINE_SECONDS = 660
+# The v1 transport-pair receipt is a frozen historical contract. Keep its cap
+# independent from the observer's higher default for new observations.
+FROZEN_TRACE_MAX_BYTES = 1_048_576
 DIAGNOSTIC_CONTRACT_VERSION = "selected-control-trace-attribution.v4"
 CARDINALITY_PAIR_CONTRACT_VERSION = "selected-control-candidate-cardinality-pair.v2"
 FAKE_PROVIDER_KEY = "loopback-only-synthetic-key"
@@ -821,7 +824,7 @@ def _valid_pair_input_identity(value: Any) -> bool:
         and isinstance(value.get("snapshot_id"), str)
         and 1 <= len(value["snapshot_id"]) <= 128
         and value.get("observer_id") == observer.OBSERVER_ID
-        and value.get("trace_cap_bytes") == observer.TRACE_MAX_BYTES
+        and value.get("trace_cap_bytes") == FROZEN_TRACE_MAX_BYTES
         and value.get("syscall_scope") == observer.SYSCALL_SCOPE
         and value.get("configured_transport") == "HTTP_LOOPBACK_FAKE"
     )
@@ -841,7 +844,7 @@ def _cardinality_arm_state(arm: Any, expected_candidates: int) -> str:
     trace_bytes = trace.get("trace_bytes") if isinstance(trace, dict) else None
     if isinstance(trace_bytes, bool) or not isinstance(trace_bytes, int) or trace_bytes < 0:
         return "TRACE_MEASUREMENT_UNKNOWN"
-    if trace_bytes > observer.TRACE_MAX_BYTES or arm.get("observer_reason") == "trace_byte_cap_exceeded":
+    if trace_bytes > FROZEN_TRACE_MAX_BYTES or arm.get("observer_reason") == "trace_byte_cap_exceeded":
         return "TRACE_CAP_EXCEEDED"
     stage_counts = arm.get("protocol_stage_counts")
     expected_stage_counts = _cardinality_stage_counts(expected_candidates)
@@ -1166,7 +1169,7 @@ def _cardinality_input_identity(
         "observer_id": observer.OBSERVER_ID,
         "observer_source_sha256": observer._source_sha256(),
         "syscall_scope": observer.SYSCALL_SCOPE,
-        "trace_cap_bytes": observer.TRACE_MAX_BYTES,
+        "trace_cap_bytes": FROZEN_TRACE_MAX_BYTES,
         "configured_transport": "HTTP_LOOPBACK_FAKE",
     }
 
@@ -1183,7 +1186,13 @@ def _attributed_observation(
     attributor = _LineAttributor(original, cwd, roots)
     observer._parse_line = attributor
     try:
-        result = observer.observe_cli(command, cwd=cwd, env=env, timeout_seconds=timeout)
+        result = observer.observe_cli(
+            command,
+            cwd=cwd,
+            env=env,
+            timeout_seconds=timeout,
+            trace_max_bytes=FROZEN_TRACE_MAX_BYTES,
+        )
     finally:
         observer._parse_line = original
     raw = result.get("observer", {})
@@ -1447,7 +1456,7 @@ def run(
             "strace_version": raw_observer.get("strace_version"),
             "strace_executable_sha256": raw_observer.get("strace_executable_sha256"),
             "syscall_scope": observer.SYSCALL_SCOPE,
-            "trace_cap_bytes": observer.TRACE_MAX_BYTES,
+            "trace_cap_bytes": FROZEN_TRACE_MAX_BYTES,
             "observer_coverage": raw_observer.get("coverage", "UNKNOWN"),
             "observer_reason": raw_observer.get("reason"),
             "trace_attribution": attribution,
@@ -1591,7 +1600,7 @@ def _transport_pair_complete(arm: Any) -> bool:
         and trace.get("state") == "COMPLETE"
         and isinstance(trace_bytes, int)
         and not isinstance(trace_bytes, bool)
-        and 0 <= trace_bytes < observer.TRACE_MAX_BYTES
+        and 0 <= trace_bytes < FROZEN_TRACE_MAX_BYTES
         and arm.get("protocol_exchange_state") == "SERVER_WRITES_SETTLED"
         and arm.get("protocol_stage_counts") == expected_stages
         and arm.get("http_requests_received") == 6
@@ -1799,7 +1808,7 @@ def run_transport_pair(
                 "task_ids": [task.get("task_id") for task in tasks],
                 "observer_id": observer.OBSERVER_ID,
                 "syscall_scope": observer.SYSCALL_SCOPE,
-                "trace_cap_bytes": observer.TRACE_MAX_BYTES,
+                "trace_cap_bytes": FROZEN_TRACE_MAX_BYTES,
                 "arms": arms,
                 "tls_private_material_in_receipt": False,
                 "external_provider_dispatch_requested": False,
@@ -1879,7 +1888,7 @@ def run_transport_pair(
             "observer_id": observer.OBSERVER_ID,
             "observer_source_sha256": observer._source_sha256(),
             "syscall_scope": observer.SYSCALL_SCOPE,
-            "trace_cap_bytes": observer.TRACE_MAX_BYTES,
+            "trace_cap_bytes": FROZEN_TRACE_MAX_BYTES,
             "limits": {key: _limits().get(key) for key in (
                 "max_provider_calls", "max_retries_per_task", "max_input_bytes_per_task",
                 "max_output_bytes_per_task", "deadline_seconds",

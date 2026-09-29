@@ -191,6 +191,45 @@ def test_trace_byte_cap_forces_unknown(tmp_path, monkeypatch):
     assert result["cli_result"] is None
 
 
+def test_lower_per_invocation_trace_cap_is_enforced_and_reported(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    cap = 1_048_576
+    env = {
+        **os.environ,
+        "OBSERVER_TEST_TRACE_REPEAT": "25000",
+        "OBSERVER_TEST_TRACE_REPEAT_KIND": "metadata",
+    }
+    result = observer.observe_cli(
+        _fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=10, trace_max_bytes=cap
+    )
+
+    assert result["observer"]["trace_cap_bytes"] == cap
+    assert result["observer"]["reason"] == "trace_byte_cap_exceeded"
+    assert result["observer"]["coverage"] == "INCOMPLETE"
+    assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE"
+    assert result["cli_result"] is None
+
+
+@pytest.mark.parametrize("trace_max_bytes", [0, -1, 16 * 1_048_576 + 1, True, 1.5, "1024"])
+def test_invalid_per_invocation_trace_cap_stops_before_preflight(tmp_path, monkeypatch, trace_max_bytes):
+    def unexpected_preflight(**_kwargs):
+        pytest.fail("invalid_trace_cap_must_not_run_preflight")
+
+    monkeypatch.setattr(observer, "preflight", unexpected_preflight)
+    result = observer.observe_cli(
+        _fake_cli(tmp_path),
+        cwd=tmp_path,
+        env=os.environ.copy(),
+        timeout_seconds=5,
+        trace_max_bytes=trace_max_bytes,
+    )
+
+    assert result["invocation"]["run_status"] == "INVALID_TRACE_CAP"
+    assert result["observer"]["reason"] == "trace_cap_invalid"
+    assert result["observer"]["trace_cap_bytes"] is None
+    assert result["cli_result"] is None
+
+
 def test_trace_above_previous_cap_completes_with_bounded_aggregates_and_late_effects(tmp_path, monkeypatch):
     _fake_strace(tmp_path, monkeypatch)
     late = (
@@ -210,6 +249,7 @@ def test_trace_above_previous_cap_completes_with_bounded_aggregates_and_late_eff
 
     observed = result["observer"]
     assert observer.TRACE_MAX_BYTES == 16 * 1_048_576
+    assert observed["trace_cap_bytes"] == observer.TRACE_MAX_BYTES
     assert observed["trace_bytes"] > 1_048_576
     assert observed["trace_bytes"] < observer.TRACE_MAX_BYTES
     assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
