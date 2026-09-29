@@ -334,6 +334,13 @@ class FakeClaimAssessor:
         }
 
 
+class ElapsedClaimAssessor(FakeClaimAssessor):
+    def assess_prepared(self, prepared: Prepared, limits: dict) -> dict:
+        response = super().assess_prepared(prepared, limits)
+        response["elapsed_ms"] = 12.5
+        return response
+
+
 class LocalClaimPreparationError(FakeClaimAssessor):
     def prepare(self, *args, **kwargs):
         raise ClaimAssessmentError("invalid_prepared_assessment")
@@ -759,6 +766,14 @@ def test_shadow_assesses_each_valid_primary_outcome_without_rewriting_it(tmp_pat
     )
     assert result["claim_assessments"][0]["status"] == "COMPLETE"
     assert result["findings"][0]["semantic_assessment"]["outcome"] == primary_outcome
+
+
+def test_claim_assessment_reported_latency_reaches_budget_observability(tmp_path):
+    result = _run(tmp_path, assessor=ElapsedClaimAssessor(), cap=1)
+
+    observed = result["budget"]["provider_observability"]
+    assert observed["request_latency_observations"] == 1
+    assert observed["request_latency_ms_total"] == 12.5
 
 
 def test_claim_cap_and_shared_provider_budget_fail_closed(tmp_path):

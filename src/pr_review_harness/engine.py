@@ -3300,6 +3300,14 @@ def run_review(
                 if status not in {"COMPLETE", "PARTIAL", "FAILED"}:
                     status = "FAILED"
                 provenance = response.get("provenance") if isinstance(response.get("provenance"), dict) else {}
+                observed_elapsed_ms = response.get("elapsed_ms")
+                if (
+                    isinstance(observed_elapsed_ms, (int, float))
+                    and not isinstance(observed_elapsed_ms, bool)
+                    and math.isfinite(observed_elapsed_ms)
+                    and observed_elapsed_ms >= 0
+                ):
+                    provenance = {**provenance, "elapsed_ms": observed_elapsed_ms}
                 expected_provenance = {
                     "contract_version": prepared_version,
                     "request_hash": prepared_hash,
