@@ -16,6 +16,12 @@ IDENTITIES = {
     },
     "model-only-shadow-pr457-v2": {
         "case_id": "PR-457",
+        "plan_path": "experiments/model-only-shadow-live-pr457-plan-v2.json",
+        "corpus_path": "examples/evaluation/model-only-shadow-pr457-v2/corpus.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v1",
+    },
+    "model-only-shadow-pr457-v3": {
+        "case_id": "PR-457",
         "plan_path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
         "corpus_path": "examples/evaluation/model-only-shadow-pr457-v3/corpus.json",
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
@@ -27,6 +33,12 @@ IDENTITIES = {
         "plan_schema": "model-only-shadow-live-writer-plan.v1",
     },
     "model-only-shadow-pr464-v2": {
+        "case_id": "PR-464",
+        "plan_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        "corpus_path": "examples/evaluation/model-only-shadow-pr464-v2/corpus.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v1",
+    },
+    "model-only-shadow-pr464-v3": {
         "case_id": "PR-464",
         "plan_path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
         "corpus_path": "examples/evaluation/model-only-shadow-pr464-v3/corpus.json",

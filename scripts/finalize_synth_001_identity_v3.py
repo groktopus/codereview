@@ -130,18 +130,37 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
     if not isinstance(identity, dict):
         raise FinalizeError("identity_invalid")
     configuration = identity.get("configuration") if isinstance(identity, dict) else None
-    if (identity.get("schema") != "synth-001-cross-model-package-identity.v2"
-            or not isinstance(configuration, dict)
-            or configuration.get("runtime_pin_status") != "REQUIRES_FINAL_STACKED_RUNTIME"
-            or configuration.get("module_count") is not None
-            or configuration.get("module_tree_sha256") is not None
-            or configuration.get("source_revision") is not None):
+    if identity.get("schema") != "synth-001-cross-model-package-identity.v2" or not isinstance(configuration, dict):
         raise FinalizeError("identity_not_pending")
 
     verifier_raw = VERIFIER_PATH.read_bytes()
     package_raw = PACKAGE_PATH.read_bytes()
     identity_sha = hashlib.sha256(identity_raw).hexdigest()
     digest_match = re.findall(rb'^IDENTITY_SHA256 = "([0-9a-f]{64})"$', package_raw, flags=re.MULTILINE)
+    if configuration.get("runtime_pin_status") == "FROZEN":
+        if (configuration.get("module_count") != count
+                or configuration.get("module_tree_sha256") != tree_sha
+                or configuration.get("source_revision") != revision
+                or len(digest_match) != 1 or digest_match[0].decode("ascii") != identity_sha
+                or f'MODULE_COUNT = {count}'.encode() not in verifier_raw
+                or f'MODULE_TREE_SHA256 = "{tree_sha}"'.encode() not in verifier_raw
+                or f'SOURCE_REVISION = "{revision}"'.encode() not in verifier_raw):
+            raise FinalizeError("finalized_runtime_pin_mismatch")
+        return {
+            "schema": "synth-001-identity-v3-finalization.v1",
+            "status": "FROZEN",
+            "source_revision": revision,
+            "module_count": count,
+            "module_tree_sha256": tree_sha,
+            "identity_sha256": identity_sha,
+            "provider_calls": 0,
+            "target_code_execution": False,
+        }
+    if (configuration.get("runtime_pin_status") != "REQUIRES_FINAL_STACKED_RUNTIME"
+            or configuration.get("module_count") is not None
+            or configuration.get("module_tree_sha256") is not None
+            or configuration.get("source_revision") is not None):
+        raise FinalizeError("identity_not_pending")
     if len(digest_match) != 1 or digest_match[0].decode("ascii") != identity_sha:
         raise FinalizeError("package_identity_route_mismatch")
     finalized_identity = json.loads(json.dumps(identity))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -21,15 +22,26 @@ def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def test_v3_package_route_is_versioned_and_pending_runtime_fails_closed():
+def test_v3_package_route_is_versioned_and_frozen_runtime_matches():
     identity = package._identity()
     assert identity["schema"] == "synth-001-cross-model-package-identity.v2"
-    assert identity["configuration"]["runtime_pin_status"] == "REQUIRES_FINAL_STACKED_RUNTIME"
-    assert identity["configuration"]["module_count"] is None
-    assert identity["configuration"]["module_tree_sha256"] is None
-    assert identity["configuration"]["source_revision"] is None
+    configuration = identity["configuration"]
+    assert configuration["runtime_pin_status"] == "FROZEN"
+    assert configuration["module_count"] > 0
+    assert re.fullmatch(r"[0-9a-f]{64}", configuration["module_tree_sha256"])
+    assert re.fullmatch(r"[0-9a-f]{40}", configuration["source_revision"])
+    verification = {key: configuration[key] for key in (
+        "runtime", "module_count", "module_tree_sha256", "source_revision",
+    )}
+    assert package._check_configuration(identity, verification)
+
+    pending = json.loads(json.dumps(identity))
+    pending["configuration"].update({
+        "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME",
+        "module_count": None, "module_tree_sha256": None, "source_revision": None,
+    })
     with pytest.raises(package.PackageError, match="package_runtime_pin_pending"):
-        package._check_configuration(identity, {})
+        package._check_configuration(pending, {})
 
     historical = json.loads((ROOT / "experiments/synth-001-package-identity-v2.json").read_text())
     assert historical["schema"] == "synth-001-cross-model-package-identity.v1"
@@ -61,7 +73,19 @@ def test_finalizer_binds_identity_verifier_and_digest_to_one_runtime_revision(tm
     verifier_path = scripts / "verify_synth_001_preflight.py"
     verifier_path.write_bytes((ROOT / "scripts/verify_synth_001_preflight.py").read_bytes())
     package_path = scripts / "package_synth_001_cross_model.py"
-    package_path.write_bytes((ROOT / "scripts/package_synth_001_cross_model.py").read_bytes())
+    package_raw = (ROOT / "scripts/package_synth_001_cross_model.py").read_bytes()
+    identity = json.loads(identity_path.read_text())
+    identity["configuration"].update({
+        "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME",
+        "module_count": None, "module_tree_sha256": None, "source_revision": None,
+    })
+    identity_raw = (json.dumps(identity, indent=2, ensure_ascii=False) + "\n").encode()
+    identity_path.write_bytes(identity_raw)
+    package_raw = re.sub(
+        rb'^IDENTITY_SHA256 = "[0-9a-f]{64}"$',
+        f'IDENTITY_SHA256 = "{_sha(identity_raw)}"'.encode(), package_raw, count=1, flags=re.MULTILINE,
+    )
+    package_path.write_bytes(package_raw)
     monkeypatch.setattr(finalizer, "IDENTITY_PATH", identity_path)
     monkeypatch.setattr(finalizer, "VERIFIER_PATH", verifier_path)
     monkeypatch.setattr(finalizer, "PACKAGE_PATH", package_path)
@@ -80,6 +104,10 @@ def test_finalizer_binds_identity_verifier_and_digest_to_one_runtime_revision(tm
     assert f'MODULE_TREE_SHA256 = "{config["module_tree_sha256"]}"'.encode() in verifier_path.read_bytes()
     assert f'SOURCE_REVISION = "{revision}"'.encode() in verifier_path.read_bytes()
     assert f'IDENTITY_SHA256 = "{_sha(identity_raw)}"'.encode() in package_path.read_bytes()
+    frozen_bytes = (identity_path.read_bytes(), verifier_path.read_bytes(), package_path.read_bytes())
+    repeated = finalizer.finalize(repo, revision)
+    assert repeated == result
+    assert frozen_bytes == (identity_path.read_bytes(), verifier_path.read_bytes(), package_path.read_bytes())
 
 
 def test_finalizer_rejects_runtime_tree_that_differs_from_immutable_revision(tmp_path: Path, monkeypatch):

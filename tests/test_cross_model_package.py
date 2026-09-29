@@ -484,7 +484,7 @@ def test_synth_candidate_validation_limits_follow_hash_bound_provider_config(tmp
 
     contract = synth_package._identity()
     configuration = contract["configuration"]
-    with pytest.raises(synth_package.PackageError, match="package_runtime_pin_pending"):
+    with pytest.raises(synth_package.PackageError, match="package_runtime_identity_mismatch"):
         synth_package._check_configuration(contract, {})
     configuration.update({
         "runtime_pin_status": "FROZEN",
