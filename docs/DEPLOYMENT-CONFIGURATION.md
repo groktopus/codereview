@@ -1,6 +1,6 @@
 # Deployment configuration
 
-This document describes the generic provider configuration path wired into the reusable read-only analysis workflow. The workflow source accepts operator-selected endpoints and models through trusted `workflow_call` secrets. That source wiring has not been validated in a hosted run, and no production credential or model-quality claim is made here.
+This document describes the generic provider configuration path wired into the reusable read-only analysis workflow. The workflow accepts operator-selected endpoints and models through trusted `workflow_call` secrets. See [PILOT-EVIDENCE.md](PILOT-EVIDENCE.md) for dated hosted observations. The revised ordinary workflow described here has not yet been dispatched; no model-quality claim is made here.
 
 ## Trusted target profile selection
 
@@ -63,7 +63,7 @@ The placeholders above are explanatory; use the generated files rather than copy
 
 ## Hosted workflow status
 
-The reusable `pr-analysis.yml` source now declares all six names as required `workflow_call.secrets`, materializes the two configs in `RUNNER_TEMP`, and passes both files to the existing CLI. It does not fetch a Nous model catalog or use a free-test model config; the historical `review-commits.yml` workflow remains a separate bounded free-model test path. The target repository must map each required name from trusted repository secrets. Source wiring has not been exercised in a hosted run, so provider connectivity, runtime success, and review quality remain unverified.
+The reusable `pr-analysis.yml` declares all six names as required `workflow_call.secrets`, materializes the two configs in `RUNNER_TEMP`, and passes both files to the existing CLI. It does not fetch a Nous model catalog or use a free-test model config; the historical `review-commits.yml` workflow remains a separate bounded free-model test path. The caller must map each required name from trusted repository secrets. Earlier hosted results do not verify this revised workflow's execution or review quality.
 
 The publication workflow is disabled and has no write-capable review credential. Provider setup does not enable review publication. Do not add a `pull-requests: write` permission or a writer secret as part of ordinary provider configuration.
 
@@ -71,6 +71,14 @@ The publication workflow is disabled and has no write-capable review credential.
 
 The manual `slopsearx-pilot.yml` workflow resolves only a PR number against `magnus919/SlopSearX`, requires an open non-draft PR targeting `main`, then calls the reusable analysis workflow with the six named secrets. The reusable workflow now permits cross-repository invocation only for the exact caller `groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main` targeting `magnus919/SlopSearX`; ordinary same-repository callers retain the equality check. The reusable job re-reads PR state and exact base/head SHAs before fetching source. It fetches PR objects into a bare repository and runs the trusted harness over that source; it does not check out or execute target-repository code. Artifact recovery records caller repository and target repository separately, accepting only same-repository runs or this exact central caller/target pair; authenticated recovery reads Actions data from the caller repository and revalidates the PR through the target repository. Fork-originated PRs remain eligible when the trusted base repository, open/draft state, and exact revisions validate; fork identity is not used to select credentials or a provider endpoint.
 
-The central caller pins both the reusable workflow and `harness_sha` to PR139's immutable merge revision `5cc1148cc3e801b61652abc5ce23efe837e10065`. This revision includes the recovery manifest and fetcher binding fix for the exact central SlopSearX caller and target, so retained artifacts can be validated against the central workflow identity while remaining bound to the target repository and PR. The source pairing has not yet been validated by a hosted pilot run; provider connectivity and review quality remain unverified.
+The central caller pins both the reusable workflow and `harness_sha` to the same immutable revision in `slopsearx-pilot.yml`. Updating one without the other is invalid. The revised pairing retains central-caller recovery binding and enables one candidate-level Jev assessment within the shared provider-call budget. Jev remains advisory; deterministic code owns disposition.
+
+## Ordinary review budget and recovery
+
+The revised ordinary workflow uses `profiles/ordinary-review-limits-v1.json`, a trusted checked-in override of the aggregate context budget to 600,000 bytes. Other CLI limits remain unchanged: 12 total provider calls, zero retries, 64,000 input bytes per task, 16,000 output bytes per task, 192,000 total output bytes, and a 300-second deadline. These are finite operational limits, not a pricing or quality guarantee.
+
+Provider-free installed-CLI preparation of historical SlopSearX PR #466 produced seven primary requests totaling 342,776 bytes. Those identical requests exceed the old 300,000-byte aggregate limit and fit the proposed limit. The additional capacity leaves room for up to four further 64,000-byte inputs; actual follow-up, candidate, and summary demand remains unknown and subject to the shared limits. Missing checks and context remain explicit; preparation does not establish a complete live review.
+
+Resume with the same trusted limits file, `--max-claim-assessments 1`, and decision configuration as the original invocation. The engine binds these settings to the saved review identity and rejects mismatches. Capturing recovery inputs or passing a consistency preview alone does not authorize provider dispatch or publication.
 
 No production credential values were read or tested while preparing this document.
