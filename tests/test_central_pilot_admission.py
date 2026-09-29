@@ -180,3 +180,36 @@ def test_token_with_internal_whitespace_is_rejected_before_transport(tmp_path):
     with pytest.raises(admission.AdmissionError, match="read_only_token_required"):
         admission.verify_candidate(event_bytes=event, pull_request_number=7, token="fake token", transport=transport)
     assert transport.calls == []
+
+
+def test_artifact_name_is_the_only_pr_number_source_and_must_be_unique(tmp_path):
+    event, transport = _candidate(tmp_path)
+    assert admission.discover_pr_number(event_bytes=event, token="fake", transport=transport) == 7
+    artifacts_url = "https://api.github.com/repos/groktopus/codereview/actions/runs/42/artifacts?per_page=100"
+    listing = json.loads(transport.responses[artifacts_url].body)
+    listing["artifacts"].append(dict(listing["artifacts"][0], id=56, name="pr-review-8-42-2"))
+    listing["total_count"] = 2
+    transport.responses[artifacts_url] = admission.fetch.HttpResponse(200, {}, json.dumps(listing).encode())
+    with pytest.raises(admission.AdmissionError, match="recovery_artifact_not_unique"):
+        admission.discover_pr_number(event_bytes=event, token="fake", transport=transport)
+
+
+@pytest.mark.parametrize(("event_name", "expected"), [
+    ("workflow_run", "OBSERVED_EVENT_PAYLOAD"),
+    ("workflow_dispatch", "NOT_ESTABLISHED_BY_MANUAL_REHEARSAL"),
+])
+def test_manual_rehearsal_receipt_is_distinct_from_trigger_evidence(tmp_path, event_name, expected):
+    event, transport = _candidate(tmp_path)
+    receipt_path = tmp_path / "candidate-receipt.json"
+    kwargs = ({"event_bytes": event, "run_id": None, "attempt": None}
+              if event_name == "workflow_run"
+              else {"event_bytes": None, "run_id": "42", "attempt": "2"})
+    receipt = admission.run_canary(
+        event_name=event_name, token="fake", transport=transport, receipt_path=receipt_path, **kwargs,
+    )
+    assert receipt["trigger_mode"] == ("workflow_run" if event_name == "workflow_run" else "manual_rehearsal")
+    assert receipt["workflow_run_trigger_evidence"] == expected
+    assert receipt["publication_authorized"] is False
+    saved = json.loads(receipt_path.read_bytes())
+    assert saved == receipt
+    assert len(receipt_path.read_bytes()) < 4096

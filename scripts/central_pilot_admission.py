@@ -9,8 +9,10 @@ not publication authority or proof of a hosted workflow's permissions.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import tempfile
@@ -30,6 +32,8 @@ REUSABLE_PATH = ".github/workflows/pr-analysis.yml"
 REUSABLE_SHA = "5cc1148cc3e801b61652abc5ce23efe837e10065"
 MAX_EVENT_BYTES = 64 * 1024
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
+RUN_ID = re.compile(r"^[1-9][0-9]{0,19}$")
+RUN_ATTEMPT = re.compile(r"^[1-9][0-9]{0,5}$")
 
 
 class AdmissionError(ValueError):
@@ -98,6 +102,64 @@ def _api_json(transport: Any, url: str, token: str) -> tuple[bytes, fetch.HttpRe
     return response.body, response
 
 
+def _validate_token(token: Any) -> str:
+    if not isinstance(token, str) or not token or len(token) > 8192 or any(char.isspace() for char in token):
+        raise AdmissionError("read_only_token_required")
+    return token
+
+
+def discover_pr_number(*, event_bytes: bytes, token: str, transport: Any,
+                       api_base: str = "https://api.github.com") -> int:
+    """Derive the PR only from one exact run/attempt artifact name.
+
+    This is a selector only. ``verify_candidate`` re-fetches the run and
+    artifact list, then verifies artifact metadata, digest and manifest.
+    """
+    token = _validate_token(token)
+    run_id, attempt, _caller_sha, _workflow_id, _repository_id = _event_binding(event_bytes, 1)
+    base = fetch._api_base(api_base)
+    url = f"{base}/{fetch._repo_path(CALLER)}/actions/runs/{run_id}/artifacts?per_page=100"
+    raw, _ = _api_json(transport, url, token)
+    listing = intake._parse_json(raw, "recovery_artifact_listing_invalid")
+    rows = listing.get("artifacts")
+    if not isinstance(rows, list) or listing.get("total_count") != len(rows) or len(rows) > 100:
+        raise AdmissionError("recovery_artifact_listing_incomplete")
+    pattern = re.compile(rf"^pr-review-([1-9][0-9]{{0,8}})-{run_id}-{attempt}$")
+    numbers = [int(match.group(1)) for row in rows if isinstance(row, dict)
+               and isinstance(row.get("name"), str)
+               if (match := pattern.fullmatch(row["name"])) is not None]
+    if len(numbers) != 1:
+        raise AdmissionError("recovery_artifact_not_unique")
+    return numbers[0]
+
+
+def manual_event_for_existing_run(*, run_id: str, attempt: str, token: str,
+                                  transport: Any, api_base: str = "https://api.github.com") -> bytes:
+    """Construct a manual-rehearsal input from a read-only source attempt lookup."""
+    token = _validate_token(token)
+    if not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
+        raise AdmissionError("dispatch_run_identity_invalid")
+    if not isinstance(attempt, str) or not RUN_ATTEMPT.fullmatch(attempt):
+        raise AdmissionError("dispatch_run_identity_invalid")
+    base = fetch._api_base(api_base)
+    url = f"{base}/{fetch._repo_path(CALLER)}/actions/runs/{run_id}/attempts/{attempt}"
+    raw, _ = _api_json(transport, url, token)
+    run = intake._parse_json(raw, "source_run_invalid")
+    repo = run.get("repository")
+    if (isinstance(run.get("id"), bool) or not isinstance(run.get("id"), int)
+            or str(run["id"]) != run_id or isinstance(run.get("run_attempt"), bool)
+            or run.get("run_attempt") != int(attempt) or not isinstance(repo, dict)
+            or not isinstance(repo.get("id"), int) or isinstance(repo.get("id"), bool)
+            or not isinstance(repo.get("full_name"), str) or repo["full_name"].casefold() != CALLER.casefold()
+            or not isinstance(run.get("workflow_id"), int) or isinstance(run.get("workflow_id"), bool)):
+        raise AdmissionError("manual_source_run_binding_mismatch")
+    event = {"repository": {"id": repo["id"], "full_name": repo["full_name"]}, "workflow_run": {
+        key: run[key] for key in ("id", "run_attempt", "workflow_id", "event", "path", "head_branch", "head_sha")
+        if key in run
+    }}
+    return (json.dumps(event, sort_keys=True, separators=(",", ":")) + "\n").encode()
+
+
 def _validate_source_run(raw: bytes, *, run_id: str, attempt: str, caller_sha: str,
                          workflow_id: int, repository_id: int) -> dict[str, Any]:
     run = intake._parse_json(raw, "source_run_invalid")
@@ -151,8 +213,7 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
     ``transport`` must implement GET only. No default network client is provided,
     making accidental live calls impossible in local validation and tests.
     """
-    if not isinstance(token, str) or not token or len(token) > 8192 or any(char.isspace() for char in token):
-        raise AdmissionError("read_only_token_required")
+    token = _validate_token(token)
     base = fetch._api_base(api_base)
     run_id, attempt, caller_sha, workflow_id, repository_id = _event_binding(event_bytes, pull_request_number)
     repo_path = fetch._repo_path(CALLER)
@@ -230,6 +291,78 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
     return receipt
 
 
+def run_canary(*, event_name: str, event_bytes: bytes | None, run_id: str | None,
+               attempt: str | None, token: str, transport: Any, receipt_path: Path,
+               api_base: str = "https://api.github.com") -> dict[str, Any]:
+    """Run a hosted trigger or a separately labeled manual rehearsal."""
+    if event_name == "workflow_run":
+        if event_bytes is None or run_id is not None or attempt is not None:
+            raise AdmissionError("workflow_run_inputs_invalid")
+        event = event_bytes
+        trigger_mode = "workflow_run"
+        trigger_evidence = "OBSERVED_EVENT_PAYLOAD"
+    elif event_name == "workflow_dispatch":
+        if event_bytes is not None or run_id is None or attempt is None:
+            raise AdmissionError("manual_rehearsal_inputs_invalid")
+        event = manual_event_for_existing_run(
+            run_id=run_id, attempt=attempt, token=token, transport=transport, api_base=api_base,
+        )
+        trigger_mode = "manual_rehearsal"
+        trigger_evidence = "NOT_ESTABLISHED_BY_MANUAL_REHEARSAL"
+    else:
+        raise AdmissionError("trigger_mode_invalid")
+    pr_number = discover_pr_number(event_bytes=event, token=token, transport=transport, api_base=api_base)
+    receipt = verify_candidate(
+        event_bytes=event, pull_request_number=pr_number, token=token,
+        transport=transport, api_base=api_base,
+    )
+    receipt.update({"trigger_mode": trigger_mode, "workflow_run_trigger_evidence": trigger_evidence})
+    raw = (json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    if len(raw) > 4096 or receipt_path.exists() or receipt_path.is_symlink():
+        raise AdmissionError("receipt_output_invalid")
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(receipt_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except OSError:
+        raise AdmissionError("receipt_output_invalid") from None
+    return receipt
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--event-name", required=True, choices=("workflow_run", "workflow_dispatch"))
+    parser.add_argument("--event-path", type=Path)
+    parser.add_argument("--run-id")
+    parser.add_argument("--attempt")
+    parser.add_argument("--receipt-output", type=Path, required=True)
+    parser.add_argument("--token-env", default="GITHUB_TOKEN")
+    args = parser.parse_args(argv)
+    token = os.environ.get(args.token_env, "")
+    try:
+        if args.event_name == "workflow_run":
+            if args.event_path is None:
+                raise AdmissionError("event_path_required")
+            event_bytes = intake._read_input(args.event_path, MAX_EVENT_BYTES, "event_json_invalid")
+        else:
+            if args.event_path is not None:
+                raise AdmissionError("manual_rehearsal_inputs_invalid")
+            event_bytes = None
+        receipt = run_canary(
+            event_name=args.event_name, event_bytes=event_bytes, run_id=args.run_id,
+            attempt=args.attempt, token=token, transport=fetch.UrllibTransport(),
+            receipt_path=args.receipt_output,
+        )
+    except (AdmissionError, fetch.FetchError, intake.ManifestError, OSError, TypeError, KeyError) as error:
+        code = str(error) if isinstance(error, (AdmissionError, fetch.FetchError, intake.ManifestError)) else "admission_failed"
+        print(json.dumps({"error": code}, separators=(",", ":")), file=sys.stderr)
+        return 2
+    print(json.dumps(receipt, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
 if __name__ == "__main__":
-    print("This module requires an injected read-only transport; use verify_candidate().", file=sys.stderr)
-    raise SystemExit(2)
+    raise SystemExit(main())
