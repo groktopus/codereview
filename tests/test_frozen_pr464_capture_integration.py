@@ -85,24 +85,12 @@ def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkeypatch, capsys):
-    """Roundtrip the frozen requests through private capture without provider access.
-
-    The frozen plan stores request hashes rather than prompt blobs, so this
-    opt-in integration test needs the original source revisions in a local,
-    read-only checkout. Ordinary CI skips it unless `PR464_SOURCE_REPO` is set.
-    It executes no reviewed-repository code.
-    The fake `_call` bypasses production worker transport and isolation, so this
-    verifies request serialization, capture artifacts, and downstream identity
-    gates rather than provider transport behavior.
-    """
-    source_repo = _source_repo()
+def _prepare_frozen_pr464(source_repo, tmp_path, monkeypatch, capsys):
     plan_path = ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json"
     plan_raw = plan_path.read_bytes()
     plan = json.loads(plan_raw)
     profile_path = ROOT / "docs/real-case-trial-v1/profiles/PR-464.json"
-    profile_raw = profile_path.read_bytes()
-    profile = json.loads(profile_raw)
+    profile = json.loads(profile_path.read_text())
     limits = json.loads((ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json").read_text())
     provider_config = json.loads((ROOT / "experiments/model-only-shadow-live-writer-provider-v1.json").read_text())
     provider = DeterministicNoFindingProvider(provider_config)
@@ -111,7 +99,6 @@ def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkey
     monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
-
     prepare_args = [
         "review",
         "--repo",
@@ -140,6 +127,48 @@ def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkey
     assert cli.main(prepare_args) == 0
     prepared = json.loads(capsys.readouterr().out)
     receipt = preflight.verify(plan, prepared, plan_bytes=plan_raw)
+    return plan, plan_raw, profile, prepared, receipt, fake_call_counter
+
+
+def test_frozen_pr464_prepare_only_matches_all_pinned_requests(tmp_path, monkeypatch, capsys):
+    """Match all ten frozen request descriptors without invoking the provider."""
+    source_repo = _source_repo()
+    plan, _plan_raw, _profile, prepared, receipt, fake_call_counter = _prepare_frozen_pr464(
+        source_repo, tmp_path, monkeypatch, capsys
+    )
+    assert receipt["status"] == "PLAN_MATCHED_PROVIDER_FREE"
+    assert receipt["writer_calls_planned"] == 10
+    assert receipt["writer_request_bytes_total"] == 893359
+    assert receipt["writer_request_bytes_max"] == 96462
+    expected = {row["task_id"]: (row["input_sha256"], row["input_bytes"]) for row in plan["writer_requests"]}
+    observed = {row["task_id"]: (row["input_sha256"], row["input_bytes"]) for row in prepared["primary_requests"]}
+    assert observed == expected
+    assert receipt["provider_calls"] == 0
+    assert not fake_call_counter.exists()
+
+
+@pytest.mark.skipif(
+    os.environ.get("GITHUB_ACTIONS", "").lower() == "true" or os.environ.get("PR464_RUN_FULL_CAPTURE") != "1",
+    reason="full private capture is an explicit local-only integration",
+)
+def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkeypatch, capsys):
+    """Roundtrip the frozen requests through private capture without provider access.
+
+    The frozen plan stores request hashes rather than prompt blobs, so this
+    integration needs the original source revisions in a local, read-only
+    checkout and explicit `PR464_RUN_FULL_CAPTURE=1` opt-in.
+    It executes no reviewed-repository code.
+    The fake `_call` bypasses production worker transport and isolation, so this
+    verifies request serialization, capture artifacts, and downstream identity
+    gates rather than provider transport behavior.
+    """
+    source_repo = _source_repo()
+    plan_path = ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json"
+    profile_path = ROOT / "docs/real-case-trial-v1/profiles/PR-464.json"
+    profile_raw = profile_path.read_bytes()
+    plan, plan_raw, profile, _prepared, receipt, fake_call_counter = _prepare_frozen_pr464(
+        source_repo, tmp_path, monkeypatch, capsys
+    )
     preflight_path = tmp_path / "preflight.json"
     preflight_path.write_text(json.dumps(receipt))
 
