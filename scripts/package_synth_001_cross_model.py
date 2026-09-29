@@ -27,8 +27,8 @@ from pr_review_harness.contracts import MAX_ITEMS, MAX_TEXT_BYTES  # noqa: E402
 from pr_review_harness.cross_model_package import build_cross_model_package  # noqa: E402
 from pr_review_harness.evaluation import EvaluationError  # noqa: E402
 
-IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v1.json"
-IDENTITY_SHA256 = "5f453ef7e9d038631d93469b070e2dc423616fc6792bf157b6610d47762f7be8"
+IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v2.json"
+IDENTITY_SHA256 = "49458af2a2cd26fb17396baa0380d7efc0db5ec0101beb299f3c376bcc576b8f"
 FIXTURE_DIR = ROOT / "examples/evaluation/seeded-writer-synth-001"
 PROFILE_PATH = ROOT / "experiments/synth-001-writer-profile-v1.json"
 LIMITS_PATH = ROOT / "experiments/synth-001-writer-limits-v1.json"
@@ -180,7 +180,7 @@ def _check_configuration(contract: dict[str, Any], verification: dict[str, Any])
     if (provider.get("provider_id") != expected["provider_id"]
             or provider.get("model") != expected["model"]):
         _fail("package_provider_identity_mismatch")
-    for key in ("runtime", "module_count", "module_tree_sha256"):
+    for key in ("runtime", "module_count", "module_tree_sha256", "source_revision"):
         if verification.get(key) != expected[key]:
             _fail("package_runtime_identity_mismatch")
     # The provider configuration hash and module-tree pin were checked above.

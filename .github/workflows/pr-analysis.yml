@@ -299,12 +299,58 @@ jobs:
             --decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json" \
             --output artifacts/review \
             --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
+            --capture-recovery-inputs artifacts/recovery-inputs.json \
             --mode AUTO \
             --json > artifacts/review-result.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: Record recovery identity and artifact digests
+        id: recovery-manifest
         if: always()
+        env:
+          WORKFLOW_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.sha }}
+          RUN_WORKFLOW_REF: ${{ github.workflow_ref }}
+          CALLED_WORKFLOW_REF: ${{ job.workflow_ref }}
+          CALLED_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          CALLED_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          CALLED_WORKFLOW_FILE_PATH: ${{ job.workflow_file_path }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          HARNESS_REPOSITORY: ${{ inputs.harness_repository }}
+          HARNESS_SHA: ${{ inputs.harness_sha }}
+          PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}
+          EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}
+          PROVIDER_CONFIG: ${{ runner.temp }}/pr-review-provider-config/provider.json
+          DECISION_CONFIG: ${{ runner.temp }}/pr-review-provider-config/decision.json
+        run: |
+          python scripts/pr_analysis_artifact_manifest.py \
+            --artifact-root artifacts \
+            --workflow-repository "$WORKFLOW_REPOSITORY" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" \
+            --workflow-run-attempt "$WORKFLOW_RUN_ATTEMPT" \
+            --workflow-run-head-sha "$WORKFLOW_RUN_HEAD_SHA" \
+            --run-workflow-ref "$RUN_WORKFLOW_REF" \
+            --called-workflow-ref "$CALLED_WORKFLOW_REF" \
+            --called-workflow-sha "$CALLED_WORKFLOW_SHA" \
+            --called-workflow-repository "$CALLED_WORKFLOW_REPOSITORY" \
+            --called-workflow-file-path "$CALLED_WORKFLOW_FILE_PATH" \
+            --target-repository "$TARGET_REPOSITORY" \
+            --pull-request-number "$PR_NUMBER" \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA" \
+            --harness-repository "$HARNESS_REPOSITORY" \
+            --harness-sha "$HARNESS_SHA" \
+            --expected-profile-sha256 "$EXPECTED_PROFILE_SHA256" \
+            --profile "$PROFILE" \
+            --provider-config "$PROVIDER_CONFIG" \
+            --decision-config "$DECISION_CONFIG"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && steps.recovery-manifest.outcome == 'success'
         with:
-          name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}
+          name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/
           if-no-files-found: warn
           retention-days: 7

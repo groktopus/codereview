@@ -64,6 +64,7 @@ def test_exact_provider_free_plan_verifies_and_emits_bounded_hash_receipt(tmp_pa
     result = _verify(repo, receipt)
     assert result["result"] == "MATCHED_PROVIDER_FREE_PREPARE"
     assert result["fixture_id"] == "SYNTH-001"
+    assert result["source_revision"] == "42e5d5bad7cc4f22f3be6fdd6ce99560edd275ea"
     assert result["request_bytes"] == 11_687
     assert result["lens"] == "correctness"
     assert result["output_bytes_cap"] == 16_000

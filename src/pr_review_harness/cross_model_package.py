@@ -259,7 +259,7 @@ def validate_model_teacher_packet_identity(
         or corpus.get("corpus_id") != _MODEL_TEACHER_CORPUS_ID
         or manifest.get("corpus_id") != corpus.get("corpus_id")
         or manifest.get("dataset_version") != corpus.get("dataset_version")
-        or manifest.get("plan_path") != "experiments/model-only-shadow-live-pr464-plan-v1.json"
+        or manifest.get("plan_path") != "experiments/model-only-shadow-live-pr464-plan-v2.json"
     ):
         _fail("evaluation_identity_manifest_invalid")
     if manifest.get("corpus_sha256") != _sha(_canonical(corpus)):
@@ -291,7 +291,7 @@ def validate_model_teacher_packet_identity(
         or manifest.get("snapshot_id") != identity["snapshot_id"]
         or manifest.get("profile_version") != identity["profile"]["version"]
         or manifest.get("profile_sha256") != identity["profile"]["sha256"]
-        or identity["source_manifest"].get("manifest_id") != "model-only-shadow-live-pr464-plan-v1"
+        or identity["source_manifest"].get("manifest_id") != "model-only-shadow-live-pr464-plan-v2"
         or identity["source_manifest"].get("sha256") != manifest.get("plan_sha256")
     ):
         _fail("evaluation_identity_manifest_mismatch")

@@ -281,7 +281,7 @@ def test_package_rejects_unknown_or_malformed_shadow_dispatch_state(tmp_path, di
 
 
 def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
-    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v1"
+    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v2"
     corpus = json.loads((corpus_root / "corpus.json").read_text())
     manifest = json.loads((corpus_root / "manifest.json").read_text())
     plan_raw = (ROOT / manifest["plan_path"]).read_bytes()
@@ -315,7 +315,7 @@ def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
 
 
 def test_model_teacher_corpus_rejects_a_profile_mismatch():
-    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v1"
+    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v2"
     corpus = json.loads((corpus_root / "corpus.json").read_text())
     manifest = json.loads((corpus_root / "manifest.json").read_text())
     plan_raw = (ROOT / manifest["plan_path"]).read_bytes()
@@ -390,6 +390,7 @@ def test_synth_candidate_validation_limits_follow_hash_bound_provider_config(tmp
         "runtime": configuration["runtime"],
         "module_count": configuration["module_count"],
         "module_tree_sha256": configuration["module_tree_sha256"],
+        "source_revision": configuration["source_revision"],
     }
     assert synth_package._check_configuration(contract, verification) == {
         "max_output_items": 32,

@@ -8,8 +8,8 @@ from typing import Any
 
 CASE_POLICY: dict[str, dict[str, Any]] = {
     "PR-457": {
-        "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v1.json",
-        "plan_sha256": "7df6847ee1a144da6a8d273bebd5e885b04cc8c03b1c184f6642c29f5f346a9d",
+        "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v2.json",
+        "plan_sha256": "978be18e35922d828a0c67e64d964efef2bd61c4fe02dcd17297f87d7957c650",
         "writer_calls": 6,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
@@ -17,8 +17,8 @@ CASE_POLICY: dict[str, dict[str, Any]] = {
         "profile_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
     },
     "PR-464": {
-        "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v1.json",
-        "plan_sha256": "9418e4e8f9ee23605726be991cef01e188cefdc7005a4dedfaf8632b31ebb04f",
+        "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        "plan_sha256": "fcfadb108b7c11922db293c74bae0d657c6db31c9b87e075b341e21c4167b2d9",
         "writer_calls": 10,
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",

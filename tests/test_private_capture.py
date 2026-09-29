@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 
 from pr_review_harness import cli
-from pr_review_harness.cli import TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SHADOW_PLANS
+from pr_review_harness.cli import (
+    TRUSTED_CAPTURE_WORKFLOW_REF,
+    TRUSTED_SHADOW_PLANS,
+    TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF,
+)
 from pr_review_harness.cross_model_v2 import CONTRACT_VERSION, calls_manifest_sha256, compare_cross_model_v2
 from pr_review_harness.evaluation import validate_corpus
 from pr_review_harness.private_capture import (
@@ -25,32 +29,60 @@ from pr_review_harness.snapshot import _json_hash
 
 
 class Provider:
-    identity = {"provider_id": "openai-compatible", "model_id": "fixture", "adapter_version": "test-v1", "api_key": "must-not-copy"}
+    identity = {
+        "provider_id": "openai-compatible",
+        "model_id": "fixture",
+        "adapter_version": "test-v1",
+        "api_key": "must-not-copy",
+    }
 
 
 def _capture(tmp_path, *, packet_profile=None):
     snapshot = {
         "snapshot_id": "snap-abc",
-        "profile_hash": (hashlib.sha256(json.dumps(packet_profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
-                         if packet_profile is not None else "b" * 64),
-        "profile_version": "p1", "base_sha": "e" * 40, "head_sha": "c" * 40,
-        "repository": "magnus919/SlopSearX", "repository_url": "https://github.com/magnus919/SlopSearX",
-        "inventory": [], "gaps": [], "trusted_context_refs": [],
+        "profile_hash": (
+            hashlib.sha256(
+                json.dumps(packet_profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+            ).hexdigest()
+            if packet_profile is not None
+            else "b" * 64
+        ),
+        "profile_version": "p1",
+        "base_sha": "e" * 40,
+        "head_sha": "c" * 40,
+        "repository": "magnus919/SlopSearX",
+        "repository_url": "https://github.com/magnus919/SlopSearX",
+        "inventory": [],
+        "gaps": [],
+        "trusted_context_refs": [],
         "evidence": {"ev-1": {"evidence_id": "ev-1", "snapshot_id": "snap-abc", "content": "untrusted"}},
     }
     snapshot["evidence"]["ev-1"]["content_hash"] = hashlib.sha256(b"untrusted").hexdigest()
     snapshot["snapshot_hash"] = hashlib.sha256(
-        json.dumps({k: v for k, v in snapshot.items() if k != "snapshot_id"}, sort_keys=True,
-                   separators=(",", ":"), ensure_ascii=True).encode()
+        json.dumps(
+            {k: v for k, v in snapshot.items() if k != "snapshot_id"},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode()
     ).hexdigest()
     capture = PrivateShadowCapture(
-        tmp_path / "private", case_id="case-1", snapshot=snapshot,
-        source_task="run-1", provider=Provider(), request_byte_limit=MAX_REQUEST_BYTES,
+        tmp_path / "private",
+        case_id="case-1",
+        snapshot=snapshot,
+        source_task="run-1",
+        provider=Provider(),
+        request_byte_limit=MAX_REQUEST_BYTES,
         response_byte_limit=2_000_000,
     )
     capture.export_source_tasks(
-        [{"task": {"task_id": "task-1", "task_kind": "SPECIALIST_FINDINGS"},
-          "evidence": [snapshot["evidence"]["ev-1"]]}], profile_id="profile-1"
+        [
+            {
+                "task": {"task_id": "task-1", "task_kind": "SPECIALIST_FINDINGS"},
+                "evidence": [snapshot["evidence"]["ev-1"]],
+            }
+        ],
+        profile_id="profile-1",
     )
     spec = capture.begin_call(run_id="run-1", task_id="task-1", attempt=0)
     spec.update(root=str(capture.root), provider=capture.provider_identity, attempt=0)
@@ -62,17 +94,24 @@ def test_private_shadow_snapshot_binds_generated_check_evidence_before_hashing(t
         "snapshot_id": "snap-check-bound",
         "evidence": {
             "check-1": {
-                "evidence_id": "check-1", "content_hash": "a" * 64,
-                "source_kind": "github_check_run", "trust": "generated_result",
+                "evidence_id": "check-1",
+                "content_hash": "a" * 64,
+                "source_kind": "github_check_run",
+                "trust": "generated_result",
             },
         },
     }
     cli._bind_private_shadow_evidence_snapshot(snapshot)
     snapshot["snapshot_hash"] = cli._private_shadow_snapshot_hash(snapshot)
     capture = PrivateShadowCapture(
-        tmp_path / "check-capture", case_id="run-check", snapshot=snapshot,
-        source_task="run-check", provider=Provider(), request_byte_limit=4096,
-        response_byte_limit=4096, corpus_case_id="PR-464",
+        tmp_path / "check-capture",
+        case_id="run-check",
+        snapshot=snapshot,
+        source_task="run-check",
+        provider=Provider(),
+        request_byte_limit=4096,
+        response_byte_limit=4096,
+        corpus_case_id="PR-464",
     )
     assert capture.snapshot["evidence"]["check-1"]["snapshot_id"] == snapshot["snapshot_id"]
     assert capture.snapshot_hash == snapshot["snapshot_hash"]
@@ -87,10 +126,13 @@ def test_exported_multi_candidate_packets_are_atomically_inventory_bound(tmp_pat
     ]
     pairs = []
     for index, candidate in enumerate(candidates):
-        candidate_id = hashlib.sha256(_canonical({"task_id": "task-1", "index": index, "raw": candidate})).hexdigest()[:24]
+        candidate_id = hashlib.sha256(_canonical({"task_id": "task-1", "index": index, "raw": candidate})).hexdigest()[
+            :24
+        ]
         pairs.append({"candidate_id": candidate_id, "task_id": "task-1"})
     result = {
-        "snapshot_id": capture.snapshot_id, "run_id": "run-1",
+        "snapshot_id": capture.snapshot_id,
+        "run_id": "run-1",
         "findings": [{"assessment_records": pairs}],
         "task_results": {"task-1": {"status": "SUCCEEDED", "payload": {"finding_candidates": candidates}}},
     }
@@ -127,7 +169,12 @@ def test_exact_prompt_injection_bytes_are_private_and_bound(tmp_path):
     # A fake provider calls the same capture boundary after its transport returns.
     safe = write_provider_exchange(spec, request, response, "completed", "d" * 64, CONTENT_TRANSFORM)
     assert set(safe) == {
-        "call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id", "status"
+        "call_id",
+        "request_sha256",
+        "request_artifact_id",
+        "response_sha256",
+        "response_artifact_id",
+        "status",
     }
     receipt = capture.reconcile(spec)
     assert receipt["request_sha256"] == hashlib.sha256(request).hexdigest()
@@ -161,14 +208,16 @@ def test_failed_review_can_preserve_received_structured_bytes_without_becoming_c
 
 
 def test_multi_task_finding_never_cross_pairs_candidate_ids_and_task_ids(tmp_path):
-    findings = [{
-        "candidate_ids": ["candidate-a", "candidate-b"],
-        "task_ids": ["task-1", "task-2"],
-        "assessment_records": [
-            {"candidate_id": "candidate-a", "task_id": "task-1"},
-            {"candidate_id": "candidate-b", "task_id": "task-2"},
-        ],
-    }]
+    findings = [
+        {
+            "candidate_ids": ["candidate-a", "candidate-b"],
+            "task_ids": ["task-1", "task-2"],
+            "assessment_records": [
+                {"candidate_id": "candidate-a", "task_id": "task-1"},
+                {"candidate_id": "candidate-b", "task_id": "task-2"},
+            ],
+        }
+    ]
     pairs = _reconciled_candidate_pairs(findings)
     assert pairs == {("candidate-a", "task-1"), ("candidate-b", "task-2")}
     assert ("candidate-a", "task-2") not in pairs
@@ -226,9 +275,15 @@ def test_rejects_oversize_and_existing_capture_dir(tmp_path):
     with pytest.raises(ValueError, match="request capture limit"):
         write_provider_exchange(spec, b"x" * (MAX_REQUEST_BYTES + 1), None, "failed")
     with pytest.raises(ValueError, match="must be new"):
-        PrivateShadowCapture(capture.root, case_id="case-2", snapshot={"snapshot_id": "s", "snapshot_hash": "a" * 64},
-                             source_task="run-2", provider=Provider(), request_byte_limit=100,
-                             response_byte_limit=100)
+        PrivateShadowCapture(
+            capture.root,
+            case_id="case-2",
+            snapshot={"snapshot_id": "s", "snapshot_hash": "a" * 64},
+            source_task="run-2",
+            provider=Provider(),
+            request_byte_limit=100,
+            response_byte_limit=100,
+        )
 
 
 def test_source_task_snapshot_binding_and_export_has_no_provider_secrets(tmp_path):
@@ -247,19 +302,34 @@ def test_snapshot_from_invalid_utf8_chunk_uses_collector_byte_hash(tmp_path):
     raw_chunk = b"source-\xff-text"
     content = raw_chunk.decode("utf-8", "replace")
     snapshot = {
-        "snapshot_id": "snap-invalid-utf8", "base_sha": "e" * 40, "head_sha": "c" * 40,
-        "evidence": {"ev-binary": {
-            "evidence_id": "ev-binary", "snapshot_id": "snap-invalid-utf8",
-            "content": content, "content_hash": hashlib.sha256(raw_chunk).hexdigest(),
-        }},
+        "snapshot_id": "snap-invalid-utf8",
+        "base_sha": "e" * 40,
+        "head_sha": "c" * 40,
+        "evidence": {
+            "ev-binary": {
+                "evidence_id": "ev-binary",
+                "snapshot_id": "snap-invalid-utf8",
+                "content": content,
+                "content_hash": hashlib.sha256(raw_chunk).hexdigest(),
+            }
+        },
     }
-    snapshot["snapshot_hash"] = hashlib.sha256(json.dumps(
-        {k: v for k, v in snapshot.items() if k not in {"snapshot_id", "snapshot_hash"}},
-        sort_keys=True, separators=(",", ":"), ensure_ascii=True,
-    ).encode()).hexdigest()
+    snapshot["snapshot_hash"] = hashlib.sha256(
+        json.dumps(
+            {k: v for k, v in snapshot.items() if k not in {"snapshot_id", "snapshot_hash"}},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode()
+    ).hexdigest()
     capture = PrivateShadowCapture(
-        tmp_path / "binary", case_id="case-binary", snapshot=snapshot, source_task="run-binary",
-        provider=Provider(), request_byte_limit=100, response_byte_limit=100,
+        tmp_path / "binary",
+        case_id="case-binary",
+        snapshot=snapshot,
+        source_task="run-binary",
+        provider=Provider(),
+        request_byte_limit=100,
+        response_byte_limit=100,
     )
     assert (capture.root / "snapshot.json").is_file()
 
@@ -274,46 +344,80 @@ def test_capture_artifacts_bind_to_valid_v2_writer_call(tmp_path):
     template = json.loads((Path(__file__).resolve().parents[1] / "examples/evaluation/corpus.json").read_text())
     corpus = deepcopy(template)
     identity = corpus["cases"][0]["identity"]
-    identity.update({
-        "case_id": capture.case_id,
-        "family_id": "case-1-private-capture",
-        "repository": {"owner": "magnus919", "name": "SlopSearX"},
-        "snapshot_id": capture.snapshot_id,
-        "base_sha": "e" * 40,
-        "head_sha": "c" * 40,
-        "profile": {"profile_id": "profile-1", "version": "p1", "sha256": "b" * 64},
-        "source_manifest": {"manifest_id": "capture-source-tasks", "sha256": hashlib.sha256(source_tasks_raw).hexdigest()},
-    })
+    identity.update(
+        {
+            "case_id": capture.case_id,
+            "family_id": "case-1-private-capture",
+            "repository": {"owner": "magnus919", "name": "SlopSearX"},
+            "snapshot_id": capture.snapshot_id,
+            "base_sha": "e" * 40,
+            "head_sha": "c" * 40,
+            "profile": {"profile_id": "profile-1", "version": "p1", "sha256": "b" * 64},
+            "source_manifest": {
+                "manifest_id": "capture-source-tasks",
+                "sha256": hashlib.sha256(source_tasks_raw).hexdigest(),
+            },
+        }
+    )
     corpus = validate_corpus(corpus)
-    writer_calls = [{
-        key: receipt[key]
-        for key in ("call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id")
-    }]
+    writer_calls = [
+        {
+            key: receipt[key]
+            for key in ("call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id")
+        }
+    ]
     writer = {
-        "role": "writer", "status": "completed", "run_id": spec["run_id"],
-        "provider_id": "openai-compatible", "model_id": "fixture", "runtime_id": "pr-review-harness",
-        "prompt_revision": "writer-prompt-v1", "rubric_revision": "writer-rubric-v1",
-        "calls": writer_calls, "calls_manifest_sha256": calls_manifest_sha256(writer_calls),
+        "role": "writer",
+        "status": "completed",
+        "run_id": spec["run_id"],
+        "provider_id": "openai-compatible",
+        "model_id": "fixture",
+        "runtime_id": "pr-review-harness",
+        "prompt_revision": "writer-prompt-v1",
+        "rubric_revision": "writer-rubric-v1",
+        "calls": writer_calls,
+        "calls_manifest_sha256": calls_manifest_sha256(writer_calls),
     }
+
     def not_run(role):
         return {
-            "role": role, "status": "not_run", "run_id": None, "provider_id": None,
-            "model_id": None, "runtime_id": None, "prompt_revision": None, "rubric_revision": None,
-            "calls": [], "calls_manifest_sha256": None,
+            "role": role,
+            "status": "not_run",
+            "run_id": None,
+            "provider_id": None,
+            "model_id": None,
+            "runtime_id": None,
+            "prompt_revision": None,
+            "rubric_revision": None,
+            "calls": [],
+            "calls_manifest_sha256": None,
         }
+
     case_identity = corpus["cases"][0]["identity"]
     comparison = {
-        "contract_version": CONTRACT_VERSION, "comparison_id": "capture-comparison",
-        "corpus_id": corpus["corpus_id"], "dataset_version": corpus["dataset_version"],
+        "contract_version": CONTRACT_VERSION,
+        "comparison_id": "capture-comparison",
+        "corpus_id": corpus["corpus_id"],
+        "dataset_version": corpus["dataset_version"],
         "procedure": {"revision": "capture-integration-v1", "frozen_sha256": "f" * 64},
-        "cases": [{"case_id": capture.case_id, "identity": case_identity,
-                   "runs": [writer, not_run("jev"), not_run("source_auditor"), not_run("claim_auditor")],
-                   "records": [], "assertions": []}],
+        "cases": [
+            {
+                "case_id": capture.case_id,
+                "identity": case_identity,
+                "runs": [writer, not_run("jev"), not_run("source_auditor"), not_run("claim_auditor")],
+                "records": [],
+                "assertions": [],
+            }
+        ],
     }
-    report = compare_cross_model_v2(comparison, corpus, artifacts={
-        receipt["request_artifact_id"]: capture.root / "requests" / f"{spec['call_id']}.bin",
-        receipt["response_artifact_id"]: capture.root / "responses" / f"{spec['call_id']}.bin",
-    })
+    report = compare_cross_model_v2(
+        comparison,
+        corpus,
+        artifacts={
+            receipt["request_artifact_id"]: capture.root / "requests" / f"{spec['call_id']}.bin",
+            receipt["response_artifact_id"]: capture.root / "responses" / f"{spec['call_id']}.bin",
+        },
+    )
     statuses = {row["artifact_id"]: row["status"] for row in report["artifact_verification"]["artifacts"]}
     assert statuses[receipt["request_artifact_id"]] == "VERIFIED"
     assert statuses[receipt["response_artifact_id"]] == "VERIFIED"
@@ -334,37 +438,54 @@ class CaptureAwareProvider:
         refs = [item["evidence_id"] for item in evidence]
         payload = {
             "contract_version": "specialist-findings.v4",
-            "finding_candidates": [{
-                "unit_id": task["unit_ids"][0],
-                "location": {"kind": "line", "path": task["unit_bindings"][0]["path"] if "unit_bindings" in task else evidence[0]["path"],
-                             "side": "HEAD", "line": 1, "reason": None},
-                "title": "Validation is missing",
-                "observation": "The changed code uses the input without validation.",
-                "consequence": "Malformed values may cause an exception.",
-                "rule_or_contract": "Inputs must be validated before use.",
-                "severity": "low", "reasoning_kind": "inferred", "evidence_refs": refs,
-                "introducedness": "INTRODUCED",
-            }],
+            "finding_candidates": [
+                {
+                    "unit_id": task["unit_ids"][0],
+                    "location": {
+                        "kind": "line",
+                        "path": task["unit_bindings"][0]["path"] if "unit_bindings" in task else evidence[0]["path"],
+                        "side": "HEAD",
+                        "line": 1,
+                        "reason": None,
+                    },
+                    "title": "Validation is missing",
+                    "observation": "The changed code uses the input without validation.",
+                    "consequence": "Malformed values may cause an exception.",
+                    "rule_or_contract": "Inputs must be validated before use.",
+                    "severity": "low",
+                    "reasoning_kind": "inferred",
+                    "evidence_refs": refs,
+                    "introducedness": "INTRODUCED",
+                }
+            ],
             "context_gap_proposals": [],
-            "coverage_notes": [{
-                "unit_id": unit_id, "state": "COVERED", "reason_code": "STATIC_REVIEW",
-                "evidence_refs": refs, "coverage_basis": "STATIC_REVIEW",
-            } for unit_id in task["unit_ids"]],
-            "specific_strengths": [], "future_guidance": [],
+            "coverage_notes": [
+                {
+                    "unit_id": unit_id,
+                    "state": "COVERED",
+                    "reason_code": "STATIC_REVIEW",
+                    "evidence_refs": refs,
+                    "coverage_basis": "STATIC_REVIEW",
+                }
+                for unit_id in task["unit_ids"]
+            ],
+            "specific_strengths": [],
+            "future_guidance": [],
         }
         request_bytes = b'{"request_marker":"PRIVATE-REQUEST-ONLY-91c7"}'
         response_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        receipt = capture_sink(
-            capture_spec, request_bytes, response_bytes, "completed", "a" * 64, CONTENT_TRANSFORM
-        )
+        receipt = capture_sink(capture_spec, request_bytes, response_bytes, "completed", "a" * 64, CONTENT_TRANSFORM)
         assert receipt["status"] == "completed"
         return {"payload": payload, "usage": {}, "provenance": {"provider": "fake-openai"}}
 
 
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        ["git", "-C", str(repo), *args],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     ).stdout.strip()
 
 
@@ -383,19 +504,27 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     _git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "head")
     head = _git(repo, "rev-parse", "HEAD")
     profile = {
-        "version": "pilot-v1", "repository": "owner/repo",
-        "required_lenses": ["correctness"], "context_paths": [],
+        "version": "pilot-v1",
+        "repository": "owner/repo",
+        "required_lenses": ["correctness"],
+        "context_paths": [],
     }
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(json.dumps(profile))
     provider_config_path = tmp_path / "provider.json"
     provider_config_path.write_text("{}")
     limits = {
-        "deadline_seconds": 10, "max_concurrent_scopes": 1, "max_provider_calls": 1,
-        "max_retries_per_task": 0, "max_context_bytes": 200_000,
-        "max_input_bytes_per_task": 128_000, "max_output_bytes_per_task": 32_768,
-        "max_output_bytes": 100_000, "max_output_tokens": 1_800,
-        "max_context_retrievals": 0, "max_followup_tasks": 0,
+        "deadline_seconds": 10,
+        "max_concurrent_scopes": 1,
+        "max_provider_calls": 1,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 200_000,
+        "max_input_bytes_per_task": 128_000,
+        "max_output_bytes_per_task": 32_768,
+        "max_output_bytes": 100_000,
+        "max_output_tokens": 1_800,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
     }
     provider = CaptureAwareProvider()
     monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
@@ -407,18 +536,30 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     from pr_review_harness.checks import make_check_runs_document
 
     historical_checks_path = tmp_path / "historical-checks.json"
-    historical_checks = make_check_runs_document(
-        "owner/repo", 1, head, [], captured_at="2026-09-28T12:00:00Z"
-    )
+    historical_checks = make_check_runs_document("owner/repo", 1, head, [], captured_at="2026-09-28T12:00:00Z")
     historical_checks["base_sha"] = base
     historical_checks_path.write_text(json.dumps(historical_checks))
 
     historical_prepare_args = [
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--provider-config", str(provider_config_path),
-        "--historical-checks-json", str(historical_checks_path),
-        "--output", str(tmp_path / "historical-prepared-output"),
-        "--run-id", "historical-capture-prepare", "--prepare-only", "--json",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile_path),
+        "--provider-config",
+        str(provider_config_path),
+        "--historical-checks-json",
+        str(historical_checks_path),
+        "--output",
+        str(tmp_path / "historical-prepared-output"),
+        "--run-id",
+        "historical-capture-prepare",
+        "--prepare-only",
+        "--json",
     ]
     assert cli.main(historical_prepare_args) == 0
     historical_prepared = json.loads(capsys.readouterr().out)
@@ -432,10 +573,27 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     prepared_dir = tmp_path / "prepared-output"
     prepare_args = [
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--provider-config", str(provider_config_path), "--output", str(prepared_dir),
-        "--run-id", "capture-prepare", "--prepare-only", "--private-shadow-preflight-case-id", "PR-464",
-        "--max-claim-assessments", "0", "--json",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile_path),
+        "--provider-config",
+        str(provider_config_path),
+        "--output",
+        str(prepared_dir),
+        "--run-id",
+        "capture-prepare",
+        "--prepare-only",
+        "--private-shadow-preflight-case-id",
+        "PR-464",
+        "--max-claim-assessments",
+        "0",
+        "--json",
     ]
     assert cli.main(prepare_args) == 0
     prepared = json.loads(capsys.readouterr().out)
@@ -447,25 +605,34 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     # fixture rather than binding the collector's earlier pre-provenance hash.
     capture_snapshot = cli.collect_snapshot(str(repo), base, head, profile, limits)
     capture_snapshot["freshness_basis"] = "HISTORICAL_SNAPSHOT"
-    capture_snapshot_hash = cli._sha256(json.dumps(
-        {key: value for key, value in capture_snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
-        sort_keys=True, separators=(",", ":"),
-    ).encode())
+    capture_snapshot_hash = cli._sha256(
+        json.dumps(
+            {key: value for key, value in capture_snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    )
     assert prepared["snapshot"]["snapshot_hash"] == capture_snapshot_hash
     assert not (prepared_dir / "private-capture").exists()
     plan = {
         "schema": "model-only-shadow-live-writer-plan.v1",
         "case": {
-            "case_id": "PR-464", "snapshot_id": prepared["snapshot"]["snapshot_id"],
+            "case_id": "PR-464",
+            "snapshot_id": prepared["snapshot"]["snapshot_id"],
             "snapshot_sha256": capture_snapshot_hash,
         },
         "budget": {
-            "writer_exact_call_count": 1, "writer_max_request_bytes": 128_000,
-            "writer_max_response_bytes": 32_768, "writer_max_output_tokens": 1_800,
+            "writer_exact_call_count": 1,
+            "writer_max_request_bytes": 128_000,
+            "writer_max_response_bytes": 32_768,
+            "writer_max_output_tokens": 1_800,
             "writer_max_provider_calls": 10,
         },
         "writer_requests": [
-            {key: row[key] for key in ("task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap")}
+            {
+                key: row[key]
+                for key in ("task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap")
+            }
             for row in prepared["primary_requests"]
         ],
     }
@@ -473,29 +640,60 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     plan_bytes = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()
     plan_path.write_bytes(plan_bytes)
     receipt_path = tmp_path / "preflight-receipt.json"
-    receipt_path.write_text(json.dumps({
-        "schema": "model-only-shadow-live-preflight-receipt.v1",
-        "status": "PLAN_MATCHED_PROVIDER_FREE", "provider_calls": 0,
-        "target_code_execution": False, "publication_enabled": False,
-        "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(), "case_id": "PR-464",
-        "snapshot_sha256": capture_snapshot_hash, "writer_calls_planned": 1,
-    }))
+    receipt_path.write_text(
+        json.dumps(
+            {
+                "schema": "model-only-shadow-live-preflight-receipt.v1",
+                "status": "PLAN_MATCHED_PROVIDER_FREE",
+                "provider_calls": 0,
+                "target_code_execution": False,
+                "publication_enabled": False,
+                "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
+                "case_id": "PR-464",
+                "snapshot_sha256": capture_snapshot_hash,
+                "writer_calls_planned": 1,
+            }
+        )
+    )
     # This fixture exercises one request. The checked-in policy covers the
     # real ten-request PR-464 plan; replace only the test-local bounds here.
-    monkeypatch.setitem(cli.TRUSTED_SHADOW_PLANS, "PR-464", {
-        **cli.TRUSTED_SHADOW_PLANS["PR-464"], "calls": 1,
-        "snapshot_id": prepared["snapshot"]["snapshot_id"],
-        "snapshot_sha256": capture_snapshot_hash,
-    })
+    monkeypatch.setitem(
+        cli.TRUSTED_SHADOW_PLANS,
+        "PR-464",
+        {
+            **cli.TRUSTED_SHADOW_PLANS["PR-464"],
+            "calls": 1,
+            "snapshot_id": prepared["snapshot"]["snapshot_id"],
+            "snapshot_sha256": capture_snapshot_hash,
+        },
+    )
     output_dir = tmp_path / "ordinary-output"
     capture_dir = tmp_path / "private-capture"
     args = [
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--output", str(output_dir),
-        "--provider-config", str(provider_config_path),
-        "--private-shadow-capture", str(capture_dir), "--private-shadow-case-id", "PR-464",
-        "--private-shadow-plan", str(plan_path), "--private-shadow-preflight-receipt", str(receipt_path),
-        "--run-id", "capture-run-1", "--json",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile_path),
+        "--output",
+        str(output_dir),
+        "--provider-config",
+        str(provider_config_path),
+        "--private-shadow-capture",
+        str(capture_dir),
+        "--private-shadow-case-id",
+        "PR-464",
+        "--private-shadow-plan",
+        str(plan_path),
+        "--private-shadow-preflight-receipt",
+        str(receipt_path),
+        "--run-id",
+        "capture-run-1",
+        "--json",
     ]
     assert cli.main(args) == 0
     stdout = capsys.readouterr().out
@@ -546,6 +744,14 @@ def test_trusted_actions_capture_gate_accepts_private_direct_child(tmp_path, mon
     cli._validate_private_capture_target(str(runner_temp / "capture"), str(tmp_path / "output"))
 
 
+def test_trusted_actions_capture_gate_accepts_dedicated_synth_workflow(tmp_path, monkeypatch):
+    runner_temp = tmp_path / "runner-temp"
+    runner_temp.mkdir()
+    _trusted_capture_env(monkeypatch, runner_temp)
+    monkeypatch.setenv("GITHUB_WORKFLOW_REF", TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF)
+    cli._validate_private_capture_target(str(runner_temp / "capture"), str(tmp_path / "output"))
+
+
 def test_actions_private_plan_must_come_from_fixed_trusted_checkout_and_receipt_slot(tmp_path, monkeypatch):
     runner_temp = tmp_path / "runner-temp"
     workspace = tmp_path / "workspace"
@@ -554,7 +760,7 @@ def test_actions_private_plan_must_come_from_fixed_trusted_checkout_and_receipt_
     _trusted_capture_env(monkeypatch, runner_temp)
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
     trusted_root = workspace / "trusted-runner"
-    expected_plan = trusted_root / "experiments" / "model-only-shadow-live-pr464-plan-v1.json"
+    expected_plan = trusted_root / "experiments" / "model-only-shadow-live-pr464-plan-v2.json"
     expected_plan.parent.mkdir(parents=True)
     expected_plan.write_text("{}")
     receipt_dir = runner_temp / "private-shadow-preparation"
@@ -587,20 +793,14 @@ def test_actions_private_plan_paths_are_bound_to_selected_case(tmp_path, monkeyp
     expected_receipt = receipt_dir / "live-preflight-receipt.json"
     expected_receipt.write_text("{}")
 
-    cli._validate_trusted_private_plan_paths(
-        str(expected_plan), str(expected_receipt), case_id
-    )
+    cli._validate_trusted_private_plan_paths(str(expected_plan), str(expected_receipt), case_id)
     other_case = "PR-464" if case_id == "PR-457" else "PR-457"
     with pytest.raises(ValueError, match="trusted private preflight paths required"):
-        cli._validate_trusted_private_plan_paths(
-            str(expected_plan), str(expected_receipt), other_case
-        )
+        cli._validate_trusted_private_plan_paths(str(expected_plan), str(expected_receipt), other_case)
 
 
 @pytest.mark.parametrize("bad_path_kind", ["relative", "traversal", "parent_symlink", "final_symlink", "cross_path"])
-def test_actions_private_plan_path_rejections_precede_provider_setup(
-    tmp_path, monkeypatch, bad_path_kind
-):
+def test_actions_private_plan_path_rejections_precede_provider_setup(tmp_path, monkeypatch, bad_path_kind):
     runner_temp = tmp_path / "runner-temp"
     workspace = tmp_path / "workspace"
     runner_temp.mkdir()
@@ -633,14 +833,28 @@ def test_actions_private_plan_path_rejections_precede_provider_setup(
 
     calls = []
     monkeypatch.setattr(cli, "_configs", lambda _args: calls.append("configs"))
-    code = cli.main([
-        "review", "--repo", str(tmp_path), "--profile", str(tmp_path / "profile.json"),
-        "--base", "a" * 40, "--head", "b" * 40,
-        "--private-shadow-capture", str(tmp_path / "capture"),
-        "--private-shadow-case-id", "PR-457",
-        "--private-shadow-plan", supplied_plan,
-        "--private-shadow-preflight-receipt", supplied_receipt, "--json",
-    ])
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(tmp_path),
+            "--profile",
+            str(tmp_path / "profile.json"),
+            "--base",
+            "a" * 40,
+            "--head",
+            "b" * 40,
+            "--private-shadow-capture",
+            str(tmp_path / "capture"),
+            "--private-shadow-case-id",
+            "PR-457",
+            "--private-shadow-plan",
+            supplied_plan,
+            "--private-shadow-preflight-receipt",
+            supplied_receipt,
+            "--json",
+        ]
+    )
     assert code == 2
     assert calls == []
 
@@ -651,6 +865,7 @@ def test_actions_private_plan_path_rejections_precede_provider_setup(
         ("GITHUB_REPOSITORY", "someone/else"),
         ("GITHUB_REF", "refs/heads/feature"),
         ("GITHUB_WORKFLOW_REF", "groktopus/codereview/.github/workflows/other.yml@refs/heads/main"),
+        ("GITHUB_WORKFLOW_REF", "groktopus/codereview/.github/workflows/synth-001-live-writer.yml@refs/heads/feature"),
         ("GITHUB_EVENT_NAME", "pull_request"),
         ("PR_REVIEW_TRUSTED_PRIVATE_CAPTURE", "0"),
     ],

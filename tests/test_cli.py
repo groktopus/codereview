@@ -632,9 +632,13 @@ def _phase_aware_cli(monkeypatch, tmp_path, *, report_failure=None):
 
     monkeypatch.setattr(engine, "run_review", fake_run_review)
     if report_failure == "render":
-        monkeypatch.setattr(engine, "render_report", lambda _result: (_ for _ in ()).throw(ValueError("private payload")))
+        monkeypatch.setattr(
+            engine, "render_report", lambda _result: (_ for _ in ()).throw(ValueError("private payload"))
+        )
     else:
-        monkeypatch.setattr(engine, "render_report", lambda _result: "# Incomplete review\n\nAccepted blocker: finding-blocker\n")
+        monkeypatch.setattr(
+            engine, "render_report", lambda _result: "# Incomplete review\n\nAccepted blocker: finding-blocker\n"
+        )
     if report_failure == "write":
         real_replace = os.replace
 
@@ -645,8 +649,20 @@ def _phase_aware_cli(monkeypatch, tmp_path, *, report_failure=None):
 
         monkeypatch.setattr(os, "replace", fail_markdown_replace)
     argv = [
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--output", str(output_dir), "--run-id", "phase-test", "--json",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile_path),
+        "--output",
+        str(output_dir),
+        "--run-id",
+        "phase-test",
+        "--json",
     ]
     return cli, argv, output_dir
 
@@ -687,11 +703,28 @@ def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, mo
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
-    monkeypatch.setattr(engine, "run_review", lambda *_args, **_kwargs: pytest.fail("preflight must reject before dispatch"))
-    assert cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", "", "--profile", str(profile_path),
-        "--output", str(tmp_path / "preflight-output"), "--json",
-    ]) == 2
+    monkeypatch.setattr(
+        engine, "run_review", lambda *_args, **_kwargs: pytest.fail("preflight must reject before dispatch")
+    )
+    assert (
+        cli.main(
+            [
+                "review",
+                "--repo",
+                str(repo),
+                "--base",
+                base,
+                "--head",
+                "",
+                "--profile",
+                str(profile_path),
+                "--output",
+                str(tmp_path / "preflight-output"),
+                "--json",
+            ]
+        )
+        == 2
+    )
     output = capsys.readouterr().out
     assert json.loads(output) == {
         "error": "explicit base and head revisions are required without a PR/event input",
@@ -706,11 +739,28 @@ def test_prepare_only_without_historical_checks_rejects_ambient_event(tmp_path, 
     repo, base, head, profile_path = fixture_repo(tmp_path)
     monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
     monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
-    assert cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--provider-config", str(tmp_path / "provider.json"),
-        "--output", str(tmp_path / "prepare-output"), "--prepare-only", "--json",
-    ]) == 2
+    assert (
+        cli.main(
+            [
+                "review",
+                "--repo",
+                str(repo),
+                "--base",
+                base,
+                "--head",
+                head,
+                "--profile",
+                str(profile_path),
+                "--provider-config",
+                str(tmp_path / "provider.json"),
+                "--output",
+                str(tmp_path / "prepare-output"),
+                "--prepare-only",
+                "--json",
+            ]
+        )
+        == 2
+    )
     assert json.loads(capsys.readouterr().out) == {
         "error": "preflight_rejected",
         "exit_code": 2,
@@ -725,10 +775,21 @@ def test_recent_runtime_failure_returns_same_diagnostic_path_and_exit_one(tmp_pa
     head = "b" * 40
     monkeypatch.setattr(cli, "recent_commits", lambda *_args: [{"base": base, "head": head, "subject": "fixture"}])
     output_dir.mkdir()
-    assert cli.main([
-        "recent", "--repo", str(repo), "--profile", str(profile),
-        "--output", str(output_dir), "--json",
-    ]) == 1
+    assert (
+        cli.main(
+            [
+                "recent",
+                "--repo",
+                str(repo),
+                "--profile",
+                str(profile),
+                "--output",
+                str(output_dir),
+                "--json",
+            ]
+        )
+        == 1
+    )
     payload = json.loads(capsys.readouterr().out)
     assert payload["command"] == "recent"
     assert payload["runs"][0]["disposition"] == "FAILED"
@@ -748,10 +809,21 @@ def test_recent_valid_incomplete_result_exits_zero(tmp_path, monkeypatch, capsys
         lambda *_args: [{"base": "a" * 40, "head": "b" * 40, "subject": "fixture"}],
     )
     output_dir.mkdir()
-    assert cli.main([
-        "recent", "--repo", str(repo), "--profile", str(profile),
-        "--output", str(output_dir), "--json",
-    ]) == 0
+    assert (
+        cli.main(
+            [
+                "recent",
+                "--repo",
+                str(repo),
+                "--profile",
+                str(profile),
+                "--output",
+                str(output_dir),
+                "--json",
+            ]
+        )
+        == 0
+    )
     payload = json.loads(capsys.readouterr().out)
     assert payload["runs"][0]["disposition"] == "INCOMPLETE"
     assert "error" not in payload["runs"][0]
@@ -776,7 +848,9 @@ def test_runtime_failure_without_a_regular_result_has_no_diagnostic_path(tmp_pat
     from pr_review_harness import engine
 
     cli, argv, output_dir = _phase_aware_cli(monkeypatch, tmp_path)
-    monkeypatch.setattr(engine, "run_review", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("secret detail")))
+    monkeypatch.setattr(
+        engine, "run_review", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("secret detail"))
+    )
     assert cli.main(argv) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload == {"error": "review_runtime_failed", "exit_code": 1}
@@ -1320,6 +1394,320 @@ def test_cli_identity_rebinding_preserves_selected_evidence_and_file_anchor(tmp_
     assert successful_tasks
     assert any(selected_ids.issubset(set(row["input_evidence_ids"])) for row in successful_tasks)
     assert result["coverage_state"] == "COMPLETE"
+
+
+def test_recovery_packet_rejects_boolean_pull_request_number():
+    from pr_review_harness.checks import make_check_runs_document
+    from pr_review_harness.recovery_inputs import RecoveryInputError, make_packet
+
+    head = "a" * 40
+    event = {
+        "repository": "owner/project",
+        "pull_request_number": 1,
+        "event_id": "42",
+        "base_sha": "b" * 40,
+        "head_sha": head,
+    }
+    checks = make_check_runs_document("owner/project", 1, head, [], captured_at="2026-09-28T12:01:00Z")
+    checks["pull_request_number"] = True
+
+    with pytest.raises(RecoveryInputError, match="recovery_check_document_invalid"):
+        make_packet(event, checks, "42")
+
+
+def test_recovery_inputs_rebuild_original_snapshot_and_reject_check_drift(tmp_path, monkeypatch):
+    from pr_review_harness import cli
+    from pr_review_harness.checks import ingest_check_runs, make_check_runs_document
+    from pr_review_harness.engine import EnginePreflightError
+    from pr_review_harness.recovery_inputs import make_packet, read_packet, write_packet
+
+    repo, base, head, profile = context_selection_repo(tmp_path)
+    event = {
+        "repository": "owner/project",
+        "pull_request_number": 7,
+        "event_id": "42",
+        "base_sha": base,
+        "head_sha": head,
+    }
+    checks = make_check_runs_document(
+        "owner/project",
+        7,
+        head,
+        [
+            {
+                "id": 99,
+                "name": "unit-tests",
+                "status": "completed",
+                "conclusion": "success",
+                "head_sha": head,
+                "app_id": 42,
+                "completed_at": "2026-09-28T12:00:00Z",
+                "details_url": "https://example.invalid/private?token=must-not-be-kept",
+                "external_id": "arbitrary-provider-value",
+            }
+        ],
+        captured_at="2026-09-28T12:01:00Z",
+    )
+    profile["required_checks"] = [
+        {
+            "id": "tests",
+            "binding": "external:tests",
+            "github_check_name": "unit-tests",
+            "github_app_id": 42,
+        }
+    ]
+    limits = {
+        "deadline_seconds": 2,
+        "max_concurrent_scopes": 2,
+        "max_provider_calls": 8,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 64_000,
+        "max_input_bytes_per_task": 32_000,
+        "max_output_bytes_per_task": 8_000,
+        "max_output_bytes": 16_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+    output = tmp_path / "review"
+    args = SimpleNamespace(effect_policy="READ_ONLY", repo=str(repo), mode="AUTO", output=str(output), resume=False)
+    calls = {"count": 0}
+
+    class CountingProvider(_InertContextProvider):
+        def review(self, task, evidence, task_limits):
+            calls["count"] += 1
+            return super().review(task, evidence, task_limits)
+
+    monkeypatch.setattr(
+        cli, "_freshness", lambda current_event, expected: _FakeFreshness(expected) if current_event else None
+    )
+    provider = CountingProvider()
+    from pr_review_harness.recovery_inputs import normalize_checks
+
+    normalized_checks = normalize_checks(checks, repository="owner/project", pull_request_number=7, head_sha=head)
+    binding = profile["required_checks"]
+    assert ingest_check_runs(checks, event, binding) == ingest_check_runs(normalized_checks, event, binding)
+    first = cli._run_one(args, base, head, profile, limits, provider, None, "pr-7-42", event, normalized_checks)
+    original_calls = calls["count"]
+    assert (output / "pr-7-42.json").is_file()
+
+    packet_path = tmp_path / "recovery-inputs.json"
+    write_packet(packet_path, make_packet(event, checks, "42"))
+    packet, raw = read_packet(packet_path, repository="owner/project", run_id="pr-7-42", base_sha=base, head_sha=head)
+    assert b"details_url" not in raw and b"external_id" not in raw and b"must-not-be-kept" not in raw
+    args.resume = True
+    resumed = cli._run_one(
+        args,
+        base,
+        head,
+        profile,
+        limits,
+        provider,
+        None,
+        "pr-7-42",
+        packet["event"],
+        packet["checks_document"],
+    )
+    assert resumed["snapshot_id"] == first["snapshot_id"]
+    assert resumed["request_hash"] == first["request_hash"]
+    assert resumed["disposition"] == first["disposition"]
+    assert calls["count"] == original_calls
+
+    drifted = json.loads(json.dumps(packet["checks_document"]))
+    drifted["captured_at"] = "2026-09-28T12:02:00Z"
+    with pytest.raises(EnginePreflightError, match="resume request mismatch"):
+        cli._run_one(args, base, head, profile, limits, provider, None, "pr-7-42", packet["event"], drifted)
+    assert calls["count"] == original_calls
+
+
+def test_cli_capture_and_resume_flags_reuse_original_event_and_checks(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli, github
+
+    repo, base, head, profile = context_selection_repo(tmp_path)
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"number": 7, "pull_request": {"base": {"sha": base}, "head": {"sha": head}}}),
+        encoding="utf-8",
+    )
+    run = {
+        "id": 99,
+        "name": "unit-tests",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": head,
+        "app_id": 42,
+        "completed_at": "2026-09-28T12:00:00Z",
+        "external_id": "unretained-provider-id",
+        "details_url": "https://provider.example.invalid/run/99?token=unretained",
+    }
+
+    class FakeGitHubAdapter:
+        def check_runs(self, _repository, _head_sha):
+            return {"runs": [run], "complete": True}
+
+    limits = {
+        "deadline_seconds": 2,
+        "max_concurrent_scopes": 2,
+        "max_provider_calls": 8,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 64_000,
+        "max_input_bytes_per_task": 32_000,
+        "max_output_bytes_per_task": 8_000,
+        "max_output_bytes": 16_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/project")
+    monkeypatch.setenv("GITHUB_RUN_ID", "42")
+    monkeypatch.setattr(github, "GitHubPRAdapter", FakeGitHubAdapter)
+    monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, _InertContextProvider(), None, None))
+    monkeypatch.setattr(cli, "_freshness", lambda event, expected: _FakeFreshness(expected) if event else None)
+    packet_path = tmp_path / "artifacts" / "recovery-inputs.json"
+    packet_path.parent.mkdir()
+    output = tmp_path / "review"
+    common = ["--repo", str(repo), "--profile", str(profile_path), "--run-id", "pr-7-42", "--json"]
+    first_code = cli.main(
+        [
+            "review",
+            *common,
+            "--event-file",
+            str(event_path),
+            "--capture-recovery-inputs",
+            str(packet_path),
+            "--output",
+            str(output),
+        ]
+    )
+    assert first_code == 0
+    first = json.loads(capsys.readouterr().out)
+    packet_raw = packet_path.read_bytes()
+    assert b"unretained-provider-id" not in packet_raw
+    assert b"unretained" not in packet_raw
+
+    second_code = cli.main(
+        ["review", *common, "--resume", "--recovery-inputs", str(packet_path), "--output", str(output)]
+    )
+    assert second_code == 0
+    resumed = json.loads(capsys.readouterr().out)
+    assert resumed["snapshot_id"] == first["snapshot_id"]
+    assert resumed["request_hash"] == first["request_hash"]
+
+
+def test_cli_recovery_settles_provider_entered_before_interruption_without_redispatch(
+    tmp_path, monkeypatch, capsys
+):
+    """An entered fake call remains uncertain across CLI resume and is never dispatched twice."""
+    from pr_review_harness import cli, engine, github
+    from pr_review_harness.budget import IsolatedInvocation as RealIsolatedInvocation
+
+    # This BaseException models controller death: normal error handling must not
+    # convert the still-reserved provider call into a settled failure.
+    class SimulatedControllerCrash(BaseException):
+        pass
+
+    repo, base, head, profile = context_selection_repo(tmp_path)
+    profile["allow_empty_approve"] = True
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"number": 7, "pull_request": {"base": {"sha": base}, "head": {"sha": head}}}),
+        encoding="utf-8",
+    )
+    limits = {
+        "deadline_seconds": 2,
+        "max_concurrent_scopes": 1,
+        "max_provider_calls": 1,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 64_000,
+        "max_input_bytes_per_task": 32_000,
+        "max_output_bytes_per_task": 8_000,
+        "max_output_bytes": 16_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+
+    class FakeGitHubAdapter:
+        def check_runs(self, _repository, _head_sha):
+            return {"runs": [], "complete": True}
+
+    class EnterThenCrashProvider(_InertContextProvider):
+        def __init__(self):
+            self.entered = 0
+
+        def review(self, task, evidence, task_limits):
+            self.entered += 1
+            raise SimulatedControllerCrash()
+
+    provider = EnterThenCrashProvider()
+    construction_attempts = []
+
+    class CrashInsideProviderInvocation:
+        def __init__(self, target, method_name, args, **_kwargs):
+            construction_attempts.append("entered")
+            getattr(target, method_name)(*args)
+            raise AssertionError("provider interruption did not occur")
+
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/project")
+    monkeypatch.setenv("GITHUB_RUN_ID", "42")
+    monkeypatch.setattr(github, "GitHubPRAdapter", FakeGitHubAdapter)
+    monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
+    monkeypatch.setattr(cli, "_freshness", lambda event, expected: _FakeFreshness(expected) if event else None)
+    monkeypatch.setattr(engine, "IsolatedInvocation", CrashInsideProviderInvocation)
+
+    packet_path = tmp_path / "artifacts" / "recovery-inputs.json"
+    packet_path.parent.mkdir()
+    output = tmp_path / "review"
+    common = ["--repo", str(repo), "--profile", str(profile_path), "--run-id", "pr-7-42", "--json"]
+    with pytest.raises(SimulatedControllerCrash):
+        cli.main(
+            [
+                "review", *common, "--event-file", str(event_path),
+                "--capture-recovery-inputs", str(packet_path), "--output", str(output),
+            ]
+        )
+
+    assert provider.entered == 1
+    assert construction_attempts == ["entered"]
+    checkpoint = output / "pr-7-42.json"
+    partial = json.loads(checkpoint.read_text(encoding="utf-8"))
+    reservation_keys = list(partial["ledger"]["budget"]["reservations"])
+    assert len(reservation_keys) == 1
+    reservation_key = reservation_keys[0]
+    assert reservation_key not in partial["ledger"]["budget"]["settlements"]
+    assert packet_path.is_file()
+
+    # Any attempted invocation during recovery fails the test; the real isolated
+    # worker is deliberately not started, so no target or network code can run.
+    class RejectRecoveryDispatch:
+        def __init__(self, target, method_name, args, **_kwargs):
+            if target is provider:
+                construction_attempts.append("redispatch")
+                raise AssertionError("resume redispatched an uncertain reservation")
+            self.delegate = RealIsolatedInvocation(
+                target,
+                method_name,
+                args,
+                deadline_seconds=_kwargs["deadline_seconds"],
+                output_limit=_kwargs["output_limit"],
+            )
+
+        def __getattr__(self, name):
+            return getattr(self.delegate, name)
+
+    monkeypatch.setattr(engine, "IsolatedInvocation", RejectRecoveryDispatch)
+    resume_code = cli.main(
+        ["review", *common, "--resume", "--recovery-inputs", str(packet_path), "--output", str(output)]
+    )
+    resumed = json.loads(capsys.readouterr().out)
+    settlement = resumed["ledger"]["budget"]["settlements"][reservation_key]
+    assert resume_code == 0
+    assert provider.entered == 1
+    assert construction_attempts == ["entered"], f"recovery invocation attempts: {construction_attempts!r}"
+    assert settlement["status"] == "INTERRUPTED_UNKNOWN"
+    assert resumed["budget"]["provider_calls_reserved"] == 1
+    assert next(iter(resumed["task_results"].values()))["error_code"] == "INTERRUPTED_UNKNOWN"
 
 
 @pytest.mark.parametrize(

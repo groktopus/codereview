@@ -192,7 +192,7 @@ def test_live_case_selector_is_a_closed_two_case_choice_with_fixed_paths():
     assert "type: choice" in choice
     assert "- PR-464" in choice and "- PR-457" in choice and "PR-463" not in choice
     assert "id: case" in live and "case_id not in contracts" in live
-    assert '"plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v1.json"' in live
+    assert '"plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v2.json"' in live
     assert '--plan "${{ steps.case.outputs.plan_path }}"' in live
     assert "ref: ${{ steps.case.outputs.head_sha }}" in live
     assert '--base "${{ steps.case.outputs.base_sha }}"' in live
@@ -202,7 +202,7 @@ def test_live_case_selector_is_a_closed_two_case_choice_with_fixed_paths():
 
 def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():
     legacy = json.loads(BUDGET.read_text(encoding="utf-8"))
-    live = json.loads((ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v1.json").read_text())
+    live = json.loads((ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v2.json").read_text())
     historical_hash = "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663"
     capture_hash = "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
     assert legacy["case"]["snapshot_sha256"] == historical_hash

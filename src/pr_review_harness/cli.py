@@ -20,18 +20,22 @@ from .snapshot import SnapshotError, bind_repository_url, collect_snapshot, rece
 
 MAX_HISTORICAL_CHECKS_BYTES = 2_000_000
 MAX_HISTORICAL_CHECK_RUNS = 2_000
-TRUSTED_CAPTURE_WORKFLOW_REF = (
-    "groktopus/codereview/.github/workflows/private-shadow-capture.yml@refs/heads/main"
+TRUSTED_CAPTURE_WORKFLOW_REF = "groktopus/codereview/.github/workflows/private-shadow-capture.yml@refs/heads/main"
+TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF = (
+    "groktopus/codereview/.github/workflows/synth-001-live-writer.yml@refs/heads/main"
 )
+TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset({TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF})
 TRUSTED_SHADOW_PLANS = {
     "PR-457": {
-        "path": "experiments/model-only-shadow-live-pr457-plan-v1.json",
-        "calls": 6, "snapshot_id": "snap-24293f430e4f8006a52bac18",
+        "path": "experiments/model-only-shadow-live-pr457-plan-v2.json",
+        "calls": 6,
+        "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
     },
     "PR-464": {
-        "path": "experiments/model-only-shadow-live-pr464-plan-v1.json",
-        "calls": 10, "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+        "path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        "calls": 10,
+        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
     },
 }
@@ -81,9 +85,21 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--run-id")
     review.add_argument("--resume", action="store_true")
     review.add_argument("--event-file", help="GitHub Actions pull_request event JSON (read only)")
+    review.add_argument(
+        "--capture-recovery-inputs",
+        metavar="PATH",
+        help="write bounded, credential-free source event and check evidence for a future exact resume",
+    )
+    review.add_argument(
+        "--recovery-inputs",
+        metavar="PATH",
+        help="reuse exact captured event/check evidence while resuming the original run",
+    )
     review.add_argument("--effect-policy", choices=["READ_ONLY", "PUBLISH_REVIEW"], default="READ_ONLY")
     review.add_argument("--dry-run", action="store_true")
-    review.add_argument("--prepare-only", action="store_true", help="snapshot and size exact primary requests without provider dispatch")
+    review.add_argument(
+        "--prepare-only", action="store_true", help="snapshot and size exact primary requests without provider dispatch"
+    )
     review.add_argument(
         "--private-shadow-capture",
         metavar="DIR",
@@ -173,8 +189,12 @@ def _read_private_json(path: str, limit: int) -> tuple[dict, str]:
         fd = os.open(source, flags)
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
-                    or opened.st_ino != before.st_ino or opened.st_size > limit):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size > limit
+            ):
                 raise ValueError("private shadow plan unavailable")
             data = bytearray()
             while len(data) <= limit:
@@ -216,7 +236,9 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
         or receipt.get("target_code_execution") is not False
         or receipt.get("publication_enabled") is not False
         or receipt.get("plan_sha256") != plan_hash
-        or not isinstance(case, dict) or not isinstance(budget, dict) or not isinstance(requests, list)
+        or not isinstance(case, dict)
+        or not isinstance(budget, dict)
+        or not isinstance(requests, list)
         or policy is None
         or len(requests) != policy["calls"]
         or budget.get("writer_max_provider_calls") != 10
@@ -233,24 +255,30 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
     pins: dict[str, dict] = {}
     for row in requests:
         if (
-            not isinstance(row, dict) or not isinstance(row.get("task_id"), str)
+            not isinstance(row, dict)
+            or not isinstance(row.get("task_id"), str)
             or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", row["task_id"])
             or row["task_id"] in pins
             or not isinstance(row.get("input_sha256"), str)
             or not re.fullmatch(r"[0-9a-f]{64}", row["input_sha256"])
-            or isinstance(row.get("input_bytes"), bool) or not isinstance(row.get("input_bytes"), int)
+            or isinstance(row.get("input_bytes"), bool)
+            or not isinstance(row.get("input_bytes"), int)
             or not 1 <= row["input_bytes"] <= budget.get("writer_max_request_bytes", 0)
             or row.get("output_bytes_cap") != budget.get("writer_max_response_bytes")
             or row.get("output_tokens_cap") != budget.get("writer_max_output_tokens")
         ):
             raise ValueError("private shadow request pin invalid")
         pins[row["task_id"]] = {
-            "task_id": row["task_id"], "input_sha256": row["input_sha256"],
-            "input_bytes": row["input_bytes"], "lens": row.get("lens"),
-            "output_bytes_cap": row["output_bytes_cap"], "output_tokens_cap": row["output_tokens_cap"],
+            "task_id": row["task_id"],
+            "input_sha256": row["input_sha256"],
+            "input_bytes": row["input_bytes"],
+            "lens": row.get("lens"),
+            "output_bytes_cap": row["output_bytes_cap"],
+            "output_tokens_cap": row["output_tokens_cap"],
         }
     return pins, {
-        "case_id": case.get("case_id"), "snapshot_id": case.get("snapshot_id"),
+        "case_id": case.get("case_id"),
+        "snapshot_id": case.get("snapshot_id"),
         "snapshot_sha256": case.get("snapshot_sha256"),
     }
 
@@ -308,7 +336,7 @@ def _validate_private_capture_target(capture_dir: str, output_dir: str) -> None:
         and os.environ.get("GITHUB_REPOSITORY") == "groktopus/codereview"
         and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
         and os.environ.get("GITHUB_REF") == "refs/heads/main"
-        and os.environ.get("GITHUB_WORKFLOW_REF") == TRUSTED_CAPTURE_WORKFLOW_REF
+        and os.environ.get("GITHUB_WORKFLOW_REF") in TRUSTED_CAPTURE_WORKFLOW_REFS
         and re.fullmatch(r"[0-9a-f]{40}", os.environ.get("GITHUB_SHA", "")) is not None
     )
     runner_temp_value = os.environ.get("RUNNER_TEMP")
@@ -331,8 +359,10 @@ def _validate_private_capture_target(capture_dir: str, output_dir: str) -> None:
         raise ValueError("trusted private capture temp root is unavailable")
     temp_real = runner_temp.absolute()
     if (
-        ".." in requested.parts or requested.parent.absolute() != temp_real
-        or requested.exists() or contains_symlink(requested)
+        ".." in requested.parts
+        or requested.parent.absolute() != temp_real
+        or requested.exists()
+        or contains_symlink(requested)
     ):
         raise ValueError("trusted private capture must be a new direct child of RUNNER_TEMP")
     output = Path(output_dir).expanduser().resolve()
@@ -410,11 +440,15 @@ def _read_limits(args) -> dict:
         limits = defaults
     else:
         supplied = _load_json(args.limits, "limits")
-        unknown = set(supplied) - set(defaults) - {
-            "max_cost_microunits",
-            "max_snapshot_context_bytes",
-            "schema_version",
-        }
+        unknown = (
+            set(supplied)
+            - set(defaults)
+            - {
+                "max_cost_microunits",
+                "max_snapshot_context_bytes",
+                "schema_version",
+            }
+        )
         if unknown:
             raise ValueError("unknown limits field")
         version = supplied.get("schema_version")
@@ -736,13 +770,16 @@ def _run_one(
     if capture_case_id is not None and capture_dir is None:
         raise ValueError("private shadow case ID requires private shadow capture")
     if preflight_case_id is not None and (
-        not getattr(args, "prepare_only", False) or capture_dir is not None
+        not getattr(args, "prepare_only", False)
+        or capture_dir is not None
         or preflight_case_id not in {"PR-457", "PR-464"}
     ):
         raise ValueError("private shadow preflight case requires matching prepare-only without capture")
     if capture_dir and (
-        getattr(args, "command", "review") != "review" or getattr(args, "resume", False)
-        or getattr(args, "prepare_only", False) or getattr(args, "dry_run", False)
+        getattr(args, "command", "review") != "review"
+        or getattr(args, "resume", False)
+        or getattr(args, "prepare_only", False)
+        or getattr(args, "dry_run", False)
     ):
         raise ValueError("private shadow capture requires a fresh local non-resume review")
     if capture_dir:
@@ -931,7 +968,9 @@ def _run_one(
                         "content_hash": item.get("content_hash"),
                         "source_kind": item.get("source_kind"),
                         "trust": item.get("trust"),
-                        "content_bytes": len(item.get("content", "").encode("utf-8")) if isinstance(item.get("content"), str) else None,
+                        "content_bytes": len(item.get("content", "").encode("utf-8"))
+                        if isinstance(item.get("content"), str)
+                        else None,
                     }
                     for item in evidence
                 ],
@@ -956,23 +995,37 @@ def _run_one(
         summary_slots = 1 if decision_provider is not None else 0
         claim_slots = max_claim_assessments
         followup_slots = limits.get("max_followup_tasks", 0)
-        semantic_adjudication_supported = (
-            callable(getattr(provider, "adjudicate", None))
-            and "SEMANTIC_ADJUDICATION" in provider.identity.get("supported_primitives", [])
-        )
+        semantic_adjudication_supported = callable(
+            getattr(provider, "adjudicate", None)
+        ) and "SEMANTIC_ADJUDICATION" in provider.identity.get("supported_primitives", [])
         candidate_adjudication_slots = (
             primary_calls * min(provider.max_output_items, contracts.MAX_ITEMS)
-            if semantic_adjudication_supported else 0
+            if semantic_adjudication_supported
+            else 0
         )
         remaining_call_slots_after_primary = max(0, limits["max_provider_calls"] - primary_calls)
         unit_ids = [u.get("unit_id") for u in snapshot.get("inventory", []) if isinstance(u, dict)]
         required_unit_count = len(set(unit_ids))
-        covered_units = {uid for task in prepared_tasks if task.get("task_kind") == "SPECIALIST_FINDINGS" for uid in task.get("unit_ids", [])}
-        admitted_obligation_ids = sorted({oid for task in prepared_tasks for oid in task.get("obligation_ids", [task.get("obligation_id")]) if oid})
-        all_obligation_ids = sorted(o.get("obligation_id") for o in plan.get("coverage_obligations", []) if isinstance(o, dict) and o.get("obligation_id"))
+        covered_units = {
+            uid
+            for task in prepared_tasks
+            if task.get("task_kind") == "SPECIALIST_FINDINGS"
+            for uid in task.get("unit_ids", [])
+        }
+        admitted_obligation_ids = sorted(
+            {oid for task in prepared_tasks for oid in task.get("obligation_ids", [task.get("obligation_id")]) if oid}
+        )
+        all_obligation_ids = sorted(
+            o.get("obligation_id")
+            for o in plan.get("coverage_obligations", [])
+            if isinstance(o, dict) and o.get("obligation_id")
+        )
         required_unadmitted = sorted(
-            o.get("obligation_id") for o in plan.get("coverage_obligations", [])
-            if isinstance(o, dict) and o.get("required") is True and o.get("obligation_id") not in admitted_obligation_ids
+            o.get("obligation_id")
+            for o in plan.get("coverage_obligations", [])
+            if isinstance(o, dict)
+            and o.get("required") is True
+            and o.get("obligation_id") not in admitted_obligation_ids
         )
         primary_scope_complete = not required_unadmitted
         primary_request_bytes = sum(request["input_bytes"] for request in primary)
@@ -984,12 +1037,22 @@ def _run_one(
             "snapshot": {
                 "snapshot_id": snapshot.get("snapshot_id"),
                 "snapshot_hash": snapshot.get("snapshot_hash"),
-                "evidence_index_sha256": _sha256(json.dumps(
-                    [
-                        {"evidence_id": eid, "content_hash": item.get("content_hash"), "path": item.get("path"), "source_revision": item.get("source_revision")}
-                        for eid, item in sorted(snapshot.get("evidence", {}).items()) if isinstance(item, dict)
-                    ], sort_keys=True, separators=(",", ":")
-                ).encode()),
+                "evidence_index_sha256": _sha256(
+                    json.dumps(
+                        [
+                            {
+                                "evidence_id": eid,
+                                "content_hash": item.get("content_hash"),
+                                "path": item.get("path"),
+                                "source_revision": item.get("source_revision"),
+                            }
+                            for eid, item in sorted(snapshot.get("evidence", {}).items())
+                            if isinstance(item, dict)
+                        ],
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ),
                 "evidence_index": [
                     {
                         "evidence_id": eid,
@@ -998,16 +1061,21 @@ def _run_one(
                         "source_revision": item.get("source_revision"),
                         "source_kind": item.get("source_kind"),
                         "trust": item.get("trust"),
-                        "content_bytes": len(item.get("content", "").encode("utf-8")) if isinstance(item.get("content"), str) else None,
+                        "content_bytes": len(item.get("content", "").encode("utf-8"))
+                        if isinstance(item.get("content"), str)
+                        else None,
                     }
-                    for eid, item in sorted(snapshot.get("evidence", {}).items()) if isinstance(item, dict)
+                    for eid, item in sorted(snapshot.get("evidence", {}).items())
+                    if isinstance(item, dict)
                 ],
                 "base_sha": snapshot.get("base_sha"),
                 "head_sha": snapshot.get("head_sha"),
                 "profile_version": profile.get("version", profile.get("profile_version")),
                 "profile_file_sha256": _sha256(Path(args.profile).read_bytes()),
                 "limits_sha256": _sha256(Path(args.limits).read_bytes()) if args.limits else None,
-                "provider_identity_sha256": _sha256(json.dumps(provider.identity, sort_keys=True, separators=(",", ":")).encode()),
+                "provider_identity_sha256": _sha256(
+                    json.dumps(provider.identity, sort_keys=True, separators=(",", ":")).encode()
+                ),
             },
             "scope": {
                 "inventory_units": required_unit_count,
@@ -1024,7 +1092,8 @@ def _run_one(
                         "required_context_ids": list(task.get("required_context_ids", [])),
                         "evidence_ids": list(task.get("evidence_ids", [])),
                     }
-                    for task in plan.get("tasks", []) if isinstance(task, dict)
+                    for task in plan.get("tasks", [])
+                    if isinstance(task, dict)
                 ],
                 "admitted_primary_tasks": len(primary),
                 "admitted_obligation_ids": admitted_obligation_ids,
@@ -1034,8 +1103,12 @@ def _run_one(
                 "units_assigned_to_admitted_primary_tasks": len(covered_units),
                 "uncovered_or_unadmitted_units": sorted(set(unit_ids) - covered_units),
                 "skipped_units": list(skipped.values()),
-                "required_context_gaps": [g for g in snapshot.get("gaps", []) if isinstance(g, dict) and g.get("required") is True],
-                "optional_context_gaps": [g for g in snapshot.get("gaps", []) if isinstance(g, dict) and g.get("required") is not True],
+                "required_context_gaps": [
+                    g for g in snapshot.get("gaps", []) if isinstance(g, dict) and g.get("required") is True
+                ],
+                "optional_context_gaps": [
+                    g for g in snapshot.get("gaps", []) if isinstance(g, dict) and g.get("required") is not True
+                ],
             },
             "primary_requests": primary,
             "capacity": {
@@ -1062,19 +1135,27 @@ def _run_one(
                     candidate_adjudication_slots, remaining_call_slots_after_primary
                 ),
                 "candidate_and_summary_request_sizes": "UNKNOWN_UNTIL_PRIMARY_RESULTS",
-                "configured_optional_stage_slots_excluding_candidate_adjudication": summary_slots + claim_slots + followup_slots,
+                "configured_optional_stage_slots_excluding_candidate_adjudication": summary_slots
+                + claim_slots
+                + followup_slots,
                 "runtime_call_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
                 "overall_capacity": (
-                    "PRIMARY_SCOPE_NOT_ADMITTED" if not primary_scope_complete
-                    else "PRIMARY_CALL_DEMAND_EXCEEDS_CAP" if primary_calls > limits["max_provider_calls"]
-                    else "PRIMARY_CONTEXT_DEMAND_EXCEEDS_CAP" if not primary_context_fits
+                    "PRIMARY_SCOPE_NOT_ADMITTED"
+                    if not primary_scope_complete
+                    else "PRIMARY_CALL_DEMAND_EXCEEDS_CAP"
+                    if primary_calls > limits["max_provider_calls"]
+                    else "PRIMARY_CONTEXT_DEMAND_EXCEEDS_CAP"
+                    if not primary_context_fits
                     else "UNKNOWN_RUNTIME_DEMAND_WITHIN_CAPPED_LEDGER"
                 ),
                 "fits_call_cap": None,
                 "status": (
-                    "PRIMARY_SCOPE_NOT_ADMITTED" if not primary_scope_complete
-                    else "PRIMARY_DEMAND_EXCEEDS_CALL_CAP" if primary_calls > limits["max_provider_calls"]
-                    else "PRIMARY_CONTEXT_DEMAND_EXCEEDS_CAP" if not primary_context_fits
+                    "PRIMARY_SCOPE_NOT_ADMITTED"
+                    if not primary_scope_complete
+                    else "PRIMARY_DEMAND_EXCEEDS_CALL_CAP"
+                    if primary_calls > limits["max_provider_calls"]
+                    else "PRIMARY_CONTEXT_DEMAND_EXCEEDS_CAP"
+                    if not primary_context_fits
                     else "DYNAMIC_STAGE_DEMAND_UNKNOWN"
                 ),
             },
@@ -1318,9 +1399,7 @@ def main(argv=None) -> int:
             if bool(plan_path) != bool(receipt_path):
                 raise ValueError("private shadow plan and preflight receipt must be provided together")
             if plan_path and receipt_path:
-                _validate_trusted_private_plan_paths(
-                    plan_path, receipt_path, args.private_shadow_case_id
-                )
+                _validate_trusted_private_plan_paths(plan_path, receipt_path, args.private_shadow_case_id)
         if args.dry_run:
             if args.command == "recent" and not 1 <= args.count <= 100:
                 raise ValueError("count must be between 1 and 100")
@@ -1358,10 +1437,50 @@ def main(argv=None) -> int:
         if args.command == "review":
             if args.private_shadow_capture and (args.resume or args.prepare_only or args.dry_run):
                 raise ValueError("private shadow capture is incompatible with resume, prepare-only, and dry-run")
+            if args.capture_recovery_inputs and (
+                args.resume
+                or args.recovery_inputs
+                or args.prepare_only
+                or args.dry_run
+                or args.historical_checks_json
+                or args.checks_json
+            ):
+                raise ValueError("recovery input capture requires a fresh event-bound review")
+            if args.recovery_inputs and (
+                not args.resume
+                or not args.run_id
+                or args.event_file
+                or args.github_pr
+                or args.checks_json
+                or args.historical_checks_json
+                or args.capture_recovery_inputs
+            ):
+                raise ValueError(
+                    "recovery inputs require --resume, an explicit original --run-id, and no other event/check input"
+                )
+            if args.capture_recovery_inputs and (args.private_shadow_capture or args.private_shadow_plan):
+                raise ValueError("recovery input capture cannot be combined with private shadow capture")
             if args.private_shadow_capture:
                 _validate_private_capture_target(args.private_shadow_capture, args.output)
             historical_check_identity = None
-            if args.historical_checks_json:
+            recovery_packet = None
+            if args.recovery_inputs:
+                from .recovery_inputs import read_packet
+
+                repository = os.environ.get("GITHUB_REPOSITORY") or profile.get("repository")
+                if not isinstance(repository, str):
+                    raise ValueError("recovery inputs require a trusted repository identity")
+                recovery_packet, _ = read_packet(
+                    args.recovery_inputs,
+                    repository=repository,
+                    run_id=args.run_id,
+                    base_sha=args.base,
+                    head_sha=args.head,
+                )
+                event = recovery_packet["event"]
+                checks_document = recovery_packet["checks_document"]
+                args.base, args.head = event["base_sha"], event["head_sha"]
+            elif args.historical_checks_json:
                 if args.checks_json:
                     raise ValueError("--checks-json and --historical-checks-json are mutually exclusive")
                 if args.github_pr or args.event_file:
@@ -1375,7 +1494,7 @@ def main(argv=None) -> int:
                 args.base, args.head = event["base_sha"], event["head_sha"]
             if not args.base or not args.head:
                 raise ValueError("explicit base and head revisions are required without a PR/event input")
-            if not args.historical_checks_json:
+            if not args.historical_checks_json and not args.recovery_inputs:
                 if args.checks_json:
                     if event is None:
                         raise ValueError("--checks-json requires a GitHub PR or event identity")
@@ -1407,6 +1526,31 @@ def main(argv=None) -> int:
                     checks_document = None
             run_id = args.run_id or str(uuid.uuid4())
             _validate_run_id(run_id)
+            if args.capture_recovery_inputs:
+                from .recovery_inputs import RecoveryInputError, make_packet, normalize_checks, write_packet
+
+                if event is None or checks_document is None:
+                    raise ValueError("recovery input capture requires a GitHub event and check-run evidence")
+                source_event_id = event.get("event_id")
+                if run_id != f"pr-{event['pull_request_number']}-{source_event_id}":
+                    raise ValueError("recovery input capture requires the source workflow run ID")
+                # The original review and a later resume consume the identical
+                # normalized document; no API URLs, tokens, or arbitrary fields
+                # are retained in the artifact.
+                checks_document = normalize_checks(
+                    checks_document,
+                    repository=event["repository"],
+                    pull_request_number=event["pull_request_number"],
+                    head_sha=event["head_sha"],
+                )
+                packet_event = {
+                    key: event[key] for key in ("repository", "pull_request_number", "event_id", "base_sha", "head_sha")
+                }
+                packet = make_packet(packet_event, checks_document, source_event_id)
+                try:
+                    write_packet(args.capture_recovery_inputs, packet)
+                except RecoveryInputError as exc:
+                    raise ValueError("cannot capture bounded recovery inputs") from exc
             result = _run_one(
                 args,
                 args.base,
@@ -1445,11 +1589,7 @@ def main(argv=None) -> int:
                     }
                 )
             except Exception as exc:
-                diagnostic_path = (
-                    exc.diagnostic_artifact_path
-                    if isinstance(exc, _ReviewRuntimeFailure)
-                    else None
-                )
+                diagnostic_path = exc.diagnostic_artifact_path if isinstance(exc, _ReviewRuntimeFailure) else None
                 runs.append(
                     {
                         "run_id": run_id,

@@ -56,7 +56,8 @@ def ingest_check_runs(document: dict, request: dict, bindings: list[dict]) -> di
     completed status, matching app identity when configured, and immutable PR
     head SHA. Missing or ambiguous evidence yields UNKNOWN, never PASS.
     """
-    if not isinstance(document, dict) or document.get("schema_version") != "1.0":
+    schema_version = document.get("schema_version") if isinstance(document, dict) else None
+    if not isinstance(document, dict) or schema_version not in {"1.0", "2.0"}:
         raise CheckEvidenceError("unsupported check evidence schema")
     for key in ("repository", "pull_request_number", "head_sha", "runs"):
         if key not in document:
@@ -137,10 +138,17 @@ def ingest_check_runs(document: dict, request: dict, bindings: list[dict]) -> di
             "status": status,
             "conclusion": conclusion,
             "completed_at": run.get("completed_at"),
-            "external_id": run.get("external_id"),
-            "details_url": run.get("details_url"),
             "captured_at": captured_at,
         }
+        if schema_version == "1.0":
+            # Historical v1 inputs retain their original evidence-hash
+            # semantics. New v2 captures exclude provider-owned identifiers
+            # and URLs, which are unnecessary to determine check identity or
+            # outcome and may contain sensitive data.
+            payload["external_id"] = run.get("external_id")
+            payload["details_url"] = run.get("details_url")
+        else:
+            payload["evidence_contract"] = "github-check-evidence.v2"
         evidence_id = "check-" + _hash(payload)[:24]
         payload["content_hash"] = _hash(payload)
         payload["evidence_id"] = evidence_id
@@ -161,7 +169,7 @@ def ingest_check_runs(document: dict, request: dict, bindings: list[dict]) -> di
             "evidence_id": evidence_id,
         }
     return {
-        "schema_version": "1.0",
+        "schema_version": schema_version,
         "repository": request["repository"],
         "pull_request_number": request["pull_request_number"],
         "head_sha": request["head_sha"],
@@ -193,7 +201,7 @@ def make_check_runs_document(
     if not isinstance(complete, bool):
         raise CheckEvidenceError("completeness flag is invalid")
     return {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "repository": repository,
         "pull_request_number": pull_request_number,
         "head_sha": head_sha,

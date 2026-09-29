@@ -1,0 +1,7 @@
+# PR analysis recovery inputs
+
+Normal PR-analysis runs can retain `recovery-inputs.json` beside the bounded review checkpoint. It contains the original workflow event identity, immutable base/head SHAs, and the normalized check-run document consumed by the review. It contains no credentials, API headers, provider URLs, or provider-owned external IDs. The artifact manifest records hashes for the packet and check document, and the artifact allowlist permits only this additional file.
+
+Check evidence v2 keeps the check-run identity and outcome fields used for matching and disposition: run ID, name, status, conclusion, head SHA, app ID, and completion time. It excludes `details_url` and `external_id` from evidence payloads and hashes. These fields do not affect check identity or outcome, and retaining them could preserve provider-supplied sensitive data. Historical v1 documents remain readable with their original evidence-hash behavior; newly created check documents use v2.
+
+A resume must use the original source event ID as part of the original run ID and must replay the captured packet. The harness recomputes the snapshot and request hashes before accepting a checkpoint. A changed event, check document, profile, provider configuration, limits, or runtime contract fails resume validation before provider work. Recovery evidence proves input and checkpoint identity; it does not establish current PR freshness or review quality.

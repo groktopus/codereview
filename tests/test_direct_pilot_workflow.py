@@ -386,6 +386,11 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
         "",
         1,
     )
+    reusable_command = reusable_command.replace(
+        "            --capture-recovery-inputs artifacts/recovery-inputs.json \\\n",
+        "",
+        1,
+    )
     assert direct_command.rstrip() == reusable_command.rstrip()
     assert "PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json" in direct_review
     assert "env GITHUB_REPOSITORY=magnus919/SlopSearX pr-review review" in direct_review
@@ -398,6 +403,8 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
     assert "--mode AUTO" in direct_review
     assert "--json > artifacts/review-result.json" in direct_review
     assert "--limits" not in direct_review
+    assert "--capture-recovery-inputs artifacts/recovery-inputs.json" not in direct_review
+    assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in reusable_review
 
 
 def test_workflow_does_not_invoke_the_unobservable_reusable_job_or_any_writer():
