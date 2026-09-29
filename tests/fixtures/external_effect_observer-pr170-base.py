@@ -24,9 +24,7 @@ from pathlib import Path
 from typing import Any
 
 OBSERVER_ID = "linux-strace-syscall-observer.v3"
-# This is bounded headroom based on one observed run, not a completion guarantee;
-# traces beyond the cap still fail closed as incomplete.
-TRACE_MAX_BYTES = 16 * 1_048_576
+TRACE_MAX_BYTES = 1_048_576
 TRACE_MAX_EVENT_EXEMPLARS = 256
 TRACE_MAX_AGGREGATE_BUCKETS = 128
 TRACE_MAX_LINE_BYTES = 8_192

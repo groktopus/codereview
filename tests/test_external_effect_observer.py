@@ -122,7 +122,7 @@ def test_observations_keep_only_typed_fields_and_hash_raw_paths(tmp_path, monkey
     result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
 
     observation = result["observer"]
-    assert observation["observer_id"] == "linux-strace-syscall-observer.v3"
+    assert observation["observer_id"] == observer.OBSERVER_ID
     encoded = json.dumps(result, sort_keys=True)
     assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
     assert observation["overall_state"] == "UNKNOWN"
@@ -180,15 +180,51 @@ def test_trace_byte_cap_forces_unknown(tmp_path, monkeypatch):
     _fake_strace(tmp_path, monkeypatch)
     env = {
         **os.environ,
-        "OBSERVER_TEST_TRACE_REPEAT": "5000",
+        "OBSERVER_TEST_TRACE_REPEAT": "50000",
         "OBSERVER_TEST_TRACE_REPEAT_KIND": "file",
     }
-    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=10)
     assert result["observer"]["coverage"] == "INCOMPLETE"
     assert result["observer"]["overall_state"] == "UNKNOWN"
     assert result["observer"]["reason"] == "trace_byte_cap_exceeded"
     assert result["invocation"]["run_status"] == "OBSERVER_TRACE_INCOMPLETE", result
     assert result["cli_result"] is None
+
+
+def test_trace_above_previous_cap_completes_with_bounded_aggregates_and_late_effects(tmp_path, monkeypatch):
+    _fake_strace(tmp_path, monkeypatch)
+    late = (
+        b'[pid 6] openat(AT_FDCWD, "/tmp/LATE_PRIVATE_PATH", O_WRONLY|O_CREAT, 0600) = 3\n'
+        b'[pid 6] write(3, "content", 7) = 7\n'
+        b'[pid 6] rename("/tmp/LATE_PRIVATE_PATH", "/tmp/LATE_PRIVATE_PATH.new") = 0\n'
+        b'[pid 6] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("203.0.113.8")}, 16) = 0\n'
+        b'[pid 7] execve(0x0, 0x0, 0x0) = 0x0\n'
+    )
+    env = {
+        **os.environ,
+        "OBSERVER_TEST_TRACE_REPEAT": "25000",
+        "OBSERVER_TEST_TRACE_REPEAT_KIND": "metadata",
+        "OBSERVER_TEST_TRACE_HEX": late.hex(),
+    }
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=10)
+
+    observed = result["observer"]
+    assert observer.TRACE_MAX_BYTES == 16 * 1_048_576
+    assert observed["trace_bytes"] > 1_048_576
+    assert observed["trace_bytes"] < observer.TRACE_MAX_BYTES
+    assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
+    assert observed["coverage"] == "SCOPED_COMPLETE"
+    assert observed["event_aggregates_complete"] is True
+    assert observed["event_sample_count"] == observer.TRACE_MAX_EVENT_EXEMPLARS
+    assert observed["event_sample_truncated"] is True
+    counts = {(item["syscall"], item["outcome"]): item["count"] for item in observed["event_aggregates"]}
+    assert counts[("newfstatat", "SUCCESS")] == 25000
+    assert counts[("openat", "SUCCESS")] == 1
+    assert counts[("write", "SUCCESS")] == 1
+    assert counts[("rename", "SUCCESS")] == 1
+    assert counts[("connect", "SUCCESS")] == 1
+    assert counts[("execve", "SUCCESS")] == 2
+    assert "LATE_PRIVATE_PATH" not in json.dumps(result, sort_keys=True)
 
 
 def test_noisy_prepare_volume_is_aggregated_with_late_effect_buckets(tmp_path, monkeypatch):
@@ -208,7 +244,7 @@ def test_noisy_prepare_volume_is_aggregated_with_late_effect_buckets(tmp_path, m
     observed = result["observer"]
     assert result["invocation"]["run_status"] == "CLI_COMPLETED", result
     assert observed["coverage"] == "SCOPED_COMPLETE"
-    assert observed["observer_id"] == "linux-strace-syscall-observer.v3"
+    assert observed["observer_id"] == observer.OBSERVER_ID
     assert observed["overall_state"] == "UNKNOWN"
     assert observed["event_count"] == 2104
     assert observed["event_sample_count"] == observer.TRACE_MAX_EVENT_EXEMPLARS
@@ -385,7 +421,7 @@ def _full_review_contract_fixture():
         },
     }
     observation = {
-        "observer_id": "linux-strace-syscall-observer.v3",
+        "observer_id": observer.OBSERVER_ID,
         "coverage": "SCOPED_COMPLETE",
         "event_aggregates_complete": True,
         "event_count": 42,
@@ -573,7 +609,7 @@ def test_long_fake_wait_profile_keeps_caps_and_has_finite_deadline_headroom():
         < LONG_WAIT_OBSERVER_TIMEOUT_SECONDS
         <= 270
     )
-    assert observer.TRACE_MAX_BYTES == 1_048_576
+    assert observer.TRACE_MAX_BYTES == 16 * 1_048_576
 
 
 def test_safe_syscall_projection_handles_partial_aggregates_and_untrusted_labels():
@@ -962,7 +998,7 @@ def test_linux_raw_metadata_format_reduces_bytes_without_changing_observed_event
     workload = tmp_path / "metadata_workload.py"
     workload.write_text(
         "import json, os, pathlib, socket, subprocess, sys, threading\n"
-        "for _ in range(600): os.stat(__file__)\n"
+        "for _ in range(25000): os.stat(__file__)\n"
         "try: os.stat(__file__ + '.observer-missing')\n"
         "except FileNotFoundError: pass\n"
         f"subprocess.run([sys.executable, '-c', {child!r}, __file__], check=True)\n"
@@ -979,6 +1015,7 @@ def test_linux_raw_metadata_format_reduces_bytes_without_changing_observed_event
         f"target = pathlib.Path({str(target)!r})\n"
         "target.write_text('fixture', encoding='utf-8')\n"
         "target.rename(target.with_suffix('.renamed'))\n"
+        "target.with_suffix('.renamed').unlink()\n"
         "print(json.dumps({'status': 'ok'}))\n",
         encoding="utf-8",
     )
@@ -1001,8 +1038,10 @@ def test_linux_raw_metadata_format_reduces_bytes_without_changing_observed_event
     candidate_completed = _completed_aggregate_projection(candidate["observer"]["event_aggregates"])
     assert baseline_completed == candidate_completed
     assert baseline["observer"]["trace_bytes"] > candidate["observer"]["trace_bytes"]
+    assert candidate["observer"]["trace_bytes"] > 1_048_576
+    assert candidate["observer"]["trace_bytes"] < observer.TRACE_MAX_BYTES
     counts = {(row["syscall"], row["outcome"]): row["count"] for row in candidate["observer"]["event_aggregates"]}
-    assert counts[("newfstatat", "SUCCESS")] >= 600
+    assert counts[("newfstatat", "SUCCESS")] >= 25_000
     assert counts[("newfstatat", "ERROR")] >= 1
     assert counts[("wait4", "SUCCESS")] >= 1
     assert counts[("wait4", "ERROR")] >= 1
@@ -1013,6 +1052,7 @@ def test_linux_raw_metadata_format_reduces_bytes_without_changing_observed_event
         for row in candidate["observer"]["event_aggregates"]
         if row["syscall"] in {"rename", "renameat", "renameat2"} and row["outcome"] == "SUCCESS"
     ) == 1
+    assert counts["unlink", "SUCCESS"] == 1
     print(
         "observer-v3-real-strace="
         + json.dumps(
