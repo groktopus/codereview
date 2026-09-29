@@ -57,14 +57,17 @@
   "input_coverage_contract": {
     "status": "MUST_PASS_BEFORE_ANY_SELECTED_TRIAL",
     "test": "tests/test_selected_pair_sensitivity_evidence.py",
-    "coverage_target": "PREPARED_CASE_SNAPSHOT",
+    "coverage_target": "PREPARED_CASE_SNAPSHOT_AND_CLI_PREPARE_ONLY_LUNA_REQUEST_BODIES",
     "required_per_case_snapshot": [
       "base and head src/auth.py source with the owner check removed in HEAD",
       "changed-line diff plus HEAD file evidence that resolves the deterministic owner-check anchor",
       "src/service.py caller behavior and docs/access-contract.md owner-only rule",
       "the exact case payload and its pair identity"
     ],
-    "exact_outbound_request_coverage": "NOT_RUN_UNTIL_REQUEST_SERIALIZATION_IS_INSPECTED"
+    "exact_luna_request_coverage": "CHECKED_PROVIDER_FREE_PREPARE_ONLY",
+    "request_body_binding": "Each captured exact serializer body is bound to the CLI primary_requests descriptor by byte count and SHA-256.",
+    "provider_dispatch": "FAIL_FAST_DISABLED_IN_TEST",
+    "jev_request_coverage": "NOT_RUN_CANDIDATE_DEPENDENT"
   },
   "evaluation_contract": {
     "human_labels": "NONE",
