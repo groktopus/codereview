@@ -32,7 +32,7 @@ CASES: dict[str, dict[str, Any]] = {
         "manifest": "examples/evaluation/model-only-shadow-pr457-v3/manifest.json",
         "old_corpus": "examples/evaluation/model-only-shadow-pr457-v2/corpus.json",
         "old_manifest": "examples/evaluation/model-only-shadow-pr457-v2/manifest.json",
-        "calls": 6, "request_total": 469539, "request_max": 118490, "audit_cap": 64000,
+        "calls": 6, "request_total": 469539, "request_max": 118490, "audit_cap": 120000,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
         "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95",
@@ -249,7 +249,7 @@ def _plan(case_id: str, prepared: dict[str, Any], source_revision: str,
 def _identity_copy(case_id: str, plan: dict[str, Any], plan_sha: str) -> tuple[bytes, bytes]:
     row = CASES[case_id]
     corpus = json.loads((ROOT / row["old_corpus"]).read_text(encoding="utf-8"))
-    corpus_id = f"model-only-shadow-{case_id.replace('-', '').lower()}-v2"
+    corpus_id = f"model-only-shadow-{case_id.replace('-', '').lower()}-v3"
     corpus["corpus_id"] = corpus_id
     corpus["dataset_version"] = "2026-09-29.1"
     source_manifest = corpus["cases"][0]["identity"]["source_manifest"]

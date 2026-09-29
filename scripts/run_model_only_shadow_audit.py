@@ -189,11 +189,13 @@ def _load_limits(path: Path) -> dict[str, Any]:
         "preflight_boundary": "static_caps_before_dispatch_stage_local_request_checks_before_each_call",
     }
     expected = common
-    if limits.get("schema") == "model-only-shadow-audit-limits.v2":
+    if limits.get("schema") in {"model-only-shadow-audit-limits.v2", "model-only-shadow-audit-limits.v3"}:
         expected = {
             **common,
-            "schema": "model-only-shadow-audit-limits.v2",
-            "max_request_bytes_per_call": 96_000,
+            "schema": limits["schema"],
+            "max_request_bytes_per_call": (
+                96_000 if limits["schema"] == "model-only-shadow-audit-limits.v2" else 120_000
+            ),
             "preflight_boundary": (
                 "exact_source_task_requests_admitted_before_writer_dispatch_then_stage_local_checks"
             ),

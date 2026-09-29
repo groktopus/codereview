@@ -327,7 +327,7 @@ jobs:
                   "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
                   "head_sha": "595f143607961d21d162efe76518d86e416d2548",
                   "corpus_path": "examples/evaluation/model-only-shadow-pr457-v3/corpus.json",
-                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-v1.json",
+                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-v3.json",
               },
           }
           case_id = os.environ.get("SELECTED_CASE", "PR-464")

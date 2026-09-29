@@ -156,8 +156,21 @@ def test_current_pr457_plan_accepts_current_audit_limits():
     plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
     plan, _ = RUNNER._read_json(plan_path, 256_000)
     plan_budget = RUNNER._plan_budget(plan)
-    limits = RUNNER._load_limits(REPO_ROOT / "experiments/model-only-shadow-audit-limits-v1.json")
+    limits = RUNNER._load_limits(REPO_ROOT / "experiments/model-only-shadow-audit-limits-v3.json")
     RUNNER._validate_plan_budget(plan_budget, limits)
+
+
+def test_pr457_v3_audit_limit_admits_measured_source_request_with_headroom():
+    limits = RUNNER._load_limits(REPO_ROOT / "experiments/model-only-shadow-audit-limits-v3.json")
+    assert limits["max_input_bytes_per_task"] == 120_000
+    def request_of_length(length: int) -> bytes:
+        prefix, suffix = b'{"max_completion_tokens":1800,"pad":"', b'"}'
+        assert length > len(prefix) + len(suffix)
+        return prefix + b"x" * (length - len(prefix) - len(suffix)) + suffix
+
+    RUNNER.AuditDispatchGuard(limits).check("source_auditor", request_of_length(113_860))
+    with pytest.raises(RUNNER.ProviderError, match="audit_request_exceeds_limit"):
+        RUNNER.AuditDispatchGuard(limits).check("source_auditor", request_of_length(120_001))
 
 
 def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, monkeypatch):

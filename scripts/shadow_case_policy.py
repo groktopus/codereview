@@ -11,7 +11,7 @@ CASE_POLICY: dict[str, dict[str, Any]] = {
         "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
         "plan_sha256": "PENDING_FINAL_V3_PLAN_SHA256",
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
-        "audit_input_limit": 64_000,
+        "audit_input_limit": 120_000,
         "writer_calls": 6,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",

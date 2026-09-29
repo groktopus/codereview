@@ -31,7 +31,7 @@ def _prepared(case_id: str) -> dict:
     source_rows = proposal.get("source_audit_preflight", {}).get("requests")
     if source_rows is None:
         source_rows = [
-            {"task_id": row["task_id"], "input_bytes": 1000 + index,
+            {"task_id": row["task_id"], "input_bytes": 113_860 if case_id == "PR-457" and index < 3 else 70_000 + index,
              "input_sha256": hashlib.sha256(f"{case_id}-{index}".encode()).hexdigest(), "admitted": True}
             for index, row in enumerate(primary)
         ]
@@ -78,7 +78,7 @@ def test_v3_plan_finalizer_binds_provider_free_requests_and_case_budget(case_id:
     corpus_raw, manifest_raw = finalizer._identity_copy(case_id, plan, plan_sha)
     corpus = json.loads(corpus_raw)
     manifest = json.loads(manifest_raw)
-    assert corpus["corpus_id"] == f"model-only-shadow-{case_id.replace('-', '').lower()}-v2"
+    assert corpus["corpus_id"] == f"model-only-shadow-{case_id.replace('-', '').lower()}-v3"
     assert manifest["plan_path"] == finalizer.CASES[case_id]["plan"]
     assert manifest["plan_sha256"] == plan_sha
     assert corpus["cases"][0]["identity"]["source_manifest"]["sha256"] == plan_sha
@@ -90,7 +90,9 @@ def test_v3_plan_finalizer_rejects_dispatch_and_over_cap_source_prepares():
     with pytest.raises(finalizer.FinalizeError, match="provider_free_prepare_required"):
         finalizer._plan("PR-464", prepared, "a" * 40, 35, "b" * 64)
 
-    prepared = _prepared("PR-464")
-    prepared["capacity"]["source_audit_preflight"]["requests"][0]["input_bytes"] = 96_001
+    prepared = _prepared("PR-457")
+    assert prepared["capacity"]["source_audit_preflight"]["request_bytes_max"] == 113_860
+    finalizer._plan("PR-457", prepared, "a" * 40, 35, "b" * 64)
+    prepared["capacity"]["source_audit_preflight"]["requests"][0]["input_bytes"] = 120_001
     with pytest.raises(finalizer.FinalizeError, match="source_audit_request_invalid"):
-        finalizer._plan("PR-464", prepared, "a" * 40, 35, "b" * 64)
+        finalizer._plan("PR-457", prepared, "a" * 40, 35, "b" * 64)

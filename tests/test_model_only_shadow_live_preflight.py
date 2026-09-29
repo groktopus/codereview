@@ -103,7 +103,7 @@ def test_exact_preflight_matches_six_pr457_writer_requests_without_dispatch():
         "writer_calls_planned": 6,
         "writer_request_bytes_total": 469539,
         "writer_request_bytes_max": 118490,
-        "audit_request_cap_bytes": 64000,
+        "audit_request_cap_bytes": 120000,
         "provider_calls": 0,
         "target_code_execution": False,
         "publication_enabled": False,

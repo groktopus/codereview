@@ -168,7 +168,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         "writer_followup_slots": 0, "writer_claim_assessment_slots": 0,
         "writer_summary_slots": 0, "writer_optional_stage_slots": 0,
         "audit_max_provider_calls": 3,
-        "audit_max_input_bytes_per_call": 64000 if case_id == "PR-457" else 96000,
+        "audit_max_input_bytes_per_call": 120000 if case_id == "PR-457" else 96000,
         "audit_max_response_bytes_per_call": 64000, "audit_max_output_tokens_per_llm_call": 1800,
         "audit_max_deadline_seconds_per_call": 90, "audit_max_retries": 0,
         "total_provider_calls_max": 13, "total_provider_deadline_seconds_max": 870,

@@ -32,7 +32,7 @@ TRUSTED_SHADOW_PLANS = {
         "calls": 6,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
-        "audit_max_input_bytes_per_call": 64_000,
+        "audit_max_input_bytes_per_call": 120_000,
     },
     "PR-464": {
         "path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
