@@ -66,7 +66,6 @@ def main(argv: list[str] | None = None) -> int:
             # PR-457 is validated here before entering the generic packager.
             if corpus.get("corpus_id") not in {
                 "model-only-shadow-pr464-v1", "model-only-shadow-pr464-v2", "model-only-shadow-pr464-v3",
-                "model-only-shadow-pr464-v3",
             }:
                 identity_manifest = None
                 identity_plan = None
