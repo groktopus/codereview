@@ -47,6 +47,55 @@ jobs:
       - run: python -m pytest -q
       - run: ruff check .
 
+  frozen-pr464-capture:
+    name: Frozen PR-464 provider-free capture integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the harness under test
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        timeout-minutes: 2
+        with:
+          persist-credentials: false
+
+      - name: Check out the exact read-only SlopSearX source pair
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        timeout-minutes: 2
+        with:
+          repository: magnus919/SlopSearX
+          ref: bffc26f9e4bf95aca0c252e88a2396d03ece854c
+          fetch-depth: 2
+          path: slopsearx-source
+          persist-credentials: false
+
+      - name: Verify both immutable source revisions
+        timeout-minutes: 1
+        env:
+          SOURCE_REPO: ${{ github.workspace }}/slopsearx-source
+          EXPECTED_HEAD_SHA: bffc26f9e4bf95aca0c252e88a2396d03ece854c
+          EXPECTED_BASE_SHA: 20a743f0434a1843aa00068483f608f1e213b2af
+        run: |
+          set -euo pipefail
+          test "$(git -C "$SOURCE_REPO" rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(git -C "$SOURCE_REPO" rev-parse HEAD^)" = "$EXPECTED_BASE_SHA"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        timeout-minutes: 2
+        with:
+          python-version: '3.13'
+
+      - name: Install harness test dependencies
+        timeout-minutes: 3
+        run: python -m pip install '.[dev]'
+
+      - name: Run the frozen provider-free capture integration
+        timeout-minutes: 3
+        env:
+          PR464_SOURCE_REPO: ${{ github.workspace }}/slopsearx-source
+        run: python -m pytest -q -s tests/test_frozen_pr464_capture_integration.py
+
   build:
     name: Build wheel and source distribution
     runs-on: ubuntu-latest
