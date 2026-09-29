@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -14,10 +16,13 @@ import run_model_only_shadow_audit as shadow_audit_runner  # noqa: E402
 
 from pr_review_harness.engine import _evidence_for, prepare_plan_tasks, run_review  # noqa: E402
 from pr_review_harness.planner import plan_review  # noqa: E402
+from pr_review_harness import providers as provider_module  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
+from pr_review_harness.providers import ProviderError  # noqa: E402
 from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
 
 FIXTURE = ROOT / "examples/evaluation/seeded-writer-synth-001"
+_OFFLINE_PROVIDER_KEY = "provider-free-test-key"
 LIMITS = {
     "deadline_seconds": 10,
     "max_concurrent_scopes": 1,
@@ -30,6 +35,105 @@ LIMITS = {
     "max_context_retrievals": 0,
     "max_followup_tasks": 0,
 }
+
+
+class _LocalHTTPResponse:
+    def __init__(self, body: bytes):
+        self.body = body
+        self.status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self, size: int = -1) -> bytes:
+        if size < 0:
+            size = len(self.body)
+        result, self.body = self.body[:size], self.body[size:]
+        return result
+
+
+class _LocalHTTPTransport:
+    """Capture the production HTTP request and return only in-process bytes."""
+
+    def __init__(self, response_body: bytes):
+        self.response_body = response_body
+        self.requests = []
+
+    def open(self, request, timeout):
+        self.requests.append((request, timeout))
+        return _LocalHTTPResponse(self.response_body)
+
+
+def test_openai_transport_binds_request_and_parses_response_locally(monkeypatch):
+    """Exercise generic production transport/parser plumbing; the payload is not model evidence."""
+    fixture_id = "SYNTH-001"
+    task_id = "synth-001-task"
+    system = "Review the frozen synthetic source evidence."
+    user = {"case_id": fixture_id, "task": {"task_id": task_id}, "evidence": []}
+    schema = {"type": "object", "properties": {"fixture_id": {"type": "string"}}}
+    limits = {"max_input_bytes_per_task": 20_000, "max_output_bytes_per_task": 4096,
+              "deadline_seconds": 2}
+    payload = {"fixture_id": fixture_id, "task_id": task_id, "status": "parsed"}
+    content = json.dumps(payload, separators=(",", ":"))
+    response_body = json.dumps({
+        "id": "local-response-1", "model": "fixture-reviewer",
+        "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+        "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
+    }, separators=(",", ":")).encode("utf-8")
+    transport = _LocalHTTPTransport(response_body)
+    monkeypatch.setattr(provider_module, "_HTTP_OPENER", transport)
+    monkeypatch.setenv("UNSET_SYNTH_CONTROL_KEY", _OFFLINE_PROVIDER_KEY)
+
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://offline.invalid/v1",
+        "model": "fixture-reviewer", "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+        "provider_id": "provider-free-transport-test", "semantic_adjudication": False,
+    })
+    request_bytes = provider._serialize_request_body(system, user, schema, limits)
+    request_sha256 = hashlib.sha256(request_bytes).hexdigest()
+    parsed, metadata = provider._call(
+        system=system, user=user, schema=schema, limits=limits,
+        contract_version="openai-transport-test.v1", capture_exchange=True,
+        expected_request_sha256=request_sha256, serialized_request_bytes=request_bytes,
+    )
+
+    assert parsed == payload
+    assert len(transport.requests) == 1
+    request, timeout = transport.requests[0]
+    assert request.data == request_bytes
+    assert hashlib.sha256(request.data).hexdigest() == request_sha256
+    assert fixture_id.encode() in request.data and task_id.encode() in request.data
+    assert request.get_method() == "POST"
+    assert timeout <= limits["deadline_seconds"]
+    assert metadata["_audit_exchange"]["response_bytes"] == response_body
+    assert metadata["_audit_exchange"]["structured_response_bytes"] == content.encode("utf-8")
+    assert metadata["provenance"]["request_hash"] == request_sha256
+    assert metadata["provenance"]["request_id"] == "local-response-1"
+    assert _OFFLINE_PROVIDER_KEY not in repr(metadata)
+
+
+def test_openai_transport_rejects_malformed_envelope_and_inner_json(monkeypatch):
+    """Both production response parsing layers fail closed on malformed bytes."""
+    monkeypatch.setenv("UNSET_SYNTH_CONTROL_KEY", _OFFLINE_PROVIDER_KEY)
+    provider = OpenAIProvider({
+        "kind": "openai_compatible", "base_url": "https://offline.invalid/v1",
+        "model": "fixture-reviewer", "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+    })
+    system, user, schema = "system", {"case_id": "SYNTH-001"}, {"type": "object"}
+    limits = {"max_input_bytes_per_task": 2000, "max_output_bytes_per_task": 2000,
+              "deadline_seconds": 2}
+    malformed_responses = (
+        b'{"choices": [',
+        json.dumps({"choices": [{"finish_reason": "stop", "message": {"content": "{"}}]}).encode(),
+    )
+    for response_body in malformed_responses:
+        monkeypatch.setattr(provider_module, "_HTTP_OPENER", _LocalHTTPTransport(response_body))
+        with pytest.raises(ProviderError, match="malformed_provider_response"):
+            provider._call(system=system, user=user, schema=schema, limits=limits,
+                           contract_version="openai-transport-test.v1", capture_exchange=True)
 
 
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
