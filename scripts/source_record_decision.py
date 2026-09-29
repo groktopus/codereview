@@ -13,15 +13,20 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import time
 from typing import Any, Callable
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 CONTRACT_VERSION = "source-record-jev.v1"
 SOURCE_CONTRACT_VERSION = "shadow-source-audit.v1"
 MAX_PAYLOAD_BYTES = 64_000
 MAX_RECORDS = 100
 MAX_RECORD_SUMMARY_BYTES = 4000
+MAX_TRANSPORT_DEADLINE_SECONDS = 120.0
 CHOICES = ("SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED", "UNCERTAIN")
 QUESTION_ID = "source_record_support"
 _VERSIONED_JEV_MODEL_ID = re.compile(r"jev-[0-9]+\.[0-9]+\.[0-9]+\Z")
@@ -40,6 +45,176 @@ class SourceRecordDecisionError(ValueError):
     def __init__(self, code: str):
         super().__init__(code)
         self.code = code
+
+
+class SourceRecordTransportError(RuntimeError):
+    """A bounded source-record HTTP transport failure with a safe code."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_SOURCE_RECORD_OPENER = build_opener(_NoRedirectHandler)
+
+
+def _transport_credential(env_name: str) -> str:
+    value = os.environ.get(env_name)
+    if not value:
+        raise SourceRecordTransportError("source_record_credential_unavailable")
+    return value
+
+
+def _operator_endpoint(value: Any) -> str:
+    """Mirror ClaimTransport's URL policy for an operator-supplied API route."""
+    if not isinstance(value, str) or not value.strip():
+        raise SourceRecordTransportError("unsupported_source_record_endpoint")
+    endpoint = value.rstrip("/")
+    try:
+        parsed = urlsplit(endpoint)
+        port = parsed.port
+    except ValueError:
+        raise SourceRecordTransportError("unsupported_source_record_endpoint") from None
+    if (parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password
+            or parsed.query or parsed.fragment):
+        raise SourceRecordTransportError("unsupported_source_record_endpoint")
+    host = parsed.hostname.lower()
+    loopback = host in {"localhost", "127.0.0.1", "::1"}
+    if loopback and port is not None and parsed.path.endswith("/systemone"):
+        return endpoint
+    if parsed.scheme == "https" and parsed.path.endswith("/systemone"):
+        return endpoint
+    raise SourceRecordTransportError("unsupported_source_record_endpoint")
+
+
+def _transport_native_request(raw: bytes, *, configured_model: str, request_cap: int) -> dict[str, Any]:
+    """Accept only the versioned source-record request; reject candidate claims."""
+    if not isinstance(raw, bytes) or not raw or len(raw) > request_cap:
+        raise SourceRecordTransportError("source_request_exceeds_limit")
+    value = _decode(raw, "invalid_source_record_native_request")
+    if set(value) != {"model", "state", "questions"} or value.get("model") != configured_model:
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    state, questions = value.get("state"), value.get("questions")
+    if not isinstance(state, dict) or set(state) != {
+        "assessment_contract_version", "subject_kind", "subject_id", "source_record", "cited_evidence"
+    }:
+        raise SourceRecordTransportError("unsupported_source_record_state")
+    if state.get("assessment_contract_version") != CONTRACT_VERSION or state.get("subject_kind") != "source_auditor_record":
+        raise SourceRecordTransportError("unsupported_source_record_state")
+    if not isinstance(state.get("subject_id"), str) or not state["subject_id"].strip():
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    record = state.get("source_record")
+    if not isinstance(record, dict) or set(record) != {"record_id", "summary", "evidence_refs"}:
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    if not isinstance(record.get("record_id"), str) or not isinstance(record.get("summary"), str):
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    refs, evidence = record.get("evidence_refs"), state.get("cited_evidence")
+    if (not isinstance(refs, list) or not refs or any(not isinstance(ref, str) or not ref for ref in refs)
+            or len(refs) != len(set(refs))
+            or not isinstance(evidence, list) or len(evidence) != len(refs)
+            or any(not isinstance(item, dict) for item in evidence)
+            or [item.get("evidence_id") for item in evidence] != refs):
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    if (not isinstance(questions, dict) or len(questions) != 1
+            or not isinstance(record["record_id"], str) or not record["record_id"]
+            or not isinstance(record["summary"], str) or not record["summary"].strip()
+            or len(record["summary"].encode("utf-8")) > MAX_RECORD_SUMMARY_BYTES):
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    evidence_by_id = {item["evidence_id"]: item for item in evidence}
+    if any(not isinstance(item["evidence_id"], str) or not item["evidence_id"] for item in evidence) or len(evidence_by_id) != len(evidence):
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    expected = json.loads(_jev_request(state["subject_id"], configured_model, record, evidence_by_id))
+    if value != expected:
+        raise SourceRecordTransportError("invalid_source_record_native_request")
+    return value
+
+
+class SourceRecordTransport:
+    """Single-attempt bounded HTTP transport for source-record Jev decisions.
+
+    This script-only adapter accepts only ``source-record-jev.v1`` requests.
+    Endpoint, model, and credential environment-variable name come from
+    trusted operator configuration; callers cannot override them in the request.
+    The caller must not populate this configuration from PR or task-controlled data.
+    """
+
+    def __init__(self, config: dict[str, Any], *, opener: Any = None, clock: Callable[[], float] = time.monotonic):
+        if not isinstance(config, dict) or set(config) - {
+            "endpoint", "api_key_env", "model", "timeout_seconds", "max_request_bytes", "max_response_bytes"
+        }:
+            raise SourceRecordTransportError("invalid_source_record_transport_config")
+        endpoint = _operator_endpoint(config.get("endpoint", "https://api.typesafe.ai/v1/systemone"))
+        model = config.get("model", "jev-latest")
+        if not isinstance(model, str) or not model.strip() or len(model) > 256:
+            raise SourceRecordTransportError("invalid_source_record_model")
+        credential_env = config.get("api_key_env", "TYPESAFE_API_KEY")
+        if not isinstance(credential_env, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", credential_env):
+            raise SourceRecordTransportError("invalid_credential_reference")
+        timeout = config.get("timeout_seconds", 20)
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= MAX_TRANSPORT_DEADLINE_SECONDS:
+            raise SourceRecordTransportError("invalid_source_record_deadline")
+        request_cap = config.get("max_request_bytes", MAX_PAYLOAD_BYTES)
+        response_cap = config.get("max_response_bytes", MAX_PAYLOAD_BYTES)
+        if (isinstance(request_cap, bool) or not isinstance(request_cap, int) or not 0 < request_cap <= MAX_PAYLOAD_BYTES
+                or isinstance(response_cap, bool) or not isinstance(response_cap, int) or not 0 < response_cap <= MAX_PAYLOAD_BYTES):
+            raise SourceRecordTransportError("invalid_source_record_transport_limit")
+        self.endpoint, self.model, self.api_key_env = endpoint, model, credential_env
+        self.timeout_seconds, self.max_request_bytes, self.max_response_bytes = float(timeout), request_cap, response_cap
+        self._opener, self._clock = _SOURCE_RECORD_OPENER if opener is None else opener, clock
+
+    def __call__(self, request_bytes: bytes, deadline_seconds: float, max_response_bytes: int) -> bytes:
+        _transport_native_request(request_bytes, configured_model=self.model, request_cap=self.max_request_bytes)
+        if isinstance(deadline_seconds, bool) or not isinstance(deadline_seconds, (int, float)) or not math.isfinite(deadline_seconds) or deadline_seconds <= 0:
+            raise SourceRecordTransportError("invalid_source_record_deadline")
+        if isinstance(max_response_bytes, bool) or not isinstance(max_response_bytes, int) or max_response_bytes <= 0:
+            raise SourceRecordTransportError("invalid_source_record_response_limit")
+        timeout = min(self.timeout_seconds, float(deadline_seconds))
+        output_cap = min(self.max_response_bytes, max_response_bytes)
+        token = _transport_credential(self.api_key_env)
+        request = Request(self.endpoint, data=request_bytes,
+                          headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, method="POST")
+        deadline_at = self._clock() + timeout
+        try:
+            with self._opener.open(request, timeout=timeout) as response:
+                raw = _read_bounded(response, output_cap, deadline_at, self._clock)
+                status = response.status
+        except HTTPError as exc:
+            status = exc.code
+            exc.close()
+            raise SourceRecordTransportError(f"source_record_http_status_{status}") from None
+        except (URLError, TimeoutError, OSError):
+            raise SourceRecordTransportError("source_record_transport_failed") from None
+        if self._clock() > deadline_at:
+            raise SourceRecordTransportError("source_record_deadline_exceeded")
+        if token.encode("utf-8") in raw:
+            raise SourceRecordTransportError("source_record_response_contains_credential")
+        if status < 200 or status >= 300:
+            raise SourceRecordTransportError(f"source_record_http_status_{status}")
+        return raw
+
+
+def _read_bounded(response: Any, cap: int, deadline_at: float, clock: Callable[[], float]) -> bytes:
+    result = bytearray()
+    while len(result) <= cap:
+        remaining = deadline_at - clock()
+        if remaining <= 0:
+            raise SourceRecordTransportError("source_record_deadline_exceeded")
+        stream = getattr(getattr(response, "fp", None), "raw", None)
+        sock = getattr(stream, "_sock", None)
+        if sock is not None:
+            sock.settimeout(remaining)
+        chunk = response.read1(min(16_384, cap + 1 - len(result)))
+        if not chunk:
+            break
+        result.extend(chunk)
+    if len(result) > cap:
+        raise SourceRecordTransportError("source_record_response_exceeds_limit")
+    return bytes(result)
 
 
 def _canonical(value: Any) -> bytes:
