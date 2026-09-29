@@ -731,3 +731,120 @@ def test_fetch_cli_reads_named_token_without_printing_it(tmp_path, monkeypatch, 
     captured = capsys.readouterr()
     assert token not in captured.out + captured.err
     assert json.loads(captured.out)["resume_authorized"] is False
+
+
+def _seal_checkpoint(path: Path, checkpoint: dict) -> None:
+    raw = json.dumps(checkpoint, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    checkpoint["result_hash"] = hashlib.sha256(raw).hexdigest()
+    path.write_text(json.dumps(checkpoint, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def test_recovery_preview_checks_current_pins_and_reports_no_authority(tmp_path):
+    import preview_pr_analysis_recovery as preview
+
+    root, identity, checkpoint_path, profile, provider, decision = _fixture(tmp_path)
+    source_repository = _preview_source(tmp_path, identity)
+    checkpoint = {
+        "run_id": identity["run_id"], "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
+        "snapshot_id": identity["snapshot_id"], "request_hash": identity["request_hash"],
+        "project_profile_version": identity["profile_version"], "ledger": {
+            "identity": {"snapshot_id": identity["snapshot_id"], "profile_version": identity["profile_version"]},
+            "request_hash": identity["request_hash"], "events": [],
+            "budget": {"reservations": {"retrieval": {"provider_calls": 0}}, "settlements": {}},
+        },
+    }
+    _seal_checkpoint(checkpoint_path, checkpoint)
+    manifest.create_manifest(root, identity, checkpoint=checkpoint_path, profile=profile,
+                             provider_config=provider, decision_config=decision)
+    packet = tmp_path / "current-packet.json"
+    packet.write_bytes((root / "recovery-inputs.json").read_bytes())
+
+    result = preview.preview(root, expected_identity=identity, source_repository=source_repository,
+                             profile=profile, provider_config=provider, decision_config=decision,
+                             current_recovery_inputs=packet)
+
+    assert result["status"] == "CONSISTENCY_PREVIEW_PASSED"
+    assert result["remaining_checks"] == ["engine_resume_preflight", "current_pr_head_freshness"]
+    assert result["resume_authorized"] is False
+    assert result["engine_preflight_required"] is True
+    assert result["provider_calls"] == result["checkpoint_writes"] == 0
+    assert result["reservations"] == 1
+    assert result["unsettled_provider_call_reservations"] == 0
+
+
+def test_recovery_preview_fails_closed_on_source_drift_and_unsettled_reservation(tmp_path):
+    import preview_pr_analysis_recovery as preview
+
+    root, identity, checkpoint_path, profile, provider, decision = _fixture(tmp_path)
+    source_repository = _preview_source(tmp_path, identity)
+    checkpoint = {
+        "run_id": identity["run_id"], "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
+        "snapshot_id": identity["snapshot_id"], "request_hash": identity["request_hash"],
+        "project_profile_version": identity["profile_version"], "ledger": {
+            "identity": {"snapshot_id": identity["snapshot_id"], "profile_version": identity["profile_version"]},
+            "request_hash": identity["request_hash"], "events": [],
+            "budget": {"reservations": {"task:review:0": {"provider_calls": 1}}, "settlements": {}},
+        },
+    }
+    _seal_checkpoint(checkpoint_path, checkpoint)
+    manifest.create_manifest(root, identity, checkpoint=checkpoint_path, profile=profile,
+                             provider_config=provider, decision_config=decision)
+    packet = tmp_path / "current-packet.json"
+    packet.write_bytes((root / "recovery-inputs.json").read_bytes())
+    drifted_source = _preview_source(tmp_path / "drift", {**identity})
+    (drifted_source / "source.txt").write_text("drifted source\n", encoding="utf-8")
+    import subprocess
+    subprocess.run(["git", "-C", str(drifted_source), "add", "source.txt"], check=True)
+    subprocess.run(["git", "-C", str(drifted_source), "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "drift"], check=True)
+    with pytest.raises(manifest.ManifestError, match="recovery_current_source_mismatch"):
+        preview.preview(root, expected_identity=identity, source_repository=drifted_source, profile=profile,
+                        provider_config=provider, decision_config=decision, current_recovery_inputs=packet)
+    ambiguous = preview.preview(
+        root, expected_identity=identity, source_repository=source_repository, profile=profile,
+        provider_config=provider, decision_config=decision, current_recovery_inputs=packet,
+    )
+    assert ambiguous["status"] == "AMBIGUOUS_INFLIGHT_REQUIRES_ENGINE_RECONCILIATION"
+    assert ambiguous["resume_authorized"] is False
+    assert ambiguous["engine_reconciliation_expected"] is True
+    assert ambiguous["unsettled_provider_call_reservations"] == 1
+
+
+def _preview_source(tmp_path: Path, identity: dict) -> Path:
+    import subprocess
+
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    repo = tmp_path / "current-harness"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    (repo / "source.txt").write_text("pinned source\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "source.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "source"], check=True)
+    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+    identity["harness_sha"] = sha
+    identity["called_workflow_sha"] = sha
+    return repo
+
+
+@pytest.mark.parametrize("reservation", ["not-a-reservation", {}, {"provider_calls": True}, {"provider_calls": -1}])
+def test_recovery_preview_rejects_malformed_reservation_ledger(tmp_path, reservation):
+    import preview_pr_analysis_recovery as preview
+
+    root, identity, checkpoint_path, profile, provider, decision = _fixture(tmp_path)
+    source_repository = _preview_source(tmp_path, identity)
+    checkpoint = {
+        "run_id": identity["run_id"], "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
+        "snapshot_id": identity["snapshot_id"], "request_hash": identity["request_hash"],
+        "project_profile_version": identity["profile_version"], "ledger": {
+            "identity": {"snapshot_id": identity["snapshot_id"], "profile_version": identity["profile_version"]},
+            "request_hash": identity["request_hash"], "events": [],
+            "budget": {"reservations": {"bad": reservation}, "settlements": {}},
+        },
+    }
+    _seal_checkpoint(checkpoint_path, checkpoint)
+    manifest.create_manifest(root, identity, checkpoint=checkpoint_path, profile=profile,
+                             provider_config=provider, decision_config=decision)
+    packet = tmp_path / "current-packet.json"
+    packet.write_bytes((root / "recovery-inputs.json").read_bytes())
+    with pytest.raises(manifest.ManifestError, match="recovery_reservation_ledger_invalid"):
+        preview.preview(root, expected_identity=identity, source_repository=source_repository, profile=profile,
+                        provider_config=provider, decision_config=decision, current_recovery_inputs=packet)
