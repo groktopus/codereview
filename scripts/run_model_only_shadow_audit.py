@@ -487,6 +487,12 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     audit_manifest = result["manifest"]
     roles = audit_manifest.get("roles", {})
     terminal = audit_manifest.get("terminal_state", "incomplete")
+    if source_only_no_candidate and not candidates:
+        # The private audit manifest keeps the source stage's raw terminal
+        # state (for example, missing_writer_candidate or source_audit_failed).
+        # The hash-only public receipt uses the zero-candidate contract, whose
+        # terminal state is always incomplete regardless of source outcome.
+        terminal = "incomplete"
     dispatch = _dispatch_accounting(roles)
     receipt = {
         "schema": "model-only-shadow-audit-receipt.v1",
