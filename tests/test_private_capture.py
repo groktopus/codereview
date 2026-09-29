@@ -426,6 +426,7 @@ def test_capture_artifacts_bind_to_valid_v2_writer_call(tmp_path):
 
 class CaptureAwareProvider:
     identity = {"provider_id": "fake-openai", "model_id": "capture-fixture", "adapter_version": "fake-v1"}
+    model = "capture-fixture"
     max_request_bytes = 128_000
     max_response_bytes = 32_768
     max_output_tokens = 1_800
@@ -433,6 +434,11 @@ class CaptureAwareProvider:
 
     def serialize_review_request(self, task, evidence, limits):
         return json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
+
+    def _serialize_request_body(self, system, user, schema, limits):
+        from pr_review_harness.providers import OpenAIProvider
+
+        return OpenAIProvider._serialize_request_body(self, system, user, schema, limits)
 
     def review_with_capture(self, task, evidence, limits, capture_spec, capture_sink):
         refs = [item["evidence_id"] for item in evidence]

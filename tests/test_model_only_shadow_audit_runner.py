@@ -104,7 +104,7 @@ def _plan(task_ids: list[str], *, budget: dict | None = None) -> dict:
     return {"schema": "model-only-shadow-live-writer-plan.v2",
             "budget": budget or {
                 "audit_max_deadline_seconds_per_call": 90,
-                "audit_max_input_bytes_per_call": 64000,
+                "audit_max_input_bytes_per_call": 96000,
                 "audit_max_output_tokens_per_llm_call": 1800,
                 "audit_max_provider_calls": 3,
                 "audit_max_response_bytes_per_call": 64000,
@@ -287,7 +287,13 @@ def test_unhashable_packet_identity_fails_closed_with_plan_binding_receipt(tmp_p
 def test_audit_input_rejection_writes_receipt_only_when_dispatch_guard_is_unspent(tmp_path):
     root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first")])
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps(_plan(["task-first"])))
+    plan_value = _plan(["task-first"])
+    # Keep budget validation valid so this case reaches malformed audit input.
+    plan_value["budget"].update({
+        "audit_max_input_bytes_per_call": 96_000,
+        "total_provider_deadline_seconds_max": 870,
+    })
+    plan.write_text(json.dumps(plan_value))
     provider_config = tmp_path / "provider.json"
     provider_config.write_text(json.dumps({
         "kind": "openai_compatible", "base_url": RUNNER.EXPECTED_LLM[0],

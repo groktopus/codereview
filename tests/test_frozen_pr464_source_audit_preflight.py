@@ -3,19 +3,20 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-import sys
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import run_model_only_shadow_audit as audit_runner  # noqa: E402
 
 from pr_review_harness import cli  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
 from pr_review_harness.shadow_preflight import AuditDispatchGuard, AuditPreflightError  # noqa: E402
-sys.path.insert(0, str(ROOT / "scripts"))
-import run_model_only_shadow_audit as audit_runner  # noqa: E402
 
 
 class NoDispatchProvider(OpenAIProvider):

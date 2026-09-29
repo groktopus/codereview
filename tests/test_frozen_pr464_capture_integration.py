@@ -249,13 +249,20 @@ def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkey
     os.environ.get("GITHUB_ACTIONS", "").lower() == "true" or os.environ.get("PR464_RUN_FULL_CAPTURE") != "1",
     reason="full provider-free PR-464 rehearsal is an explicit local-only integration",
 )
-def test_frozen_pr464_no_candidate_audit_stops_before_source_dispatch(tmp_path, monkeypatch, capsys):
-    """Rehearse the active plan under a deliberately stricter legacy audit cap.
+@pytest.mark.parametrize(
+    ("limits_version", "expected_dispatches"),
+    [("v1", 0), ("v2", 1)],
+    ids=["legacy-64k-rejected", "active-v3-96k-admitted"],
+)
+def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
+    limits_version, expected_dispatches, tmp_path, monkeypatch, capsys
+):
+    """Rehearse the active writer plan against historical and active audit caps.
 
-    The writer capture and frozen selector use the actual checked-in plan and
-    source revisions. An in-process fake OpenAI transport proves it is never
-    reached when the exact source request exceeds the supplied v1 cap. No provider
-    is contacted and the workflow's sanitizer/gate prevent the later Jev stage.
+    The historical 64 KB cap must reject the 74 KB exact request before transport.
+    The active PR464 plan binds a 96 KB stage cap, which admits one in-process fake
+    source HTTP call and stops before Jev or claim auditing. No real provider or
+    network is contacted.
     """
     source_repo = _source_repo()
     plan_path = ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
@@ -345,9 +352,10 @@ def test_frozen_pr464_no_candidate_audit_stops_before_source_dispatch(tmp_path, 
     monkeypatch.setattr(providers, "_HTTP_OPENER", FakeOpenAIHTTP())
     audit_output = tmp_path / "private-shadow-audit-output"
     audit_receipt_path = tmp_path / "audit-receipt" / "shadow-audit-receipt.json"
+    limits_path = ROOT / f"experiments/model-only-shadow-audit-limits-{limits_version}.json"
     receipt = shadow_runner.run(
         capture_root, provider_config, jev_config, audit_output, audit_receipt_path,
-        plan_path, ROOT / "experiments/model-only-shadow-audit-limits-v1.json",
+        plan_path, limits_path,
         source_only_no_candidate=True, selection_receipt_path=selection_path,
     )
     assert selection["plan_sha256"] == _sha(plan_path.read_bytes())
@@ -368,7 +376,8 @@ def test_frozen_pr464_no_candidate_audit_stops_before_source_dispatch(tmp_path, 
     }
     source_provider = OpenAIProvider({
         **json.loads(provider_config.read_text()), "timeout_seconds": 90,
-        "max_request_bytes": 64_000, "max_response_bytes": 64_000, "max_output_tokens": 1_800,
+        "max_request_bytes": 64_000 if limits_version == "v1" else 96_000,
+        "max_response_bytes": 64_000, "max_output_tokens": 1_800,
     })
     source_request = source_provider._serialize_request_body(
         shadow_audit._SOURCE_SYSTEM, source_user, shadow_audit._schema_source(),
@@ -378,28 +387,37 @@ def test_frozen_pr464_no_candidate_audit_stops_before_source_dispatch(tmp_path, 
     assert len(source_request) == 74_521
     assert source_request_sha256 == "d89e8164d297e736a45d91572221ed6b2b0c4aee0ae567b8438cd9bda6592699"
     assert len(source_request) > 64_000
-    assert len(source_dispatches) == 0
     assert receipt["terminal_state"] == "incomplete"
     assert receipt["reason"] == "no_writer_candidate"
-    assert receipt["audit_provider_calls"] == 0
-    assert receipt["roles"]["source_auditor"] == "failed"
     raw_manifest = json.loads((audit_output / "shadow-audit-manifest.json").read_text())
-    assert raw_manifest["terminal_state"] == "source_audit_failed"
-    assert raw_manifest["terminal_details"]["source_auditor"] == "request_exceeds_limit"
-    assert raw_manifest["roles"]["source_auditor"]["calls"] == []
     sanitized_audit_dir = tmp_path / "audit-sanitized"
     audit_receipt_sanitizer.sanitize(audit_receipt_path, sanitized_audit_dir)
     sanitized_receipt = json.loads((sanitized_audit_dir / "shadow-audit-receipt.json").read_text())
-    assert sanitized_receipt["roles"] == {
-        "source_auditor": "failed", "jev": "not_run", "claim_auditor": "not_run",
-    }
-    assert sanitized_receipt["audit_provider_calls"] == 0
-    # The workflow's next gate requires one dispatched source HTTP call and a
-    # completed/abstained source role, so this pretransport failure cannot reach Jev.
-    assert not (
-        receipt["case_id"] == "PR-464" and receipt["candidate_packet_count"] == 0
-        and receipt["reason"] == "no_writer_candidate" and receipt["audit_provider_calls"] == 1
-        and receipt["role_dispatched_call_counts"] == {"source_auditor": 1, "jev": 0, "claim_auditor": 0}
-        and receipt["roles"]["source_auditor"] in {"completed", "abstained"}
-        and receipt["roles"]["jev"] == "not_run" and receipt["roles"]["claim_auditor"] == "not_run"
-    )
+    assert len(source_dispatches) == expected_dispatches
+    if limits_version == "v1":
+        assert receipt["audit_provider_calls"] == 0
+        assert receipt["roles"]["source_auditor"] == "failed"
+        assert receipt["role_dispatched_call_counts"] == {
+            "source_auditor": 0, "jev": 0, "claim_auditor": 0,
+        }
+        assert raw_manifest["terminal_state"] == "source_audit_failed"
+        assert raw_manifest["terminal_details"]["source_auditor"] == "request_exceeds_limit"
+        assert raw_manifest["roles"]["source_auditor"]["calls"] == []
+        assert sanitized_receipt["roles"] == {
+            "source_auditor": "failed", "jev": "not_run", "claim_auditor": "not_run",
+        }
+        assert sanitized_receipt["audit_provider_calls"] == 0
+    else:
+        assert source_dispatches == [source_request_sha256]
+        assert receipt["audit_provider_calls"] == 1
+        assert receipt["roles"] == {
+            "source_auditor": "completed", "jev": "not_run", "claim_auditor": "not_run",
+        }
+        assert receipt["role_dispatched_call_counts"] == {
+            "source_auditor": 1, "jev": 0, "claim_auditor": 0,
+        }
+        assert raw_manifest["terminal_state"] == "missing_writer_candidate"
+        assert raw_manifest["roles"]["source_auditor"]["status"] == "completed"
+        assert len(raw_manifest["roles"]["source_auditor"]["calls"]) == 1
+        assert sanitized_receipt["roles"] == receipt["roles"]
+        assert sanitized_receipt["audit_provider_calls"] == 1

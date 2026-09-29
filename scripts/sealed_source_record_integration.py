@@ -33,9 +33,12 @@ from pr_review_harness.shadow_audit import (
 
 MAX_ARTIFACT_BYTES = 4_000_000
 ROOT = Path(__file__).resolve().parents[1]
-PR464_CORPUS = ROOT / "examples/evaluation/model-only-shadow-pr464-v2/corpus.json"
-PR464_IDENTITY = ROOT / "examples/evaluation/model-only-shadow-pr464-v2/manifest.json"
-PR464_PLAN = ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json"
+# The operator bridge is bound to the active frozen identity. Historical v1/v2
+# artifacts remain available for their own evaluation workflows, but are not a
+# fallback identity for this bridge.
+PR464_CORPUS = ROOT / "examples/evaluation/model-only-shadow-pr464-v3/corpus.json"
+PR464_IDENTITY = ROOT / "examples/evaluation/model-only-shadow-pr464-v3/manifest.json"
+PR464_PLAN = ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
 
 
 class SealedSourceIntegrationError(ValueError):

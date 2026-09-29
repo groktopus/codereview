@@ -32,7 +32,7 @@ def test_stage_guard_accepts_bounded_ordered_stage_requests():
 
 
 @pytest.mark.parametrize("mutate,code", [
-    (lambda limits: limits.update(max_input_bytes_per_task=64_001), "audit_limits_invalid"),
+    (lambda limits: limits.update(max_input_bytes_per_task=128_001), "audit_limits_invalid"),
     (lambda limits: limits.update(max_retries=1), "audit_limits_invalid"),
     (lambda limits: limits.update(total_provider_deadline_seconds=269), "audit_limits_invalid"),
 ])
@@ -87,4 +87,3 @@ def test_guard_rejects_wrong_stage_order_and_token_overrun():
     guard = AuditDispatchGuard(_limits())
     with pytest.raises(AuditPreflightError, match="audit_token_cap_exceeded"):
         guard.check("source_auditor", _llm_request(1801))
-
