@@ -67,4 +67,10 @@ The reusable `pr-analysis.yml` source now declares all six names as required `wo
 
 The publication workflow is disabled and has no write-capable review credential. Provider setup does not enable review publication. Do not add a `pull-requests: write` permission or a writer secret as part of ordinary provider configuration.
 
+## Central SlopSearX pilot caller
+
+The manual `slopsearx-pilot.yml` workflow resolves only a PR number against `magnus919/SlopSearX`, requires an open non-draft PR targeting `main`, then calls the reusable analysis workflow with the six named secrets. The reusable workflow now permits cross-repository invocation only for the exact caller `groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main` targeting `magnus919/SlopSearX`; ordinary same-repository callers retain the equality check. The reusable job re-reads PR state and exact base/head SHAs before fetching source. It fetches PR objects into a bare repository and runs the trusted harness over that source; it does not check out or execute target-repository code. Fork-originated PRs remain eligible when the trusted base repository, open/draft state, and exact revisions validate; fork identity is not used to select credentials or a provider endpoint.
+
+The central caller currently pins an older immutable reusable-workflow SHA that predates this allowlist. Therefore its metadata preflight can succeed while the called job still rejects the central caller. After this reusable-workflow change is reviewed and merged, update the central caller's reusable-workflow and `harness_sha` pins together to the merged immutable revision before dispatching a pilot. No live provider run has validated this staged change.
+
 No production credential values were read or tested while preparing this document.
