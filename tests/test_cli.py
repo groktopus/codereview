@@ -1594,6 +1594,122 @@ def test_cli_capture_and_resume_flags_reuse_original_event_and_checks(tmp_path, 
     assert resumed["request_hash"] == first["request_hash"]
 
 
+def test_cli_recovery_settles_provider_entered_before_interruption_without_redispatch(
+    tmp_path, monkeypatch, capsys
+):
+    """An entered fake call remains uncertain across CLI resume and is never dispatched twice."""
+    from pr_review_harness import cli, engine, github
+    from pr_review_harness.budget import IsolatedInvocation as RealIsolatedInvocation
+
+    # This BaseException models controller death: normal error handling must not
+    # convert the still-reserved provider call into a settled failure.
+    class SimulatedControllerCrash(BaseException):
+        pass
+
+    repo, base, head, profile = context_selection_repo(tmp_path)
+    profile["allow_empty_approve"] = True
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"number": 7, "pull_request": {"base": {"sha": base}, "head": {"sha": head}}}),
+        encoding="utf-8",
+    )
+    limits = {
+        "deadline_seconds": 2,
+        "max_concurrent_scopes": 1,
+        "max_provider_calls": 1,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 64_000,
+        "max_input_bytes_per_task": 32_000,
+        "max_output_bytes_per_task": 8_000,
+        "max_output_bytes": 16_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+
+    class FakeGitHubAdapter:
+        def check_runs(self, _repository, _head_sha):
+            return {"runs": [], "complete": True}
+
+    class EnterThenCrashProvider(_InertContextProvider):
+        def __init__(self):
+            self.entered = 0
+
+        def review(self, task, evidence, task_limits):
+            self.entered += 1
+            raise SimulatedControllerCrash()
+
+    provider = EnterThenCrashProvider()
+    construction_attempts = []
+
+    class CrashInsideProviderInvocation:
+        def __init__(self, target, method_name, args, **_kwargs):
+            construction_attempts.append("entered")
+            getattr(target, method_name)(*args)
+            raise AssertionError("provider interruption did not occur")
+
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/project")
+    monkeypatch.setenv("GITHUB_RUN_ID", "42")
+    monkeypatch.setattr(github, "GitHubPRAdapter", FakeGitHubAdapter)
+    monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
+    monkeypatch.setattr(cli, "_freshness", lambda event, expected: _FakeFreshness(expected) if event else None)
+    monkeypatch.setattr(engine, "IsolatedInvocation", CrashInsideProviderInvocation)
+
+    packet_path = tmp_path / "artifacts" / "recovery-inputs.json"
+    packet_path.parent.mkdir()
+    output = tmp_path / "review"
+    common = ["--repo", str(repo), "--profile", str(profile_path), "--run-id", "pr-7-42", "--json"]
+    with pytest.raises(SimulatedControllerCrash):
+        cli.main(
+            [
+                "review", *common, "--event-file", str(event_path),
+                "--capture-recovery-inputs", str(packet_path), "--output", str(output),
+            ]
+        )
+
+    assert provider.entered == 1
+    assert construction_attempts == ["entered"]
+    checkpoint = output / "pr-7-42.json"
+    partial = json.loads(checkpoint.read_text(encoding="utf-8"))
+    reservation_keys = list(partial["ledger"]["budget"]["reservations"])
+    assert len(reservation_keys) == 1
+    reservation_key = reservation_keys[0]
+    assert reservation_key not in partial["ledger"]["budget"]["settlements"]
+    assert packet_path.is_file()
+
+    # Any attempted invocation during recovery fails the test; the real isolated
+    # worker is deliberately not started, so no target or network code can run.
+    class RejectRecoveryDispatch:
+        def __init__(self, target, method_name, args, **_kwargs):
+            if target is provider:
+                construction_attempts.append("redispatch")
+                raise AssertionError("resume redispatched an uncertain reservation")
+            self.delegate = RealIsolatedInvocation(
+                target,
+                method_name,
+                args,
+                deadline_seconds=_kwargs["deadline_seconds"],
+                output_limit=_kwargs["output_limit"],
+            )
+
+        def __getattr__(self, name):
+            return getattr(self.delegate, name)
+
+    monkeypatch.setattr(engine, "IsolatedInvocation", RejectRecoveryDispatch)
+    resume_code = cli.main(
+        ["review", *common, "--resume", "--recovery-inputs", str(packet_path), "--output", str(output)]
+    )
+    resumed = json.loads(capsys.readouterr().out)
+    settlement = resumed["ledger"]["budget"]["settlements"][reservation_key]
+    assert resume_code == 0
+    assert provider.entered == 1
+    assert construction_attempts == ["entered"], f"recovery invocation attempts: {construction_attempts!r}"
+    assert settlement["status"] == "INTERRUPTED_UNKNOWN"
+    assert resumed["budget"]["provider_calls_reserved"] == 1
+    assert next(iter(resumed["task_results"].values()))["error_code"] == "INTERRUPTED_UNKNOWN"
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
