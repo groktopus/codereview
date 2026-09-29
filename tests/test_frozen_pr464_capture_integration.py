@@ -231,7 +231,7 @@ def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkey
     assert len(fake_call_counter.read_bytes()) == 10
 
     packet = json.loads((capture_root / result["packet_path"]).read_text())
-    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v3"
+    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v4"
     corpus = json.loads((corpus_root / "corpus.json").read_text())
     manifest = json.loads((corpus_root / "manifest.json").read_text())
     identity = corpus["cases"][0]["identity"]

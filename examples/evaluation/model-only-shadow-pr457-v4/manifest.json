@@ -1,0 +1,28 @@
+{
+  "accuracy_claims": "NOT_ESTIMABLE_FROM_THIS_CORPUS",
+  "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
+  "case_id": "PR-457",
+  "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311",
+  "corpus_id": "model-only-shadow-pr457-v4",
+  "corpus_path": "examples/evaluation/model-only-shadow-pr457-v4/corpus.json",
+  "corpus_sha256": "2a6f80b4cc59c69144d4945b7d21144fb8dca76989be98c2c1f1c6deb4aa2658",
+  "dataset_version": "2026-09-29.1",
+  "evaluation_status": "FROZEN_INPUTS_NO_MODEL_OUTPUTS",
+  "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95",
+  "gold_labels": {
+    "packets_present": 0,
+    "status": "UNAVAILABLE"
+  },
+  "head_sha": "595f143607961d21d162efe76518d86e416d2548",
+  "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977",
+  "interpretation": "Frozen case identity for model_teacher screening only. No labels or model outputs are present; agreement is not truth.",
+  "plan_path": "experiments/model-only-shadow-live-pr457-plan-v4.json",
+  "plan_sha256": "68e8f512092ecd6d8f2bffa6dcda9405b3252087f151dc9c75744ff640aedcd6",
+  "profile_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
+  "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
+  "repository": "magnus919/SlopSearX",
+  "reviewer_kind": "model_teacher",
+  "schema": "model-only-shadow-evaluation-identity.v1",
+  "snapshot_id": "snap-24293f430e4f8006a52bac18",
+  "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea"
+}

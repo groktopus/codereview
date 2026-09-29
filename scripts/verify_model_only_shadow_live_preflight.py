@@ -26,7 +26,7 @@ PLAN_MAX_BYTES = 128_000
 PREPARE_MAX_BYTES = 4_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_MODULE_COUNT = 35
-EXPECTED_MODULE_TREE_SHA256 = "18fff15521a047add0cf4b89341e5117eb73ad959caaab664e0ee9a283bf29aa"
+EXPECTED_MODULE_TREE_SHA256 = "94828daf6aecc1dbc19edb3d252a3cf421938ac2e6202b14319c2fa7d9839f46"
 EXPECTED_PLAN_SHA256 = {case_id: policy["plan_sha256"] for case_id, policy in CASE_POLICY.items()}
 CASE_CONTRACTS = {
     "PR-457": {"repository": "magnus919/SlopSearX", "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e", "head_sha": "595f143607961d21d162efe76518d86e416d2548", "snapshot_id": "snap-24293f430e4f8006a52bac18", "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea", "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95", "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k", "profile_file_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918", "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977", "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311", "scope_obligations": 14, "request_count": 6, "request_bytes_total": 469539, "request_bytes_max": 118490, "remaining_call_slots": 4},
@@ -148,7 +148,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
     ):
         if not isinstance(runtime.get(field), str) or not SHA256.fullmatch(runtime[field]):
             raise PreflightError("plan_runtime_hash_invalid")
-    if runtime.get("plan_generated_from_revision") != "b8f159dd8dbae28f3dc44f5771681b958ff904c3":
+    if runtime.get("plan_generated_from_revision") != "81cc2a2d2096a8ee942d713ace0a09f067fde51e":
         raise PreflightError("plan_runtime_revision_invalid")
     identity = plan.get("provider_identity")
     if not isinstance(identity, dict) or identity != {

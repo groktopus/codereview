@@ -292,10 +292,12 @@ def finalize(prepared_paths: dict[str, Path], *, revision: str) -> dict[str, Any
         start = policy.find(marker)
         if start < 0:
             raise FinalizeError("case_policy_route_missing")
-        end = policy.find('"plan_sha256": "PENDING_FINAL_V4_PLAN_SHA256"', start)
-        if end < 0:
-            raise FinalizeError("case_policy_pin_placeholder_missing")
-        policy = policy[:end] + f'"plan_sha256": "{sha}"' + policy[end + len('"plan_sha256": "PENDING_FINAL_V4_PLAN_SHA256"'):]
+        pin = re.search(r'"plan_sha256": "(?:[0-9a-f]{64}|PENDING_FINAL_V4_PLAN_SHA256)"', policy[start:])
+        if pin is None:
+            raise FinalizeError("case_policy_pin_invalid")
+        pin_start = start + pin.start()
+        pin_end = start + pin.end()
+        policy = policy[:pin_start] + f'"plan_sha256": "{sha}"' + policy[pin_end:]
     verifier = _replace_once(verifier, "EXPECTED_MODULE_COUNT = 35", f"EXPECTED_MODULE_COUNT = {module_count}", "module_count_constant_invalid")
     verifier, tree_count = re.subn(
         r'^EXPECTED_MODULE_TREE_SHA256 = "[0-9a-f]{64}"$',

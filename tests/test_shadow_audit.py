@@ -804,7 +804,7 @@ def test_frozen_pr464_validator_loads_checked_in_plan_corpus_and_identity(monkey
     assert seen["plan"]["case"]["case_id"] == "PR-464"
     assert seen["plan"]["schema"] == "model-only-shadow-live-writer-plan.v2"
     assert seen["identity"]["case_id"] == "PR-464"
-    assert seen["identity"]["corpus_id"] == "model-only-shadow-pr464-v3"
+    assert seen["identity"]["corpus_id"] == "model-only-shadow-pr464-v4"
     assert seen["corpus"]["cases"][0]["identity"]["case_id"] == "PR-464"
     assert seen["packet"] is not packet
     assert seen["packet"]["snapshot"]["profile_hash"] == seen["identity"]["profile_sha256"]

@@ -951,7 +951,7 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
     snapshot = make_snapshot()
     prof = profile(("correctness", "tests", "design", "security", "performance", "maintainability"))
     frozen_plan = json.loads(
-        (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v3.json").read_text()
+        (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v4.json").read_text()
     )
     prof["repository"] = frozen_plan["case"]["repository"]
     snapshot["profile_hash"] = hashlib.sha256(json.dumps(

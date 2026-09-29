@@ -41,8 +41,8 @@ OUTPUT_TOKENS_CAP = 1_200
 MODULE_COUNT = 35
 # Active v4 runtime pin. The v4 finalizer refreshes these values only from the
 # exact immutable runtime revision selected for the combined stack.
-MODULE_TREE_SHA256 = "bd8b2f73e6d9bba2792d0b70446ac865aa02d71bb5cb389958fd52574ddda071"
-SOURCE_REVISION = "b8f159dd8dbae28f3dc44f5771681b958ff904c3"
+MODULE_TREE_SHA256 = "b3c0d4ab331928da159f957de5a3a50a8b50700cbe9a08c44fbec4f49d65af66"
+SOURCE_REVISION = "81cc2a2d2096a8ee942d713ace0a09f067fde51e"
 PYTHON_IDENTITY = {"implementation": "cpython", "version": "3.14.7"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
