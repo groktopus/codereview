@@ -10,9 +10,20 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
-from pr_review_harness.cross_model_package import _json, build_cross_model_package  # noqa: E402
+from model_only_shadow_evaluation_identity import (  # noqa: E402
+    IdentityError,
+    corpus_path_for,
+    plan_path_for,
+    validate_identity,
+)
+
+from pr_review_harness.cross_model_package import (  # noqa: E402
+    _json,
+    build_cross_model_package,
+)
 from pr_review_harness.evaluation import EvaluationError  # noqa: E402
 
 
@@ -34,20 +45,29 @@ def main(argv: list[str] | None = None) -> int:
         identity_plan = None
         identity_plan_sha256 = None
         manifest_path = args.identity_manifest
-        if manifest_path is None and corpus.get("corpus_id") == "model-only-shadow-pr464-v1":
+        plan_relative = plan_path_for(corpus.get("corpus_id"))
+        if manifest_path is None and plan_relative is not None:
             manifest_path = args.corpus.parent / "manifest.json"
         if manifest_path is not None:
             identity_manifest, _ = _json(manifest_path, 1_000_000)
-        if corpus.get("corpus_id") == "model-only-shadow-pr464-v1":
-            plan_relative = Path("experiments/model-only-shadow-live-pr464-plan-v2.json")
-            plan_path = next(
-                (parent / plan_relative for parent in args.corpus.resolve().parents if (parent / plan_relative).is_file()),
-                None,
-            )
-            if plan_path is None:
+        if plan_relative is not None:
+            expected_corpus_path = corpus_path_for(corpus.get("corpus_id"))
+            if (not isinstance(expected_corpus_path, str)
+                    or args.corpus.resolve() != (ROOT / expected_corpus_path).resolve()):
+                raise EvaluationError("evaluation_identity_corpus_path_mismatch")
+            plan_path = ROOT / plan_relative
+            if not plan_path.is_file():
                 raise EvaluationError("evaluation_identity_plan_unavailable")
             identity_plan, plan_raw = _json(plan_path, 1_000_000)
             identity_plan_sha256 = hashlib.sha256(plan_raw).hexdigest()
+            packet, _ = _json(args.case_packet, 4_000_000)
+            validate_identity(corpus, identity_manifest, identity_plan, plan_raw, packet)
+            # Keep the module-tree-pinned in-package identity gate unchanged.
+            # PR-457 is validated here before entering the generic packager.
+            if corpus.get("corpus_id") != "model-only-shadow-pr464-v1":
+                identity_manifest = None
+                identity_plan = None
+                identity_plan_sha256 = None
         result = build_cross_model_package(
             corpus_value=corpus,
             case_packet_path=args.case_packet,
@@ -60,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     except EvaluationError as exc:
         print(json.dumps({"ok": False, "error_code": exc.code}, separators=(",", ":")))
+        return 2
+    except IdentityError as exc:
+        print(json.dumps({"ok": False, "error_code": str(exc)}, separators=(",", ":")))
         return 2
     except (OSError, TypeError, ValueError):
         print('{"ok":false,"error_code":"package_input_invalid"}')

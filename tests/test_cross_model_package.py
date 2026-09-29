@@ -66,12 +66,13 @@ def _role(role, response_id, request_id, request, response, status="completed"):
     }
 
 
-def _fixture(tmp_path, *, duplicate_candidate=False, invalid_predecessor=False):
-    corpus = deepcopy(json.loads((ROOT / "examples/evaluation/corpus.json").read_text()))
+def _fixture(tmp_path, *, duplicate_candidate=False, invalid_predecessor=False, corpus_value=None):
+    corpus = deepcopy(corpus_value if corpus_value is not None else json.loads((ROOT / "examples/evaluation/corpus.json").read_text()))
     identity = corpus["cases"][0]["identity"]
     profile = {"profile_id": identity["profile"]["profile_id"], "version": identity["profile"]["version"],
                "required_lenses": ["correctness"]}
-    identity["profile"]["sha256"] = _sha(_json_bytes(profile, ascii_only=True))
+    if corpus_value is None:
+        identity["profile"]["sha256"] = _sha(_json_bytes(profile, ascii_only=True))
     case_id = identity["case_id"]
     writer_run_id = "writer-run-1"
     task_id = "task-7"
@@ -280,13 +281,16 @@ def test_package_rejects_unknown_or_malformed_shadow_dispatch_state(tmp_path, di
         )
 
 
-def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
-    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v2"
+@pytest.mark.parametrize("case_id", ["PR-457", "PR-464"])
+def test_model_teacher_corpus_accepts_only_its_pinned_case_packet_identity(case_id):
+    import scripts.package_cross_model_v2 as package_cli
+
+    corpus_root = ROOT / f"examples/evaluation/model-only-shadow-{case_id.replace('-', '').lower()}-v2"
     corpus = json.loads((corpus_root / "corpus.json").read_text())
     manifest = json.loads((corpus_root / "manifest.json").read_text())
     plan_raw = (ROOT / manifest["plan_path"]).read_bytes()
     plan = json.loads(plan_raw)
-    plan_sha256 = _sha(plan_raw)
+    assert package_cli.plan_path_for(corpus["corpus_id"]) == manifest["plan_path"]
     case = corpus["cases"][0]["identity"]
     packet = {
         "contract_version": "model-only-shadow-case.v1",
@@ -300,18 +304,26 @@ def test_model_teacher_corpus_accepts_only_the_pinned_pr464_packet_identity():
             "profile_hash": case["profile"]["sha256"],
         },
     }
-    validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
+    package_cli.validate_identity(corpus, manifest, plan, plan_raw, packet)
     assert manifest["reviewer_kind"] == "model_teacher"
     assert manifest["gold_labels"] == {"status": "UNAVAILABLE", "packets_present": 0}
     assert manifest["accuracy_claims"] == "NOT_ESTIMABLE_FROM_THIS_CORPUS"
 
     discovery_corpus = json.loads((ROOT / "examples/evaluation/corpus.json").read_text())
-    with pytest.raises(EvaluationError, match="evaluation_identity_manifest_invalid"):
-        validate_model_teacher_packet_identity(discovery_corpus, packet, manifest, plan, plan_sha256)
+    with pytest.raises(package_cli.IdentityError, match="evaluation_identity_manifest_invalid"):
+        package_cli.validate_identity(discovery_corpus, manifest, plan, plan_raw, packet)
 
     packet["snapshot"]["snapshot_id"] = "snap-c54e437de81bc6a7e9ae5d6a"
-    with pytest.raises(EvaluationError, match="case_snapshot_corpus_mismatch"):
-        validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
+    with pytest.raises(package_cli.IdentityError, match="case_snapshot_corpus_mismatch"):
+        package_cli.validate_identity(corpus, manifest, plan, plan_raw, packet)
+
+    packet["snapshot"]["snapshot_id"] = case["snapshot_id"]
+    wrong_manifest = deepcopy(manifest)
+    wrong_manifest["plan_path"] = "experiments/model-only-shadow-live-pr464-plan-v2.json" if case_id == "PR-457" else "experiments/model-only-shadow-live-pr457-plan-v2.json"
+    with pytest.raises(package_cli.IdentityError, match="evaluation_identity_manifest_mismatch"):
+        package_cli.validate_identity(corpus, wrong_manifest, plan, plan_raw, packet)
+    with pytest.raises(package_cli.IdentityError, match="evaluation_identity_manifest_mismatch"):
+        package_cli.validate_identity(corpus, manifest, plan, b"altered plan bytes", packet)
 
 
 def test_model_teacher_corpus_rejects_a_profile_mismatch():
@@ -331,6 +343,70 @@ def test_model_teacher_corpus_rejects_a_profile_mismatch():
     }
     with pytest.raises(EvaluationError, match="case_snapshot_corpus_mismatch"):
         validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
+
+
+@pytest.mark.parametrize("case_id", ["PR-457", "PR-464"])
+def test_package_cli_loads_matching_identity_manifest_and_plan(case_id, monkeypatch, capsys, tmp_path):
+    import scripts.package_cross_model_v2 as cli
+
+    corpus_path = ROOT / f"examples/evaluation/model-only-shadow-{case_id.replace('-', '').lower()}-v2/corpus.json"
+    manifest_path = corpus_path.parent / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    plan_path = ROOT / manifest["plan_path"]
+    expected_plan = json.loads(plan_path.read_text())
+    corpus = json.loads(corpus_path.read_text())
+    identity = corpus["cases"][0]["identity"]
+    packet = {
+        "contract_version": "model-only-shadow-case.v1",
+        "case_id": case_id,
+        "snapshot": {
+            "snapshot_id": identity["snapshot_id"],
+            "snapshot_hash": manifest["snapshot_sha256"],
+            "base_sha": identity["base_sha"],
+            "head_sha": identity["head_sha"],
+            "profile_version": identity["profile"]["version"],
+            "profile_hash": identity["profile"]["sha256"],
+        },
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    observed = {}
+    validate_identity = cli.validate_identity
+
+    def validating_spy(*args):
+        observed["identity_inputs"] = args
+        return validate_identity(*args)
+
+    def fake_build(**kwargs):
+        observed.update(kwargs)
+        return {"report": {
+            "comparison_id": "pkg-" + "a" * 64,
+            "cases": [{}],
+            "artifact_verification": {"status_counts": {"VERIFIED": 8}},
+            "assertion_verification": {"verified_structured_relation_count": 0},
+            "claims": {"accuracy": None, "ground_truth": None, "calibration": None, "correctness": None},
+        }}
+
+    monkeypatch.setattr(cli, "build_cross_model_package", fake_build)
+    monkeypatch.setattr(cli, "validate_identity", validating_spy)
+    assert cli.main([
+        "--corpus", str(corpus_path),
+        "--capture-root", "/private/capture",
+        "--case-packet", str(packet_path),
+        "--shadow-root", "/private/shadow",
+        "--output-dir", "/private/package",
+        "--json",
+    ]) == 0
+    assert observed["identity_inputs"] == (corpus, manifest, expected_plan, plan_path.read_bytes(), packet)
+    if case_id == "PR-464":
+        assert observed["identity_manifest_value"] == manifest
+        assert observed["identity_plan_value"] == expected_plan
+        assert observed["identity_plan_sha256"] == _sha(plan_path.read_bytes())
+    else:
+        assert observed["identity_manifest_value"] is None
+        assert observed["identity_plan_value"] is None
+        assert observed["identity_plan_sha256"] is None
+    assert json.loads(capsys.readouterr().out)["ok"] is True
 
 
 @pytest.mark.parametrize("non_object", [[], "not-an-object", 7])

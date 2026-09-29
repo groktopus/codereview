@@ -47,7 +47,7 @@ def test_projects_only_bounded_counts_and_explicit_non_claims(tmp_path):
     output_dir.mkdir(mode=0o700)
     output = output_dir / "receipt.json"
 
-    receipt = module.project(summary, output)
+    receipt = module.project(summary, output, "PR-464")
 
     assert set(receipt) == {
         "schema", "case_id", "package_status", "comparison_id", "case_count",
@@ -82,7 +82,7 @@ def test_rejects_wrong_package_identity_or_claims(tmp_path, override):
     output_dir.mkdir(mode=0o700)
 
     with pytest.raises(module.ReceiptError):
-        module.project(summary, output_dir / "receipt.json")
+        module.project(summary, output_dir / "receipt.json", "PR-464")
 
 
 def test_rejects_duplicate_json_keys(tmp_path):
@@ -92,37 +92,44 @@ def test_rejects_duplicate_json_keys(tmp_path):
     output_dir.mkdir(mode=0o700)
 
     with pytest.raises(module.ReceiptError, match="package_summary_invalid"):
-        module.project(summary, output_dir / "receipt.json")
+        module.project(summary, output_dir / "receipt.json", "PR-464")
 
 
-def test_workflow_packages_only_pr464_private_bytes_and_cleans_them_without_upload():
+def test_workflow_packages_both_frozen_cases_privately_and_cleans_outputs_without_upload():
     workflow = (ROOT / ".github/workflows/private-shadow-capture.yml").read_text(encoding="utf-8")
     live = workflow.split("  live_writer:", 1)[1]
     package = live.split("- name: Gate cross-model packaging on a completed candidate audit", 1)[1].split(
         "- name: Upload only the hash-only writer accounting artifacts", 1
     )[0]
-    assert "steps.case.outputs.case_id == 'PR-464'" in package
+    assert "steps.case.outputs.corpus_path" in package
     assert "steps.package-selection.outputs.eligible == 'true'" in package
     assert "select_model_only_shadow_package_packet.py" in package
     assert "package_cross_model_v2.py" in package
-    assert "model-only-shadow-pr464-v2/corpus.json" in package
+    assert "--case-id \"${{ steps.case.outputs.case_id }}\"" in package
     selector_source = (ROOT / "scripts/select_model_only_shadow_package_packet.py").read_text(encoding="utf-8")
     assert 'capture_root / "manifest.json"' in selector_source
     assert 'capture_root / "capture-manifest.json"' not in selector_source
     assert "sanitize_model_only_shadow_package_receipt.py" in package
+    assert "--case-id \"${{ steps.case.outputs.case_id }}\"" in package
     assert "upload-artifact" not in package
     assert "package-receipt.json" not in live.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1]
     cleanup = live.split("- name: Remove private live-writer workspace", 1)[1]
     assert '"private-cross-model-package"' in cleanup
+    case_selection = live.split("- name: Select one fixed live case", 1)[1].split(
+        "- name: Set up Python", 1
+    )[0]
+    assert '"examples/evaluation/model-only-shadow-pr457-v2/corpus.json"' in case_selection
+    assert '"examples/evaluation/model-only-shadow-pr464-v2/corpus.json"' in case_selection
+    assert '"corpus_path": contracts[case_id]["corpus_path"]' in case_selection
 
 
-def _selection_fixture(tmp_path, *, terminal="completed", candidate=True):
+def _selection_fixture(tmp_path, *, case_id="PR-464", terminal="completed", candidate=True):
     capture = tmp_path / "capture"
     packet_dir = capture / "case-packets"
     packet_dir.mkdir(parents=True, mode=0o700)
     packet = {
         "contract_version": "model-only-shadow-case.v1",
-        "case_id": "PR-464",
+        "case_id": case_id,
         "writer_candidate": {"candidate_id": "candidate-1"} if candidate else None,
     }
     packet_raw = (json.dumps(packet, sort_keys=True, separators=(",", ":")) + "\n").encode()
@@ -137,7 +144,7 @@ def _selection_fixture(tmp_path, *, terminal="completed", candidate=True):
     (capture / "manifest.json").write_bytes(manifest_raw)
     audit = {
         "schema": "model-only-shadow-audit-receipt.v1",
-        "case_id": "PR-464",
+        "case_id": case_id,
         "terminal_state": terminal,
         "reason": "one_candidate_selected" if candidate else "no_writer_candidate",
         "candidate_packet_count": 1 if candidate else 0,
@@ -154,7 +161,7 @@ def _selection_fixture(tmp_path, *, terminal="completed", candidate=True):
 def test_selects_only_completed_candidate_packet_with_exact_manifest_and_packet_hashes(tmp_path):
     capture, audit_path, _ = _selection_fixture(tmp_path)
 
-    result = selector.select(capture, audit_path)
+    result = selector.select(capture, audit_path, "PR-464")
 
     assert result == {
         "eligible": True,
@@ -163,11 +170,32 @@ def test_selects_only_completed_candidate_packet_with_exact_manifest_and_packet_
     }
 
 
+def test_selects_pr457_packet_for_its_matching_case_id(tmp_path):
+    capture, audit_path, _ = _selection_fixture(tmp_path, case_id="PR-457")
+
+    result = selector.select(capture, audit_path, "PR-457")
+
+    assert result["eligible"] is True
+    with pytest.raises(selector.SelectionError, match="selection_receipt_identity_invalid"):
+        selector.select(capture, audit_path, "PR-464")
+
+
+def test_pr457_receipt_retains_requested_case_identity(tmp_path):
+    summary = tmp_path / "summary.json"
+    summary.write_text(json.dumps(_summary()), encoding="utf-8")
+    output_dir = tmp_path / "receipt-dir"
+    output_dir.mkdir(mode=0o700)
+
+    receipt = module.project(summary, output_dir / "receipt.json", "PR-457")
+
+    assert receipt["case_id"] == "PR-457"
+
+
 @pytest.mark.parametrize("terminal", ["incomplete", "claim_audit_abstained", "source_audit_failed", "jev_assessment_failed", "claim_audit_failed"])
 def test_noncompleted_audit_states_are_explicit_package_skips(tmp_path, terminal):
     capture, audit_path, _ = _selection_fixture(tmp_path, terminal=terminal)
 
-    assert selector.select(capture, audit_path) == {
+    assert selector.select(capture, audit_path, "PR-464") == {
         "eligible": False,
         "reason": "audit_not_completed",
     }
@@ -176,7 +204,7 @@ def test_noncompleted_audit_states_are_explicit_package_skips(tmp_path, terminal
 def test_no_candidate_audit_is_an_explicit_package_skip(tmp_path):
     capture, audit_path, _ = _selection_fixture(tmp_path, terminal="incomplete", candidate=False)
 
-    assert selector.select(capture, audit_path) == {
+    assert selector.select(capture, audit_path, "PR-464") == {
         "eligible": False,
         "reason": "audit_not_completed",
     }
@@ -188,7 +216,7 @@ def test_selection_rejects_receipt_hash_not_bound_to_capture_manifest(tmp_path):
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
 
     with pytest.raises(selector.SelectionError, match="selection_capture_binding_invalid"):
-        selector.select(capture, audit_path)
+        selector.select(capture, audit_path, "PR-464")
 
 
 def test_selection_rejects_packet_hash_not_present_in_inventory(tmp_path):
@@ -197,7 +225,7 @@ def test_selection_rejects_packet_hash_not_present_in_inventory(tmp_path):
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
 
     with pytest.raises(selector.SelectionError, match="selection_packet_binding_invalid"):
-        selector.select(capture, audit_path)
+        selector.select(capture, audit_path, "PR-464")
 
 
 def test_completed_receipt_with_incomplete_roles_is_explicit_package_skip(tmp_path):
@@ -206,7 +234,7 @@ def test_completed_receipt_with_incomplete_roles_is_explicit_package_skip(tmp_pa
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
 
     with pytest.raises(selector.SelectionError, match="completed_receipt_roles_invalid"):
-        selector.select(capture, audit_path)
+        selector.select(capture, audit_path, "PR-464")
 
 
 @pytest.mark.parametrize("field,value", [
@@ -220,7 +248,7 @@ def test_completed_receipt_with_missing_or_invalid_candidate_fails_closed(tmp_pa
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
 
     with pytest.raises(selector.SelectionError, match="completed_receipt_candidate_invalid"):
-        selector.select(capture, audit_path)
+        selector.select(capture, audit_path, "PR-464")
 
 
 def test_completed_receipt_with_packet_without_candidate_fails_closed(tmp_path):
@@ -240,7 +268,7 @@ def test_completed_receipt_with_packet_without_candidate_fails_closed(tmp_path):
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
 
     with pytest.raises(selector.SelectionError, match="completed_packet_candidate_invalid"):
-        selector.select(capture, audit_path)
+        selector.select(capture, audit_path, "PR-464")
 
 
 def test_bounded_reader_handles_short_reads(tmp_path, monkeypatch):
@@ -252,4 +280,4 @@ def test_bounded_reader_handles_short_reads(tmp_path, monkeypatch):
 
     monkeypatch.setattr(selector.os, "read", short_read)
 
-    assert selector.select(capture, audit_path)["eligible"] is True
+    assert selector.select(capture, audit_path, "PR-464")["eligible"] is True
