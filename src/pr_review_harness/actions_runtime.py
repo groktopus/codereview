@@ -18,9 +18,10 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Mapping, Protocol
 from urllib.parse import quote, urlsplit
@@ -44,6 +45,8 @@ _MAX_UPLOAD_BYTES = 128 * 1024
 _MAX_UPLOAD_SECONDS = 300.0
 _MAX_BRIDGE_OUTPUT_BYTES = 4096
 _API_ROOT = "https://api.github.com"
+_MAX_RUNTIME_MODULES = 256
+_MAX_RUNTIME_SOURCE_BYTES = 4 * 1024 * 1024
 
 
 class ActionsRuntimeError(ValueError):
@@ -161,10 +164,11 @@ class RuntimeCanaryResult:
     response_hashes: tuple[tuple[str, str], ...]
     publication_capability: str = "UNAVAILABLE"
     write_permission: str = "NOT_TESTED"
+    runtime_identity: Mapping[str, object] | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
-            "schema": "pr-review-actions-canary.v1",
+            "schema": "pr-review-actions-canary.v2",
             "state": self.state,
             "reason": self.reason,
             "repository_id": self.repository_id,
@@ -174,8 +178,139 @@ class RuntimeCanaryResult:
             "response_hashes": [{"endpoint": endpoint, "sha256": digest} for endpoint, digest in self.response_hashes],
             "publication_capability": self.publication_capability,
             "write_permission": self.write_permission,
+            "runtime_identity": dict(self.runtime_identity or {
+                "state": "UNAVAILABLE",
+                "reason_code": "runtime_identity_not_checked",
+                "source_revision": None,
+                "module_count": 0,
+                "module_tree_sha256": None,
+            }),
             "safe_to_publish": False,
         }
+
+
+def _runtime_source_identity(
+    environ: Mapping[str, str], *, module_file: Path | None = None
+) -> dict[str, object]:
+    """Bind the loaded canary module and package sources to the runner checkout SHA.
+
+    This is local source-integrity evidence only. It does not prove credential
+    permissions or create a publisher capability.
+    """
+
+    def unavailable(reason: str) -> dict[str, object]:
+        return {
+            "state": "UNAVAILABLE",
+            "reason_code": reason,
+            "source_revision": None,
+            "module_count": 0,
+            "module_tree_sha256": None,
+        }
+
+    workspace_value = environ.get("GITHUB_WORKSPACE")
+    expected_revision = environ.get("GITHUB_SHA")
+    if (
+        not isinstance(workspace_value, str)
+        or not workspace_value
+        or not isinstance(expected_revision, str)
+        or not _SHA.fullmatch(expected_revision)
+    ):
+        return unavailable("runtime_identity_inputs_invalid")
+
+    try:
+        workspace = Path(workspace_value).resolve(strict=True)
+        package_root = workspace / "src" / "pr_review_harness"
+        if (workspace / "src").is_symlink() or package_root.is_symlink():
+            return unavailable("runtime_source_tree_mismatch")
+        loaded_module = (module_file or Path(__file__)).resolve(strict=True)
+        expected_module = (package_root / "actions_runtime.py").resolve(strict=True)
+        if loaded_module != expected_module or not package_root.is_dir():
+            return unavailable("runtime_module_origin_mismatch")
+        package_root_resolved = package_root.resolve(strict=True)
+        if module_file is None:
+            for name, loaded in tuple(sys.modules.items()):
+                if name == "pr_review_harness" or name.startswith("pr_review_harness."):
+                    loaded_path = getattr(loaded, "__file__", None)
+                    if not isinstance(loaded_path, str):
+                        return unavailable("runtime_module_origin_mismatch")
+                    resolved_path = Path(loaded_path).resolve(strict=True)
+                    try:
+                        resolved_path.relative_to(package_root_resolved)
+                    except ValueError:
+                        return unavailable("runtime_module_origin_mismatch")
+
+        def git(*args: str) -> subprocess.CompletedProcess[bytes]:
+            return subprocess.run(
+                ["git", "-C", str(workspace), *args],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=False,
+            )
+
+        head = git("rev-parse", "--verify", "HEAD^{commit}")
+        if head.returncode != 0:
+            return unavailable("runtime_source_revision_unavailable")
+        actual_revision = head.stdout.decode("ascii", errors="strict").strip()
+        if actual_revision != expected_revision:
+            return unavailable("runtime_source_revision_mismatch")
+
+        clean = git("diff", "--quiet", "--exit-code", actual_revision, "--", "src/pr_review_harness")
+        if clean.returncode == 1:
+            return unavailable("runtime_source_tree_dirty")
+        if clean.returncode != 0:
+            return unavailable("runtime_source_tree_unavailable")
+
+        tracked = git("ls-tree", "-r", "-z", "--name-only", actual_revision, "--", "src/pr_review_harness")
+        if tracked.returncode != 0:
+            return unavailable("runtime_source_tree_unavailable")
+        tracked_modules = {
+            item.decode("utf-8", errors="strict")
+            for item in tracked.stdout.split(b"\0")
+            if item.endswith(b".py")
+        }
+
+        source_files: dict[str, Path] = {}
+        for directory, directory_names, filenames in os.walk(package_root, followlinks=False):
+            current = Path(directory)
+            if any((current / name).is_symlink() for name in directory_names):
+                return unavailable("runtime_source_tree_mismatch")
+            for filename in filenames:
+                path = current / filename
+                if filename.endswith(".py"):
+                    if path.is_symlink() or not path.is_file():
+                        return unavailable("runtime_source_tree_mismatch")
+                    source_files[path.relative_to(workspace).as_posix()] = path
+        if set(source_files) != tracked_modules:
+            return unavailable("runtime_source_tree_mismatch")
+        if not source_files or len(source_files) > _MAX_RUNTIME_MODULES:
+            return unavailable("runtime_source_tree_size_invalid")
+
+        entries = []
+        total_bytes = 0
+        for relative, path in sorted(source_files.items()):
+            source_size = path.stat().st_size
+            if source_size < 0 or source_size > _MAX_RUNTIME_SOURCE_BYTES - total_bytes:
+                return unavailable("runtime_source_tree_size_invalid")
+            raw = path.read_bytes()
+            total_bytes += len(raw)
+            if len(raw) != source_size or total_bytes > _MAX_RUNTIME_SOURCE_BYTES:
+                return unavailable("runtime_source_tree_size_invalid")
+            entries.append({"path": relative, "sha256": hashlib.sha256(raw).hexdigest()})
+        tree_digest = hashlib.sha256(
+            json.dumps(entries, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+        ).hexdigest()
+    except (OSError, UnicodeError, subprocess.SubprocessError, ValueError):
+        return unavailable("runtime_source_identity_unavailable")
+
+    return {
+        "state": "VERIFIED",
+        "reason_code": None,
+        "source_revision": actual_revision,
+        "module_count": len(entries),
+        "module_tree_sha256": tree_digest,
+    }
 
 
 def _validate_json_tree(value: object, *, max_depth: int = _MAX_RESPONSE_DEPTH) -> None:
@@ -514,24 +649,40 @@ def run_actions_canary(
     transport: ReadOnlyTransport | None = None,
     uploader: "OfficialActionsArtifactUploader | None" = None,
 ) -> dict[str, object]:
-    """Read the current trusted event, verify API bindings, and upload a canary artifact."""
+    """Verify local runtime provenance and read-only API bindings, then upload a receipt."""
     environ = os.environ if environ is None else environ
-    try:
-        event_path = environ.get("GITHUB_EVENT_PATH")
-        if not isinstance(event_path, str) or not event_path:
-            raise ActionsRuntimeError("workflow_event_unavailable")
-        event_file = Path(event_path)
-        file_stat = event_file.lstat()
-        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_size > 256 * 1024:
-            raise ActionsRuntimeError("workflow_event_invalid_or_oversized")
-        with event_file.open("rb") as source:
-            event_bytes = source.read(256 * 1024 + 1)
-        expectation = canary_expectation_from_environment(environ, event_bytes)
-        result = verify_read_only_actions_context(expectation, environ.get("GITHUB_TOKEN", ""), transport=transport)
-    except ActionsRuntimeError as exc:
-        result = RuntimeCanaryResult("UNKNOWN", exc.code, None, None, "UNAVAILABLE", (), ())
-    except OSError:
-        result = RuntimeCanaryResult("UNKNOWN", "workflow_event_unavailable", None, None, "UNAVAILABLE", (), ())
+    runtime_identity = _runtime_source_identity(environ)
+    if runtime_identity["state"] != "VERIFIED":
+        result = RuntimeCanaryResult(
+            "UNKNOWN",
+            str(runtime_identity["reason_code"]),
+            None,
+            None,
+            "UNAVAILABLE",
+            (),
+            (),
+            runtime_identity=runtime_identity,
+        )
+    else:
+        try:
+            event_path = environ.get("GITHUB_EVENT_PATH")
+            if not isinstance(event_path, str) or not event_path:
+                raise ActionsRuntimeError("workflow_event_unavailable")
+            event_file = Path(event_path)
+            file_stat = event_file.lstat()
+            if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_size > 256 * 1024:
+                raise ActionsRuntimeError("workflow_event_invalid_or_oversized")
+            with event_file.open("rb") as source:
+                event_bytes = source.read(256 * 1024 + 1)
+            expectation = canary_expectation_from_environment(environ, event_bytes)
+            result = verify_read_only_actions_context(
+                expectation, environ.get("GITHUB_TOKEN", ""), transport=transport
+            )
+        except ActionsRuntimeError as exc:
+            result = RuntimeCanaryResult("UNKNOWN", exc.code, None, None, "UNAVAILABLE", (), ())
+        except OSError:
+            result = RuntimeCanaryResult("UNKNOWN", "workflow_event_unavailable", None, None, "UNAVAILABLE", (), ())
+        result = replace(result, runtime_identity=runtime_identity)
     document = result.as_dict()
     payload = (json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
     try:
