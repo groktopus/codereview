@@ -181,6 +181,9 @@ jobs:
 
           try:
               runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          except OSError:
+              raise SystemExit("runner_temp_unavailable") from None
+          try:
               config_dir = runner_temp / "prepared-selected-model-provider-config"
               config_metadata = config_dir.lstat()
           except FileNotFoundError:
