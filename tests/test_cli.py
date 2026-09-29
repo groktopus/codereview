@@ -1396,6 +1396,25 @@ def test_cli_identity_rebinding_preserves_selected_evidence_and_file_anchor(tmp_
     assert result["coverage_state"] == "COMPLETE"
 
 
+def test_recovery_packet_rejects_boolean_pull_request_number():
+    from pr_review_harness.checks import make_check_runs_document
+    from pr_review_harness.recovery_inputs import RecoveryInputError, make_packet
+
+    head = "a" * 40
+    event = {
+        "repository": "owner/project",
+        "pull_request_number": 1,
+        "event_id": "42",
+        "base_sha": "b" * 40,
+        "head_sha": head,
+    }
+    checks = make_check_runs_document("owner/project", 1, head, [], captured_at="2026-09-28T12:01:00Z")
+    checks["pull_request_number"] = True
+
+    with pytest.raises(RecoveryInputError, match="recovery_check_document_invalid"):
+        make_packet(event, checks, "42")
+
+
 def test_recovery_inputs_rebuild_original_snapshot_and_reject_check_drift(tmp_path, monkeypatch):
     from pr_review_harness import cli
     from pr_review_harness.checks import ingest_check_runs, make_check_runs_document

@@ -72,6 +72,8 @@ def normalize_checks(document: dict[str, Any], *, repository: str, pull_request_
         document.get("schema_version") not in {"1.0", "2.0"}
         or document.get("repository") != repository
         or document.get("pull_request_number") != pull_request_number
+        or isinstance(document.get("pull_request_number"), bool)
+        or not isinstance(document.get("pull_request_number"), int)
         or isinstance(pull_request_number, bool)
         or not SHA.fullmatch(head_sha)
         or document.get("head_sha") != head_sha
