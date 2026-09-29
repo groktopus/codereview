@@ -345,10 +345,10 @@ def test_model_teacher_corpus_rejects_a_profile_mismatch():
         validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
 
 
-def test_active_v3_model_teacher_identity_binds_v3_plan_and_packet():
+def test_active_v4_model_teacher_identity_binds_v4_plan_and_packet():
     import scripts.package_cross_model_v2 as package_cli
 
-    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v3"
+    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v4"
     corpus = json.loads((corpus_root / "corpus.json").read_text())
     manifest = json.loads((corpus_root / "manifest.json").read_text())
     plan_raw = (ROOT / manifest["plan_path"]).read_bytes()

@@ -92,6 +92,38 @@ LIMITS = {
 }
 
 
+def test_decision_observability_keeps_unknown_uncertain_and_omitted_distinct():
+    summary = engine_module._decision_observability(
+        {
+            "check-1": {
+                "status": "PARTIAL",
+                "payload": {
+                    "outcome": "UNKNOWN",
+                    "coverage_notes": [{"state": "PARTIAL"}, {"state": "NOT_COVERED"}],
+                },
+            },
+            "task-2": {"status": "FAILED"},
+        },
+        [
+            {
+                "assessments": {
+                    "introducedness": {"status": "ANSWERED", "choice": "UNKNOWN"},
+                    "materiality": {"status": "ANSWERED", "choice": "UNCERTAIN"},
+                    "observation_support": {"status": "OMITTED"},
+                }
+            }
+        ],
+    )
+
+    assert summary["task_status_counts"] == {"PARTIAL": 1, "FAILED": 1}
+    assert summary["check_outcome_counts"] == {"UNKNOWN": 1}
+    assert summary["coverage_note_state_counts"] == {"PARTIAL": 1, "NOT_COVERED": 1}
+    assert summary["claim_answer_status_counts"] == {"ANSWERED": 2, "OMITTED": 1}
+    assert summary["claim_unknown_choices"] == 1
+    assert summary["claim_uncertain_choices"] == 1
+    assert summary["explicit_abstention_supported"] is False
+
+
 def make_snapshot(units=1):
     inventory, evidence = [], {}
     for index in range(units):
@@ -919,7 +951,7 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
     snapshot = make_snapshot()
     prof = profile(("correctness", "tests", "design", "security", "performance", "maintainability"))
     frozen_plan = json.loads(
-        (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v3.json").read_text()
+        (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v4.json").read_text()
     )
     prof["repository"] = frozen_plan["case"]["repository"]
     snapshot["profile_hash"] = hashlib.sha256(json.dumps(

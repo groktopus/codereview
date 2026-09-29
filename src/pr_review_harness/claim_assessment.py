@@ -500,6 +500,12 @@ class ClaimAssessmentAdapter:
         self.native_call = native_call
         self.configured_model = model
 
+    def _observed_dispatch_state(self) -> str | None:
+        """Read the bounded state exposed by the trusted bound transport, if any."""
+        transport = getattr(self.native_call, "__self__", self.native_call)
+        state = getattr(transport, "last_dispatch_state", None)
+        return state if state in {"http_attempted", "post_guard_pretransport"} else None
+
     @property
     def identity(self) -> dict[str, Any]:
         transport_identity = getattr(self.native_call, "identity", None)
@@ -814,7 +820,13 @@ class ClaimAssessmentAdapter:
             start = time.monotonic()
             raw = self.native_call(prepared.request_bytes, deadline_seconds, output_cap)
             elapsed_ms = round((time.monotonic() - start) * 1000, 2)
+            dispatch_state = self._observed_dispatch_state()
+            if dispatch_state is not None:
+                provenance["dispatch_state"] = dispatch_state
         except Exception as exc:
+            dispatch_state = self._observed_dispatch_state()
+            if dispatch_state is not None:
+                provenance["dispatch_state"] = dispatch_state
             for item in assessments.values():
                 if item["status"] == "NOT_RUN":
                     item["status"] = "FAILED"

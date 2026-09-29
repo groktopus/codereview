@@ -61,6 +61,54 @@ def render_report(result: dict) -> str:
         f"Reviewed: {safe(result.get('base_sha', 'unknown'))}..{safe(result.get('head_sha', 'unknown'))} | Profile: {safe(result.get('project_profile_version', 'unknown'))}",
         f"Budgets: {result.get('budget', {}).get('provider_calls_reserved', 0)}/{result.get('budget', {}).get('provider_calls_limit', 'unknown')} calls; input {result.get('budget', {}).get('context_bytes_reserved', 0)}/{result.get('budget', {}).get('context_bytes_limit', 'unknown')} bytes; output {result.get('budget', {}).get('output_bytes_reserved', 0)}/{result.get('budget', {}).get('output_bytes_limit', 'unknown')} bytes; cost {safe(result.get('budget', {}).get('cost', 'UNKNOWN'))}.",
     ]
+    observations = result.get("budget", {}).get("provider_observability", {})
+    if isinstance(observations, dict):
+        priced = observations.get("estimated_cost_calls_known", 0)
+        provider_calls = observations.get("provider_calls_reserved", 0)
+        estimated_usd = observations.get("estimated_cost_usd_observed", 0)
+        if (
+            isinstance(priced, int)
+            and not isinstance(priced, bool)
+            and isinstance(provider_calls, int)
+            and not isinstance(provider_calls, bool)
+            and provider_calls > 0
+            and priced == provider_calls
+        ):
+            estimated_cost = f"${estimated_usd:.10f} ({priced}/{provider_calls} calls priced)"
+        elif isinstance(priced, int) and not isinstance(priced, bool) and priced > 0:
+            estimated_cost = f"partial ${estimated_usd:.10f} ({priced}/{provider_calls} calls priced)"
+        else:
+            estimated_cost = f"UNKNOWN (0/{provider_calls} calls priced)"
+        lines.append(
+            "Provider observations: "
+            f"{observations.get('http_attempts_observed', 0)} local HTTP attempts observed, "
+            f"{observations.get('http_attempts_not_observed', 0)} recorded before HTTP, "
+            f"{observations.get('dispatch_state_unknown', 0)} unknown; "
+            f"tokens in/out {observations.get('input_tokens_observed', 0)}/"
+            f"{observations.get('output_tokens_observed', 0)} across "
+            f"{observations.get('token_usage_calls_known', 0)}/"
+            f"{observations.get('provider_calls_reserved', 0)} calls with usage; "
+            f"request latency {observations.get('request_latency_ms_total', 0)} ms across "
+            f"{observations.get('request_latency_observations', 0)} observations; "
+            f"estimated cost {estimated_cost}; "
+            f"pre-dispatch price estimate {result.get('budget', {}).get('cost_price_estimate_microunits_reserved', 0)} "
+            f"microunits across {result.get('budget', {}).get('cost_price_estimate_calls_known', 0)} calls; "
+            f"billed cost {observations.get('billed_cost_usd', 'UNKNOWN')}."
+        )
+    decision_observations = result.get("decision_observability")
+    if isinstance(decision_observations, dict):
+        check_outcomes = decision_observations.get("check_outcome_counts", {})
+        answer_statuses = decision_observations.get("claim_answer_status_counts", {})
+        coverage_states = decision_observations.get("coverage_note_state_counts", {})
+        lines.append(
+            "Uncertainty: "
+            f"{check_outcomes.get('UNKNOWN', 0)} unknown checks, "
+            f"{coverage_states.get('PARTIAL', 0)} partial and "
+            f"{coverage_states.get('NOT_COVERED', 0)} not-covered notes; "
+            f"{decision_observations.get('claim_unknown_choices', 0)} unknown and "
+            f"{decision_observations.get('claim_uncertain_choices', 0)} uncertain claim answers; "
+            f"{answer_statuses.get('OMITTED', 0)} omitted answers."
+        )
     names = (
         ("Blockers", "blockers"),
         ("Suggested improvements", "suggested_improvements"),

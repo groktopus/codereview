@@ -1,0 +1,119 @@
+{
+  "schema": "model-only-shadow-live-writer-plan.v2",
+  "status": "PREPARE_ONLY_PINNED_PLAN_NO_PROVIDER_DISPATCH",
+  "case": {
+    "case_id": "PR-457",
+    "repository": "magnus919/SlopSearX",
+    "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
+    "head_sha": "595f143607961d21d162efe76518d86e416d2548",
+    "snapshot_id": "snap-24293f430e4f8006a52bac18",
+    "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
+    "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95",
+    "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
+    "profile_file_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
+    "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977",
+    "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311",
+    "scope_obligations": 14
+  },
+  "runtime": {
+    "plan_generated_from_revision": "81cc2a2d2096a8ee942d713ace0a09f067fde51e",
+    "module_count": 35,
+    "module_tree_sha256": "94828daf6aecc1dbc19edb3d252a3cf421938ac2e6202b14319c2fa7d9839f46",
+    "limits_sha256": "cf1a0e7801af6fbccaa9a2bc63dd4fedea6d6436492c49374a40eac3fce7b4f2",
+    "provider_identity_sha256": "7281669d596d3833969c1f2db7500e64c1c00ab3e33c4fa8a731d9fd9d40211d",
+    "writer_provider_config_sha256": "624572620cc858347228188ae092a8b381956aa20042ee826fe2c5225044866c"
+  },
+  "provider_identity": {
+    "status": "PLANNED_NOT_OBSERVED_SECRET_VALUES_OPAQUE",
+    "writer_provider_id": "operator_openai_compatible",
+    "writer_base_url": "https://inference-api.nousresearch.com/v1",
+    "writer_model": "openai/gpt-6-luna",
+    "writer_credential_env": "LLM_API_KEY"
+  },
+  "budget": {
+    "writer_exact_call_count": 6,
+    "writer_max_provider_calls": 10,
+    "writer_max_retries_per_task": 0,
+    "writer_max_request_bytes": 128000,
+    "writer_max_response_bytes": 32768,
+    "writer_max_output_tokens": 1800,
+    "writer_deadline_seconds": 600,
+    "writer_max_concurrent_scopes": 4,
+    "writer_followup_slots": 0,
+    "writer_claim_assessment_slots": 0,
+    "writer_summary_slots": 0,
+    "writer_optional_stage_slots": 0,
+    "audit_max_provider_calls": 3,
+    "audit_max_response_bytes_per_call": 64000,
+    "audit_max_output_tokens_per_llm_call": 1800,
+    "audit_max_deadline_seconds_per_call": 90,
+    "audit_max_retries": 0,
+    "total_provider_calls_max": 13,
+    "total_provider_deadline_seconds_max": 870,
+    "target_code_execution": false,
+    "publication_enabled": false,
+    "audit_max_input_bytes_per_call": 120000
+  },
+  "writer_requests": [
+    {
+      "task_id": "task-623f302f40eb1872:chunk-1",
+      "lens": "correctness",
+      "input_bytes": 118490,
+      "input_sha256": "e635795b3d86a23c1be46a6f47a952e68968564f593ce64ffcac36af3bb578ec",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-c74db8e0a80307d3:chunk-1",
+      "lens": "tests",
+      "input_bytes": 118486,
+      "input_sha256": "65ae932cf4dab2d7b95f02af80de628ae2cdb332e0fcb038f13b48e9675250ce",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-f10edd3dcc43dac7:chunk-1",
+      "lens": "maintainability",
+      "input_bytes": 118459,
+      "input_sha256": "0af118180586c10c4dd55618f7a1b05c06316266ec15450e2c74e2462223fd94",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-501271d8089f3137:chunk-1",
+      "lens": "correctness",
+      "input_bytes": 38045,
+      "input_sha256": "547a91644c6d7d48e16ef9e89ca3f1ec048d9f6dc2cdeca8eb9eca14229ca612",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-3564cf4456fc5138:chunk-1",
+      "lens": "tests",
+      "input_bytes": 38053,
+      "input_sha256": "64340e9be47f48f259bd096b5de864e6c238c2e95d0ab9e1323024f18c4de6e2",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-338809eec73565aa:chunk-1",
+      "lens": "maintainability",
+      "input_bytes": 38006,
+      "input_sha256": "3b59e584768b570ad692371f0684e1dfd2e02f3804b9a6c478efbecdf933cbb9",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    }
+  ],
+  "prepare_contract": {
+    "profile_path": "docs/real-case-trial-v1/profiles/PR-457.json",
+    "historical_checks_path": "docs/real-case-trial-v1/checks/PR-457.json",
+    "limits_path": "experiments/model-only-shadow-live-writer-limits-v1.json",
+    "provider_config_path": "experiments/model-only-shadow-live-writer-provider-v1.json",
+    "mode": "AUTO",
+    "effect_policy": "READ_ONLY",
+    "prepare_only": true,
+    "json_output": true,
+    "capture_case_id": "PR-457",
+    "provider_calls_before_preflight": 0
+  }
+}

@@ -36,9 +36,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # The operator bridge is bound to the active frozen identity. Historical v1/v2
 # artifacts remain available for their own evaluation workflows, but are not a
 # fallback identity for this bridge.
-PR464_CORPUS = ROOT / "examples/evaluation/model-only-shadow-pr464-v3/corpus.json"
-PR464_IDENTITY = ROOT / "examples/evaluation/model-only-shadow-pr464-v3/manifest.json"
-PR464_PLAN = ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
+PR464_CORPUS = ROOT / "examples/evaluation/model-only-shadow-pr464-v4/corpus.json"
+PR464_IDENTITY = ROOT / "examples/evaluation/model-only-shadow-pr464-v4/manifest.json"
+PR464_PLAN = ROOT / "experiments/model-only-shadow-live-pr464-plan-v4.json"
 
 
 class SealedSourceIntegrationError(ValueError):

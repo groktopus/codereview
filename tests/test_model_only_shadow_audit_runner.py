@@ -139,8 +139,8 @@ def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer
 
 
 def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
-    assert RUNNER.DEFAULT_PLAN == REPO_ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
-    assert RUNNER.DEFAULT_LIMITS == REPO_ROOT / "experiments/model-only-shadow-audit-limits-v2.json"
+    assert RUNNER.DEFAULT_PLAN == REPO_ROOT / "experiments/model-only-shadow-live-pr464-plan-v4.json"
+    assert RUNNER.DEFAULT_LIMITS == REPO_ROOT / "experiments/model-only-shadow-audit-limits-pr464-v4.json"
     plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
     plan_raw = plan_path.read_bytes()
     plan = json.loads(plan_raw)

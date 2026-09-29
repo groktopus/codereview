@@ -1,0 +1,13 @@
+{
+  "schema": "model-only-shadow-live-plan-v4-finalization.v1",
+  "status": "FROZEN_PROVIDER_FREE_PREPARATION",
+  "case_id": "PR-457",
+  "source_revision": "81cc2a2d2096a8ee942d713ace0a09f067fde51e",
+  "module_count": 35,
+  "module_tree_sha256": "94828daf6aecc1dbc19edb3d252a3cf421938ac2e6202b14319c2fa7d9839f46",
+  "plan_path": "experiments/model-only-shadow-live-pr457-plan-v4.json",
+  "plan_sha256": "68e8f512092ecd6d8f2bffa6dcda9405b3252087f151dc9c75744ff640aedcd6",
+  "prepared_output_sha256": "a98d230ca1abd883b572b9806d1ef5bd88a57443041ead7a5f8edd882f9ddf90",
+  "provider_calls": 0,
+  "target_code_execution": false
+}

@@ -160,6 +160,89 @@ LIMITS = {
 }
 
 
+def test_budget_summary_aggregates_observed_usage_without_inferencing_dispatch_or_billing():
+    limits = {**LIMITS, "max_provider_calls": 3, "max_cost_microunits": None}
+    state = {}
+    budget = BudgetLedger(limits, state, deadline_epoch=time.time() + 10)
+    reservation = {
+        "provider_calls": 1,
+        "input_bytes": 100,
+        "max_output_bytes": 500,
+        "reservation_kind": "price_estimate",
+        "estimated_cost_microunits": 10,
+    }
+    for key in ("observed", "pretransport", "unknown"):
+        budget.reserve(key, reservation if key != "unknown" else {**reservation, "estimated_cost_microunits": None})
+    base_exchange = {
+        "contract_version": "local-http-exchange.v1",
+        "delivery_observation": "UNKNOWN",
+        "request_serialized": True,
+        "request_sha256": "a" * 64,
+        "endpoint_sha256": "b" * 64,
+        "request_bytes": 1,
+    }
+    budget.settle(
+        "observed",
+        output_bytes=12,
+        usage={"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14},
+        status="SUCCEEDED",
+        provenance={
+            "elapsed_ms": 12.5,
+            "estimated_cost_usd": 0.0003,
+            "billed_cost_usd": None,
+            "billed_cost_known": False,
+            "local_http_exchange": {
+                **base_exchange,
+                "state": "HTTP_RESPONSE_RECEIVED",
+                "request_attempted": True,
+                "http_status": 200,
+                "response_sha256": "c" * 64,
+                "response_bytes": 1,
+                "response_complete": True,
+            },
+            "prompt": "must not be retained",
+        },
+    )
+    budget.settle(
+        "pretransport",
+        output_bytes=None,
+        usage={},
+        status="FAILED",
+        provenance={
+            "local_http_exchange": {
+                **base_exchange,
+                "state": "REQUEST_SERIALIZED",
+                "request_attempted": False,
+            }
+        },
+    )
+    budget.settle("unknown", output_bytes=None, usage={"input_tokens": 9}, status="INTERRUPTED_UNKNOWN")
+
+    summary = budget.summary()
+    observed = summary["provider_observability"]
+    assert observed["provider_calls_reserved"] == 3
+    assert observed["http_attempts_observed"] == 1
+    assert observed["http_attempts_not_observed"] == 1
+    assert observed["dispatch_state_unknown"] == 1
+    assert observed["input_tokens_observed"] == 19
+    assert observed["output_tokens_observed"] == 4
+    assert observed["input_token_calls_known"] == 2
+    assert observed["output_token_calls_known"] == 1
+    assert observed["token_usage_calls_known"] == 1
+    assert observed["token_usage_calls_unknown"] == 2
+    assert observed["token_usage_complete"] is False
+    assert observed["request_latency_observations"] == 1
+    assert observed["request_latency_ms_total"] == 12.5
+    assert observed["estimated_cost_usd_observed"] == 0.0003
+    assert observed["estimated_cost_complete"] is False
+    assert observed["billed_cost_usd"] == "UNKNOWN"
+    assert observed["billed_cost_complete"] is False
+    assert summary["cost_price_estimate_microunits_reserved"] == 20
+    assert summary["cost_price_estimate_calls_known"] == 2
+    assert summary["cost_price_estimate_complete"] is False
+    assert "prompt" not in state["settlements"]["observed"]["observation"]
+
+
 class RaisesProviderMetadata:
     def __init__(self, meta):
         self.meta = meta

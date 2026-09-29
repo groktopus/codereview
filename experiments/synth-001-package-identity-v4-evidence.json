@@ -1,0 +1,56 @@
+{
+  "schema": "synth-001-preflight-evidence.v1",
+  "status": "PROVIDER_FREE_PREPARE_MATCHED_FROZEN_RUNTIME",
+  "run_contract": {
+    "provider_calls": 0,
+    "planned_provider_calls": 1,
+    "dispatched_provider_calls": 0,
+    "retries": 0,
+    "context_retrievals": 0,
+    "followups": 0,
+    "publication_enabled": false,
+    "target_code_execution": false
+  },
+  "runtime_observation": {
+    "source_revision": "81cc2a2d2096a8ee942d713ace0a09f067fde51e",
+    "module_count": 35,
+    "module_tree_sha256": "b3c0d4ab331928da159f957de5a3a50a8b50700cbe9a08c44fbec4f49d65af66",
+    "python": {
+      "implementation": "cpython",
+      "version": "3.14.7"
+    },
+    "final_pin_status": "FROZEN"
+  },
+  "fixture": {
+    "fixture_id": "SYNTH-001",
+    "base_sha": "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
+    "head_sha": "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
+    "snapshot_id": "snap-a6c6ac33adda6c436e2cf3cf",
+    "snapshot_hash": "5aa65743e9d68732bb9b5565370d7b2797c80d14f7017404b46a4fa1cd6c0599",
+    "evidence_index_sha256": "034fdbb66f32a5fdbedfacdce793d66c636ce93a961530ecb7827f967fc43bd5"
+  },
+  "request": {
+    "planned_calls": 1,
+    "request_bytes": 11687,
+    "request_sha256": "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d",
+    "request_descriptor_sha256": "7c444c1d74564cfa2962ffec76141932101be55861c434b59c8f38181df8d10a",
+    "output_bytes_cap": 16000,
+    "output_tokens_cap": 1200
+  },
+  "artifacts": {
+    "materialization_sha256": "510cf3c61eae681a0cf7a97552e0366f107fc6eec52d3ab4d740cde6486f1457",
+    "prepared_sha256": "2a10fea8bddd6f109545ff26985cd8eac55a918af63fd7232ca8ef335a1b5192",
+    "verification_sha256": "9354b7bb9d5826e3609a4f7631728dc976f33ab59c66a64e22b65daaa1f1c6aa",
+    "preflight_bundle_sha256": "6a53f68ff24795cd8841dd84d7ac1bb808408b653cc86f742e24650e4bd14ffc"
+  },
+  "identity": {
+    "path": "experiments/synth-001-package-identity-v4.json",
+    "sha256": "66f78e1e84763c7454bef2137b14b14f63a7dd120dd06f49b44e0a62025b2d29",
+    "runtime_pin_status": "FROZEN"
+  },
+  "historical_identity": {
+    "path": "experiments/synth-001-package-identity-v3.json",
+    "sha256": "6a25df3d3fb7c4bd3ce5ae0b928956ac0e6539708742904892c5ce1ec9ac2631",
+    "unchanged": true
+  }
+}

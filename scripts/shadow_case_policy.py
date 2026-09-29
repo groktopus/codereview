@@ -8,8 +8,8 @@ from typing import Any
 
 CASE_POLICY: dict[str, dict[str, Any]] = {
     "PR-457": {
-        "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
-        "plan_sha256": "f586a799c845c0f0c05260f325d77ea7d6d0d4cb602edb23bcbc0e1312264d6d",
+        "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v4.json",
+        "plan_sha256": "68e8f512092ecd6d8f2bffa6dcda9405b3252087f151dc9c75744ff640aedcd6",
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
         "audit_input_limit": 120_000,
         "writer_calls": 6,
@@ -19,8 +19,8 @@ CASE_POLICY: dict[str, dict[str, Any]] = {
         "profile_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
     },
     "PR-464": {
-        "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
-        "plan_sha256": "d488a2f1eec7db9818bb5b44865863ae39f6293197643cae89cebc7ad9ceba9b",
+        "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v4.json",
+        "plan_sha256": "fba1de929177dae2f9ef94cf343b2785821b42baeca02b96c4ab74ab573d63ba",
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
         "audit_input_limit": 96_000,
         "writer_calls": 10,

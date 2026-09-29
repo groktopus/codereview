@@ -1,0 +1,151 @@
+{
+  "schema": "model-only-shadow-live-writer-plan.v2",
+  "status": "PREPARE_ONLY_PINNED_PLAN_NO_PROVIDER_DISPATCH",
+  "case": {
+    "case_id": "PR-464",
+    "repository": "magnus919/SlopSearX",
+    "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
+    "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+    "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+    "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+    "evidence_index_sha256": "0b75fca3258bd3d75ed3d260467ec130f639f2afc59519e5f603f4d4a176e30c",
+    "profile_version": "slopsearx-realcase-eval-v2-pr464-context240-window16k",
+    "profile_file_sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8",
+    "historical_checks_sha256": "7198ac6bf02d3887fb065205e4ffbd48d435657027d4d5fa73168bdc900c359f",
+    "check_evidence_sha256": "7187d1097d94930be5b3faf1a584cd409ecaae3f9f33789bfd6df78f5a451e7b",
+    "scope_obligations": 22
+  },
+  "runtime": {
+    "plan_generated_from_revision": "81cc2a2d2096a8ee942d713ace0a09f067fde51e",
+    "module_count": 35,
+    "module_tree_sha256": "94828daf6aecc1dbc19edb3d252a3cf421938ac2e6202b14319c2fa7d9839f46",
+    "limits_sha256": "cf1a0e7801af6fbccaa9a2bc63dd4fedea6d6436492c49374a40eac3fce7b4f2",
+    "provider_identity_sha256": "7281669d596d3833969c1f2db7500e64c1c00ab3e33c4fa8a731d9fd9d40211d",
+    "writer_provider_config_sha256": "624572620cc858347228188ae092a8b381956aa20042ee826fe2c5225044866c"
+  },
+  "provider_identity": {
+    "status": "PLANNED_NOT_OBSERVED_SECRET_VALUES_OPAQUE",
+    "writer_provider_id": "operator_openai_compatible",
+    "writer_base_url": "https://inference-api.nousresearch.com/v1",
+    "writer_model": "openai/gpt-6-luna",
+    "writer_credential_env": "LLM_API_KEY"
+  },
+  "budget": {
+    "writer_exact_call_count": 10,
+    "writer_max_provider_calls": 10,
+    "writer_max_retries_per_task": 0,
+    "writer_max_request_bytes": 128000,
+    "writer_max_response_bytes": 32768,
+    "writer_max_output_tokens": 1800,
+    "writer_deadline_seconds": 600,
+    "writer_max_concurrent_scopes": 4,
+    "writer_followup_slots": 0,
+    "writer_claim_assessment_slots": 0,
+    "writer_summary_slots": 0,
+    "writer_optional_stage_slots": 0,
+    "audit_max_provider_calls": 3,
+    "audit_max_response_bytes_per_call": 64000,
+    "audit_max_output_tokens_per_llm_call": 1800,
+    "audit_max_deadline_seconds_per_call": 90,
+    "audit_max_retries": 0,
+    "total_provider_calls_max": 13,
+    "total_provider_deadline_seconds_max": 870,
+    "target_code_execution": false,
+    "publication_enabled": false,
+    "audit_max_input_bytes_per_call": 96000
+  },
+  "writer_requests": [
+    {
+      "task_id": "task-1128524cfb848290:chunk-1",
+      "lens": "correctness",
+      "input_bytes": 79151,
+      "input_sha256": "f54106427c444b8c130da63e76e626bbfbd7a3d4489348d8f8c81a1a5f66d035",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-221b29571ba70146:chunk-1",
+      "lens": "tests",
+      "input_bytes": 79153,
+      "input_sha256": "cec8838685f9cdc5cc5f082fe310b2efcf310f7d502096bc8ab76983aafcca6d",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-52d55b2ce64974e5:chunk-1",
+      "lens": "maintainability",
+      "input_bytes": 79116,
+      "input_sha256": "2680bd084446d33b1d4c0557a0442cc68521e02ecb34ae7c684d9f00d2330c1f",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-282982b7861998d6:chunk-1",
+      "lens": "correctness",
+      "input_bytes": 96460,
+      "input_sha256": "e0523952b3099b73bea2f945a2081e0b9a6733719227ce4e81ae1fea8d11971d",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-f758c68e3c178306:chunk-1",
+      "lens": "tests",
+      "input_bytes": 96462,
+      "input_sha256": "8d49e5e389482d34399c0259b9f82e64ebdab748f3e7995b359b803648b6949d",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-70cf4010656855d0:chunk-1",
+      "lens": "maintainability",
+      "input_bytes": 96425,
+      "input_sha256": "7ff96a47831ad0f15743be0b15fd7047eda64c9265d85c75e9200301172cad2c",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-80f5220cce394afe:chunk-1",
+      "lens": "security",
+      "input_bytes": 96427,
+      "input_sha256": "52bb2522164c1565b534c6c9601afe1308b10533e00e36e839231f7379bba4df",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-63fe7dafb216f2f3:chunk-1",
+      "lens": "correctness",
+      "input_bytes": 90066,
+      "input_sha256": "56e151b15891953d73d7ce757fed3382f930a381ebc03a60615eaa5182afb026",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-add74da7883dc133:chunk-1",
+      "lens": "tests",
+      "input_bytes": 90068,
+      "input_sha256": "bd1519a7434138a9258118e467b1a78711329cd39688d6041a96ab6d5b764d8d",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    },
+    {
+      "task_id": "task-808f5db4036db9ba:chunk-1",
+      "lens": "maintainability",
+      "input_bytes": 90031,
+      "input_sha256": "6fe88a2040ac4572b25a5deee2dac4ee42ceeb74340d913ecb9385ccde8e0fb6",
+      "output_bytes_cap": 32768,
+      "output_tokens_cap": 1800
+    }
+  ],
+  "prepare_contract": {
+    "profile_path": "docs/real-case-trial-v1/profiles/PR-464.json",
+    "historical_checks_path": "docs/real-case-trial-v1/checks/PR-464.json",
+    "limits_path": "experiments/model-only-shadow-live-writer-limits-v1.json",
+    "provider_config_path": "experiments/model-only-shadow-live-writer-provider-v1.json",
+    "mode": "AUTO",
+    "effect_policy": "READ_ONLY",
+    "prepare_only": true,
+    "json_output": true,
+    "capture_case_id": "PR-464",
+    "provider_calls_before_preflight": 0
+  }
+}

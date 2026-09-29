@@ -77,6 +77,29 @@ def test_report_ignores_malformed_partial_note_containers():
     assert "Specialist reported partial coverage" not in render_report(malformed)
 
 
+@pytest.mark.parametrize(
+    ("priced", "calls", "amount", "expected"),
+    [
+        (0, 2, 0, "estimated cost UNKNOWN (0/2 calls priced)"),
+        (1, 2, 0.25, "estimated cost partial $0.2500000000 (1/2 calls priced)"),
+        (2, 2, 0.25, "estimated cost $0.2500000000 (2/2 calls priced)"),
+    ],
+)
+def test_report_labels_unknown_partial_and_complete_estimates(priced, calls, amount, expected):
+    result = result_with_coverage_reason("LIMITED_CHANGED_SCOPE_EVIDENCE")
+    result["budget"]["provider_observability"] = {
+        "provider_calls_reserved": calls,
+        "estimated_cost_calls_known": priced,
+        "estimated_cost_usd_observed": amount,
+        "billed_cost_usd": "UNKNOWN",
+    }
+
+    rendered = render_report(result)
+
+    assert expected in rendered
+    assert "billed cost UNKNOWN" in rendered
+
+
 def test_not_applicable_check_report_separates_reason_from_profile_rationale():
     result = result_with_coverage_reason("NO_TEST_SOURCE_SUPPLIED")
     result["not_applicable"] = [

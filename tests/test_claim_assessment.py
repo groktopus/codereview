@@ -138,6 +138,23 @@ def test_serialized_native_choice_request_binds_candidate_and_exact_evidence_ref
     assert result["usage"] == {"known": True, "input_tokens": 10, "output_tokens": 5}
 
 
+def test_bound_transport_dispatch_state_is_retained_without_request_bytes():
+    class Transport:
+        last_dispatch_state = "post_guard_pretransport"
+
+        def __call__(self, raw, _deadline, _cap):
+            self.last_dispatch_state = "http_attempted"
+            return _envelope(raw)
+
+    result = ClaimAssessmentAdapter(Transport(), "jev-latest").assess(
+        _candidate(), [_evidence()], _identity(), _limits()
+    )
+
+    assert result["provenance"]["dispatch_state"] == "http_attempted"
+    assert "request_bytes" not in result["provenance"]
+    assert result["usage"] == {"known": True, "input_tokens": 10, "output_tokens": 5}
+
+
 def test_v2_binds_primary_generated_assessment_separately_and_preserves_v1_contract():
     captured = {}
 
