@@ -35,8 +35,12 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR
     packet_inventory = []
     for index, request in enumerate(plan["writer_requests"]):
         name = f"packet-{index}.json"
-        packet_raw = json.dumps({"source_task": {"task_id": request["task_id"]}, "writer_candidate": None},
-                                sort_keys=True, separators=(",", ":")).encode() + b"\n"
+        packet_raw = json.dumps({
+            "source_task": {"task_id": request["task_id"], "unit_ids": [f"unit-{index}"],
+                            "evidence_ids": [f"ev-{index}"]},
+            "source_evidence": [{"evidence_id": f"ev-{index}", "content": "private excerpt fixture"}],
+            "writer_candidate": None,
+        }, sort_keys=True, separators=(",", ":")).encode() + b"\n"
         (packet_dir / name).write_bytes(packet_raw)
         os.chmod(packet_dir / name, 0o600)
         packet_inventory.append({"path": name, "sha256": hashlib.sha256(packet_raw).hexdigest()})
@@ -158,6 +162,34 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     assert all(re.fullmatch(r"[0-9a-f]{64}", row[key]) for row in outcomes["tasks"]
                for key in ("task_id_sha256", "response_sha256"))
     assert b"finding_candidates" not in outcomes_raw
+    diagnostic_path = output / "writer-task-diagnostics.json"
+    diagnostic_raw = diagnostic_path.read_bytes()
+    diagnostics = json.loads(diagnostic_raw)
+    assert diagnostics["schema"] == "model-only-shadow-live-task-diagnostics.v1"
+    assert len(diagnostics["tasks"]) == len(_manifest["calls"])
+    assert set(diagnostics) == {"schema", "plan_sha256", "capture_manifest_sha256", "tasks"}
+    plan_doc = json.loads(plan.read_text())
+    request_by_task = {row["task_id"]: row for row in plan_doc["writer_requests"]}
+    first = diagnostics["tasks"][0]
+    first_task_id = next(call["task_id"] for call in _manifest["calls"]
+                         if hashlib.sha256(call["task_id"].encode("utf-8")).hexdigest() == first["task_id_sha256"])
+    assert first["lens"] == request_by_task[first_task_id]["lens"]
+    assert len(first["unit_hashes"]) == 1 and re.fullmatch(r"[0-9a-f]{64}", first["unit_hashes"][0])
+    assert first["evidence_count"] == 1 and first["evidence_bytes"] > 0
+    assert first["returned_candidate_count"] == 0
+    assert first["context_gap_count"] == 0 and first["coverage_note_count"] == 0
+    assert first["attempt"] == 0 and first["completion_state"] == "completed"
+    assert first["provider_completion_metadata"] == "not_captured"
+    assert set(first) == {
+        "task_id_sha256", "lens", "unit_hashes", "evidence_count", "evidence_ids_sha256",
+        "evidence_bytes", "request_bytes", "response_bytes", "response_parse_status",
+        "returned_candidate_count", "context_gap_count", "coverage_note_count", "attempt",
+        "completion_state", "provider_completion_metadata",
+    }
+    assert b"private excerpt fixture" not in diagnostic_raw
+    assert all(f"unit-{i}".encode() not in diagnostic_raw and f"ev-{i}".encode() not in diagnostic_raw
+               for i in range(len(_manifest["calls"])))
+    assert stat.S_IMODE(diagnostic_path.stat().st_mode) == 0o600
     assert stat.S_IMODE(outcome_artifact.stat().st_mode) == 0o600
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
     assert stat.S_IMODE(artifact.stat().st_mode) == 0o600
@@ -215,6 +247,11 @@ def test_sanitizer_rejects_tampered_plan_before_receipt_creation(tmp_path: Path,
     ("response_payload", "outcome", "parse_status", "returned_count"),
     [
         ({"contract_version": "specialist-findings.v4", "finding_candidates": [],
+          "context_gap_proposals": [{"rationale": "private gap text"}],
+          "coverage_notes": [{"reason_code": "private coverage text"}],
+          "specific_strengths": [], "future_guidance": []},
+         "zero_findings_returned", "valid_specialist_report", 0),
+        ({"contract_version": "specialist-findings.v4", "finding_candidates": [],
           "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": []},
          "zero_findings_returned", "valid_specialist_report", 0),
         ({"contract_version": "specialist-findings.v4", "finding_candidates": {},
@@ -248,6 +285,17 @@ def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
     assert first["outcome"] == outcome
     assert first["response_parse_status"] == parse_status
     assert first["returned_candidate_count"] == returned_count
+    diagnostics = json.loads((runner_temp / "private-writer-sanitized" / "writer-task-diagnostics.json").read_text())
+    first_diagnostic = next(row for row in diagnostics["tasks"]
+                            if row["task_id_sha256"] == first["task_id_sha256"])
+    expected_gap_count = (len(response_payload["context_gap_proposals"])
+                          if isinstance(response_payload["context_gap_proposals"], list) else None)
+    expected_coverage_count = (len(response_payload["coverage_notes"])
+                               if isinstance(response_payload["coverage_notes"], list) else None)
+    assert first_diagnostic["context_gap_count"] == expected_gap_count
+    assert first_diagnostic["coverage_note_count"] == expected_coverage_count
+    assert "private gap text" not in json.dumps(diagnostics)
+    assert "private coverage text" not in json.dumps(diagnostics)
     serialized = json.dumps(outcomes)
     assert "private" not in serialized
     assert "observation" not in serialized
@@ -264,14 +312,17 @@ def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_p
         filename = packets[0]["path"]
         task_id = calls[0]["task_id"]
         _replace_packet(capture, manifest, filename, {
-            "source_task": {"task_id": task_id},
+            "source_task": {"task_id": task_id, "unit_ids": ["unit-replacement"],
+                            "evidence_ids": ["ev-replacement"]},
+            "source_evidence": [{"evidence_id": "ev-replacement", "content": "private excerpt fixture"}],
             "writer_candidate": {"candidate_id": "bounded-private-fixture"},
         })
     else:
         task_id = calls[0]["task_id"]
         for index in range(119):
             filename = f"extra-{index:03d}.json"
-            raw = json.dumps({"source_task": {"task_id": task_id}, "writer_candidate": None},
+            raw = json.dumps({"source_task": {"task_id": task_id, "unit_ids": [], "evidence_ids": []},
+                              "source_evidence": [], "writer_candidate": None},
                              sort_keys=True, separators=(",", ":")).encode() + b"\n"
             path = capture / "case-packets" / filename
             path.write_bytes(raw)

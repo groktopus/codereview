@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Emit a hash-only receipt from one complete private writer capture.
+"""Emit allowlisted content-free diagnostics from one complete private writer capture.
 
 The script deliberately discards every raw prompt, source excerpt, candidate,
-and model response. It accepts only a full successful execution of the fixed
-PR-464 request plan and writes one allowlisted JSON receipt.
+and model response. It accepts only a full successful execution of a pinned
+writer plan and writes private allowlisted JSON artifacts.
 """
 
 from __future__ import annotations
@@ -29,6 +29,11 @@ CALL_ID = re.compile(r"^call-[0-9a-f]{24}$")
 
 class ReceiptError(ValueError):
     """Capture is incomplete or does not match the reviewed plan."""
+
+
+def _canonical_bytes(value: Any) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                      allow_nan=False).encode("utf-8")
 
 
 def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -136,13 +141,15 @@ def _validate_packet_inventory(root: Path, manifest: dict[str, Any]) -> None:
 
 
 def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: str,
-                              response_rows: dict[str, dict[str, Any]]) -> dict[str, Any]:
+                              response_rows: dict[str, dict[str, Any]],
+                              request_rows: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Summarize the model-output to packet boundary without retaining content."""
     inventory = manifest["case_packet_inventory"]["packets"]
     if len(inventory) > 128:
         raise ReceiptError("capture_packet_inventory_invalid")
     packet_candidates: dict[str, int] = {}
     packet_counts: dict[str, int] = {}
+    packet_diagnostics: dict[str, dict[str, Any]] = {}
     for item in inventory:
         packet, _raw = _read_json(root / "case-packets" / item["path"], 4_000_000)
         source_task = packet.get("source_task")
@@ -155,6 +162,35 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
             raise ReceiptError("capture_packet_candidate_invalid")
         if candidate is not None:
             packet_candidates[task_id] = packet_candidates.get(task_id, 0) + 1
+        source_task = packet.get("source_task")
+        source_evidence = packet.get("source_evidence")
+        if not isinstance(source_task, dict) or not isinstance(source_evidence, list):
+            raise ReceiptError("capture_packet_source_invalid")
+        unit_ids = source_task.get("unit_ids", [])
+        evidence_ids = source_task.get("evidence_ids", [])
+        if (not isinstance(unit_ids, list) or len(unit_ids) > 128
+                or any(not isinstance(value, str) or not value for value in unit_ids)
+                or not isinstance(evidence_ids, list) or len(evidence_ids) > 512
+                or any(not isinstance(value, str) or not value for value in evidence_ids)
+                or len(source_evidence) > 512
+                or any(not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str)
+                       for item in source_evidence)):
+            raise ReceiptError("capture_packet_source_invalid")
+        if evidence_ids != [item["evidence_id"] for item in source_evidence]:
+            raise ReceiptError("capture_packet_source_invalid")
+        # Keep only hashes, counts, and byte lengths. Never copy task/evidence
+        # names, excerpts, or model output text into the diagnostic artifact.
+        source_evidence_bytes = sum(len(_canonical_bytes(item)) for item in source_evidence)
+        source = {
+            "unit_hashes": sorted(hashlib.sha256(value.encode("utf-8")).hexdigest() for value in set(unit_ids)),
+            "evidence_count": len(source_evidence),
+            "evidence_ids_sha256": hashlib.sha256(_canonical_bytes(evidence_ids)).hexdigest(),
+            "evidence_bytes": source_evidence_bytes,
+        }
+        existing = packet_diagnostics.get(task_id)
+        if existing is not None and existing != source:
+            raise ReceiptError("capture_packet_source_mismatch")
+        packet_diagnostics[task_id] = source
 
     rows = []
     if set(packet_counts) != set(response_rows):
@@ -184,7 +220,37 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
             "candidate_packet_count": packet_counts.get(task_id, 0),
             "outcome": outcome,
         })
-    return {
+    diagnostic_rows = []
+    for task_id in sorted(response_rows):
+        response = response_rows[task_id]
+        request = request_rows[task_id]
+        source = packet_diagnostics[task_id]
+        diagnostic_rows.append({
+            "task_id_sha256": hashlib.sha256(task_id.encode("utf-8")).hexdigest(),
+            "lens": request["lens"],
+            "unit_hashes": source["unit_hashes"],
+            "evidence_count": source["evidence_count"],
+            "evidence_ids_sha256": source["evidence_ids_sha256"],
+            "evidence_bytes": source["evidence_bytes"],
+            "request_bytes": request["input_bytes"],
+            "response_bytes": response["response_bytes"],
+            "response_parse_status": response["response_parse_status"],
+            "returned_candidate_count": response["returned_candidate_count"],
+            "context_gap_count": response["context_gap_count"],
+            "coverage_note_count": response["coverage_note_count"],
+            "attempt": response["attempt"],
+            "completion_state": response["completion_state"],
+            "provider_completion_metadata": "not_captured",
+        })
+    diagnostics = {
+        "schema": "model-only-shadow-live-task-diagnostics.v1",
+        "plan_sha256": plan_hash,
+        "capture_manifest_sha256": hashlib.sha256(
+            (root / "manifest.json").read_bytes()
+        ).hexdigest(),
+        "tasks": diagnostic_rows,
+    }
+    outcomes = {
         "schema": "model-only-shadow-live-writer-outcomes.v1",
         "plan_sha256": plan_hash,
         "capture_manifest_sha256": hashlib.sha256(
@@ -201,6 +267,7 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
             )
         },
     }
+    return outcomes, diagnostics
 
 
 def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_dir: Path) -> dict[str, Any]:
@@ -352,6 +419,13 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
             "response_sha256": call["response_sha256"],
             "response_parse_status": parse_status,
             "returned_candidate_count": returned_candidate_count,
+            "context_gap_count": len(parsed["context_gap_proposals"])
+            if isinstance(parsed.get("context_gap_proposals"), list) else None,
+            "coverage_note_count": len(parsed["coverage_notes"])
+            if isinstance(parsed.get("coverage_notes"), list) else None,
+            "response_bytes": len(response),
+            "attempt": call["attempt"],
+            "completion_state": call["status"],
         }
         receipts.append({
             "task_id": task_id,
@@ -374,12 +448,15 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     }
     output_path.mkdir(mode=0o700)
     os.chmod(output_path, 0o700)
-    outcomes = _writer_outcome_accounting(root, manifest, plan_hash, response_rows)
+    outcomes, diagnostics = _writer_outcome_accounting(root, manifest, plan_hash, response_rows, expected)
     _write_private(output_path / "writer-receipt.json", json.dumps(
         output, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8") + b"\n")
     _write_private(output_path / "writer-outcomes.json", json.dumps(
         outcomes, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8") + b"\n")
+    _write_private(output_path / "writer-task-diagnostics.json", json.dumps(
+        diagnostics, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8") + b"\n")
     return output
 
