@@ -23,6 +23,12 @@ MAX_HISTORICAL_CHECK_RUNS = 2_000
 TRUSTED_CAPTURE_WORKFLOW_REF = (
     "groktopus/codereview/.github/workflows/private-shadow-capture.yml@refs/heads/main"
 )
+TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF = (
+    "groktopus/codereview/.github/workflows/synth-001-live-writer.yml@refs/heads/main"
+)
+TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset(
+    {TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF}
+)
 TRUSTED_SHADOW_PLANS = {
     "PR-457": {
         "path": "experiments/model-only-shadow-live-pr457-plan-v1.json",
@@ -318,7 +324,7 @@ def _validate_private_capture_target(capture_dir: str, output_dir: str) -> None:
         and os.environ.get("GITHUB_REPOSITORY") == "groktopus/codereview"
         and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
         and os.environ.get("GITHUB_REF") == "refs/heads/main"
-        and os.environ.get("GITHUB_WORKFLOW_REF") == TRUSTED_CAPTURE_WORKFLOW_REF
+        and os.environ.get("GITHUB_WORKFLOW_REF") in TRUSTED_CAPTURE_WORKFLOW_REFS
         and re.fullmatch(r"[0-9a-f]{40}", os.environ.get("GITHUB_SHA", "")) is not None
     )
     runner_temp_value = os.environ.get("RUNNER_TEMP")
