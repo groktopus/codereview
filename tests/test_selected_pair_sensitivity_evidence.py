@@ -129,6 +129,10 @@ def test_contract_keeps_model_and_jev_outputs_advisory_and_unrun():
 
 def test_cli_prepare_only_serializes_exact_luna_requests_with_paired_evidence(tmp_path, monkeypatch, capsys):
     """Capture the production CLI request bodies while its prepare-only gate prevents dispatch."""
+    # GitHub-hosted pytest inherits the enclosing workflow's event path. These
+    # cases deliberately exercise explicit historical revisions from local
+    # fixtures, and prepare-only correctly rejects ambient event input.
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     contract = _load_contract()
     prepared = prepare_suite(
         tmp_path / "prepared",
