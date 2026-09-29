@@ -1322,6 +1322,179 @@ def test_cli_identity_rebinding_preserves_selected_evidence_and_file_anchor(tmp_
     assert result["coverage_state"] == "COMPLETE"
 
 
+def test_recovery_inputs_rebuild_original_snapshot_and_reject_check_drift(tmp_path, monkeypatch):
+    from pr_review_harness import cli
+    from pr_review_harness.checks import ingest_check_runs, make_check_runs_document
+    from pr_review_harness.engine import EnginePreflightError
+    from pr_review_harness.recovery_inputs import make_packet, read_packet, write_packet
+
+    repo, base, head, profile = context_selection_repo(tmp_path)
+    event = {
+        "repository": "owner/project",
+        "pull_request_number": 7,
+        "event_id": "42",
+        "base_sha": base,
+        "head_sha": head,
+    }
+    checks = make_check_runs_document(
+        "owner/project",
+        7,
+        head,
+        [
+            {
+                "id": 99,
+                "name": "unit-tests",
+                "status": "completed",
+                "conclusion": "success",
+                "head_sha": head,
+                "app_id": 42,
+                "completed_at": "2026-09-28T12:00:00Z",
+                "details_url": "https://example.invalid/private?token=must-not-be-kept",
+                "external_id": "arbitrary-provider-value",
+            }
+        ],
+        captured_at="2026-09-28T12:01:00Z",
+    )
+    profile["required_checks"] = [
+        {
+            "id": "tests",
+            "binding": "external:tests",
+            "github_check_name": "unit-tests",
+            "github_app_id": 42,
+        }
+    ]
+    limits = {
+        "deadline_seconds": 2,
+        "max_concurrent_scopes": 2,
+        "max_provider_calls": 8,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 64_000,
+        "max_input_bytes_per_task": 32_000,
+        "max_output_bytes_per_task": 8_000,
+        "max_output_bytes": 16_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+    output = tmp_path / "review"
+    args = SimpleNamespace(
+        effect_policy="READ_ONLY", repo=str(repo), mode="AUTO", output=str(output), resume=False
+    )
+    calls = {"count": 0}
+
+    class CountingProvider(_InertContextProvider):
+        def review(self, task, evidence, task_limits):
+            calls["count"] += 1
+            return super().review(task, evidence, task_limits)
+
+    monkeypatch.setattr(cli, "_freshness", lambda current_event, expected: _FakeFreshness(expected) if current_event else None)
+    provider = CountingProvider()
+    from pr_review_harness.recovery_inputs import normalize_checks
+
+    normalized_checks = normalize_checks(checks, repository="owner/project", pull_request_number=7, head_sha=head)
+    binding = profile["required_checks"]
+    assert ingest_check_runs(checks, event, binding) == ingest_check_runs(normalized_checks, event, binding)
+    first = cli._run_one(args, base, head, profile, limits, provider, None, "pr-7-42", event, normalized_checks)
+    original_calls = calls["count"]
+    assert (output / "pr-7-42.json").is_file()
+
+    packet_path = tmp_path / "recovery-inputs.json"
+    write_packet(packet_path, make_packet(event, checks, "42"))
+    packet, raw = read_packet(packet_path, repository="owner/project", run_id="pr-7-42", base_sha=base, head_sha=head)
+    assert b"details_url" not in raw and b"external_id" not in raw and b"must-not-be-kept" not in raw
+    args.resume = True
+    resumed = cli._run_one(
+        args,
+        base,
+        head,
+        profile,
+        limits,
+        provider,
+        None,
+        "pr-7-42",
+        packet["event"],
+        packet["checks_document"],
+    )
+    assert resumed["snapshot_id"] == first["snapshot_id"]
+    assert resumed["request_hash"] == first["request_hash"]
+    assert resumed["disposition"] == first["disposition"]
+    assert calls["count"] == original_calls
+
+    drifted = json.loads(json.dumps(packet["checks_document"]))
+    drifted["captured_at"] = "2026-09-28T12:02:00Z"
+    with pytest.raises(EnginePreflightError, match="resume request mismatch"):
+        cli._run_one(args, base, head, profile, limits, provider, None, "pr-7-42", packet["event"], drifted)
+    assert calls["count"] == original_calls
+
+
+def test_cli_capture_and_resume_flags_reuse_original_event_and_checks(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli, github
+
+    repo, base, head, profile = context_selection_repo(tmp_path)
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"number": 7, "pull_request": {"base": {"sha": base}, "head": {"sha": head}}}),
+        encoding="utf-8",
+    )
+    run = {
+        "id": 99,
+        "name": "unit-tests",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": head,
+        "app_id": 42,
+        "completed_at": "2026-09-28T12:00:00Z",
+        "external_id": "unretained-provider-id",
+        "details_url": "https://provider.example.invalid/run/99?token=unretained",
+    }
+
+    class FakeGitHubAdapter:
+        def check_runs(self, _repository, _head_sha):
+            return {"runs": [run], "complete": True}
+
+    limits = {
+        "deadline_seconds": 2,
+        "max_concurrent_scopes": 2,
+        "max_provider_calls": 8,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 64_000,
+        "max_input_bytes_per_task": 32_000,
+        "max_output_bytes_per_task": 8_000,
+        "max_output_bytes": 16_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/project")
+    monkeypatch.setenv("GITHUB_RUN_ID", "42")
+    monkeypatch.setattr(github, "GitHubPRAdapter", FakeGitHubAdapter)
+    monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, _InertContextProvider(), None, None))
+    monkeypatch.setattr(cli, "_freshness", lambda event, expected: _FakeFreshness(expected) if event else None)
+    packet_path = tmp_path / "artifacts" / "recovery-inputs.json"
+    packet_path.parent.mkdir()
+    output = tmp_path / "review"
+    common = ["--repo", str(repo), "--profile", str(profile_path), "--run-id", "pr-7-42", "--json"]
+    first_code = cli.main(
+        [
+            "review", *common, "--event-file", str(event_path), "--capture-recovery-inputs", str(packet_path),
+            "--output", str(output),
+        ]
+    )
+    assert first_code == 0
+    first = json.loads(capsys.readouterr().out)
+    packet_raw = packet_path.read_bytes()
+    assert b"unretained-provider-id" not in packet_raw
+    assert b"unretained" not in packet_raw
+
+    second_code = cli.main(
+        ["review", *common, "--resume", "--recovery-inputs", str(packet_path), "--output", str(output)]
+    )
+    assert second_code == 0
+    resumed = json.loads(capsys.readouterr().out)
+    assert resumed["snapshot_id"] == first["snapshot_id"]
+    assert resumed["request_hash"] == first["request_hash"]
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

@@ -24,7 +24,7 @@ MAX_TREE_ENTRIES = 2048
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MANIFEST_NAME = "recovery-manifest.json"
-SCHEMA = "pr-analysis-recovery-artifact.v2"
+SCHEMA = "pr-analysis-recovery-artifact.v3"
 IDENTITY_KEYS = (
     "workflow_repository",
     "workflow_run_id",
@@ -124,9 +124,42 @@ def _inventory(root: Path) -> dict[str, dict[str, Any]]:
 
 def _validate_artifact_paths(files: dict[str, Any], run_id: str) -> None:
     checkpoint = f"review/{run_id}.json"
-    allowed = {checkpoint, f"review/{run_id}.md", "review-result.json", "profile-binding.json"}
+    allowed = {checkpoint, f"review/{run_id}.md", "review-result.json", "profile-binding.json", "recovery-inputs.json"}
     if checkpoint not in files or set(files) - allowed:
         raise ManifestError("recovery_artifact_path_allowlist_invalid")
+    if "recovery-inputs.json" not in files:
+        raise ManifestError("recovery_inputs_missing")
+
+
+def _recovery_input_record(root: Path, identity: dict[str, Any]) -> dict[str, str]:
+    try:
+        from pr_review_harness.recovery_inputs import (
+            RecoveryInputError,
+            read_packet,
+            sha256,
+        )
+        from pr_review_harness.recovery_inputs import (
+            canonical as recovery_canonical,
+        )
+    except ImportError:
+        raise ManifestError("recovery_inputs_invalid") from None
+    try:
+        packet, raw = read_packet(
+            root / "recovery-inputs.json",
+            repository=identity["target_repository"],
+            run_id=identity["run_id"],
+            base_sha=identity["base_sha"],
+            head_sha=identity["head_sha"],
+        )
+    except (OSError, RecoveryInputError):
+        raise ManifestError("recovery_inputs_invalid") from None
+    if raw != recovery_canonical(packet) or packet["source_event_id"] != identity["workflow_run_id"]:
+        raise ManifestError("recovery_inputs_binding_mismatch")
+    return {
+        "source_event_id": packet["source_event_id"],
+        "packet_sha256": sha256(raw),
+        "checks_document_sha256": sha256(recovery_canonical(packet["checks_document"])),
+    }
 
 
 def _parse_json(raw: bytes, error_code: str) -> dict[str, Any]:
@@ -376,7 +409,14 @@ def create_manifest(
         raise ManifestError("recovery_checkpoint_binding_mismatch")
     files = _inventory(root)
     _validate_artifact_paths(files, identity["run_id"])
-    manifest = {"schema_version": SCHEMA, "identity": identity, "checkpoint_path": relative_checkpoint, "files": files}
+    recovery_inputs = _recovery_input_record(root, identity)
+    manifest = {
+        "schema_version": SCHEMA,
+        "identity": identity,
+        "checkpoint_path": relative_checkpoint,
+        "recovery_inputs": recovery_inputs,
+        "files": files,
+    }
     manifest_path = root / MANIFEST_NAME
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     try:
@@ -395,7 +435,7 @@ def verify_manifest(root: Path, expected_identity: dict[str, Any]) -> dict[str, 
         manifest = _parse_json(_read_regular(root / MANIFEST_NAME, 256 * 1024), "recovery_manifest_invalid")
     except OSError:
         raise ManifestError("recovery_manifest_invalid") from None
-    if set(manifest) != {"schema_version", "identity", "checkpoint_path", "files"}:
+    if set(manifest) != {"schema_version", "identity", "checkpoint_path", "recovery_inputs", "files"}:
         raise ManifestError("recovery_manifest_invalid")
     if manifest["schema_version"] != SCHEMA or _identity(manifest["identity"]) != _identity(expected_identity):
         raise ManifestError("recovery_identity_mismatch")
@@ -403,6 +443,8 @@ def verify_manifest(root: Path, expected_identity: dict[str, Any]) -> dict[str, 
     _validate_artifact_paths(observed, manifest["identity"]["run_id"])
     if manifest["files"] != observed:
         raise ManifestError("recovery_artifact_inventory_mismatch")
+    if manifest["recovery_inputs"] != _recovery_input_record(root, manifest["identity"]):
+        raise ManifestError("recovery_inputs_digest_mismatch")
     checkpoint = manifest["checkpoint_path"]
     if checkpoint != f"review/{manifest['identity']['run_id']}.json" or checkpoint not in observed:
         raise ManifestError("recovery_checkpoint_path_invalid")

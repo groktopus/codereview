@@ -10,12 +10,15 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import fetch_pr_analysis_artifact as fetch
-import intake_pr_analysis_artifact as intake
-import pr_analysis_artifact_manifest as manifest
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "src"))
+import fetch_pr_analysis_artifact as fetch  # noqa: E402
+import intake_pr_analysis_artifact as intake  # noqa: E402
+import pr_analysis_artifact_manifest as manifest  # noqa: E402
+
+from pr_review_harness.recovery_inputs import canonical as recovery_canonical  # noqa: E402
+from pr_review_harness.recovery_inputs import make_packet  # noqa: E402
 
 
 def _fixture(tmp_path: Path):
@@ -67,6 +70,23 @@ def _fixture(tmp_path: Path):
     checkpoint_path = review / "pr-7-42.json"
     checkpoint_path.write_text(json.dumps(checkpoint, sort_keys=True) + "\n", encoding="utf-8")
     (root / "review-result.json").write_text('{"status":"INCOMPLETE"}\n', encoding="utf-8")
+    event = {
+        "repository": "owner/caller",
+        "pull_request_number": 7,
+        "event_id": "42",
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+    }
+    checks = {
+        "schema_version": "1.0",
+        "repository": "owner/caller",
+        "pull_request_number": 7,
+        "head_sha": "b" * 40,
+        "captured_at": "2026-09-28T12:00:00Z",
+        "complete": True,
+        "runs": [],
+    }
+    (root / "recovery-inputs.json").write_bytes(recovery_canonical(make_packet(event, checks, "42")))
     return root, identity, checkpoint_path, profile, provider, decision
 
 
@@ -78,7 +98,14 @@ def test_manifest_binds_normal_pr_checkpoint_without_persisting_configs(tmp_path
     checked = manifest.verify_manifest(root, identity)
     assert checked == result
     assert result["checkpoint_path"] == "review/pr-7-42.json"
-    assert set(result["files"]) == {"review/pr-7-42.json", "review-result.json"}
+    assert set(result["files"]) == {"review/pr-7-42.json", "review-result.json", "recovery-inputs.json"}
+    assert result["recovery_inputs"] == {
+        "source_event_id": "42",
+        "packet_sha256": result["files"]["recovery-inputs.json"]["sha256"],
+        "checks_document_sha256": __import__("hashlib").sha256(
+            recovery_canonical(json.loads((root / "recovery-inputs.json").read_bytes())["checks_document"])
+        ).hexdigest(),
+    }
     artifact_bytes = b"".join(path.read_bytes() for path in root.rglob("*") if path.is_file())
     assert b"https://example.invalid" not in artifact_bytes
     assert b"LLM_API_KEY" not in artifact_bytes
@@ -112,6 +139,19 @@ def test_manifest_rejects_checkpoint_drift_before_emission(tmp_path):
         manifest.create_manifest(
             root, identity, checkpoint=checkpoint, profile=profile, provider_config=provider, decision_config=decision
         )
+
+
+def test_manifest_rejects_recovery_input_drift(tmp_path):
+    root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path)
+    manifest.create_manifest(
+        root, identity, checkpoint=checkpoint, profile=profile, provider_config=provider, decision_config=decision
+    )
+    packet_path = root / "recovery-inputs.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["checks_document"]["captured_at"] = "2026-09-28T12:01:00Z"
+    packet_path.write_bytes(recovery_canonical(packet))
+    with pytest.raises(manifest.ManifestError, match="recovery_artifact_inventory_mismatch|recovery_inputs_digest_mismatch"):
+        manifest.verify_manifest(root, identity)
 
 
 def test_manifest_verifier_rejects_modified_output_and_symlink(tmp_path):
@@ -359,7 +399,7 @@ def test_read_only_intake_binds_run_attempt_pr_artifact_and_manifest(tmp_path):
     assert result["expected_identity_independently_trusted"] is False
     assert result["resume_authorized"] is False
     assert result["artifact_id"] == 501
-    assert result["files"] == 2
+    assert result["files"] == 3
     recovered = output / "artifact"
     assert manifest.verify_manifest(recovered, identity)["identity"] == identity
     assert (recovered / "review" / "pr-7-42.json").is_file()
@@ -572,7 +612,7 @@ def test_authenticated_fetch_uses_exact_api_bindings_and_strips_redirect_auth(tm
     assert result["authenticated_fetch_performed"] is True
     assert result["current_pr_binding"] == "verified_by_authenticated_lookup"
     assert result["resume_authorized"] is False
-    assert result["files"] == 2
+    assert result["files"] == 3
     assert result["artifact_path"] == str(tmp_path / "fetched" / "artifact")
     assert transport.calls[0][0].endswith("/actions/runs/42/attempts/2")
     assert len(archive) == routes[storage_url].body.__len__()

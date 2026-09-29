@@ -81,6 +81,16 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--run-id")
     review.add_argument("--resume", action="store_true")
     review.add_argument("--event-file", help="GitHub Actions pull_request event JSON (read only)")
+    review.add_argument(
+        "--capture-recovery-inputs",
+        metavar="PATH",
+        help="write bounded, credential-free source event and check evidence for a future exact resume",
+    )
+    review.add_argument(
+        "--recovery-inputs",
+        metavar="PATH",
+        help="reuse exact captured event/check evidence while resuming the original run",
+    )
     review.add_argument("--effect-policy", choices=["READ_ONLY", "PUBLISH_REVIEW"], default="READ_ONLY")
     review.add_argument("--dry-run", action="store_true")
     review.add_argument("--prepare-only", action="store_true", help="snapshot and size exact primary requests without provider dispatch")
@@ -1358,10 +1368,48 @@ def main(argv=None) -> int:
         if args.command == "review":
             if args.private_shadow_capture and (args.resume or args.prepare_only or args.dry_run):
                 raise ValueError("private shadow capture is incompatible with resume, prepare-only, and dry-run")
+            if args.capture_recovery_inputs and (
+                args.resume
+                or args.recovery_inputs
+                or args.prepare_only
+                or args.dry_run
+                or args.historical_checks_json
+                or args.checks_json
+            ):
+                raise ValueError("recovery input capture requires a fresh event-bound review")
+            if args.recovery_inputs and (
+                not args.resume
+                or not args.run_id
+                or args.event_file
+                or args.github_pr
+                or args.checks_json
+                or args.historical_checks_json
+                or args.capture_recovery_inputs
+            ):
+                raise ValueError("recovery inputs require --resume, an explicit original --run-id, and no other event/check input")
+            if args.capture_recovery_inputs and (args.private_shadow_capture or args.private_shadow_plan):
+                raise ValueError("recovery input capture cannot be combined with private shadow capture")
             if args.private_shadow_capture:
                 _validate_private_capture_target(args.private_shadow_capture, args.output)
             historical_check_identity = None
-            if args.historical_checks_json:
+            recovery_packet = None
+            if args.recovery_inputs:
+                from .recovery_inputs import read_packet
+
+                repository = os.environ.get("GITHUB_REPOSITORY") or profile.get("repository")
+                if not isinstance(repository, str):
+                    raise ValueError("recovery inputs require a trusted repository identity")
+                recovery_packet, _ = read_packet(
+                    args.recovery_inputs,
+                    repository=repository,
+                    run_id=args.run_id,
+                    base_sha=args.base,
+                    head_sha=args.head,
+                )
+                event = recovery_packet["event"]
+                checks_document = recovery_packet["checks_document"]
+                args.base, args.head = event["base_sha"], event["head_sha"]
+            elif args.historical_checks_json:
                 if args.checks_json:
                     raise ValueError("--checks-json and --historical-checks-json are mutually exclusive")
                 if args.github_pr or args.event_file:
@@ -1375,7 +1423,7 @@ def main(argv=None) -> int:
                 args.base, args.head = event["base_sha"], event["head_sha"]
             if not args.base or not args.head:
                 raise ValueError("explicit base and head revisions are required without a PR/event input")
-            if not args.historical_checks_json:
+            if not args.historical_checks_json and not args.recovery_inputs:
                 if args.checks_json:
                     if event is None:
                         raise ValueError("--checks-json requires a GitHub PR or event identity")
@@ -1407,6 +1455,32 @@ def main(argv=None) -> int:
                     checks_document = None
             run_id = args.run_id or str(uuid.uuid4())
             _validate_run_id(run_id)
+            if args.capture_recovery_inputs:
+                from .recovery_inputs import RecoveryInputError, make_packet, normalize_checks, write_packet
+
+                if event is None or checks_document is None:
+                    raise ValueError("recovery input capture requires a GitHub event and check-run evidence")
+                source_event_id = event.get("event_id")
+                if run_id != f"pr-{event['pull_request_number']}-{source_event_id}":
+                    raise ValueError("recovery input capture requires the source workflow run ID")
+                # The original review and a later resume consume the identical
+                # normalized document; no API URLs, tokens, or arbitrary fields
+                # are retained in the artifact.
+                checks_document = normalize_checks(
+                    checks_document,
+                    repository=event["repository"],
+                    pull_request_number=event["pull_request_number"],
+                    head_sha=event["head_sha"],
+                )
+                packet_event = {
+                    key: event[key]
+                    for key in ("repository", "pull_request_number", "event_id", "base_sha", "head_sha")
+                }
+                packet = make_packet(packet_event, checks_document, source_event_id)
+                try:
+                    write_packet(args.capture_recovery_inputs, packet)
+                except RecoveryInputError as exc:
+                    raise ValueError("cannot capture bounded recovery inputs") from exc
             result = _run_one(
                 args,
                 args.base,

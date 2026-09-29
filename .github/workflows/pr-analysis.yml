@@ -299,6 +299,7 @@ jobs:
             --decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json" \
             --output artifacts/review \
             --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
+            --capture-recovery-inputs artifacts/recovery-inputs.json \
             --mode AUTO \
             --json > artifacts/review-result.json
       - name: Record recovery identity and artifact digests

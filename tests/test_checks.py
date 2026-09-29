@@ -37,6 +37,59 @@ def test_check_run_success_is_sha_and_binding_bound_evidence():
     assert evidence["run_id"] == "88"
     assert evidence["source_kind"] == "github_check_run"
     assert evidence["content_hash"]
+    assert result["schema_version"] == "2.0"
+
+
+def test_v2_check_evidence_omits_provider_urls_and_ids_without_changing_outcome():
+    from pr_review_harness.recovery_inputs import normalize_checks
+
+    raw = make_check_runs_document(
+        "owner/repo",
+        7,
+        HEAD,
+        [
+            {
+                "id": 88,
+                "name": "unit-tests",
+                "status": "completed",
+                "conclusion": "success",
+                "head_sha": HEAD,
+                "app_id": 12,
+                "completed_at": "2026-09-26T12:00:00Z",
+                "external_id": "opaque-provider-id",
+                "details_url": "https://provider.example.invalid/run/88?key=private",
+            }
+        ],
+        captured_at="2026-09-26T12:01:00Z",
+    )
+    normalized = normalize_checks(raw, repository="owner/repo", pull_request_number=7, head_sha=HEAD)
+    original_ingested = ingest_check_runs(raw, REQUEST, BINDINGS)
+    resumed_ingested = ingest_check_runs(normalized, REQUEST, BINDINGS)
+    assert normalized["schema_version"] == "2.0"
+    assert original_ingested == resumed_ingested
+    assert original_ingested["results"]["unit-tests"]["outcome"] == "PASS"
+    assert all("external_id" not in item and "details_url" not in item for item in original_ingested["evidence"].values())
+
+
+def test_v1_check_evidence_keeps_legacy_hash_and_result_schema():
+    run = {
+        "id": 88,
+        "name": "unit-tests",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": HEAD,
+        "app_id": 12,
+        "completed_at": "2026-09-26T12:00:00Z",
+        "external_id": "legacy-id",
+        "details_url": "https://provider.example.invalid/run/88",
+    }
+    document = make_check_runs_document("owner/repo", 7, HEAD, [run], captured_at="2026-09-26T12:01:00Z")
+    document["schema_version"] = "1.0"
+    result = ingest_check_runs(document, REQUEST, BINDINGS)
+    evidence = result["evidence"][result["results"]["unit-tests"]["evidence_id"]]
+    assert result["schema_version"] == "1.0"
+    assert evidence["external_id"] == "legacy-id"
+    assert evidence["details_url"] == "https://provider.example.invalid/run/88"
 
 
 @pytest.mark.parametrize(

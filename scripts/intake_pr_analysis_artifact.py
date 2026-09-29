@@ -275,9 +275,9 @@ def intake_pr_analysis_artifact(
     if hashlib.sha256(archive_bytes).hexdigest() != artifact["sha256"]:
         raise ManifestError("recovery_artifact_digest_mismatch")
     files, archive_manifest = _unpack_archive(archive_bytes)
-    if set(archive_manifest) != {"schema_version", "identity", "checkpoint_path", "files"}:
+    if set(archive_manifest) != {"schema_version", "identity", "checkpoint_path", "recovery_inputs", "files"}:
         raise ManifestError("recovery_manifest_invalid")
-    if archive_manifest.get("schema_version") != "pr-analysis-recovery-artifact.v2":
+    if archive_manifest.get("schema_version") != "pr-analysis-recovery-artifact.v3":
         raise ManifestError("recovery_manifest_invalid")
     if _identity(archive_manifest.get("identity", {})) != expected:
         raise ManifestError("recovery_identity_mismatch")
