@@ -67,6 +67,9 @@ def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path)
     assert hashlib.sha256(frozen_runtime.FROZEN_EVIDENCE.read_bytes()).hexdigest() == (
         "4b6f7a3d7b1a9fe95fc2614395e153b36cc0c577b61e871933008ef847b86bfc"
     )
+    assert hashlib.sha256(frozen_runtime.FROZEN_ACTIONS_RUNTIME.read_bytes()).hexdigest() == (
+        "8469467a09c3e2c96bf3d8ec547af0f57f8794eb6affbf753a1c919ead58e482"
+    )
     runtime_root = frozen_runtime.build_frozen_runtime_root(tmp_path)
     assert _inventory_hashes(runtime_root) == (
         35,
