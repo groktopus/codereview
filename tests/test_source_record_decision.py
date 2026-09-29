@@ -189,7 +189,7 @@ def _jev(request, *, choice="UNCERTAIN", wrong_question=False):
     }).encode()
 
 
-def _run(source_bytes, *, jev=None, clock=lambda: 0.0):
+def _run(source_bytes, *, jev=None, clock=lambda: 0.0, source_task=None):
     calls = {"source": [], "jev": []}
 
     def source_transport(raw, timeout, cap):
@@ -209,11 +209,44 @@ def _run(source_bytes, *, jev=None, clock=lambda: 0.0):
         return jev(raw) if jev else _jev(raw)
 
     result = run_source_record_decision(
-        subject_id="case-1", expected_model_id="jev-test-v1", source_task={"task_id": "task-1", "prompt": "inspect"},
+        subject_id="case-1", expected_model_id="jev-test-v1",
+        source_task=source_task or {"task_id": "task-1", "prompt": "inspect"},
         source_evidence=[{"evidence_id": "ev-1", "content": "frozen evidence"}],
         source_transport=source_transport, jev_transport=jev_transport, clock=clock,
     )
     return result, calls
+
+
+def test_frozen_size_source_request_runs_full_decision_path_under_input_cap():
+    from source_record_decision import MAX_PAYLOAD_BYTES
+
+    result, calls = _run(
+        _source([_record()]), source_task={"task_id": "frozen-pr464", "prompt": "x" * 74_450},
+    )
+
+    request, _timeout, response_cap = calls["source"][0]
+    assert 74_000 < len(request) < 75_000
+    assert len(request) > MAX_PAYLOAD_BYTES
+    assert response_cap == MAX_PAYLOAD_BYTES
+    assert len(calls["source"]) == len(calls["jev"]) == 1
+    assert result["source_status"] == "completed"
+    assert result["jev_status"] == "completed"
+    assert result["advisory_choice"] == "UNCERTAIN"
+    assert result["transport_invocations"] == 2 and result["retries"] == 0
+
+
+def test_source_decision_input_above_96kb_is_rejected_before_transport():
+    from source_record_decision import MAX_SOURCE_DECISION_INPUT_BYTES
+
+    calls = []
+    with pytest.raises(SourceRecordDecisionError, match="payload_exceeds_limit"):
+        run_source_record_decision(
+            subject_id="case-1", expected_model_id="jev-test-v1",
+            source_task={"task_id": "oversized", "prompt": "x" * MAX_SOURCE_DECISION_INPUT_BYTES},
+            source_evidence=[], source_transport=lambda *args: calls.append(args),
+            jev_transport=lambda *_args: b"{}",
+        )
+    assert calls == []
 
 
 def test_source_record_is_deterministically_selected_and_typed_as_advisory():

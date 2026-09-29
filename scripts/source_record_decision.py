@@ -24,6 +24,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 CONTRACT_VERSION = "source-record-jev.v1"
 SOURCE_CONTRACT_VERSION = "shadow-source-audit.v1"
 MAX_PAYLOAD_BYTES = 64_000
+# The frozen source-auditor request contract permits a 96 KB task/evidence
+# input. Keep generated source responses and Jev requests/responses at 64 KB.
+MAX_SOURCE_DECISION_INPUT_BYTES = 96_000
 MAX_RECORDS = 100
 MAX_RECORD_SUMMARY_BYTES = 4000
 MAX_TRANSPORT_DEADLINE_SECONDS = 120.0
@@ -396,7 +399,7 @@ def run_source_record_decision(
         "task": source_task,
         "evidence": source_evidence,
     })
-    if len(source_request) > MAX_PAYLOAD_BYTES:
+    if len(source_request) > MAX_SOURCE_DECISION_INPUT_BYTES:
         raise SourceRecordDecisionError("payload_exceeds_limit")
     source_status = "failed"
     source_raw: bytes | None = None
