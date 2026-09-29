@@ -9,7 +9,7 @@ from typing import Any
 CASE_POLICY: dict[str, dict[str, Any]] = {
     "PR-457": {
         "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
-        "plan_sha256": "PENDING_FINAL_V3_PLAN_SHA256",
+        "plan_sha256": "f586a799c845c0f0c05260f325d77ea7d6d0d4cb602edb23bcbc0e1312264d6d",
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
         "audit_input_limit": 120_000,
         "writer_calls": 6,
@@ -20,7 +20,7 @@ CASE_POLICY: dict[str, dict[str, Any]] = {
     },
     "PR-464": {
         "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
-        "plan_sha256": "PENDING_FINAL_V3_PLAN_SHA256",
+        "plan_sha256": "d488a2f1eec7db9818bb5b44865863ae39f6293197643cae89cebc7ad9ceba9b",
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
         "audit_input_limit": 96_000,
         "writer_calls": 10,

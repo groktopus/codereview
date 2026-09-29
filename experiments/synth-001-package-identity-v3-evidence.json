@@ -1,6 +1,6 @@
 {
   "schema": "synth-001-preflight-evidence.v1",
-  "status": "PROVIDER_FREE_PREPARE_MATCHED_RUNTIME_PIN_PENDING",
+  "status": "PROVIDER_FREE_PREPARE_MATCHED_FROZEN_RUNTIME",
   "run_contract": {
     "provider_calls": 0,
     "planned_provider_calls": 1,
@@ -12,21 +12,21 @@
     "target_code_execution": false
   },
   "runtime_observation": {
-    "source_revision": "cd6ceaa0b9120b328a5e75d86f2a0729ce6052fd",
+    "source_revision": "f6fd5158c567a2ace10e1abd63465a23cd12fc51",
     "module_count": 35,
-    "module_tree_sha256": "838fb5619048fb1bb4bcf84ad8721bb6d7cba37ce9464a3b5089ee9d3080b6c5",
+    "module_tree_sha256": "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991",
     "python": {
       "implementation": "cpython",
       "version": "3.14.7"
     },
-    "final_pin_status": "NOT_FROZEN"
+    "final_pin_status": "FROZEN"
   },
   "fixture": {
     "fixture_id": "SYNTH-001",
     "base_sha": "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
     "head_sha": "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
     "snapshot_id": "snap-a6c6ac33adda6c436e2cf3cf",
-    "snapshot_hash": "ea53c0f85b59a245e8b72c249409ba569e059cf647fe79bd9691481c929300eb",
+    "snapshot_hash": "a019b2f4a11b31117bf391c37cc48e4a5fe4584079c285e56ccc029812f1ba4c",
     "evidence_index_sha256": "034fdbb66f32a5fdbedfacdce793d66c636ce93a961530ecb7827f967fc43bd5"
   },
   "request": {
@@ -39,14 +39,14 @@
   },
   "artifacts": {
     "materialization_sha256": "510cf3c61eae681a0cf7a97552e0366f107fc6eec52d3ab4d740cde6486f1457",
-    "prepared_sha256": "ba3f81e2cc0123867b51d55ad1a01fc04b0dab1c17527ab50d1d19de2b90cf19",
-    "verification_sha256": "0bb0140ca0436a7b65fb914cbdaa3828248f889bedc30ef18bbbc821e92fd02f",
-    "preflight_bundle_sha256": "b097d47089863da99ced4e3b47fa63e5dc1c3cdb41ae6e1f9494e6bb2ea450e9"
+    "prepared_sha256": "e1b6d19c746b2c237b066509ea883d9b22cb645bdf8238cc901aa397d6cfa7c0",
+    "verification_sha256": "2dba48d129e25d892313b735cae6c99ca7b9cc7b2363fb91fd5118fa01384d1a",
+    "preflight_bundle_sha256": "ed2192ad891267e53ae8445345325b7c91e89f13b761906dd4588d1372be1b1f"
   },
   "identity": {
     "path": "experiments/synth-001-package-identity-v3.json",
-    "sha256": "8ff5549d7399dbba4c16c2b322ed3398365e7671be701b3f9005443ad6fb72c7",
-    "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME"
+    "sha256": "6a25df3d3fb7c4bd3ce5ae0b928956ac0e6539708742904892c5ce1ec9ac2631",
+    "runtime_pin_status": "FROZEN"
   },
   "historical_identity": {
     "path": "experiments/synth-001-package-identity-v2.json",

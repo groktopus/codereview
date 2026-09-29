@@ -3,8 +3,8 @@
     "adapter_version": "0.2",
     "limits_sha256": "1b3cf01229d00bd63e9dcf4140504108b1b697e886baf155a46d95e29536b432",
     "model": "openai/gpt-6-luna",
-    "module_count": null,
-    "module_tree_sha256": null,
+    "module_count": 35,
+    "module_tree_sha256": "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991",
     "profile_sha256": "d62a83f4ecbf0b807770c318bd3222c49c72311455eef19f15d6e3d2c7e1ad58",
     "provider_config_sha256": "8f160c593f4d04d41dcfbc247eb5814c13ded5e88dd5bfdf95d3d78264634d5f",
     "provider_id": "synth_001_prepare_only",
@@ -13,8 +13,8 @@
       "implementation": "cpython",
       "version": "3.14.7"
     },
-    "source_revision": null,
-    "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME"
+    "source_revision": "f6fd5158c567a2ace10e1abd63465a23cd12fc51",
+    "runtime_pin_status": "FROZEN"
   },
   "fixture": {
     "fixture_id": "SYNTH-001",

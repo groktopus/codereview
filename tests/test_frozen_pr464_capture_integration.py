@@ -18,7 +18,11 @@ import sanitize_model_only_shadow_audit_receipt as audit_receipt_sanitizer  # no
 import sanitize_model_only_shadow_writer_receipt as sanitizer  # noqa: E402
 import select_frozen_pr464_no_candidate_packet as selector  # noqa: E402
 import verify_model_only_shadow_live_preflight as preflight  # noqa: E402
-from model_only_shadow_evaluation_identity import IdentityError, validate_identity  # noqa: E402
+from model_only_shadow_evaluation_identity import validate_identity  # noqa: E402
+from sealed_source_record_integration import (  # noqa: E402
+    SealedSourceIntegrationError,
+    _validate_frozen_pr464,
+)
 
 import pr_review_harness.providers as providers  # noqa: E402
 import pr_review_harness.shadow_audit as shadow_audit  # noqa: E402
@@ -237,12 +241,13 @@ def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkey
     assert packet["profile_id"] == "slopsearx" == identity["profile"]["profile_id"]
     assert packet["snapshot"]["profile_hash"] == canonical_profile_hash
     assert packet["snapshot"]["profile_hash"] != _sha(profile_raw)
-    validate_identity(corpus, manifest, plan, plan_raw, packet)
+    assert _validate_frozen_pr464(packet) == _sha(plan_raw)
 
     raw_hash_packet = json.loads(json.dumps(packet))
     raw_hash_packet["snapshot"]["profile_hash"] = _sha(profile_raw)
-    with pytest.raises(IdentityError, match="case_snapshot_corpus_mismatch"):
-        validate_identity(corpus, manifest, plan, plan_raw, raw_hash_packet)
+    validate_identity(corpus, manifest, plan, plan_raw, raw_hash_packet)
+    with pytest.raises(SealedSourceIntegrationError, match="frozen_pr464_identity_invalid"):
+        _validate_frozen_pr464(raw_hash_packet)
 
 
 @pytest.mark.skipif(
