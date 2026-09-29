@@ -498,6 +498,22 @@ jobs:
             --output-dir "$RUNNER_TEMP/private-writer-sanitized" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
+      - name: Sanitize writer candidate reconciliation accounting
+        id: writer-reconciliation
+        if: steps.writer-sanitize.outputs.validated == 'true'
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          python3 scripts/sanitize_model_only_shadow_reconciliation.py \
+            --result "$RUNNER_TEMP/private-shadow-live-output/writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json" \
+            --capture-root "$RUNNER_TEMP/private-writer-capture" \
+            --plan "${{ steps.case.outputs.plan_path }}" \
+            --preflight "$RUNNER_TEMP/private-shadow-preparation/live-preflight-receipt.json" \
+            --writer-receipt "$RUNNER_TEMP/private-writer-sanitized/writer-receipt.json" \
+            --writer-outcomes "$RUNNER_TEMP/private-writer-sanitized/writer-outcomes.json" \
+            --output "$RUNNER_TEMP/private-writer-sanitized/writer-reconciliation.json" > /dev/null
+          echo 'validated=true' >> "$GITHUB_OUTPUT"
+
       - name: Select the frozen no-candidate packet without provider calls
         id: packet-selection
         if: steps.writer-sanitize.outputs.validated == 'true'
@@ -717,6 +733,16 @@ jobs:
           path: |
             ${{ runner.temp }}/private-writer-sanitized/writer-receipt.json
             ${{ runner.temp }}/private-writer-sanitized/writer-outcomes.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload only the hash-only writer reconciliation receipt
+        id: writer-reconciliation-upload
+        if: always() && steps.writer-reconciliation.outputs.validated == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: private-shadow-writer-reconciliation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-writer-sanitized/writer-reconciliation.json
           if-no-files-found: error
           retention-days: 7
 
