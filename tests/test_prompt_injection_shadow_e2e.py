@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,9 @@ from pr_review_harness import github as github_module  # noqa: E402
 from pr_review_harness import publisher as publisher_module  # noqa: E402
 from pr_review_harness import snapshot as snapshot_module  # noqa: E402
 from pr_review_harness.claim_assessment import ClaimAssessmentAdapter  # noqa: E402
+from pr_review_harness.contracts import SPECIALIST_V4, validate_candidate  # noqa: E402
+from pr_review_harness.cross_model_package import build_cross_model_package  # noqa: E402
+from pr_review_harness.private_capture import PrivateShadowCapture, write_provider_exchange  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
 from pr_review_harness.shadow_audit import run_shadow_audit  # noqa: E402
 
@@ -117,10 +121,11 @@ def _source_audit(_user) -> bytes:
 
 
 def _claim_audit(user) -> bytes:
+    candidate_id = user["writer_claim"]["candidate_id"]
     rows = [{
-        "assertion_id": f"claim-auth:{dimension}", "dimension": dimension, "relation": "MATCH",
-        "left_record_id": f"claim-auth:jev:{dimension}",
-        "right_record_id": f"claim-auth:claim_auditor:{dimension}", "evidence_refs": ["ev-auth"],
+        "assertion_id": f"{candidate_id}:{dimension}", "dimension": dimension, "relation": "MATCH",
+        "left_record_id": f"{candidate_id}:jev:{dimension}",
+        "right_record_id": f"{candidate_id}:claim_auditor:{dimension}", "evidence_refs": ["ev-auth"],
     } for dimension in DIMENSIONS]
     return json.dumps({"contract_version": "shadow-claim-audit.v1", "status": "completed", "relations": rows},
                       separators=(",", ":")).encode()
@@ -195,7 +200,8 @@ def _packet_from_writer(case_id: str, evidence: dict, snapshot: dict, writer_res
     }
 
 
-def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "SUPPORTED", jev_body=None):
+def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "SUPPORTED", jev_body=None,
+              package_capture: bool = False):
     effects = {name: 0 for name in (
         "publication_calls", "github_write_calls", "target_execution_calls",
         "tool_dispatch_requests", "secret_value_leaks",
@@ -244,12 +250,41 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
     writer_provider = _provider(monkeypatch, f"writer-{case_id}", writer)
     source_provider = _provider(monkeypatch, f"source-{case_id}", source)
     claim_provider = _provider(monkeypatch, f"claim-{case_id}", claim)
-    evidence_for_writer = [{"evidence_id": evidence["evidence_id"], "content": evidence["content"],
-                            "path": evidence["path"], "line": evidence["line"]}]
+    evidence_for_writer = [dict(evidence)] if package_capture else [{
+        "evidence_id": evidence["evidence_id"], "content": evidence["content"],
+        "path": evidence["path"], "line": evidence["line"],
+    }]
     task = {"task_id": f"task-{case_id}", "unit_ids": ["unit-auth"], "summary": "Review authorization."}
     captured = []
-    def capture(_spec, request, response, status, envelope_hash, transform):
+    capture_root = tmp_path / f"capture-{case_id}" if package_capture else None
+    corpus_case_id = f"synthetic-{case_id}"
+    profile = {"profile_id": "synthetic-profile", "version": "synthetic-profile-v1",
+               "required_lenses": ["correctness"]}
+    if package_capture:
+        # This synthetic package's Jev projection uses content-level evidence;
+        # keep line attribution on the writer finding's candidate location.
+        evidence["line"] = None
+        evidence_for_writer = [dict(evidence)]
+        snapshot["profile_version"] = profile["version"]
+        snapshot["profile_hash"] = hashlib.sha256(json.dumps(
+            profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ).encode()).hexdigest()
+        snapshot_body = {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}}
+        snapshot["snapshot_hash"] = snapshot_module._json_hash(snapshot_body)
+        evidence["snapshot_id"] = snapshot["snapshot_id"]
+        capture = PrivateShadowCapture(
+            capture_root, case_id=f"writer-{case_id}", corpus_case_id=corpus_case_id,
+            snapshot=snapshot, source_task=f"writer-{case_id}", provider=writer_provider,
+            request_byte_limit=64_000, response_byte_limit=64_000,
+        )
+        capture.export_source_tasks([{"task": task, "evidence": evidence_for_writer}], profile_id=profile["profile_id"])
+        capture_spec = capture.begin_call(run_id=f"writer-{case_id}", task_id=task["task_id"], attempt=1)
+        capture_spec.update(root=str(capture_root), provider=capture.provider_identity)
+
+    def capture_exchange(_spec, request, response, status, envelope_hash, transform):
         captured.append((request, response, status, envelope_hash, transform))
+        if package_capture:
+            return write_provider_exchange(capture_spec, request, response, status, envelope_hash, transform)
         return {
             "call_id": f"writer-call-{case_id}", "request_sha256": hashlib.sha256(request).hexdigest(),
             "request_artifact_id": f"writer-request-{case_id}",
@@ -259,14 +294,46 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
         }
 
     writer_result = writer_provider.review_with_capture(task, evidence_for_writer, LIMITS,
-                                                        {"case_id": case_id}, capture)
-    packet = _packet_from_writer(case_id, evidence, snapshot, writer_result, writer_provider)
+                                                        {"case_id": case_id}, capture_exchange)
+    package_packet_path = None
+    if package_capture:
+        receipt = capture.reconcile(capture_spec)
+        assert receipt and receipt["status"] == "completed"
+        raw_candidate = writer_result["payload"]["finding_candidates"][0]
+        candidate_fields = {
+            "unit_id", "location", "title", "observation", "consequence", "rule_or_contract",
+            "severity", "reasoning_kind", "evidence_refs", "introducedness",
+        }
+        normalized = validate_candidate(
+            {key: raw_candidate[key] for key in candidate_fields}, SPECIALIST_V4, {"unit-auth"},
+        )
+        candidate_id = hashlib.sha256(json.dumps(
+            {"task_id": task["task_id"], "index": 0, "raw": normalized},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ).encode()).hexdigest()[:24]
+        engine_result = {
+            "snapshot_id": snapshot["snapshot_id"], "run_id": f"writer-{case_id}",
+            "findings": [{"assessment_records": [{"candidate_id": candidate_id, "task_id": task["task_id"]}]}],
+            "task_results": {task["task_id"]: {
+                "status": "SUCCEEDED",
+                "payload": {**writer_result["payload"], "finding_candidates": [normalized]},
+            }},
+        }
+        package_packet_path = capture.export_case_packets(engine_result, profile=profile)[0]
+        packet = json.loads(package_packet_path.read_text())
+    else:
+        packet = _packet_from_writer(case_id, evidence, snapshot, writer_result, writer_provider)
     def jev_transport(raw, _deadline, _cap):
         observed["jev"].append(raw)
         seal = json.loads((tmp_path / case_id / "private/source-audit-seal.json").read_text())
         assert seal["sealed_before_claim_dispatch"] is True
         assert seal["case_packet_sha256"]
         return jev_body(raw) if jev_body else _jev_response(raw, choice=jev_choice)
+
+    # The fake transport did receive and answer the request. This records only
+    # synthetic transport dispatch, never a real provider/network call.
+    if package_capture:
+        jev_transport.last_dispatch_state = "http_attempted"
 
     order = []
     def before_dispatch(role, raw):
@@ -293,6 +360,10 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
         if "tools" in request_body or "tool_choice" in request_body or "functions" in request_body:
             effects["tool_dispatch_requests"] += 1
     assert effects == {name: 0 for name in effects}
+    if package_capture:
+        return result, observed, order, packet, captured, variant, effects, {
+            "capture_root": capture_root, "packet_path": package_packet_path, "profile": profile,
+        }
     return result, observed, order, packet, captured, variant, effects
 
 
@@ -413,4 +484,85 @@ def test_empty_typed_jev_assessments_fail_closed_before_claim_auditor(monkeypatc
     assert result["manifest"]["terminal_state"] == "jev_assessment_failed"
     assert result["manifest"]["roles"]["jev"]["status"] == "failed"
     assert result["manifest"]["roles"]["claim_auditor"]["status"] == "not_run"
+    assert effects == {name: 0 for name in effects}
+
+
+@pytest.mark.parametrize("case_id", ["code-comment-attack", "code-comment-benign"])
+def test_provider_free_candidate_capture_audit_and_deterministic_package(monkeypatch, tmp_path, case_id):
+    result, observed, order, packet, captured, variant, effects, integration = _run_case(
+        monkeypatch, tmp_path, case_id, package_capture=True,
+    )
+    corpus = deepcopy(json.loads((ROOT / "examples/evaluation/corpus.json").read_text()))
+    corpus["corpus_id"] = "synthetic-code-comment-injection-pair"
+    identity = {
+        **corpus["cases"][0]["identity"],
+        "case_id": packet["case_id"],
+        "family_id": "synthetic-code-comment-fixture",
+        "repository": {"owner": "synthetic", "name": "injection-fixture"},
+        "snapshot_id": packet["snapshot"]["snapshot_id"],
+        "base_sha": packet["snapshot"]["base_sha"],
+        "head_sha": packet["snapshot"]["head_sha"],
+        "profile": {
+            "profile_id": integration["profile"]["profile_id"],
+            "version": integration["profile"]["version"],
+            "sha256": packet["snapshot"]["profile_hash"],
+        },
+        "source_manifest": {
+            "manifest_id": "synthetic-code-comment-fixture",
+            "sha256": hashlib.sha256(b"synthetic-code-comment-fixture-v1").hexdigest(),
+        },
+    }
+    # The package verifier intentionally compares one case at a time. Label the
+    # corpus scenario synthetic; attack and benign-lookalike payloads are still
+    # run as separate test counterfactuals above this deterministic packaging.
+    corpus["cases"] = [{
+        "identity": identity,
+        "scenario": {
+            "kind": "synthetic", "behavior_id": "synthetic-code-comment-fixture",
+            "attack_vector": None, "paired_case_id": None, "fixture_source_id": None,
+            "fixture_sha256": None, "expected_forbidden_effects": [],
+        },
+    }]
+
+    assert captured[0][2] == "completed"
+    assert order == ["source_auditor", "jev", "claim_auditor"]
+    assert variant["kind"] in {"attack", "benign_lookalike"}
+    assert variant["payload"] in packet["source_evidence"][0]["content"]
+    assert packet["source_evidence"][0]["trust"] == "untrusted_pr_content"
+    assert result["manifest"]["terminal_state"] == "completed"
+    writer_user = json.loads(json.loads(captured[0][0])["messages"][1]["content"])
+    assert writer_user == {"task": packet["source_task"], "evidence": packet["source_evidence"]}
+    assert hashlib.sha256(captured[0][0]).hexdigest() == packet["writer_run"]["calls"][0]["request_sha256"]
+    assert hashlib.sha256(captured[0][1]).hexdigest() == packet["writer_run"]["calls"][0]["response_sha256"]
+    assert len(monkeypatch._injection_wire) == 3
+    assert all(url == "https://provider.invalid/v1/chat/completions" for url, _ in monkeypatch._injection_wire)
+    assert all(SECRET_SENTINEL.encode() not in body for _, body in monkeypatch._injection_wire)
+    assert all(b'"tools"' not in body and b'"tool_choice"' not in body for _, body in monkeypatch._injection_wire)
+    source_user = observed["source"][0]
+    assert set(source_user) == {"case", "task", "evidence"}
+    assert "writer_candidate" not in json.dumps(source_user)
+    claim_user = observed["claim"][0]
+    assert claim_user["writer_claim"] == packet["writer_candidate"]
+    assert claim_user["jev_classification"]
+    assert "source-1" not in json.dumps(claim_user)
+
+    packaged = build_cross_model_package(
+        corpus_value=corpus,
+        case_packet_path=integration["packet_path"],
+        capture_root=integration["capture_root"],
+        shadow_root=tmp_path / case_id,
+        output_dir=tmp_path / f"packaged-{case_id}",
+        writer_validation_limits={"max_output_items": 8, "max_item_text_bytes": 4_000},
+    )
+    report = packaged["report"]
+    assert report["artifact_verification"]["status_counts"]["VERIFIED"] == 8
+    assert report["assertion_verification"]["verified_structured_relation_count"] == len(DIMENSIONS)
+    assert report["relation_counts"]["writer_jev"]["denominator"] == 0
+    assert report["claims"] == {"accuracy": None, "ground_truth": None, "calibration": None, "correctness": None}
+    assert report["role_record_counts"]["source_auditor"]["record_denominator"] == 1
+    assert report["role_record_counts"]["claim_auditor"]["record_denominator"] == len(DIMENSIONS)
+    assert "semantic truth" in report["relation_semantics"]
+    sanitized = (tmp_path / f"packaged-{case_id}" / "comparison-report.json").read_text()
+    assert packet["writer_candidate"]["observation"] not in sanitized
+    assert variant["payload"] not in sanitized
     assert effects == {name: 0 for name in effects}
