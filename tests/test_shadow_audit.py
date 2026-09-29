@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,11 @@ from pr_review_harness.shadow_audit import (
 _CLI_SPEC = importlib.util.spec_from_file_location("run_shadow_audit_cli", Path(__file__).resolve().parents[1] / "scripts/run_shadow_audit.py")
 _CLI = importlib.util.module_from_spec(_CLI_SPEC)
 _CLI_SPEC.loader.exec_module(_CLI)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from sealed_source_record_integration import (  # noqa: E402
+    SealedSourceIntegrationError,
+    run_sealed_no_candidate_decision,
+)
 
 
 class FakeHTTPResponse:
@@ -268,6 +274,86 @@ def test_source_injection_is_data_and_candidate_is_missing_terminal(monkeypatch,
     assert result["manifest"]["terminal_state"] == "missing_writer_candidate"
     assert result["manifest"]["roles"]["jev"] == _not_run("jev")
     assert result["manifest"]["roles"]["claim_auditor"] == _not_run("claim_auditor")
+
+
+def test_sealed_no_candidate_path_classifies_source_record_but_stays_incomplete(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    original = run_shadow_audit(
+        packet, source_provider=source_provider,
+        jev_transport=lambda *_: pytest.fail("candidate Jev path must not run"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=tmp_path / "sealed-no-candidate",
+    )
+    native_calls = []
+
+    def source_record_jev(raw, timeout, cap):
+        native = json.loads(raw)
+        native_calls.append((native, timeout, cap))
+        assert native["state"]["assessment_contract_version"] == "source-record-jev.v1"
+        assert native["state"]["subject_kind"] == "source_auditor_record"
+        assert native["state"]["cited_evidence"] == packet["source_evidence"]
+        assert "candidate" not in native["state"] and "writer_claim" not in native["state"]
+        question_id = next(iter(native["questions"]))
+        choices = list(native["questions"][question_id]["criteria"])
+        probs = {choice: float(choice == "SUPPORTED") for choice in choices}
+        return json.dumps({
+            "model": "jev-1.13.0", "answers": {question_id: {
+                "type": "choice", "choice": "SUPPORTED", "probabilities": probs, "confidence": 1.0,
+            }},
+        }).encode()
+
+    result = run_sealed_no_candidate_decision(
+        original, expected_jev_model_id="jev-latest", jev_transport=source_record_jev,
+    )
+    assert len(native_calls) == 1
+    assert original["manifest"]["terminal_state"] == "missing_writer_candidate"
+    assert original["manifest"]["roles"]["jev"] == _not_run("jev")
+    assert original["manifest"]["roles"]["claim_auditor"] == _not_run("claim_auditor")
+    assert result["terminal_state"] == "incomplete"
+    assert result["terminal_reason"] == "no_writer_candidate"
+    assert result["disposition"] == "not_set"
+    assert result["writer_comparison"] == "not_applicable"
+    assert result["advisory_source_record_decision"]["advisory_choice"] == "SUPPORTED"
+    assert result["advisory_source_record_decision"]["terminal_state"] == "completed"
+    assert "A source-grounded observation" not in json.dumps(result)
+
+
+def test_sealed_no_candidate_integration_rejects_mutated_snapshot_artifact(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    shadow_result = run_shadow_audit(
+        packet, source_provider=source_provider, jev_transport=lambda *_: pytest.fail("not called"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=tmp_path / "tampered-snapshot",
+    )
+    snapshot_path = shadow_result["artifact_paths"]["case-snapshot"]
+    changed = json.loads(snapshot_path.read_text())
+    changed["snapshot_id"] = "other-snapshot"
+    snapshot_path.write_text(json.dumps(changed))
+
+    with pytest.raises(SealedSourceIntegrationError, match="snapshot_artifact_binding_invalid"):
+        run_sealed_no_candidate_decision(
+            shadow_result, expected_jev_model_id="jev-latest", jev_transport=lambda *_: pytest.fail("must not dispatch"),
+        )
+
+
+def test_sealed_no_candidate_integration_rejects_a_candidate_audit_role(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    claim_provider = _provider(monkeypatch, "claim-model", lambda _user: pytest.fail("claim audit must not run"))
+    shadow_result = run_shadow_audit(
+        packet, source_provider=source_provider, jev_transport=lambda *_: pytest.fail("not called"),
+        claim_provider=claim_provider, limits=_limits(), output_dir=tmp_path / "tampered-role",
+    )
+    shadow_result["manifest"]["roles"]["jev"] = {
+        **_not_run("jev"), "status": "completed", "run_id": "forged-run",
+    }
+
+    with pytest.raises(SealedSourceIntegrationError, match="candidate_audit_roles_not_run"):
+        run_sealed_no_candidate_decision(
+            shadow_result, expected_jev_model_id="jev-latest", jev_transport=lambda *_: pytest.fail("must not dispatch"),
+        )
 
 
 def test_malformed_complete_audit_response_is_retained_and_fails_closed(monkeypatch, tmp_path):
