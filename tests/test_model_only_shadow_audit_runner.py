@@ -447,7 +447,13 @@ def test_candidate_free_capture_emits_incomplete_hash_only_receipt_without_provi
     assert '"writer_candidate":' not in raw and "source_evidence" not in raw and "selected_candidate_id" not in raw
 
 
-def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never_claim(tmp_path, monkeypatch):
+@pytest.mark.parametrize(("source_status", "audit_terminal"), [
+    ("completed", "missing_writer_candidate"),
+    ("abstained", "missing_writer_candidate"),
+    ("failed", "source_audit_failed"),
+])
+def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never_claim(
+        tmp_path, monkeypatch, source_status, audit_terminal):
     root = _capture(tmp_path / "capture", [_packet("PR-464", None, "task-first")])
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps(_plan(["task-first"])))
@@ -512,9 +518,9 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
         on_source_http_attempt()
         observed.append(request_hash)
         manifest = {
-            "terminal_state": "incomplete",
+            "terminal_state": audit_terminal,
             "roles": {
-                "source_auditor": {"status": "completed", "calls": [{
+                "source_auditor": {"status": source_status, "calls": [{
                     "dispatch_state": "http_attempted", "request_sha256": request_hash,
                 }]},
                 "jev": {"status": "not_run", "calls": []},
@@ -535,7 +541,13 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
         source_dispatch_receipt_path=source_dispatch_path,
     )
     assert observed == [request_hash]
+    raw_terminal = json.loads(
+        (tmp_path / "raw-audit" / "shadow-audit-manifest.json").read_text()
+    )["terminal_state"]
+    assert raw_terminal == audit_terminal
     assert receipt["reason"] == "no_writer_candidate"
+    assert receipt["terminal_state"] == "incomplete"
+    assert receipt["roles"]["source_auditor"] == source_status
     assert receipt["candidate_packet_count"] == 0
     assert receipt["audit_provider_calls"] == 1
     assert receipt["role_call_counts"] == {"source_auditor": 1, "jev": 0, "claim_auditor": 0}
