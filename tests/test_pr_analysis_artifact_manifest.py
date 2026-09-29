@@ -632,8 +632,27 @@ def test_authenticated_fetch_uses_exact_api_bindings_and_strips_redirect_auth(tm
 
 
 def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_capture(tmp_path, capsys):
-    """Exercise the captured v3 packet through manifest creation, fetch, and intake."""
+    """Exercise the v3 capture through fake-auth fetch/intake and recovery preflight."""
     root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path)
+    # The v3 preview requires a sealed checkpoint with an explicit reservation
+    # ledger. This synthetic checkpoint is terminal with no outstanding work,
+    # so the preview can validate pins without invoking a provider.
+    checkpoint_value = {
+        "run_id": identity["run_id"],
+        "base_sha": identity["base_sha"],
+        "head_sha": identity["head_sha"],
+        "snapshot_id": identity["snapshot_id"],
+        "request_hash": identity["request_hash"],
+        "project_profile_version": identity["profile_version"],
+        "ledger": {
+            "identity": {"snapshot_id": identity["snapshot_id"], "profile_version": identity["profile_version"]},
+            "request_hash": identity["request_hash"],
+            "events": [],
+            "budget": {"reservations": {}, "settlements": {}},
+        },
+    }
+    _seal_checkpoint(checkpoint, checkpoint_value)
+    source_repository = _preview_source(tmp_path / "preview", identity)
     args = ["--artifact-root", str(root)]
     for option, key in (
         ("--workflow-repository", "workflow_repository"),
@@ -680,8 +699,8 @@ def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_c
         "repository": {"id": 99, "full_name": "owner/caller"},
         "pull_requests": [],
         "referenced_workflows": [{
-            "path": "owner/harness/.github/workflows/pr-analysis.yml@main",
-            "sha": "c" * 40,
+            "path": identity["called_workflow_ref"],
+            "sha": identity["called_workflow_sha"],
             "ref": "refs/heads/main",
         }],
     }
@@ -700,11 +719,11 @@ def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_c
         "target_repository": "owner/caller",
         "pull_request_number": 7,
         "harness_repository": "owner/harness",
-        "harness_sha": "c" * 40,
-        "called_workflow_ref": "owner/harness/.github/workflows/pr-analysis.yml@refs/heads/main",
-        "called_workflow_sha": "c" * 40,
-        "called_workflow_repository": "owner/harness",
-        "called_workflow_file_path": ".github/workflows/pr-analysis.yml",
+        "harness_sha": identity["harness_sha"],
+        "called_workflow_ref": identity["called_workflow_ref"],
+        "called_workflow_sha": identity["called_workflow_sha"],
+        "called_workflow_repository": identity["called_workflow_repository"],
+        "called_workflow_file_path": identity["called_workflow_file_path"],
     }
     api = "https://api.github.com"
     storage_url = "https://productionresultssa12.blob.core.windows.net/actions-results/signed?sig=synthetic"
@@ -750,6 +769,23 @@ def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_c
     assert manifest.verify_manifest(recovered, identity) == captured_manifest
     assert (recovered / "review" / "pr-7-42.json").read_bytes() == captured_checkpoint
     assert (recovered / "recovery-inputs.json").read_bytes() == captured_packet
+
+    import preview_pr_analysis_recovery as preview
+
+    preflight = preview.preview(
+        recovered,
+        expected_identity=identity,
+        source_repository=source_repository,
+        profile=profile,
+        provider_config=provider,
+        decision_config=decision,
+        current_recovery_inputs=recovered / "recovery-inputs.json",
+    )
+    assert preflight["status"] == "CONSISTENCY_PREVIEW_PASSED"
+    assert preflight["resume_authorized"] is False
+    assert preflight["remaining_checks"] == ["engine_resume_preflight", "current_pr_head_freshness"]
+    assert preflight["provider_calls"] == 0
+    assert preflight["checkpoint_sha256"] == hashlib.sha256(captured_checkpoint).hexdigest()
 
 
 def test_fetch_rejects_malformed_called_workflow_identity_before_network(tmp_path):
