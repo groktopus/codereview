@@ -23,6 +23,13 @@ import fetch_pr_analysis_artifact as fetch
 import intake_pr_analysis_artifact as intake
 import pr_analysis_artifact_manifest as manifests
 
+# This operator entry point is run directly from a source checkout by Actions.
+# Make the package used by the recovery-manifest verifier available even when
+# the checkout has not been installed and PYTHONPATH is unset.
+_SOURCE_PACKAGE = Path(__file__).resolve().parents[1] / "src"
+if _SOURCE_PACKAGE.is_dir() and str(_SOURCE_PACKAGE) not in sys.path:
+    sys.path.insert(0, str(_SOURCE_PACKAGE))
+
 CALLER = "groktopus/codereview"
 CALLER_PATH = ".github/workflows/slopsearx-pilot.yml"
 CALLER_REF = "refs/heads/main"

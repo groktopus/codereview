@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -86,6 +88,39 @@ def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_
     assert not any("review" in key.lower() or "text" in key.lower() for key in receipt)
     assert all(call[1]["Authorization"] == "Bearer fake-read-token" for call in transport.calls if "blob.core" not in call[0])
     assert len(transport.calls) == 5
+
+
+def test_source_checkout_entrypoint_loads_recovery_validator_without_pythonpath(tmp_path):
+    root, identity, checkpoint, profile, provider, decision = fixtures._fixture(tmp_path, central_pilot=True)
+    manifest.create_manifest(
+        root, identity, checkpoint=checkpoint, profile=profile,
+        provider_config=provider, decision_config=decision,
+    )
+    identity_path = tmp_path / "identity.json"
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+    code = """
+import json
+import sys
+from pathlib import Path
+sys.path.insert(0, 'scripts')
+import central_pilot_admission
+import pr_analysis_artifact_manifest
+record = pr_analysis_artifact_manifest._recovery_input_record(
+    Path(sys.argv[1]), json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+)
+print(json.dumps(record, sort_keys=True, separators=(',', ':')))
+"""
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    completed = subprocess.run(
+        [sys.executable, "-S", "-c", code, str(root), str(identity_path)],
+        cwd=ROOT, env=environment, capture_output=True, text=True, timeout=15, check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    record = json.loads(completed.stdout)
+    assert record["source_event_id"] == identity["workflow_run_id"]
+    assert record["packet_sha256"] == hashlib.sha256((root / "recovery-inputs.json").read_bytes()).hexdigest()
+    assert record["checks_document_sha256"]
 
 
 @pytest.mark.parametrize("change", [
