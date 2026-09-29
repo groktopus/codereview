@@ -867,6 +867,133 @@ def test_private_operator_bridge_emits_hash_only_receipt_and_counts_external_cal
     receipt_path = receipt_dir / "source-record-jev-receipt.json"
     assert stat.S_IMODE(receipt_path.stat().st_mode) == 0o600
     assert json.loads(receipt_path.read_text()) == receipt
+    assert not (receipt_dir / "source-record-jev-advisory-summary.json").exists()
+
+    summary_dir = tmp_path / "summary"
+    summary = run_private_artifact_decision(
+        artifact_dir,
+        {"kind": "typesafe", "endpoint": "https://api.typesafe.ai/v1/systemone",
+         "model": "jev-latest", "api_key_env": "TEST_JEV_KEY"},
+        summary_dir,
+        jev_transport=jev_transport,
+        write_advisory_summary=True,
+    )
+    assert summary["jev_status"] == "completed"
+    private_summary_path = summary_dir / "source-record-jev-advisory-summary.json"
+    assert stat.S_IMODE(summary_dir.stat().st_mode) == 0o700
+    assert stat.S_IMODE(private_summary_path.stat().st_mode) == 0o600
+    private_summary = json.loads(private_summary_path.read_text())
+    assert private_summary == {
+        "schema_version": "private-sealed-source-record-advisory.v1",
+        "case_id": "PR-464",
+        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "plan_sha256": "a" * 64,
+        "source_record_replay_request_sha256": private_summary["source_record_replay_request_sha256"],
+        "source_response_sha256": private_summary["source_response_sha256"],
+        "jev_request_sha256": private_summary["jev_request_sha256"],
+        "jev_response_sha256": private_summary["jev_response_sha256"],
+        "selected_record_id_sha256": private_summary["selected_record_id_sha256"],
+        "source_record_count": 1,
+        "source_status": "completed",
+        "jev_status": "completed",
+        "choice": "SUPPORTED",
+    }
+    assert len(private_summary["selected_record_id_sha256"]) == 64
+    assert "probabilities" not in private_summary and "confidence" not in private_summary
+    assert "A source-grounded observation." not in private_summary_path.read_text()
+
+
+def _advisory_summary_input(**updates):
+    value = {
+        "case_id": "PR-464",
+        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "plan_sha256": "a" * 64,
+        "source_record_replay_request_sha256": "c" * 64,
+        "source_response_sha256": "d" * 64,
+        "jev_request_sha256": "e" * 64,
+        "jev_response_sha256": "f" * 64,
+        "selected_record_id_sha256": "b" * 64,
+        "source_record_count": 1,
+        "source_status": "completed",
+        "jev_status": "completed",
+    }
+    value.update(updates)
+    return value
+
+
+@pytest.mark.parametrize("choice", ["SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED", "UNCERTAIN"])
+def test_private_advisory_summary_preserves_only_typed_choice(choice):
+    from run_sealed_source_record_jev import _private_advisory_summary
+
+    summary = _private_advisory_summary(_advisory_summary_input(), choice)
+    assert summary["choice"] == choice
+    assert set(summary) == {
+        "schema_version", "case_id", "snapshot_id", "snapshot_sha256", "plan_sha256",
+        "source_record_replay_request_sha256", "source_response_sha256", "jev_request_sha256",
+        "jev_response_sha256", "selected_record_id_sha256", "source_record_count", "source_status",
+        "jev_status", "choice",
+    }
+
+
+def test_private_advisory_summary_encodes_source_abstention_and_zero_record_not_run():
+    from run_sealed_source_record_jev import _private_advisory_summary
+
+    abstained = _private_advisory_summary(_advisory_summary_input(
+        source_status="abstained", source_record_count=0, selected_record_id_sha256=None,
+        jev_status="not_run", jev_request_sha256=None, jev_response_sha256=None,
+    ), None)
+    assert abstained["source_status"] == "abstained" and abstained["source_record_count"] == 0
+    assert abstained["selected_record_id_sha256"] is None
+    assert abstained["jev_status"] == "not_run" and abstained["choice"] is None
+
+
+@pytest.mark.parametrize("jev_request_hash", [None, "e" * 64])
+def test_private_advisory_summary_accepts_completed_source_without_record_hash_when_jev_not_run(jev_request_hash):
+    from run_sealed_source_record_jev import _private_advisory_summary
+
+    summary = _private_advisory_summary(_advisory_summary_input(
+        selected_record_id_sha256=None, source_record_count=3, jev_status="not_run",
+        jev_request_sha256=jev_request_hash, jev_response_sha256=None,
+    ), None)
+    assert summary["source_status"] == "completed" and summary["source_record_count"] == 3
+    assert summary["selected_record_id_sha256"] is None
+    assert summary["jev_status"] == "not_run" and summary["choice"] is None
+    assert summary["jev_request_sha256"] == jev_request_hash
+
+
+@pytest.mark.parametrize("state", [
+    (_advisory_summary_input(source_status="failed", source_record_count=0,
+                             selected_record_id_sha256=None, jev_status="not_run",
+                             jev_request_sha256=None, jev_response_sha256=None), None),
+    (_advisory_summary_input(jev_status="failed"), None),
+    (_advisory_summary_input(jev_status="abstained"), None),
+])
+def test_private_advisory_summary_retains_failed_or_explicit_abstain_state(state):
+    from run_sealed_source_record_jev import _private_advisory_summary
+
+    summary = _private_advisory_summary(*state)
+    assert summary["jev_status"] in {"not_run", "failed", "abstained"}
+    assert summary["choice"] is None
+
+
+@pytest.mark.parametrize("receipt,choice", [
+    (_advisory_summary_input(jev_status="completed"), None),
+    (_advisory_summary_input(jev_status="completed"), "UNKNOWN"),
+    (_advisory_summary_input(jev_status="not_run"), "SUPPORTED"),
+    (_advisory_summary_input(jev_status="not_run", jev_response_sha256="f" * 64), None),
+    (_advisory_summary_input(selected_record_id_sha256="not-a-hash"), "SUPPORTED"),
+    (_advisory_summary_input(source_status="abstained"), None),
+    (_advisory_summary_input(source_status="completed", source_record_count=True), "SUPPORTED"),
+    (_advisory_summary_input(jev_status="failed", selected_record_id_sha256=None), None),
+    (_advisory_summary_input(plan_sha256="A" * 64), "SUPPORTED"),
+])
+def test_private_advisory_summary_rejects_malformed_status_choice_or_hash(receipt, choice):
+    from run_sealed_source_record_jev import _private_advisory_summary
+
+    with pytest.raises(SealedSourceIntegrationError, match="advisory_summary"):
+        _private_advisory_summary(receipt, choice)
 
 
 def test_private_operator_bridge_rejects_non_http_source_before_jev(monkeypatch, tmp_path):
