@@ -767,7 +767,7 @@ def test_actions_private_plan_must_come_from_fixed_trusted_checkout_and_receipt_
     _trusted_capture_env(monkeypatch, runner_temp)
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
     trusted_root = workspace / "trusted-runner"
-    expected_plan = trusted_root / "experiments" / "model-only-shadow-live-pr464-plan-v3.json"
+    expected_plan = trusted_root / "experiments" / "model-only-shadow-live-pr464-plan-v4.json"
     expected_plan.parent.mkdir(parents=True)
     expected_plan.write_text("{}")
     receipt_dir = runner_temp / "private-shadow-preparation"

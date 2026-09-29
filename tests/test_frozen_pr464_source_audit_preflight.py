@@ -46,7 +46,7 @@ def test_frozen_pr464_exact_source_audit_capacity_is_visible_before_dispatch(
     tmp_path, monkeypatch, capsys
 ):
     repo = _source_repo()
-    plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json").read_text())
+    plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v4.json").read_text())
     profile_path = ROOT / "docs/real-case-trial-v1/profiles/PR-464.json"
     profile = json.loads(profile_path.read_text())
     limits = json.loads((ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json").read_text())
@@ -83,7 +83,7 @@ def test_frozen_pr464_exact_source_audit_capacity_is_visible_before_dispatch(
         {key: row[key] for key in ("task_id", "input_bytes", "input_sha256")}
         for row in source["requests"]
     ] == proposed_rows
-    v3_limits = audit_runner._load_limits(ROOT / "experiments/model-only-shadow-audit-limits-v2.json")
+    v3_limits = audit_runner._load_limits(ROOT / "experiments/model-only-shadow-audit-limits-pr464-v4.json")
     assert v3_limits["max_input_bytes_per_task"] == 96_000
     serialized = (b'{"max_completion_tokens":1800,"pad":"'
                   + b"x" * (91_832 - len(b'{"max_completion_tokens":1800,"pad":"') - 2) + b'"}')

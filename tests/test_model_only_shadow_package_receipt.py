@@ -118,10 +118,10 @@ def test_workflow_packages_both_frozen_cases_privately_and_cleans_outputs_withou
     case_selection = live.split("- name: Select one fixed live case", 1)[1].split(
         "- name: Set up Python", 1
     )[0]
-    assert '"examples/evaluation/model-only-shadow-pr457-v3/corpus.json"' in case_selection
-    assert '"examples/evaluation/model-only-shadow-pr464-v3/corpus.json"' in case_selection
-    assert '"audit_limits_path": "experiments/model-only-shadow-audit-limits-v3.json"' in case_selection
-    assert '"audit_limits_path": "experiments/model-only-shadow-audit-limits-v2.json"' in case_selection
+    assert '"examples/evaluation/model-only-shadow-pr457-v4/corpus.json"' in case_selection
+    assert '"examples/evaluation/model-only-shadow-pr464-v4/corpus.json"' in case_selection
+    assert '"audit_limits_path": "experiments/model-only-shadow-audit-limits-pr457-v4.json"' in case_selection
+    assert '"audit_limits_path": "experiments/model-only-shadow-audit-limits-pr464-v4.json"' in case_selection
     assert '"corpus_path": contracts[case_id]["corpus_path"]' in case_selection
     assert '--limits "${{ steps.case.outputs.audit_limits_path }}"' in live
 

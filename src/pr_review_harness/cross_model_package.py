@@ -248,6 +248,11 @@ _MODEL_TEACHER_IDENTITIES = {
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
         "manifest_id": "model-only-shadow-live-pr464-plan-v3",
     },
+    "model-only-shadow-pr464-v4": {
+        "plan_path": "experiments/model-only-shadow-live-pr464-plan-v4.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v2",
+        "manifest_id": "model-only-shadow-live-pr464-plan-v4",
+    },
 }
 _MODEL_TEACHER_MANIFEST_FIELDS = {
     "schema", "corpus_id", "dataset_version", "case_id", "repository", "base_sha", "head_sha",

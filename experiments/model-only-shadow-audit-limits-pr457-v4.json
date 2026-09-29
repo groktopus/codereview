@@ -1,0 +1,14 @@
+{
+  "schema": "model-only-shadow-audit-limits.v3",
+  "max_packets": 1,
+  "max_provider_calls": 3,
+  "max_retries": 0,
+  "max_request_bytes_per_call": 120000,
+  "max_response_bytes_per_call": 64000,
+  "max_output_tokens_per_llm_call": 1800,
+  "deadline_seconds_per_call": 90,
+  "total_provider_deadline_seconds": 270,
+  "target_code_execution": false,
+  "publication_enabled": false,
+  "preflight_boundary": "exact_source_task_requests_admitted_before_writer_dispatch_then_stage_local_checks"
+}

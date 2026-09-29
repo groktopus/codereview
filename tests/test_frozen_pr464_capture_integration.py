@@ -94,7 +94,7 @@ def _sha(raw: bytes) -> str:
 
 
 def _prepare_frozen_pr464(source_repo, tmp_path, monkeypatch, capsys, *, use_active_v3=False):
-    plan_name = "model-only-shadow-live-pr464-plan-v3.json" if use_active_v3 else "model-only-shadow-live-pr464-plan-v2.json"
+    plan_name = "model-only-shadow-live-pr464-plan-v4.json" if use_active_v3 else "model-only-shadow-live-pr464-plan-v2.json"
     plan_path = ROOT / "experiments" / plan_name
     plan_raw = plan_path.read_bytes()
     plan = json.loads(plan_raw)
@@ -175,7 +175,7 @@ def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkey
     gates rather than provider transport behavior.
     """
     source_repo = _source_repo()
-    plan_path = ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
+    plan_path = ROOT / "experiments/model-only-shadow-live-pr464-plan-v4.json"
     profile_path = ROOT / "docs/real-case-trial-v1/profiles/PR-464.json"
     profile_raw = profile_path.read_bytes()
     plan, plan_raw, profile, _prepared, receipt, fake_call_counter = _prepare_frozen_pr464(
@@ -270,7 +270,7 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
     network is contacted.
     """
     source_repo = _source_repo()
-    plan_path = ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
+    plan_path = ROOT / "experiments/model-only-shadow-live-pr464-plan-v4.json"
     profile_path = ROOT / "docs/real-case-trial-v1/profiles/PR-464.json"
     plan, _plan_raw, _profile, _prepared, preflight, writer_counter = _prepare_frozen_pr464(
         source_repo, tmp_path, monkeypatch, capsys, use_active_v3=True

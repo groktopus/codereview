@@ -320,14 +320,14 @@ jobs:
               "PR-464": {
                   "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
                   "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
-                  "corpus_path": "examples/evaluation/model-only-shadow-pr464-v3/corpus.json",
-                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-v2.json",
+                  "corpus_path": "examples/evaluation/model-only-shadow-pr464-v4/corpus.json",
+                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-pr464-v4.json",
               },
               "PR-457": {
                   "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
                   "head_sha": "595f143607961d21d162efe76518d86e416d2548",
-                  "corpus_path": "examples/evaluation/model-only-shadow-pr457-v3/corpus.json",
-                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-v3.json",
+                  "corpus_path": "examples/evaluation/model-only-shadow-pr457-v4/corpus.json",
+                  "audit_limits_path": "experiments/model-only-shadow-audit-limits-pr457-v4.json",
               },
           }
           case_id = os.environ.get("SELECTED_CASE", "PR-464")
@@ -336,7 +336,7 @@ jobs:
           values = {
               "case_id": case_id,
               **contracts[case_id],
-              "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v3.json",
+              "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v4.json",
               "profile_path": f"docs/real-case-trial-v1/profiles/{case_id}.json",
               "checks_path": f"docs/real-case-trial-v1/checks/{case_id}.json",
               "corpus_path": contracts[case_id]["corpus_path"],

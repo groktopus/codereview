@@ -39,11 +39,10 @@ REQUEST_BYTES = 11_687
 OUTPUT_BYTES_CAP = 16_000
 OUTPUT_TOKENS_CAP = 1_200
 MODULE_COUNT = 35
-# Interim provider-free preparation pin at PR #157 head. The v3 finalizer
-# rewrites these values from the exact immutable runtime revision selected for
-# the combined stack; until then, package identity v3 remains pending.
-MODULE_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991"
-SOURCE_REVISION = "f6fd5158c567a2ace10e1abd63465a23cd12fc51"
+# Active v4 runtime pin. The v4 finalizer refreshes these values only from the
+# exact immutable runtime revision selected for the combined stack.
+MODULE_TREE_SHA256 = "bd8b2f73e6d9bba2792d0b70446ac865aa02d71bb5cb389958fd52574ddda071"
+SOURCE_REVISION = "b8f159dd8dbae28f3dc44f5771681b958ff904c3"
 PYTHON_IDENTITY = {"implementation": "cpython", "version": "3.14.7"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")

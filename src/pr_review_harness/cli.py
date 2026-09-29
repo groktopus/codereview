@@ -28,14 +28,14 @@ TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF = (
 TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset({TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF})
 TRUSTED_SHADOW_PLANS = {
     "PR-457": {
-        "path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
+        "path": "experiments/model-only-shadow-live-pr457-plan-v4.json",
         "calls": 6,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
         "audit_max_input_bytes_per_call": 120_000,
     },
     "PR-464": {
-        "path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
+        "path": "experiments/model-only-shadow-live-pr464-plan-v4.json",
         "calls": 10,
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
