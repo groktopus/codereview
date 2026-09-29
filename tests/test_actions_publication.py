@@ -60,7 +60,7 @@ def make_policy(**overrides):
 
 
 class Provider:
-    def __init__(self, *, state=IdentityState.VERIFIED, actor=WRITER):
+    def __init__(self, *, state=IdentityState.VERIFIED, actor=WRITER, permissions=None):
         self.calls = []
         self.credential = PublisherCredential(
             token="test-secret-token",
@@ -71,7 +71,7 @@ class Provider:
                 evidence_id="3" * 64,
             ),
             repository_id=8123,
-            permissions=(("actions", "read"), ("pull_requests", "write")),
+            permissions=permissions or (("actions", "read"), ("pull_requests", "write")),
             expires_at="2999-01-01T00:00:00Z",
         )
 
@@ -383,6 +383,7 @@ class Uploader:
         ("receipt_upload", "REJECTED"),
         ("history_cap", "UNKNOWN"),
         ("post_state", "UNKNOWN"),
+        ("admission_only", "CANDIDATE"),
     ],
 )
 def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_posts_once(failure, expected_status):
@@ -519,7 +520,12 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
 
     transport = EndToEndTransport(api_response)
     uploader = Uploader("FAILED" if failure == "receipt_upload" else "UPLOADED")
-    client = GitHubActionsPublicationAdapter(policy, Provider(), transport=transport, artifact_uploader=uploader)
+    provider = Provider(
+        permissions=(("actions", "read"), ("pull_requests", "read"))
+        if failure == "admission_only"
+        else None
+    )
+    client = GitHubActionsPublicationAdapter(policy, provider, transport=transport, artifact_uploader=uploader)
     config = {
         "schema_version": "1.0",
         "enabled": True,
@@ -529,6 +535,26 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         "allowed_actors": [WRITER],
         "max_review_body_bytes": 60_000,
     }
+    if failure == "admission_only":
+        admission = client.admit(
+            result,
+            config,
+            ScanLimits(max_runs=20, max_pages=2, max_reviews=100, deadline_seconds=20),
+        )
+        assert admission.slot.pull_request_number == policy.pull_request_number
+        assert admission.slot.head_sha == HEAD
+        assert admission.base_sha == BASE
+        assert admission.source_artifact_sha256 == hashlib.sha256(bundle).hexdigest()
+        assert admission.upstream_run.run_id == policy.upstream_run_id
+        assert admission.upstream_run.run_attempt == policy.upstream_run_attempt
+        assert admission.publisher_run.run_id == policy.publisher_run_id
+        assert admission.publisher_run.run_attempt == policy.publisher_run_attempt
+        assert admission.actor_login == WRITER
+        assert all(method == "GET" for method, *_ in transport.calls)
+        assert all(required == {"actions": "read", "pull_requests": "read"} for _, required, _ in provider.calls)
+        assert uploader.calls == []
+        assert post_bodies == []
+        return
     # The workflow artifact writer is the official Actions upload boundary;
     # this deterministic test double emits a receipt archive observable by the
     # API verifier, and no GitHub write is performed by the test.
