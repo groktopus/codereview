@@ -108,18 +108,11 @@ class _SerializedFixtureProvider(OpenAIProvider):
         })
         self.candidate_enabled = candidate_enabled
 
-    def _call(self, *, system, user, schema, limits, contract_version, capture_exchange=False,
-              expected_request_sha256=None, serialized_request_bytes=None, before_dispatch=None,
-              on_http_attempt=None):
-        assert capture_exchange is True
-        expected = self._serialize_request_body(system, user, schema, limits)
-        assert serialized_request_bytes == expected
-        assert hashlib.sha256(expected).hexdigest() == expected_request_sha256
-        task = user["task"]
-        diff = next(row for row in user["evidence"] if row.get("source_kind") == "diff")
-        candidate = []
+    def _fixture_payload(self, task, evidence):
+        diff = next(row for row in evidence if row.get("source_kind") == "diff")
+        candidates = []
         if self.candidate_enabled:
-            candidate = [{
+            candidates = [{
                 "unit_id": task["unit_ids"][0],
                 "location": {
                     "kind": "line", "path": diff["path"], "side": "HEAD", "line": 2, "reason": None,
@@ -131,9 +124,9 @@ class _SerializedFixtureProvider(OpenAIProvider):
                 "severity": "high", "reasoning_kind": "inferred", "introducedness": "INTRODUCED",
                 "evidence_refs": [diff["evidence_id"]],
             }]
-        payload = {
+        return {
             "contract_version": "specialist-findings.v4",
-            "finding_candidates": candidate,
+            "finding_candidates": candidates,
             "context_gap_proposals": [],
             "coverage_notes": [{
                 "unit_id": unit_id, "state": "COVERED", "reason_code": "fixture_scope_reviewed",
@@ -141,6 +134,15 @@ class _SerializedFixtureProvider(OpenAIProvider):
             } for unit_id in task["unit_ids"]],
             "specific_strengths": [], "future_guidance": [],
         }
+
+    def _call(self, *, system, user, schema, limits, contract_version, capture_exchange=False,
+              expected_request_sha256=None, serialized_request_bytes=None, before_dispatch=None,
+              on_http_attempt=None):
+        assert capture_exchange is True
+        expected = self._serialize_request_body(system, user, schema, limits)
+        assert serialized_request_bytes == expected
+        assert hashlib.sha256(expected).hexdigest() == expected_request_sha256
+        payload = self._fixture_payload(user["task"], user["evidence"])
         content = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         return json.loads(content), {
             "usage": {}, "provenance": {"provider": "provider-free-sensitivity-control"},
@@ -151,8 +153,10 @@ class _SerializedFixtureProvider(OpenAIProvider):
         }
 
 
-def test_provider_free_seeded_writer_control_roundtrips_request_parse_reconcile_and_packet_selection(tmp_path):
-    """Construction-defined defect/benign cases test plumbing, not model sensitivity."""
+def test_provider_free_seeded_writer_control_roundtrips_serialization_validation_reconciliation_and_packet_selection(
+    tmp_path,
+):
+    """Construction-defined responses test plumbing, not model sensitivity or response parsing."""
     selected = []
     for label, seeded_defect in (("defect", True), ("benign", False)):
         repo, base, head, profile = _synthetic_repo(tmp_path / label, seeded_defect=seeded_defect)
@@ -189,6 +193,23 @@ def test_provider_free_seeded_writer_control_roundtrips_request_parse_reconcile_
         captured_requests = list((capture_dir / "requests").glob("*.bin"))
         assert len(captured_requests) == 1
         assert captured_requests[0].read_bytes() == request_bytes
+        captured_responses = list((capture_dir / "responses").glob("*.bin"))
+        assert len(captured_responses) == 1
+        expected_payload = provider._fixture_payload(task, evidence)
+        expected_response_bytes = json.dumps(
+            expected_payload, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
+        assert captured_responses[0].read_bytes() == expected_response_bytes
+        captured_payload = json.loads(captured_responses[0].read_bytes())
+        assert captured_payload == expected_payload
+        validated_payload = result["task_results"][task["task_id"]]["payload"]
+        assert captured_payload["contract_version"] == validated_payload["source_contract_version"]
+        assert len(captured_payload["finding_candidates"]) == len(validated_payload["finding_candidates"])
+        if captured_payload["finding_candidates"]:
+            raw_candidate = captured_payload["finding_candidates"][0]
+            validated_candidate = validated_payload["finding_candidates"][0]
+            assert {key: validated_candidate[key] for key in raw_candidate} == raw_candidate
+        assert captured_payload["coverage_notes"] == validated_payload["coverage_notes"]
         packet_rows = shadow_audit_runner._packet_candidates(capture_dir)[2]
         packet_path = shadow_audit_runner._select_packet(packet_rows)
         if seeded_defect:
