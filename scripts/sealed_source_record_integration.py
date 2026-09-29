@@ -32,6 +32,9 @@ from pr_review_harness.shadow_audit import (
 )
 
 MAX_ARTIFACT_BYTES = 4_000_000
+# Frozen PR464 v3 permits a 96 KB source-auditor request. Keep the response,
+# manifest, seal, and source-record/JeV payload limits at 64 KB.
+MAX_SOURCE_AUDITOR_REQUEST_BYTES = 96_000
 ROOT = Path(__file__).resolve().parents[1]
 # The operator bridge is bound to the active frozen identity. Historical v1/v2
 # artifacts remain available for their own evaluation workflows, but are not a
@@ -191,7 +194,7 @@ def run_sealed_no_candidate_decision(
     if require_frozen_pr464 and call.get("dispatch_state") != "http_attempted":
         raise SealedSourceIntegrationError("source_provider_call_not_observed")
     response_raw = _artifact(paths, "source-auditor-response", 64_000)
-    request_raw = _artifact(paths, "source-auditor-request", 64_000)
+    request_raw = _artifact(paths, "source-auditor-request", MAX_SOURCE_AUDITOR_REQUEST_BYTES)
     if (call.get("response_artifact_id") != "source-auditor-response"
             or call.get("request_artifact_id") != "source-auditor-request"
             or call.get("response_sha256") != _sha(response_raw)
