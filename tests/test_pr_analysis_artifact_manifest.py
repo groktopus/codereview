@@ -631,6 +631,127 @@ def test_authenticated_fetch_uses_exact_api_bindings_and_strips_redirect_auth(tm
     )
 
 
+def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_capture(tmp_path, capsys):
+    """Exercise the captured v3 packet through manifest creation, fetch, and intake."""
+    root, identity, checkpoint, profile, provider, decision = _fixture(tmp_path)
+    args = ["--artifact-root", str(root)]
+    for option, key in (
+        ("--workflow-repository", "workflow_repository"),
+        ("--workflow-run-id", "workflow_run_id"),
+        ("--workflow-run-attempt", "workflow_run_attempt"),
+        ("--workflow-run-head-sha", "workflow_run_head_sha"),
+        ("--run-workflow-ref", "run_workflow_ref"),
+        ("--called-workflow-ref", "called_workflow_ref"),
+        ("--called-workflow-sha", "called_workflow_sha"),
+        ("--called-workflow-repository", "called_workflow_repository"),
+        ("--called-workflow-file-path", "called_workflow_file_path"),
+        ("--target-repository", "target_repository"),
+        ("--pull-request-number", "pull_request_number"),
+        ("--base-sha", "base_sha"),
+        ("--head-sha", "head_sha"),
+        ("--harness-repository", "harness_repository"),
+        ("--harness-sha", "harness_sha"),
+        ("--expected-profile-sha256", "profile_sha256"),
+    ):
+        args.extend((option, str(identity[key])))
+    args.extend(("--profile", str(profile), "--provider-config", str(provider), "--decision-config", str(decision)))
+
+    # This is the same public command entry point invoked by pr-analysis.yml.
+    assert manifest.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "verified"
+    captured_manifest = manifest.verify_manifest(root, identity)
+    captured_checkpoint = checkpoint.read_bytes()
+    captured_packet = (root / "recovery-inputs.json").read_bytes()
+
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive_writer:
+        for path in sorted(root.rglob("*")):
+            if path.is_file():
+                archive_writer.write(path, path.relative_to(root).as_posix())
+    archive = archive_buffer.getvalue()
+    run = {
+        "id": 42,
+        "run_attempt": 2,
+        "workflow_id": 77,
+        "status": "completed",
+        "conclusion": "cancelled",
+        "path": ".github/workflows/pr-review.yml@main",
+        "head_sha": "e" * 40,
+        "repository": {"id": 99, "full_name": "owner/caller"},
+        "pull_requests": [],
+        "referenced_workflows": [{
+            "path": "owner/harness/.github/workflows/pr-analysis.yml@main",
+            "sha": "c" * 40,
+            "ref": "refs/heads/main",
+        }],
+    }
+    pull = {
+        "number": 7,
+        "state": "open",
+        "base": {"sha": "a" * 40, "repo": {"full_name": "owner/caller"}},
+        "head": {"sha": "b" * 40, "repo": {"full_name": "contributor/project"}},
+    }
+    request = {
+        "schema_version": fetch.SCHEMA,
+        "workflow_repository": "owner/caller",
+        "workflow_run_id": "42",
+        "workflow_run_attempt": "2",
+        "run_workflow_ref": "owner/caller/.github/workflows/pr-review.yml@refs/heads/main",
+        "target_repository": "owner/caller",
+        "pull_request_number": 7,
+        "harness_repository": "owner/harness",
+        "harness_sha": "c" * 40,
+        "called_workflow_ref": "owner/harness/.github/workflows/pr-analysis.yml@refs/heads/main",
+        "called_workflow_sha": "c" * 40,
+        "called_workflow_repository": "owner/harness",
+        "called_workflow_file_path": ".github/workflows/pr-analysis.yml",
+    }
+    api = "https://api.github.com"
+    storage_url = "https://productionresultssa12.blob.core.windows.net/actions-results/signed?sig=synthetic"
+    listing = {
+        "total_count": 1,
+        "artifacts": [{
+            "id": 501,
+            "name": "pr-review-7-42-2",
+            "size_in_bytes": len(archive),
+            "expired": False,
+            "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+            "workflow_run": {"id": 42, "repository_id": 99, "head_sha": "e" * 40},
+        }],
+    }
+    routes = {
+        f"{api}/repos/owner/caller/actions/runs/42/attempts/2": fetch.HttpResponse(200, {}, json.dumps(run).encode()),
+        f"{api}/repos/owner/caller/pulls/7": fetch.HttpResponse(200, {}, json.dumps(pull).encode()),
+        f"{api}/repos/owner/caller/actions/runs/42/artifacts?per_page=100": fetch.HttpResponse(200, {}, json.dumps(listing).encode()),
+        f"{api}/repos/owner/caller/actions/artifacts/501/zip": fetch.HttpResponse(302, {"Location": storage_url}, b""),
+        storage_url: fetch.HttpResponse(200, {}, archive),
+    }
+    transport = _FakeHttpTransport(routes)
+    destination = tmp_path / "recovered-v3"
+    result = fetch.fetch_and_intake(
+        request_value=request,
+        token="read-only-actions-token",
+        output_dir=destination,
+        transport=transport,
+        api_base=api,
+    )
+
+    assert result["status"] == "FETCHED_CONSISTENCY_VALIDATED"
+    assert result["authenticated_fetch_performed"] is True
+    assert result["resume_authorized"] is False
+    assert result["artifact_id"] == 501
+    assert result["run_id"] == "42" and result["run_attempt"] == "2"
+    assert result["files"] == 3
+    assert [call[0] for call in transport.calls] == list(routes)
+    assert all(call[1].get("Authorization") == "Bearer read-only-actions-token" for call in transport.calls[:-1])
+    assert "Authorization" not in transport.calls[-1][1]
+
+    recovered = destination / "artifact"
+    assert manifest.verify_manifest(recovered, identity) == captured_manifest
+    assert (recovered / "review" / "pr-7-42.json").read_bytes() == captured_checkpoint
+    assert (recovered / "recovery-inputs.json").read_bytes() == captured_packet
+
+
 def test_fetch_rejects_malformed_called_workflow_identity_before_network(tmp_path):
     trusted, routes, _archive, api, _storage = _fetch_fixture(tmp_path)
     trusted["called_workflow_sha"] = "not-a-commit"
