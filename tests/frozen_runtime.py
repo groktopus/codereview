@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FROZEN_MODULE = Path(__file__).resolve().parent / "fixtures" / "selected_model_trial-pr170-base.py"
 FROZEN_OBSERVER = Path(__file__).resolve().parent / "fixtures" / "external_effect_observer-pr170-base.py"
+FROZEN_REPORT = Path(__file__).resolve().parent / "fixtures" / "report-pr170-base.py"
 EXPECTED_MODULE_COUNT = 35
 EXPECTED_MODEL_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
 EXPECTED_SYNTH_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991"
@@ -18,8 +19,8 @@ EXPECTED_SYNTH_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e2369303
 def build_frozen_runtime_root(tmp_path: Path) -> Path:
     """Return a temp source root matching the original PR-170 plan inventory.
 
-    Current source is copied as regular files, then the selected-trial module and
-    observer changed since the historical runtime pins are restored from their
+    Current source is copied as regular files, then the selected-trial module,
+    observer, and report changed since the historical runtime pins are restored from their
     exact main-base blobs. Both verifier hash encodings are recomputed so unrelated
     source drift invalidates the fixture.
     """
@@ -29,6 +30,7 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
     shutil.copytree(ROOT / "src" / "pr_review_harness", module_dir)
     (module_dir / "selected_model_trial.py").write_bytes(FROZEN_MODULE.read_bytes())
     (module_dir / "external_effect_observer.py").write_bytes(FROZEN_OBSERVER.read_bytes())
+    (module_dir / "report.py").write_bytes(FROZEN_REPORT.read_bytes())
 
     files = sorted(module_dir.glob("*.py"), key=lambda path: path.name)
     module_hashes = {
