@@ -320,10 +320,12 @@ jobs:
               "PR-464": {
                   "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
                   "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+                  "corpus_path": "examples/evaluation/model-only-shadow-pr464-v2/corpus.json",
               },
               "PR-457": {
                   "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
                   "head_sha": "595f143607961d21d162efe76518d86e416d2548",
+                  "corpus_path": "examples/evaluation/model-only-shadow-pr457-v2/corpus.json",
               },
           }
           case_id = os.environ.get("SELECTED_CASE", "PR-464")
@@ -335,6 +337,7 @@ jobs:
               "plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v2.json",
               "profile_path": f"docs/real-case-trial-v1/profiles/{case_id}.json",
               "checks_path": f"docs/real-case-trial-v1/checks/{case_id}.json",
+              "corpus_path": contracts[case_id]["corpus_path"],
           }
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               for key, value in values.items():
@@ -547,17 +550,18 @@ jobs:
             --output-dir "$RUNNER_TEMP/private-shadow-audit-sanitized" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 
-      # PR-464 has a frozen v2 corpus identity. Package private bytes on-runner
+      # Both selected PR cases have frozen v2 corpus identities. Package private bytes on-runner
       # and project the result to a bounded receipt; do not upload either here.
       - name: Gate cross-model packaging on a completed candidate audit
         id: package-selection
-        if: steps.case.outputs.case_id == 'PR-464' && steps.shadow-audit.outcome == 'success' && steps.audit-sanitize.outputs.validated == 'true'
+        if: steps.case.outputs.corpus_path != '' && steps.shadow-audit.outcome == 'success' && steps.audit-sanitize.outputs.validated == 'true'
         working-directory: trusted-runner
         run: |
           set -euo pipefail
           python3 scripts/select_model_only_shadow_package_packet.py \
             --capture-root "$RUNNER_TEMP/private-writer-capture" \
             --audit-receipt "$RUNNER_TEMP/private-shadow-audit-sanitized/shadow-audit-receipt.json" \
+            --case-id "${{ steps.case.outputs.case_id }}" \
             --output "$RUNNER_TEMP/private-shadow-audit-sanitized/package-selection.json" > /dev/null
           python3 - "$RUNNER_TEMP/private-shadow-audit-sanitized/package-selection.json" "$GITHUB_OUTPUT" <<'PY'
           import json
@@ -580,7 +584,7 @@ jobs:
                   output.write(f"{key}={value}\n")
           PY
 
-      - name: Build private PR-464 cross-model package
+      - name: Build private cross-model package
         id: package
         if: steps.package-selection.outputs.eligible == 'true'
         working-directory: trusted-runner
@@ -592,7 +596,7 @@ jobs:
           selected_packet="${{ steps.package-selection.outputs.selected_packet }}"
           mkdir -m 700 "$RUNNER_TEMP/private-cross-model-package"
           python3 scripts/package_cross_model_v2.py \
-            --corpus examples/evaluation/model-only-shadow-pr464-v2/corpus.json \
+            --corpus "${{ steps.case.outputs.corpus_path }}" \
             --capture-root "$RUNNER_TEMP/private-writer-capture" \
             --case-packet "$RUNNER_TEMP/private-writer-capture/case-packets/$selected_packet" \
             --shadow-root "$RUNNER_TEMP/private-shadow-audit-output" \
@@ -600,6 +604,7 @@ jobs:
             --json > "$RUNNER_TEMP/private-cross-model-package/package-summary.json"
           python3 scripts/sanitize_model_only_shadow_package_receipt.py \
             --summary "$RUNNER_TEMP/private-cross-model-package/package-summary.json" \
+            --case-id "${{ steps.case.outputs.case_id }}" \
             --output "$RUNNER_TEMP/private-cross-model-package/package-receipt.json" > /dev/null
           echo 'validated=true' >> "$GITHUB_OUTPUT"
 

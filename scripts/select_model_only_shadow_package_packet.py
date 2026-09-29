@@ -66,10 +66,12 @@ def _read(path: Path, limit: int) -> tuple[dict[str, Any], bytes]:
     return value, raw
 
 
-def select(capture_root: Path, audit_receipt_path: Path) -> dict[str, object]:
+def select(capture_root: Path, audit_receipt_path: Path, case_id: str) -> dict[str, object]:
     manifest, manifest_raw = _read(capture_root / "manifest.json", 256_000)
     receipt, _receipt_raw = _read(audit_receipt_path, 64_000)
-    if receipt.get("schema") != "model-only-shadow-audit-receipt.v1" or receipt.get("case_id") != "PR-464":
+    if (case_id not in {"PR-457", "PR-464"}
+            or receipt.get("schema") != "model-only-shadow-audit-receipt.v1"
+            or receipt.get("case_id") != case_id):
         raise SelectionError("selection_receipt_identity_invalid")
     if receipt.get("terminal_state") != "completed":
         return {"eligible": False, "reason": "audit_not_completed"}
@@ -103,6 +105,8 @@ def select(capture_root: Path, audit_receipt_path: Path) -> dict[str, object]:
     _packet, packet_raw = _read(packet_path, 4_000_000)
     if hashlib.sha256(packet_raw).hexdigest() != packet_sha:
         raise SelectionError("selection_packet_binding_invalid")
+    if _packet.get("case_id") != case_id:
+        raise SelectionError("selection_packet_identity_invalid")
     candidate = _packet.get("writer_candidate")
     candidate_id = candidate.get("candidate_id") if isinstance(candidate, dict) else None
     if not isinstance(candidate_id, str) or not candidate_id:
@@ -114,10 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capture-root", type=Path, required=True)
     parser.add_argument("--audit-receipt", type=Path, required=True)
+    parser.add_argument("--case-id", choices=("PR-457", "PR-464"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        result = select(args.capture_root, args.audit_receipt)
+        result = select(args.capture_root, args.audit_receipt, args.case_id)
         fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             json.dump(result, stream, sort_keys=True, separators=(",", ":"))

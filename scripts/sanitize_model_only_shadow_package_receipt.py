@@ -2,7 +2,7 @@
 """Project the private cross-model packager's summary into a bounded receipt.
 
 The comparison package remains on the runner. This receipt records only that
-the fixed PR-464 v2 package passed byte verification and its bounded counts.
+the selected frozen-case v2 package passed byte verification and bounded counts.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class ReceiptError(ValueError):
 HASH_ID = re.compile(r"pkg-[0-9a-f]{64}\Z")
 
 
-def project(source: Path, output: Path) -> dict[str, object]:
+def project(source: Path, output: Path, case_id: str) -> dict[str, object]:
     try:
         before = source.lstat()
         if not stat.S_ISREG(before.st_mode) or before.st_size > 16_384:
@@ -49,7 +49,8 @@ def project(source: Path, output: Path) -> dict[str, object]:
         "verified_structured_relation_count", "claims", "comparison_path", "report_path",
     }:
         raise ReceiptError("package_summary_invalid")
-    if (summary.get("ok") is not True
+    if (case_id not in {"PR-457", "PR-464"}
+            or summary.get("ok") is not True
             or not isinstance(summary.get("comparison_id"), str)
             or not HASH_ID.fullmatch(summary["comparison_id"])
             or summary.get("case_count") != 1
@@ -68,7 +69,7 @@ def project(source: Path, output: Path) -> dict[str, object]:
         raise ReceiptError("package_summary_invalid")
     receipt = {
         "schema": "model-only-shadow-cross-model-package-receipt.v1",
-        "case_id": "PR-464",
+        "case_id": case_id,
         "package_status": "byte_verified",
         "comparison_id": summary["comparison_id"],
         "case_count": 1,
@@ -102,10 +103,11 @@ def _unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--case-id", choices=("PR-457", "PR-464"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        project(args.summary, args.output)
+        project(args.summary, args.output, args.case_id)
     except (OSError, ReceiptError):
         print('{"ok":false,"error_code":"package_receipt_invalid"}')
         return 2
