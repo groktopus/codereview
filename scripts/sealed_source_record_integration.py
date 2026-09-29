@@ -103,10 +103,26 @@ def _validate_frozen_pr464(packet: dict[str, Any]) -> str:
     try:
         plan_raw = PR464_PLAN.read_bytes()
         plan = _decode(plan_raw)
-        case_id, _policy = validate_plan_binding(plan, plan_raw)
+        case_id, policy = validate_plan_binding(plan, plan_raw)
         corpus = _decode(PR464_CORPUS.read_bytes())
         identity = _decode(PR464_IDENTITY.read_bytes())
-        validate_identity(corpus, identity, plan, plan_raw, packet)
+        profile_raw = (ROOT / policy["profile_path"]).read_bytes()
+        profile = _decode(profile_raw)
+        raw_profile_sha = hashlib.sha256(profile_raw).hexdigest()
+        if raw_profile_sha != policy["profile_sha256"] or not isinstance(profile, dict):
+            raise ValueError("profile_file_hash_mismatch")
+        canonical_profile_sha = hashlib.sha256(_canonical(profile)).hexdigest()
+        snapshot = packet.get("snapshot")
+        if not isinstance(snapshot, dict) or snapshot.get("profile_hash") != canonical_profile_sha:
+            raise ValueError("snapshot_profile_hash_mismatch")
+        # The corpus manifest pins the exact profile file bytes, while runtime
+        # snapshots pin the canonical JSON form. Validate both independently,
+        # adapting only a clone for the generic file-hash identity validator.
+        identity_packet = dict(packet)
+        identity_snapshot = dict(snapshot)
+        identity_snapshot["profile_hash"] = raw_profile_sha
+        identity_packet["snapshot"] = identity_snapshot
+        validate_identity(corpus, identity, plan, plan_raw, identity_packet)
         case_identity = corpus["cases"][0]["identity"]
         if packet.get("profile_id") != case_identity["profile"]["profile_id"]:
             raise ValueError("profile_id_mismatch")
