@@ -312,6 +312,28 @@ def test_mixed_candidate_projection_rejects_forged_quarantine_hash(tmp_path):
         )
 
 
+def test_reconciliation_rejects_forged_candidate_id_in_selected_writer_finding(tmp_path):
+    values = _synthetic_run(tmp_path)
+    finding = values["result"]["findings"][0]
+    records = finding.get("assessment_records")
+    if isinstance(records, list):
+        records[0]["candidate_id"] = "forged-candidate-id"
+    else:
+        finding["candidate_id"] = "forged-candidate-id"
+    unsigned = {key: value for key, value in values["result"].items() if key != "result_hash"}
+    values["result"]["result_hash"] = hashlib.sha256(
+        json.dumps(unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
+
+    with pytest.raises(reconciliation.ReconciliationError, match="finding_candidate_unmatched"):
+        reconciliation.build_receipt(
+            values["result"], values["ledger"], values["outcomes"], values["manifest"],
+            values["response_payloads"], values["packet_pairs"], values["plan"],
+            values["writer_receipt"], values["result"]["result_hash"],
+            values["plan_sha"], values["manifest_sha"], values["writer_receipt_sha"],
+        )
+
+
 def test_cli_main_binds_saved_engine_result_to_capture_and_projects_private_receipt(tmp_path, monkeypatch):
     values = _synthetic_run(tmp_path)
     plan_path = tmp_path / "plan.json"

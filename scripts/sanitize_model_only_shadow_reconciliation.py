@@ -164,7 +164,9 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
             records_by_key[key] = row
     elif records is not None:
         raise ReconciliationError("candidate_record_invalid")
-    found = finding_pairs(result.get("findings"))
+    # This projection accounts only for the selected writer tasks. Findings
+    # from separate check task types remain outside its candidate inventory.
+    found = {pair for pair in finding_pairs(result.get("findings")) if pair[1] in set(task_ids)}
     projected_tasks = []
     accounted: set[tuple[str, str]] = set()
     expected_pairs: set[tuple[str, str]] = set()
@@ -301,6 +303,8 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
                                 "candidates": projected})
     if accounted != set(records_by_key):
         raise ReconciliationError("candidate_record_unmatched")
+    if not found.issubset(expected_pairs):
+        raise ReconciliationError("finding_candidate_unmatched")
     if not packet_pairs.issubset(expected_pairs):
         raise ReconciliationError("packet_candidate_unmatched")
     return {"schema": "model-only-shadow-writer-reconciliation.v1", "status": "PROJECTION_COMPLETE",
