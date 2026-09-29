@@ -22,7 +22,13 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol
 
 import intake_pr_analysis_artifact as intake
-from pr_analysis_artifact_manifest import ManifestError, _identity, _parse_json, canonical
+from pr_analysis_artifact_manifest import (
+    ManifestError,
+    _identity,
+    _parse_json,
+    _workflow_target_binding_valid,
+    canonical,
+)
 
 SCHEMA = "pr-analysis-recovery-request.v1"
 TRUSTED_KEYS = {
@@ -103,7 +109,15 @@ def _validate_request(value: Any) -> dict[str, Any]:
         or not REPO.fullmatch(value["workflow_repository"])
         or not isinstance(value.get("target_repository"), str)
         or not REPO.fullmatch(value["target_repository"])
-        or value["workflow_repository"].casefold() != value["target_repository"].casefold()
+        or not _workflow_target_binding_valid(
+            value["workflow_repository"],
+            value["target_repository"],
+            value.get("run_workflow_ref"),
+            harness_repository=value.get("harness_repository"),
+            called_workflow_repository=value.get("called_workflow_repository"),
+            harness_sha=value.get("harness_sha"),
+            called_workflow_sha=value.get("called_workflow_sha"),
+        )
         or not isinstance(value.get("workflow_run_id"), str)
         or not RUN_ID.fullmatch(value["workflow_run_id"])
         or not isinstance(value.get("workflow_run_attempt"), str)

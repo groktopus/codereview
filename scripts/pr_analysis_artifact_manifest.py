@@ -52,10 +52,42 @@ IDENTITY_KEYS = (
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+CENTRAL_PILOT_CALLER = "groktopus/codereview"
+CENTRAL_PILOT_CALLER_REF = (
+    "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main"
+)
+CENTRAL_PILOT_TARGET = "magnus919/SlopSearX"
 
 
 class ManifestError(ValueError):
     pass
+
+
+def _workflow_target_binding_valid(
+    workflow_repository: Any,
+    target_repository: Any,
+    run_workflow_ref: Any,
+    *,
+    harness_repository: Any,
+    called_workflow_repository: Any,
+    harness_sha: Any,
+    called_workflow_sha: Any,
+) -> bool:
+    """Allow same-repo runs or the one reviewed central pilot caller/target pair."""
+    if not isinstance(workflow_repository, str) or not isinstance(target_repository, str):
+        return False
+    if workflow_repository.casefold() == target_repository.casefold():
+        return True
+    return (
+        workflow_repository.casefold() == CENTRAL_PILOT_CALLER.casefold()
+        and target_repository.casefold() == CENTRAL_PILOT_TARGET.casefold()
+        and run_workflow_ref == CENTRAL_PILOT_CALLER_REF
+        and isinstance(harness_repository, str)
+        and harness_repository.casefold() == CENTRAL_PILOT_CALLER.casefold()
+        and isinstance(called_workflow_repository, str)
+        and called_workflow_repository.casefold() == CENTRAL_PILOT_CALLER.casefold()
+        and harness_sha == called_workflow_sha
+    )
 
 
 def canonical(value: Any) -> bytes:
@@ -206,7 +238,15 @@ def _identity(value: dict[str, Any]) -> dict[str, Any]:
     workflow_ref = value["called_workflow_ref"]
     workflow_path = value["called_workflow_file_path"]
     run_workflow_ref = value["run_workflow_ref"]
-    if value["workflow_repository"].casefold() != value["target_repository"].casefold():
+    if not _workflow_target_binding_valid(
+        value["workflow_repository"],
+        value["target_repository"],
+        run_workflow_ref,
+        harness_repository=value["harness_repository"],
+        called_workflow_repository=value["called_workflow_repository"],
+        harness_sha=value["harness_sha"],
+        called_workflow_sha=value["called_workflow_sha"],
+    ):
         raise ManifestError("recovery_workflow_target_mismatch")
     if value["called_workflow_repository"] != value["harness_repository"]:
         raise ManifestError("recovery_workflow_repository_mismatch")
