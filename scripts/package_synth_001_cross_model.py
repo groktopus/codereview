@@ -27,8 +27,8 @@ from pr_review_harness.contracts import MAX_ITEMS, MAX_TEXT_BYTES  # noqa: E402
 from pr_review_harness.cross_model_package import build_cross_model_package  # noqa: E402
 from pr_review_harness.evaluation import EvaluationError  # noqa: E402
 
-IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v2.json"
-IDENTITY_SHA256 = "038097276dee407c07a2ddea138c7d9060294aefa6e40867874f3a242e7befeb"
+IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v3.json"
+IDENTITY_SHA256 = "8ff5549d7399dbba4c16c2b322ed3398365e7671be701b3f9005443ad6fb72c7"
 FIXTURE_DIR = ROOT / "examples/evaluation/seeded-writer-synth-001"
 PROFILE_PATH = ROOT / "experiments/synth-001-writer-profile-v1.json"
 LIMITS_PATH = ROOT / "experiments/synth-001-writer-limits-v1.json"
@@ -86,7 +86,7 @@ def _identity() -> dict[str, Any]:
     if _sha(raw) != IDENTITY_SHA256:
         _fail("package_identity_contract_mismatch")
     value, _ = _document(IDENTITY_PATH)
-    if value.get("schema") != "synth-001-cross-model-package-identity.v1":
+    if value.get("schema") != "synth-001-cross-model-package-identity.v2":
         _fail("package_identity_contract_invalid")
     return value
 
@@ -168,6 +168,8 @@ def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[di
 
 def _check_configuration(contract: dict[str, Any], verification: dict[str, Any]) -> dict[str, int]:
     expected = contract["configuration"]
+    if expected.get("runtime_pin_status") != "FROZEN":
+        _fail("package_runtime_pin_pending")
     files = {
         "profile_sha256": PROFILE_PATH,
         "limits_sha256": LIMITS_PATH,

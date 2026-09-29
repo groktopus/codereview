@@ -198,13 +198,13 @@ def test_exact_frozen_pr464_selector_binds_canonical_profile_hash(tmp_path, monk
     its identity validators remain real; only full packet validation and stable
     task ordering are isolated from this identity regression.
     """
-    plan_path = selector.ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json"
+    plan_path = selector.ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
     plan_raw = plan_path.read_bytes()
     plan = json.loads(plan_raw)
     plan_sha = _sha(plan_raw)
     case = plan["case"]
     corpus = json.loads(
-        (selector.ROOT / "examples/evaluation/model-only-shadow-pr464-v2/corpus.json").read_text()
+        (selector.ROOT / "examples/evaluation/model-only-shadow-pr464-v3/corpus.json").read_text()
     )
     identity = corpus["cases"][0]["identity"]
     profile_raw = (selector.ROOT / "docs/real-case-trial-v1/profiles/PR-464.json").read_bytes()

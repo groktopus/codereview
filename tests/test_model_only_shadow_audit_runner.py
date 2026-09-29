@@ -101,7 +101,7 @@ def _packet(case_id: str, candidate_id: str | None, task_id: str) -> dict:
 
 
 def _plan(task_ids: list[str], *, budget: dict | None = None) -> dict:
-    return {"schema": "model-only-shadow-live-writer-plan.v1",
+    return {"schema": "model-only-shadow-live-writer-plan.v2",
             "budget": budget or {
                 "audit_max_deadline_seconds_per_call": 90,
                 "audit_max_input_bytes_per_call": 64000,
@@ -139,7 +139,8 @@ def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer
 
 
 def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
-    assert RUNNER.DEFAULT_PLAN == REPO_ROOT / "experiments/model-only-shadow-live-pr464-plan-v2.json"
+    assert RUNNER.DEFAULT_PLAN == REPO_ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
+    assert RUNNER.DEFAULT_LIMITS == REPO_ROOT / "experiments/model-only-shadow-audit-limits-v2.json"
     plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
     plan_raw = plan_path.read_bytes()
     plan = json.loads(plan_raw)
@@ -155,7 +156,7 @@ def test_current_pr457_plan_accepts_current_audit_limits():
     plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
     plan, _ = RUNNER._read_json(plan_path, 256_000)
     plan_budget = RUNNER._plan_budget(plan)
-    limits = RUNNER._load_limits(RUNNER.DEFAULT_LIMITS)
+    limits = RUNNER._load_limits(REPO_ROOT / "experiments/model-only-shadow-audit-limits-v1.json")
     RUNNER._validate_plan_budget(plan_budget, limits)
 
 
@@ -637,6 +638,29 @@ def test_sanitizer_accepts_bounded_source_only_no_candidate_receipt(receipt):
     assert receipt["role_call_counts"]["source_auditor"] == 1
     assert receipt["role_call_counts"]["claim_auditor"] == 0
     assert receipt["roles"]["claim_auditor"] == "not_run"
+
+
+def test_sanitizer_accepts_only_consistent_zero_attempt_source_failure(tmp_path):
+    receipt = _candidate_free_receipt(source_status="failed", source_state=None)
+    SANITIZER._valid(receipt)
+    source = tmp_path / "source-predispatch-failure.json"
+    source.write_text(json.dumps(receipt))
+    output = tmp_path / "source-predispatch-sanitized"
+    SANITIZER.sanitize(source, output)
+    assert json.loads((output / "shadow-audit-receipt.json").read_text()) == receipt
+
+    contradictory = [
+        {**receipt, "terminal_state": "completed"},
+        {**receipt, "audit_provider_calls": 1},
+        {**receipt, "roles": {**receipt["roles"], "jev": "completed"}},
+        {**receipt, "roles": {**receipt["roles"], "source_auditor": "abstained"}},
+        {**receipt, "role_request_sha256": {
+            **receipt["role_request_sha256"], "source_auditor": "c" * 64,
+        }},
+    ]
+    for invalid in contradictory:
+        with pytest.raises(SANITIZER.ReceiptError):
+            SANITIZER._valid(invalid)
 
 
 @pytest.mark.parametrize("mutate", [

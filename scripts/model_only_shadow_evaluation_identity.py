@@ -12,11 +12,25 @@ IDENTITIES = {
         "case_id": "PR-457",
         "plan_path": "experiments/model-only-shadow-live-pr457-plan-v2.json",
         "corpus_path": "examples/evaluation/model-only-shadow-pr457-v2/corpus.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v1",
+    },
+    "model-only-shadow-pr457-v2": {
+        "case_id": "PR-457",
+        "plan_path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
+        "corpus_path": "examples/evaluation/model-only-shadow-pr457-v3/corpus.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v2",
     },
     "model-only-shadow-pr464-v1": {
         "case_id": "PR-464",
         "plan_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
         "corpus_path": "examples/evaluation/model-only-shadow-pr464-v2/corpus.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v1",
+    },
+    "model-only-shadow-pr464-v2": {
+        "case_id": "PR-464",
+        "plan_path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
+        "corpus_path": "examples/evaluation/model-only-shadow-pr464-v3/corpus.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v2",
     },
 }
 MANIFEST_FIELDS = {
@@ -69,7 +83,7 @@ def validate_identity(corpus: dict[str, Any], manifest: dict[str, Any], plan: di
         raise IdentityError("evaluation_identity_manifest_mismatch")
     plan_case = plan.get("case") if isinstance(plan, dict) else None
     if (not isinstance(plan_case, dict)
-            or plan.get("schema") != "model-only-shadow-live-writer-plan.v1"
+            or plan.get("schema") != expected["plan_schema"]
             or any(manifest.get(manifest_key) != plan_case.get(plan_key) for manifest_key, plan_key in (
                 ("case_id", "case_id"), ("repository", "repository"), ("base_sha", "base_sha"),
                 ("head_sha", "head_sha"), ("snapshot_id", "snapshot_id"),

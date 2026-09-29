@@ -44,7 +44,7 @@ class AuditDispatchGuard:
         int_limits = (self.input_cap, self.output_cap, self.token_cap, self.call_cap, self.retry_cap)
         if any(isinstance(value, bool) or not isinstance(value, int) for value in int_limits):
             raise AuditPreflightError("audit_limits_invalid")
-        if not (0 < self.input_cap <= 64_000 and 0 < self.output_cap <= 64_000):
+        if not (0 < self.input_cap <= 128_000 and 0 < self.output_cap <= 64_000):
             raise AuditPreflightError("audit_limits_invalid")
         if not (0 < self.token_cap <= 1_800 and self.call_cap == 3 and self.retry_cap == 0):
             raise AuditPreflightError("audit_limits_invalid")

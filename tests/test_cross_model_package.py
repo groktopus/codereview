@@ -345,6 +345,28 @@ def test_model_teacher_corpus_rejects_a_profile_mismatch():
         validate_model_teacher_packet_identity(corpus, packet, manifest, plan, plan_sha256)
 
 
+def test_active_v3_model_teacher_identity_binds_v3_plan_and_packet():
+    import scripts.package_cross_model_v2 as package_cli
+
+    corpus_root = ROOT / "examples/evaluation/model-only-shadow-pr464-v3"
+    corpus = json.loads((corpus_root / "corpus.json").read_text())
+    manifest = json.loads((corpus_root / "manifest.json").read_text())
+    plan_raw = (ROOT / manifest["plan_path"]).read_bytes()
+    plan = json.loads(plan_raw)
+    case = corpus["cases"][0]["identity"]
+    packet = {
+        "contract_version": "model-only-shadow-case.v1",
+        "case_id": manifest["case_id"],
+        "snapshot": {
+            "snapshot_id": case["snapshot_id"], "snapshot_hash": manifest["snapshot_sha256"],
+            "base_sha": case["base_sha"], "head_sha": case["head_sha"],
+            "profile_version": case["profile"]["version"], "profile_hash": case["profile"]["sha256"],
+        },
+    }
+    package_cli.validate_identity(corpus, manifest, plan, plan_raw, packet)
+    validate_model_teacher_packet_identity(corpus, packet, manifest, plan, _sha(plan_raw))
+
+
 @pytest.mark.parametrize("case_id", ["PR-457", "PR-464"])
 def test_package_cli_loads_matching_identity_manifest_and_plan(case_id, monkeypatch, capsys, tmp_path):
     import scripts.package_cross_model_v2 as cli
@@ -462,6 +484,14 @@ def test_synth_candidate_validation_limits_follow_hash_bound_provider_config(tmp
 
     contract = synth_package._identity()
     configuration = contract["configuration"]
+    with pytest.raises(synth_package.PackageError, match="package_runtime_pin_pending"):
+        synth_package._check_configuration(contract, {})
+    configuration.update({
+        "runtime_pin_status": "FROZEN",
+        "module_count": 35,
+        "module_tree_sha256": "a" * 64,
+        "source_revision": "b" * 40,
+    })
     verification = {
         "runtime": configuration["runtime"],
         "module_count": configuration["module_count"],

@@ -39,8 +39,11 @@ REQUEST_BYTES = 11_687
 OUTPUT_BYTES_CAP = 16_000
 OUTPUT_TOKENS_CAP = 1_200
 MODULE_COUNT = 35
-MODULE_TREE_SHA256 = "dc1930d812d681a06628a3024918da9d999266b7140f8906befb9fbe8b5a9fac"
-SOURCE_REVISION = "42e5d5bad7cc4f22f3be6fdd6ce99560edd275ea"
+# Interim provider-free preparation pin at PR #157 head. The v3 finalizer
+# rewrites these values from the exact immutable runtime revision selected for
+# the combined stack; until then, package identity v3 remains pending.
+MODULE_TREE_SHA256 = "838fb5619048fb1bb4bcf84ad8721bb6d7cba37ce9464a3b5089ee9d3080b6c5"
+SOURCE_REVISION = "cd6ceaa0b9120b328a5e75d86f2a0729ce6052fd"
 PYTHON_IDENTITY = {"implementation": "cpython", "version": "3.14.7"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")

@@ -35,7 +35,7 @@ MAX_RECEIPT_BYTES = 64_000
 AUDIT_ROLES = ("source_auditor", "jev", "claim_auditor")
 DISPATCH_STATES = {"guard_rejected", "post_guard_pretransport", "http_attempted", "unknown"}
 DEFAULT_PLAN = ROOT / CASE_POLICY["PR-464"]["plan_relative_path"]
-DEFAULT_LIMITS = ROOT / "experiments/model-only-shadow-audit-limits-v1.json"
+DEFAULT_LIMITS = ROOT / "experiments/model-only-shadow-audit-limits-v2.json"
 PROFILE_RELATIVE_PATH = CASE_POLICY["PR-464"]["profile_path"]
 EXPECTED_LLM = ("https://inference-api.nousresearch.com/v1", "openai/gpt-6-luna")
 EXPECTED_JEV = ("https://api.typesafe.ai/v1/systemone", "jev-latest")
@@ -179,7 +179,7 @@ def _select_packet(rows: list[tuple[str, Path, dict[str, Any], bytes]]) -> tuple
 
 def _load_limits(path: Path) -> dict[str, Any]:
     limits, _ = _read_json(path, 16_000)
-    expected = {
+    common = {
         "schema": "model-only-shadow-audit-limits.v1", "max_packets": 1,
         "max_provider_calls": 3, "max_retries": 0,
         "max_request_bytes_per_call": 64_000, "max_response_bytes_per_call": 64_000,
@@ -188,6 +188,16 @@ def _load_limits(path: Path) -> dict[str, Any]:
         "publication_enabled": False,
         "preflight_boundary": "static_caps_before_dispatch_stage_local_request_checks_before_each_call",
     }
+    expected = common
+    if limits.get("schema") == "model-only-shadow-audit-limits.v2":
+        expected = {
+            **common,
+            "schema": "model-only-shadow-audit-limits.v2",
+            "max_request_bytes_per_call": 96_000,
+            "preflight_boundary": (
+                "exact_source_task_requests_admitted_before_writer_dispatch_then_stage_local_checks"
+            ),
+        }
     if limits != expected:
         raise ValueError("audit_limits_contract_mismatch")
     return {
@@ -291,7 +301,7 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
         raise ValueError("writer_plan_binding_invalid")
     case = plan.get("case")
     requests = plan.get("writer_requests")
-    if plan.get("schema") != "model-only-shadow-live-writer-plan.v1" or not isinstance(case, dict) or not isinstance(requests, list):
+    if plan.get("schema") != "model-only-shadow-live-writer-plan.v2" or not isinstance(case, dict) or not isinstance(requests, list):
         raise ValueError("writer_plan_invalid")
     plan_case_id = case.get("case_id")
     packet_case_ids = [row[2].get("case_id") for row in packets]

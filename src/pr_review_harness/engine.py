@@ -37,6 +37,7 @@ from .private_capture import (
 )
 from .reconcile import consolidate_findings, stable_candidate_id, validate_location
 from .report import render_report as _render_report
+from .shadow_audit import serialize_source_audit_request
 
 
 class EnginePreflightError(ValueError):
@@ -1231,7 +1232,8 @@ def run_review(
     private_capture_dir: str | None = None,
     private_capture_case_id: str | None = None,
     private_capture_request_pins: dict[str, dict] | None = None,
-    private_capture_snapshot_pin: dict[str, str] | None = None,
+    private_capture_snapshot_pin: dict[str, Any] | None = None,
+    private_capture_source_audit_max_bytes: int = 64_000,
 ) -> dict:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1531,6 +1533,40 @@ def run_review(
     if private_capture_dir is not None:
         if resume or not callable(getattr(provider, "review_with_capture", None)):
             raise EnginePreflightError("invalid_review_request", "private capture requires a fresh capture-capable provider")
+        if (
+            isinstance(private_capture_source_audit_max_bytes, bool)
+            or not isinstance(private_capture_source_audit_max_bytes, int)
+            or not 1 <= private_capture_source_audit_max_bytes <= MAX_REQUEST_BYTES
+        ):
+            raise EnginePreflightError("invalid_review_request", "source audit request limit invalid")
+        if private_capture_case_id is not None:
+            audit_limits = {
+                "max_input_bytes_per_task": private_capture_source_audit_max_bytes,
+                "max_output_bytes_per_task": 64_000,
+                "max_output_tokens": 1_800,
+            }
+            profile_id = _private_capture_profile_id(profile)
+            for task in primary_tasks:
+                if task.get("task_kind", "SPECIALIST_FINDINGS") != "SPECIALIST_FINDINGS":
+                    continue
+                try:
+                    source_request = serialize_source_audit_request(
+                        provider,
+                        case_id=private_capture_case_id,
+                        snapshot=snapshot,
+                        profile_id=profile_id,
+                        task=task,
+                        evidence=evidence_cache[task["task_id"]],
+                        limits=audit_limits,
+                    )
+                except (KeyError, TypeError, ValueError, RuntimeError) as exc:
+                    raise EnginePreflightError(
+                        "invalid_review_request", "source audit request serialization failed"
+                    ) from exc
+                if len(source_request) > private_capture_source_audit_max_bytes:
+                    raise EnginePreflightError(
+                        "invalid_review_request", "source audit request exceeds configured byte limit"
+                    )
         if private_capture_request_pins is not None:
             planned = [
                 task for task in primary_tasks

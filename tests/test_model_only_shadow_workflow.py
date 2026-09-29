@@ -226,7 +226,7 @@ def test_live_case_selector_is_a_closed_two_case_choice_with_fixed_paths():
     assert "type: choice" in choice
     assert "- PR-464" in choice and "- PR-457" in choice and "PR-463" not in choice
     assert "id: case" in live and "case_id not in contracts" in live
-    assert '"plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v2.json"' in live
+    assert '"plan_path": f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v3.json"' in live
     assert '--plan "${{ steps.case.outputs.plan_path }}"' in live
     assert "ref: ${{ steps.case.outputs.head_sha }}" in live
     assert '--base "${{ steps.case.outputs.base_sha }}"' in live

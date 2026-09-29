@@ -15,7 +15,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .engine import EnginePreflightError
+from .engine import EnginePreflightError, _private_capture_profile_id
+from .private_capture import MAX_REQUEST_BYTES
 from .snapshot import SnapshotError, bind_repository_url, collect_snapshot, recent_commits
 
 MAX_HISTORICAL_CHECKS_BYTES = 2_000_000
@@ -27,16 +28,18 @@ TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF = (
 TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset({TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF})
 TRUSTED_SHADOW_PLANS = {
     "PR-457": {
-        "path": "experiments/model-only-shadow-live-pr457-plan-v2.json",
+        "path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
         "calls": 6,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
+        "audit_max_input_bytes_per_call": 64_000,
     },
     "PR-464": {
-        "path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        "path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
         "calls": 10,
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "audit_max_input_bytes_per_call": 96_000,
     },
 }
 
@@ -221,7 +224,7 @@ def _read_private_json(path: str, limit: int) -> tuple[dict, str]:
     return value, _sha256(bytes(data))
 
 
-def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[str, dict], dict[str, str]]:
+def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[str, dict], dict[str, Any]]:
     plan, plan_hash = _read_private_json(plan_path, 128_000)
     receipt, _receipt_hash = _read_private_json(receipt_path, 16_384)
     budget = plan.get("budget")
@@ -242,6 +245,7 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
         or policy is None
         or len(requests) != policy["calls"]
         or budget.get("writer_max_provider_calls") != 10
+        or budget.get("audit_max_input_bytes_per_call") != policy.get("audit_max_input_bytes_per_call")
         or case.get("snapshot_id") != policy["snapshot_id"]
         or case.get("snapshot_sha256") != policy["snapshot_sha256"]
         or receipt.get("case_id") != case.get("case_id")
@@ -252,6 +256,13 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
         or len(requests) != policy["calls"]
     ):
         raise ValueError("private shadow preflight receipt mismatch")
+    audit_input_limit = budget.get("audit_max_input_bytes_per_call")
+    if (
+        isinstance(audit_input_limit, bool)
+        or not isinstance(audit_input_limit, int)
+        or not 1 <= audit_input_limit <= MAX_REQUEST_BYTES
+    ):
+        raise ValueError("private shadow audit request limit invalid")
     pins: dict[str, dict] = {}
     for row in requests:
         if (
@@ -280,6 +291,7 @@ def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[s
         "case_id": case.get("case_id"),
         "snapshot_id": case.get("snapshot_id"),
         "snapshot_sha256": case.get("snapshot_sha256"),
+        "audit_max_input_bytes_per_call": audit_input_limit,
     }
 
 
@@ -1030,6 +1042,44 @@ def _run_one(
         primary_scope_complete = not required_unadmitted
         primary_request_bytes = sum(request["input_bytes"] for request in primary)
         primary_context_fits = primary_request_bytes <= limits["max_context_bytes"]
+        source_audit_preflight = None
+        if preflight_case_id is not None:
+            from .shadow_audit import serialize_source_audit_request
+
+            audit_limit = TRUSTED_SHADOW_PLANS[preflight_case_id]["audit_max_input_bytes_per_call"]
+            audit_limits = {
+                "max_input_bytes_per_task": audit_limit,
+                "max_output_bytes_per_task": 64_000,
+                "max_output_tokens": 1_800,
+            }
+            profile_id = _private_capture_profile_id(profile)
+            source_audit_rows = []
+            for task in prepared_tasks:
+                if task.get("task_kind") != "SPECIALIST_FINDINGS":
+                    continue
+                evidence = _evidence_for(task, snapshot, effective_input_ceiling)
+                request_bytes = serialize_source_audit_request(
+                    provider,
+                    case_id=preflight_case_id,
+                    snapshot=snapshot,
+                    profile_id=profile_id,
+                    task=task,
+                    evidence=evidence,
+                    limits=audit_limits,
+                )
+                source_audit_rows.append({
+                    "task_id": task["task_id"],
+                    "input_bytes": len(request_bytes),
+                    "input_sha256": _sha256(request_bytes),
+                    "admitted": len(request_bytes) <= audit_limit,
+                })
+            source_audit_preflight = {
+                "active_input_limit_bytes": audit_limit,
+                "request_count": len(source_audit_rows),
+                "request_bytes_max": max((row["input_bytes"] for row in source_audit_rows), default=0),
+                "requests": source_audit_rows,
+                "status": "ADMITTED" if all(row["admitted"] for row in source_audit_rows) else "REJECTED_BEFORE_WRITER_DISPATCH",
+            }
         report = {
             "command": "review",
             "status": "PREPARED_ONLY",
@@ -1121,6 +1171,7 @@ def _run_one(
                 ),
                 "exact_primary_call_demand": primary_calls,
                 "exact_primary_serialized_input_bytes": primary_request_bytes,
+                **({"source_audit_preflight": source_audit_preflight} if source_audit_preflight is not None else {}),
                 "primary_serialized_input_bytes_fit_context_cap": primary_context_fits,
                 "configured_summary_advisory_call_slots": summary_slots,
                 "configured_claim_assessment_call_slots": claim_slots,
@@ -1193,6 +1244,11 @@ def _run_one(
             private_capture_case_id=capture_case_id,
             private_capture_request_pins=capture_pins,
             private_capture_snapshot_pin=capture_snapshot_pin,
+            private_capture_source_audit_max_bytes=(
+                capture_snapshot_pin["audit_max_input_bytes_per_call"]
+                if capture_snapshot_pin is not None
+                else 64_000
+            ),
             **review_kwargs,
         )
     except EnginePreflightError:

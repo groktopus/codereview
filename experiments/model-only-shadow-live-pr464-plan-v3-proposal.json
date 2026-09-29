@@ -1,0 +1,64 @@
+{
+  "schema": "model-only-shadow-live-pr464-capacity-proposal.v1",
+  "status": "CAPACITY_SUPPORTED_RUNTIME_PIN_PENDING",
+  "migration": {
+    "historical_plan": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+    "historical_audit_limits": "experiments/model-only-shadow-audit-limits-v1.json",
+    "proposed_plan_contract": "model-only-shadow-live-writer-plan.v2",
+    "proposed_audit_limits": "experiments/model-only-shadow-audit-limits-v2.json",
+    "required_before_activation": "Regenerate the plan runtime revision, module count, module tree hash, and plan digest from the final stacked source including PR #157; update trusted plan routing and workflow inputs together."
+  },
+  "case": {
+    "case_id": "PR-464",
+    "repository": "magnus919/SlopSearX",
+    "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
+    "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+    "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+    "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+    "profile_version": "slopsearx-realcase-eval-v2-pr464-context240-window16k",
+    "profile_file_sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8"
+  },
+  "runtime_pin": {
+    "pin_status": "REQUIRES_FINAL_STACKED_RUNTIME",
+    "plan_generated_from_revision": null,
+    "module_count": null,
+    "module_tree_sha256": null
+  },
+  "writer_capacity": {
+    "provider_model": "openai/gpt-6-luna",
+    "provider_max_request_bytes": 128000,
+    "writer_call_count": 10,
+    "writer_request_bytes_total": 893359,
+    "writer_request_bytes_max": 96462
+  },
+  "source_audit_preflight": {
+    "serializer_contract": "shared-with-run-shadow-audit-source-only-payload",
+    "request_model": "openai/gpt-6-luna",
+    "request_schema": "shadow-source-audit.v1",
+    "request_output_tokens": 1800,
+    "previous_input_limit_bytes": 64000,
+    "proposed_input_limit_bytes": 96000,
+    "measured_request_count": 10,
+    "measured_request_bytes_max": 91832,
+    "headroom_at_maximum_bytes": 4168,
+    "all_source_evidence_retained": true,
+    "requests": [
+      {"task_id":"task-1128524cfb848290:chunk-1","input_bytes":74521,"input_sha256":"22675acf7356f5bd1025ba95863690978cf6d89909501e493493615a3b90fa2e"},
+      {"task_id":"task-221b29571ba70146:chunk-1","input_bytes":74523,"input_sha256":"7a0102761a00dbe966fc4c00fb33a2a62cec96549c560bfb7f33b8c81dfd070e"},
+      {"task_id":"task-52d55b2ce64974e5:chunk-1","input_bytes":74486,"input_sha256":"2c5df4f0f7fedb2dac2029d8a60367c37fec83a27f9c1137e3e632d17d8cc718"},
+      {"task_id":"task-282982b7861998d6:chunk-1","input_bytes":91830,"input_sha256":"918cef217ff9f9c0f72c30cec78431c69a94d6fd1e0d18c498be2a81a6d347c1"},
+      {"task_id":"task-f758c68e3c178306:chunk-1","input_bytes":91832,"input_sha256":"96239977d721d9d0d070ec29333423ff2ab03242587d3ee1dd5b0484af13e1ec"},
+      {"task_id":"task-70cf4010656855d0:chunk-1","input_bytes":91795,"input_sha256":"36d6475eb48e09753eb7bcf4cf527f770b59a68234f539d0d6c32ce025544cf6"},
+      {"task_id":"task-80f5220cce394afe:chunk-1","input_bytes":91797,"input_sha256":"a204461c7e9547040dc039accbd95af4ad8cbf58a517027042163cc2cbc29abc"},
+      {"task_id":"task-63fe7dafb216f2f3:chunk-1","input_bytes":85436,"input_sha256":"1e4b4a8e99651544acb430c7dc92108314ba830f6e0345fc84dda305888e04a6"},
+      {"task_id":"task-add74da7883dc133:chunk-1","input_bytes":85438,"input_sha256":"84a36a5a278dab007ada0c05e5c1890a23b00598165bf3983bdccad6302a398f"},
+      {"task_id":"task-808f5db4036db9ba:chunk-1","input_bytes":85401,"input_sha256":"156e710f883abea0af8e3ec29e9c544c8b7ecdc1ca4b2ea98ad3f436b6edba61"}
+    ]
+  },
+  "effects": {
+    "provider_calls_before_source_audit_preflight": 0,
+    "retries": 0,
+    "target_code_execution": false,
+    "publication_enabled": false
+  }
+}
