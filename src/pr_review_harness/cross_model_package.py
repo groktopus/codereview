@@ -239,6 +239,11 @@ _MODEL_TEACHER_IDENTITIES = {
         "manifest_id": "model-only-shadow-live-pr464-plan-v2",
     },
     "model-only-shadow-pr464-v2": {
+        "plan_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
+        "plan_schema": "model-only-shadow-live-writer-plan.v1",
+        "manifest_id": "model-only-shadow-live-pr464-plan-v2",
+    },
+    "model-only-shadow-pr464-v3": {
         "plan_path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
         "plan_schema": "model-only-shadow-live-writer-plan.v2",
         "manifest_id": "model-only-shadow-live-pr464-plan-v3",
