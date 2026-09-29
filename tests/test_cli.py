@@ -31,6 +31,82 @@ def fixture_repo(tmp_path: Path):
     return repo, base, head, profile
 
 
+def test_core_cli_without_provider_keeps_each_temporary_project_incomplete_and_unstarted(
+    tmp_path, monkeypatch, capsys
+):
+    from pr_review_harness import cli, providers
+
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.setattr(
+        providers,
+        "make_provider",
+        lambda *_args: pytest.fail("provider construction must not occur without provider configuration"),
+    )
+    real_subprocess_run = subprocess.run
+
+    def git_only_run(command, *args, **kwargs):
+        argv = command if isinstance(command, (list, tuple)) else [command]
+        assert argv and argv[0] == "git", "provider, target, or other subprocess execution is outside this contract"
+        return real_subprocess_run(command, *args, **kwargs)
+
+    project_runs = []
+    for repository, version, run_id in (
+        ("fixture-alpha/alpha", "alpha-v1", "alpha-run"),
+        ("fixture-beta/beta", "beta-v1", "beta-run"),
+    ):
+        project_root = tmp_path / run_id
+        project_root.mkdir()
+        repo, base, head, _profile = fixture_repo(project_root)
+        monkeypatch.setattr(subprocess, "run", git_only_run)
+        profile = project_root / "profile.json"
+        profile.write_text(
+            json.dumps(
+                {
+                    "repository": repository,
+                    "version": version,
+                    "required_lenses": ["correctness"],
+                    "context_paths": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        output_dir = project_root / "artifacts"
+        assert cli.main(
+            [
+                "review",
+                "--repo",
+                str(repo),
+                "--base",
+                base,
+                "--head",
+                head,
+                "--profile",
+                str(profile),
+                "--run-id",
+                run_id,
+                "--output",
+                str(output_dir),
+                "--json",
+            ]
+        ) == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["disposition"] == "INCOMPLETE"
+        assert result["coverage_state"] == "NOT_STARTED"
+        assert result["run_id"] == run_id
+        assert result["snapshot_id"]
+        assert result["task_results"]
+        assert {row["status"] for row in result["task_results"].values()} == {"SKIPPED"}
+        assert {row["error_code"] for row in result["task_results"].values()} == {"PROVIDER_UNAVAILABLE"}
+        assert {row["state"] for row in result["coverage_ledger"] if row.get("required", True)} == {"NOT_STARTED"}
+        assert result["provider_identity"] == {"provider": None, "decision_provider": None}
+        assert result["budget"]["provider_calls_reserved"] == 0
+        project_runs.append((result["snapshot_id"], result["run_id"]))
+
+    assert len({snapshot_id for snapshot_id, _run_id in project_runs}) == 2
+    assert len({run_id for _snapshot_id, run_id in project_runs}) == 2
+
+
 def test_optional_snapshot_limit_is_accepted_and_unknown_limits_still_rejected(tmp_path):
     limits_file = tmp_path / "limits.json"
     limits_file.write_text(json.dumps({"max_snapshot_context_bytes": 300_000}))

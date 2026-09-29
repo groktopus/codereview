@@ -37,6 +37,32 @@ def _temporary_root(tmp_path: Path, *, repository: str = TARGET, version: str = 
     return root
 
 
+def _temporary_binding_root(tmp_path: Path) -> tuple[Path, dict[str, bytes]]:
+    root = tmp_path / "trusted-harness"
+    profiles = root / "profiles"
+    profiles.mkdir(parents=True)
+    bindings = {
+        "fixture-alpha/alpha": ("profiles/alpha.json", "alpha-profile-v1"),
+        "fixture-beta/beta": ("profiles/beta.json", "beta-profile-v1"),
+    }
+    profile_bytes: dict[str, bytes] = {}
+    targets = {}
+    for repository, (relative_path, version) in bindings.items():
+        profile_raw = json.dumps({"repository": repository, "version": version}).encode("utf-8")
+        (root / relative_path).write_bytes(profile_raw)
+        profile_bytes[repository] = profile_raw
+        targets[repository] = {
+            "profile_path": relative_path,
+            "profile_sha256": hashlib.sha256(profile_raw).hexdigest(),
+            "profile_version": version,
+        }
+    (profiles / "targets.json").write_text(
+        json.dumps({"contract_version": "target-profile-bindings.v1", "targets": targets}),
+        encoding="utf-8",
+    )
+    return root, profile_bytes
+
+
 def test_trusted_binding_resolves_exact_repository_profile_and_digest():
     binding = resolve_target_profile(TARGET)
 
@@ -52,6 +78,43 @@ def test_trusted_binding_resolves_exact_repository_profile_and_digest():
 def test_unknown_repository_fails_closed_without_generic_fallback():
     with pytest.raises(ProfileBindingError, match="target_repository_unsupported"):
         resolve_target_profile("another-owner/another-project")
+
+
+def test_distinct_temporary_repository_bindings_resolve_without_cross_project_fallback(tmp_path: Path):
+    root, profile_bytes = _temporary_binding_root(tmp_path)
+
+    alpha = resolve_target_profile("fixture-alpha/alpha", root=root)
+    beta = resolve_target_profile("fixture-beta/beta", root=root)
+
+    assert alpha["target_repository"] == "fixture-alpha/alpha"
+    assert alpha["profile_path"] == "profiles/alpha.json"
+    assert alpha["profile_version"] == "alpha-profile-v1"
+    assert alpha["profile_sha256"] == hashlib.sha256(profile_bytes["fixture-alpha/alpha"]).hexdigest()
+    assert beta["target_repository"] == "fixture-beta/beta"
+    assert beta["profile_path"] == "profiles/beta.json"
+    assert beta["profile_version"] == "beta-profile-v1"
+    assert beta["profile_sha256"] == hashlib.sha256(profile_bytes["fixture-beta/beta"]).hexdigest()
+    assert alpha["profile_path"] != beta["profile_path"]
+    assert alpha["profile_sha256"] != beta["profile_sha256"]
+    assert alpha["profile_map_sha256"] == beta["profile_map_sha256"]
+    with pytest.raises(ProfileBindingError, match="target_repository_unsupported"):
+        resolve_target_profile("fixture-gamma/unknown", root=root)
+
+
+def test_temporary_trusted_digest_does_not_allow_cross_repository_profile_reuse(tmp_path: Path):
+    root, _profile_bytes = _temporary_binding_root(tmp_path)
+    profile_path = root / "profiles/beta.json"
+    mismatched_raw = json.dumps(
+        {"repository": "fixture-alpha/alpha", "version": "beta-profile-v1"}
+    ).encode("utf-8")
+    profile_path.write_bytes(mismatched_raw)
+    map_path = root / "profiles/targets.json"
+    mapping = json.loads(map_path.read_text(encoding="utf-8"))
+    mapping["targets"]["fixture-beta/beta"]["profile_sha256"] = hashlib.sha256(mismatched_raw).hexdigest()
+    map_path.write_text(json.dumps(mapping), encoding="utf-8")
+
+    with pytest.raises(ProfileBindingError, match="profile_repository_mismatch"):
+        resolve_target_profile("fixture-beta/beta", root=root)
 
 
 @pytest.mark.parametrize(
