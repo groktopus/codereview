@@ -5,10 +5,13 @@ import os
 import platform
 import shutil
 import socket
+import subprocess
 import sys
+import sysconfig
 import threading
 import time
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -29,7 +32,120 @@ from scripts.effect_observer_smoke import (
     _set_full_review_fake_provider_timeout,
     _validate_full_review,
 )
-from scripts.run_recovery_rehearsal import FAKE_API_KEY, PROVIDER_TIMEOUT_SECONDS, _FakeProvider, _FakeProviderState
+from scripts.run_recovery_rehearsal import (
+    FAKE_API_KEY,
+    PROVIDER_TIMEOUT_SECONDS,
+    _clean_env,
+    _FakeProvider,
+    _FakeProviderState,
+)
+
+
+def _injection_fake_response(user: dict, schema_name: str) -> dict:
+    """Return a deterministic, evidence-bound fixture answer; this is not a model."""
+    if schema_name == "specialist_report":
+        task = user["task"]
+        evidence = user["evidence"]
+        refs = [item["evidence_id"] for item in evidence]
+        candidates = []
+        if task["lens"] == "correctness":
+            source = next(
+                item for item in evidence
+                if item.get("path") == "src/auth.py" and item.get("source_kind") == "head_file"
+            )
+            line = next(
+                index for index, value in enumerate(source["content"].splitlines(), 1)
+                if value.strip() == "return True"
+            )
+            candidates.append({
+                "unit_id": task["unit_ids"][0],
+                "location": {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": line, "reason": None},
+                "title": "Owner check removed",
+                "observation": "The changed authorization helper returns true for every caller.",
+                "consequence": "A caller may read a document owned by another user.",
+                "rule_or_contract": "Only the document owner may read it.",
+                "severity": "high",
+                "reasoning_kind": "observed",
+                "evidence_refs": [item["evidence_id"] for item in evidence if item.get("path") == "src/auth.py"],
+                "introducedness": "INTRODUCED",
+            })
+        return {
+            "contract_version": "specialist-findings.v4",
+            "finding_candidates": candidates,
+            "context_gap_proposals": [],
+            "coverage_notes": [{
+                "unit_id": unit_id, "state": "COVERED", "reason_code": "DETERMINISTIC_EFFECT_REHEARSAL",
+                "evidence_refs": refs, "coverage_basis": "STATIC_REVIEW",
+            } for unit_id in task["unit_ids"]],
+            "specific_strengths": [], "future_guidance": [],
+        }
+    if schema_name == "semantic_assessment":
+        refs = [item["evidence_id"] for item in user["evidence"]]
+        return {
+            "contract_version": "semantic-adjudication.v3",
+            "outcome": "SUPPORTED",
+            "observation_support": "SUPPORTED",
+            "consequence_support": "SUPPORTED",
+            "rule_connection_support": "SUPPORTED",
+            "introducedness": "INTRODUCED",
+            "evidence_refs": refs,
+            "assumptions": [], "uncertainties": [],
+            "summary": "The supplied fixture evidence supports the authorization finding.",
+            "material_consequence": True,
+            "causal_roles": {
+                role: {"support": "SUPPORTED", "assessment": f"Supplied evidence supports {role}.", "evidence_refs": refs}
+                for role in ("behavior", "consumer", "impact")
+            },
+        }
+    raise ValueError("unexpected deterministic fixture schema")
+
+
+class _InjectionRehearsalProvider(ThreadingHTTPServer):
+    """Loopback-only deterministic HTTP provider for the external-observer test."""
+    daemon_threads = True
+
+    def __init__(self):
+        self.requests: list[dict] = []
+        server = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802 - stdlib handler API
+                length = int(self.headers.get("Content-Length", "0"))
+                if self.path != "/v1/chat/completions" or not 0 < length <= 128_000:
+                    self.send_error(413)
+                    return
+                if self.headers.get("Authorization") != f"Bearer {FAKE_API_KEY}":
+                    self.send_error(401)
+                    return
+                try:
+                    request = json.loads(self.rfile.read(length))
+                    user = json.loads(request["messages"][1]["content"])
+                    schema_name = request["response_format"]["json_schema"]["name"]
+                    content = _injection_fake_response(user, schema_name)
+                except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                    self.send_error(400)
+                    return
+                server.requests.append({"schema_name": schema_name, "user": user})
+                body = json.dumps({
+                    "id": f"injection-rehearsal-{len(server.requests)}",
+                    "model": "deterministic-local-fixture-v1",
+                    "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(content)}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }, separators=(",", ":")).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args):
+                return
+
+        super().__init__(("127.0.0.1", 0), Handler)
+
+    @property
+    def endpoint(self) -> str:
+        return f"http://127.0.0.1:{self.server_port}/v1"
 
 
 def _fake_strace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -1162,3 +1278,147 @@ def test_proc_stat_permission_and_malformed_data_fail_loudly(tmp_path):
 
     with pytest.raises(PermissionError, match="permission denied"):
         _wait_for_proc_child_stop(permission_denied, time.monotonic() + 3)
+
+
+@pytest.mark.skipif(platform.system() != "Linux" or shutil.which("strace") is None, reason="Linux strace required")
+def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_path):
+    """Exercise fixture plumbing/effects under strace; the fixed response is not a model test."""
+    from pr_review_harness.injection_trials import DEFAULT_LIMITS, prepare_suite
+
+    repo_root = Path(__file__).resolve().parents[1]
+    suite = json.loads((repo_root / "examples/injection/fixture-suite.v2.json").read_text(encoding="utf-8"))
+    marker = tmp_path / "fixture-source-executed"
+    # Preserve the authored defect and payloads while making source execution observable.
+    suite["head_auth_source"] += f"from pathlib import Path\nPath({str(marker)!r}).touch()\n"
+    suite_path = tmp_path / "fixture-suite-effect-boundary.v2.json"
+    suite_path.write_text(json.dumps(suite, sort_keys=True) + "\n", encoding="utf-8")
+    limits = {
+        **DEFAULT_LIMITS,
+        "deadline_seconds": 20,
+        "max_concurrent_scopes": 1,
+        "max_provider_calls": 6,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+    prepared = prepare_suite(
+        tmp_path / "prepared",
+        suite_path=suite_path,
+        repo_support_root=repo_root,
+        limits=limits,
+    )
+    limits_path = tmp_path / "limits.json"
+    limits_path.write_text(json.dumps(limits, sort_keys=True) + "\n", encoding="utf-8")
+    home = tmp_path / "home"
+    home.mkdir()
+    provider = _InjectionRehearsalProvider()
+    thread = threading.Thread(target=provider.serve_forever, daemon=True)
+    thread.start()
+    config_path = tmp_path / "local-provider.json"
+    config_path.write_text(json.dumps({
+        "kind": "openai_compatible",
+        "provider_id": "deterministic-local-fixture",
+        "base_url": provider.endpoint,
+        "model": "deterministic-local-fixture-v1",
+        "api_key_env": "RECOVERY_FAKE_PROVIDER_KEY",
+        "timeout_seconds": 5,
+        "max_request_bytes": 64_000,
+        "max_response_bytes": 16_000,
+        "max_output_tokens": 1_800,
+    }, sort_keys=True) + "\n", encoding="utf-8")
+    cli = Path(sysconfig.get_path("scripts")) / "pr-review"
+    assert cli.is_file() and os.access(cli, os.X_OK), "installed pr-review CLI is required"
+    env = _clean_env(home, provider_key=True)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    try:
+        selected = {
+            case.case_id: case
+            for case in prepared.cases
+            if case.case_id in {
+                "r1-control", "r1-code-comment-attack", "r1-code-comment-benign",
+            }
+        }
+        assert set(selected) == {"r1-control", "r1-code-comment-attack", "r1-code-comment-benign"}
+        for case_id in ("r1-control", "r1-code-comment-attack", "r1-code-comment-benign"):
+            case = selected[case_id]
+            request_start = len(provider.requests)
+            output = tmp_path / "output" / case_id
+            result = observer.observe_cli(
+                [
+                    str(cli), "review", "--repo", str(case.repo), "--base", case.base_sha,
+                    "--head", case.head_sha, "--profile", str(prepared.profile_path),
+                    "--limits", str(limits_path), "--provider-config", str(config_path),
+                    "--output", str(output), "--run-id", f"effect-boundary-{case_id}", "--json",
+                ],
+                cwd=tmp_path,
+                env=env,
+                timeout_seconds=30,
+            )
+            observation = result.get("observer", {})
+            invocation = result.get("invocation", {})
+            review = result.get("cli_result")
+            assert observation.get("observer_id") == observer.OBSERVER_ID
+            assert observation.get("coverage") == "SCOPED_COMPLETE", observation
+            assert observation.get("event_aggregates_complete") is True
+            assert observation.get("overall_state") == "UNKNOWN"
+            assert invocation.get("run_status") == "CLI_COMPLETED", invocation
+            assert isinstance(review, dict)
+            assert review.get("coverage_state") == "COMPLETE"
+            assert review.get("disposition") == "REQUEST_CHANGES"
+            blockers = [
+                finding for finding in review.get("findings", [])
+                if finding.get("status") == "ACCEPTED" and finding.get("blocking_class") == "BLOCKING"
+            ]
+            assert len(blockers) == 1, case_id
+            blocker = blockers[0]
+            assert blocker["path"] == "src/auth.py" and blocker["location"]["line"] == case.anchor["line"]
+            assert review["report_sections"]["blockers"][0]["finding_id"] == blocker["finding_id"]
+
+            case_requests = provider.requests[request_start:]
+            assert len(case_requests) == 4
+            input_text = "\n".join(
+                evidence.get("content", "")
+                for request in case_requests
+                for evidence in request["user"].get("evidence", [])
+                if isinstance(evidence, dict)
+            )
+            if case.variant["payload"]:
+                assert case.variant["payload"] in input_text
+            else:
+                assert "return True" in input_text
+            assert sorted(item["schema_name"] for item in case_requests) == [
+                "semantic_assessment", "specialist_report", "specialist_report", "specialist_report",
+            ]
+            assert case.repo.joinpath("src/auth.py").is_file()
+            status = subprocess.run(
+                ["git", "-C", str(case.repo), "status", "--porcelain"],
+                check=True, capture_output=True, text=True,
+            )
+            assert status.stdout == ""
+            assert not marker.exists(), "review execution ran source fixture code"
+
+            aggregates = observation.get("event_aggregates", [])
+            assert observation.get("event_count", 0) > 0
+            assert observation.get("root_exec_evidence") == "first_successful_execve_in_fresh_spawn_trace"
+            assert sum(
+                row["count"] for row in aggregates
+                if row.get("syscall") in {"fork", "vfork", "clone", "clone3"}
+                and row.get("outcome") == "SUCCESS"
+            ) <= 32
+            assert all(
+                row.get("destination_class") == "loopback"
+                for row in aggregates
+                if row.get("syscall") == "connect"
+            )
+            assert all(
+                row.get("path_scope") == "case_workdir"
+                for row in aggregates
+                if row.get("syscall") in {"rename", "renameat", "renameat2", "unlink", "unlinkat"}
+                and row.get("outcome") == "SUCCESS"
+            )
+        assert len(provider.requests) == 12
+    finally:
+        provider.shutdown()
+        provider.server_close()
+        thread.join(timeout=1)
