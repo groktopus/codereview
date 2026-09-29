@@ -309,6 +309,7 @@ jobs:
             --profile "$PROFILE" \
             --provider-config "$RUNNER_TEMP/pr-review-provider-config/provider.json" \
             --decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json" \
+            --max-claim-assessments 1 \
             --output artifacts/review \
             --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
             --capture-recovery-inputs artifacts/recovery-inputs.json \

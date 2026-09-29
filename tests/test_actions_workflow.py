@@ -345,6 +345,21 @@ def test_production_analysis_uses_generated_configs_without_catalog_or_target_ex
     assert "fetched_target_base_mismatch" in source
 
 
+def test_production_analysis_uses_fixed_bounded_claim_assessment_and_preserves_recovery_capture():
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    review_step = _step(source, "Produce a bounded read-only report from the bare target object store")
+    review_command = review_step.split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
+    manifest_step = _step(source, "Record recovery identity and artifact digests")
+
+    claim_lines = [line.strip() for line in review_command.splitlines() if "--max-claim-assessments" in line]
+    assert claim_lines == ["--max-claim-assessments 1 \\"]
+    assert "inputs.max_claim_assessments" not in source
+    assert '--decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json"' in review_command
+    assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
+    assert "--artifact-root artifacts" in manifest_step
+    assert 'DECISION_CONFIG: ${{ runner.temp }}/pr-review-provider-config/decision.json' in manifest_step
+
+
 def test_production_analysis_creates_redirect_parent_before_cli_starts():
     source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
     review_step = source.split("- name: Produce a bounded read-only report", 1)[1]
