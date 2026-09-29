@@ -12,4 +12,25 @@ There are no human labels. The deterministic oracle is limited to the authored c
 
 Run `python3 scripts/prepare_selected_pair_clean_control_trial.py --output /private/tmp/review-three-case-preparation` with a new output directory to prepare the attack/benign defect pair and the separate code-clean control under one shared profile and limits. The private output retains synthetic Git repositories and reference configuration, plus a versioned plan with serializer-verified request descriptors and input hashes. No provider call or target-code execution occurs.
 
-This is preparation evidence, not a live sensitivity result or a deployable execution plan. Snapshot hashes describe the individual preparation; request-descriptor parity and frozen Git identities must be checked again against the final reviewed runtime before any authorized dispatch. Reference provider settings do not establish operator endpoint compatibility. Candidate-level Jev requests are built only when candidates exist, and the separate injection-classifier contract remains unresolved. The declared maximum for a future three-case experiment is 27 primary calls, 12 candidate-assessment calls, and two optional detector calls; this command makes zero calls.
+This is preparation evidence, not a live sensitivity result. Snapshot hashes describe the individual preparation. The prepared runner checks frozen Git identities and replays the installed CLI's exact request descriptors for all three cases before dispatching any review. Operator provider and decision configs must be supplied separately; the reference configs in the plan are not endpoint authorization. Candidate-level Jev requests are built only when candidates exist. The separate injection-classifier contract remains unresolved and is not run by this runner.
+
+## Prepared provider run
+
+The following is the bounded invocation path for an operator-authorized trial; this document does **not** authorize provider calls. Set the six `LLM_*` and `JEV_*` environment variables to the approved operator configuration, then create private configs and run the installed CLI against the prepared plan:
+
+```sh
+python3 scripts/prepare_selected_pair_clean_control_trial.py \
+  --output "$RUNNER_TEMP/selected-pair-prepared"
+python3 scripts/provider_config_from_env.py \
+  --output-dir "$RUNNER_TEMP/selected-pair-provider-config" --json
+python3 scripts/run_selected_model_trial.py --run-provider-trial \
+  --output "$RUNNER_TEMP/selected-pair-run" \
+  --cli-executable "$(command -v pr-review)" \
+  --provider-config "$RUNNER_TEMP/selected-pair-provider-config/provider.json" \
+  --decision-config "$RUNNER_TEMP/selected-pair-provider-config/decision.json" \
+  --prepared-plan "$RUNNER_TEMP/selected-pair-prepared/selected-pair-clean-control-trial-v1.json"
+```
+
+The runner requires the exact attack, benign-lookalike, and clean-control cases, one shared profile and limits file, and matching installed-runtime/source identity. It runs all three installed-CLI `--prepare-only` checks first; any descriptor, config, source, or frozen-input mismatch stops before review dispatch. Review dispatch uses `READ_ONLY`, zero retries, at most 9 primary calls per case, and at most 4 candidate-dependent Jev assessments per case: **27 primary + 12 Jev = 39 external calls maximum**. The injection classifier is `NOT_RUN` with compatibility unresolved; its calls are not part of this runner's bound. The 940-second budget bounds preparation and review dispatch, not all artifact parsing and post-run reporting time. Publication and target-code execution are disabled.
+
+Final local validation passed the combined 51-test suite, including clean-control claim binding. The latest provider-free installed check matched runtime to source, passed all three real prepare-only request-descriptor parity checks, and stopped at the first review boundary with a hard sentinel. It recorded zero provider calls and no target execution. Its hash-only receipt remains an uncommitted private temporary artifact. The installed probe is not a live sensitivity result. No production-quality, accuracy, calibration, or release-readiness conclusion follows from this synthetic evaluation.

@@ -37,6 +37,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--provider-config", type=Path, help="config from provider_config_from_env.py; run mode only")
     result.add_argument("--decision-config", type=Path, help="config from provider_config_from_env.py; run mode only")
     result.add_argument(
+        "--prepared-plan",
+        type=Path,
+        help="validated prepared trial plan to execute; run mode only",
+    )
+    result.add_argument(
         "--observe-effects",
         action="store_true",
         help="opt in to bounded Linux syscall observations around the installed CLI; the overall effect state stays unknown",
@@ -48,6 +53,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         if args.prepare_only:
+            if args.prepared_plan is not None:
+                raise SelectedTrialError("prepare_only_rejects_prepared_plan")
             if args.provider_config is not None or args.decision_config is not None:
                 raise SelectedTrialError("prepare_only_rejects_provider_configs")
             if args.observe_effects:
@@ -56,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if args.provider_config is None or args.decision_config is None:
                 raise SelectedTrialError("provider_trial_requires_trusted_configs")
-            result = run_provider_trial(
+            run_kwargs = dict(
                 output=args.output,
                 cli_executable=args.cli_executable,
                 provider_config=args.provider_config,
@@ -64,6 +71,9 @@ def main(argv: list[str] | None = None) -> int:
                 repo_support_root=ROOT,
                 observe_effects=args.observe_effects,
             )
+            if args.prepared_plan is not None:
+                run_kwargs["prepared_plan"] = args.prepared_plan
+            result = run_provider_trial(**run_kwargs)
     except SelectedTrialError as exc:
         print(json.dumps({"status": "FAILED", "error": exc.code}, sort_keys=True, separators=(",", ":")))
         return 2

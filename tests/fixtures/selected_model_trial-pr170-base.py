@@ -9,7 +9,6 @@ import os
 import re
 import shutil
 import stat
-import subprocess
 import tempfile
 import time
 from pathlib import Path, PurePosixPath
@@ -49,13 +48,6 @@ MAX_SUMMARY_BYTES = 1_000_000
 MAX_CONFIG_BYTES = 128_000
 MAX_SOURCE_IDENTITY_BYTES = 2_000_000
 MAX_CANDIDATES_PER_RESULT = 256
-PREPARED_CASE_IDS = (
-    "r1-code-comment-attack",
-    "r1-code-comment-benign",
-    "r1-code-clean-control",
-)
-PREPARED_PLAN_SCHEMA = "selected-pair-clean-control-trial.v1"
-PREPARED_GLOBAL_DEADLINE_SECONDS = 940
 
 PRIMARY_IDENTITY = {
     "kind": "openai_compatible",
@@ -85,19 +77,6 @@ _DIMENSIONS = {
 }
 _ANSWER_STATUSES = {"ANSWERED", "OMITTED", "INVALID", "FAILED", "NOT_SHOWN"}
 _USAGE_FIELDS = {"known", "input_tokens", "output_tokens", "billed_cost_microunits", "cost_microunits"}
-
-
-def _prepared_git_env() -> dict[str, str]:
-    env = {key: os.environ[key] for key in ("PATH", "HOME", "SYSTEMROOT", "WINDIR") if key in os.environ}
-    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull})
-    env.update({
-        "GIT_CONFIG_COUNT": "2",
-        "GIT_CONFIG_KEY_0": "core.fsmonitor",
-        "GIT_CONFIG_VALUE_0": "false",
-        "GIT_CONFIG_KEY_1": "core.hooksPath",
-        "GIT_CONFIG_VALUE_1": os.devnull,
-    })
-    return env
 
 
 class SelectedTrialError(ValueError):
@@ -346,187 +325,6 @@ def _environment_configs(
     if primary != PRIMARY_IDENTITY or decision != DECISION_IDENTITY:
         raise SelectedTrialError("provider_identity_mismatch")
     return primary, decision
-
-
-def _prepared_environment_configs(env: dict[str, str], repo_support_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Resolve operator config identities without imposing the legacy trial endpoint."""
-    try:
-        import importlib.util
-
-        helper_path = repo_support_root / "scripts" / "provider_config_from_env.py"
-        spec = importlib.util.spec_from_file_location("_prepared_trial_provider_config", helper_path)
-        if spec is None or spec.loader is None:
-            raise SelectedTrialError("provider_config_helper_unavailable")
-        helper = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(helper)
-        primary, decision = helper.configurations_from_environment(env)
-    except SelectedTrialError:
-        raise
-    except Exception:
-        raise SelectedTrialError("trusted_provider_environment_invalid") from None
-    if not isinstance(primary, dict) or not isinstance(decision, dict):
-        raise SelectedTrialError("trusted_provider_environment_invalid")
-    return primary, decision
-
-
-def _prepared_plan(path: Path, root: Path) -> tuple[dict[str, Any], Path, Path, dict[str, Any]]:
-    """Validate the retained plan and immutable prepared inputs before any dispatch."""
-    try:
-        metadata = path.lstat()
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_SUMMARY_BYTES:
-            raise SelectedTrialError("prepared_plan_invalid")
-        raw = path.read_bytes()
-        plan = json.loads(raw)
-    except SelectedTrialError:
-        raise
-    except Exception:
-        raise SelectedTrialError("prepared_plan_unavailable") from None
-    if not isinstance(plan, dict) or plan.get("schema") != PREPARED_PLAN_SCHEMA or plan.get("state") != "PREPARED_PROVIDER_FREE":
-        raise SelectedTrialError("prepared_plan_invalid")
-    rows = plan.get("cases")
-    if not isinstance(rows, list) or tuple(row.get("case_id") for row in rows if isinstance(row, dict)) != PREPARED_CASE_IDS:
-        raise SelectedTrialError("prepared_case_selection_invalid")
-    impl = plan.get("implementation_identity")
-    files = impl.get("file_hashes") if isinstance(impl, dict) else None
-    expected_files = {
-        "src/pr_review_harness/cli.py", "src/pr_review_harness/engine.py",
-        "src/pr_review_harness/providers.py", "src/pr_review_harness/claim_transport.py",
-        "src/pr_review_harness/selected_model_trial.py", "src/pr_review_harness/injection_trials.py",
-        "scripts/provider_config_from_env.py", "scripts/prepare_selected_pair_clean_control_trial.py",
-        "tests/test_selected_pair_clean_control_trial_preparation.py",
-    }
-    if not isinstance(files, dict) or set(files) != expected_files or impl.get("git_head") != plan.get("source_revision"):
-        raise SelectedTrialError("prepared_source_identity_invalid")
-    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", str(plan.get("source_revision", ""))):
-        raise SelectedTrialError("prepared_source_identity_invalid")
-    try:
-        current_head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True,
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=10, env=_prepared_git_env()).stdout.strip()
-    except Exception:
-        raise SelectedTrialError("prepared_source_identity_unavailable") from None
-    if current_head != plan["source_revision"]:
-        raise SelectedTrialError("prepared_source_revision_mismatch")
-    for relative, identity in files.items():
-        if not isinstance(relative, str) or not relative.startswith(("src/", "scripts/", "tests/")) or ".." in Path(relative).parts:
-            raise SelectedTrialError("prepared_source_identity_invalid")
-        actual = _hash_file_bounded(root / relative)
-        if not isinstance(identity, dict) or actual != identity:
-            raise SelectedTrialError("prepared_source_changed")
-    inputs = plan.get("frozen_inputs")
-    if not isinstance(inputs, dict):
-        raise SelectedTrialError("prepared_inputs_invalid")
-    base = path.parent.resolve(strict=True)
-    def frozen_file(key: str, expected_key: str) -> Path:
-        rel = inputs.get(key)
-        if not isinstance(rel, str) or Path(rel).is_absolute() or ".." in Path(rel).parts:
-            raise SelectedTrialError("prepared_inputs_invalid")
-        candidate = base / rel
-        try:
-            resolved = candidate.resolve(strict=True)
-            resolved.relative_to(base)
-        except Exception:
-            raise SelectedTrialError("prepared_inputs_invalid") from None
-        if _hash_file_bounded(resolved, cap=MAX_CONFIG_BYTES).get("sha256") != inputs.get(expected_key):
-            raise SelectedTrialError("prepared_inputs_changed")
-        return resolved
-    profile = frozen_file("profile_path", "profile_sha256")
-    limits = frozen_file("limits_path", "limits_sha256")
-    primary_ref = frozen_file("provider_config_path", "provider_config_file_sha256")
-    decision_ref = frozen_file("decision_config_path", "decision_config_file_sha256")
-    try:
-        primary_reference = json.loads(primary_ref.read_bytes())
-        decision_reference = json.loads(decision_ref.read_bytes())
-        if hashlib.sha256(canonical_json(primary_reference)).hexdigest() != inputs.get("provider_config_identity_sha256"):
-            raise SelectedTrialError("prepared_provider_reference_mismatch")
-        if hashlib.sha256(canonical_json(decision_reference)).hexdigest() != inputs.get("decision_config_identity_sha256"):
-            raise SelectedTrialError("prepared_provider_reference_mismatch")
-    except SelectedTrialError:
-        raise
-    except Exception:
-        raise SelectedTrialError("prepared_provider_reference_invalid") from None
-    try:
-        profile_data = json.loads(profile.read_bytes())
-        limits_data = json.loads(limits.read_bytes())
-    except Exception:
-        raise SelectedTrialError("prepared_inputs_invalid") from None
-    if not isinstance(profile_data, dict) or not isinstance(limits_data, dict) or limits_data != _limits():
-        raise SelectedTrialError("prepared_policy_mismatch")
-    policy = plan.get("shared_review_policy")
-    if (not isinstance(policy, dict) or policy.get("sha256") != hashlib.sha256(
-        canonical_json({key: value for key, value in policy.items() if key != "sha256"})
-    ).hexdigest() or policy.get("profile_sha256") != inputs.get("profile_sha256")
-        or policy.get("limits_sha256") != inputs.get("limits_sha256")):
-        raise SelectedTrialError("prepared_policy_identity_mismatch")
-    if (policy.get("primary_identity_contract") != primary_reference
-        or policy.get("decision_identity_contract") != decision_reference
-        or policy.get("provider_config_sha256") != inputs.get("provider_config_identity_sha256")
-        or policy.get("decision_config_sha256") != inputs.get("decision_config_identity_sha256")):
-        raise SelectedTrialError("prepared_provider_reference_mismatch")
-    repositories: dict[str, Path] = {}
-    cases = inputs.get("cases")
-    if not isinstance(cases, dict):
-        raise SelectedTrialError("prepared_cases_invalid")
-    for row in rows:
-        case_id = row["case_id"]
-        case_spec = cases.get(case_id)
-        if not isinstance(case_spec, dict):
-            raise SelectedTrialError("prepared_cases_invalid")
-        rel = case_spec.get("repository_path")
-        if not isinstance(rel, str) or Path(rel).is_absolute() or ".." in Path(rel).parts:
-            raise SelectedTrialError("prepared_cases_invalid")
-        repo = (base / rel).resolve(strict=True)
-        try:
-            repo.relative_to(base)
-            git = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=10, env=_prepared_git_env())
-        except Exception:
-            raise SelectedTrialError("prepared_git_identity_unavailable") from None
-        if git.stdout.strip() != case_spec.get("head_sha") or row.get("head_sha") != git.stdout.strip() or row.get("base_sha") != case_spec.get("base_sha"):
-            raise SelectedTrialError("prepared_git_identity_mismatch")
-        try:
-            subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{case_spec['base_sha']}^{{commit}}"], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, env=_prepared_git_env())
-            subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", case_spec["base_sha"], case_spec["head_sha"]], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, env=_prepared_git_env())
-        except Exception:
-            raise SelectedTrialError("prepared_git_base_invalid") from None
-        repositories[case_id] = repo
-        status = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=all"],
-            check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=10, env=_prepared_git_env())
-        if status.stdout:
-            raise SelectedTrialError("prepared_repository_dirty")
-    oracle = plan.get("construction_oracle")
-    defect = oracle.get("defect_pair") if isinstance(oracle, dict) else None
-    clean = oracle.get("clean_control") if isinstance(oracle, dict) else None
-    if (not isinstance(defect, dict) or defect.get("cases") != list(PREPARED_CASE_IDS[:2])
-        or defect.get("finding_expected_in_both") is not True
-        or not isinstance(clean, dict) or clean.get("case_id") != PREPARED_CASE_IDS[2]
-        or clean.get("expected_material_candidate") is not False):
-        raise SelectedTrialError("prepared_construction_oracle_invalid")
-    if [row.get("role") for row in rows] != [
-        "defect_positive_prompt_attack", "defect_positive_benign_lookalike", "code_clean_negative_control"
-    ] or any(row.get("primary_request_count") != len(row.get("primary_requests", []))
-             or not row.get("primary_requests")
-             or any(not isinstance(item, dict) or item.get("admitted") is not True
-                    or not isinstance(item.get("input_sha256"), str)
-                    or not _SHA256.fullmatch(item["input_sha256"])
-                    for item in row.get("primary_requests", [])) for row in rows):
-        raise SelectedTrialError("prepared_request_descriptors_invalid")
-    fixture_sources = plan.get("fixture_sources")
-    suite_path = root / "examples/injection/fixture-suite.v2.json"
-    clean_root = root / "examples/evaluation/clean-review-control-v1"
-    clean_manifest = clean_root / "fixture.json"
-    try:
-        suite_hash = _hash_file_bounded(suite_path)["sha256"]
-        manifest_hash = _hash_file_bounded(clean_manifest)["sha256"]
-        manifest_data = json.loads(clean_manifest.read_bytes())
-        clean_hashes = {name: _hash_file_bounded(clean_root / name)["sha256"] for name in manifest_data["file_hashes"]}
-    except Exception:
-        raise SelectedTrialError("prepared_fixture_source_unavailable") from None
-    if (not isinstance(fixture_sources, dict) or fixture_sources.get("injection_suite_sha256") != suite_hash
-        or fixture_sources.get("clean_manifest_sha256") != manifest_hash
-        or fixture_sources.get("clean_file_hashes") != clean_hashes):
-        raise SelectedTrialError("prepared_fixture_source_mismatch")
-    return plan, profile, limits, {"profile": profile_data, "limits": limits_data, "repositories": repositories}
 
 
 def _child_environment(parent: dict[str, str], *, canary: str, include_keys: bool) -> dict[str, str]:
@@ -1444,11 +1242,6 @@ def _case_result_summary(
             and finding.get("status") in {"ACCEPTED", "NEEDS_EVIDENCE", "REJECTED", "UNRESOLVED"}
             else "UNKNOWN"
         )
-    known_blocker = (
-        "NOT_APPLICABLE_CLEAN_NEGATIVE_CONTROL"
-        if case.case_id == "r1-code-clean-control"
-        else observe_known_blocker(result, case.anchor)
-    )
     return {
         "case_id": case.case_id,
         "kind": case.variant.get("kind"),
@@ -1477,7 +1270,7 @@ def _case_result_summary(
         "coverage_state": result.get("coverage_state")
         if result.get("coverage_state") in {"COMPLETE", "PARTIAL", "NOT_STARTED", "UNKNOWN"}
         else "UNKNOWN",
-        "known_blocker_observation": known_blocker,
+        "known_blocker_observation": observe_known_blocker(result, case.anchor),
         "candidate_count": len(candidate_records) if isinstance(candidate_records, list) else None,
         "primary_findings": [
             {
@@ -1552,7 +1345,6 @@ def run_provider_trial(
     environ: dict[str, str] | None = None,
     invoke=None,
     observe_effects: bool = False,
-    prepared_plan: Path | None = None,
 ) -> dict[str, Any]:
     """Run exactly the three frozen cases with the selected trusted model pair."""
     env_source = dict(os.environ if environ is None else environ)
@@ -1562,11 +1354,7 @@ def run_provider_trial(
         root = root.resolve(strict=True)
     except OSError:
         raise SelectedTrialError("repository_support_assets_unavailable") from None
-    prepared_mode = prepared_plan is not None
-    if prepared_mode:
-        primary_identity, decision_identity = _prepared_environment_configs(env_source, root)
-    else:
-        primary_identity, decision_identity = _environment_configs(env_source, root)
+    primary_identity, decision_identity = _environment_configs(env_source, root)
     primary_config_identity, primary_hash = _config_identity(provider_config, expected=primary_identity, decision=False)
     decision_config_identity, decision_hash = _config_identity(
         decision_config, expected=decision_identity, decision=True
@@ -1575,108 +1363,19 @@ def run_provider_trial(
     runtime: dict[str, Any] = {}
     case_results: list[dict[str, Any]] = []
     raw_artifact_bytes_total = 0
-    prepared_plan_hash: str | None = None
     start = time.monotonic()
-    matrix_deadline = start + (PREPARED_GLOBAL_DEADLINE_SECONDS if prepared_mode else MATRIX_TIMEOUT_SECONDS)
+    matrix_deadline = start + MATRIX_TIMEOUT_SECONDS
     sensitive_values = (env_source.get("LLM_API_KEY", ""), env_source.get("JEV_API_KEY", ""))
     canary = os.urandom(24).hex()
     child_env = _child_environment(env_source, canary=canary, include_keys=True)
     try:
         with tempfile.TemporaryDirectory(prefix="selected-claim-provider-trial-", dir=result_dir) as temporary:
             work = Path(temporary)
-            plan_data = None
-            if prepared_mode:
-                plan_data, profile_path, limits_path, frozen = _prepared_plan(Path(prepared_plan), root)
-                prepared_plan_hash = hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest()
-                limits = frozen["limits"]
-                generated, runtime = _suite_and_runtime(work / "fixtures", root, cli_executable)
-                if canonical_json(generated.profile) != canonical_json(json.loads(profile_path.read_bytes())):
-                    raise SelectedTrialError("prepared_profile_mismatch")
-                source_fingerprint = runtime.get("source_fingerprint")
-                by_id = {case.case_id: case for case in generated.cases}
-                plan_rows = {row["case_id"]: row for row in plan_data["cases"]}
-                run_cases = []
-                for case_id in PREPARED_CASE_IDS:
-                    row = plan_rows[case_id]
-                    if case_id in by_id:
-                        original = by_id[case_id]
-                        case = type("PreparedCaseProxy", (), {})()
-                        for field in ("variant", "family_id", "pair_case_id", "anchor", "behavior_sha256", "snapshot"):
-                            setattr(case, field, getattr(original, field))
-                        case.snapshot = dict(case.snapshot)
-                    else:
-                        case = type("PreparedCleanCase", (), {})()
-                        case.case_id = case_id
-                        case.variant = {"kind": "code_clean_negative_control", "vector": "clean_control"}
-                        case.family_id = "clean-control"
-                        case.pair_case_id = None
-                        case.anchor = {}
-                        case.behavior_sha256 = None
-                        case.snapshot = {"inventory": []}
-                    case.case_id = case_id
-                    case.repo = frozen["repositories"][case_id]
-                    case.base_sha = row["base_sha"]
-                    case.head_sha = row["head_sha"]
-                    try:
-                        from .snapshot import collect_snapshot
-
-                        case.snapshot = collect_snapshot(
-                            str(case.repo), case.base_sha, case.head_sha,
-                            json.loads(profile_path.read_bytes()), limits,
-                        )
-                    except Exception:
-                        raise SelectedTrialError("prepared_snapshot_reconstruction_failed") from None
-                    case.snapshot["freshness_basis"] = "HISTORICAL_SNAPSHOT"
-                    run_cases.append(case)
-                # All exact requests are reserialized by the installed CLI before
-                # the first live review invocation. A mismatch aborts the matrix.
-                for case, row in zip(run_cases, plan_data["cases"], strict=True):
-                    remaining_preflight = matrix_deadline - time.monotonic()
-                    if remaining_preflight <= 0:
-                        raise SelectedTrialError("prepared_global_deadline_exhausted")
-                    command = _command(Path(runtime["cli_path"]), case, profile_path, limits_path,
-                        work / "preflight" / case.case_id, provider_config, decision_config, dry_run=False)
-                    command.insert(-1, "--prepare-only")
-                    check = invoke(command, cwd=work, env=_child_environment(env_source, canary=canary, include_keys=False),
-                                   timeout_seconds=min(30, remaining_preflight))
-                    receipt = check.get("cli_result") if isinstance(check, dict) else None
-                    remaining_preflight = matrix_deadline - time.monotonic()
-                    if remaining_preflight <= 0:
-                        raise SelectedTrialError("prepared_global_deadline_exhausted")
-                    if (not isinstance(receipt, dict) or check.get("run_status") != "CLI_COMPLETED"
-                        or receipt.get("status") != "PREPARED_ONLY"
-                        or receipt.get("no_provider_calls") is not True
-                        or receipt.get("no_target_code_execution") is not True
-                        or receipt.get("snapshot", {}).get("base_sha") != case.base_sha
-                        or receipt.get("snapshot", {}).get("head_sha") != case.head_sha
-                        or receipt.get("snapshot", {}).get("profile_file_sha256") != _hash_file_bounded(profile_path)["sha256"]
-                        or receipt.get("snapshot", {}).get("limits_sha256") != _hash_file_bounded(limits_path)["sha256"]
-                        or not isinstance(receipt.get("primary_requests"), list)
-                        or len(receipt["primary_requests"]) != row.get("primary_request_count")
-                        or any(not isinstance(item, dict) or item.get("admitted") is not True for item in receipt["primary_requests"])
-                        or canonical_json(receipt.get("primary_requests")) != canonical_json(row.get("primary_requests"))):
-                        raise SelectedTrialError("prepared_request_parity_mismatch")
-                    if receipt.get("snapshot", {}).get("base_sha") != case.base_sha or receipt.get("snapshot", {}).get("head_sha") != case.head_sha:
-                        raise SelectedTrialError("prepared_snapshot_identity_mismatch")
-                    if case.snapshot.get("snapshot_id") != receipt["snapshot"].get("snapshot_id"):
-                        raise SelectedTrialError("prepared_snapshot_identity_mismatch")
-                    case.snapshot.update(snapshot_id=receipt["snapshot"]["snapshot_id"],
-                                         snapshot_hash=receipt["snapshot"]["snapshot_hash"])
-                prepared = generated
-                from types import SimpleNamespace
-
-                prepared = SimpleNamespace(
-                    profile=json.loads(profile_path.read_bytes()),
-                    profile_path=profile_path,
-                    suite_sha256=generated.suite_sha256,
-                    cases=tuple(run_cases),
-                )
-            else:
-                prepared, runtime = _suite_and_runtime(work / "fixtures", root, cli_executable)
-                source_fingerprint = runtime.get("source_fingerprint")
-                limits = _limits()
-                limits_path = work / "limits.json"
-                _write_json(limits_path, limits)
+            prepared, runtime = _suite_and_runtime(work / "fixtures", root, cli_executable)
+            source_fingerprint = runtime.get("source_fingerprint")
+            limits = _limits()
+            limits_path = work / "limits.json"
+            _write_json(limits_path, limits)
             input_identity = _trial_input_identity(
                 root,
                 profile_path=prepared.profile_path,
@@ -1684,30 +1383,9 @@ def run_provider_trial(
                 provider_path=provider_config,
                 decision_path=decision_config,
             )
-            selected_ids = PREPARED_CASE_IDS if prepared_mode else CASE_IDS
             for case in prepared.cases:
-                if case.case_id not in selected_ids:
+                if case.case_id not in CASE_IDS:
                     continue
-                if prepared_mode:
-                    try:
-                        current_plan_hash = hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest()
-                    except OSError:
-                        raise SelectedTrialError("prepared_plan_changed") from None
-                    if current_plan_hash != prepared_plan_hash:
-                        case_results.append({"case_id": case.case_id, "run_status": "PREPARED_PLAN_CHANGED_STOP"})
-                        break
-                    try:
-                        frozen_head = subprocess.run(["git", "-C", str(case.repo), "rev-parse", "HEAD"],
-                            check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            text=True, timeout=10, env=_prepared_git_env()).stdout.strip()
-                        frozen_status = subprocess.run(["git", "-C", str(case.repo), "status", "--porcelain", "--untracked-files=all"],
-                            check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            text=True, timeout=10, env=_prepared_git_env()).stdout
-                    except Exception:
-                        raise SelectedTrialError("prepared_repository_identity_unavailable") from None
-                    if frozen_head != case.head_sha or frozen_status:
-                        case_results.append({"case_id": case.case_id, "run_status": "PREPARED_REPOSITORY_CHANGED_STOP"})
-                        break
                 if (
                     _load_matrix_tools(root).source_fingerprint() != source_fingerprint
                     or _trial_input_identity(
@@ -1921,13 +1599,13 @@ def run_provider_trial(
                 case_results.append(run_summary)
                 if observe_effects and _external_observer_requires_stop(external_observation):
                     break
-            if len(case_results) < len(selected_ids):
+            if len(case_results) < len(CASE_IDS):
                 completed_ids = {item.get("case_id") for item in case_results}
-                for case_id in selected_ids:
+                for case_id in CASE_IDS:
                     if case_id not in completed_ids:
                         case_results.append({"case_id": case_id, "run_status": "NOT_RUN_AFTER_EARLIER_STOP"})
             cases_manifest = [
-                _case_manifest(case, prepared.profile) for case in prepared.cases if case.case_id in selected_ids
+                _case_manifest(case, prepared.profile) for case in prepared.cases if case.case_id in CASE_IDS
             ]
             manifest = {
                 "contract_version": TRIAL_ID,
@@ -1949,28 +1627,15 @@ def run_provider_trial(
                 "decision_config_sha256": decision_hash,
                 "limits": limits,
                 "runs": RUN_TIMEOUT_SECONDS,
-                "matrix_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS if prepared_mode else MATRIX_TIMEOUT_SECONDS,
+                "matrix_deadline_seconds": MATRIX_TIMEOUT_SECONDS,
                 "claim_assessments_cap_per_run": MAX_CLAIM_ASSESSMENTS_PER_RUN,
                 "cases": cases_manifest,
-                "maximum_provider_calls_total": len(selected_ids) * MAX_PROVIDER_CALLS_PER_RUN,
-                "maximum_output_tokens_total": len(selected_ids) * MAX_PROVIDER_CALLS_PER_RUN * MAX_OUTPUT_TOKENS_PER_CALL,
-                "maximum_provider_response_bytes_total": len(selected_ids)
+                "maximum_provider_calls_total": len(CASE_IDS) * MAX_PROVIDER_CALLS_PER_RUN,
+                "maximum_output_tokens_total": len(CASE_IDS) * MAX_PROVIDER_CALLS_PER_RUN * MAX_OUTPUT_TOKENS_PER_CALL,
+                "maximum_provider_response_bytes_total": len(CASE_IDS)
                 * MAX_PROVIDER_CALLS_PER_RUN
                 * MAX_RESPONSE_BYTES_PER_CALL,
-                "maximum_external_calls_total": len(selected_ids)
-                * (MAX_PROVIDER_CALLS_PER_RUN + MAX_CLAIM_ASSESSMENTS_PER_RUN),
-                "maximum_claim_assessments_total": len(selected_ids) * MAX_CLAIM_ASSESSMENTS_PER_RUN,
                 "raw_cli_artifacts_uploaded": False,
-                **({"prepared_plan_sha256": hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest(),
-                    "prepared_plan_schema": PREPARED_PLAN_SCHEMA,
-                    "preflight_case_count": len(PREPARED_CASE_IDS),
-                    "injection_classifier": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED",
-                    "clean_control_expected_material_candidate": False,
-                    "global_wall_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS} if prepared_mode else {}),
-                **({"jev_injection_classifier": {
-                    "status": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED",
-                    "calls_max": 0,
-                }} if prepared_mode else {}),
                 "billing": "UNKNOWN_UNLESS_AUTHORITATIVE_USAGE_REPORTED",
                 "effect_observer": {
                     "environment_canary_sha256": hashlib.sha256(canary.encode("ascii")).hexdigest(),
@@ -1996,7 +1661,7 @@ def run_provider_trial(
                 "manifest_sha256": manifest_hash,
                 "cases": case_results,
                 "elapsed_ms": round((time.monotonic() - start) * 1000, 2),
-                "provider_call_ceiling": len(selected_ids) * MAX_PROVIDER_CALLS_PER_RUN,
+                "provider_call_ceiling": len(CASE_IDS) * MAX_PROVIDER_CALLS_PER_RUN,
                 "provider_calls_actual": None,
                 "provider_calls_note": "use validated per-candidate reservation rows; absent rows are not implied calls",
                 "billing": "UNKNOWN_UNLESS_AUTHORITATIVE_USAGE_REPORTED",
