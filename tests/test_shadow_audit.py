@@ -798,13 +798,106 @@ def test_frozen_pr464_validator_loads_checked_in_plan_corpus_and_identity(monkey
         seen.update(corpus=corpus, identity=identity, plan=plan, plan_raw=plan_raw, packet=packet)
 
     monkeypatch.setattr(sealed_source_record_integration, "validate_identity", validate_identity)
-    packet = {"case_id": "PR-464", "profile_id": "slopsearx"}
+    packet = _frozen_pr464_packet()
     plan_hash = sealed_source_record_integration._validate_frozen_pr464(packet)
     assert plan_hash == hashlib.sha256(seen["plan_raw"]).hexdigest()
     assert seen["plan"]["case"]["case_id"] == "PR-464"
     assert seen["identity"]["case_id"] == "PR-464"
     assert seen["corpus"]["cases"][0]["identity"]["case_id"] == "PR-464"
-    assert seen["packet"] is packet
+    assert seen["packet"] is not packet
+    assert seen["packet"]["snapshot"]["profile_hash"] == seen["identity"]["profile_sha256"]
+    assert packet["snapshot"]["profile_hash"] != seen["packet"]["snapshot"]["profile_hash"]
+
+
+def _frozen_pr464_packet(profile_hash: str | None = None) -> dict:
+    import sealed_source_record_integration as integration
+
+    corpus = json.loads(integration.PR464_CORPUS.read_bytes())
+    identity = corpus["cases"][0]["identity"]
+    plan = json.loads(integration.PR464_PLAN.read_bytes())
+    profile = json.loads((integration.ROOT / "docs/real-case-trial-v1/profiles/PR-464.json").read_bytes())
+    canonical_profile_hash = hashlib.sha256(
+        json.dumps(profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode()
+    ).hexdigest()
+    snapshot_body = {
+        "repository": "magnus919/SlopSearX",
+        "repository_url": "https://github.com/magnus919/SlopSearX",
+        "base_sha": identity["base_sha"],
+        "head_sha": identity["head_sha"],
+        "profile_version": identity["profile"]["version"],
+        "profile_hash": profile_hash or canonical_profile_hash,
+        "inventory": {},
+        "evidence": {},
+        "gaps": [],
+        "trusted_context_refs": [],
+    }
+    snapshot = {
+        "snapshot_id": identity["snapshot_id"],
+        **snapshot_body,
+        # The frozen corpus pins the full snapshot hash; its source snapshot
+        # body is not included in the checked-in teacher corpus.
+        "snapshot_hash": plan["case"]["snapshot_sha256"],
+    }
+    calls = [{
+        "call_id": "writer-call-1",
+        "request_sha256": "a" * 64,
+        "request_artifact_id": "writer-request-1",
+        "response_sha256": "b" * 64,
+        "response_artifact_id": "writer-response-1",
+    }]
+    calls_manifest_sha = hashlib.sha256(
+        json.dumps(calls, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+    ).hexdigest()
+    return {
+        "contract_version": "model-only-shadow-case.v1",
+        "case_id": "PR-464",
+        "snapshot": snapshot,
+        "source_task": {"task_id": plan["writer_requests"][0]["task_id"]},
+        "source_evidence": [],
+        "writer_run": {
+            "role": "writer", "status": "completed", "run_id": "writer-run-1",
+            "provider_id": "typesafe", "model_id": "writer-model", "runtime_id": "runtime-v1",
+            "prompt_revision": "prompt-v1", "rubric_revision": "rubric-v1", "calls": calls,
+            "calls_manifest_sha256": calls_manifest_sha,
+        },
+        "writer_candidate": None,
+        "profile_id": identity["profile"]["profile_id"],
+    }
+
+
+def test_frozen_pr464_accepts_packet_canonical_profile_hash_and_rejects_file_hash():
+    import sealed_source_record_integration
+
+    packet = _frozen_pr464_packet()
+    plan_hash = sealed_source_record_integration._validate_frozen_pr464(packet)
+    assert plan_hash == hashlib.sha256(sealed_source_record_integration.PR464_PLAN.read_bytes()).hexdigest()
+
+    corpus = json.loads(sealed_source_record_integration.PR464_CORPUS.read_bytes())
+    packet["snapshot"]["profile_hash"] = corpus["cases"][0]["identity"]["profile"]["sha256"]
+    with pytest.raises(SealedSourceIntegrationError, match="frozen_pr464_identity_invalid"):
+        sealed_source_record_integration._validate_frozen_pr464(packet)
+
+
+def test_frozen_pr464_rejects_unpinned_canonical_profile_hash():
+    import sealed_source_record_integration
+
+    packet = _frozen_pr464_packet("c" * 64)
+    with pytest.raises(SealedSourceIntegrationError, match="frozen_pr464_identity_invalid"):
+        sealed_source_record_integration._validate_frozen_pr464(packet)
+
+
+def test_frozen_pr464_rejects_profile_file_bytes_outside_plan_pin(monkeypatch, tmp_path):
+    import sealed_source_record_integration
+
+    packet = _frozen_pr464_packet()
+    original_root = sealed_source_record_integration.ROOT
+    profile_path = tmp_path / "docs/real-case-trial-v1/profiles/PR-464.json"
+    profile_path.parent.mkdir(parents=True)
+    profile_path.write_bytes((original_root / profile_path.relative_to(tmp_path)).read_bytes() + b"\n")
+    monkeypatch.setattr(sealed_source_record_integration, "ROOT", tmp_path)
+
+    with pytest.raises(SealedSourceIntegrationError, match="frozen_pr464_identity_invalid"):
+        sealed_source_record_integration._validate_frozen_pr464(packet)
 
 
 def test_private_operator_bridge_keeps_jev_not_run_when_source_abstains(monkeypatch, tmp_path):
