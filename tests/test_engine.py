@@ -910,6 +910,10 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
     provider = PinnedCaptureProbeProvider()
     snapshot = make_snapshot()
     prof = profile(("correctness", "tests", "design", "security", "performance", "maintainability"))
+    frozen_plan = json.loads(
+        (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v2.json").read_text()
+    )
+    prof["repository"] = frozen_plan["case"]["repository"]
     snapshot["profile_hash"] = hashlib.sha256(json.dumps(
         prof, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
     ).encode()).hexdigest()
@@ -947,6 +951,38 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
             "output_tokens_cap": 1_800,
         }
 
+    rejected_profile = {**prof, "profile_id": "../bad"}
+    rejected_snapshot = copy.deepcopy(snapshot)
+    rejected_snapshot["profile_hash"] = hashlib.sha256(json.dumps(
+        rejected_profile, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode()).hexdigest()
+    rejected_snapshot["snapshot_hash"] = hashlib.sha256(json.dumps(
+        {key: value for key, value in rejected_snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode()).hexdigest()
+    rejected_plan = plan_review(rejected_snapshot, rejected_profile, "AUTO")
+    rejected_prepared, _skipped = prepare_plan_tasks(rejected_snapshot, rejected_plan, rejected_profile, limits, provider)
+    rejected_tasks = [task for task in rejected_prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"]
+    rejected_pins = {}
+    for task in rejected_tasks:
+        evidence = _evidence_for(task, rejected_snapshot, limits["max_input_bytes_per_task"])
+        request = provider.serialize_review_request(task, evidence, limits)
+        rejected_pins[task["task_id"]] = {
+            "task_id": task["task_id"], "input_sha256": hashlib.sha256(request).hexdigest(),
+            "input_bytes": len(request), "lens": task["lens"],
+            "output_bytes_cap": 32_768, "output_tokens_cap": 1_800,
+        }
+    rejected_capture = tmp_path / "capture-missing-profile-id"
+    with pytest.raises(EnginePreflightError, match="review request is invalid"):
+        run_review(
+            rejected_snapshot, rejected_plan, rejected_profile, provider, None, limits,
+            str(tmp_path / "results"), "missing-profile-id",
+            private_capture_dir=str(rejected_capture), private_capture_case_id="PR-464",
+            private_capture_request_pins=rejected_pins,
+            private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": rejected_snapshot["snapshot_hash"]},
+        )
+    assert not rejected_capture.exists()
+
     capture_dir = tmp_path / "capture-six-of-ten"
     result = run_review(
         snapshot, plan, prof, provider, None, limits, str(tmp_path / "results"), "six-of-ten",
@@ -956,6 +992,8 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
     )
     captured_requests = list((capture_dir / "requests").glob("*.bin"))
     assert len(captured_requests) == 6
+    source_tasks = json.loads((capture_dir / "source_tasks.json").read_text())
+    assert source_tasks["profile_id"] == "slopsearx"
     assert {hashlib.sha256(path.read_bytes()).hexdigest() for path in captured_requests} == {
         pin["input_sha256"] for pin in pins.values()
     }
@@ -974,10 +1012,32 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
     assert not below_cap_dir.exists()
 
 
+def test_private_capture_profile_identity_resolution():
+    from pr_review_harness.engine import _private_capture_profile_id
+
+    assert _private_capture_profile_id({"profile_id": "variant-a", "repository": "magnus919/SlopSearX"}) == "variant-a"
+    assert _private_capture_profile_id({"id": "variant-b", "repository": "magnus919/SlopSearX"}) == "variant-b"
+    assert _private_capture_profile_id({"name": "variant-c", "repository": "magnus919/SlopSearX"}) == "variant-c"
+    assert _private_capture_profile_id({"repository": {"owner": "magnus919", "name": "SlopSearX"}}) == "slopsearx"
+    assert _private_capture_profile_id({"repository": "magnus919/SlopSearX"}) == "slopsearx"
+    with pytest.raises(ValueError, match="profile identity is invalid"):
+        _private_capture_profile_id({"profile_id": "../bad", "repository": "magnus919/SlopSearX"})
+    assert _private_capture_profile_id({}) == "unknown"
+    with pytest.raises(ValueError, match="repository identity is invalid"):
+        _private_capture_profile_id({"repository": "unknown"})
+    with pytest.raises(ValueError, match="repository identity is invalid"):
+        _private_capture_profile_id({"repository": None})
+    with pytest.raises(ValueError, match="profile identity is invalid"):
+        _private_capture_profile_id({"profile_id": None, "repository": "owner/repo"})
+    # The slug is a local alias; repository and snapshot hashes carry provenance.
+    assert _private_capture_profile_id({"repository": "owner-a/SlopSearX"}) == "slopsearx"
+    assert _private_capture_profile_id({"repository": "owner-b/SlopSearX"}) == "slopsearx"
+
+
 def test_private_capture_skips_semantic_adjudication_for_valid_candidate(tmp_path):
     provider = AdjudicatingCaptureProbeProvider()
     snapshot = make_snapshot()
-    prof = profile()
+    prof = json.loads((Path(__file__).resolve().parents[1] / "experiments/synth-001-writer-profile-v1.json").read_text())
     snapshot["profile_hash"] = hashlib.sha256(json.dumps(
         prof, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
     ).encode()).hexdigest()
@@ -1022,6 +1082,8 @@ def test_private_capture_skips_semantic_adjudication_for_valid_candidate(tmp_pat
     assert result["budget"]["provider_calls_reserved"] == 1
     assert not marker.exists()
     assert len(list((capture_dir / "requests").glob("*.bin"))) == 1
+    source_tasks = json.loads((capture_dir / "source_tasks.json").read_text())
+    assert source_tasks["profile_id"] == "unknown"
 
 
 def _add_trusted_policy(snapshot, text):

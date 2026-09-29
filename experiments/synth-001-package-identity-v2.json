@@ -4,7 +4,7 @@
     "limits_sha256": "1b3cf01229d00bd63e9dcf4140504108b1b697e886baf155a46d95e29536b432",
     "model": "openai/gpt-6-luna",
     "module_count": 35,
-    "module_tree_sha256": "59bd1922c70537ca2dc05f9b3a55811702cfb1e6fd25a8d9bb5b77b064f36210",
+    "module_tree_sha256": "dc1930d812d681a06628a3024918da9d999266b7140f8906befb9fbe8b5a9fac",
     "profile_sha256": "d62a83f4ecbf0b807770c318bd3222c49c72311455eef19f15d6e3d2c7e1ad58",
     "provider_config_sha256": "8f160c593f4d04d41dcfbc247eb5814c13ded5e88dd5bfdf95d3d78264634d5f",
     "provider_id": "synth_001_prepare_only",

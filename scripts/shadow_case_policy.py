@@ -9,7 +9,7 @@ from typing import Any
 CASE_POLICY: dict[str, dict[str, Any]] = {
     "PR-457": {
         "plan_relative_path": "experiments/model-only-shadow-live-pr457-plan-v2.json",
-        "plan_sha256": "978be18e35922d828a0c67e64d964efef2bd61c4fe02dcd17297f87d7957c650",
+        "plan_sha256": "3207c554d4271a746d248778a65e663bf84e0728fb21e2e30834c27818e1dd84",
         "writer_calls": 6,
         "snapshot_id": "snap-24293f430e4f8006a52bac18",
         "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
@@ -18,7 +18,7 @@ CASE_POLICY: dict[str, dict[str, Any]] = {
     },
     "PR-464": {
         "plan_relative_path": "experiments/model-only-shadow-live-pr464-plan-v2.json",
-        "plan_sha256": "fcfadb108b7c11922db293c74bae0d657c6db31c9b87e075b341e21c4167b2d9",
+        "plan_sha256": "250a6df08587685b5c93d5216d5cf385bf5664a46db9b0ba650a203e4e23300e",
         "writer_calls": 10,
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
         "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
