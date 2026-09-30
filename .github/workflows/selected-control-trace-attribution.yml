@@ -108,10 +108,13 @@ jobs:
           if source != installed:
               raise SystemExit("installed_module_inventory_mismatch")
           identity_code = (
-              "import json; from pr_review_harness.external_effect_observer import "
-              "OBSERVER_ID,SYSCALL_SCOPE,TRACE_MAX_BYTES; "
+              "import inspect,json; from pr_review_harness.external_effect_observer import "
+              "OBSERVER_ID,SYSCALL_SCOPE,TRACE_MAX_BYTES,observe_cli; "
+              "parameter=inspect.signature(observe_cli).parameters.get('trace_max_bytes'); "
               "print(json.dumps({'observer_id':OBSERVER_ID,'syscall_scope':SYSCALL_SCOPE,"
-              "'trace_cap_bytes':TRACE_MAX_BYTES},sort_keys=True))"
+              "'observer_default_trace_cap_bytes':TRACE_MAX_BYTES,"
+              "'supports_trace_cap_override':parameter is not None and "
+              "parameter.kind is inspect.Parameter.KEYWORD_ONLY and parameter.default is None},sort_keys=True))"
           )
           observer_result = subprocess.run(
               [os.environ["TRACE_PYTHON"], "-c", identity_code], cwd=artifact_dir, check=True,
@@ -122,7 +125,8 @@ jobs:
           expected_scope = ["%process", "%file", "socket", "connect", "bind", "listen", "accept", "accept4", "shutdown"]
           if (
               observer.get("observer_id") != "linux-strace-syscall-observer.v3"
-              or observer.get("trace_cap_bytes") != 1_048_576
+              or observer.get("observer_default_trace_cap_bytes") != 16 * 1_048_576
+              or observer.get("supports_trace_cap_override") is not True
               or observer.get("syscall_scope") != expected_scope
           ):
               raise SystemExit("observer_contract_mismatch")
@@ -145,7 +149,9 @@ jobs:
               "observer_id": observer["observer_id"],
               "observer_source_sha256": source["pr_review_harness/external_effect_observer.py"],
               "syscall_scope": expected_scope,
+              "observer_default_trace_cap_bytes": observer["observer_default_trace_cap_bytes"],
               "trace_cap_bytes": 1_048_576,
+              "supports_trace_cap_override": observer["supports_trace_cap_override"],
               "strace_version": version,
               "strace_executable_sha256": hashlib.sha256(strace_path.read_bytes()).hexdigest(),
               "probe_started": False,
@@ -370,10 +376,13 @@ jobs:
           if source != installed:
               raise SystemExit("installed_module_inventory_mismatch")
           identity_code = (
-              "import json; from pr_review_harness.external_effect_observer import "
-              "OBSERVER_ID,SYSCALL_SCOPE,TRACE_MAX_BYTES; "
+              "import inspect,json; from pr_review_harness.external_effect_observer import "
+              "OBSERVER_ID,SYSCALL_SCOPE,TRACE_MAX_BYTES,observe_cli; "
+              "parameter=inspect.signature(observe_cli).parameters.get('trace_max_bytes'); "
               "print(json.dumps({'observer_id':OBSERVER_ID,'syscall_scope':SYSCALL_SCOPE,"
-              "'trace_cap_bytes':TRACE_MAX_BYTES},sort_keys=True))"
+              "'observer_default_trace_cap_bytes':TRACE_MAX_BYTES,"
+              "'supports_trace_cap_override':parameter is not None and "
+              "parameter.kind is inspect.Parameter.KEYWORD_ONLY and parameter.default is None},sort_keys=True))"
           )
           observer_result = subprocess.run(
               [os.environ["CARDINALITY_PYTHON"], "-c", identity_code], cwd=artifact_dir, check=True,
@@ -384,7 +393,8 @@ jobs:
           expected_scope = ["%process", "%file", "socket", "connect", "bind", "listen", "accept", "accept4", "shutdown"]
           if (
               observer.get("observer_id") != "linux-strace-syscall-observer.v3"
-              or observer.get("trace_cap_bytes") != 1_048_576
+              or observer.get("observer_default_trace_cap_bytes") != 16 * 1_048_576
+              or observer.get("supports_trace_cap_override") is not True
               or observer.get("syscall_scope") != expected_scope
           ):
               raise SystemExit("observer_contract_mismatch")
@@ -407,7 +417,9 @@ jobs:
               "observer_id": observer["observer_id"],
               "observer_source_sha256": source["pr_review_harness/external_effect_observer.py"],
               "syscall_scope": expected_scope,
+              "observer_default_trace_cap_bytes": observer["observer_default_trace_cap_bytes"],
               "trace_cap_bytes": 1_048_576,
+              "supports_trace_cap_override": observer["supports_trace_cap_override"],
               "strace_version": version,
               "strace_executable_sha256": hashlib.sha256(strace_path.read_bytes()).hexdigest(),
               "probe_started": False,

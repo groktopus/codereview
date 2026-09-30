@@ -196,11 +196,17 @@ def test_observation_projection_marks_trace_tail_as_unattributed(monkeypatch):
     line = "[pid 1] wait4(-1, NULL, 0, NULL) = 0"
     line_bytes = len(line.encode("utf-8")) + 1
 
-    def fake_observe(_command, *, cwd, env, timeout_seconds):
+    def fake_observe(_command, *, cwd, env, timeout_seconds, trace_max_bytes):
+        assert trace_max_bytes == diagnostic.FROZEN_TRACE_MAX_BYTES
         diagnostic.observer._parse_line(line, cwd)
         return {
             "invocation": {"run_status": "CLI_COMPLETED", "exit_code": 0},
-            "observer": {"coverage": "INCOMPLETE", "reason": "trace_byte_cap_exceeded", "trace_bytes": line_bytes + 19},
+            "observer": {
+                "coverage": "INCOMPLETE",
+                "reason": "trace_byte_cap_exceeded",
+                "trace_bytes": line_bytes + 19,
+                "trace_cap_bytes": trace_max_bytes,
+            },
             "cli_result": None,
         }
 
@@ -305,7 +311,7 @@ def _cardinality_identity_for_test():
         "observer_id": diagnostic.observer.OBSERVER_ID,
         "observer_source_sha256": "5" * 64,
         "syscall_scope": diagnostic.observer.SYSCALL_SCOPE,
-        "trace_cap_bytes": diagnostic.observer.TRACE_MAX_BYTES,
+        "trace_cap_bytes": diagnostic.FROZEN_TRACE_MAX_BYTES,
         "configured_transport": "HTTP_LOOPBACK_FAKE",
     }
 
@@ -408,12 +414,12 @@ def test_candidate_cardinality_pair_rejects_input_identity_mismatch_and_preserve
 
     two = _complete_cardinality_arm_for_test(2)
     two["observer_reason"] = "trace_byte_cap_exceeded"
-    two["trace_attribution"]["trace_bytes"] = diagnostic.observer.TRACE_MAX_BYTES
+    two["trace_attribution"]["trace_bytes"] = diagnostic.FROZEN_TRACE_MAX_BYTES
     two["arm_state"] = "TRACE_CAP_EXCEEDED"
     result = diagnostic._candidate_cardinality_comparison(one, two)
     assert result["state"] == "INCOMPLETE"
     assert result["arms"][1]["state"] == "TRACE_CAP_EXCEEDED"
-    assert result["trace_bytes_delta_two_minus_one"] == diagnostic.observer.TRACE_MAX_BYTES - 400_000
+    assert result["trace_bytes_delta_two_minus_one"] == diagnostic.FROZEN_TRACE_MAX_BYTES - 400_000
 
 
 def test_candidate_cardinality_comparison_recomputes_arm_state_and_projects_bounded_trace_attribution():
@@ -719,7 +725,7 @@ def _complete_transport_arm(transport, *, trace_bytes=500_000):
         "strace_version": "strace -- version test",
         "strace_executable_sha256": "c" * 64,
         "syscall_scope": list(diagnostic.observer.SYSCALL_SCOPE),
-        "trace_cap_bytes": diagnostic.observer.TRACE_MAX_BYTES,
+        "trace_cap_bytes": diagnostic.FROZEN_TRACE_MAX_BYTES,
         "observer_mode": "LINUX_STRACE",
         "observer_coverage": "SCOPED_COMPLETE",
         "observer_reason": None,
@@ -800,7 +806,7 @@ def _mock_transport_pair_inputs(monkeypatch, tmp_path, run_arms):
 
 def test_transport_pair_stops_before_tls_when_http_baseline_is_incomplete(monkeypatch, tmp_path):
     monkeypatch.setattr(diagnostic.sys, "platform", "linux")
-    http = _complete_transport_arm("http", trace_bytes=diagnostic.observer.TRACE_MAX_BYTES)
+    http = _complete_transport_arm("http", trace_bytes=diagnostic.FROZEN_TRACE_MAX_BYTES)
     cli, prepared, calls = _mock_transport_pair_inputs(
         monkeypatch, tmp_path, {"http": http, "https": _complete_transport_arm("https")}
     )

@@ -62,13 +62,61 @@ def test_partial_report_separates_fixed_reason_from_bounded_specialist_advisory(
     assert "Specialist reported partial coverage: LIMITED\\_CHANGED\\_SCOPE\\_EVIDENCE." in rendered
 
 
-def test_report_does_not_render_untrusted_or_unbound_specialist_reason_text():
+def test_partial_report_renders_native_lowercase_reason_for_bound_changed_unit():
+    result = result_with_coverage_reason("changed_dependency_has_no_related_test_evidence")
+    result["coverage_ledger"][0]["obligation_id"] = "unit:unit-2bc59af71c35b8be0988:lens:tests"
+    result["coverage_ledger"][0]["scope_unit_ids"] = ["unit-2bc59af71c35b8be0988"]
+    result["task_results"]["task-u0"]["payload"]["coverage_notes"][0]["unit_id"] = "unit-2bc59af71c35b8be0988"
+    rendered = render_report(result)
+
+    assert "unit:unit-2bc59af71c35b8be0988:lens:tests: PARTIAL" in rendered
+    assert (
+        "Specialist reported partial coverage: changed\\_dependency\\_has\\_no\\_related\\_test\\_evidence."
+    ) in rendered
+
+
+def test_report_escapes_native_reason_text_and_rejects_unbound_reason():
     untrusted = render_report(result_with_coverage_reason("leak: key=abc [click](https://attacker.invalid)"))
     unbound = render_report(result_with_coverage_reason("NO_TEST_SOURCE_SUPPLIED", references=["not-dispatched"]))
-    assert "key=abc" not in untrusted
-    assert "attacker.invalid" not in untrusted
-    assert "leak" not in untrusted
+    assert r"\[click\]\(https://attacker.invalid\)" in untrusted
+    assert "[click](https://attacker.invalid)" not in untrusted
+    assert "Specialist reported partial coverage" not in unbound
     assert "NO_TEST_SOURCE_SUPPLIED" not in unbound
+
+
+def test_report_escapes_html_and_flattens_newline_in_bounded_reason_text():
+    reason = "<img src=x onerror=alert(1)>\nINJECTED_LINE"
+    rendered = render_report(result_with_coverage_reason(reason))
+    reason_line = next(line for line in rendered.splitlines() if "Specialist reported partial coverage" in line)
+
+    assert r"coverage: \<img" in reason_line
+    assert "coverage: <img" not in reason_line
+    assert r"alert\(1\)" in reason_line
+    assert r"INJECTED\_LINE" in reason_line
+    assert "\nINJECTED_LINE" not in reason_line
+
+
+def test_report_renders_bounded_plain_text_reason_from_native_string_contract():
+    rendered = render_report(result_with_coverage_reason("Changed dependency has no related test evidence."))
+
+    assert "Specialist reported partial coverage: Changed dependency has no related test evidence." in rendered
+
+
+@pytest.mark.parametrize("binding", ["unit", "task", "evidence"])
+def test_report_rejects_specialist_reason_without_scope_task_and_source_bindings(binding):
+    result = result_with_coverage_reason("changed_dependency_has_no_related_test_evidence")
+    note = result["task_results"]["task-u0"]["payload"]["coverage_notes"][0]
+    row = result["coverage_ledger"][0]
+    if binding == "unit":
+        note["unit_id"] = "other-unit"
+    elif binding == "task":
+        row["task_ids"] = ["other-task"]
+    else:
+        note["evidence_refs"] = ["not-dispatched"]
+
+    rendered = render_report(result)
+
+    assert "changed\\_dependency" not in rendered
 
 
 def test_report_ignores_malformed_partial_note_containers():

@@ -22,13 +22,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: groktopus/codereview
-          ref: 896b9211ffaa1e888538d29184c23c76cb3c2863
+          ref: 321cbb1734d7d9cf033f747c2df73916bbf8b581
           path: trusted-runner
           persist-credentials: false
 
       - name: Verify the exact trusted source revision before build or import
         env:
-          EXPECTED_RUNNER_SHA: 896b9211ffaa1e888538d29184c23c76cb3c2863
+          EXPECTED_RUNNER_SHA: 321cbb1734d7d9cf033f747c2df73916bbf8b581
           RUNNER_SOURCE: ${{ github.workspace }}/trusted-runner
         run: |
           python3 - <<'PY'
@@ -94,7 +94,7 @@ jobs:
       - name: Preflight the bounded effect observer before provider configuration
         working-directory: trusted-runner
         env:
-          EXPECTED_OBSERVER_SOURCE_SHA256: 1276e148dc32168512efdad8092d0cd734c841d127533c9b6bdb0d5bf50dd578
+          EXPECTED_OBSERVER_SOURCE_SHA256: c685041d1f1c1c926243f57db2ac245e0b4474bfa986528b24161acddf5555fe
         run: |
           python3 - <<'PY'
           import json

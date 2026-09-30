@@ -19,6 +19,7 @@ BASELINE_SHA = "2116506c8e5a08158c51645502bbcaec6bf9e71f"
 BASELINE_PARENT_SHA = "94d35b43d6441e412e3c6123d354c5e78d6c12e9"
 COMPARISON_CONTRACT = "worker-readiness-linux.v2"
 TRACE_CAP = 1_048_576
+HISTORICAL_CANDIDATE_SHA = "5e0e1057caae96f093ce334913741ee39a0924e1"
 OBSERVER_ID = "linux-strace-syscall-observer.v3"
 SYSCALL_SCOPE = ["%process", "%file", "socket", "connect", "bind", "listen", "accept", "accept4", "shutdown"]
 
@@ -153,8 +154,14 @@ def test_workflow_pins_sources_builds_both_wheels_and_checks_complete_module_ide
     assert f"BASELINE_PARENT_SHA: {BASELINE_PARENT_SHA}" in text
     assert f"COMPARISON_CONTRACT: {COMPARISON_CONTRACT}" in text
     assert "fetch-depth: 2" in text
-    assert "CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}" in text
-    assert "ref: ${{ github.event.pull_request.head.sha }}" in text
+    assert f"CANDIDATE_SHA: {HISTORICAL_CANDIDATE_SHA}" in text
+    assert f"ref: {HISTORICAL_CANDIDATE_SHA}" in text
+    assert "CURRENT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}" in text
+    assert '"candidate_kind": "fixed_pre_observer_change_historical_runtime"' in text
+    assert '"current_pr_head_validated": False' in text
+    assert '"validation_scope": "NOTCURRENT_PR_VALIDATION"' in text
+    assert "Historical comparison (not current PR validation)" in text
+    assert "historical-NOTCURRENT_PR_VALIDATION" in text
     assert "path: baseline-source" in text and "path: candidate-source" in text
     assert "${{ github.workspace }}/baseline-source" in text
     assert "${{ github.workspace }}/candidate-source" in text
@@ -183,7 +190,7 @@ def test_workflow_pins_sources_builds_both_wheels_and_checks_complete_module_ide
     assert '"baseline_kind": "observer_diagnostic_compatibility_backport"' in text
     assert text.count('"schema_version": 2') >= 6
     assert '"schema_version": 1' not in text
-    assert "worker-readiness-comparison-v2-${{ github.run_id }}" in text
+    assert "worker-readiness-comparison-v2-historical-NOTCURRENT_PR_VALIDATION-${{ github.run_id }}" in text
     assert "worker-readiness-comparison-v2/identity.json" in text
 
 

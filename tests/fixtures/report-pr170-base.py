@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -284,12 +285,8 @@ def _specialist_partial_reasons(row: dict, task_results: Any) -> list[str]:
                 and refs
                 and all(isinstance(ref, str) and ref in dispatched_ids for ref in refs)
                 and isinstance(reason, str)
-                and reason.strip()
                 and len(reason) <= 128
+                and re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", reason)
             ):
-                try:
-                    if len(reason.encode("utf-8")) <= 256:
-                        reasons.add(reason)
-                except UnicodeEncodeError:
-                    continue
+                reasons.add(reason)
     return sorted(reasons)[:3]

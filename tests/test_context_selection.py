@@ -76,7 +76,7 @@ def test_slopsearx_candidate_keeps_both_trusted_policy_files_mandatory():
     profile = _profile()
     selection = profile["context_selection"]
 
-    assert profile["version"] == "slopsearx-production-v5-dependency-context"
+    assert profile["version"] == "slopsearx-production-v6-uvicorn-lifecycle-context"
     assert selection["version"] == "context-selection.v1"
     assert selection["mandatory_policy_paths"] == ["AGENTS.md", "CONTRIBUTING.md"]
     assert selection["max_total_context_bytes"] == 120000
@@ -95,6 +95,31 @@ def test_docs_experiment_reviews_keep_policy_without_unrelated_code_context():
 
     for unit_id in ("unit-0", "unit-1"):
         assert _context_paths(snapshot, plan, unit_id) == {"AGENTS.md", "CONTRIBUTING.md"}
+        task_contexts = [
+            {
+                snapshot["evidence"][evidence_id]["path"]
+                for evidence_id in task["required_context_ids"]
+            }
+            for task in plan["tasks"]
+            if task.get("task_kind") == "SPECIALIST_FINDINGS" and unit_id in task["unit_ids"]
+        ]
+        assert all(
+            not ({"tests/test_mcp_gateway.py", "tests/test_mcp_harness.py"} & paths)
+            for paths in task_contexts
+        )
+
+
+def test_dependency_limits_raise_only_per_task_input_ceiling():
+    limits_v1 = json.loads((ROOT / "profiles/ordinary-review-limits-v1.json").read_text(encoding="utf-8"))
+    limits_v2 = json.loads((ROOT / "profiles/ordinary-review-limits-v2.json").read_text(encoding="utf-8"))
+
+    assert limits_v1 == {"schema_version": "1.0", "max_context_bytes": 600000}
+    assert limits_v2 == {
+        "schema_version": "1.0",
+        "max_context_bytes": 600000,
+        "max_input_bytes_per_task": 96000,
+    }
+    assert not {"max_provider_calls", "max_retries_per_task"} & limits_v2.keys()
 
 
 def test_dependency_bot_config_receives_dependency_context_not_auth_implementation():
@@ -192,6 +217,7 @@ def _dependency_fixture(repo):
             "      - run: pytest -q\n"
         ),
         "tests/test_mcp_gateway.py": "import uvicorn\n\ndef test_gateway_starts():\n    assert uvicorn.Server\n",
+        "tests/test_mcp_harness.py": "import uvicorn\n\ndef test_transport_lifecycle():\n    server = uvicorn.Server(config)\n    assert server\n",
     }
     for relpath, content in files.items():
         path = repo / relpath
@@ -216,7 +242,12 @@ def test_dependency_changes_use_bounded_base_install_ci_and_test_context(tmp_pat
     expected_by_lens = {
         "correctness": {"pyproject.toml", "Dockerfile", ".github/workflows/ci.yml"},
         "security": {"pyproject.toml", "Dockerfile", ".github/workflows/ci.yml"},
-        "tests": {"pyproject.toml", ".github/workflows/ci.yml", "tests/test_mcp_gateway.py"},
+        "tests": {
+            "pyproject.toml",
+            ".github/workflows/ci.yml",
+            "tests/test_mcp_gateway.py",
+            "tests/test_mcp_harness.py",
+        },
     }
     context_bindings = {
         lens: next(
@@ -229,7 +260,7 @@ def test_dependency_changes_use_bounded_base_install_ci_and_test_context(tmp_pat
     }
     assert context_bindings["correctness"]["max_context_bytes"] == 16000
     assert context_bindings["security"]["max_context_bytes"] == 16000
-    assert context_bindings["tests"]["max_context_bytes"] == 22000
+    assert context_bindings["tests"]["max_context_bytes"] == 44000
     dependency_risk = next(rule for rule in profile["risk_rules"] if "requirements*.txt" in rule["patterns"])[
         "reason"
     ].lower()
@@ -288,11 +319,15 @@ def test_dependency_changes_use_bounded_base_install_ci_and_test_context(tmp_pat
                 if item["path"] in expected_context
             )
             if lens == "tests":
-                test_context = next(item for item in context if item["path"] == "tests/test_mcp_gateway.py")
+                test_context = next(item for item in context if item["path"] == "tests/test_mcp_harness.py")
                 assert test_context["trust"] == "repository_evidence"
                 assert "uvicorn.Server" in test_context["content"]
+                gateway_context = next(item for item in context if item["path"] == "tests/test_mcp_gateway.py")
+                assert gateway_context["trust"] == "repository_evidence"
+                assert "pyproject.toml" in context_paths
+                assert ".github/workflows/ci.yml" in context_paths
             else:
-                assert "tests/test_mcp_gateway.py" not in context_paths
+                assert "tests/test_mcp_harness.py" not in context_paths
 
         assert not any(gap.get("required") for gap in snapshot["gaps"])
 
@@ -322,12 +357,15 @@ def test_dependency_context_budget_omissions_are_explicit_and_policy_is_preserve
         if gap.get("required") and gap.get("reason") == "context_selection_budget_exhausted"
     ]
     assert required_context_gaps
+    gap_paths = {gap["path"] for gap in required_context_gaps}
+    assert "tests/test_mcp_gateway.py" in gap_paths
+    assert "tests/test_mcp_harness.py" in gap_paths
     assert any(
         gap["path"]
         in {
             "Dockerfile",
             ".github/workflows/ci.yml",
-            "tests/test_mcp_gateway.py",
+            "tests/test_mcp_harness.py",
         }
         for gap in required_context_gaps
     )
