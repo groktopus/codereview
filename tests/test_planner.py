@@ -68,15 +68,22 @@ def test_profile_check_with_no_matching_path_is_explicitly_not_applicable():
     ]
 
 
-def test_slopsearx_lockfile_does_not_match_portal_check_paths():
+def test_slopsearx_dependency_manifest_requires_portal_contract_not_browser_check():
     profile = json.loads((Path(__file__).resolve().parents[1] / "profiles/slopsearx.json").read_text())
     plan = plan_review(snapshot([unit("requirements", "requirements-dev.txt", "configuration")]), profile)
-    assert {row["obligation_id"] for row in plan["not_applicable"]} == {
-        "check:portal-impact-evidence",
-        "check:portal-browser-evidence",
+    check_obligations = {
+        row["obligation_id"]: row for row in plan["coverage_obligations"] if row["obligation_kind"] == "PROJECT_CHECK"
     }
-    assert all(row["reason"] == "configured_path_patterns_did_not_match" for row in plan["not_applicable"])
-    assert all(row["profile_rationale"].startswith("Base AGENTS requires portal impact") for row in plan["not_applicable"])
+    assert set(check_obligations) == {"check:portal-impact-evidence"}
+    assert check_obligations["check:portal-impact-evidence"]["check_binding_id"] == "external:portal-contract"
+    assert check_obligations["check:portal-impact-evidence"]["scope_unit_ids"] == ["requirements"]
+    browser_not_applicable = plan["not_applicable"]
+    assert len(browser_not_applicable) == 1
+    assert browser_not_applicable[0]["obligation_id"] == "check:portal-browser-evidence"
+    assert browser_not_applicable[0]["reason"] == "configured_path_patterns_did_not_match"
+    browser_check = next(item for item in profile["required_checks"] if item["id"] == "portal-browser-evidence")
+    assert browser_not_applicable[0]["profile_rationale"] == browser_check["reason"]
+    assert browser_not_applicable[0]["state"] == "NOT_APPLICABLE"
 
 
 def test_unknown_and_unclassified_change_cannot_be_routed_light():
