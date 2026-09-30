@@ -316,6 +316,24 @@ def _cardinality_identity_for_test():
     }
 
 
+def test_cardinality_identity_accepts_complete_36_module_inventory_and_rejects_bad_shape():
+    identity = _cardinality_identity_for_test()
+    identity["runtime_module_hashes"] = {
+        f"pr_review_harness/mod{i}.py": "d" * 64 for i in range(36)
+    }
+    identity["runtime_module_count"] = 36
+    assert diagnostic._valid_pair_input_identity(identity)
+
+    for count in (True, 0, 257):
+        candidate = {**identity, "runtime_module_count": count}
+        assert not diagnostic._valid_pair_input_identity(candidate)
+    candidate = {**identity, "runtime_module_count": 35}
+    assert not diagnostic._valid_pair_input_identity(candidate)
+    candidate = {**identity, "runtime_module_hashes": {"pr_review_harness/../escape.py": "d" * 64}}
+    candidate["runtime_module_count"] = 1
+    assert not diagnostic._valid_pair_input_identity(candidate)
+
+
 def _complete_cardinality_arm_for_test(count: int, *, trace_bytes: int = 400_000):
     stages = diagnostic._cardinality_stage_counts(count)
     return {

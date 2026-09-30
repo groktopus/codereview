@@ -32,7 +32,7 @@ def test_workflow_is_read_only_same_repo_and_builds_exact_installed_source():
     assert "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in text
     assert "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065" in text
     assert "pip wheel --no-deps" in text and "pip install --no-deps --no-index" in text
-    assert text.count("len(source) != 35") == 2
+    assert text.count("if not source:") == 2
     assert "if source != installed:" in text
     assert "installed_module_inventory_mismatch" in text
     assert "secrets." not in text

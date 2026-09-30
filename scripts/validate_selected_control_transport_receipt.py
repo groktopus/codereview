@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the finite, source-bound receipt emitted by the manual transport workflow."""
+"""Validate source-bound transport receipts, retaining the fixed v1 module set."""
 from __future__ import annotations
 
 import argparse
@@ -234,7 +234,8 @@ def validate_receipt(path: Path, source_root: Path, expected_sha: str) -> dict[s
         raise ValueError("receipt_file_invalid")
     row = json.loads(path.read_text(encoding="utf-8"))
     _keys(row, TOP_LEVEL, "receipt_fields_invalid")
-    if row["contract_version"] != "selected-control-transport-pair.v1":
+    version = row["contract_version"]
+    if version not in {"selected-control-transport-pair.v1", "selected-control-transport-pair.v2"}:
         raise ValueError("receipt_contract_invalid")
     if row["diagnostic_head_sha"] != expected_sha or row["runtime_source_commit"] != expected_sha:
         raise ValueError("receipt_source_identity_mismatch")
@@ -249,7 +250,23 @@ def validate_receipt(path: Path, source_root: Path, expected_sha: str) -> dict[s
         for p in sorted(source_dir.glob("*.py")) if p.is_file() and not p.is_symlink()
     }
     modules = row["runtime_module_hashes"]
-    if len(expected_modules) != MODULE_COUNT or modules != expected_modules or row["runtime_module_count"] != MODULE_COUNT:
+    module_count = row["runtime_module_count"]
+    if version == "selected-control-transport-pair.v1":
+        inventory_valid = (
+            len(expected_modules) == MODULE_COUNT
+            and modules == expected_modules
+            and module_count == MODULE_COUNT
+        )
+    else:
+        inventory_valid = (
+            type(module_count) is int
+            and module_count > 0
+            and module_count <= 256
+            and isinstance(modules, dict)
+            and module_count == len(modules)
+            and modules == expected_modules
+        )
+    if not inventory_valid:
         raise ValueError("runtime_module_identity_mismatch")
     for key in ("runtime_tree_sha256", "fixture_suite_sha256", "generated_profile_sha256", "observer_source_sha256", "tls_ca_sha256"):
         _hash(row[key])

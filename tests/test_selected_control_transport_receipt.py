@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -14,6 +15,8 @@ import pytest
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests"))
+import frozen_runtime  # noqa: E402
 import selected_control_trace_attribution as diagnostic  # noqa: E402
 import validate_selected_control_transport_receipt as receipt_validator  # noqa: E402
 
@@ -161,10 +164,11 @@ def test_actual_task_projection_malformed_identity_or_status_fails_strict_arm_va
         receipt_validator._arm(projected, "HTTP_LOOPBACK_FAKE")
 
 
-def _valid_receipt():
+def _valid_receipt(tmp_path: Path):
+    historical_root = frozen_runtime.build_frozen_runtime_root(tmp_path / "receipt-source")
     source_modules = {
         "pr_review_harness/" + path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted((ROOT / "src/pr_review_harness").glob("*.py")) if path.is_file()
+        for path in sorted((historical_root / "src/pr_review_harness").glob("*.py")) if path.is_file()
     }
     return {
         "contract_version": "selected-control-transport-pair.v1",
@@ -213,15 +217,120 @@ def _valid_receipt():
 def _validate(tmp_path, value):
     path = tmp_path / "receipt.json"
     path.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
-    return receipt_validator.validate_receipt(path, ROOT, "a" * 40)
+    historical_root = frozen_runtime.build_frozen_runtime_root(tmp_path / "validator-source")
+    scripts = historical_root / "scripts"
+    scripts.mkdir()
+    shutil.copyfile(
+        ROOT / "scripts/selected_control_trace_attribution.py",
+        scripts / "selected_control_trace_attribution.py",
+    )
+    return receipt_validator.validate_receipt(path, historical_root, "a" * 40)
+
+
+def _current_source_identity():
+    return subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+        check=True, capture_output=True, text=True, timeout=3,
+    ).stdout.strip()
+
+
+def _current_source_modules():
+    source_dir = ROOT / "src/pr_review_harness"
+    return {
+        "pr_review_harness/" + path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(source_dir.glob("*.py")) if path.is_file() and not path.is_symlink()
+    }
+
+
+def _validate_current_source(tmp_path, row):
+    path = tmp_path / "current-receipt.json"
+    path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+    return receipt_validator.validate_receipt(path, ROOT, _current_source_identity())
 
 
 def test_receipt_validator_accepts_source_bound_http_trace_and_deadline_skipped_tls(tmp_path):
-    assert _validate(tmp_path, _valid_receipt())["pair_state"] == "INCOMPLETE"
+    assert _validate(tmp_path, _valid_receipt(tmp_path))["pair_state"] == "INCOMPLETE"
+
+
+def test_v2_receipt_accepts_complete_current_source_inventory(tmp_path):
+    row = _valid_receipt(tmp_path)
+    row["contract_version"] = "selected-control-transport-pair.v2"
+    row["diagnostic_head_sha"] = _current_source_identity()
+    row["runtime_source_commit"] = _current_source_identity()
+    row["diagnostic_script_sha256"] = hashlib.sha256(
+        (ROOT / "scripts/selected_control_trace_attribution.py").read_bytes()
+    ).hexdigest()
+    row["runtime_module_hashes"] = _current_source_modules()
+    row["runtime_module_count"] = len(row["runtime_module_hashes"])
+    assert row["runtime_module_count"] > 35
+    assert _validate_current_source(tmp_path, row)["pair_state"] == "INCOMPLETE"
+
+
+def test_v1_receipt_remains_pinned_to_historical_35_module_inventory(tmp_path):
+    row = _valid_receipt(tmp_path)
+    row["diagnostic_head_sha"] = _current_source_identity()
+    row["runtime_source_commit"] = _current_source_identity()
+    row["diagnostic_script_sha256"] = hashlib.sha256(
+        (ROOT / "scripts/selected_control_trace_attribution.py").read_bytes()
+    ).hexdigest()
+    row["runtime_module_hashes"] = _current_source_modules()
+    row["runtime_module_count"] = len(row["runtime_module_hashes"])
+    with pytest.raises(ValueError, match="runtime_module_identity_mismatch"):
+        _validate_current_source(tmp_path, row)
+
+
+def test_v2_receipt_rejects_source_inventory_above_bounded_count(tmp_path):
+    source_root = tmp_path / "bounded-source"
+    source_dir = source_root / "src/pr_review_harness"
+    script_dir = source_root / "scripts"
+    source_dir.mkdir(parents=True)
+    script_dir.mkdir()
+    script_path = script_dir / "selected_control_trace_attribution.py"
+    shutil.copyfile(ROOT / "scripts/selected_control_trace_attribution.py", script_path)
+    modules = {}
+    for index in range(257):
+        name = f"module_{index}.py"
+        module_path = source_dir / name
+        module_path.write_text(f"VALUE = {index}\n", encoding="utf-8")
+        modules[f"pr_review_harness/{name}"] = hashlib.sha256(module_path.read_bytes()).hexdigest()
+
+    row = _valid_receipt(tmp_path)
+    row["contract_version"] = "selected-control-transport-pair.v2"
+    row["diagnostic_head_sha"] = "a" * 40
+    row["runtime_source_commit"] = "a" * 40
+    row["diagnostic_script_sha256"] = hashlib.sha256(script_path.read_bytes()).hexdigest()
+    row["runtime_module_hashes"] = modules
+    row["runtime_module_count"] = len(modules)
+    path = tmp_path / "over-cap-receipt.json"
+    path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="runtime_module_identity_mismatch"):
+        receipt_validator.validate_receipt(path, source_root, "a" * 40)
+
+
+@pytest.mark.parametrize("mutation", [
+    lambda row: row["runtime_module_hashes"].pop(next(iter(row["runtime_module_hashes"]))),
+    lambda row: row["runtime_module_hashes"].update({"pr_review_harness/extra.py": "a" * 64}),
+    lambda row: row["runtime_module_hashes"].update({next(iter(row["runtime_module_hashes"])): "a" * 64}),
+    lambda row: row.update(runtime_module_count=row["runtime_module_count"] + 1),
+    lambda row: row.update(runtime_source_commit="b" * 40),
+])
+def test_v2_receipt_rejects_incomplete_or_unbound_module_inventory(tmp_path, mutation):
+    row = _valid_receipt(tmp_path)
+    row["contract_version"] = "selected-control-transport-pair.v2"
+    row["diagnostic_head_sha"] = _current_source_identity()
+    row["runtime_source_commit"] = _current_source_identity()
+    row["diagnostic_script_sha256"] = hashlib.sha256(
+        (ROOT / "scripts/selected_control_trace_attribution.py").read_bytes()
+    ).hexdigest()
+    row["runtime_module_hashes"] = _current_source_modules()
+    row["runtime_module_count"] = len(row["runtime_module_hashes"])
+    mutation(row)
+    with pytest.raises(ValueError, match="runtime_module_identity_mismatch|receipt_source_identity_mismatch"):
+        _validate_current_source(tmp_path, row)
 
 
 def test_receipt_validator_accepts_source_bound_complete_pair(tmp_path):
-    row = _valid_receipt()
+    row = _valid_receipt(tmp_path)
     row["pair_state"] = "COMPLETE"
     row["reason"] = None
     row["arms"] = [_arm("HTTP_LOOPBACK_FAKE", "COMPLETE"), _arm("HTTPS_LOOPBACK_FAKE", "COMPLETE")]
@@ -253,7 +362,7 @@ def test_receipt_validator_accepts_source_bound_complete_pair(tmp_path):
     lambda arm: arm.update(cli_result_present=False),
 ])
 def test_complete_pair_rejected_when_actual_completion_criteria_are_incomplete(tmp_path, mutation):
-    row = _valid_receipt()
+    row = _valid_receipt(tmp_path)
     row["pair_state"] = "COMPLETE"
     row["reason"] = None
     row["arms"] = [_arm("HTTP_LOOPBACK_FAKE", "COMPLETE"), _arm("HTTPS_LOOPBACK_FAKE", "COMPLETE")]
@@ -285,7 +394,7 @@ def test_complete_pair_rejected_when_actual_completion_criteria_are_incomplete(t
     lambda row: row["arms"][1].update(snapshot_hash="0" * 64),
 ])
 def test_receipt_validator_never_accepts_complete_claim_with_mismatched_pair_evidence(tmp_path, mutation):
-    row = _valid_receipt()
+    row = _valid_receipt(tmp_path)
     row["pair_state"] = "COMPLETE"
     row["reason"] = None
     row["arms"] = [_arm("HTTP_LOOPBACK_FAKE", "COMPLETE"), _arm("HTTPS_LOOPBACK_FAKE", "COMPLETE")]
@@ -316,7 +425,7 @@ def test_receipt_validator_never_accepts_complete_claim_with_mismatched_pair_evi
     lambda row: (row["arms"][0].update(state="INCOMPLETE"), row["arms"].__setitem__(1, _arm("HTTPS_LOOPBACK_FAKE", "COMPLETE"))),
 ])
 def test_receipt_validator_rejects_unknown_fields_and_source_or_pair_mismatch(tmp_path, mutation):
-    row = _valid_receipt()
+    row = _valid_receipt(tmp_path)
     mutation(row)
     with pytest.raises(ValueError):
         _validate(tmp_path, row)
@@ -465,7 +574,7 @@ def test_only_accepted_diagnostic_and_successful_probe_can_mark_receipt_accepted
 
 
 def test_validator_machine_diagnostic_is_finite_and_legacy_stdout_stays_generic(tmp_path, capsys):
-    row = _valid_receipt()
+    row = _valid_receipt(tmp_path)
     row["diagnostic_head_sha"] = "b" * 40
     path = tmp_path / "receipt.json"
     path.write_text(json.dumps(row), encoding="utf-8")
@@ -565,7 +674,7 @@ def test_actual_installed_cli_transport_emitter_roundtrips_through_strict_valida
         capture_output=True, timeout=660, check=False,
     )
     emitted = json.loads(completed.stdout)
-    assert emitted.get("contract_version") == "selected-control-transport-pair.v1"
+    assert emitted.get("contract_version") == "selected-control-transport-pair.v2"
     assert emitted.get("pair_state") in {"COMPLETE", "INCOMPLETE"}
     source_identity = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
