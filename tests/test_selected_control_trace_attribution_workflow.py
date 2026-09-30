@@ -54,7 +54,13 @@ def test_workflow_runs_only_bounded_loopback_observation_and_uploads_sanitized_j
     assert "ulimit -f" not in text
     assert "python -m json.tool \"$output\"" in text
     assert "immediate_probe_not_complete" in text
-    assert "'trace_cap_bytes':TRACE_MAX_BYTES" in text
+    assert text.count("'observer_default_trace_cap_bytes':TRACE_MAX_BYTES") == 2
+    assert text.count("'supports_trace_cap_override':parameter is not None and ") == 2
+    assert text.count('"trace_cap_bytes": 1_048_576') == 2
+    assert text.count("observer.get(\"observer_default_trace_cap_bytes\") != 16 * 1_048_576") == 2
+    assert text.count("observer.get(\"supports_trace_cap_override\") is not True") == 2
+    diagnostic = Path(__file__).parents[1] / "scripts" / "selected_control_trace_attribution.py"
+    assert "trace_max_bytes=FROZEN_TRACE_MAX_BYTES" in diagnostic.read_text(encoding="utf-8")
     assert "1_048_576" in text
     assert "65536" in text and "128 * 1024" in text
     assert "retention-days: 3" in text
