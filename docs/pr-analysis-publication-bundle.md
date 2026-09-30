@@ -1,6 +1,6 @@
 # Opt-in PR analysis publication bundle
 
-The reusable analysis workflow can emit a second artifact named `pr-review-result` for the existing publication intake contract. It is disabled by default. A target-local caller must explicitly set `emit_publication_bundle: true` and grant the reusable workflow `actions: read`; cross-repository calls skip the producer before the GitHub API read.
+The reusable analysis workflow can emit a second artifact named `pr-review-result` for the existing publication intake contract. It is disabled by default. Callers pinning this workflow revision must grant the reusable workflow `actions: read` even when `emit_publication_bundle` is false, because that permission is part of the workflow's declared permissions. A target-local caller must also explicitly set `emit_publication_bundle: true` to produce the bundle; cross-repository calls skip the producer before the GitHub API read.
 
 The artifact upload contains exactly `review-result.json` and `provenance.json`. Its artifact manifest schema is version 1.0; the sealed engine result contract is version 0.1. The producer and receiver check that the manifest contract version matches the result’s declared version. Legacy 1.0 result fixtures remain explicit and are not accepted as current 0.1 results. The result is copied byte-for-byte from the sealed `artifacts/review/<run-id>.json` checkpoint. The producer does not add wrapper fields or recalculate its result hash. The original recovery artifact and manifest continue to be produced and uploaded separately.
 
@@ -8,7 +8,7 @@ The producer reads the current run attempt through the bounded GitHub API transp
 
 `provenance.json` contains producer claims in the existing intake schema. It is not a GitHub server attestation or proof that the run was authorized. The publication receiver remains responsible for independently fetching and validating run, repository, PR, workflow, harness, and profile identity before admission.
 
-A target-local caller that opts in needs this permission on its reusable-workflow job:
+A target-local caller uses these read-only permissions on its reusable-workflow job, whether or not it opts into the additional bundle:
 
 ```yaml
 permissions:
