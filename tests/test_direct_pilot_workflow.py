@@ -396,7 +396,7 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
     bounded_claim_cap = "            --max-claim-assessments 1 \\\n"
     assert reusable_command.count(bounded_claim_cap) == 1
     reusable_command = reusable_command.replace(bounded_claim_cap, "", 1)
-    review_limits = "            --limits profiles/ordinary-review-limits-v1.json \\\n"
+    review_limits = "            --limits profiles/ordinary-review-limits-v2.json \\\n"
     assert reusable_command.count(review_limits) == 1
     reusable_command = reusable_command.replace(review_limits, "", 1)
     assert direct_command.rstrip() == reusable_command.rstrip()

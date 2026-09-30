@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github/workflows/prepared-selected-model-provider-trial.yml"
-RUNNER_SHA = "896b9211ffaa1e888538d29184c23c76cb3c2863"
+RUNNER_SHA = "321cbb1734d7d9cf033f747c2df73916bbf8b581"
 OPERATOR_SECRETS = {
     "LLM_BASE_URL",
     "LLM_MODEL",

@@ -363,20 +363,34 @@ def test_production_analysis_uses_fixed_bounded_claim_assessment_and_preserves_r
 
 
 def test_ordinary_context_budget_is_a_trusted_single_override_and_fixed_in_workflow():
-    limits_path = Path(__file__).parents[1] / "profiles/ordinary-review-limits-v1.json"
+    limits_path = Path(__file__).parents[1] / "profiles/ordinary-review-limits-v2.json"
     policy = json.loads(limits_path.read_text(encoding="utf-8"))
-    assert policy == {"schema_version": "1.0", "max_context_bytes": 600000}
+    assert policy == {
+        "schema_version": "1.0",
+        "max_context_bytes": 600000,
+        "max_input_bytes_per_task": 96000,
+    }
+
+    historical_limits = Path(__file__).parents[1] / "profiles/ordinary-review-limits-v1.json"
+    assert json.loads(historical_limits.read_text(encoding="utf-8")) == {
+        "schema_version": "1.0",
+        "max_context_bytes": 600000,
+    }
 
     baseline = _limits()
     resolved = _read_limits(SimpleNamespace(limits=str(limits_path)))
     changed = {key for key in baseline if baseline[key] != resolved[key]}
-    assert changed == {"max_context_bytes"}
+    assert changed == {"max_context_bytes", "max_input_bytes_per_task"}
     assert resolved["max_context_bytes"] == 600000
+    assert resolved["max_input_bytes_per_task"] == 96000
+    assert baseline["max_context_bytes"] == 300000
+    assert baseline["max_input_bytes_per_task"] == 64000
+    assert baseline["max_provider_calls"] == 12
 
     source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
     review_step = _step(source, "Produce a bounded read-only report from the bare target object store")
     review_command = review_step.split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
-    assert '--limits profiles/ordinary-review-limits-v1.json \\' in review_command
+    assert '--limits profiles/ordinary-review-limits-v2.json \\' in review_command
     assert "inputs.limits" not in source
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
 

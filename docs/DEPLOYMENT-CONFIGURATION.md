@@ -1,6 +1,6 @@
 # Deployment configuration
 
-This document describes the generic provider configuration path wired into the reusable read-only analysis workflow. The workflow accepts operator-selected endpoints and models through trusted `workflow_call` secrets. See [PILOT-EVIDENCE.md](PILOT-EVIDENCE.md) for dated hosted observations. The revised ordinary workflow described here has not yet been dispatched; no model-quality claim is made here.
+This document describes the generic provider configuration path wired into the reusable read-only analysis workflow. The workflow accepts operator-selected endpoints and models through trusted `workflow_call` secrets. See [PILOT-EVIDENCE.md](PILOT-EVIDENCE.md) for dated hosted observations. An earlier ordinary run used the prior workflow and budget pins; the current runner and budget revision described here has not yet been dispatched. These observations make no model-quality claim.
 
 ## Trusted target profile selection
 
@@ -75,9 +75,9 @@ The central caller pins both the reusable workflow and `harness_sha` to the same
 
 ## Ordinary review budget and recovery
 
-The revised ordinary workflow uses `profiles/ordinary-review-limits-v1.json`, a trusted checked-in override of the aggregate context budget to 600,000 bytes. Other CLI limits remain unchanged: 12 total provider calls, zero retries, 64,000 input bytes per task, 16,000 output bytes per task, 192,000 total output bytes, and a 300-second deadline. These are finite operational limits, not a pricing or quality guarantee.
+The current ordinary workflow uses `profiles/ordinary-review-limits-v2.json`, a trusted checked-in override that sets a 600,000-byte aggregate context budget and a 96,000-byte maximum input per task. The prior v1 file remains unchanged as historical configuration. Other CLI limits remain unchanged: 12 total provider calls, zero retries, 16,000 output bytes per task, 192,000 total output bytes, and a 300-second deadline. These are finite operational limits, not a pricing or quality guarantee. The direct diagnostic command retains its historical defaults, including a 300,000-byte aggregate and 64,000-byte per-task input cap.
 
-Provider-free installed-CLI preparation of historical SlopSearX PR #466 produced seven primary requests totaling 342,776 bytes. Those identical requests exceed the old 300,000-byte aggregate limit and fit the proposed limit. The additional capacity leaves room for up to four further 64,000-byte inputs; actual follow-up, candidate, and summary demand remains unknown and subject to the shared limits. Missing checks and context remain explicit; preparation does not establish a complete live review.
+Provider-free installed-CLI preparation against the current runner preserved the full 24,404-byte MCP harness test context alongside existing policy and source context. SlopSearX PR #477 prepared a largest request of 86,834 bytes and 225,950 aggregate bytes; PR #476 prepared a largest request of 86,859 bytes and 226,050 aggregate bytes. These fit the current per-task and aggregate limits, but are preparation/admission observations only: no live review or quality result is established, and actual follow-up, candidate, and summary demand remains subject to the shared limits. Missing checks and context remain explicit. Historical PR #466 preparation under the older runner produced seven primary requests totaling 342,776 bytes, exceeding the old 300,000-byte aggregate limit; it is not evidence about current-runner request sizing.
 
 Resume with the same trusted limits file, `--max-claim-assessments 1`, and decision configuration as the original invocation. The engine binds these settings to the saved review identity and rejects mismatches. Capturing recovery inputs or passing a consistency preview alone does not authorize provider dispatch or publication.
 
