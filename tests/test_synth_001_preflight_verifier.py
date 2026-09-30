@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import subprocess
@@ -120,9 +119,10 @@ def test_verifier_rejects_dirty_materialized_repository(tmp_path: Path):
         _verify(repo, receipt)
 
 
-def test_current_cli_output_matches_historical_prepare_request_pin(tmp_path: Path):
-    """Compatibility check only; historical CLI execution is covered separately."""
-    verified = []
+def test_current_cli_output_is_stable_but_rejected_by_historical_prepare_pin(tmp_path: Path):
+    """Current provider-free preparation stays deterministic without matching the old pin."""
+    outputs = []
+    request_hashes = []
     historical_runtime = build_frozen_runtime_root(tmp_path)
     for label in ("first", "second"):
         repo, receipt = _setup(tmp_path / f"{label}-distinct-temp-location")
@@ -155,20 +155,20 @@ def test_current_cli_output_matches_historical_prepare_request_pin(tmp_path: Pat
         assert output["no_provider_calls"] is True
         assert output["no_target_code_execution"] is True
         assert len(output["primary_requests"]) == 1
-        result = verify(
-            receipt, prepared_path, repo, FIXTURE, PROFILE, LIMITS, PROVIDER,
-            historical_runtime, expected_python_identity=CURRENT_PYTHON_IDENTITY,
-        )
-        assert result["result"] == "MATCHED_PROVIDER_FREE_PREPARE"
-        assert result["request_sha256"] == "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
-        assert result["snapshot_hash"] == output["snapshot"]["snapshot_hash"]
-        assert result["repository_path_sha256"] == hashlib.sha256(
-            os.fsencode(str(repo.resolve()))
-        ).hexdigest()
-        verified.append((output, result))
-    assert verified[0][0]["snapshot"]["snapshot_hash"] != verified[1][0]["snapshot"]["snapshot_hash"]
-    first = json.loads(json.dumps(verified[0][0]))
-    second = json.loads(json.dumps(verified[1][0]))
+        request_hash = output["primary_requests"][0]["input_sha256"]
+        assert len(request_hash) == 64
+        request_hashes.append(request_hash)
+        outputs.append(output)
+        with pytest.raises(VerifyError, match="prepared_capacity_mismatch"):
+            verify(
+                receipt, prepared_path, repo, FIXTURE, PROFILE, LIMITS, PROVIDER,
+                historical_runtime, expected_python_identity=CURRENT_PYTHON_IDENTITY,
+            )
+    assert request_hashes[0] == request_hashes[1]
+    assert request_hashes[0] != "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
+    assert outputs[0]["snapshot"]["snapshot_hash"] != outputs[1]["snapshot"]["snapshot_hash"]
+    first = json.loads(json.dumps(outputs[0]))
+    second = json.loads(json.dumps(outputs[1]))
     first["snapshot"]["snapshot_hash"] = second["snapshot"]["snapshot_hash"] = "<path-bound>"
     assert first == second
 

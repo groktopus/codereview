@@ -43,8 +43,8 @@ def test_trusted_binding_resolves_exact_repository_profile_and_digest():
     assert binding == {
         "target_repository": TARGET,
         "profile_path": "profiles/slopsearx.json",
-        "profile_version": "slopsearx-production-v7-portal-packaging-check",
-        "profile_sha256": "fec8d0c6064cfeed66a8593898adba8a530ad7f1a76ff295ec4c9ea65648a269",
+        "profile_version": "slopsearx-production-v8-static-review-boundaries",
+        "profile_sha256": "cc9c4631882662c27be5fb8534e65abbd352489afefa78e9dd3d3160fe0b1c65",
         "profile_map_sha256": hashlib.sha256((ROOT / "profiles/targets.json").read_bytes()).hexdigest(),
     }
 
