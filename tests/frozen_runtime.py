@@ -15,6 +15,7 @@ FROZEN_REPORT = Path(__file__).resolve().parent / "fixtures" / "report-pr170-bas
 FROZEN_ARTIFACT_INTAKE = Path(__file__).resolve().parent / "fixtures" / "artifact_intake-pr170-base.py"
 FROZEN_ACTIONS_PUBLICATION = Path(__file__).resolve().parent / "fixtures" / "actions_publication-pr170-base.py"
 MODULE_INVENTORY = Path(__file__).resolve().parent / "fixtures" / "pr170-module-inventory.json"
+FROZEN_SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "snapshot-pr170-base.py"
 EXPECTED_MODULE_COUNT = 35
 EXPECTED_MODEL_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
 EXPECTED_SYNTH_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991"
@@ -61,6 +62,7 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
         ("report.py", FROZEN_REPORT),
         ("artifact_intake.py", FROZEN_ARTIFACT_INTAKE),
         ("actions_publication.py", FROZEN_ACTIONS_PUBLICATION),
+        ("snapshot.py", FROZEN_SNAPSHOT),
     ):
         (module_dir / name).write_bytes(fixture.read_bytes())
 

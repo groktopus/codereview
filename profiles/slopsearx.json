@@ -1,6 +1,7 @@
 {
-  "version": "slopsearx-production-v6-uvicorn-lifecycle-context",
+  "version": "slopsearx-production-v7-portal-packaging-check",
   "repository": "magnus919/SlopSearX",
+  "context_revision_metadata": true,
   "context_paths": [
     "AGENTS.md",
     "CONTRIBUTING.md",
@@ -215,12 +216,13 @@
         "slopsearx/mcp/*.py",
         "engines/*.py",
         "docker-compose*",
-        "pyproject.toml"
+        "pyproject.toml",
+        "requirements*.txt"
       ],
       "binding": "external:portal-contract",
       "github_check_name": "portal-contract",
       "github_app_id": 15368,
-      "reason": "Base AGENTS requires portal impact and relevant contract-check evidence. This static pilot does not execute target code; evidence absent stays explicit."
+      "reason": "Dependency manifests are packaging inputs; base AGENTS requires portal-impact review and portal-contract CI evidence for packaging changes. Bind evidence to the target repository and exact head from the configured GitHub check app; missing or mismatched evidence is UNKNOWN, and a failing check remains FAIL."
     },
     {
       "id": "portal-browser-evidence",

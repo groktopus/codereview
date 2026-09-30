@@ -178,11 +178,11 @@ def test_same_name_duplicate_reruns_and_naive_timestamps_fail_closed():
         make_check_runs_document("owner/repo", 7, HEAD, [run], captured_at="2026-09-26T12:01:00")
 
 
-def test_slopsearx_v6_keeps_separate_exact_pr464_check_bindings():
+def test_slopsearx_v7_keeps_separate_exact_pr464_check_bindings():
     root = Path(__file__).resolve().parents[1]
     profile = json.loads((root / "profiles/slopsearx.json").read_text())
     document = json.loads((root / "tests/fixtures/pr464-check-evidence.json").read_text())
-    assert profile["version"] == "slopsearx-production-v6-uvicorn-lifecycle-context"
+    assert profile["version"] == "slopsearx-production-v7-portal-packaging-check"
     assert len(document["runs"]) == 20
     assert document["fixture_provenance"]["source_capture_sha256"] == (
         "989e65b14d1a43f37b4abaaf2be55b49c3b07ecf50d3e786eb99ff3f22f0450b"
@@ -202,6 +202,39 @@ def test_slopsearx_v6_keeps_separate_exact_pr464_check_bindings():
     assert {item["outcome"] for item in result["results"].values()} == {"PASS"}
     assert set(result["results"]) == {"portal-impact-evidence", "portal-browser-evidence"}
     assert len({item["evidence_id"] for item in result["results"].values()}) == 2
+
+
+def test_slopsearx_dependency_portal_check_uses_trusted_exact_head_binding():
+    root = Path(__file__).resolve().parents[1]
+    profile = json.loads((root / "profiles/slopsearx.json").read_text())
+    binding = next(item for item in profile["required_checks"] if item["id"] == "portal-impact-evidence")
+    assert (binding["github_check_name"], binding["github_app_id"]) == ("portal-contract", 15368)
+
+    request = {"repository": profile["repository"], "pull_request_number": 477, "head_sha": HEAD}
+    ingest_binding = [{key: binding[key] for key in ("id", "github_check_name", "github_app_id")}]
+
+    def outcome(*, head_sha=HEAD, app_id=15368, runs=True):
+        rows = []
+        if runs:
+            rows.append({
+                "id": 901,
+                "name": "portal-contract",
+                "status": "completed",
+                "conclusion": "success",
+                "head_sha": head_sha,
+                "app_id": app_id,
+                "completed_at": "2026-09-30T19:00:00Z",
+            })
+        document = make_check_runs_document(
+            request["repository"], request["pull_request_number"], request["head_sha"], rows,
+            captured_at="2026-09-30T19:01:00Z",
+        )
+        return ingest_check_runs(document, request, ingest_binding)["results"][binding["id"]]["outcome"]
+
+    assert outcome() == "PASS"
+    assert outcome(runs=False) == "UNKNOWN"
+    assert outcome(head_sha="b" * 40) == "UNKNOWN"
+    assert outcome(app_id=999) == "UNKNOWN"
 
 
 def _fixture_engine_inputs():
