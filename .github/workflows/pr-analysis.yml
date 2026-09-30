@@ -31,6 +31,11 @@ on:
         description: 'Target PR head commit SHA from the trusted PR event'
         required: true
         type: string
+      emit_publication_bundle:
+        description: 'Opt in to emit the two-file publication intake artifact for a same-repository run'
+        required: false
+        type: boolean
+        default: false
     secrets:
       LLM_BASE_URL:
         required: true
@@ -51,6 +56,7 @@ permissions:
   contents: read
   checks: read
   pull-requests: read
+  actions: read
 
 concurrency:
   group: pr-analysis-${{ inputs.target_repository }}-${{ inputs.pull_request_number }}
@@ -291,6 +297,7 @@ jobs:
             --output-dir "$RUNNER_TEMP/pr-review-provider-config" \
             --json > "$RUNNER_TEMP/pr-review-provider-config-paths.json"
       - name: Produce a bounded read-only report from the bare target object store
+        id: review
         env:
           PR_EVENT_PATH: ${{ runner.temp }}/pr-event.json
           TARGET_REPOSITORY: ${{ inputs.target_repository }}
@@ -367,4 +374,45 @@ jobs:
           name: pr-review-${{ inputs.pull_request_number }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/
           if-no-files-found: warn
+          retention-days: 7
+      - name: Build the opt-in publication intake bundle from the sealed checkpoint
+        id: publication-bundle
+        if: inputs.emit_publication_bundle && github.repository == inputs.target_repository && steps.review.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          HARNESS_REPOSITORY: ${{ inputs.harness_repository }}
+          HARNESS_SHA: ${{ inputs.harness_sha }}
+          CALLED_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          CALLED_WORKFLOW_FILE_PATH: ${{ job.workflow_file_path }}
+          CALLED_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          CALLED_WORKFLOW_REF: ${{ job.workflow_ref }}
+          PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}
+          PROFILE_VERSION: ${{ steps.resolve-profile.outputs.profile_version }}
+          PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}
+          PROVIDER_CONFIG: ${{ runner.temp }}/pr-review-provider-config/provider.json
+          DECISION_CONFIG: ${{ runner.temp }}/pr-review-provider-config/decision.json
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+          PUBLICATION_OUTPUT_DIR: ${{ runner.temp }}/pr-review-publication
+        run: |
+          python scripts/pr_analysis_publication_bundle.py \
+            --result "artifacts/review/pr-$PR_NUMBER-$GITHUB_RUN_ID.json" \
+            --profile "$PROFILE" \
+            --output-dir "$PUBLICATION_OUTPUT_DIR"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: steps.publication-bundle.outcome == 'success'
+        with:
+          name: pr-review-result
+          path: ${{ runner.temp }}/pr-review-publication/
+          if-no-files-found: error
           retention-days: 7

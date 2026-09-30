@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -45,5 +46,50 @@ def test_modified_archived_module_is_rejected(tmp_path: Path, monkeypatch: pytes
     tampered = tmp_path / "tampered-selected-model-trial.py"
     tampered.write_bytes(frozen_runtime.FROZEN_MODULE.read_bytes() + b"\n")
     monkeypatch.setattr(frozen_runtime, "FROZEN_MODULE", tampered)
+    with pytest.raises(AssertionError, match="historical inventory"):
+        frozen_runtime.build_frozen_runtime_root(tmp_path)
+
+
+def test_unlisted_new_module_is_excluded_from_historical_runtime(tmp_path: Path):
+    new_module = ROOT / "src/pr_review_harness/github_app_credentials.py"
+    assert new_module.is_file()
+    runtime_root = frozen_runtime.build_frozen_runtime_root(tmp_path)
+    assert not (runtime_root / "src/pr_review_harness/github_app_credentials.py").exists()
+    assert _inventory_hashes(runtime_root)[0] == frozen_runtime.EXPECTED_MODULE_COUNT
+
+
+@pytest.mark.parametrize(
+    "inventory",
+    [
+        [],
+        ["__init__.py"] * frozen_runtime.EXPECTED_MODULE_COUNT,
+        ["../outside.py"] + ["placeholder.py"] * (frozen_runtime.EXPECTED_MODULE_COUNT - 1),
+    ],
+)
+def test_invalid_frozen_module_inventory_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, inventory):
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    monkeypatch.setattr(frozen_runtime, "MODULE_INVENTORY", inventory_path)
+    with pytest.raises(AssertionError, match="historical module inventory"):
+        frozen_runtime.build_frozen_runtime_root(tmp_path)
+
+
+def test_missing_historical_source_module_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    source_root = tmp_path / "source"
+    source_dir = source_root / "src/pr_review_harness"
+    shutil.copytree(ROOT / "src/pr_review_harness", source_dir)
+    (source_dir / "engine.py").unlink()
+    monkeypatch.setattr(frozen_runtime, "ROOT", source_root)
+    with pytest.raises(AssertionError, match="source is missing"):
+        frozen_runtime.build_frozen_runtime_root(tmp_path)
+
+
+def test_modified_historical_module_bytes_are_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    source_root = tmp_path / "source"
+    source_dir = source_root / "src/pr_review_harness"
+    shutil.copytree(ROOT / "src/pr_review_harness", source_dir)
+    with (source_dir / "engine.py").open("ab") as source:
+        source.write(b"\n# changed historical module\n")
+    monkeypatch.setattr(frozen_runtime, "ROOT", source_root)
     with pytest.raises(AssertionError, match="historical inventory"):
         frozen_runtime.build_frozen_runtime_root(tmp_path)
