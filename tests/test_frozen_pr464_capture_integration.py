@@ -18,6 +18,7 @@ import sanitize_model_only_shadow_audit_receipt as audit_receipt_sanitizer  # no
 import sanitize_model_only_shadow_writer_receipt as sanitizer  # noqa: E402
 import select_frozen_pr464_no_candidate_packet as selector  # noqa: E402
 import verify_model_only_shadow_live_preflight as preflight  # noqa: E402
+from frozen_pr464_provider_prompt import install_historical_review_parts  # noqa: E402
 from model_only_shadow_evaluation_identity import validate_identity  # noqa: E402
 from sealed_source_record_integration import (  # noqa: E402
     SealedSourceIntegrationError,
@@ -93,7 +94,9 @@ def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _prepare_frozen_pr464(source_repo, tmp_path, monkeypatch, capsys, *, use_active_v3=False):
+def _prepare_frozen_pr464(
+    source_repo, tmp_path, monkeypatch, capsys, *, use_active_v3=False, historical_prompt=True
+):
     plan_name = "model-only-shadow-live-pr464-plan-v3.json" if use_active_v3 else "model-only-shadow-live-pr464-plan-v2.json"
     plan_path = ROOT / "experiments" / plan_name
     plan_raw = plan_path.read_bytes()
@@ -102,6 +105,8 @@ def _prepare_frozen_pr464(source_repo, tmp_path, monkeypatch, capsys, *, use_act
     profile = json.loads(profile_path.read_text())
     limits = json.loads((ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json").read_text())
     provider_config = json.loads((ROOT / "experiments/model-only-shadow-live-writer-provider-v1.json").read_text())
+    if historical_prompt:
+        install_historical_review_parts(monkeypatch)
     provider = DeterministicNoFindingProvider(provider_config)
     fake_call_counter = tmp_path / "fake-call-counter.bin"
     provider.fake_call_counter_path = str(fake_call_counter)
@@ -145,17 +150,50 @@ def _prepare_frozen_pr464(source_repo, tmp_path, monkeypatch, capsys, *, use_act
 
 
 def test_frozen_pr464_v2_preserves_requests_but_rejects_inactive_plan_hash(tmp_path, monkeypatch, capsys):
-    """Match historical request evidence while refusing its obsolete runtime pin."""
+    """Reconstitute historical prompt inputs on the current engine; keep the runtime pin fail-closed."""
     source_repo = _source_repo()
     plan, _plan_raw, _profile, prepared, receipt, fake_call_counter = _prepare_frozen_pr464(
         source_repo, tmp_path, monkeypatch, capsys
     )
     assert receipt is None
     assert prepared["status"] == "PREPARED_ONLY"
+    assert prepared["no_provider_calls"] is True
+    assert prepared["no_target_code_execution"] is True
     assert len(prepared["primary_requests"]) == 10
-    expected = {row["task_id"]: (row["input_sha256"], row["input_bytes"]) for row in plan["writer_requests"]}
-    observed = {row["task_id"]: (row["input_sha256"], row["input_bytes"]) for row in prepared["primary_requests"]}
+    fields = ("input_sha256", "input_bytes", "output_bytes_cap", "output_tokens_cap", "lens")
+    expected = {
+        row["task_id"]: tuple(row[field] for field in fields)
+        for row in plan["writer_requests"]
+    }
+    observed = {
+        row["task_id"]: tuple(row[field] for field in fields)
+        for row in prepared["primary_requests"]
+    }
     assert observed == expected
+    assert not fake_call_counter.exists()
+
+
+def test_current_prompt_does_not_match_historical_pr464_request_pins(tmp_path, monkeypatch, capsys):
+    source_repo = _source_repo()
+    plan, _plan_raw, _profile, prepared, receipt, fake_call_counter = _prepare_frozen_pr464(
+        source_repo, tmp_path, monkeypatch, capsys, historical_prompt=False
+    )
+    assert receipt is None
+    assert prepared["status"] == "PREPARED_ONLY"
+    assert prepared["no_provider_calls"] is True
+    assert prepared["no_target_code_execution"] is True
+    assert len(prepared["primary_requests"]) == len(plan["writer_requests"]) == 10
+    fields = ("input_sha256", "input_bytes", "output_bytes_cap", "output_tokens_cap", "lens")
+    expected = {
+        row["task_id"]: tuple(row[field] for field in fields)
+        for row in plan["writer_requests"]
+    }
+    observed = {
+        row["task_id"]: tuple(row[field] for field in fields)
+        for row in prepared["primary_requests"]
+    }
+    assert any(observed[task_id][:2] != expected[task_id][:2] for task_id in expected)
+    assert all(observed[task_id][2:] == expected[task_id][2:] for task_id in expected)
     assert not fake_call_counter.exists()
 
 

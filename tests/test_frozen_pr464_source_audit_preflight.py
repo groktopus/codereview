@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_model_only_shadow_audit as audit_runner  # noqa: E402
+from frozen_pr464_provider_prompt import install_historical_review_parts  # noqa: E402
 
 from pr_review_harness import cli  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
@@ -51,6 +52,7 @@ def test_frozen_pr464_exact_source_audit_capacity_is_visible_before_dispatch(
     profile = json.loads(profile_path.read_text())
     limits = json.loads((ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json").read_text())
     provider_config = json.loads((ROOT / "experiments/model-only-shadow-live-writer-provider-v1.json").read_text())
+    install_historical_review_parts(monkeypatch)
     provider = NoDispatchProvider(provider_config)
     monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
     monkeypatch.delenv("LLM_API_KEY", raising=False)
