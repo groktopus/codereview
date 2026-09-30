@@ -16,6 +16,8 @@ Normal-workflow interrupted artifact intake and identity checks now have local f
 
 Older status and delivery documents remain useful historical evidence but are stale as a single current summary. Keep their dated observations intact. This file is the concise sequencing reset; it does not silently update their checkpoints or mark acceptance criteria complete.
 
+The worker-readiness comparison is a fixed historical experiment: it compares baseline `2116506c8e5a08158c51645502bbcaec6bf9e71f` with the byte-identical 1 MiB observer at `5e0e1057caae96f093ce334913741ee39a0924e1`. Its workflow and receipts are labeled `NOTCURRENT_PR_VALIDATION`; they do not validate the pull request head. Current-head regression and installed-wheel checks remain separate evidence.
+
 ## Shortest useful sequence
 
 1. **Stabilize one runnable product path.** Choose and document one normal read-only entry point from PR identity through report artifact, using the installed CLI/runtime that Actions will execute. The merged source has green main CI at the revision above; confirm the supported Python/install path and complete bounded failure, timeout, partial-coverage, and restart checks on that exact identity. Defer duplicate experimental setup from the primary path without deleting its evidence. **Exit:** clean source/runtime identity; supported Python/install path; one invocation produces a bounded, schema-valid report artifact; normal failure, timeout, partial coverage, and restart tests terminate safely and leave explicit states.

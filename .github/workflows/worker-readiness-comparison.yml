@@ -1,4 +1,4 @@
-name: Linux worker readiness comparison
+name: Historical Linux worker readiness comparison
 
 on:
   pull_request:
@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   compare:
+    name: Historical comparison (not current PR validation)
     if: github.repository == 'groktopus/codereview' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == 'groktopus/codereview'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -30,7 +31,8 @@ jobs:
       COMPARISON_CONTRACT: worker-readiness-linux.v2
       BASELINE_SHA: 2116506c8e5a08158c51645502bbcaec6bf9e71f
       BASELINE_PARENT_SHA: 94d35b43d6441e412e3c6123d354c5e78d6c12e9
-      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+      CANDIDATE_SHA: 5e0e1057caae96f093ce334913741ee39a0924e1
+      CURRENT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       BASELINE_SOURCE: ${{ github.workspace }}/baseline-source
       CANDIDATE_SOURCE: ${{ github.workspace }}/candidate-source
 
@@ -45,12 +47,12 @@ jobs:
           path: baseline-source
           persist-credentials: false
 
-      - name: Check out the exact pull request head
+      - name: Check out the fixed pre-observer-change historical candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         timeout-minutes: 2
         with:
           repository: groktopus/codereview
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: 5e0e1057caae96f093ce334913741ee39a0924e1
           path: candidate-source
           persist-credentials: false
 
@@ -216,6 +218,9 @@ jobs:
               "baseline_parent_sha": os.environ["BASELINE_PARENT_SHA"],
               "baseline_kind": "observer_diagnostic_compatibility_backport",
               "candidate_sha": os.environ["CANDIDATE_SHA"],
+              "candidate_kind": "fixed_pre_observer_change_historical_runtime",
+              "current_pr_head_sha": os.environ["CURRENT_PR_HEAD_SHA"],
+              "current_pr_head_validated": False,
               "source_and_wheel_identity_verified": True,
               "module_counts_per_runtime": {
                   label: records[label.lower()]["source_module_count"]
@@ -273,7 +278,7 @@ jobs:
               namespace_loopback = None
           if namespace_loopback is None or namespace_loopback.returncode != 0:
               (output_dir / "comparison.json").write_text(
-                  json.dumps({"schema_version": 2, "comparison_contract": "worker-readiness-linux.v2", "comparison": "FAIL", "failure": "isolated_loopback_unavailable", "probes_started": False}, sort_keys=True, separators=(",", ":")) + "\n",
+                  json.dumps({"schema_version": 2, "comparison_contract": "worker-readiness-linux.v2", "candidate_kind": identity["candidate_kind"], "candidate_sha": identity["candidate_sha"], "current_pr_head_sha": identity["current_pr_head_sha"], "current_pr_head_validated": False, "validation_scope": "NOTCURRENT_PR_VALIDATION", "comparison": "FAIL", "failure": "isolated_loopback_unavailable", "probes_started": False}, sort_keys=True, separators=(",", ":")) + "\n",
                   encoding="utf-8",
               )
               raise SystemExit("isolated_loopback_unavailable")
@@ -300,7 +305,7 @@ jobs:
               except OSError:
                   fixture_sha = None
               if fixture_sha != expected_fixture_sha:
-                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": "FIXTURE_HASH_MISMATCH",
+                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "candidate_kind": identity["candidate_kind"], "candidate_sha": identity["candidate_sha"], "current_pr_head_sha": identity["current_pr_head_sha"], "current_pr_head_validated": False, "validation_scope": "NOTCURRENT_PR_VALIDATION", "label": label, "runner_status": "FIXTURE_HASH_MISMATCH",
                             "return_code": None, "elapsed_ms": 0, "stdout_bytes": 0}
                   (output_dir / f"{label}.json").write_text(
                       json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
@@ -313,7 +318,7 @@ jobs:
                       cwd=output_dir, env=base_env, start_new_session=True,
                   )
               except OSError:
-                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": "SPAWN_FAILED",
+                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "candidate_kind": identity["candidate_kind"], "candidate_sha": identity["candidate_sha"], "current_pr_head_sha": identity["current_pr_head_sha"], "current_pr_head_validated": False, "validation_scope": "NOTCURRENT_PR_VALIDATION", "label": label, "runner_status": "SPAWN_FAILED",
                             "return_code": None, "elapsed_ms": int((time.monotonic() - started) * 1000),
                             "stdout_bytes": 0}
                   (output_dir / f"{label}.json").write_text(
@@ -360,7 +365,7 @@ jobs:
                   process.kill()
                   return_code = process.wait(timeout=5)
                   status = "PROCESS_REAP_FAILED" if status == "COMPLETED" else status
-              report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": status,
+              report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "candidate_kind": identity["candidate_kind"], "candidate_sha": identity["candidate_sha"], "current_pr_head_sha": identity["current_pr_head_sha"], "current_pr_head_validated": False, "validation_scope": "NOTCURRENT_PR_VALIDATION", "label": label, "runner_status": status,
                         "return_code": return_code, "elapsed_ms": int((time.monotonic() - started) * 1000),
                         "stdout_bytes": len(captured)}
               if status == "COMPLETED":
@@ -375,7 +380,7 @@ jobs:
               target = output_dir / f"{label}.json"
               encoded = json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
               if len(encoded.encode()) > max_report:
-                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "label": label, "runner_status": "SUMMARY_LIMIT_EXCEEDED",
+                  report = {"schema_version": 2, "comparison_contract": identity["comparison_contract"], "candidate_kind": identity["candidate_kind"], "candidate_sha": identity["candidate_sha"], "current_pr_head_sha": identity["current_pr_head_sha"], "current_pr_head_validated": False, "validation_scope": "NOTCURRENT_PR_VALIDATION", "label": label, "runner_status": "SUMMARY_LIMIT_EXCEEDED",
                             "return_code": return_code, "elapsed_ms": int((time.monotonic() - started) * 1000),
                             "stdout_bytes": len(captured)}
                   encoded = json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
@@ -479,6 +484,11 @@ jobs:
           final = {
               "schema_version": 2,
               "comparison_contract": identity["comparison_contract"],
+              "candidate_kind": identity["candidate_kind"],
+              "candidate_sha": identity["candidate_sha"],
+              "current_pr_head_sha": identity["current_pr_head_sha"],
+              "current_pr_head_validated": False,
+              "validation_scope": "NOTCURRENT_PR_VALIDATION",
               "fixture_comparison": "same_candidate_fixture_and_scope_not_byte_identical_generated_git_input",
               "baseline_outcome": "COMPLETED" if complete(baseline) else "TYPED_TRACE_CAP_FAILURE" if valid_baseline_cap_failure(baseline) else "INVALID_OR_INCOMPLETE",
               "candidate_outcome": "NORMAL_REVIEW_COMPLETED" if candidate_valid else "INVALID_OR_INCOMPLETE",
@@ -498,7 +508,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: worker-readiness-comparison-v2-${{ github.run_id }}
+          name: worker-readiness-comparison-v2-historical-NOTCURRENT_PR_VALIDATION-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/worker-readiness-comparison-v2/identity.json
             ${{ runner.temp }}/worker-readiness-comparison-v2/baseline.json
