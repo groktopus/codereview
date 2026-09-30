@@ -76,7 +76,7 @@ def test_slopsearx_candidate_keeps_both_trusted_policy_files_mandatory():
     profile = _profile()
     selection = profile["context_selection"]
 
-    assert profile["version"] == "slopsearx-production-v7-portal-packaging-check"
+    assert profile["version"] == "slopsearx-production-v8-static-review-boundaries"
     assert selection["version"] == "context-selection.v1"
     assert selection["mandatory_policy_paths"] == ["AGENTS.md", "CONTRIBUTING.md"]
     assert selection["max_total_context_bytes"] == 120000
