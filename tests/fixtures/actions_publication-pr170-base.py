@@ -331,7 +331,7 @@ class GitHubPublicationPolicy:
     artifact_redirect_hosts: tuple[str, ...] = ()
     contract_versions: tuple[tuple[str, str], ...] = (
         ("artifact_manifest", "1.0"),
-        ("review_result", "0.1"),
+        ("review_result", "1.0"),
     )
     max_api_response_bytes: int = _MAX_API_BYTES
     max_bundle_bytes: int = _MAX_ARCHIVE_BYTES

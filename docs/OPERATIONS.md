@@ -77,6 +77,7 @@ on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
 permissions:
+  actions: read
   contents: read
   checks: read
   pull-requests: read
@@ -106,7 +107,7 @@ Before enabling the caller:
 1. Review the workflow and profile from the protected base branch.
 2. Verify the reusable workflow `uses:` revision and `harness_sha` are the same reviewed full commit SHA. The workflow checks their syntax before checkout and checks the checked-out `HEAD` before installing or importing it.
 3. Configure the six required provider secrets (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `JEV_BASE_URL`, `JEV_MODEL`, and `JEV_API_KEY`) in the caller repository's Actions settings. The workflow materializes private, short-lived provider configuration from those values; it does not fetch a model catalog. See [Deployment configuration](DEPLOYMENT-CONFIGURATION.md) for endpoint format, secret handling, and the selected deployment defaults. The separate [manual historical model comparison](#manual-historical-model-comparison) retains the fixed free-model/catalog procedure.
-4. Keep caller and reusable-workflow permissions at read-only. It requires `contents: read`, `checks: read`, and `pull-requests: read`; it does not receive write permission.
+4. Keep caller and reusable-workflow permissions at read-only. This workflow revision requires `actions: read`, `contents: read`, `checks: read`, and `pull-requests: read`; the caller must grant `actions: read` even when publication-bundle output is disabled. It does not receive write permission.
 
 The workflow verifies the current PR through the caller's read-only GitHub token, fetches the base ref and `refs/pull/<number>/head` into a bare object store, checks both object IDs against the supplied event identities, and passes a synthetic minimal event to the CLI. It never checks out the PR head or runs its hooks, tests, builds, scripts, or actions. A moved ref or failed API read stops or leaves evidence incomplete. The current bare-fetch adapter supports public target repositories; private target acquisition needs a separately reviewed read-only credential adapter.
 

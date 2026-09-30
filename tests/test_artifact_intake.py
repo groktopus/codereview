@@ -73,6 +73,7 @@ def canonical(value):
 def make_bundle(*, identity=None, result_raw=None, result_changes=None, manifest_changes=None, entries=None):
     identity = identity or identities()[0]
     result = {
+        "contract_version": dict(identity.contract_versions)["review_result"],
         "run_id": "review-run-01",
         "repository": identity.repository,
         "pull_request_number": identity.pull_request_number,
@@ -293,6 +294,42 @@ def test_result_run_id_and_result_seal_are_crosschecked():
     bundle, digest = make_bundle(result_changes={"head_sha": "9" * 40})
     with pytest.raises(ArtifactIntakeError, match="result_identity_mismatch"):
         intake(bundle, digest)
+
+
+def test_result_contract_version_must_match_explicit_receiver_identity():
+    identity, _signer = identities()
+    bundle, digest = make_bundle(identity=identity, result_changes={"contract_version": "0.1"})
+    with pytest.raises(ArtifactIntakeError, match="result_contract_version_mismatch"):
+        intake(bundle, digest)
+
+    active = ArtifactIdentity(
+        **{
+            **identity.__dict__,
+            "contract_versions": (("artifact_manifest", "1.0"), ("review_result", "0.1")),
+        }
+    )
+    active_signer = AttestationIdentity(
+        issuer="https://token.actions.githubusercontent.com",
+        repository_id=active.repository_id,
+        repository=active.repository,
+        workflow_id=active.caller_workflow_id,
+        workflow_path=active.caller_workflow_path,
+        workflow_ref=active.caller_workflow_ref,
+        workflow_sha=active.caller_workflow_sha,
+        run_id=active.upstream_run_id,
+        run_attempt=active.upstream_run_attempt,
+        called_harness_repository=active.called_harness_repository,
+        called_harness_path=active.called_harness_path,
+        called_harness_sha=active.called_harness_sha,
+    )
+    bundle, digest = make_bundle(identity=active)
+    receipt = intake_artifact_bundle(
+        io.BytesIO(bundle),
+        active,
+        digest,
+        trusted_attestation_identity=active_signer,
+    )
+    assert receipt.result["contract_version"] == "0.1"
 
 
 @pytest.mark.parametrize(

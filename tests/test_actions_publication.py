@@ -301,6 +301,7 @@ def make_valid_result():
         "base_sha": BASE,
         "head_sha": HEAD,
         "freshness": "CURRENT",
+        "contract_version": "0.1",
         "disposition": "COMMENT",
         "merge_eligibility": "NOT_EVALUATED",
         "project_profile_version": "profile-v3",
@@ -383,6 +384,10 @@ class Uploader:
         ("receipt_upload", "REJECTED"),
         ("history_cap", "UNKNOWN"),
         ("post_state", "UNKNOWN"),
+        ("receipt_missing", "UNKNOWN"),
+        ("stale_after_receipt", "STALE"),
+        ("lost_post_response", "CONFIRMED"),
+        ("lost_post_history_unknown", "UNKNOWN"),
         ("admission_only", "CANDIDATE"),
     ],
 )
@@ -390,8 +395,10 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
     policy = make_policy()
     result = make_valid_result()
     bundle = bundle_for(policy, result)
-    receipt_archive = {"bytes": None}
+    receipt_archives = {}
     post_bodies = []
+    stored_reviews = []
+    pull_reads = 0
     publisher_run = run_record(policy.publisher_run_id, status="in_progress")
     publisher_run["head_sha"] = policy.publisher_workflow_sha
     publisher_detail = {
@@ -439,15 +446,17 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         publisher_runs.append(run_record(900002, status="completed"))
 
     def api_response(method, url, body):
+        nonlocal pull_reads
         path = urlsplit(url).path
         query = urlsplit(url).query
         if path.endswith("/pulls/44"):
+            pull_reads += 1
             return response(
                 {
                     "number": 44,
                     "state": "open",
                     "base": {"sha": BASE, "repo": {"id": policy.repository_id}},
-                    "head": {"sha": HEAD},
+                    "head": {"sha": "c" * 40 if failure == "stale_after_receipt" and pull_reads == 3 else HEAD},
                 }
             )
         if path.endswith(f"/actions/runs/{policy.upstream_run_id}/attempts/1"):
@@ -459,9 +468,9 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
             return response({"total_count": 1, "artifacts": [result_artifact]})
         if path.endswith(f"/actions/runs/{policy.publisher_run_id}/artifacts"):
             name = policy.receipt_artifact_name(EffectSlot(policy.repository_id, policy.repository, 44, HEAD))
-            if receipt_archive["bytes"] is None:
+            artifact_bytes = receipt_archives.get(policy.publisher_run_id)
+            if artifact_bytes is None:
                 return response({"total_count": 0, "artifacts": []})
-            artifact_bytes = receipt_archive["bytes"]
             return response(
                 {
                     "total_count": 1,
@@ -485,7 +494,9 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         if path.endswith(f"/actions/workflows/{policy.publisher_workflow_id}/runs"):
             return response({"total_count": len(publisher_runs), "workflow_runs": publisher_runs})
         if path.endswith("/pulls/44/reviews") and method == "GET":
-            return response([])
+            if failure == "lost_post_history_unknown" and post_bodies:
+                return response({"message": "history temporarily unavailable"}, status=503)
+            return response(stored_reviews)
         if path.endswith("/actions/artifacts/123/zip"):
             return HTTPResponse(
                 302,
@@ -500,6 +511,18 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
             )
         if path.endswith("/pulls/44/reviews") and method == "POST":
             post_bodies.append(body)
+            if failure in {"lost_post_response", "lost_post_history_unknown"}:
+                if failure == "lost_post_response":
+                    stored_reviews.append(
+                        {
+                            "id": 777,
+                            "commit_id": HEAD,
+                            "state": "COMMENTED",
+                            "body": body["body"],
+                            "user": {"login": WRITER},
+                        }
+                    )
+                raise TimeoutError("response lost after simulated acceptance")
             state = "CHANGES_REQUESTED" if failure == "post_state" else "COMMENTED"
             return response(
                 {
@@ -515,7 +538,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
     class EndToEndTransport(FakeTransport):
         def download(self, url, *, timeout_seconds, max_response_bytes):
             self.download_calls.append((url, timeout_seconds, max_response_bytes))
-            content = bundle if "result?" in url else receipt_archive["bytes"]
+            content = bundle if "result?" in url else receipt_archives[policy.publisher_run_id]
             return HTTPResponse(200, {}, content)
 
     transport = EndToEndTransport(api_response)
@@ -562,10 +585,12 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
 
     def upload_and_record(**kwargs):
         outcome = original_upload(**kwargs)
+        if failure == "receipt_missing":
+            return outcome
         stream = io.BytesIO()
         with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr(kwargs["filename"], kwargs["content"])
-        receipt_archive["bytes"] = stream.getvalue()
+        receipt_archives[kwargs["run_id"]] = stream.getvalue()
         return outcome
 
     uploader.upload = upload_and_record
@@ -586,7 +611,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         ),
     )
     assert outcome["status"] == expected_status
-    if failure in {None, "post_state"}:
+    if failure in {None, "post_state", "lost_post_response", "lost_post_history_unknown"}:
         assert len(uploader.calls) == 1
         assert len(post_bodies) == 1
         assert post_bodies[0]["commit_id"] == HEAD
@@ -595,6 +620,20 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         assert "<!-- pr-review-harness:effect-" in post_bodies[0]["body"]
         if failure == "post_state":
             assert outcome["reason"] == "submit_response_ambiguous"
+        if failure == "lost_post_response":
+            assert outcome["reason"] == "confirmed_after_ambiguous_response"
+            assert len(stored_reviews) == 1
+        if failure == "lost_post_history_unknown":
+            assert outcome["reason"] == "submit_response_ambiguous"
+            assert stored_reviews == []
+    elif failure == "stale_after_receipt":
+        assert len(uploader.calls) == 1
+        assert post_bodies == []
+        assert outcome["reason"] == "head_sha_changed_after_receipt"
+    elif failure == "receipt_missing":
+        assert len(uploader.calls) == 1
+        assert post_bodies == []
+        assert outcome["reason"] == "artifact_api_ack_missing"
     elif failure == "receipt_upload":
         assert len(uploader.calls) == 1
         assert outcome["reason"] == "artifact_upload_unconfirmed"
@@ -603,6 +642,118 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         assert uploader.calls == []
         assert post_bodies == []
     assert all("/user" not in call[1] for call in transport.calls)
+
+
+def test_publisher_deduplicates_exact_marker_from_real_adapter_history():
+    from pr_review_harness.publication_receipts import PublicationAdmission, RunIdentity
+    from pr_review_harness.publisher import _stateless_effect_key, preview_publication
+
+    result = make_valid_result()
+    policy = {
+        "schema_version": "1.0",
+        "enabled": True,
+        "allowed_repositories": ["owner/repo"],
+        "allowed_dispositions": ["COMMENT"],
+        "allowed_profile_versions": ["profile-v3"],
+        "allowed_actors": [WRITER],
+        "max_review_body_bytes": 60_000,
+    }
+    request = preview_publication(result, policy)
+    slot = EffectSlot(8123, "owner/repo", 44, HEAD)
+    effect_key = _stateless_effect_key(
+        slot, request["result_hash"], request["review_body_hash"], request["disposition"]
+    )
+    marked_body = f'{result["rendered_review"]}\n\n<!-- pr-review-harness:{effect_key} -->'
+    current_policy = make_policy(publisher_run_id=900002)
+    current_run = RunIdentity(
+        repository_id=8123,
+        workflow_id=current_policy.publisher_workflow_id,
+        workflow_path=current_policy.publisher_workflow_path,
+        workflow_ref=current_policy.publisher_workflow_ref,
+        workflow_sha=current_policy.publisher_workflow_sha,
+        run_id=current_policy.publisher_run_id,
+        run_attempt=current_policy.publisher_run_attempt,
+    )
+    upstream_run = RunIdentity(
+        repository_id=8123,
+        workflow_id=current_policy.caller_workflow_id,
+        workflow_path=current_policy.caller_workflow_path,
+        workflow_ref=current_policy.caller_workflow_ref,
+        workflow_sha=current_policy.caller_workflow_sha,
+        run_id=current_policy.upstream_run_id,
+        run_attempt=current_policy.upstream_run_attempt,
+    )
+    admission = PublicationAdmission(
+        slot=slot,
+        base_sha=BASE,
+        effect_key=effect_key,
+        result_hash=request["result_hash"],
+        review_body_hash=request["review_body_hash"],
+        disposition="COMMENT",
+        review_event="COMMENT",
+        actor_login=WRITER,
+        profile_hash=current_policy.profile_sha256,
+        policy_hash=_canonical_hash(policy),
+        source_artifact_sha256="2" * 64,
+        admission_evidence_hash="3" * 64,
+        upstream_run=upstream_run,
+        publisher_run=current_run,
+        concurrency_group="pr-review-publish-8123-44",
+        concurrency_contract_hash="4" * 64,
+    )
+
+    # This isolates the stateless controller's reconciliation against the real
+    # GitHub history adapter; admission is a typed test capability, not a
+    # second end-to-end run through artifact intake.
+    class Admission:
+        def admit(self, *_args):
+            return admission
+
+    class Writer:
+        calls = 0
+
+        def persist(self, *_args):
+            self.calls += 1
+            pytest.fail("confirmed review history must stop before receipt persistence")
+
+    review = {
+        "id": 707,
+        "commit_id": HEAD,
+        "state": "COMMENTED",
+        "body": marked_body,
+        "user": {"login": WRITER},
+    }
+
+    def api_response(method, url, _body):
+        path = urlsplit(url).path
+        if method == "GET" and path.endswith("/pulls/44/reviews"):
+            return response([review])
+        if method == "GET" and path.endswith("/actions/workflows/904/runs"):
+            return response({"total_count": 0, "workflow_runs": []})
+        raise AssertionError(f"unexpected simulated GitHub request: {method} {url}")
+
+    client = GitHubActionsPublicationAdapter(current_policy, Provider(), transport=FakeTransport(api_response))
+    writer = Writer()
+    posted = []
+    heads = []
+    outcome = publish_review_stateless(
+        result,
+        policy,
+        "PUBLISH_REVIEW",
+        admission_provider=Admission(),
+        history_reader=client,
+        receipt_writer=writer,
+        fresh_head=lambda *_args: heads.append(True),
+        submit_review=lambda *args: posted.append(args),
+        limits=ScanLimits(max_runs=10, max_pages=2, max_reviews=100, deadline_seconds=10),
+    )
+
+    assert outcome["status"] == "CONFIRMED"
+    assert outcome["reason"] is None
+    assert posted == []
+    assert heads == []
+    assert writer.calls == 0
+    assert any(urlsplit(call[1]).path.endswith("/pulls/44/reviews") for call in client.transport.calls)
 
 
 @pytest.mark.parametrize(

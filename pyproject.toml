@@ -23,7 +23,8 @@ pr-review = "pr_review_harness.cli:main"
 where = ["src"]
 
 [project.optional-dependencies]
-dev = ["build>=1.2,<2", "pytest>=8", "ruff>=0.9", "setuptools>=68"]
+github-app = ["PyJWT[crypto]>=2.10,<3"]
+dev = ["build>=1.2,<2", "pytest>=8", "ruff>=0.9", "setuptools>=68", "PyJWT[crypto]>=2.10,<3"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

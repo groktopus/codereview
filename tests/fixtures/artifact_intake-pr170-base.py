@@ -300,11 +300,7 @@ def _valid_identity(identity: ArtifactIdentity) -> bool:
     )
     if valid_versions:
         try:
-            observed_versions = dict(versions)
-            valid_versions = (
-                observed_versions == {"artifact_manifest": "1.0", "review_result": "0.1"}
-                or observed_versions == {"artifact_manifest": "1.0", "review_result": "1.0"}
-            )
+            valid_versions = dict(versions) == {"artifact_manifest": "1.0", "review_result": "1.0"}
         except (TypeError, ValueError):
             valid_versions = False
     return (
@@ -538,9 +534,6 @@ def _validate_manifest(manifest: dict, identity: ArtifactIdentity, result_bytes:
     for key, value in expected.items():
         if manifest.get(key) != value or (isinstance(value, int) and isinstance(manifest.get(key), bool)):
             raise ArtifactIntakeError("manifest_identity_mismatch")
-    expected_result_contract = dict(identity.contract_versions).get("review_result")
-    if result.get("contract_version") != expected_result_contract:
-        raise ArtifactIntakeError("result_contract_version_mismatch")
     if not isinstance(manifest.get("review_run_id"), str) or not manifest["review_run_id"]:
         raise ArtifactIntakeError("manifest_contract_invalid")
     if manifest["review_run_id"] != result.get("run_id"):

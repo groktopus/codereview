@@ -803,14 +803,16 @@ def _valid_pair_input_identity(value: Any) -> bool:
     if any(not _is_sha(value.get(key), 40) for key in ("base_sha", "head_sha")):
         return False
     modules = value.get("runtime_module_hashes")
+    module_count = value.get("runtime_module_count")
     if (
-        value.get("runtime_module_count") != 35
+        type(module_count) is not int
+        or module_count < 1
+        or module_count > 256
         or not isinstance(modules, dict)
-        or len(modules) != 35
+        or len(modules) != module_count
         or any(
             not isinstance(name, str)
-            or not name.startswith("pr_review_harness/")
-            or not name.endswith(".py")
+            or re.fullmatch(r"pr_review_harness/[A-Za-z0-9_.-]+\.py", name) is None
             or not _is_sha(digest)
             for name, digest in modules.items()
         )
@@ -1718,7 +1720,7 @@ def run_transport_pair(
         if isinstance(name, str) and name.startswith("src/pr_review_harness/")
         and name.endswith(".py") and isinstance(digest, str)
     }
-    if len(module_hashes) != 35:
+    if not module_hashes:
         raise RuntimeError("runtime_module_inventory_invalid")
     checkout_identity = _diagnostic_checkout_identity()
     work_root = Path(tempfile.mkdtemp(prefix="selected-control-transport-", dir=workdir))
@@ -1754,13 +1756,14 @@ def run_transport_pair(
         }
         if deadline - time.monotonic() <= 600 + observer.CLEANUP_GRACE_SECONDS:
             return {
-                "contract_version": "selected-control-transport-pair.v1",
+                "contract_version": "selected-control-transport-pair.v2",
                 "pair_state": "INCOMPLETE",
                 "reason": "PAIR_SETUP_EXHAUSTED_ARM_BUDGET",
                 **checkout_identity,
                 "runtime_source_commit": fingerprint.get("git_revision") if isinstance(fingerprint, dict) else None,
                 "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
                 "runtime_module_count": len(module_hashes),
+                "runtime_module_hashes": module_hashes,
                 "fixture_suite_sha256": prepared.suite_sha256,
                 "generated_profile_sha256": hashlib.sha256(prepared.profile_path.read_bytes()).hexdigest(),
                 "run_id": case.case_id,
@@ -1789,7 +1792,7 @@ def run_transport_pair(
         if not _transport_pair_complete(http_arm):
             arms.append({"configured_transport": "HTTPS_LOOPBACK_FAKE", "state": "NOT_RUN_HTTP_BASELINE_INCOMPLETE"})
             return {
-                "contract_version": "selected-control-transport-pair.v1",
+                "contract_version": "selected-control-transport-pair.v2",
                 "pair_state": "INCOMPLETE",
                 "reason": "HTTP_BASELINE_INCOMPLETE_TLS_NOT_RUN",
                 **checkout_identity,
@@ -1867,7 +1870,7 @@ def run_transport_pair(
                 },
             }
         return {
-            "contract_version": "selected-control-transport-pair.v1",
+            "contract_version": "selected-control-transport-pair.v2",
             "pair_state": pair_state,
             "reason": reason,
             **checkout_identity,
@@ -1931,7 +1934,7 @@ def run_candidate_cardinality_pair(
         and name.endswith(".py")
         and isinstance(digest, str)
     }
-    if len(runtime_modules) != 35:
+    if not runtime_modules:
         raise RuntimeError("runtime_module_inventory_invalid")
     work_root = Path(tempfile.mkdtemp(prefix="selected-control-cardinality-", dir=workdir))
     os.chmod(work_root, 0o700)
