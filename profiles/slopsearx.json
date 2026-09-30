@@ -1,6 +1,7 @@
 {
   "version": "slopsearx-production-v7-portal-packaging-check",
   "repository": "magnus919/SlopSearX",
+  "context_revision_metadata": true,
   "context_paths": [
     "AGENTS.md",
     "CONTRIBUTING.md",

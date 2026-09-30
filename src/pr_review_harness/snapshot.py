@@ -308,6 +308,9 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
     """
     if not isinstance(profile, dict) or not isinstance(limits, dict):
         raise SnapshotError("profile and limits must be objects")
+    context_revision_metadata = profile.get("context_revision_metadata", False)
+    if not isinstance(context_revision_metadata, bool):
+        raise SnapshotError("profile context_revision_metadata must be boolean")
     base_sha, head_sha = _sha(repo, base), _sha(repo, head)
     base_tree, head_tree = _tree(repo, base_sha), _tree(repo, head_sha)
     # Git's NUL-delimited status output safely handles whitespace/newlines.
@@ -335,7 +338,12 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
         context_selection = validate_context_selection(profile)
     except ValueError as exc:
         raise SnapshotError(str(exc)) from exc
-    profile_hash = _json_hash(profile)
+    # A disabled opt-in is equivalent to the legacy absence of the field.
+    # Preserve existing snapshot IDs and request hashes for unchanged profiles.
+    profile_identity = profile
+    if not context_revision_metadata and "context_revision_metadata" in profile:
+        profile_identity = {key: value for key, value in profile.items() if key != "context_revision_metadata"}
+    profile_hash = _json_hash(profile_identity)
     snapshot_id = "snap-" + _json_hash({"base": base_sha, "head": head_sha, "profile_hash": profile_hash})[:24]
     repo_id = os.path.realpath(repo)
     repository_url = _repository_url(profile)
@@ -701,9 +709,10 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
             source_size_bytes=size,
         )
         if eid:
-            relation, head_object_id = _context_head_relation(item, head_tree.get(path))
-            evidence[eid]["head_relation"] = relation
-            evidence[eid]["head_object_id"] = head_object_id
+            if context_revision_metadata:
+                relation, head_object_id = _context_head_relation(item, head_tree.get(path))
+                evidence[eid]["head_relation"] = relation
+                evidence[eid]["head_object_id"] = head_object_id
             trusted_context_refs.append(eid)
             if context_selection:
                 selection_bytes_remaining -= len(data)

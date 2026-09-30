@@ -62,6 +62,7 @@ def test_snapshot_uses_immutable_objects_and_trusted_base_context(repo):
     trusted = snap["evidence"][snap["trusted_context_refs"][0]]
     assert trusted["content"] == "trusted base rules\n"
     assert trusted["trust"] == "trusted_policy" and trusted["source_revision"] == base
+    assert "head_relation" not in trusted and "head_object_id" not in trusted
     by_path = {unit["path"]: unit for unit in snap["inventory"]}
     assert by_path["app.py"]["diff_hash"]
     assert "@@" in by_path["app.py"]["diff"]
@@ -71,10 +72,40 @@ def test_snapshot_uses_immutable_objects_and_trusted_base_context(repo):
     assert snap["snapshot_hash"] and snap["snapshot_id"]
 
 
+def test_disabled_context_revision_metadata_preserves_legacy_snapshot_identity(repo):
+    path, base, head = repo
+    profile = {
+        "version": "context-identity-v1",
+        "context_paths": ["AGENTS.md"],
+        "trusted_policy_paths": ["AGENTS.md"],
+    }
+    legacy = collect_snapshot(str(path), base, head, profile, {"max_context_bytes": 100_000})
+    disabled = collect_snapshot(
+        str(path), base, head, {**profile, "context_revision_metadata": False}, {"max_context_bytes": 100_000}
+    )
+    assert disabled["snapshot_id"] == legacy["snapshot_id"]
+    assert disabled["snapshot_hash"] == legacy["snapshot_hash"]
+    assert disabled["evidence"] == legacy["evidence"]
+    assert all("head_relation" not in item and "head_object_id" not in item for item in disabled["evidence"].values())
+
+
+@pytest.mark.parametrize("value", [None, "true", 0, 1, [], {}])
+def test_context_revision_metadata_rejects_non_boolean_before_git_reads(repo, monkeypatch, value):
+    path, base, head = repo
+    monkeypatch.setattr("pr_review_harness.snapshot._sha", lambda *_args: pytest.fail("Git resolution started"))
+    with pytest.raises(SnapshotError, match="profile context_revision_metadata must be boolean"):
+        collect_snapshot(
+            str(path), base, head,
+            {"version": "context-identity-v1", "context_revision_metadata": value},
+            {"max_context_bytes": 100_000},
+        )
+
+
 def test_profile_context_records_bounded_exact_head_blob_relation(repo):
     path, base, head = repo
     profile = {
         "version": "context-identity-v1",
+        "context_revision_metadata": True,
         "context_paths": ["AGENTS.md", "app.py", "old.txt", "tests"],
         "trusted_policy_paths": ["AGENTS.md"],
     }
