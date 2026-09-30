@@ -1,0 +1,5 @@
+{
+  "schema_version": "1.0",
+  "max_context_bytes": 600000,
+  "max_input_bytes_per_task": 96000
+}

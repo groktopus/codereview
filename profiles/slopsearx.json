@@ -1,5 +1,5 @@
 {
-  "version": "slopsearx-production-v5-dependency-context",
+  "version": "slopsearx-production-v6-uvicorn-lifecycle-context",
   "repository": "magnus919/SlopSearX",
   "context_paths": [
     "AGENTS.md",
@@ -8,6 +8,7 @@
     "Dockerfile",
     ".github/workflows/ci.yml",
     "tests/test_mcp_gateway.py",
+    "tests/test_mcp_harness.py",
     "slopsearx/mcp/security.py",
     "slopsearx/mcp/oauth.py",
     "slopsearx/filters.py",
@@ -129,9 +130,10 @@
         "context_paths": [
           "pyproject.toml",
           ".github/workflows/ci.yml",
-          "tests/test_mcp_gateway.py"
+          "tests/test_mcp_gateway.py",
+          "tests/test_mcp_harness.py"
         ],
-        "max_context_bytes": 22000
+        "max_context_bytes": 44000
       }
     ]
   },
