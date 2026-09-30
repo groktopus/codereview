@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/slopsearx-pilot.yml"
-PIN = "89122c38988c12c20231435fe662e68dcaac3b95"
+PIN = "a4cdcfe139c0a9715b39c7ad2aff05526883cd1f"
 SECRETS = (
     "LLM_BASE_URL",
     "LLM_MODEL",
@@ -120,6 +120,18 @@ def test_metadata_job_is_read_only_and_does_not_receive_provider_secrets():
     assert "checkout@" not in resolve
     assert "pull-requests: write" not in resolve
     assert "contents: write" not in resolve
+
+
+def test_actions_read_is_granted_only_where_reusable_workflow_requires_it():
+    source = _source()
+    global_permissions = source.split("permissions:\n", 1)[1].split("\n\nconcurrency:", 1)[0]
+    resolve = source.split("  resolve-target:\n", 1)[1].split("\n  analyze:\n", 1)[0]
+    analyze = source.split("  analyze:\n", 1)[1]
+    analyze_permissions = analyze.split("    permissions:\n", 1)[1].split("\n    uses:", 1)[0]
+
+    assert "actions: read" in global_permissions
+    assert "actions: read" in analyze_permissions
+    assert "actions:" not in resolve
 
 
 def test_metadata_validator_emits_only_current_open_main_pr_identity(monkeypatch, tmp_path):

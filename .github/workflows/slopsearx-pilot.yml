@@ -12,6 +12,7 @@ permissions:
   contents: read
   checks: read
   pull-requests: read
+  actions: read
 
 concurrency:
   group: slopsearx-read-only-pilot-${{ inputs.pull_request_number }}
@@ -111,10 +112,11 @@ jobs:
       contents: read
       checks: read
       pull-requests: read
-    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@89122c38988c12c20231435fe662e68dcaac3b95
+      actions: read
+    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@a4cdcfe139c0a9715b39c7ad2aff05526883cd1f
     with:
       harness_repository: groktopus/codereview
-      harness_sha: 89122c38988c12c20231435fe662e68dcaac3b95
+      harness_sha: a4cdcfe139c0a9715b39c7ad2aff05526883cd1f
       target_repository: magnus919/SlopSearX
       pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
       base_ref: ${{ needs.resolve-target.outputs.base_ref }}
