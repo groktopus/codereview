@@ -3,8 +3,8 @@
   "targets": {
     "magnus919/SlopSearX": {
       "profile_path": "profiles/slopsearx.json",
-      "profile_sha256": "5a0f6f92c5b8c5e5e2337f2f8aa7885e370ce609e7f35d1b46cb0fcc8c850111",
-      "profile_version": "slopsearx-production-v6-uvicorn-lifecycle-context"
+      "profile_sha256": "ed83788e9748542ffe3df76868fe7081b88fb43f27ff346a97b8bcf26b80aa1e",
+      "profile_version": "slopsearx-production-v7-portal-packaging-check"
     }
   }
 }

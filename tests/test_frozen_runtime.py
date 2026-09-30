@@ -30,6 +30,9 @@ def _inventory_hashes(source_root: Path) -> tuple[int, str, str]:
 
 
 def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path):
+    assert hashlib.sha256(frozen_runtime.FROZEN_SNAPSHOT.read_bytes()).hexdigest() == (
+        "68c621245d28af38f6cf5d9bf1d621d962ebe544174da50add6dda75570d3b5f"
+    )
     assert hashlib.sha256(frozen_runtime.FROZEN_MODULE.read_bytes()).hexdigest() == (
         "a2efc2c78368c7d18c6f678bd889a62c0425652529316bb0c9b8d8bf699d7664"
     )

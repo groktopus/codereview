@@ -74,6 +74,40 @@ class RedirectSinkHandler(BaseHTTPRequestHandler):
 
 
 class RequestMeasurementWithoutNetworkTests(unittest.TestCase):
+    def test_context_identity_metadata_is_measured_and_sent_with_evidence(self):
+        provider = OpenAIProvider(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "test-model",
+                "api_key_env": "TEST_PROVIDER_KEY",
+                "max_request_bytes": 20_000,
+            }
+        )
+        task = {"task_id": "context-id", "unit_ids": ["u1"]}
+        evidence = [
+            {
+                "evidence_id": "policy-1",
+                "path": "tests/test_contract.py",
+                "source_kind": "profile_context",
+                "source_object_id": "a" * 40,
+                "head_object_id": "a" * 40,
+                "head_relation": "UNCHANGED",
+                "trust": "repository_evidence",
+            }
+        ]
+        limits = {
+            "max_input_bytes_per_task": 20_000,
+            "max_output_bytes_per_task": 4096,
+            "max_output_tokens": 50,
+            "deadline_seconds": 1,
+        }
+        body = provider.serialize_review_request(task, evidence, limits)
+        self.assertEqual(len(body), provider.review_input_bytes(task, evidence, limits))
+        self.assertIn(b"head_relation", body)
+        self.assertIn(b"UNCHANGED", body)
+        self.assertIn(("a" * 40).encode(), body)
+
     def test_v2_unit_bindings_are_measured_and_missing_map_fails_closed(self):
         provider = OpenAIProvider(
             {

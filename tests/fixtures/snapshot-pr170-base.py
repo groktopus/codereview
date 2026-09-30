@@ -102,19 +102,6 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _context_head_relation(base_entry: tuple[str, str], head_entry: tuple[str, str] | None) -> tuple[str, str | None]:
-    """Compare one exact configured context path by immutable Git blob identity."""
-    base_mode, base_oid = base_entry
-    if base_mode not in {"100644", "100755"} or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", base_oid):
-        return "UNKNOWN", None
-    if head_entry is None:
-        return "MISSING_HEAD", None
-    head_mode, head_oid = head_entry
-    if head_mode not in {"100644", "100755"} or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head_oid):
-        return "UNKNOWN", None
-    return ("UNCHANGED" if base_oid == head_oid else "CHANGED"), head_oid
-
-
 def _json_hash(value: Any) -> str:
     return _digest(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode())
 
@@ -701,9 +688,6 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
             source_size_bytes=size,
         )
         if eid:
-            relation, head_object_id = _context_head_relation(item, head_tree.get(path))
-            evidence[eid]["head_relation"] = relation
-            evidence[eid]["head_object_id"] = head_object_id
             trusted_context_refs.append(eid)
             if context_selection:
                 selection_bytes_remaining -= len(data)

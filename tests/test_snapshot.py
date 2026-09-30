@@ -8,6 +8,7 @@ from pr_review_harness.planner import plan_review
 from pr_review_harness.snapshot import (
     SnapshotError,
     _changed_line_ranges,
+    _context_head_relation,
     _deleted_line_ranges,
     collect_snapshot,
     recent_commits,
@@ -68,6 +69,46 @@ def test_snapshot_uses_immutable_objects_and_trusted_base_context(repo):
     assert any(gap["reason"] == "symlink_not_followed" for gap in snap["gaps"])
     assert all(gap.get("required") is True for gap in snap["gaps"] if gap["reason"] == "symlink_not_followed")
     assert snap["snapshot_hash"] and snap["snapshot_id"]
+
+
+def test_profile_context_records_bounded_exact_head_blob_relation(repo):
+    path, base, head = repo
+    profile = {
+        "version": "context-identity-v1",
+        "context_paths": ["AGENTS.md", "app.py", "old.txt", "tests"],
+        "trusted_policy_paths": ["AGENTS.md"],
+    }
+    snap = collect_snapshot(str(path), base, head, profile, {"max_context_bytes": 100_000})
+    contexts = {
+        item["path"]: item
+        for item in snap["evidence"].values()
+        if item["source_kind"] == "profile_context"
+    }
+    assert contexts["AGENTS.md"]["head_relation"] == "UNCHANGED"
+    assert contexts["AGENTS.md"]["head_object_id"] == contexts["AGENTS.md"]["source_object_id"]
+    assert contexts["app.py"]["head_relation"] == "CHANGED"
+    assert contexts["app.py"]["head_object_id"] != contexts["app.py"]["source_object_id"]
+    assert contexts["old.txt"]["head_relation"] == "MISSING_HEAD"
+    assert contexts["old.txt"]["head_object_id"] is None
+    assert "tests" not in contexts
+    assert contexts["AGENTS.md"]["source_revision"] == base
+    assert contexts["AGENTS.md"]["trust"] == "trusted_policy"
+    assert contexts["app.py"]["trust"] == "repository_evidence"
+
+
+@pytest.mark.parametrize(
+    ("base_entry", "head_entry", "expected"),
+    [
+        (("100644", "a" * 40), ("100644", "a" * 40), ("UNCHANGED", "a" * 40)),
+        (("100644", "a" * 40), ("100644", "b" * 40), ("CHANGED", "b" * 40)),
+        (("100644", "a" * 40), None, ("MISSING_HEAD", None)),
+        (("100644", "not-a-git-oid"), ("100644", "b" * 40), ("UNKNOWN", None)),
+        (("100644", "a" * 40), ("100644", "invented-oid"), ("UNKNOWN", None)),
+        (("100644", "a" * 40), ("120000", "b" * 40), ("UNKNOWN", None)),
+    ],
+)
+def test_context_head_relation_rejects_invalid_or_unsafe_git_identities(base_entry, head_entry, expected):
+    assert _context_head_relation(base_entry, head_entry) == expected
 
 
 def test_snapshot_context_budget_is_separate_with_legacy_fallback(repo):
