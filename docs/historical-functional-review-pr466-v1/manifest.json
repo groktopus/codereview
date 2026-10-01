@@ -1,0 +1,96 @@
+{
+  "schema": "historical-functional-review-pr466.v1",
+  "case": {
+    "repository": "magnus919/SlopSearX",
+    "pull_request_number": 466,
+    "base_sha": "63e3ecd2f09d79c34e3594a3be74f017a1c5a12c",
+    "head_sha": "7bce9dd246f141eb961c52ae96061203a98f083b"
+  },
+  "profile": {
+    "path": "profiles/slopsearx.json",
+    "version": "slopsearx-production-v8-static-review-boundaries",
+    "sha256": "cc9c4631882662c27be5fb8534e65abbd352489afefa78e9dd3d3160fe0b1c65"
+  },
+  "historical_checks": {
+    "path": "docs/historical-functional-review-pr466-v1/historical-checks.json",
+    "sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963",
+    "captured_at": "2026-09-27T04:06:00Z",
+    "freshness_basis": "HISTORICAL_SNAPSHOT"
+  },
+  "limits": {
+    "path": "docs/historical-functional-review-pr466-v1/limits.json",
+    "sha256": "5b92e2381ba6c15e8afc2b77d7437d3cbb53a8ff6275e1b18617218753b364d6"
+  },
+  "provider_identity": {
+    "status": "UNKNOWN",
+    "primary": {
+      "base_url": null,
+      "model": null
+    },
+    "decision": {
+      "endpoint": null,
+      "model": null
+    }
+  },
+  "retained_prepare_observation": {
+    "status": "PREPARED_ONLY",
+    "max_claim_assessments": 0,
+    "source_observation_sha256": "9cba41d618043024a3297eceac933b4472e2feead1e3965b8192295846a82112",
+    "primary_request_count": 7,
+    "total_primary_serialized_input_bytes": 353963,
+    "primary_request_descriptor_sha256": "77b8f8717bd2dfb0bc609450ed2e10f410af9f42949a87d8495012f8b527b4cb",
+    "primary_requests": [
+      {
+        "task_id": "task-d7ba5905c3ed9e9f:chunk-1",
+        "lens": "correctness",
+        "input_bytes": 49595,
+        "input_sha256": "939e9fb3f680f7695d779957f1795cb79ab7559e3c4e3a38b6c79482e3c19a46"
+      },
+      {
+        "task_id": "task-31552f6c338c0e8e:chunk-1",
+        "lens": "tests",
+        "input_bytes": 50084,
+        "input_sha256": "058449fe0d71805a66014287989515b966ecec6e1c2465d4ee31c047344117ad"
+      },
+      {
+        "task_id": "task-df70e59aaafe8334:chunk-1",
+        "lens": "maintainability",
+        "input_bytes": 49564,
+        "input_sha256": "ff0573a62d277a6c31787cf4b97055e488084c9725cc54a6e3a0c3f12b1dc1d6"
+      },
+      {
+        "task_id": "task-ede4b79c39623bb7:chunk-1",
+        "lens": "correctness",
+        "input_bytes": 55674,
+        "input_sha256": "166e767739bb30650bdef2b8d9b3a1f1f6ccbcb72578b1731332ea1731ad35f5"
+      },
+      {
+        "task_id": "task-56fb7ba09f25a0fb:chunk-1",
+        "lens": "tests",
+        "input_bytes": 56175,
+        "input_sha256": "0393b3dc0d768541e6d629a513d95836dbe7016741c2669d2b6039c15d4edbcf"
+      },
+      {
+        "task_id": "task-d37d04b4590dba29:chunk-1",
+        "lens": "maintainability",
+        "input_bytes": 36640,
+        "input_sha256": "1ae78bf896fd73e8f76911926944d3e036f67fe1c60c3bcada01b71e52cf7763"
+      },
+      {
+        "task_id": "task-7f0fc1ea3d5dbcb7:chunk-1",
+        "lens": "security",
+        "input_bytes": 56231,
+        "input_sha256": "6b436f148ad4f0172b4909851e0d0cf1b482f1c604c128370957be097161929b"
+      }
+    ]
+  },
+  "diagnostic_scope": {
+    "effect_policy": "READ_ONLY",
+    "target_code_execution": false,
+    "provider_calls_in_retained_prepare": 0,
+    "claim_assessment_max": 1,
+    "source_auditor_calls": 0,
+    "case_total_call_ceiling": 12,
+    "claim": "functional diagnostic only; not quality, calibration, or cutover evidence"
+  }
+}
