@@ -11,6 +11,7 @@ from pr_review_harness.contracts import (
     ADJUDICATION_V3,
     CAUSAL_ROLE_NAMES,
     MAX_CAUSAL_ASSESSMENT_BYTES,
+    MAX_REF_COUNT,
     SPECIALIST_INTERNAL,
     SPECIALIST_V1,
     SPECIALIST_V2,
@@ -262,6 +263,46 @@ def test_v4_unencodable_text_is_quarantined_instead_of_escaping_validation():
     assert result["quarantined_items"][0]["reason_code"] == "invalid_report_note_text"
 
 
+def test_coverage_note_schema_failures_are_quarantined_with_bounded_reasons():
+    valid = {
+        "unit_id": "u-1",
+        "state": "COVERED",
+        "reason_code": "STATIC_REVIEW",
+        "evidence_refs": ["ev-1"],
+        "coverage_basis": "STATIC_REVIEW",
+    }
+    wrong_unit = {**valid, "unit_id": "untrusted-unit", "reason_code": "private detail " * 10}
+    excessive_reason = {**valid, "reason_code": "R" * 257}
+    bad_state = {**valid, "state": "UNKNOWN"}
+    unhashable_state = {**valid, "state": []}
+    too_many_refs = {**valid, "evidence_refs": [f"ev-{index}" for index in range(MAX_REF_COUNT + 1)]}
+    extra_field = {**valid, "private": "must not leak"}
+    result = validate_specialist(
+        {
+            "contract_version": SPECIALIST_V4,
+            "finding_candidates": [],
+            "context_gap_proposals": [],
+            "coverage_notes": [valid, wrong_unit, excessive_reason, bad_state, unhashable_state, too_many_refs, extra_field],
+            "specific_strengths": [],
+            "future_guidance": [],
+        },
+        valid_evidence_ids={"ev-1"},
+        valid_unit_ids={"u-1"},
+    )
+    assert result["coverage_notes"] == [{**valid}]
+    assert [row["reason_code"] for row in result["quarantined_items"]] == [
+        "coverage_references_unknown_scope",
+        "invalid_coverage_note_reason_code",
+        "invalid_coverage_note_state",
+        "invalid_coverage_note_state",
+        "invalid_coverage_note_evidence_refs",
+        "invalid_coverage_note_fields",
+    ]
+    assert all(len(row["reason_code"]) <= 256 and len(row["item_hash"]) == 64 for row in result["quarantined_items"])
+    assert "private detail" not in repr(result["quarantined_items"])
+    assert "must not leak" not in repr(result["quarantined_items"])
+
+
 def test_v4_keeps_specific_evidence_backed_notes_and_quarantines_bad_siblings():
     strength = {
         "unit_id": "u-1",
@@ -292,8 +333,24 @@ def test_v4_keeps_specific_evidence_backed_notes_and_quarantines_bad_siblings():
         valid_unit_ids={"u-1"},
     )
     assert result["source_contract_version"] == SPECIALIST_V4
-    assert result["specific_strengths"] == [strength]
-    assert result["future_guidance"] == [guidance]
+    assert result["specific_strengths"] == [
+        {
+            "unit_id": "u-1",
+            "title": strength["title"],
+            "observation": strength["observation"],
+            "detail": strength["why_it_matters"],
+            "evidence_refs": ["ev-1"],
+        }
+    ]
+    assert result["future_guidance"] == [
+        {
+            "unit_id": "u-1",
+            "title": guidance["title"],
+            "observation": guidance["observation"],
+            "detail": guidance["guidance"],
+            "evidence_refs": ["ev-2"],
+        }
+    ]
     assert result["finding_candidates"] == []
     assert [item["reason_code"] for item in result["quarantined_items"]] == [
         "report_note_references_unknown_evidence",

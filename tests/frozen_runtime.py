@@ -18,6 +18,7 @@ FROZEN_REPORT = Path(__file__).resolve().parent / "fixtures" / "report-pr170-bas
 FROZEN_ARTIFACT_INTAKE = Path(__file__).resolve().parent / "fixtures" / "artifact_intake-pr170-base.py"
 FROZEN_ACTIONS_PUBLICATION = Path(__file__).resolve().parent / "fixtures" / "actions_publication-pr170-base.py"
 FROZEN_PROVIDERS = Path(__file__).resolve().parent / "fixtures" / "providers-pr170-base.py"
+FROZEN_CONTRACTS = Path(__file__).resolve().parent / "fixtures" / "contracts-a0988f2-base.py"
 FROZEN_PUBLICATION_RECEIPTS = Path(__file__).resolve().parent / "fixtures" / "publication_receipts-pr170-base.py"
 MODULE_INVENTORY = Path(__file__).resolve().parent / "fixtures" / "pr170-module-inventory.json"
 FROZEN_SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "snapshot-pr170-base.py"
@@ -71,6 +72,7 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
         ("artifact_intake.py", FROZEN_ARTIFACT_INTAKE),
         ("actions_publication.py", FROZEN_ACTIONS_PUBLICATION),
         ("providers.py", FROZEN_PROVIDERS),
+        ("contracts.py", FROZEN_CONTRACTS),
         ("publication_receipts.py", FROZEN_PUBLICATION_RECEIPTS),
         ("snapshot.py", FROZEN_SNAPSHOT),
     ):

@@ -138,7 +138,7 @@ class RequestMeasurementWithoutNetworkTests(unittest.TestCase):
         self.assertEqual(len(body), provider.review_input_bytes(task, evidence, limits))
         self.assertEqual(
             hashlib.sha256(body).hexdigest(),
-            "cb92fa3bd8d125acdfd999a4e12415fc18e7fb9432c7d59ba0a76b0e437a67f0",
+            "53732516b9bbfc00e4831230ab271f30a897e2d797405784c60f593f1482d95d",
         )
         self.assertIn(b"specialist-input.v2", body)
         self.assertIn(b"ev-1", body)

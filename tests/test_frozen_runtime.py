@@ -30,6 +30,12 @@ def _inventory_hashes(source_root: Path) -> tuple[int, str, str]:
     return len(files), model_tree, synth_digest.hexdigest()
 
 
+def test_contract_overlay_is_exact_a0988f2_base_blob():
+    assert hashlib.sha256(frozen_runtime.FROZEN_CONTRACTS.read_bytes()).hexdigest() == (
+        "5b23d6dc84bb7d4b684bb94326acf586796a4068426890f74f111690785201a3"
+    )
+
+
 def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path):
     assert hashlib.sha256(frozen_runtime.FROZEN_ENGINE.read_bytes()).hexdigest() == (
         "da5923ea3b1cf8902612e0c6d97ba4aef64cbe5af80da014a3615d6488656977"
