@@ -1,0 +1,118 @@
+name: Configured Jev synthetic injection classifier diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_live_trial:
+        description: Run the two fixed synthetic classifier requests against the configured Jev endpoint
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configured-jev-injection-classifier-trial
+  cancel-in-progress: false
+
+jobs:
+  trial:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the exact trusted dispatch revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify the trusted main revision
+        env:
+          EXPECTED_SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SOURCE_REVISION"
+          case "$GITHUB_REF" in
+            refs/heads/main) ;;
+            *) exit 2 ;;
+          esac
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Build and install the package from this exact source
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/configured-jev-wheelhouse"
+          python -m pip wheel --no-deps --wheel-dir "$RUNNER_TEMP/configured-jev-wheelhouse" .
+          python - <<'PY'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          wheels = list(Path(os.environ["RUNNER_TEMP"], "configured-jev-wheelhouse").glob("*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit("wheel_count_invalid")
+          try:
+              result = subprocess.run(
+                  [sys.executable, "-m", "pip", "install", "--no-deps", str(wheels[0])],
+                  check=False,
+                  stdin=subprocess.DEVNULL,
+                  timeout=180,
+              )
+          except (OSError, subprocess.TimeoutExpired):
+              raise SystemExit("wheel_install_failed") from None
+          if result.returncode:
+              raise SystemExit("wheel_install_failed")
+          PY
+
+      - name: Prepare exact fixture, profile, installed runtime, and request template without credentials
+        env:
+          EXPECTED_SOURCE_REVISION: ${{ github.sha }}
+          PREPARATION_OUTPUT: ${{ runner.temp }}/configured-jev-injection-preparation
+        run: |
+          set -euo pipefail
+          python scripts/run_configured_jev_injection_trial.py \
+            --prepare-only \
+            --expected-source-revision "$EXPECTED_SOURCE_REVISION" \
+            --output "$PREPARATION_OUTPUT" \
+            --cli-executable "$(command -v pr-review)"
+
+      - name: Run the two configured Jev calls
+        if: inputs.run_live_trial == true
+        env:
+          EXPECTED_SOURCE_REVISION: ${{ github.sha }}
+          PREPARATION_FILE: ${{ runner.temp }}/configured-jev-injection-preparation/manifest.json
+          RESULT_OUTPUT: ${{ runner.temp }}/configured-jev-injection-result
+          JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+          JEV_MODEL: ${{ secrets.JEV_MODEL }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+        run: |
+          set -euo pipefail
+          python scripts/run_configured_jev_injection_trial.py \
+            --run-provider-trial \
+            --expected-source-revision "$EXPECTED_SOURCE_REVISION" \
+            --preparation "$PREPARATION_FILE" \
+            --output "$RESULT_OUTPUT" \
+            --cli-executable "$(command -v pr-review)"
+
+      - name: Upload only the sanitized preparation and classifier receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: configured-jev-injection-classifier-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/configured-jev-injection-preparation/manifest.json
+            ${{ runner.temp }}/configured-jev-injection-preparation/summary.json
+            ${{ runner.temp }}/configured-jev-injection-result/result.json
+            ${{ runner.temp }}/configured-jev-injection-result/summary.json
+          if-no-files-found: warn
+          retention-days: 7
