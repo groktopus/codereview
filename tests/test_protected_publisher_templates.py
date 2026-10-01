@@ -2,11 +2,13 @@
 
 import json
 import re
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from pr_review_harness.actions_runtime import OfficialActionsArtifactUploader
 from pr_review_harness.protected_publication_runtime import ProtectedPublicationPolicy, ProtectedRuntimeError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,17 +59,49 @@ def test_workflow_template_stays_disabled_and_uses_existing_protected_runtime_an
     assert "target repository's reviewed environment" in workflow
 
 
-def test_artifact_bridge_working_directory_matches_runtime_default_script_location():
+def test_artifact_bridge_paths_follow_template_trusted_checkout_from_external_cwd(tmp_path):
     workflow = (ROOT / "templates/protected-pr-review-publisher.yml").read_text(encoding="utf-8")
     expected = "${{ runner.temp }}/trusted-review-harness/scripts/actions-artifact-uploader"
     step_start = workflow.index("- name: Install only the lockfile-pinned official artifact client")
     step_end = workflow.index("- name: Run the protected publication runtime", step_start)
     install_step = workflow[step_start:step_end]
     assert f"working-directory: {expected}" in install_step
+    assert "PYTHONPATH: ${{ runner.temp }}/trusted-review-harness/src" in workflow
 
-    uploader = OfficialActionsArtifactUploader(environ={"PATH": "/usr/bin:/bin"})
-    assert uploader._script == ROOT / "scripts/actions-artifact-uploader/upload.mjs"
-    assert uploader._script.is_file()
+    trusted_checkout = tmp_path / "trusted-review-harness"
+    shutil.copytree(ROOT / "src", trusted_checkout / "src")
+    shutil.copytree(
+        ROOT / "scripts/actions-artifact-uploader",
+        trusted_checkout / "scripts/actions-artifact-uploader",
+    )
+    external_cwd = tmp_path / "target-checkout"
+    external_cwd.mkdir()
+    script = """\
+import json
+from pathlib import Path
+import pr_review_harness.actions_runtime as runtime
+uploader = runtime.OfficialActionsArtifactUploader(environ={"PATH": "/usr/bin:/bin"})
+print(json.dumps({"module": str(Path(runtime.__file__).resolve()), "script": str(uploader._script.resolve())}))
+"""
+    child_env = {
+        "PATH": "/usr/bin:/bin",
+        "PYTHONPATH": str(trusted_checkout / "src"),
+    }
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=external_cwd,
+        env=child_env,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    observed = json.loads(completed.stdout)
+    assert observed == {
+        "module": str(trusted_checkout / "src/pr_review_harness/actions_runtime.py"),
+        "script": str(trusted_checkout / "scripts/actions-artifact-uploader/upload.mjs"),
+    }
+    assert Path(observed["script"]).is_file()
     assert "uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in workflow
     assert "uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065" in workflow
     assert "uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020" in workflow
