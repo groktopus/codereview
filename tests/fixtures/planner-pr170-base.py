@@ -90,8 +90,6 @@ def allow_empty_approve(profile: dict) -> bool:
 
 
 _CONTEXT_SELECTION_KEYS = {"version", "mandatory_policy_paths", "max_total_context_bytes", "window", "bindings"}
-_CONTEXT_SELECTION_BINDING_V1_KEYS = {"unit_patterns", "lenses", "context_paths", "max_context_bytes"}
-_CONTEXT_SELECTION_BINDING_V2_KEYS = _CONTEXT_SELECTION_BINDING_V1_KEYS | {"head_context_paths"}
 
 
 def validate_context_selection(profile: dict) -> dict | None:
@@ -101,8 +99,7 @@ def validate_context_selection(profile: dict) -> dict | None:
         return None
     if not isinstance(selection, dict) or set(selection) != _CONTEXT_SELECTION_KEYS:
         raise ValueError("context_selection must match context-selection.v1")
-    version = selection.get("version")
-    if not isinstance(version, str) or version not in {"context-selection.v1", "context-selection.v2"}:
+    if selection.get("version") != "context-selection.v1":
         raise ValueError("context_selection version is unsupported")
 
     def bounded_int(value: Any, name: str, low: int, high: int) -> int:
@@ -170,12 +167,12 @@ def validate_context_selection(profile: dict) -> dict | None:
         ):
             raise ValueError("trusted policy context must be mandatory or explicitly bound")
     for binding in bindings:
-        expected_binding_keys = (
-            _CONTEXT_SELECTION_BINDING_V2_KEYS
-            if version == "context-selection.v2"
-            else _CONTEXT_SELECTION_BINDING_V1_KEYS
-        )
-        if not isinstance(binding, dict) or set(binding) != expected_binding_keys:
+        if not isinstance(binding, dict) or set(binding) != {
+            "unit_patterns",
+            "lenses",
+            "context_paths",
+            "max_context_bytes",
+        }:
             raise ValueError("context_selection binding is invalid")
         patterns = binding.get("unit_patterns")
         lenses = binding.get("lenses")
@@ -200,22 +197,6 @@ def validate_context_selection(profile: dict) -> dict | None:
             )
             if not allowed:
                 raise ValueError("context_selection binding path is outside profile allowlists")
-        if version == "context-selection.v2":
-            head_paths = binding.get("head_context_paths")
-            if (
-                not isinstance(head_paths, list)
-                or len(head_paths) > 32
-                or any(not _safe_profile_path(path) for path in head_paths)
-                or len(set(head_paths)) != len(head_paths)
-            ):
-                raise ValueError("context_selection head_context_paths must be unique exact relative paths")
-            for path in head_paths:
-                allowed = any(isinstance(pattern, str) and _matches(pattern, path) for pattern in context_paths)
-                allowed = allowed or any(
-                    isinstance(pattern, str) and fnmatch.fnmatchcase(path, pattern) for pattern in retrieval_paths
-                )
-                if not allowed:
-                    raise ValueError("context_selection head context path is outside profile allowlists")
         bounded_int(binding.get("max_context_bytes"), "binding.max_context_bytes", 1, 262_144)
     return selection
 
@@ -322,76 +303,6 @@ def _mandatory_policy_path(path: str, profile: dict) -> bool:
     return isinstance(mandatory, list) and any(
         isinstance(pattern, str) and _matches(pattern, path) for pattern in mandatory
     )
-
-
-def _head_context_evidence(snapshot: dict, path: str) -> list[str]:
-    """Return complete, exact-path HEAD diff/window evidence selected by v2 policy.
-
-    This indexes only source already captured by the snapshot builder. It does
-    not read Git, resolve symbols, or promote PR content to policy authority.
-    An incomplete matching capture invalidates the whole exact-path selection.
-    """
-    head_sha = snapshot.get("head_sha")
-    snapshot_id = snapshot.get("snapshot_id")
-    evidence = snapshot.get("evidence")
-    if (
-        not isinstance(head_sha, str)
-        or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head_sha)
-        or not isinstance(snapshot_id, str)
-        or not isinstance(evidence, dict)
-    ):
-        return []
-    gaps = snapshot.get("gaps", [])
-    if isinstance(gaps, list) and any(
-        isinstance(gap, dict)
-        and gap.get("path") == path
-        and gap.get("required") is True
-        and (
-            (gap.get("source_kind") == "diff" and gap.get("reason") == "diff_truncated")
-            or (gap.get("source_kind") == "source_window" and gap.get("side") == "HEAD")
-        )
-        for gap in gaps
-    ):
-        return []
-
-    selected: list[str] = []
-    has_diff = False
-    has_head_window = False
-    for evidence_id, item in evidence.items():
-        if not isinstance(evidence_id, str) or not isinstance(item, dict):
-            continue
-        source_kind = item.get("source_kind")
-        if source_kind not in {"diff", "source_window"}:
-            continue
-        if item.get("path") != path or item.get("source_revision") != head_sha:
-            continue
-        if (
-            item.get("evidence_id") != evidence_id
-            or item.get("snapshot_id") != snapshot_id
-            or item.get("trust") != "untrusted_pr_content"
-            or item.get("content_truncated") is not False
-            or not isinstance(item.get("content"), str)
-            or not isinstance(item.get("content_hash"), str)
-            or hashlib.sha256(item["content"].encode("utf-8")).hexdigest() != item["content_hash"]
-        ):
-            return []
-        if source_kind == "diff":
-            has_diff = True
-        elif item.get("source_side") != "HEAD":
-            return []
-        else:
-            has_head_window = True
-            object_id = item.get("source_object_id")
-            object_format = item.get("source_object_format")
-            if (
-                not isinstance(object_id, str)
-                or object_format not in {"sha1", "sha256"}
-                or len(object_id) != (40 if object_format == "sha1" else 64)
-                or re.fullmatch(r"[0-9a-f]+", object_id) is None
-            ):
-                return []
-        selected.append(evidence_id)
-    return selected if has_diff and has_head_window else []
 
 
 def _verified_prose_document(snapshot: dict, unit: dict) -> bool:
@@ -624,43 +535,6 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                                 continue
                             selected_bytes += size
                             unit_context_ids.append(eid)
-                    if context_selection.get("version") == "context-selection.v2":
-                        head_paths = binding["head_context_paths"]
-                        for path in head_paths:
-                            # HEAD context is opt-in, exact-path, already-captured
-                            # changed evidence. It never reads or trusts a new path.
-                            changed_path = any(row.get("path") == path for row in inventory)
-                            if not changed_path:
-                                continue
-                            head_items = _head_context_evidence(snapshot, path)
-                            if not head_items:
-                                missing_id = _id(
-                                    "missing-head-context",
-                                    {
-                                        "snapshot": snapshot.get("snapshot_id"),
-                                        "head": snapshot.get("head_sha"),
-                                        "path": path,
-                                    },
-                                )
-                                unit_context_ids.append(missing_id)
-                                continue
-                            item_bytes = sum(
-                                len(str(evidence_map.get(item_id, {}).get("content", "")).encode("utf-8"))
-                                for item_id in head_items
-                            )
-                            if selected_bytes + item_bytes > binding["max_context_bytes"]:
-                                missing_id = _id(
-                                    "missing-head-context",
-                                    {
-                                        "snapshot": snapshot.get("snapshot_id"),
-                                        "head": snapshot.get("head_sha"),
-                                        "path": path,
-                                    },
-                                )
-                                unit_context_ids.append(missing_id)
-                                continue
-                            selected_bytes += item_bytes
-                            unit_context_ids.extend(head_items)
             unit_context_ids = list(dict.fromkeys(unit_context_ids))
             evidence_ids = list(dict.fromkeys(unit_review_ids + unit_context_ids))
             task = next(

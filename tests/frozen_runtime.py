@@ -10,6 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FROZEN_MODULE = Path(__file__).resolve().parent / "fixtures" / "selected_model_trial-pr170-base.py"
+FROZEN_ENGINE = Path(__file__).resolve().parent / "fixtures" / "engine-pr170-base.py"
+FROZEN_BUDGET = Path(__file__).resolve().parent / "fixtures" / "budget-pr170-base.py"
+FROZEN_PLANNER = Path(__file__).resolve().parent / "fixtures" / "planner-pr170-base.py"
 FROZEN_OBSERVER = Path(__file__).resolve().parent / "fixtures" / "external_effect_observer-pr170-base.py"
 FROZEN_REPORT = Path(__file__).resolve().parent / "fixtures" / "report-pr170-base.py"
 FROZEN_ARTIFACT_INTAKE = Path(__file__).resolve().parent / "fixtures" / "artifact_intake-pr170-base.py"
@@ -59,6 +62,9 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
             raise AssertionError("historical module inventory source is missing or unsafe")
         shutil.copyfile(source, module_dir / name)
     for name, fixture in (
+        ("engine.py", FROZEN_ENGINE),
+        ("budget.py", FROZEN_BUDGET),
+        ("planner.py", FROZEN_PLANNER),
         ("selected_model_trial.py", FROZEN_MODULE),
         ("external_effect_observer.py", FROZEN_OBSERVER),
         ("report.py", FROZEN_REPORT),

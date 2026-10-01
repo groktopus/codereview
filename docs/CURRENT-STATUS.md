@@ -1,4 +1,24 @@
-# Current evidence status — 2026-09-28 (main `2728c71`)
+# Current evidence status — 2026-10-01 (main `0dd6145`)
+
+**Decision: not accepted as a Droid replacement. Review publication remains disabled; target activation and cutover are not authorized.** The full 39 acceptance criteria, 12 nonfunctional requirements, and six milestones remain in scope. Human labels are unavailable; model-produced judgments may provide advisory evidence, not measured accuracy or calibrated approval.
+
+Main is `0dd6145f921216f7d753f06dcc4849e75aed9cd4`, including merged PRs [179](https://github.com/groktopus/codereview/pull/179) and [180](https://github.com/groktopus/codereview/pull/180). PR180 passed all 23 hosted checks; its post-merge [Harness run](https://github.com/groktopus/codereview/actions/runs/36811264934) succeeded. Those checks establish tested source behavior, not review quality or target deployment.
+
+The owner-authorized historical PR466 [diagnostic](https://github.com/groktopus/codereview/actions/runs/36872770979) completed with **INCOMPLETE / PARTIAL**, 12 complete and three partial obligations. It made seven primary-model exchanges and one Jev exchange, executed no target code, and published nothing. The exact HEAD contradicts its retained, unaccepted OAuth-test claim. Unsupported caller-symbol and broad test-directory requests remained unresolved. See the [revision-bound experiment record](experiments/historical-slopsearx-pr466-2026-10-01.md) for hashes, accounting, classifier limitations, and baseline provenance.
+
+The follow-up source change separates local deterministic checks from provider-call reservations, bounds their actual adapter inputs, and identifies historical freshness explicitly. An opt-in v9 context candidate supplies already-captured exact HEAD test/documentation evidence to implementation tasks without changing their scope. Deployed v8 and target selection remain unchanged. No follow-up provider run has occurred.
+
+| Remaining delivery area | Evidence needed |
+|---|---|
+| Functional review | Bounded follow-up runs, source-grounded claim verification, disagreements and abstentions; review accuracy remains unknown. |
+| Target integration | SlopSearX [PR484](https://github.com/magnus919/SlopSearX/pull/484) is open with disabled workflows. Actual target workflow identity, provider bindings, and protected publisher environment are not qualified. |
+| Publication | Dedicated App identity, installation and minimal permissions; protected read canary, admission/receipt/replay/failure checks, and an authorized exact-revision publication. |
+| Reusable operation | A second project, representative operational measurements, bounded failure handling, and an exercised rollback path. |
+| Droid cutover | Explicit owner acceptance of remaining semantic uncertainty, proven operational conditions, and authorized activation/rollback controls. |
+
+The September 28 and earlier snapshots below remain historical evidence. This October 1 update controls current status; older next-step proposals do not add human-label prerequisites or authorize new provider runs, target changes, publication, or cutover.
+
+## Historical evidence status — 2026-09-28 (main `2728c71`)
 
 **Decision: not accepted as a Droid replacement; publication remains disabled and cutover is not authorized.** This page is a dated evidence snapshot, not a replacement for the 39 acceptance criteria, 12 nonfunctional requirements, six milestones, or their detailed trace in [CURRENT-ACCEPTANCE-TRACE.md](CURRENT-ACCEPTANCE-TRACE.md) and [PRODUCTION-DELIVERY.md](PRODUCTION-DELIVERY.md).
 
