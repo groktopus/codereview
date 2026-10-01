@@ -93,15 +93,18 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
     ) -> dict:
         cli_calls.append({"target": target, "prepare": prepare, "case_id": case_id})
         assert prepare is True
-        if case_id == "pr466-v2":
-            requests = review.V2_PREPARE_OBSERVATION["primary_requests"]
+        if case_id in ("pr466-v2", "pr466-v3"):
+            prepare_observation = review._case_spec(case_id)["prepare_observation"]
+            requests = prepare_observation["primary_requests"]
             return {
                 "no_provider_calls": True,
                 "no_target_code_execution": True,
                 "scope": {"primary_scope_admission_complete": True},
                 "capacity": {
-                    "exact_primary_call_demand": 7,
-                    "exact_primary_serialized_input_bytes": 394_539,
+                    "exact_primary_call_demand": prepare_observation["primary_request_count"],
+                    "exact_primary_serialized_input_bytes": prepare_observation[
+                        "total_primary_serialized_input_bytes"
+                    ],
                 },
                 "primary_requests": requests,
             }
@@ -175,12 +178,12 @@ def test_registered_case_manifest_and_limits_are_exact(case_id: str) -> None:
     else:
         assert "prepare_observation" in manifest
         assert "retained_prepare_observation" not in manifest
-        assert manifest["prepare_observation"] == review.V2_PREPARE_OBSERVATION
+        assert manifest["prepare_observation"] == review._case_spec(case_id)["prepare_observation"]
 
 
 @pytest.mark.parametrize(
     ("case_id", "input_bytes"),
-    [("pr466-v1", 64_001), ("pr466-v2", 80_001)],
+    [("pr466-v1", 64_001), ("pr466-v2", 80_001), ("pr466-v3", 80_001)],
 )
 def test_case_specific_request_input_caps_remain_bounded(case_id: str, input_bytes: int) -> None:
     with pytest.raises(review.SafeFailure, match="primary_request_capacity_exceeded"):
@@ -202,6 +205,11 @@ def test_case_specific_request_input_caps_remain_bounded(case_id: str, input_byt
 def test_v2_prepare_observation_descriptors_match_committed_packet() -> None:
     packet = json.loads(review.V2_MANIFEST.read_text(encoding="utf-8"))
     assert review.V2_PREPARE_OBSERVATION == packet["prepare_observation"]
+
+
+def test_v3_prepare_observation_descriptors_match_committed_packet() -> None:
+    packet = json.loads(review.V3_MANIFEST.read_text(encoding="utf-8"))
+    assert review.V3_PREPARE_OBSERVATION == packet["prepare_observation"]
 
 
 def test_prepare_rejects_missing_execution_invariants() -> None:
@@ -251,6 +259,19 @@ def test_v2_profile_hash_mismatch_fails_closed(monkeypatch) -> None:
     monkeypatch.setattr(review, "V2_PROFILE_SHA256", "0" * 64)
     with pytest.raises(review.SafeFailure, match="case_input_hash_mismatch"):
         review._validate_source_and_inputs("pr466-v2")
+
+
+def test_v3_profile_hash_mismatch_fails_closed(monkeypatch) -> None:
+    monkeypatch.setattr(review, "V3_PROFILE_SHA256", "0" * 64)
+    with pytest.raises(review.SafeFailure, match="case_input_hash_mismatch"):
+        review._validate_source_and_inputs("pr466-v3")
+
+
+def test_v3_case_uses_v2_checks_and_limits_without_changing_caps() -> None:
+    assert review.V3_CHECKS.read_bytes() == review.V2_CHECKS.read_bytes()
+    assert review.V3_LIMITS.read_bytes() == review.V2_LIMITS.read_bytes()
+    assert review._case_spec("pr466-v3")["input_cap"] == review.V2_INPUT_CAP
+    assert review.DEFAULT_CASE == "pr466-v1"
 
 
 def test_custom_manifest_directory_cannot_replace_registered_case(tmp_path: Path, monkeypatch, capsys) -> None:

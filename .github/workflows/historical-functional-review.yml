@@ -15,6 +15,7 @@ on:
         options:
           - pr466-v1
           - pr466-v2
+          - pr466-v3
         default: pr466-v1
 
 permissions:

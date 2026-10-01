@@ -36,12 +36,23 @@ V2_PROFILE_SHA256 = "c2fefca40483bed31207f88fc1ae21f8c058098a207aca9ca987a54ff7a
 V2_CHECKS_SHA256 = CHECKS_SHA256
 V2_LIMITS_SHA256 = "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e"
 V2_MANIFEST_SCHEMA = "historical-functional-review-pr466.v2"
+V3_CASE_DIR = ROOT / "docs/historical-functional-review-pr466-v3"
+V3_MANIFEST = V3_CASE_DIR / "manifest.json"
+V3_CHECKS = V3_CASE_DIR / "historical-checks.json"
+V3_LIMITS = V3_CASE_DIR / "limits.json"
+V3_PROFILE = ROOT / "profiles/slopsearx-v11-related-implementation-context-candidate.json"
+V3_PROFILE_VERSION = "slopsearx-production-v11-related-implementation-context-candidate"
+V3_PROFILE_SHA256 = "5afcbf3cf5af235a97b59487303c28cb5c5f0942dc51cccc1ff84178617853d3"
+V3_CHECKS_SHA256 = CHECKS_SHA256
+V3_LIMITS_SHA256 = V2_LIMITS_SHA256
+V3_MANIFEST_SCHEMA = "historical-functional-review-pr466.v3"
 DEFAULT_CASE = "pr466-v1"
-CASE_CHOICES = ("pr466-v1", "pr466-v2")
+CASE_CHOICES = ("pr466-v1", "pr466-v2", "pr466-v3")
 CALL_CAP = 10
 CONTEXT_CAP = 600_000
 INPUT_CAP = 64_000
 V2_INPUT_CAP = 80_000
+V3_INPUT_CAP = 80_000
 
 V2_PREPARE_OBSERVATION = {
     "status": "PREPARED_ONLY",
@@ -70,6 +81,35 @@ V2_PREPARE_OBSERVATION = {
         {"task_id": "task-9f233e011829dd31:chunk-1", "lens": "tests", "input_bytes": 69_691, "input_sha256": "c2b16f9c71cca0027b429d8030fba42a4f0580435b77ad59a6b2eeeb8e03dd99"},
         {"task_id": "task-0e194f0ef7319e20:chunk-1", "lens": "maintainability", "input_bytes": 36_647, "input_sha256": "07dcc45da53cd409c1ee5a73c90bb0f2841419af05cc6d0f2de3199aaeeba041"},
         {"task_id": "task-a7e35017ef6c5491:chunk-1", "lens": "security", "input_bytes": 69_747, "input_sha256": "36135c4e9dc61d49d90ba1a9d391ea7dd18f2865242310fda3848a21e63fa278"},
+    ],
+}
+
+V3_PREPARE_OBSERVATION = {
+    "status": "PREPARED_ONLY",
+    "profile_sha256": V3_PROFILE_SHA256,
+    "historical_checks_sha256": V3_CHECKS_SHA256,
+    "limits_sha256": V3_LIMITS_SHA256,
+    "max_claim_assessments": 1,
+    "max_provider_calls": CALL_CAP,
+    "max_input_bytes_per_task": V3_INPUT_CAP,
+    "max_context_bytes": CONTEXT_CAP,
+    "no_provider_calls": True,
+    "no_target_code_execution": True,
+    "primary_scope_admission_complete": True,
+    "admitted_obligations": 15,
+    "planned_obligations": 15,
+    "primary_request_count": 7,
+    "total_primary_serialized_input_bytes": 417_632,
+    "remaining_call_slots_after_primary": 3,
+    "dynamic_stage_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
+    "primary_requests": [
+        {"task_id": "task-7235c1a0b2742b75:chunk-1", "lens": "correctness", "input_bytes": 72_737, "input_sha256": "6824360fd3f4ebcd49d9fd53f2d3200d61722b346798ac980c52e6009a47af44"},
+        {"task_id": "task-128b51c6d6a45b4e:chunk-1", "lens": "tests", "input_bytes": 50_084, "input_sha256": "c2930bbb95ddf98895493437dba2901d28142b2ae225d7ef3e0b428beba86270"},
+        {"task_id": "task-f25690174a4821ea:chunk-1", "lens": "maintainability", "input_bytes": 49_564, "input_sha256": "502b3a6fb29dea305d0d2665084cd7645f02cad1b96a18a58de93b9e55b557dd"},
+        {"task_id": "task-c18fc5c7712504f4:chunk-1", "lens": "correctness", "input_bytes": 69_183, "input_sha256": "6c0cac81c46bfaf8982ad50c7d8743f8549c89f11b132558b4df6479dfdcff20"},
+        {"task_id": "task-e02ef3e302eebc8f:chunk-1", "lens": "tests", "input_bytes": 69_684, "input_sha256": "ec1a613521d088ef2ecdd00e94792968c9d0d938bf4b9377839176fc8dcaf923"},
+        {"task_id": "task-96bd3831b4d55a43:chunk-1", "lens": "maintainability", "input_bytes": 36_640, "input_sha256": "8beef41bc1e3334ec58613deeb26462f03779a84ce021ac710c548196d8f1858"},
+        {"task_id": "task-e737705989075b6c:chunk-1", "lens": "security", "input_bytes": 69_740, "input_sha256": "dc28cb669b2d8085501dc7fcfb7decda85a8fb4ece8cf85caf3b503eed2bda61"},
     ],
 }
 
@@ -134,6 +174,21 @@ def _case_spec(case_id: str) -> dict:
             "limits_sha256": V2_LIMITS_SHA256,
             "input_cap": V2_INPUT_CAP,
             "prepare_observation": V2_PREPARE_OBSERVATION,
+        }
+    if case_id == "pr466-v3":
+        return {
+            "case_dir": V3_CASE_DIR,
+            "manifest": V3_MANIFEST,
+            "checks": V3_CHECKS,
+            "limits": V3_LIMITS,
+            "profile": V3_PROFILE,
+            "schema": V3_MANIFEST_SCHEMA,
+            "profile_version": V3_PROFILE_VERSION,
+            "profile_sha256": V3_PROFILE_SHA256,
+            "checks_sha256": V3_CHECKS_SHA256,
+            "limits_sha256": V3_LIMITS_SHA256,
+            "input_cap": V3_INPUT_CAP,
+            "prepare_observation": V3_PREPARE_OBSERVATION,
         }
     raise SafeFailure("case_not_supported")
 

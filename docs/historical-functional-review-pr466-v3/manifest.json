@@ -1,0 +1,107 @@
+{
+  "case": {
+    "base_sha": "63e3ecd2f09d79c34e3594a3be74f017a1c5a12c",
+    "head_sha": "7bce9dd246f141eb961c52ae96061203a98f083b",
+    "pull_request_number": 466,
+    "repository": "magnus919/SlopSearX"
+  },
+  "diagnostic_scope": {
+    "case_total_call_ceiling": 12,
+    "claim": "bounded functional diagnostic; prepare admission is not runtime completion, quality, calibration, or cutover evidence",
+    "claim_assessment_max": 1,
+    "effect_policy": "READ_ONLY",
+    "provider_calls_in_retained_prepare": 0,
+    "source_auditor_calls": 0,
+    "target_code_execution": false
+  },
+  "historical_checks": {
+    "captured_at": "2026-09-27T04:06:00Z",
+    "freshness_basis": "HISTORICAL_SNAPSHOT",
+    "path": "docs/historical-functional-review-pr466-v3/historical-checks.json",
+    "sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963"
+  },
+  "limits": {
+    "path": "docs/historical-functional-review-pr466-v3/limits.json",
+    "sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e"
+  },
+  "prepare_observation": {
+    "admitted_obligations": 15,
+    "dynamic_stage_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
+    "historical_checks_sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963",
+    "limits_sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e",
+    "max_claim_assessments": 1,
+    "max_context_bytes": 600000,
+    "max_input_bytes_per_task": 80000,
+    "max_provider_calls": 10,
+    "no_provider_calls": true,
+    "no_target_code_execution": true,
+    "planned_obligations": 15,
+    "primary_request_count": 7,
+    "primary_requests": [
+      {
+        "input_bytes": 72737,
+        "input_sha256": "6824360fd3f4ebcd49d9fd53f2d3200d61722b346798ac980c52e6009a47af44",
+        "lens": "correctness",
+        "task_id": "task-7235c1a0b2742b75:chunk-1"
+      },
+      {
+        "input_bytes": 50084,
+        "input_sha256": "c2930bbb95ddf98895493437dba2901d28142b2ae225d7ef3e0b428beba86270",
+        "lens": "tests",
+        "task_id": "task-128b51c6d6a45b4e:chunk-1"
+      },
+      {
+        "input_bytes": 49564,
+        "input_sha256": "502b3a6fb29dea305d0d2665084cd7645f02cad1b96a18a58de93b9e55b557dd",
+        "lens": "maintainability",
+        "task_id": "task-f25690174a4821ea:chunk-1"
+      },
+      {
+        "input_bytes": 69183,
+        "input_sha256": "6c0cac81c46bfaf8982ad50c7d8743f8549c89f11b132558b4df6479dfdcff20",
+        "lens": "correctness",
+        "task_id": "task-c18fc5c7712504f4:chunk-1"
+      },
+      {
+        "input_bytes": 69684,
+        "input_sha256": "ec1a613521d088ef2ecdd00e94792968c9d0d938bf4b9377839176fc8dcaf923",
+        "lens": "tests",
+        "task_id": "task-e02ef3e302eebc8f:chunk-1"
+      },
+      {
+        "input_bytes": 36640,
+        "input_sha256": "8beef41bc1e3334ec58613deeb26462f03779a84ce021ac710c548196d8f1858",
+        "lens": "maintainability",
+        "task_id": "task-96bd3831b4d55a43:chunk-1"
+      },
+      {
+        "input_bytes": 69740,
+        "input_sha256": "dc28cb669b2d8085501dc7fcfb7decda85a8fb4ece8cf85caf3b503eed2bda61",
+        "lens": "security",
+        "task_id": "task-e737705989075b6c:chunk-1"
+      }
+    ],
+    "primary_scope_admission_complete": true,
+    "profile_sha256": "5afcbf3cf5af235a97b59487303c28cb5c5f0942dc51cccc1ff84178617853d3",
+    "remaining_call_slots_after_primary": 3,
+    "status": "PREPARED_ONLY",
+    "total_primary_serialized_input_bytes": 417632
+  },
+  "profile": {
+    "path": "profiles/slopsearx-v11-related-implementation-context-candidate.json",
+    "sha256": "5afcbf3cf5af235a97b59487303c28cb5c5f0942dc51cccc1ff84178617853d3",
+    "version": "slopsearx-production-v11-related-implementation-context-candidate"
+  },
+  "provider_identity": {
+    "decision": {
+      "endpoint": null,
+      "model": null
+    },
+    "primary": {
+      "base_url": null,
+      "model": null
+    },
+    "status": "UNKNOWN"
+  },
+  "schema": "historical-functional-review-pr466.v3"
+}
