@@ -19,6 +19,19 @@ review = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(review)
 
 
+@pytest.fixture(autouse=True)
+def isolate_github_actions_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep local test outcomes independent of the runner's event context."""
+    for name in (
+        "GITHUB_ACTIONS",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_REF",
+        "GITHUB_SHA",
+        "GITHUB_WORKFLOW_REF",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 def _bare_repo(path: Path) -> tuple[str, str]:
     path.mkdir()
     subprocess.run(["git", "init", "--bare", str(path)], check=True, capture_output=True)
