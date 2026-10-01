@@ -26,6 +26,9 @@ class PinnedCaptureProbeProvider:
     max_output_tokens = 1_800
     max_output_items = 10
     model = "offline-probe-v1"
+    response_format = "json_schema"
+    token_limit_parameter = "max_completion_tokens"
+    reasoning_effort = "low"
 
     def _serialize_request_body(self, system, user, schema, limits):
         return OpenAIProvider._serialize_request_body(self, system, user, schema, limits)
@@ -855,6 +858,9 @@ def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_ch
         max_response_bytes = 32_768
         max_output_tokens = 1_800
         max_output_items = 10
+        response_format = "json_schema"
+        token_limit_parameter = "max_completion_tokens"
+        reasoning_effort = "low"
 
         def __init__(self):
             self.mutate = False

@@ -121,6 +121,42 @@ def test_custom_provider_api_root_paths_are_preserved_without_scheme_guessing(tm
     assert decision["endpoint"] == "https://jev.example.invalid/native/v2/systemone"
 
 
+def test_optional_llm_compatibility_options_are_operator_config_and_secret_free(tmp_path):
+    result = _run(
+        tmp_path,
+        _environment(
+            LLM_RESPONSE_FORMAT="prompted_json",
+            LLM_TOKEN_LIMIT_PARAMETER="max_tokens",
+            LLM_REASONING_EFFORT="omit",
+        ),
+    )
+    assert result.returncode == 0, result.stderr
+    paths = json.loads(result.stdout)
+    provider = json.loads(Path(paths["provider_config"]).read_text(encoding="utf-8"))
+    assert provider["response_format"] == "prompted_json"
+    assert provider["token_limit_parameter"] == "max_tokens"
+    assert provider["reasoning_effort"] is None
+    assert SENTINEL_LLM not in Path(paths["provider_config"]).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "error_code"),
+    [
+        ("LLM_RESPONSE_FORMAT", "xml", "llm_response_format_invalid"),
+        ("LLM_TOKEN_LIMIT_PARAMETER", "max_new_tokens", "llm_token_limit_parameter_invalid"),
+        ("LLM_REASONING_EFFORT", "ultra", "llm_reasoning_effort_invalid"),
+    ],
+)
+def test_invalid_compatibility_options_fail_before_config_creation(tmp_path, name, value, error_code):
+    env = _environment(**{name: value})
+    env.pop("LLM_API_KEY")
+    result = _run(tmp_path, env)
+    assert result.returncode == 2
+    assert error_code in result.stderr
+    assert not (tmp_path / "private-config").exists()
+    assert SENTINEL_LLM not in result.stderr
+
+
 def test_generator_refuses_to_overwrite_existing_directory(tmp_path):
     output = tmp_path / "private-config"
     output.mkdir()

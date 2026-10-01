@@ -28,6 +28,11 @@ ENV_NAMES = (
 MAX_ENDPOINT_BYTES = 2048
 MAX_MODEL_BYTES = 256
 MAX_CREDENTIAL_BYTES = 8192
+REQUEST_OPTION_VALUES = {
+    "LLM_RESPONSE_FORMAT": {"json_schema", "json_object", "prompted_json"},
+    "LLM_TOKEN_LIMIT_PARAMETER": {"max_completion_tokens", "max_tokens"},
+    "LLM_REASONING_EFFORT": {"none", "minimal", "low", "medium", "high", "xhigh", "omit"},
+}
 
 
 def _bounded_text(env: dict[str, str], name: str, limit: int) -> str:
@@ -83,6 +88,15 @@ def configurations_from_environment(env: dict[str, str]) -> tuple[dict[str, obje
         disallow_suffix="/chat/completions",
     )
     llm_model = _bounded_text(env, "LLM_MODEL", MAX_MODEL_BYTES)
+    request_options: dict[str, object] = {}
+    for name, allowed in REQUEST_OPTION_VALUES.items():
+        value = env.get(name)
+        if value is None:
+            continue
+        if not isinstance(value, str) or value not in allowed:
+            raise ConfigError(f"{name.lower()}_invalid")
+        key = name.removeprefix("LLM_").lower()
+        request_options[key] = None if name == "LLM_REASONING_EFFORT" and value == "omit" else value
     _bounded_text(env, "LLM_API_KEY", MAX_CREDENTIAL_BYTES)
 
     jev_base = _validate_endpoint(
@@ -100,6 +114,7 @@ def configurations_from_environment(env: dict[str, str]) -> tuple[dict[str, obje
         "model": llm_model,
         "api_key_env": "LLM_API_KEY",
     }
+    provider_config.update(request_options)
     decision_config: dict[str, object] = {
         "kind": "typesafe",
         "endpoint": f"{jev_base}/systemone",

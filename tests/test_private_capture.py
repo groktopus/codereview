@@ -431,6 +431,9 @@ class CaptureAwareProvider:
     max_response_bytes = 32_768
     max_output_tokens = 1_800
     max_output_items = 10
+    response_format = "json_schema"
+    token_limit_parameter = "max_completion_tokens"
+    reasoning_effort = "low"
 
     def serialize_review_request(self, task, evidence, limits):
         return json.dumps({"task": task, "evidence": evidence}, sort_keys=True, separators=(",", ":")).encode()
