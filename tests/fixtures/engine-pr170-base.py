@@ -1677,18 +1677,6 @@ def run_review(
         estimate = call_estimate(target, task_kind, task, evidence, fallback_size)
         return budget.reserve(key, estimate)
 
-    def reserve_local_check(key: str, input_bytes: int) -> dict:
-        """Reserve bounded local check work without charging a provider call."""
-        estimate = {
-            "provider_calls": 0,
-            "input_bytes": input_bytes,
-            "max_output_bytes": int(limits["max_output_bytes_per_task"]),
-            "max_cost_microunits": 0,
-            "reservation_kind": "operator_bound",
-            "deadline_seconds": remaining_call_limits()["deadline_seconds"],
-        }
-        return budget.reserve(key, estimate, kind="deterministic_check")
-
     def validated_check_evidence(task: dict, payload: dict) -> list[str]:
         """Bind deterministic-check outputs to the exact ingested evidence.
 
@@ -1767,10 +1755,6 @@ def run_review(
 
     if limits.get("max_cost_microunits") is not None:
         for planned_task in tasks:
-            if planned_task.get("task_kind") == "DETERMINISTIC_CHECK":
-                # Deterministic checks are bounded local work, not provider
-                # calls requiring a provider quote.
-                continue
             target = check_adapter if planned_task.get("task_kind") == "DETERMINISTIC_CHECK" else provider
             if target is None:
                 continue
@@ -1809,34 +1793,7 @@ def run_review(
             _validate_context_followup_task(task, ledger, snapshot, obligation_by_id, task_by_id)
             _validate_bound_specialist_input(task, snapshot, profile, evidence)
         required_size = review_input_size(task, evidence)
-        invocation_limits = {**remaining_call_limits(), "attempt_index": attempt_index}
-        if is_check:
-            binding_id = task.get("check_binding_id")
-            external_results = snapshot.get("external_check_results", {})
-            evidence_map = snapshot.get("evidence", {})
-            source_result = external_results.get(binding_id) if isinstance(external_results, dict) else None
-            bound_result = (
-                {key: source_result[key] for key in ("outcome", "evidence_id") if key in source_result}
-                if isinstance(source_result, dict)
-                else None
-            )
-            check_snapshot = {
-                "repository": snapshot.get("repository"),
-                "pull_request_number": snapshot.get("pull_request_number"),
-                "head_sha": snapshot.get("head_sha"),
-                "external_check_results": {binding_id: bound_result} if isinstance(bound_result, dict) else {},
-                "evidence": {},
-            }
-            evidence_id = bound_result.get("evidence_id") if isinstance(bound_result, dict) else None
-            if isinstance(evidence_id, str) and isinstance(evidence_map, dict):
-                bound_evidence = evidence_map.get(evidence_id)
-                if isinstance(bound_evidence, dict):
-                    check_snapshot["evidence"][evidence_id] = bound_evidence
-            invocation_args = (task, check_snapshot, profile, invocation_limits)
-            required_size = len(_canonical(invocation_args))
-            task_input_ceiling = int(limits["max_input_bytes_per_task"])
-        else:
-            task_input_ceiling = input_ceiling
+        task_input_ceiling = int(limits["max_input_bytes_per_task"]) if is_check else input_ceiling
         if required_size > task_input_ceiling:
             return {
                 "task_id": task_id,
@@ -1846,17 +1803,14 @@ def run_review(
             }
         reservation_key = f"{task_id}:{'check' if is_check else 'review'}:{attempt_index}"
         try:
-            if is_check:
-                reservation = reserve_local_check(reservation_key, required_size)
-            else:
-                reservation = reserve_provider_call(
-                    reservation_key,
-                    target,
-                    kind,
-                    task,
-                    evidence,
-                    required_size,
-                )
+            reservation = reserve_provider_call(
+                reservation_key,
+                target,
+                kind,
+                task,
+                evidence,
+                len(_canonical({"task": task, "evidence": evidence})) if is_check else required_size,
+            )
         except BudgetExhausted as exc:
             return {
                 "task_id": task_id,
@@ -1873,6 +1827,7 @@ def run_review(
                 "error_summary": type(exc).__name__,
                 "attempts": attempt_index,
             }
+        invocation_limits = {**remaining_call_limits(), "attempt_index": attempt_index}
         capture_spec = None
         if capturing:
             capture_spec = private_capture.begin_call(run_id=run_id, task_id=task_id, attempt=attempt_index)
@@ -1890,10 +1845,9 @@ def run_review(
                     "expected_task_id": task_id,
                     "expected_request_sha256": pin["input_sha256"],
                 })
-        args = invocation_args if is_check else (
+        args = (task, snapshot, profile, invocation_limits) if is_check else (
             (task, evidence, invocation_limits, capture_spec, write_provider_exchange)
-            if capturing
-            else (task, evidence, invocation_limits)
+            if capturing else (task, evidence, invocation_limits)
         )
         try:
             invocation = IsolatedInvocation(

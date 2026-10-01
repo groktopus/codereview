@@ -102,6 +102,44 @@ def test_report_renders_bounded_plain_text_reason_from_native_string_contract():
     assert "Specialist reported partial coverage: Changed dependency has no related test evidence." in rendered
 
 
+def test_historical_freshness_and_provider_call_reservations_are_labeled_without_live_claims():
+    result = result_with_coverage_reason("NO_TEST_SOURCE_SUPPLIED")
+    result["freshness"] = "CURRENT"
+    result["freshness_details"] = {
+        "freshness_basis": "HISTORICAL_SNAPSHOT",
+        "expected_head_sha": "c" * 40,
+        "observed_head_sha": "c" * 40,
+    }
+    result["budget"] = {
+        "provider_calls_reserved": 10,
+        "provider_calls_limit": 10,
+        "context_bytes_reserved": 389_656,
+        "context_bytes_limit": 600_000,
+        "output_bytes_reserved": 160_000,
+        "output_bytes_limit": 192_000,
+        "cost": "UNKNOWN",
+    }
+
+    rendered = render_report(result)
+
+    assert r"Freshness: CURRENT (basis: HISTORICAL\_SNAPSHOT)" in rendered
+    assert "Historical snapshot freshness compares the fixed revisions only" in rendered
+    assert "it does not check the pull request's current state." in rendered
+    assert "provider-call reservations 10/10" in rendered
+    assert "10/10 calls" not in rendered
+
+
+def test_live_freshness_basis_is_rendered_without_historical_disclaimer():
+    result = result_with_coverage_reason("NO_TEST_SOURCE_SUPPLIED")
+    result["freshness"] = "CURRENT"
+    result["freshness_details"] = {"freshness_basis": "GITHUB_API"}
+
+    rendered = render_report(result)
+
+    assert r"Freshness: CURRENT (basis: GITHUB\_API)" in rendered
+    assert "Historical snapshot freshness" not in rendered
+
+
 @pytest.mark.parametrize("binding", ["unit", "task", "evidence"])
 def test_report_rejects_specialist_reason_without_scope_task_and_source_bindings(binding):
     result = result_with_coverage_reason("changed_dependency_has_no_related_test_evidence")

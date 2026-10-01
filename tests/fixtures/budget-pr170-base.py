@@ -405,7 +405,6 @@ class BudgetLedger:
             reservations = list(self.state["reservations"].values())
             settlements = self.state["settlements"]
             provider_reservations = [r for r in reservations if r.get("provider_calls", 0) > 0]
-            local_check_reservations = [r for r in reservations if r.get("kind") == "deterministic_check"]
             billed = [settlements.get(r["key"], {}).get("billed_cost_microunits") for r in provider_reservations]
             estimated = [settlements.get(r["key"], {}).get("estimated_cost_microunits") for r in provider_reservations]
 
@@ -418,11 +417,6 @@ class BudgetLedger:
             return {
                 "provider_calls_reserved": sum(r.get("provider_calls", 0) for r in reservations),
                 "provider_calls_limit": self.limits["max_provider_calls"],
-                "local_check_reservations": len(local_check_reservations),
-                "local_check_input_bytes_reserved": sum(r.get("input_bytes", 0) for r in local_check_reservations),
-                "local_check_output_bytes_reserved": sum(
-                    r.get("max_output_bytes", 0) for r in local_check_reservations
-                ),
                 "context_bytes_reserved": sum(r.get("input_bytes", 0) for r in reservations),
                 "context_bytes_limit": self.limits["max_context_bytes"],
                 "output_bytes_reserved": sum(r.get("max_output_bytes", 0) for r in reservations),

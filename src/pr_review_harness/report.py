@@ -54,12 +54,20 @@ def render_report(result: dict) -> str:
         raise ValueError("report requires exactly four section arrays")
     _validate_blocker_projection(result.get("findings", []), sections["blockers"])
 
+    freshness_details = result.get("freshness_details")
+    freshness_basis = freshness_details.get("freshness_basis") if isinstance(freshness_details, dict) else None
+    freshness_text = safe(result.get("freshness", "UNKNOWN"))
+    if isinstance(freshness_basis, str) and freshness_basis:
+        freshness_text += f" (basis: {safe(freshness_basis)})"
+
     lines = [
         f"PR review {safe(result.get('run_id', 'unknown'))}: {safe(result.get('disposition', 'INCOMPLETE'))}",
-        f"Coverage: {result.get('coverage_state', 'NOT_STARTED')} | Freshness: {result.get('freshness', 'UNKNOWN')} | Merge eligibility: {result.get('merge_eligibility', 'NOT_EVALUATED')}",
+        f"Coverage: {result.get('coverage_state', 'NOT_STARTED')} | Freshness: {freshness_text} | Merge eligibility: {result.get('merge_eligibility', 'NOT_EVALUATED')}",
         f"Reviewed: {safe(result.get('base_sha', 'unknown'))}..{safe(result.get('head_sha', 'unknown'))} | Profile: {safe(result.get('project_profile_version', 'unknown'))}",
-        f"Budgets: {result.get('budget', {}).get('provider_calls_reserved', 0)}/{result.get('budget', {}).get('provider_calls_limit', 'unknown')} calls; input {result.get('budget', {}).get('context_bytes_reserved', 0)}/{result.get('budget', {}).get('context_bytes_limit', 'unknown')} bytes; output {result.get('budget', {}).get('output_bytes_reserved', 0)}/{result.get('budget', {}).get('output_bytes_limit', 'unknown')} bytes; cost {safe(result.get('budget', {}).get('cost', 'UNKNOWN'))}.",
+        f"Budgets: provider-call reservations {result.get('budget', {}).get('provider_calls_reserved', 0)}/{result.get('budget', {}).get('provider_calls_limit', 'unknown')}; input {result.get('budget', {}).get('context_bytes_reserved', 0)}/{result.get('budget', {}).get('context_bytes_limit', 'unknown')} bytes; output {result.get('budget', {}).get('output_bytes_reserved', 0)}/{result.get('budget', {}).get('output_bytes_limit', 'unknown')} bytes; cost {safe(result.get('budget', {}).get('cost', 'UNKNOWN'))}.",
     ]
+    if freshness_basis == "HISTORICAL_SNAPSHOT":
+        lines.append("Historical snapshot freshness compares the fixed revisions only; it does not check the pull request's current state.")
     names = (
         ("Blockers", "blockers"),
         ("Suggested improvements", "suggested_improvements"),

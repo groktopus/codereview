@@ -31,6 +31,15 @@ def _inventory_hashes(source_root: Path) -> tuple[int, str, str]:
 
 
 def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path):
+    assert hashlib.sha256(frozen_runtime.FROZEN_ENGINE.read_bytes()).hexdigest() == (
+        "da5923ea3b1cf8902612e0c6d97ba4aef64cbe5af80da014a3615d6488656977"
+    )
+    assert hashlib.sha256(frozen_runtime.FROZEN_BUDGET.read_bytes()).hexdigest() == (
+        "d061b7e6e81ec75b52fb11ae8e74accdcab3a2308bdeeaeb3a46290d6669ff41"
+    )
+    assert hashlib.sha256(frozen_runtime.FROZEN_PLANNER.read_bytes()).hexdigest() == (
+        "82bc1851dc593ad5d17abf4f4ff2bb1185c33916051f1388813437db58a052ff"
+    )
     assert hashlib.sha256(frozen_runtime.FROZEN_PUBLICATION_RECEIPTS.read_bytes()).hexdigest() == (
         "c31cf6bddbd10e3ad5b663b79d0ead51046f6d8279561b7d6c0d84f831f3ab41"
     )
@@ -94,7 +103,7 @@ def test_modified_historical_module_bytes_are_rejected(tmp_path: Path, monkeypat
     source_root = tmp_path / "source"
     source_dir = source_root / "src/pr_review_harness"
     shutil.copytree(ROOT / "src/pr_review_harness", source_dir)
-    with (source_dir / "engine.py").open("ab") as source:
+    with (source_dir / "checks.py").open("ab") as source:
         source.write(b"\n# changed historical module\n")
     monkeypatch.setattr(frozen_runtime, "ROOT", source_root)
     with pytest.raises(AssertionError, match="historical inventory"):

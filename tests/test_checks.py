@@ -1,8 +1,10 @@
 import json
+import time
 from pathlib import Path
 
 import pytest
 
+from pr_review_harness.budget import BudgetExhausted, BudgetLedger
 from pr_review_harness.checks import CheckEvidenceError, GitHubCheckAdapter, ingest_check_runs, make_check_runs_document
 from pr_review_harness.engine import run_review
 from pr_review_harness.planner import plan_review
@@ -10,6 +12,30 @@ from pr_review_harness.planner import plan_review
 HEAD = "a" * 40
 REQUEST = {"repository": "owner/repo", "pull_request_number": 7, "head_sha": HEAD}
 BINDINGS = [{"id": "unit-tests", "github_check_name": "unit-tests", "github_app_id": 12}]
+
+
+class OneCallProvider:
+    identity = {"kind": "test", "model": "one-call"}
+
+    def review(self, task, _evidence, _limits):
+        return {
+            "payload": {
+                "finding_candidates": [],
+                "context_gap_proposals": [],
+                "coverage_notes": [
+                    {
+                        "unit_id": unit_id,
+                        "state": "COVERED",
+                        "reason_code": "REVIEWED",
+                        "evidence_refs": list(task["evidence_ids"]),
+                        "coverage_basis": "STATIC_REVIEW",
+                    }
+                    for unit_id in task["unit_ids"]
+                ],
+            },
+            "usage": {"input_tokens": 1},
+            "provenance": {"provider": "test"},
+        }
 
 
 def test_check_run_success_is_sha_and_binding_bound_evidence():
@@ -337,6 +363,69 @@ def test_engine_check_coverage_preserves_actual_ingested_binding_evidence(tmp_pa
         assert task_result["payload"]["evidence_refs"] == [evidence_id]
         assert rows[binding_id]["state"] == "COMPLETE"
         assert rows[binding_id]["evidence_refs"] == [evidence_id]
+    assert result["budget"]["provider_calls_reserved"] == 0
+    assert result["budget"]["local_check_reservations"] == 2
+    assert result["budget"]["local_check_input_bytes_reserved"] > 0
+    assert result["budget"]["local_check_output_bytes_reserved"] > 0
+
+
+def test_local_checks_do_not_consume_provider_call_cap(tmp_path):
+    snapshot, profile, _plan, limits = _fixture_engine_inputs()
+    snapshot["unrelated_large_context"] = "x" * 50_000
+    profile["required_lenses"] = ["correctness", "security"]
+    plan = plan_review(snapshot, profile, "AUTO")
+    limits["max_provider_calls"] = 1
+    limits["max_input_bytes_per_task"] = 8_192
+
+    provider = OneCallProvider()
+    result = run_review(
+        snapshot,
+        plan,
+        profile,
+        provider,
+        None,
+        limits,
+        str(tmp_path),
+        "tight-provider-cap",
+        check_adapter=GitHubCheckAdapter(),
+    )
+
+    assert result["budget"]["provider_calls_reserved"] == 1
+    assert result["budget"]["provider_calls_limit"] == 1
+    assert result["budget"]["local_check_reservations"] == 2
+    assert result["budget"]["local_check_input_bytes_reserved"] < 8_192 * 2
+    check_results = [
+        result["task_results"][task["task_id"]]
+        for task in plan["tasks"]
+        if task["task_kind"] == "DETERMINISTIC_CHECK"
+    ]
+    assert len(check_results) == 2
+    assert all(item["status"] == "SUCCEEDED" for item in check_results)
+    specialist_task_ids = {
+        task["task_id"] for task in plan["tasks"] if task["task_kind"] == "SPECIALIST_FINDINGS"
+    }
+    specialist_results = [
+        item
+        for item in result["task_results"].values()
+        if item.get("task_id", "").split(":chunk-", maxsplit=1)[0] in specialist_task_ids
+    ]
+    assert len(specialist_results) == 2
+    assert sum(item["status"] == "SUCCEEDED" for item in specialist_results) == 1
+    assert sum(item.get("error_code") == "PROVIDER_CALL_BUDGET_EXHAUSTED" for item in specialist_results) == 1
+
+    ledger = BudgetLedger(limits, {}, deadline_epoch=time.time() + 10)
+    local_check_estimate = {
+        "provider_calls": 0,
+        "input_bytes": 100,
+        "max_output_bytes": 100,
+        "max_cost_microunits": 0,
+        "reservation_kind": "operator_bound",
+    }
+    ledger.reserve("check-one", local_check_estimate, kind="deterministic_check")
+    ledger.reserve("check-two", {**local_check_estimate, "input_bytes": 101}, kind="deterministic_check")
+    ledger.reserve("provider-one", {"provider_calls": 1, "input_bytes": 100, "max_output_bytes": 100})
+    with pytest.raises(BudgetExhausted, match="PROVIDER_CALL_BUDGET_EXHAUSTED"):
+        ledger.reserve("provider-two", {"provider_calls": 1, "input_bytes": 100, "max_output_bytes": 100})
 
 
 def test_matching_required_check_with_missing_evidence_is_unknown_and_partial(tmp_path):
@@ -351,6 +440,8 @@ def test_matching_required_check_with_missing_evidence_is_unknown_and_partial(tm
     assert all(row["reason_code"] == "CHECK_RESULT_UNAVAILABLE" for row in check_rows)
     assert all(row["evidence_refs"] == [] for row in check_rows)
     assert result["coverage_state"] == "PARTIAL"
+    assert result["budget"]["provider_calls_reserved"] == 0
+    assert result["budget"]["local_check_reservations"] == 2
 
 
 @pytest.mark.parametrize("mismatch", ["cross_binding", "missing_snapshot_evidence", "missing_reference"])

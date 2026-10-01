@@ -72,6 +72,34 @@ inference budgets must set both fields explicitly.
 
 ## Measurement and current limitation
 
+### Opt-in related HEAD context (v2)
+
+`context-selection.v2` keeps the v1 envelope and adds a required
+`head_context_paths` array to every binding. An empty array retains BASE-only
+binding behavior. Each entry is a unique exact relative path within the trusted
+profile's existing context or retrieval allowlist; directory and symbol lookup
+are not added. V1 profiles retain their existing schema and behavior.
+
+For those paths, the planner selects already-captured changed-HEAD diffs and
+complete HEAD source windows, checking their snapshot, revision, path, content
+hash and provenance. A complete window is not a complete-file anchor. Related
+evidence stays untrusted PR content and does not expand task ownership, lenses
+or obligations. BASE policy remains authoritative. No additional Git reads or
+target execution occur during this selection.
+
+Both BASE context and related HEAD evidence consume the same binding and
+aggregate limits. Missing, malformed, stale, truncated or over-cap required
+HEAD context creates an unresolved required-context reference; the engine
+cannot treat that task as complete. The opt-in
+`profiles/slopsearx-v9-context-candidate.json` is a diagnostic candidate, not a
+deployed profile. Its historical PR466 implementation binding exceeds the
+unchanged 18,000-byte cap when all existing BASE dependencies and the requested
+test/documentation windows are included. That gap remains explicit; the v8
+profile and target selection are unchanged. Documentation supplies a declared
+contract, not evidence of actual external-client behavior.
+
+### Historical v1 preflight
+
 The PR 464 preflight used the same frozen base/head pair and the current full
 applicable policy, with the existing 64 KB per-request and 300 KB per-snapshot
 experiment limits. The full-policy selection attempt planned 14 specialist
