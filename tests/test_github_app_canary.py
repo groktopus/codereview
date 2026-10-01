@@ -142,6 +142,7 @@ class FakeTransport:
             return {
                 "number": 44,
                 "state": "open",
+                "draft": False,
                 "base": {"sha": "b" * 40, "ref": "main", "repo": {"id": REPO_ID}},
                 "head": {"sha": "a" * 40, "ref": "feature/update-dependency"},
             }, 200
@@ -358,6 +359,27 @@ def test_wrong_default_base_pr_identity_rejects_before_app_key_access(base_field
             base = dict(payload["base"])
             base[base_field] = value
             payload = {**payload, "base": base}
+        return status, payload
+
+    with pytest.raises(GitHubPublicationError, match="github_app_canary_pull_request_mismatch"):
+        invoke(
+            transport=FakeTransport(mutate=mutate),
+            key_supplier=lambda: key_calls.append("read") or private_key_pem(),
+        )
+    assert key_calls == []
+
+
+@pytest.mark.parametrize("draft", [True, None])
+def test_draft_or_unverified_pr_rejects_before_app_key_access(draft):
+    key_calls = []
+
+    def mutate(index, method, url, status, payload):
+        if index == 3:
+            payload = {**payload}
+            if draft is None:
+                payload.pop("draft", None)
+            else:
+                payload["draft"] = draft
         return status, payload
 
     with pytest.raises(GitHubPublicationError, match="github_app_canary_pull_request_mismatch"):

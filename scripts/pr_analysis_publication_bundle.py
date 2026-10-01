@@ -207,7 +207,7 @@ def _identity_from_run(
     pr_number = _positive_int(env, "PR_NUMBER")
     if _api_positive_int(pull_request.get("number"), "github_pull_request_number_invalid") != pr_number:
         raise BundleError("github_pull_request_identity_mismatch")
-    if pull_request.get("state") != "open" or pull_request.get("draft") is True:
+    if pull_request.get("state") != "open" or pull_request.get("draft") is not False:
         raise BundleError("github_pull_request_not_open_ready")
     base = pull_request.get("base")
     head = pull_request.get("head")

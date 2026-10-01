@@ -347,6 +347,7 @@ def verify_github_app_identity_canary(
     if (
         not _id_matches(pr.get("number"), platform.pull_request_number)
         or pr.get("state") != "open"
+        or pr.get("draft") is not False
         or not isinstance(base, dict)
         or base.get("sha") != platform.base_sha
         or base.get("ref") != platform.default_branch
