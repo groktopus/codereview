@@ -88,23 +88,39 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
 
     cli_calls: list[dict] = []
 
-    def cli(
-        target: Path, output: Path, provider: Path, decision: Path, *, prepare: bool, case_id: str
-    ) -> dict:
+    def cli(target: Path, output: Path, provider: Path, decision: Path, *, prepare: bool, case_id: str) -> dict:
         cli_calls.append({"target": target, "prepare": prepare, "case_id": case_id})
         assert prepare is True
-        if case_id in ("pr466-v2", "pr466-v3"):
+        if case_id in ("pr466-v2", "pr466-v3", "pr466-v4"):
             prepare_observation = review._case_spec(case_id)["prepare_observation"]
             requests = prepare_observation["primary_requests"]
+            if case_id == "pr466-v4":
+                requests = [
+                    {
+                        **row,
+                        "admitted": True,
+                        "context_omissions": [],
+                        "evidence_bindings": (
+                            [
+                                {
+                                    key: value
+                                    for key, value in review.V4_PROJECTION.items()
+                                    if key != "included_primary_task_ids"
+                                }
+                            ]
+                            if row["task_id"] in review.V4_PROJECTION["included_primary_task_ids"]
+                            else []
+                        ),
+                    }
+                    for row in requests
+                ]
             return {
                 "no_provider_calls": True,
                 "no_target_code_execution": True,
-                "scope": {"primary_scope_admission_complete": True},
+                "scope": {"primary_scope_admission_complete": True, "required_context_gaps": []},
                 "capacity": {
                     "exact_primary_call_demand": prepare_observation["primary_request_count"],
-                    "exact_primary_serialized_input_bytes": prepare_observation[
-                        "total_primary_serialized_input_bytes"
-                    ],
+                    "exact_primary_serialized_input_bytes": prepare_observation["total_primary_serialized_input_bytes"],
                 },
                 "primary_requests": requests,
             }
@@ -183,7 +199,7 @@ def test_registered_case_manifest_and_limits_are_exact(case_id: str) -> None:
 
 @pytest.mark.parametrize(
     ("case_id", "input_bytes"),
-    [("pr466-v1", 64_001), ("pr466-v2", 80_001), ("pr466-v3", 80_001)],
+    [("pr466-v1", 64_001), ("pr466-v2", 80_001), ("pr466-v3", 80_001), ("pr466-v4", 80_001)],
 )
 def test_case_specific_request_input_caps_remain_bounded(case_id: str, input_bytes: int) -> None:
     with pytest.raises(review.SafeFailure, match="primary_request_capacity_exceeded"):
@@ -210,6 +226,11 @@ def test_v2_prepare_observation_descriptors_match_committed_packet() -> None:
 def test_v3_prepare_observation_descriptors_match_committed_packet() -> None:
     packet = json.loads(review.V3_MANIFEST.read_text(encoding="utf-8"))
     assert review.V3_PREPARE_OBSERVATION == packet["prepare_observation"]
+
+
+def test_v4_prepare_observation_descriptors_match_committed_packet() -> None:
+    packet = json.loads(review.V4_MANIFEST.read_text(encoding="utf-8"))
+    assert review.V4_PREPARE_OBSERVATION == packet["prepare_observation"]
 
 
 def test_prepare_rejects_missing_execution_invariants() -> None:
@@ -267,11 +288,87 @@ def test_v3_profile_hash_mismatch_fails_closed(monkeypatch) -> None:
         review._validate_source_and_inputs("pr466-v3")
 
 
+def test_v4_profile_hash_mismatch_fails_closed(monkeypatch) -> None:
+    monkeypatch.setattr(review, "V4_PROFILE_SHA256", "0" * 64)
+    with pytest.raises(review.SafeFailure, match="case_input_hash_mismatch"):
+        review._validate_source_and_inputs("pr466-v4")
+
+
 def test_v3_case_uses_v2_checks_and_limits_without_changing_caps() -> None:
     assert review.V3_CHECKS.read_bytes() == review.V2_CHECKS.read_bytes()
     assert review.V3_LIMITS.read_bytes() == review.V2_LIMITS.read_bytes()
     assert review._case_spec("pr466-v3")["input_cap"] == review.V2_INPUT_CAP
     assert review.DEFAULT_CASE == "pr466-v1"
+
+
+def test_v4_case_preserves_v3_checks_limits_and_default() -> None:
+    assert review.V4_CHECKS.read_bytes() == review.V3_CHECKS.read_bytes()
+    assert review.V4_LIMITS.read_bytes() == review.V3_LIMITS.read_bytes()
+    assert review._case_spec("pr466-v4")["input_cap"] == review.V3_INPUT_CAP
+    assert review.DEFAULT_CASE == "pr466-v1"
+
+
+def _valid_v4_prepare_result() -> dict:
+    requests = []
+    for row in review.V4_PREPARE_OBSERVATION["primary_requests"]:
+        requests.append(
+            {
+                **row,
+                "admitted": True,
+                "context_omissions": [],
+                "evidence_bindings": (
+                    [{key: value for key, value in review.V4_PROJECTION.items() if key != "included_primary_task_ids"}]
+                    if row["task_id"] in review.V4_PROJECTION["included_primary_task_ids"]
+                    else []
+                ),
+            }
+        )
+    return {
+        "no_provider_calls": True,
+        "no_target_code_execution": True,
+        "scope": {"primary_scope_admission_complete": True, "required_context_gaps": []},
+        "capacity": {
+            "exact_primary_call_demand": len(requests),
+            "exact_primary_serialized_input_bytes": review.V4_PREPARE_OBSERVATION[
+                "total_primary_serialized_input_bytes"
+            ],
+        },
+        "primary_requests": requests,
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing", "dependency_projection_required_context_invalid"),
+        ("wrong_revision", "dependency_projection_required_context_invalid"),
+        ("wrong_hash", "dependency_projection_required_context_invalid"),
+        ("required_gap", "dependency_projection_required_context_invalid"),
+    ],
+)
+def test_v4_requires_exact_head_dependency_projection(mutation: str, message: str) -> None:
+    result = _valid_v4_prepare_result()
+    if mutation == "missing":
+        result["primary_requests"][0]["evidence_bindings"] = []
+    elif mutation == "wrong_revision":
+        result["primary_requests"][0]["evidence_bindings"][0]["source_revision"] = "0" * 40
+    elif mutation == "wrong_hash":
+        result["primary_requests"][0]["evidence_bindings"][0]["content_hash"] = "0" * 64
+    else:
+        result["scope"]["required_context_gaps"] = ["required-dependency-context-missing"]
+    with pytest.raises(review.SafeFailure, match=message):
+        review._validate_prepare(result, "pr466-v4")
+
+
+def test_v4_live_prepare_allows_provider_specific_sizes_without_changing_scope() -> None:
+    result = _valid_v4_prepare_result()
+    for request in result["primary_requests"]:
+        request["input_bytes"] += 1
+        request["input_sha256"] = "a" * 64
+    result["capacity"]["exact_primary_serialized_input_bytes"] += len(result["primary_requests"])
+    with pytest.raises(review.SafeFailure, match="case_prepare_observation_mismatch"):
+        review._validate_prepare(result, "pr466-v4")
+    review._validate_prepare(result, "pr466-v4", reference_observation=False)
 
 
 def test_custom_manifest_directory_cannot_replace_registered_case(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -280,8 +377,16 @@ def test_custom_manifest_directory_cannot_replace_registered_case(tmp_path: Path
         sys,
         "argv",
         [
-            str(SCRIPT), "prepare", "--case", "pr466-v2", "--manifest-dir", str(tmp_path),
-            "--target-bare", str(tmp_path), "--output-dir", str(tmp_path / "out"),
+            str(SCRIPT),
+            "prepare",
+            "--case",
+            "pr466-v2",
+            "--manifest-dir",
+            str(tmp_path),
+            "--target-bare",
+            str(tmp_path),
+            "--output-dir",
+            str(tmp_path / "out"),
         ],
     )
     assert review.main() == 2
@@ -414,5 +519,7 @@ def test_workflow_uses_trusted_checkout_and_exact_artifact_allowlists() -> None:
     ]
     assert live["if"].startswith("inputs.execute_live == true")
     for job in (prepare, live):
-        invocation = next(step["run"] for step in job["steps"] if "run_historical_functional_review.py" in step.get("run", ""))
+        invocation = next(
+            step["run"] for step in job["steps"] if "run_historical_functional_review.py" in step.get("run", "")
+        )
         assert '--case "$CASE_ID"' in invocation
