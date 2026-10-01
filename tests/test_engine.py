@@ -2507,6 +2507,73 @@ def test_oversized_untrusted_retriever_is_rejected_by_ipc_without_metadata_leak(
     assert result["budget"]["followup_tasks_reserved"] == 0
 
 
+class OfflineNativeNotesOpenAIProvider(OpenAIProvider):
+    response = {
+        "contract_version": "specialist-findings.v4",
+        "finding_candidates": [],
+        "context_gap_proposals": [],
+        "coverage_notes": [
+            {
+                "unit_id": "u0",
+                "state": "COVERED",
+                "reason_code": "STATIC_REVIEW",
+                "evidence_refs": ["diff:u0"],
+                "coverage_basis": "STATIC_REVIEW",
+            }
+        ],
+        "specific_strengths": [
+            {
+                "unit_id": "u0",
+                "title": "Bounded input",
+                "observation": "The changed path validates its input.",
+                "why_it_matters": "Invalid values cannot cross the boundary unchecked.",
+                "evidence_refs": ["diff:u0"],
+            }
+        ],
+        "future_guidance": [
+            {
+                "unit_id": "u0",
+                "title": "Keep the contract fixture",
+                "observation": "The change adds a boundary test.",
+                "guidance": "Retain this fixture when the input contract evolves.",
+                "evidence_refs": ["diff:u0"],
+            }
+        ],
+    }
+
+    def _call(self, **_kwargs):
+        return self.response, {"usage": {}, "provenance": {"provider": "offline-native-adapter"}}
+
+
+def test_native_openai_adapter_normalizes_optional_notes_before_engine_settlement(tmp_path):
+    provider = OfflineNativeNotesOpenAIProvider(
+        {
+            "kind": "openai-compatible",
+            "base_url": "https://provider.invalid/v1",
+            "model": "adapter-contract-test",
+            "api_key_env": "UNUSED_TEST_CREDENTIAL_REFERENCE",
+            "semantic_adjudication": False,
+        }
+    )
+    result = run(tmp_path, provider=provider)
+
+    assert result["coverage_state"] == "COMPLETE"
+    assert result["report_sections"]["specific_strengths"][0]["why_it_matters"] == (
+        "Invalid values cannot cross the boundary unchecked."
+    )
+    assert result["report_sections"]["future_guidance"][0]["guidance"] == (
+        "Retain this fixture when the input contract evolves."
+    )
+    task_result = next(row for row in result["task_results"].values() if row["status"] == "SUCCEEDED")
+    assert task_result["payload"]["specific_strengths"][0] == {
+        "unit_id": "u0",
+        "title": "Bounded input",
+        "observation": "The changed path validates its input.",
+        "detail": "Invalid values cannot cross the boundary unchecked.",
+        "evidence_refs": ["diff:u0"],
+    }
+
+
 def test_v4_notes_are_evidence_linked_and_invalid_optional_notes_do_not_gate(tmp_path):
     valid = run(tmp_path / "valid", provider=NoteProvider())
     note = valid["report_sections"]["specific_strengths"][0]

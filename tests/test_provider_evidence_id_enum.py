@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from pr_review_harness import contracts
 from pr_review_harness.engine import run_review
 from pr_review_harness.planner import plan_review
 from pr_review_harness.providers import OpenAIProvider, ProviderError, _validate_specialist
@@ -335,3 +336,23 @@ def test_invalid_optional_note_does_not_change_valid_local_coverage(tmp_path):
             and row["reason_code"] in {"report_note_references_unknown_evidence", "invalid_report_note"}
             for row in output["quarantined_items"]
         )
+
+
+def test_coverage_note_schema_matches_validator_bounds_and_task_scope():
+    provider = OpenAIProvider(
+        {
+            "kind": "openai-compatible",
+            "base_url": "https://provider.invalid/v1",
+            "model": "schema-contract-test",
+            "api_key_env": "UNUSED_TEST_CREDENTIAL_REFERENCE",
+        }
+    )
+    task = {"task_id": "t1", "unit_ids": ["u1", "u2"]}
+    body = provider.serialize_review_request(task, [], {"max_output_tokens": 64})
+    schema = json.loads(body)["response_format"]["json_schema"]["schema"]
+    coverage_schema = schema["properties"]["coverage_notes"]
+    assert coverage_schema["maxItems"] == provider.max_output_items
+    item = coverage_schema["items"]["properties"]
+    assert item["unit_id"]["enum"] == ["u1", "u2"]
+    assert item["reason_code"] == {"type": "string", "minLength": 1, "maxLength": 256}
+    assert item["evidence_refs"]["maxItems"] == contracts.MAX_REF_COUNT

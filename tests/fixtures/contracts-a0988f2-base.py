@@ -311,18 +311,16 @@ def validate_coverage_note(item: Any, source_version: str) -> dict[str, Any]:
     )
     if isinstance(item, dict) and source_version == SPECIALIST_V1 and set(item) == required | {"coverage_basis"}:
         expected = set(item)
-    value = _require_fields(item, expected, "invalid_coverage_note_fields")
-    if not _is_text(value["unit_id"], 256):
-        raise ContractIssue("invalid_coverage_note_unit_id")
-    if not _is_text(value["reason_code"], 256):
-        raise ContractIssue("invalid_coverage_note_reason_code")
-    if not isinstance(value["state"], str) or value["state"] not in {"COVERED", "PARTIAL", "NOT_COVERED"}:
-        raise ContractIssue("invalid_coverage_note_state")
+    value = _require_fields(item, expected, "invalid_coverage_note")
+    if not _is_text(value["unit_id"], 256) or not _is_text(value["reason_code"], 256):
+        raise ContractIssue("invalid_coverage_note")
+    if value["state"] not in {"COVERED", "PARTIAL", "NOT_COVERED"}:
+        raise ContractIssue("invalid_coverage_note")
     refs = value["evidence_refs"]
     if not isinstance(refs, list) or len(refs) > MAX_REF_COUNT or any(not _is_text(ref, 256) for ref in refs):
-        raise ContractIssue("invalid_coverage_note_evidence_refs")
+        raise ContractIssue("invalid_coverage_note")
     if value["state"] == "COVERED" and not refs:
-        raise ContractIssue("coverage_note_evidence_required")
+        raise ContractIssue("invalid_coverage_note")
     if "coverage_basis" in value and value["coverage_basis"] != "STATIC_REVIEW":
         raise ContractIssue("invalid_coverage_basis")
     # This is a claim about static evidence reviewed, never command execution.
@@ -358,15 +356,7 @@ def validate_report_note(
         raise ContractIssue("invalid_report_note_evidence_refs")
     if valid_evidence_ids is not None and not set(refs).issubset(valid_evidence_ids):
         raise ContractIssue("report_note_references_unknown_evidence")
-    # Provider V4 keeps user-facing field names; the engine's private payload
-    # contract uses one canonical detail field for both note kinds.
-    return {
-        "unit_id": value["unit_id"],
-        "title": value["title"],
-        "observation": value["observation"],
-        "detail": value[detail_key],
-        "evidence_refs": list(refs),
-    }
+    return value
 
 
 def validate_specialist(
