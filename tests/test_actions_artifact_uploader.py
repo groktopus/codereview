@@ -11,6 +11,10 @@ import pytest
 
 ACTION = Path(__file__).parents[1] / "scripts/actions-artifact-uploader"
 NODE = shutil.which("node")
+# Outer test-process bounds include interpreter/Node startup and scheduling;
+# action-level deadlines and elapsed-time assertions remain independently tight.
+NODE_HARNESS_PROCESS_TIMEOUT = 15
+NODE_PRELOAD_PROCESS_TIMEOUT = 10
 
 _STAGE_PRELOAD = r"""
 const fs = require('node:fs');
@@ -216,7 +220,7 @@ def _run_canary_with_fake_python(tmp_path, child_source, *, deadline_ms=500, pat
         env=env,
         capture_output=True,
         text=True,
-        timeout=5,
+        timeout=NODE_HARNESS_PROCESS_TIMEOUT,
         check=False,
     )
     return completed, time.monotonic() - started
@@ -269,7 +273,7 @@ def test_node_action_passes_runtime_credentials_only_to_bounded_python_child(tmp
             env=env,
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=NODE_HARNESS_PROCESS_TIMEOUT,
             check=False,
         )
     except subprocess.TimeoutExpired:
@@ -277,7 +281,7 @@ def test_node_action_passes_runtime_credentials_only_to_bounded_python_child(tmp
             stage_file,
             ("read-token", "runtime-token", "must-not-enter-python-child", "must-not-authorize-writer", env["CANARY_TEST_SENTINEL"]),
         )
-        raise AssertionError(f"outer_five_second_timeout; sanitized_stage_records={records!r}") from None
+        raise AssertionError(f"outer_harness_process_timeout; sanitized_stage_records={records!r}") from None
     records = _read_stage_records(
         stage_file,
         ("read-token", "runtime-token", "must-not-enter-python-child", "must-not-authorize-writer", env["CANARY_TEST_SENTINEL"]),
@@ -310,7 +314,7 @@ def test_stage_preload_bounds_and_sanitizes_diagnostics(tmp_path, mode):
         "CANARY_STAGE_TEST_SENTINEL": forbidden,
         "NODE_OPTIONS": f"--require {shlex.quote(str(preload))}",
     }
-    subprocess.run([NODE, "-e", ""], env=env, timeout=2, check=True, capture_output=True)
+    subprocess.run([NODE, "-e", ""], env=env, timeout=NODE_PRELOAD_PROCESS_TIMEOUT, check=True, capture_output=True)
     records = _read_stage_records(stage_file, (forbidden, "not-a-safe-stage-name"))
     assert records and records[0]["stage"] == "preload_loaded"
     if mode == "cap":
