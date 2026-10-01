@@ -37,4 +37,3 @@ def test_historical_classifier_workflow_remains_byte_identical_to_base():
         timeout=10,
     ).stdout
     assert LEGACY.read_bytes() == original
-

@@ -270,6 +270,26 @@ def test_request_receipt_mismatch_fails_before_http(choice_server):
     assert ChoiceHandler.calls == []
 
 
+def test_existing_result_output_path_fails_before_http(tmp_path, monkeypatch, choice_server):
+    prep, _ = _prepare(tmp_path, monkeypatch)
+    env = {"JEV_BASE_URL": choice_server, "JEV_MODEL": "jev-1.13.0", "JEV_API_KEY": "unit-test-api-key"}
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    output = tmp_path / "existing-result"
+    output.mkdir()
+
+    with pytest.raises(trial.ConfiguredJevTrialError, match="result_output_unavailable"):
+        trial.run_trial(
+            root=ROOT,
+            cli_executable=Path("/unused/pr-review"),
+            expected_source_revision=trial._git_head(ROOT),
+            preparation=prep / "manifest.json",
+            output=output,
+        )
+
+    assert ChoiceHandler.calls == []
+
+
 def test_configured_provider_rejects_nonclassifier_primitive_before_http(choice_server):
     provider = trial._trusted_provider(
         {"JEV_BASE_URL": choice_server, "JEV_MODEL": "jev-1.13.0", "JEV_API_KEY": "unit-test-api-key"}

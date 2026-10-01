@@ -501,6 +501,10 @@ def run_trial(
     for case_id in CASE_IDS:
         request = prepared_request(inputs[case_id], provider.model)
         request_receipts[case_id] = {"request_sha256": _sha(request), "request_bytes": len(request)}
+    try:
+        output.mkdir(parents=True, exist_ok=False)
+    except OSError:
+        raise ConfiguredJevTrialError("result_output_unavailable") from None
     started = time.monotonic()
     result = run_two_case_trial(provider, inputs, request_receipts=request_receipts, started=started)
     result["source_revision"] = expected_source_revision
@@ -516,10 +520,6 @@ def run_trial(
         row.get("reason") == "provider_response_contains_credential" for row in result["cases"]
     )
     result_bytes = _canonical(result)
-    try:
-        output.mkdir(parents=True, exist_ok=False)
-    except OSError:
-        raise ConfiguredJevTrialError("result_output_unavailable") from None
     (output / "result.json").write_bytes(result_bytes + b"\n")
     summary = {
         "contract_version": TRIAL_VERSION,
