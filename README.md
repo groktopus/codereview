@@ -1,6 +1,6 @@
 # PR Review Harness
 
-A reusable, read-only code review CLI with deterministic planning, bounded specialist reviews, immutable Git evidence, reconciliation, and auditable reports. Its `publish` command currently validates and renders a read-only review preview; live publication is unavailable. It is still an experimental candidate, not an established Droid replacement: the initial six-commit pilot produced incomplete reviews and exposed model-contract, context, and provider issues. See `docs/PILOT-RESULTS.md` and `docs/PRODUCTION-DELIVERY.md`.
+A reusable, read-only code review CLI with deterministic planning, bounded specialist reviews, immutable Git evidence, reconciliation, and auditable reports. Its `publish` command currently validates and renders a read-only review preview; live publication is unavailable. It is still an experimental candidate, not an established Droid replacement: the initial six-commit pilot produced incomplete reviews and exposed model-contract, context, and provider issues. See the [current execution plan](docs/CURRENT-EXECUTION-PLAN.md) and [evidence status](docs/CURRENT-STATUS.md). The initial pilot remains documented in `docs/PILOT-RESULTS.md`.
 
 The harness owns review depth, scopes, budgets, coverage, freshness, and disposition. An OpenAI-compatible inference provider supplies candidate findings and separate semantic assessments. Optional native Laya or Typesafe/Jev calls supply advisory risk observations; their probabilities do not authorize approval or choose control flow.
 

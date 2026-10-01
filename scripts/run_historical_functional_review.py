@@ -56,6 +56,32 @@ V4_PROFILE_SHA256 = "e2b1d9bbdafd6d054462b9abac48ce88fdc71400abcb7655902fcf3677c
 V4_CHECKS_SHA256 = CHECKS_SHA256
 V4_LIMITS_SHA256 = V2_LIMITS_SHA256
 V4_MANIFEST_SCHEMA = "historical-functional-review-pr466.v4"
+V5_CASE_DIR = ROOT / "docs/historical-functional-review-pr466-v5"
+V5_MANIFEST = V5_CASE_DIR / "manifest.json"
+V5_CHECKS = V5_CASE_DIR / "historical-checks.json"
+V5_LIMITS = V5_CASE_DIR / "limits.json"
+V5_PROFILE = ROOT / "profiles/slopsearx-v13-static-assessment-candidate.json"
+V5_PROFILE_VERSION = "slopsearx-production-v13-static-assessment-candidate"
+V5_PROFILE_SHA256 = "f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200ee3156"
+V5_CHECKS_SHA256 = CHECKS_SHA256
+V5_LIMITS_SHA256 = V2_LIMITS_SHA256
+V5_MANIFEST_SCHEMA = "historical-functional-review-pr466.v5"
+V5_PROJECTION = {
+    "path": "pyproject.toml",
+    "source_kind": "dependency_projection",
+    "source_revision": HEAD,
+    "trust": "repository_evidence",
+    "evidence_id": "ev-bb3be39416ea72e1f34c761f",
+    "content_bytes": 858,
+    "content_hash": "75a555a088593a00fe5bea36ef4c819dd035eb55c72c25642052865d81e00b3a",
+    "included_primary_task_ids": [
+        "task-2735ee06f988542a:chunk-1",
+        "task-d064dd83824e8ee6:chunk-1",
+        "task-76d469ce77f3df5a:chunk-1",
+        "task-1b70be284ec5f3b0:chunk-1",
+        "task-df30f66a227eba98:chunk-1",
+    ],
+}
 V4_PROJECTION = {
     "path": "pyproject.toml",
     "source_kind": "dependency_projection",
@@ -73,13 +99,14 @@ V4_PROJECTION = {
     ],
 }
 DEFAULT_CASE = "pr466-v1"
-CASE_CHOICES = ("pr466-v1", "pr466-v2", "pr466-v3", "pr466-v4")
+CASE_CHOICES = ("pr466-v1", "pr466-v2", "pr466-v3", "pr466-v4", "pr466-v5")
 CALL_CAP = 10
 CONTEXT_CAP = 600_000
 INPUT_CAP = 64_000
 V2_INPUT_CAP = 80_000
 V3_INPUT_CAP = 80_000
 V4_INPUT_CAP = 80_000
+V5_INPUT_CAP = 80_000
 
 V2_PREPARE_OBSERVATION = {
     "status": "PREPARED_ONLY",
@@ -308,6 +335,66 @@ def _git(repo: Path, *args: str) -> str:
     return value
 
 
+V5_PREPARE_OBSERVATION = {'status': 'PREPARED_ONLY',
+ 'source_revision': '78434b77948e531fbfb7d1f1690ef8d6c95cdb1e',
+ 'profile_sha256': 'f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200ee3156',
+ 'historical_checks_sha256': 'c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963',
+ 'limits_sha256': '964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e',
+ 'max_claim_assessments': 1,
+ 'max_provider_calls': 10,
+ 'max_input_bytes_per_task': 80000,
+ 'max_context_bytes': 600000,
+ 'no_provider_calls': True,
+ 'no_target_code_execution': True,
+ 'primary_scope_admission_complete': True,
+ 'admitted_obligations': 15,
+ 'planned_obligations': 15,
+ 'primary_request_count': 7,
+ 'total_primary_serialized_input_bytes': 441143,
+ 'remaining_call_slots_after_primary': 3,
+ 'dynamic_stage_demand': 'UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION',
+ 'primary_requests': [{'task_id': 'task-2735ee06f988542a:chunk-1',
+                       'lens': 'correctness',
+                       'input_bytes': 77234,
+                       'input_sha256': '420bbb1390155bf1f639f879f9b9382c1f2561d281a8bb06fa69bb464ce06dbd'},
+                      {'task_id': 'task-d064dd83824e8ee6:chunk-1',
+                       'lens': 'tests',
+                       'input_bytes': 53939,
+                       'input_sha256': '066794516e6f5dfa3b414998acaa9b1dc6200ea51387457b900e07a6d0948d13'},
+                      {'task_id': 'task-7414494eadd41224:chunk-1',
+                       'lens': 'maintainability',
+                       'input_bytes': 51019,
+                       'input_sha256': 'c4a297ad79ea93405fd0af19c71167e323798cff0dcfbe0ec4ac12dfe87c2bd5'},
+                      {'task_id': 'task-76d469ce77f3df5a:chunk-1',
+                       'lens': 'correctness',
+                       'input_bytes': 73530,
+                       'input_sha256': '186319fe6587e767f33cbd404691cc60d6b8569151cada1bbf4cb9cba03d5e18'},
+                      {'task_id': 'task-1b70be284ec5f3b0:chunk-1',
+                       'lens': 'tests',
+                       'input_bytes': 73989,
+                       'input_sha256': 'f31a2eabe7b603ed3474cf5b8463f508bd725a48e2b6468a9129950754fddd97'},
+                      {'task_id': 'task-805e397ed0a1ad57:chunk-1',
+                       'lens': 'maintainability',
+                       'input_bytes': 37345,
+                       'input_sha256': '52e33d7f8b10ba57d9e79fcd63cc9b87249d6bca64e43d485d2f52aa79c584ed'},
+                      {'task_id': 'task-df30f66a227eba98:chunk-1',
+                       'lens': 'security',
+                       'input_bytes': 74087,
+                       'input_sha256': '73fbff93e7752510273bbf37ca36704a6271b8b10fce542580ae62171e7472d4'}],
+ 'dependency_projection': {'path': 'pyproject.toml',
+                           'source_kind': 'dependency_projection',
+                           'source_revision': '7bce9dd246f141eb961c52ae96061203a98f083b',
+                           'trust': 'repository_evidence',
+                           'evidence_id': 'ev-bb3be39416ea72e1f34c761f',
+                           'content_bytes': 858,
+                           'content_hash': '75a555a088593a00fe5bea36ef4c819dd035eb55c72c25642052865d81e00b3a',
+                           'included_primary_task_ids': ['task-2735ee06f988542a:chunk-1',
+                                                         'task-d064dd83824e8ee6:chunk-1',
+                                                         'task-76d469ce77f3df5a:chunk-1',
+                                                         'task-1b70be284ec5f3b0:chunk-1',
+                                                         'task-df30f66a227eba98:chunk-1']},
+ 'installed_runtime_resolution': 'UNKNOWN_FROM_DECLARATION_PROJECTION'}
+
 def _case_spec(case_id: str) -> dict:
     if case_id == "pr466-v1":
         return {
@@ -368,6 +455,21 @@ def _case_spec(case_id: str) -> dict:
             "limits_sha256": V4_LIMITS_SHA256,
             "input_cap": V4_INPUT_CAP,
             "prepare_observation": V4_PREPARE_OBSERVATION,
+        }
+    if case_id == "pr466-v5":
+        return {
+            "case_dir": V5_CASE_DIR,
+            "manifest": V5_MANIFEST,
+            "checks": V5_CHECKS,
+            "limits": V5_LIMITS,
+            "profile": V5_PROFILE,
+            "schema": V5_MANIFEST_SCHEMA,
+            "profile_version": V5_PROFILE_VERSION,
+            "profile_sha256": V5_PROFILE_SHA256,
+            "checks_sha256": V5_CHECKS_SHA256,
+            "limits_sha256": V5_LIMITS_SHA256,
+            "input_cap": V5_INPUT_CAP,
+            "prepare_observation": V5_PREPARE_OBSERVATION,
         }
     raise SafeFailure("case_not_supported")
 
@@ -629,10 +731,12 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
         or review_scope.get("primary_scope_admission_complete") is not True
     ):
         raise SafeFailure("primary_request_capacity_exceeded")
-    if case_id == "pr466-v4":
+    if case_id in ("pr466-v4", "pr466-v5"):
+        projection = V4_PROJECTION if case_id == "pr466-v4" else V5_PROJECTION
+        observation = V4_PREPARE_OBSERVATION if case_id == "pr466-v4" else V5_PREPARE_OBSERVATION
         if review_scope.get("required_context_gaps") != []:
             raise SafeFailure("dependency_projection_required_context_invalid")
-        expected_requests = V4_PREPARE_OBSERVATION["primary_requests"]
+        expected_requests = observation["primary_requests"]
         actual_requests = [
             {key: row.get(key) for key in ("task_id", "lens", "input_bytes", "input_sha256")} for row in requests
         ]
@@ -658,20 +762,20 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
                 if isinstance(binding, dict) and binding.get("source_kind") == "dependency_projection"
             ]
             task_id = request.get("task_id")
-            if task_id in V4_PROJECTION["included_primary_task_ids"]:
+            if task_id in projection["included_primary_task_ids"]:
                 if len(matches) != 1:
                     raise SafeFailure("dependency_projection_required_context_invalid")
                 binding = matches[0]
                 if any(
                     binding.get(key) != value
-                    for key, value in V4_PROJECTION.items()
+                    for key, value in projection.items()
                     if key != "included_primary_task_ids"
                 ):
                     raise SafeFailure("dependency_projection_required_context_invalid")
                 projection_tasks.append(task_id)
             elif matches:
                 raise SafeFailure("dependency_projection_required_context_invalid")
-        if projection_tasks != V4_PROJECTION["included_primary_task_ids"]:
+        if projection_tasks != projection["included_primary_task_ids"]:
             raise SafeFailure("dependency_projection_required_context_invalid")
 
 
@@ -742,6 +846,9 @@ def main() -> int:
             }
             if args.case == "pr466-v4":
                 observation["dependency_projection"] = V4_PROJECTION
+            elif args.case == "pr466-v5":
+                observation["dependency_projection"] = V5_PROJECTION
+            if args.case in ("pr466-v4", "pr466-v5"):
                 observation["installed_runtime_resolution"] = "UNKNOWN_FROM_DECLARATION_PROJECTION"
             (args.output_dir / "prepare-observation.json").write_text(
                 json.dumps(observation, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
