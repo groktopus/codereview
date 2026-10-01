@@ -65,14 +65,15 @@ def make_platform(**overrides):
         "publisher_workflow_path": ".github/workflows/pr-publish.yml",
         "publisher_workflow_ref": "owner/repo/.github/workflows/pr-publish.yml@refs/heads/main",
         "publisher_workflow_sha": "c" * 40,
-        "source_head_branch": "main",
+        "source_head_branch": "feature/update-dependency",
         "source_run_id": 601,
         "source_run_attempt": 1,
         "source_workflow_id": 802,
         "source_workflow_path": ".github/workflows/review.yml",
         "source_workflow_ref": "owner/repo/.github/workflows/review.yml@refs/heads/main",
-        "source_event": "pull_request",
-        "source_workflow_sha": "d" * 40,
+        "source_event": "pull_request_target",
+        "source_workflow_sha": "b" * 40,
+        "source_run_head_sha": "f" * 40,
         "pull_request_head_sha": "a" * 40,
         "pull_request_number": 44,
         "base_sha": "b" * 40,
@@ -98,8 +99,7 @@ class FakeTransport:
         body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
         return HTTPResponse(status, {}, body)
 
-    @staticmethod
-    def payload(method, url, body):
+    def payload(self, method, url, body):
         platform = make_platform()
         if url.endswith(f"/actions/runs/{platform.publisher_run_id}"):
             return {
@@ -116,34 +116,34 @@ class FakeTransport:
                 "actor": {"login": "release-operator"},
             }, 200
         if url.endswith(f"/actions/runs/{platform.source_run_id}"):
-            return {
+            source_record = {
                 "id": platform.source_run_id,
                 "run_attempt": platform.source_run_attempt,
                 "workflow_id": platform.source_workflow_id,
                 "path": platform.source_workflow_path,
-                "head_branch": "main",
-                "head_sha": platform.source_workflow_sha,
+                "head_branch": platform.source_head_branch,
+                "head_sha": platform.source_run_head_sha,
                 "status": "completed",
                 "conclusion": "success",
                 "event": platform.source_event,
                 "repository": {"id": REPO_ID, "full_name": OWNER_REPO},
                 "actor": {"login": "review-caller"},
-                "pull_requests": [
+            }
+            if getattr(self, "include_source_pr", False):
+                source_record["pull_requests"] = [
                     {
                         "number": 44,
                         "base": {"sha": "b" * 40},
                         "head": {"sha": "a" * 40},
                     }
                 ]
-                if platform.source_event == "pull_request"
-                else [],
-            }, 200
+            return source_record, 200
         if url.endswith("/pulls/44"):
             return {
                 "number": 44,
                 "state": "open",
-                "base": {"sha": "b" * 40, "repo": {"id": REPO_ID}},
-                "head": {"sha": "a" * 40},
+                "base": {"sha": "b" * 40, "ref": "main", "repo": {"id": REPO_ID}},
+                "head": {"sha": "a" * 40, "ref": "feature/update-dependency"},
             }, 200
         if url.endswith("/app"):
             return {"id": APP_ID, "slug": APP_SLUG}, 200
@@ -227,22 +227,64 @@ def test_canary_signs_real_rs256_app_jwt_only_after_platform_validation():
     assert claims["exp"] - claims["iat"] == 600
 
 
-def test_dispatch_source_run_keeps_workflow_sha_distinct_from_reviewed_pr_head():
-    platform = make_platform(source_event="workflow_dispatch")
-
-    def mutate(index, method, url, status, payload):
-        if index == 2:
-            payload = {**payload, "event": "workflow_dispatch", "pull_requests": []}
-        return status, payload
-
-    transport = FakeTransport(mutate=mutate)
-
-    identity, receipt = invoke(platform=platform, transport=transport)
+def test_target_source_run_without_optional_pr_association_keeps_source_sha_distinct():
+    identity, receipt = invoke()
 
     assert identity.state is IdentityState.VERIFIED
-    assert receipt.source_workflow_sha == "d" * 40
+    assert receipt.source_workflow_sha == "b" * 40
+    assert receipt.source_run_head_sha == "f" * 40
     assert receipt.pull_request_head_sha == "a" * 40
     assert receipt.source_workflow_sha != receipt.pull_request_head_sha
+    assert receipt.source_run_head_sha != receipt.source_workflow_sha
+
+
+def test_target_source_run_accepts_exact_optional_pr_association():
+    transport = FakeTransport()
+    transport.include_source_pr = True
+    identity, _receipt = invoke(transport=transport)
+    assert identity.state is IdentityState.VERIFIED
+
+
+def test_target_source_run_accepts_empty_optional_pr_association():
+    def mutate(index, method, url, status, payload):
+        if index == 2:
+            payload = {**payload, "pull_requests": []}
+        return status, payload
+
+    identity, _receipt = invoke(transport=FakeTransport(mutate=mutate))
+    assert identity.state is IdentityState.VERIFIED
+
+
+@pytest.mark.parametrize(
+    "associations",
+    [
+        [{"number": 45, "base": {"sha": "b" * 40}, "head": {"sha": "a" * 40}}],
+        [{"number": 44, "base": {"sha": "b" * 40}, "head": {"sha": "f" * 40}}],
+        [
+            {"number": 44, "base": {"sha": "b" * 40}, "head": {"sha": "a" * 40}},
+            {"number": 44, "base": {"sha": "b" * 40}, "head": {"sha": "a" * 40}},
+        ],
+    ],
+)
+def test_target_source_run_rejects_present_nonexact_pr_association(associations):
+    def mutate(index, method, url, status, payload):
+        if index == 2:
+            payload = {**payload, "pull_requests": associations}
+        return status, payload
+
+    with pytest.raises(GitHubPublicationError, match="github_app_canary_source_pr_mismatch"):
+        invoke(transport=FakeTransport(mutate=mutate))
+
+
+def test_non_target_source_event_rejects_before_network_or_key_access():
+    calls = []
+    with pytest.raises(GitHubPublicationError, match="github_app_canary_expectation_mismatch"):
+        invoke(
+            platform=make_platform(source_event="workflow_dispatch"),
+            transport=FakeTransport(),
+            key_supplier=lambda: calls.append("key") or private_key_pem(),
+        )
+    assert calls == []
 
 
 @pytest.mark.parametrize(
@@ -252,6 +294,7 @@ def test_dispatch_source_run_keeps_workflow_sha_distinct_from_reviewed_pr_head()
         ("publisher_workflow_sha", "d" * 40),
         ("source_run_attempt", 2),
         ("source_workflow_sha", "e" * 40),
+        ("source_run_head_sha", "e" * 40),
         ("pull_request_head_sha", "e" * 40),
         ("source_workflow_path", ".github/workflows/untrusted.yml"),
     ],
@@ -303,12 +346,34 @@ def test_wrong_pr_head_rejects_before_app_key_access():
     assert key_calls == []
 
 
-def test_source_run_without_exact_pr_binding_rejects_before_app_key_access():
+@pytest.mark.parametrize(
+    ("base_field", "value"),
+    [("ref", "other"), ("sha", "9" * 40)],
+)
+def test_wrong_default_base_pr_identity_rejects_before_app_key_access(base_field, value):
+    key_calls = []
+
+    def mutate(index, method, url, status, payload):
+        if index == 3:
+            base = dict(payload["base"])
+            base[base_field] = value
+            payload = {**payload, "base": base}
+        return status, payload
+
+    with pytest.raises(GitHubPublicationError, match="github_app_canary_pull_request_mismatch"):
+        invoke(
+            transport=FakeTransport(mutate=mutate),
+            key_supplier=lambda: key_calls.append("read") or private_key_pem(),
+        )
+    assert key_calls == []
+
+
+def test_source_run_with_incomplete_pr_binding_rejects_before_app_key_access():
     key_calls = []
 
     def mutate(index, method, url, status, payload):
         if index == 2:
-            payload = {**payload, "pull_requests": []}
+            payload = {**payload, "pull_requests": [{"number": 44}]}
         return status, payload
 
     with pytest.raises(GitHubPublicationError, match="github_app_canary_source_pr_mismatch"):

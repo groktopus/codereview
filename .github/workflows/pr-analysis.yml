@@ -74,6 +74,11 @@ jobs:
           CALLER_REPOSITORY: ${{ github.repository }}
           CALLER_REF: ${{ github.ref }}
           CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
+          CALLER_EVENT: ${{ github.event_name }}
+          CALLER_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CALLER_SHA: ${{ github.sha }}
+          CALLER_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          EMIT_PUBLICATION_BUNDLE: ${{ inputs.emit_publication_bundle }}
           TARGET_REPOSITORY: ${{ inputs.target_repository }}
           PR_NUMBER: ${{ inputs.pull_request_number }}
           BASE_REF: ${{ inputs.base_ref }}
@@ -102,6 +107,22 @@ jobs:
               )
               if not central_pilot:
                   raise SystemExit('caller_target_repository_mismatch')
+          elif os.environ['EMIT_PUBLICATION_BUNDLE'] == 'true':
+              default_branch = os.environ['CALLER_DEFAULT_BRANCH']
+              caller_workflow_ref = os.environ['CALLER_WORKFLOW_REF']
+              if (
+                  os.environ['CALLER_EVENT'] != 'pull_request_target'
+                  or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/-]{0,127}', default_branch)
+                  or '..' in default_branch.split('/')
+                  or '//' in default_branch
+                  or os.environ['CALLER_REF'] != 'refs/heads/' + default_branch
+                  or os.environ['BASE_REF'] != default_branch
+                  or os.environ['BASE_SHA'] != os.environ['CALLER_SHA']
+                  or os.environ['BASE_SHA'] != os.environ['CALLER_WORKFLOW_SHA']
+                  or not caller_workflow_ref.startswith(caller + '/.github/workflows/')
+                  or not caller_workflow_ref.endswith('@refs/heads/' + default_branch)
+              ):
+                  raise SystemExit('publication_source_context_mismatch')
           if not os.environ['PR_NUMBER'].isdigit() or int(os.environ['PR_NUMBER']) < 1:
               raise SystemExit('pull_request_number_invalid')
           base_ref = os.environ['BASE_REF']
@@ -377,7 +398,7 @@ jobs:
           retention-days: 7
       - name: Build the opt-in publication intake bundle from the sealed checkpoint
         id: publication-bundle
-        if: inputs.emit_publication_bundle && github.repository == inputs.target_repository && steps.review.outcome == 'success'
+        if: inputs.emit_publication_bundle && github.repository == inputs.target_repository && github.event_name == 'pull_request_target' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.review.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -386,6 +407,9 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
           GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TARGET_REPOSITORY: ${{ inputs.target_repository }}
           PR_NUMBER: ${{ inputs.pull_request_number }}
           BASE_SHA: ${{ inputs.base_sha }}

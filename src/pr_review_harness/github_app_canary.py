@@ -75,6 +75,7 @@ class ProtectedCanaryRun:
     source_workflow_ref: str
     source_event: str
     source_workflow_sha: str
+    source_run_head_sha: str
     pull_request_head_sha: str
     pull_request_number: int
     base_sha: str
@@ -111,7 +112,7 @@ class ProtectedCanaryRun:
             != f"{self.repository}/{self.publisher_workflow_path}@refs/heads/{self.default_branch}"
             or self.source_workflow_ref
             != f"{self.repository}/{self.source_workflow_path}@refs/heads/{self.default_branch}"
-            or self.source_event not in {"pull_request", "workflow_dispatch"}
+            or self.source_event != "pull_request_target"
             or not isinstance(self.source_head_branch, str)
             or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}", self.source_head_branch)
             or ".." in self.source_head_branch.split("/")
@@ -120,6 +121,9 @@ class ProtectedCanaryRun:
             or not _SHA.fullmatch(self.publisher_workflow_sha)
             or not isinstance(self.source_workflow_sha, str)
             or not _SHA.fullmatch(self.source_workflow_sha)
+            or self.source_workflow_sha != self.base_sha
+            or not isinstance(self.source_run_head_sha, str)
+            or not _SHA.fullmatch(self.source_run_head_sha)
             or not isinstance(self.pull_request_head_sha, str)
             or not _SHA.fullmatch(self.pull_request_head_sha)
             or not isinstance(self.base_sha, str)
@@ -174,6 +178,7 @@ class CanaryReceipt:
     source_workflow_ref: str
     source_event: str
     source_workflow_sha: str
+    source_run_head_sha: str
     source_head_branch: str
     pull_request_head_sha: str
     pull_request_number: int
@@ -204,6 +209,7 @@ class CanaryReceipt:
             "source_workflow_ref": self.source_workflow_ref,
             "source_event": self.source_event,
             "source_workflow_sha": self.source_workflow_sha,
+            "source_run_head_sha": self.source_run_head_sha,
             "source_head_branch": self.source_head_branch,
             "pull_request_head_sha": self.pull_request_head_sha,
             "pull_request_number": self.pull_request_number,
@@ -221,7 +227,7 @@ def _validate_run(record: dict[str, object], expected: ProtectedCanaryRun, *, so
     attempt = expected.source_run_attempt if source else expected.publisher_run_attempt
     workflow_id = expected.source_workflow_id if source else expected.publisher_workflow_id
     workflow_path = expected.source_workflow_path if source else expected.publisher_workflow_path
-    workflow_sha = expected.source_workflow_sha if source else expected.publisher_workflow_sha
+    workflow_sha = expected.source_run_head_sha if source else expected.publisher_workflow_sha
     raw_path = record.get("path")
     if not isinstance(raw_path, str):
         raise _reject("github_app_canary_actions_run_mismatch")
@@ -318,20 +324,22 @@ def verify_github_app_identity_canary(
     publisher_actor = _validate_run(publisher_run, platform, source=False)
     source_run = request("GET", f"{repo_path}/actions/runs/{platform.source_run_id}", actions_token)
     source_actor = _validate_run(source_run, platform, source=True)
-    source_matches = []
+    # GitHub may omit pull_requests for pull_request_target workflow runs.
+    # If it reports associations, require a single exact PR/base/head tuple.
     source_prs = source_run.get("pull_requests")
-    if isinstance(source_prs, list):
-        for item in source_prs:
-            if not isinstance(item, dict) or item.get("number") != platform.pull_request_number:
-                continue
-            source_base = item.get("base") if isinstance(item.get("base"), dict) else {}
-            source_head = item.get("head") if isinstance(item.get("head"), dict) else {}
-            if source_base.get("sha") == platform.base_sha and source_head.get("sha") == platform.pull_request_head_sha:
-                source_matches.append(item)
-    if platform.source_event == "pull_request" and len(source_matches) != 1:
-        raise _reject("github_app_canary_source_pr_mismatch")
-    if platform.source_event == "workflow_dispatch" and source_matches:
-        raise _reject("github_app_canary_source_pr_mismatch")
+    if source_prs not in (None, []):
+        if not isinstance(source_prs, list) or len(source_prs) != 1:
+            raise _reject("github_app_canary_source_pr_mismatch")
+        item = source_prs[0]
+        source_base = item.get("base") if isinstance(item, dict) and isinstance(item.get("base"), dict) else {}
+        source_head = item.get("head") if isinstance(item, dict) and isinstance(item.get("head"), dict) else {}
+        if (
+            not isinstance(item, dict)
+            or item.get("number") != platform.pull_request_number
+            or source_base.get("sha") != platform.base_sha
+            or source_head.get("sha") != platform.pull_request_head_sha
+        ):
+            raise _reject("github_app_canary_source_pr_mismatch")
     pr = request("GET", f"{repo_path}/pulls/{platform.pull_request_number}", actions_token)
     base = pr.get("base")
     head = pr.get("head")
@@ -341,10 +349,12 @@ def verify_github_app_identity_canary(
         or pr.get("state") != "open"
         or not isinstance(base, dict)
         or base.get("sha") != platform.base_sha
+        or base.get("ref") != platform.default_branch
         or not isinstance(pr_repo, dict)
         or not _id_matches(pr_repo.get("id"), platform.repository_id)
         or not isinstance(head, dict)
         or head.get("sha") != platform.pull_request_head_sha
+        or head.get("ref") != platform.source_head_branch
     ):
         raise _reject("github_app_canary_pull_request_mismatch")
 
@@ -445,6 +455,7 @@ def verify_github_app_identity_canary(
         "source_workflow_path": platform.source_workflow_path,
         "source_workflow_ref": platform.source_workflow_ref,
         "source_workflow_sha": platform.source_workflow_sha,
+        "source_run_head_sha": platform.source_run_head_sha,
         "source_head_branch": platform.source_head_branch,
         "pull_request_head_sha": platform.pull_request_head_sha,
         "pull_request_number": platform.pull_request_number,
@@ -494,7 +505,8 @@ def verify_github_app_identity_canary(
         source_workflow_path=platform.source_workflow_path,
         source_workflow_ref=platform.source_workflow_ref,
         source_event=platform.source_event,
-        source_workflow_sha=source_run["head_sha"],
+        source_workflow_sha=platform.source_workflow_sha,
+        source_run_head_sha=platform.source_run_head_sha,
         source_head_branch=platform.source_head_branch,
         pull_request_head_sha=platform.pull_request_head_sha,
         pull_request_number=platform.pull_request_number,

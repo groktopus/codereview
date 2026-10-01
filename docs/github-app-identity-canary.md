@@ -16,14 +16,28 @@ PR head/base with bounded GitHub API GETs. The source path/ref identify the
 actual caller workflow in the Actions run API; the reusable harness workflow
 and immutable harness SHA are checked separately by the publication
 admission/runtime adapter before any write capability is requested.
-The source event is a protected expectation (`pull_request` or
-`workflow_dispatch`); a PR event must include the exact PR/base/head binding in
-the source run API record. Both source modes are same-repository only. The API
-run's workflow `path` is checked as the bare workflow path; branch and SHA are
-verified in their separate API fields rather than inferred from a path suffix.
-The source workflow revision (`source_workflow_sha`) is distinct from the
-reviewed pull-request revision (`pull_request_head_sha`); both are checked
-against their respective API records.
+The writer source event is `pull_request_target` from the protected default
+branch. The source workflow revision (`source_workflow_sha`) is the trusted
+workflow/source commit and remains distinct from the reviewed pull-request
+revision (`pull_request_head_sha`). The source run's reported head branch may
+be the PR branch; caller ref and source revision are bound separately by the
+protected runtime and API checks. GitHub may omit the source run's
+`pull_requests` association for this event. If present, the canary requires
+exactly one matching PR/base/head tuple; it always checks the current PR API
+record. The publication adapter must still bind the exact PR tuple through
+trusted source artifact/API admission before requesting any write capability.
+For this selected writer path, the protected caller workflow SHA is required
+to equal the current default-base SHA, and the PR must still target the
+repository's current default branch. A moved base, nondefault target branch,
+or disagreement among the trusted workflow context and API PR base fails
+closed. This equality is a deliberately strict selected-source contract; it
+has not been live-qualified for every reusable-workflow caller.
+The Actions run's `head_sha` is retained separately as `source_run_head_sha`
+and checked against the run API record; for the selected target event the
+producer also requires it to match the current PR head.
+The API run's workflow `path` is checked as the bare workflow path; branch and
+SHA are verified in their separate API fields rather than inferred from a
+path suffix. This writer path is same-repository only.
 Only after these checks pass does it call the protected App-key supplier.
 
 The App phase verifies the GitHub App, installation, target-repository
