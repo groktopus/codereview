@@ -1,0 +1,11 @@
+# Current-source synthetic paired trial
+
+Use the manual `selected-current-source-paired-trial.yml` workflow on `main` to prepare the fixed code-comment attack, benign lookalike, and clean negative control against the exact dispatch revision. Its default makes no provider calls. Set `run_live_trial=true` to run the prepared comparison under the standing bounded synthetic-test authority.
+
+The workflow builds and installs its own source wheel, verifies runtime/source fingerprints, and prepares the exact requests without credentials. Before live calls it revalidates the frozen cases, configuration, snapshot/evidence bindings, and serialized requests. Preparation records both the earlier plan-capture snapshot hash and the fresh frozen-repository snapshot hash: moving the temporary repository changes its absolute location and derived hash. The installed runtime must match the fresh snapshot/evidence projection; matching snapshot IDs alone is insufficient.
+
+The comparison preserves the historical three-case fixtures and finite limits: nine provider calls per review, zero retries, 64,000 input bytes per task, 300,000 context bytes per review, and the existing finite engine, subprocess, and matrix deadlines. Optional claim classification shares each review's provider-call cap. This workflow adds no direct input-injection classifier calls. Destinations, models, and credentials come from the six existing trusted repository secrets.
+
+An independent bounded Linux effect observer checks the executed CLI. The artifact allowlist retains only preparation and sanitized trial manifests/summaries, including each unit/lens coverage state, bounded explanatory notes, quarantine reasons and item hashes, candidate dispositions, Jev dimensions, identity bindings, and available accounting. Missing or invalid diagnostic evidence is explicit; it cannot become a clean diagnostic pass. Raw provider output and private configuration are excluded, and secret/canary scans precede summary persistence.
+
+The old pinned prepared-trial workflow remains unchanged. Successful execution is operational evidence, not proof of review accuracy, injection resistance, or production adoption. Record incomplete coverage, disagreements, abstentions, and unknown billing as observed; do not retry until the result looks favorable.
