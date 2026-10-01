@@ -1,0 +1,125 @@
+{
+  "schema": "historical-functional-review-pr466.v5",
+  "case": {
+    "repository": "magnus919/SlopSearX",
+    "pull_request_number": 466,
+    "base_sha": "63e3ecd2f09d79c34e3594a3be74f017a1c5a12c",
+    "head_sha": "7bce9dd246f141eb961c52ae96061203a98f083b"
+  },
+  "profile": {
+    "path": "profiles/slopsearx-v13-static-assessment-candidate.json",
+    "version": "slopsearx-production-v13-static-assessment-candidate",
+    "sha256": "f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200ee3156"
+  },
+  "historical_checks": {
+    "path": "docs/historical-functional-review-pr466-v5/historical-checks.json",
+    "sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963",
+    "freshness_basis": "HISTORICAL_SNAPSHOT",
+    "captured_at": "2026-09-27T04:06:00Z"
+  },
+  "limits": {
+    "path": "docs/historical-functional-review-pr466-v5/limits.json",
+    "sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e"
+  },
+  "provider_identity": {
+    "status": "UNKNOWN",
+    "primary": {
+      "base_url": null,
+      "model": null
+    },
+    "decision": {
+      "endpoint": null,
+      "model": null
+    }
+  },
+  "prepare_observation": {
+    "status": "PREPARED_ONLY",
+    "source_revision": "78434b77948e531fbfb7d1f1690ef8d6c95cdb1e",
+    "profile_sha256": "f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200ee3156",
+    "historical_checks_sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963",
+    "limits_sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e",
+    "max_claim_assessments": 1,
+    "max_provider_calls": 10,
+    "max_input_bytes_per_task": 80000,
+    "max_context_bytes": 600000,
+    "no_provider_calls": true,
+    "no_target_code_execution": true,
+    "primary_scope_admission_complete": true,
+    "admitted_obligations": 15,
+    "planned_obligations": 15,
+    "primary_request_count": 7,
+    "total_primary_serialized_input_bytes": 441143,
+    "remaining_call_slots_after_primary": 3,
+    "dynamic_stage_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
+    "primary_requests": [
+      {
+        "task_id": "task-2735ee06f988542a:chunk-1",
+        "lens": "correctness",
+        "input_bytes": 77234,
+        "input_sha256": "420bbb1390155bf1f639f879f9b9382c1f2561d281a8bb06fa69bb464ce06dbd"
+      },
+      {
+        "task_id": "task-d064dd83824e8ee6:chunk-1",
+        "lens": "tests",
+        "input_bytes": 53939,
+        "input_sha256": "066794516e6f5dfa3b414998acaa9b1dc6200ea51387457b900e07a6d0948d13"
+      },
+      {
+        "task_id": "task-7414494eadd41224:chunk-1",
+        "lens": "maintainability",
+        "input_bytes": 51019,
+        "input_sha256": "c4a297ad79ea93405fd0af19c71167e323798cff0dcfbe0ec4ac12dfe87c2bd5"
+      },
+      {
+        "task_id": "task-76d469ce77f3df5a:chunk-1",
+        "lens": "correctness",
+        "input_bytes": 73530,
+        "input_sha256": "186319fe6587e767f33cbd404691cc60d6b8569151cada1bbf4cb9cba03d5e18"
+      },
+      {
+        "task_id": "task-1b70be284ec5f3b0:chunk-1",
+        "lens": "tests",
+        "input_bytes": 73989,
+        "input_sha256": "f31a2eabe7b603ed3474cf5b8463f508bd725a48e2b6468a9129950754fddd97"
+      },
+      {
+        "task_id": "task-805e397ed0a1ad57:chunk-1",
+        "lens": "maintainability",
+        "input_bytes": 37345,
+        "input_sha256": "52e33d7f8b10ba57d9e79fcd63cc9b87249d6bca64e43d485d2f52aa79c584ed"
+      },
+      {
+        "task_id": "task-df30f66a227eba98:chunk-1",
+        "lens": "security",
+        "input_bytes": 74087,
+        "input_sha256": "73fbff93e7752510273bbf37ca36704a6271b8b10fce542580ae62171e7472d4"
+      }
+    ],
+    "dependency_projection": {
+      "path": "pyproject.toml",
+      "source_kind": "dependency_projection",
+      "source_revision": "7bce9dd246f141eb961c52ae96061203a98f083b",
+      "trust": "repository_evidence",
+      "evidence_id": "ev-bb3be39416ea72e1f34c761f",
+      "content_bytes": 858,
+      "content_hash": "75a555a088593a00fe5bea36ef4c819dd035eb55c72c25642052865d81e00b3a",
+      "included_primary_task_ids": [
+        "task-2735ee06f988542a:chunk-1",
+        "task-d064dd83824e8ee6:chunk-1",
+        "task-76d469ce77f3df5a:chunk-1",
+        "task-1b70be284ec5f3b0:chunk-1",
+        "task-df30f66a227eba98:chunk-1"
+      ]
+    },
+    "installed_runtime_resolution": "UNKNOWN_FROM_DECLARATION_PROJECTION"
+  },
+  "diagnostic_scope": {
+    "case_total_call_ceiling": 12,
+    "claim_assessment_max": 1,
+    "effect_policy": "READ_ONLY",
+    "provider_calls_in_retained_prepare": 0,
+    "source_auditor_calls": 0,
+    "target_code_execution": false,
+    "claim": "bounded static-assessment prompt diagnostic; prepare admission is not test execution, runtime review completeness, review quality, calibration, or cutover evidence"
+  }
+}
