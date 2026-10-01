@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import zipfile
@@ -88,6 +89,19 @@ def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_
     assert not any("review" in key.lower() or "text" in key.lower() for key in receipt)
     assert all(call[1]["Authorization"] == "Bearer fake-read-token" for call in transport.calls if "blob.core" not in call[0])
     assert len(transport.calls) == 5
+
+
+def test_trusted_reusable_pin_matches_pilot_caller_and_runtime_identity():
+    source = (ROOT / ".github/workflows/slopsearx-pilot.yml").read_text(encoding="utf-8")
+    call = source.split("  analyze:\n", 1)[1]
+    uses = re.search(
+        r"uses: groktopus/codereview/\.github/workflows/pr-analysis\.yml@([0-9a-f]{40})",
+        call,
+    )
+    harness = re.search(r"harness_sha: ([0-9a-f]{40})", call)
+
+    assert uses is not None and harness is not None
+    assert admission.REUSABLE_SHA == uses.group(1) == harness.group(1)
 
 
 def test_source_checkout_entrypoint_loads_recovery_validator_without_pythonpath(tmp_path):
