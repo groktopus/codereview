@@ -1,0 +1,108 @@
+{
+  "case": {
+    "base_sha": "63e3ecd2f09d79c34e3594a3be74f017a1c5a12c",
+    "head_sha": "7bce9dd246f141eb961c52ae96061203a98f083b",
+    "pull_request_number": 466,
+    "repository": "magnus919/SlopSearX"
+  },
+  "diagnostic_scope": {
+    "case_total_call_ceiling": 12,
+    "claim": "bounded functional diagnostic; prepare admission is not runtime completion, quality, calibration, or cutover evidence",
+    "claim_assessment_max": 1,
+    "effect_policy": "READ_ONLY",
+    "provider_calls_in_retained_prepare": 0,
+    "source_auditor_calls": 0,
+    "target_code_execution": false
+  },
+  "historical_checks": {
+    "captured_at": "2026-09-27T04:06:00Z",
+    "freshness_basis": "HISTORICAL_SNAPSHOT",
+    "path": "docs/historical-functional-review-pr466-v2/historical-checks.json",
+    "sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963"
+  },
+  "limits": {
+    "path": "docs/historical-functional-review-pr466-v2/limits.json",
+    "sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e"
+  },
+  "prepare_observation": {
+    "admitted_obligations": 15,
+    "dynamic_stage_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
+    "historical_checks_sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963",
+    "limits_sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e",
+    "max_claim_assessments": 1,
+    "max_context_bytes": 600000,
+    "max_input_bytes_per_task": 80000,
+    "max_provider_calls": 10,
+    "no_provider_calls": true,
+    "no_target_code_execution": true,
+    "planned_obligations": 15,
+    "primary_request_count": 7,
+    "primary_requests": [
+      {
+        "input_bytes": 49602,
+        "input_sha256": "c63b26e08a43974ac0c7b1761cf93022824e9a428c5a55d12019ed3f408b3cb1",
+        "lens": "correctness",
+        "task_id": "task-f685da4711ebfae2:chunk-1"
+      },
+      {
+        "input_bytes": 50091,
+        "input_sha256": "ab4fc773dae19e547d3f829950eaf037748034caf6e818611f214e693a9969c8",
+        "lens": "tests",
+        "task_id": "task-813d7e8d2d627d7e:chunk-1"
+      },
+      {
+        "input_bytes": 49571,
+        "input_sha256": "85a985a26f5523879c54d1735686724437b66d5040a534858f6d45ef7d54309f",
+        "lens": "maintainability",
+        "task_id": "task-33993a52e194db73:chunk-1"
+      },
+      {
+        "input_bytes": 69190,
+        "input_sha256": "4621e00ad19b84178073f77d93d082dae3d13d8f3397f5f834cafaaaebe4ea70",
+        "lens": "correctness",
+        "task_id": "task-e297e02db7eb5e40:chunk-1"
+      },
+      {
+        "input_bytes": 69691,
+        "input_sha256": "c2b16f9c71cca0027b429d8030fba42a4f0580435b77ad59a6b2eeeb8e03dd99",
+        "lens": "tests",
+        "task_id": "task-9f233e011829dd31:chunk-1"
+      },
+      {
+        "input_bytes": 36647,
+        "input_sha256": "07dcc45da53cd409c1ee5a73c90bb0f2841419af05cc6d0f2de3199aaeeba041",
+        "lens": "maintainability",
+        "task_id": "task-0e194f0ef7319e20:chunk-1"
+      },
+      {
+        "input_bytes": 69747,
+        "input_sha256": "36135c4e9dc61d49d90ba1a9d391ea7dd18f2865242310fda3848a21e63fa278",
+        "lens": "security",
+        "task_id": "task-a7e35017ef6c5491:chunk-1"
+      }
+    ],
+    "primary_scope_admission_complete": true,
+    "profile_sha256": "c2fefca40483bed31207f88fc1ae21f8c058098a207aca9ca987a54ff7abb34b",
+    "remaining_call_slots_after_primary": 3,
+    "source_revision": "1b4598b1ce2776104817d8a9a03040259abcf412",
+    "status": "PREPARED_ONLY",
+    "total_primary_serialized_input_bytes": 394539
+  },
+  "profile": {
+    "path": "profiles/slopsearx-v10-bounded-head-context-trial.json",
+    "sha256": "c2fefca40483bed31207f88fc1ae21f8c058098a207aca9ca987a54ff7abb34b",
+    "version": "slopsearx-production-v10-bounded-head-context-trial"
+  },
+  "provider_identity": {
+    "decision": {
+      "endpoint": null,
+      "model": null
+    },
+    "primary": {
+      "base_url": null,
+      "model": null
+    },
+    "status": "UNKNOWN"
+  },
+  "schema": "historical-functional-review-pr466.v2"
+}
