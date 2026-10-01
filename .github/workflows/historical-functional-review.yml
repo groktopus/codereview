@@ -8,6 +8,14 @@ on:
         required: true
         type: boolean
         default: false
+      case:
+        description: "Select one committed PR466 diagnostic packet"
+        required: true
+        type: choice
+        options:
+          - pr466-v1
+          - pr466-v2
+        default: pr466-v1
 
 permissions:
   contents: read
@@ -47,11 +55,12 @@ jobs:
         env:
           TARGET_DIR: ${{ runner.temp }}/slopsearx-pr466.git
           OUTPUT_DIR: ${{ runner.temp }}/pr466-prepare
-        run: python scripts/run_historical_functional_review.py prepare --target-bare "$TARGET_DIR" --output-dir "$OUTPUT_DIR"
+          CASE_ID: ${{ inputs.case }}
+        run: python scripts/run_historical_functional_review.py prepare --case "$CASE_ID" --target-bare "$TARGET_DIR" --output-dir "$OUTPUT_DIR"
       - name: Upload only the bounded prepare observation
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: historical-functional-pr466-prepare
+          name: historical-functional-${{ inputs.case }}-prepare
           path: ${{ runner.temp }}/pr466-prepare/prepare-observation.json
           if-no-files-found: error
           retention-days: 14
@@ -87,18 +96,19 @@ jobs:
         env:
           TARGET_DIR: ${{ runner.temp }}/slopsearx-pr466.git
           OUTPUT_DIR: ${{ runner.temp }}/pr466-review
+          CASE_ID: ${{ inputs.case }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
           JEV_MODEL: ${{ secrets.JEV_MODEL }}
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
-        run: python scripts/run_historical_functional_review.py run --target-bare "$TARGET_DIR" --output-dir "$OUTPUT_DIR"
+        run: python scripts/run_historical_functional_review.py run --case "$CASE_ID" --target-bare "$TARGET_DIR" --output-dir "$OUTPUT_DIR"
       - name: Upload only review result and report files
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: historical-functional-pr466-review
+          name: historical-functional-${{ inputs.case }}-review
           path: |
             ${{ runner.temp }}/pr466-review/review-result.json
             ${{ runner.temp }}/pr466-review/review-report.md

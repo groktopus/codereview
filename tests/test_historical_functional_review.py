@@ -68,13 +68,16 @@ def test_target_preflight_requires_bare_repo_and_both_exact_objects(tmp_path: Pa
         review._validate_target(bare / "not-a-repository")
 
 
-def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(tmp_path: Path, monkeypatch, capsys) -> None:
+@pytest.mark.parametrize("case_id", review.CASE_CHOICES)
+def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
+    tmp_path: Path, monkeypatch, capsys, case_id: str
+) -> None:
     bare = tmp_path / "target.git"
     base, head = _bare_repo(bare)
     monkeypatch.setattr(review, "BASE", base)
     monkeypatch.setattr(review, "HEAD", head)
-    monkeypatch.setattr(review, "_validate_source_and_inputs", lambda: {})
-    monkeypatch.setattr(review, "_limits_valid", lambda: None)
+    monkeypatch.setattr(review, "_validate_source_and_inputs", lambda _case_id: {})
+    monkeypatch.setattr(review, "_limits_valid", lambda _case_id: None)
 
     config_calls: list[bool] = []
 
@@ -85,9 +88,23 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(tmp_p
 
     cli_calls: list[dict] = []
 
-    def cli(target: Path, output: Path, provider: Path, decision: Path, *, prepare: bool) -> dict:
-        cli_calls.append({"target": target, "prepare": prepare})
+    def cli(
+        target: Path, output: Path, provider: Path, decision: Path, *, prepare: bool, case_id: str
+    ) -> dict:
+        cli_calls.append({"target": target, "prepare": prepare, "case_id": case_id})
         assert prepare is True
+        if case_id == "pr466-v2":
+            requests = review.V2_PREPARE_OBSERVATION["primary_requests"]
+            return {
+                "no_provider_calls": True,
+                "no_target_code_execution": True,
+                "scope": {"primary_scope_admission_complete": True},
+                "capacity": {
+                    "exact_primary_call_demand": 7,
+                    "exact_primary_serialized_input_bytes": 394_539,
+                },
+                "primary_requests": requests,
+            }
         return {
             "no_provider_calls": True,
             "no_target_code_execution": True,
@@ -101,20 +118,26 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(tmp_p
     monkeypatch.setattr(review, "_configs", configs)
     monkeypatch.setattr(review, "_cli", cli)
     out = tmp_path / "result"
-    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "prepare", "--target-bare", str(bare), "--output-dir", str(out)])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [str(SCRIPT), "prepare", "--case", case_id, "--target-bare", str(bare), "--output-dir", str(out)],
+    )
     for name in ("LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "JEV_BASE_URL", "JEV_MODEL", "JEV_API_KEY"):
         monkeypatch.setenv(name, "sentinel-must-not-be-used")
 
     assert review.main() == 0
     assert config_calls == [False]
-    assert len(cli_calls) == 1 and cli_calls[0]["prepare"] is True
+    assert len(cli_calls) == 1 and cli_calls[0]["prepare"] is True and cli_calls[0]["case_id"] == case_id
     assert cli_calls[0]["target"] == bare.resolve()
     emitted = json.loads(capsys.readouterr().out)
     assert emitted["status"] == "PREPARED_ONLY"
     observation = json.loads((out / "prepare-observation.json").read_text(encoding="utf-8"))
     assert observation["provider_calls"] == 0
     assert observation["target_code_executed"] is False
+    assert observation["case_id"] == case_id
     assert observation["capacity"]["exact_primary_call_demand"] == 7
+    assert observation["profile_sha256"] == review._case_spec(case_id)["profile_sha256"]
 
 
 @pytest.mark.parametrize(
@@ -137,6 +160,48 @@ def test_prepare_rejects_out_of_contract_demand_before_review(capacity: dict, re
                 "primary_requests": requests,
             }
         )
+
+
+@pytest.mark.parametrize("case_id", review.CASE_CHOICES)
+def test_registered_case_manifest_and_limits_are_exact(case_id: str) -> None:
+    manifest = review._validate_source_and_inputs(case_id)
+    review._limits_valid(case_id)
+    assert manifest["case"]["pull_request_number"] == 466
+    assert manifest["historical_checks"]["freshness_basis"] == "HISTORICAL_SNAPSHOT"
+    assert manifest["limits"]["sha256"] == review._case_spec(case_id)["limits_sha256"]
+    if case_id == "pr466-v1":
+        assert "retained_prepare_observation" in manifest
+        assert "prepare_observation" not in manifest
+    else:
+        assert "prepare_observation" in manifest
+        assert "retained_prepare_observation" not in manifest
+        assert manifest["prepare_observation"] == review.V2_PREPARE_OBSERVATION
+
+
+@pytest.mark.parametrize(
+    ("case_id", "input_bytes"),
+    [("pr466-v1", 64_001), ("pr466-v2", 80_001)],
+)
+def test_case_specific_request_input_caps_remain_bounded(case_id: str, input_bytes: int) -> None:
+    with pytest.raises(review.SafeFailure, match="primary_request_capacity_exceeded"):
+        review._validate_prepare(
+            {
+                "no_provider_calls": True,
+                "no_target_code_execution": True,
+                "scope": {"primary_scope_admission_complete": True},
+                "capacity": {
+                    "exact_primary_call_demand": 1,
+                    "exact_primary_serialized_input_bytes": input_bytes,
+                },
+                "primary_requests": [{"input_bytes": input_bytes}],
+            },
+            case_id,
+        )
+
+
+def test_v2_prepare_observation_descriptors_match_committed_packet() -> None:
+    packet = json.loads(review.V2_MANIFEST.read_text(encoding="utf-8"))
+    assert review.V2_PREPARE_OBSERVATION == packet["prepare_observation"]
 
 
 def test_prepare_rejects_missing_execution_invariants() -> None:
@@ -180,6 +245,51 @@ def test_bad_fixed_input_hash_fails_before_configuration_or_cli(tmp_path: Path, 
     assert review.main() == 2
     assert "case_input_hash_mismatch" in capsys.readouterr().err
     assert not (tmp_path / "out").exists()
+
+
+def test_v2_profile_hash_mismatch_fails_closed(monkeypatch) -> None:
+    monkeypatch.setattr(review, "V2_PROFILE_SHA256", "0" * 64)
+    with pytest.raises(review.SafeFailure, match="case_input_hash_mismatch"):
+        review._validate_source_and_inputs("pr466-v2")
+
+
+def test_custom_manifest_directory_cannot_replace_registered_case(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(review, "_configs", lambda *args, **kwargs: pytest.fail("config reached before case binding"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(SCRIPT), "prepare", "--case", "pr466-v2", "--manifest-dir", str(tmp_path),
+            "--target-bare", str(tmp_path), "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert review.main() == 2
+    assert "manifest_directory_not_trusted" in capsys.readouterr().err
+
+
+def test_source_context_guard_rejects_wrong_repository_and_workflow_before_inputs(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "attacker/repo")
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/main")
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        "attacker/repo/.github/workflows/historical-functional-review.yml@refs/heads/main",
+    )
+    with pytest.raises(review.SafeFailure, match="untrusted_source_context"):
+        review._validate_source_and_inputs("pr466-v2")
+
+
+def test_source_context_guard_rejects_stale_dispatch_revision(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "groktopus/codereview")
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/main")
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        "groktopus/codereview/.github/workflows/historical-functional-review.yml@refs/heads/main",
+    )
+    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    with pytest.raises(review.SafeFailure, match="untrusted_source_revision"):
+        review._validate_source_and_inputs("pr466-v2")
 
 
 def test_run_with_untrusted_dispatch_context_fails_before_configuration(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -260,6 +370,10 @@ def test_workflow_uses_trusted_checkout_and_exact_artifact_allowlists() -> None:
         Loader=yaml.BaseLoader,
     )
     jobs = workflow["jobs"]
+    choice = workflow["on"]["workflow_dispatch"]["inputs"]["case"]
+    assert choice["type"] == "choice"
+    assert choice["default"] == review.DEFAULT_CASE
+    assert choice["options"] == list(review.CASE_CHOICES)
     prepare = jobs["prepare"]
     live = jobs["live-diagnostic"]
 
@@ -278,3 +392,6 @@ def test_workflow_uses_trusted_checkout_and_exact_artifact_allowlists() -> None:
         "${{ runner.temp }}/pr466-review/review-report.md",
     ]
     assert live["if"].startswith("inputs.execute_live == true")
+    for job in (prepare, live):
+        invocation = next(step["run"] for step in job["steps"] if "run_historical_functional_review.py" in step.get("run", ""))
+        assert '--case "$CASE_ID"' in invocation
