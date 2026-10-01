@@ -1,22 +1,24 @@
-# Current evidence status — 2026-10-01 (main `0dd6145`)
+# Current evidence status — 2026-10-01 (main `cf3481d`)
 
-**Decision: not accepted as a Droid replacement. Review publication remains disabled; target activation and cutover are not authorized.** The full 39 acceptance criteria, 12 nonfunctional requirements, and six milestones remain in scope. Human labels are unavailable; model-produced judgments may provide advisory evidence, not measured accuracy or calibrated approval.
+**Decision: the harness is not accepted as a Droid replacement. Publication remains disabled; target activation and cutover are unauthorized.** The full 39 acceptance criteria, 12 nonfunctional requirements, and six delivery milestones remain in scope. Human labels remain unavailable. This update adds no new human-label prerequisite; the observed model outputs are advisory and do not establish measured accuracy or calibrated approval.
 
-Main is `0dd6145f921216f7d753f06dcc4849e75aed9cd4`, including merged PRs [179](https://github.com/groktopus/codereview/pull/179) and [180](https://github.com/groktopus/codereview/pull/180). PR180 passed all 23 hosted checks; its post-merge [Harness run](https://github.com/groktopus/codereview/actions/runs/36811264934) succeeded. Those checks establish tested source behavior, not review quality or target deployment.
+Main is `cf3481d6ffdb84bab29c0368552f061bab37982d`, after PRs [181](https://github.com/groktopus/codereview/pull/181) and [182](https://github.com/groktopus/codereview/pull/182) merged. Post-merge Harness run [36906793114](https://github.com/groktopus/codereview/actions/runs/36906793114) passed all ten jobs at that exact commit. CI establishes tested source behavior, not review quality or target deployment.
 
-The owner-authorized historical PR466 [diagnostic](https://github.com/groktopus/codereview/actions/runs/36872770979) completed with **INCOMPLETE / PARTIAL**, 12 complete and three partial obligations. It made seven primary-model exchanges and one Jev exchange, executed no target code, and published nothing. The exact HEAD contradicts its retained, unaccepted OAuth-test claim. Unsupported caller-symbol and broad test-directory requests remained unresolved. See the [revision-bound experiment record](experiments/historical-slopsearx-pr466-2026-10-01.md) for hashes, accounting, classifier limitations, and baseline provenance.
+The single authorized PR466 v2 [diagnostic](https://github.com/groktopus/codereview/actions/runs/36907541974) completed both jobs successfully on that main revision. It returned **INCOMPLETE / PARTIAL**: 12 complete and three partial obligations, with zero findings and zero claim assessments. All three partial obligations share an unresolved context gap for `slopsearx/mcp/server.py:make_http_app`: retrieval was rejected as `symbol_lookup_not_in_allowlist_contract`, with zero bytes retrieved. The exact result still marks freshness `CURRENT`, but its basis is `HISTORICAL_SNAPSHOT`; it compares frozen commits and does not check live PR state. See the [v2 evidence record](experiments/historical-slopsearx-pr466-v2-2026-10-01.md) for exact provenance, hashes, accounting, and limitations.
 
-The follow-up source change separates local deterministic checks from provider-call reservations, bounds their actual adapter inputs, and identifies historical freshness explicitly. An opt-in v9 context candidate supplies already-captured exact HEAD test/documentation evidence to implementation tasks without changing their scope. Deployed v8 and target selection remain unchanged. No follow-up provider run has occurred.
+The run recorded eight actual HTTP response receipts: seven LLM and one Jev. Seven LLM responses report 99,475 total tokens; billing and Jev usage remain unknown. The result reserved eight of ten provider calls and separately accounted for two local deterministic checks with zero provider calls. Its Noul advisory was `UNRESOLVED` at 0.66 and uncalibrated. The previous run's false OAuth-test claim was not emitted here; that absence is not accuracy or causal-improvement evidence. No injection attack ran. No target code executed, no review was published, and no cutover occurred.
+
+An opt-in v11 candidate adds the captured HEAD `security.py` implementation to the exact MCP documentation/test correctness tasks. Provider-free preparation admits all 15 obligations across seven requests, with a largest request of 72,737 bytes under the unchanged 80,000-byte limit. The separately versioned `pr466-v3` packet preserves the v2 limits and historical checks. This is routing and capacity evidence; the candidate is not deployed, and no v3 live diagnostic is authorized or has run.
 
 | Remaining delivery area | Evidence needed |
 |---|---|
-| Functional review | Bounded follow-up runs, source-grounded claim verification, disagreements and abstentions; review accuracy remains unknown. |
-| Target integration | SlopSearX [PR484](https://github.com/magnus919/SlopSearX/pull/484) is open with disabled workflows. Actual target workflow identity, provider bindings, and protected publisher environment are not qualified. |
-| Publication | Dedicated App identity, installation and minimal permissions; protected read canary, admission/receipt/replay/failure checks, and an authorized exact-revision publication. |
+| Functional review | Resolve or preserve required context gaps; evaluate source-grounded claims, disagreements, and abstentions. Review accuracy remains unknown. |
+| Target integration | SlopSearX [PR484](https://github.com/magnus919/SlopSearX/pull/484) remains a separate target integration. Workflow identity, provider bindings, and protected publisher environment are not qualified here. |
+| Publication | Dedicated App identity, minimal permissions, protected canary, receipt/replay/failure checks, and separately authorized exact-revision publication. |
 | Reusable operation | A second project, representative operational measurements, bounded failure handling, and an exercised rollback path. |
-| Droid cutover | Explicit owner acceptance of remaining semantic uncertainty, proven operational conditions, and authorized activation/rollback controls. |
+| Droid cutover | Complete requirement trace, proven operational conditions, and explicit owner decision. Semantic accuracy is not established by this run. |
 
-The September 28 and earlier snapshots below remain historical evidence. This October 1 update controls current status; older next-step proposals do not add human-label prerequisites or authorize new provider runs, target changes, publication, or cutover.
+The September 28 and earlier snapshots below remain historical. This October 1 section controls current status; older next-step proposals do not authorize provider runs, target changes, publication, or cutover.
 
 ## Historical evidence status — 2026-09-28 (main `2728c71`)
 
