@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 from pathlib import Path
 
@@ -103,18 +104,35 @@ def test_dependency_projection_refuses_output_over_configured_bound():
         _project(manifest, None, max_bytes=100)
 
 
-def _git(path: Path, *args: str) -> str:
+def _git(path: Path, *args: str, env: dict[str, str] | None = None) -> str:
     return subprocess.run(
-        ["git", "-C", str(path), *args], check=True, text=True, stdout=subprocess.PIPE
+        ["git", "-C", str(path), *args], check=True, text=True, stdout=subprocess.PIPE, env=env
     ).stdout.strip()
 
 
-@pytest.fixture
-def dependency_repo(tmp_path: Path) -> tuple[Path, str, str]:
+@pytest.fixture(params=["main", "master"], ids=["default-branch-main", "default-branch-master"])
+def dependency_repo(tmp_path: Path, request) -> tuple[Path, str, str]:
     bare = tmp_path / "target.git"
     work = tmp_path / "work"
-    subprocess.run(["git", "init", "--bare", str(bare)], check=True, stdout=subprocess.DEVNULL)
-    subprocess.run(["git", "init", str(work)], check=True, stdout=subprocess.DEVNULL)
+    # Simulate either common user/global init.defaultBranch without changing
+    # the machine's Git configuration. The fixture always pushes an explicit
+    # main branch and clones it explicitly below.
+    git_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key != "GIT_CONFIG_COUNT"
+        and not key.startswith("GIT_CONFIG_KEY_")
+        and not key.startswith("GIT_CONFIG_VALUE_")
+    }
+    git_env.update(
+        {
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "init.defaultBranch",
+            "GIT_CONFIG_VALUE_0": request.param,
+        }
+    )
+    subprocess.run(["git", "init", "--bare", str(bare)], check=True, stdout=subprocess.DEVNULL, env=git_env)
+    subprocess.run(["git", "init", str(work)], check=True, stdout=subprocess.DEVNULL, env=git_env)
     _git(work, "config", "user.email", "fixture@example.invalid")
     _git(work, "config", "user.name", "Fixture")
     (work / "src").mkdir()
@@ -127,7 +145,7 @@ def dependency_repo(tmp_path: Path) -> tuple[Path, str, str]:
     _git(work, "-c", "core.hooksPath=/dev/null", "commit", "-m", "base")
     base = _git(work, "rev-parse", "HEAD")
     _git(work, "remote", "add", "origin", str(bare))
-    _git(work, "push", "origin", "HEAD:refs/heads/main")
+    _git(work, "push", "origin", "HEAD:refs/heads/main", env=git_env)
     (work / "src/server.py").write_text("def serve():\n    return False\n")
     (work / "tests/test_server.py").write_text("def test_serve():\n    assert not serve()\n")
     (work / "pyproject.toml").write_text('[project]\ndependencies = ["fastmcp>=3,<4"]\n')
@@ -135,7 +153,7 @@ def dependency_repo(tmp_path: Path) -> tuple[Path, str, str]:
     _git(work, "add", ".")
     _git(work, "-c", "core.hooksPath=/dev/null", "commit", "-m", "change")
     head = _git(work, "rev-parse", "HEAD")
-    _git(work, "push", "origin", "HEAD:refs/heads/main")
+    _git(work, "push", "origin", "HEAD:refs/heads/main", env=git_env)
     return bare, base, head
 
 
@@ -241,7 +259,9 @@ def test_planner_rejects_malformed_projection_hashes_and_sizes(dependency_repo, 
 def test_snapshot_marks_missing_lock_file_as_source_fact_not_context_gap(dependency_repo, tmp_path: Path):
     bare, base, _head = dependency_repo
     work = tmp_path / "without-lock"
-    subprocess.run(["git", "clone", str(bare), str(work)], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(
+        ["git", "clone", "--branch", "main", str(bare), str(work)], check=True, stdout=subprocess.DEVNULL
+    )
     _git(work, "config", "user.email", "fixture@example.invalid")
     _git(work, "config", "user.name", "Fixture")
     (work / "uv.lock").unlink()
