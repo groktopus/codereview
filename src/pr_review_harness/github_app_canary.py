@@ -41,7 +41,7 @@ _API_ROOT = "https://api.github.com"
 _SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _WORKFLOW_PATH = re.compile(r"\.github/workflows/[A-Za-z0-9_.-]{1,128}\.ya?ml\Z")
 _MAX_RUN_ID = 2**63 - 1
-_CANARY_CALL_CAP = 9  # 3 Actions/PR reads + 6 App/install/token identity calls.
+_CANARY_CALL_CAP = 10  # 4 Actions/PR/default-branch reads + 6 App/install/token identity calls.
 _MAX_PRIVATE_KEY_BYTES = 16 * 1024
 
 
@@ -121,7 +121,6 @@ class ProtectedCanaryRun:
             or not _SHA.fullmatch(self.publisher_workflow_sha)
             or not isinstance(self.source_workflow_sha, str)
             or not _SHA.fullmatch(self.source_workflow_sha)
-            or self.source_workflow_sha != self.base_sha
             or not isinstance(self.source_run_head_sha, str)
             or not _SHA.fullmatch(self.source_run_head_sha)
             or not isinstance(self.pull_request_head_sha, str)
@@ -358,6 +357,22 @@ def verify_github_app_identity_canary(
         or head.get("ref") != platform.source_head_branch
     ):
         raise _reject("github_app_canary_pull_request_mismatch")
+
+    # Bind the protected caller revision to an independent read of the
+    # repository's current default-branch tip. The PR base may legitimately be
+    # older; it remains a separate reviewed-snapshot identity above.
+    branch = request(
+        "GET",
+        repo_path + "/branches/" + quote(platform.default_branch, safe=""),
+        actions_token,
+    )
+    branch_commit = branch.get("commit")
+    if (
+        branch.get("name") != platform.default_branch
+        or not isinstance(branch_commit, dict)
+        or branch_commit.get("sha") != platform.source_workflow_sha
+    ):
+        raise _reject("github_app_canary_default_branch_mismatch")
 
     try:
         private_key_pem = app_private_key_supplier()

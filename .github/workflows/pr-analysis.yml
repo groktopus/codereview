@@ -117,8 +117,7 @@ jobs:
                   or '//' in default_branch
                   or os.environ['CALLER_REF'] != 'refs/heads/' + default_branch
                   or os.environ['BASE_REF'] != default_branch
-                  or os.environ['BASE_SHA'] != os.environ['CALLER_SHA']
-                  or os.environ['BASE_SHA'] != os.environ['CALLER_WORKFLOW_SHA']
+                  or os.environ['CALLER_SHA'] != os.environ['CALLER_WORKFLOW_SHA']
                   or not caller_workflow_ref.startswith(caller + '/.github/workflows/')
                   or not caller_workflow_ref.endswith('@refs/heads/' + default_branch)
               ):

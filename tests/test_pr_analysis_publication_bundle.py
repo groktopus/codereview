@@ -23,7 +23,7 @@ from scripts.pr_analysis_publication_bundle import BundleError, _canonical_hash,
 REPO = "owner/repo"
 BASE = "b" * 40
 HEAD = "a" * 40
-CALLER_SHA = BASE
+CALLER_SHA = "c" * 40
 EVENT_SHA = HEAD
 HARNESS_SHA = "d" * 40
 PROFILE_SHA = "e" * 64
@@ -70,9 +70,10 @@ def sealed_result(**overrides):
 
 
 class FakeTransport:
-    def __init__(self, document, *, pull_request=None):
+    def __init__(self, document, *, pull_request=None, branch_response=None):
         self.document = document
         self.pull_request = pull_request
+        self.branch_response = branch_response or {"name": "main", "commit": {"sha": CALLER_SHA}}
         self.calls = 0
 
     def request(self, method, url, **kwargs):
@@ -80,7 +81,9 @@ class FakeTransport:
         assert method == "GET"
         assert kwargs["timeout_seconds"] == 10
         assert kwargs["max_response_bytes"] <= 512_000
-        if url == f"https://api.github.com/repos/{REPO}/actions/runs/{RUN_ID}/attempts/{ATTEMPT}":
+        if url == f"https://api.github.com/repos/{REPO}/branches/main":
+            document = self.branch_response
+        elif url == f"https://api.github.com/repos/{REPO}/actions/runs/{RUN_ID}/attempts/{ATTEMPT}":
             document = self.document
         elif url == f"https://api.github.com/repos/{REPO}/pulls/44":
             document = self.pull_request or {
@@ -135,7 +138,7 @@ def make_inputs(tmp_path: Path, *, result=None):
         "TARGET_REPOSITORY": REPO,
         "GITHUB_RUN_ID": str(RUN_ID),
         "GITHUB_RUN_ATTEMPT": str(ATTEMPT),
-        "GITHUB_SHA": BASE,
+        "GITHUB_SHA": CALLER_SHA,
         "GITHUB_WORKFLOW_SHA": CALLER_SHA,
         "GITHUB_REF": "refs/heads/main",
         "GITHUB_WORKFLOW_REF": f"{REPO}/.github/workflows/pr-review.yml@refs/heads/main",
@@ -217,6 +220,9 @@ def test_emitted_directory_round_trips_through_existing_intake(tmp_path):
     assert manifest["provider_configuration_identity"] == "provider-identity-sha256:" + _canonical_hash(
         PROVIDER_IDENTITY
     )
+    assert manifest["base_sha"] == BASE
+    assert manifest["caller_workflow_sha"] == CALLER_SHA
+    assert manifest["caller_workflow_sha"] != manifest["base_sha"]
     assert manifest["contract_versions"] == {"artifact_manifest": "1.0", "review_result": "0.1"}
 
 
@@ -271,6 +277,30 @@ def test_wrong_api_head_fails_before_creating_publication_directory(tmp_path):
             env=env,
             transport=FakeTransport(run_api(head_sha="9" * 40)),
         )
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "branch_response",
+    [
+        {"name": "release", "commit": {"sha": CALLER_SHA}},
+        {"name": "main", "commit": {"sha": "9" * 40}},
+        {"name": "main", "commit": {}},
+    ],
+)
+def test_default_branch_tip_mismatch_rejects_bundle(tmp_path, branch_response):
+    result_path, profile_path, env = make_inputs(tmp_path)
+    output = tmp_path / "publication"
+    transport = FakeTransport(run_api(), branch_response=branch_response)
+    with pytest.raises(BundleError, match="github_default_branch_identity_mismatch"):
+        create_publication_directory(
+            result_path=result_path,
+            profile_path=profile_path,
+            output_dir=output,
+            env=env,
+            transport=transport,
+        )
+    assert transport.calls == 1
     assert not output.exists()
 
 

@@ -140,9 +140,18 @@ jobs:
           WHEEL_ENV: ${{ runner.temp }}/pr-review-wheel
           DIST_DIR: ${{ runner.temp }}/pr-review-dist
         run: |
+          set -euo pipefail
           python -m venv "$WHEEL_ENV"
-          "$WHEEL_ENV/bin/python" -m pip install "$DIST_DIR"/*.whl
+          mapfile -t WHEELS < <(find "$DIST_DIR" -maxdepth 1 -type f -name '*.whl' -print)
+          test "${#WHEELS[@]}" -eq 1
+          "$WHEEL_ENV/bin/python" -m pip install "${WHEELS[0]}" pytest
+          printf 'PR_REVIEW_PROTECTED_PUBLICATION_WHEEL=%s\n' "${WHEELS[0]}" >> "$GITHUB_ENV"
           "$WHEEL_ENV/bin/python" scripts/package_smoke.py --cli "$WHEEL_ENV/bin/pr-review"
+      - name: Run protected publication safe-default tests against the built wheel
+        env:
+          WHEEL_ENV: ${{ runner.temp }}/pr-review-wheel
+        run: |
+          "$WHEEL_ENV/bin/python" -m pytest -q tests/test_protected_publication_installed.py
       - name: Run installed CLI recovery rehearsal with local fakes
         env:
           WHEEL_ENV: ${{ runner.temp }}/pr-review-wheel

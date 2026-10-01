@@ -16,6 +16,7 @@ HEAD_SHA = "a" * 40
 CONTEXT_SHA = "c" * 40
 WORKFLOW_SHA = "d" * 40
 API_HEAD_SHA = "e" * 40
+DEFAULT_BRANCH_TIP = "f" * 40
 TOKEN = "actions-read-secret-sentinel"
 
 
@@ -71,6 +72,7 @@ class FakeTransport:
 def api_responses(*, base_ref="main", head_ref="topic/issue-42", pr_state="open"):
     return {
         "/repos/owner/repo": {"id": 8123, "full_name": REPOSITORY, "default_branch": "main"},
+        "/repos/owner/repo/branches/main": {"name": "main", "commit": {"sha": DEFAULT_BRANCH_TIP}},
         f"/repos/owner/repo/actions/runs/{RUN_ID}/attempts/{ATTEMPT}": {
             "id": RUN_ID,
             "run_attempt": ATTEMPT,
@@ -103,6 +105,7 @@ def test_probe_reports_differences_as_observations_not_identity_proof(tmp_path):
     assert result["workflow_run_api"]["head_sha"] == API_HEAD_SHA
     assert result["pull_request_api"]["base_sha"] == BASE_SHA
     assert result["pull_request_api"]["head_sha"] == HEAD_SHA
+    assert result["default_branch_api"]["tip_sha"] == DEFAULT_BRANCH_TIP
     assert result["comparisons"] == {
         "event_repository_id_equals_api_repository_id": True,
         "context_ref_is_default_branch": True,
@@ -110,25 +113,31 @@ def test_probe_reports_differences_as_observations_not_identity_proof(tmp_path):
         "context_sha_equals_workflow_sha": False,
         "context_sha_equals_current_pr_base_sha": False,
         "workflow_sha_equals_current_pr_base_sha": False,
+        "context_sha_equals_default_branch_tip": False,
+        "workflow_sha_equals_default_branch_tip": False,
+        "pr_base_sha_equals_default_branch_tip": False,
         "api_run_head_sha_equals_current_pr_head_sha": False,
         "api_run_head_branch_equals_current_pr_head_ref": False,
         "event_base_sha_equals_current_pr_base_sha": True,
         "event_head_sha_equals_current_pr_head_sha": True,
     }
     assert result["interpretation"].startswith("observations_only")
-    assert len(transport.calls) == 3
+    assert len(transport.calls) == 4
     assert all(call[0] == "GET" and call[2] == TOKEN and call[3] is None for call in transport.calls)
     assert all(call[4] <= 5.0 and call[5] == 128 * 1024 for call in transport.calls)
+    assert any(urlsplit(call[1]).path == "/repos/owner/repo/branches/main" for call in transport.calls)
 
 
-def test_probe_records_equalities_when_they_happen_without_promoting_them(tmp_path):
-    env = fixture(tmp_path, GITHUB_SHA=BASE_SHA, GITHUB_WORKFLOW_SHA=BASE_SHA)
+def test_probe_records_tip_equality_separately_from_older_pr_base_without_promoting_it(tmp_path):
+    env = fixture(tmp_path, GITHUB_SHA=DEFAULT_BRANCH_TIP, GITHUB_WORKFLOW_SHA=DEFAULT_BRANCH_TIP)
     transport = FakeTransport(responses=api_responses())
 
     result = run_probe(env, transport=transport, clock=lambda: 5.0)
 
     assert result["comparisons"]["context_sha_equals_workflow_sha"] is True
-    assert result["comparisons"]["workflow_sha_equals_current_pr_base_sha"] is True
+    assert result["comparisons"]["workflow_sha_equals_default_branch_tip"] is True
+    assert result["comparisons"]["workflow_sha_equals_current_pr_base_sha"] is False
+    assert result["comparisons"]["pr_base_sha_equals_default_branch_tip"] is False
     assert result["authorization"] == "NONE"
     assert "identity proof" in result["interpretation"]
 
@@ -209,6 +218,8 @@ def test_workflow_is_disabled_read_only_and_checks_out_only_the_protected_sha():
     assert "actions: read" in source
     assert "contents: read" in source
     assert "pull-requests: read" in source
+    assert "default-branch tip, and read-only API observations" in source
+    assert "timeout-minutes: 1" in source
     assert "uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in source
     assert "uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065" in source
     assert "github.event.pull_request.head.sha" not in source

@@ -258,6 +258,38 @@ def test_reusable_analysis_accepts_only_the_pinned_central_pilot_pair_on_main():
     assert run.call_args.args[0] == ["git", "check-ref-format", "refs/heads/main"]
 
 
+def test_publication_preflight_separates_current_workflow_sha_from_older_pr_base():
+    caller_sha = "f" * 40
+    run = _run_repository_identity_preflight(
+        TARGET_REPOSITORY,
+        TARGET_REPOSITORY,
+        emit_publication_bundle=True,
+        caller_event="pull_request_target",
+        caller_ref="refs/heads/main",
+        caller_workflow_ref=f"{TARGET_REPOSITORY}/.github/workflows/review.yml@refs/heads/main",
+        caller_sha=caller_sha,
+        caller_workflow_sha=caller_sha,
+        base_ref="main",
+    )
+    run.assert_called_once()
+    assert run.call_args.args[0] == ["git", "check-ref-format", "refs/heads/main"]
+
+
+def test_publication_preflight_rejects_disagreeing_workflow_context_shas():
+    with pytest.raises(SystemExit, match="publication_source_context_mismatch"):
+        _run_repository_identity_preflight(
+            TARGET_REPOSITORY,
+            TARGET_REPOSITORY,
+            emit_publication_bundle=True,
+            caller_event="pull_request_target",
+            caller_ref="refs/heads/main",
+            caller_workflow_ref=f"{TARGET_REPOSITORY}/.github/workflows/review.yml@refs/heads/main",
+            caller_sha="f" * 40,
+            caller_workflow_sha="e" * 40,
+            base_ref="main",
+        )
+
+
 @pytest.mark.parametrize(
     ("caller", "target", "caller_ref"),
     [

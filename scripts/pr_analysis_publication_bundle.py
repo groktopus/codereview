@@ -18,6 +18,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from pr_review_harness.actions_publication import HTTPResponse, UrllibGitHubTransport
 from pr_review_harness.artifact_intake import ArtifactIdentity, _manifest_for_identity, _validate_manifest
@@ -151,6 +152,35 @@ def _github_pull_request(
     return _parse_object(response.body, "github_pull_request_response_invalid")
 
 
+def _github_default_branch(
+    *,
+    repository: str,
+    branch: str,
+    token: str,
+    transport: Any,
+    expected_sha: str,
+) -> None:
+    if not _REPOSITORY.fullmatch(repository) or not token or not _GIT_SHA.fullmatch(expected_sha):
+        raise BundleError("github_default_branch_request_invalid")
+    try:
+        response: HTTPResponse = transport.request(
+            "GET",
+            f"{_API_BASE}/repos/{repository}/branches/{quote(branch, safe='')}",
+            token=token,
+            json_body=None,
+            timeout_seconds=10,
+            max_response_bytes=_MAX_API,
+        )
+    except Exception:
+        raise BundleError("github_default_branch_read_failed") from None
+    if response.status != 200 or len(response.body) > _MAX_API:
+        raise BundleError("github_default_branch_read_failed")
+    record = _parse_object(response.body, "github_default_branch_response_invalid")
+    commit = record.get("commit")
+    if record.get("name") != branch or not isinstance(commit, dict) or commit.get("sha") != expected_sha:
+        raise BundleError("github_default_branch_identity_mismatch")
+
+
 def _validate_local_target_context(env: dict[str, str], repository: str) -> tuple[str, str]:
     default_branch = env.get("GITHUB_DEFAULT_BRANCH", "")
     if (
@@ -177,8 +207,9 @@ def _validate_local_target_context(env: dict[str, str], repository: str) -> tupl
     if (
         not _GIT_SHA.fullmatch(base_sha)
         or not _GIT_SHA.fullmatch(env.get("HEAD_SHA", ""))
-        or env.get("GITHUB_SHA") != base_sha
-        or env.get("GITHUB_WORKFLOW_SHA") != base_sha
+        or not _GIT_SHA.fullmatch(env.get("GITHUB_SHA", ""))
+        or not _GIT_SHA.fullmatch(env.get("GITHUB_WORKFLOW_SHA", ""))
+        or env.get("GITHUB_SHA") != env.get("GITHUB_WORKFLOW_SHA")
     ):
         raise BundleError("caller_workflow_sha_invalid")
     return default_branch, workflow_path
@@ -256,7 +287,6 @@ def _identity_from_run(
     if (
         not _GIT_SHA.fullmatch(caller_workflow_sha)
         or env.get("GITHUB_SHA") != caller_workflow_sha
-        or caller_workflow_sha != base.get("sha")
         or env.get("BASE_SHA") != base.get("sha")
         or env.get("HEAD_SHA") != head.get("sha")
     ):
@@ -397,6 +427,15 @@ def create_publication_directory(
     run_id = _positive_int(env, "GITHUB_RUN_ID")
     attempt = _positive_int(env, "GITHUB_RUN_ATTEMPT")
     run_transport = transport or UrllibGitHubTransport()
+    default_branch, _workflow_path = _validate_local_target_context(env, repository)
+    caller_workflow_sha = env.get("GITHUB_WORKFLOW_SHA", "")
+    _github_default_branch(
+        repository=repository,
+        branch=default_branch,
+        token=token,
+        transport=run_transport,
+        expected_sha=caller_workflow_sha,
+    )
     api_run = _github_run(
         repository=repository,
         run_id=run_id,

@@ -264,7 +264,6 @@ class PublicationAdmission:
     concurrency_group: str
     concurrency_contract_hash: str
     verification_kind: str = "GITHUB_API_RUN_ARTIFACT_V1"
-    concurrency_scope: str = "pull_request"
 
     def __post_init__(self) -> None:
         _validate_sha(self.base_sha, "base_sha")
@@ -289,12 +288,7 @@ class PublicationAdmission:
             raise ReceiptContractError("admission actor_login is invalid")
         if self.verification_kind != "GITHUB_API_RUN_ARTIFACT_V1":
             raise ReceiptContractError("admission verification is unavailable")
-        if self.concurrency_scope == "pull_request":
-            expected_group = f"pr-review-publish-{self.slot.repository_id}-{self.slot.pull_request_number}"
-        elif self.concurrency_scope == "repository":
-            expected_group = f"pr-review-publish-{self.slot.repository_id}"
-        else:
-            raise ReceiptContractError("admission concurrency scope is invalid")
+        expected_group = f"pr-review-publish-{self.slot.repository_id}-{self.slot.pull_request_number}"
         if self.concurrency_group != expected_group:
             raise ReceiptContractError("admission concurrency binding is invalid")
         if self.upstream_run.repository_id != self.slot.repository_id:
