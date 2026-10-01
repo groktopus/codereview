@@ -115,6 +115,45 @@ def test_limits_reject_bool_and_unbounded_deadline():
         ScanLimits(max_pages=0)
 
 
+def test_publication_admission_accepts_only_exact_bounded_concurrency_scopes():
+    from pr_review_harness.publication_receipts import PublicationAdmission
+
+    slot = receipt().slot
+    values = {
+        "slot": slot,
+        "base_sha": "b" * 40,
+        "effect_key": "effect-" + "1" * 64,
+        "result_hash": h("result"),
+        "review_body_hash": h("body"),
+        "disposition": "COMMENT",
+        "review_event": "COMMENT",
+        "actor_login": "review-bot[bot]",
+        "profile_hash": h("profile"),
+        "policy_hash": h("policy"),
+        "source_artifact_sha256": h("artifact"),
+        "admission_evidence_hash": h("evidence"),
+        "upstream_run": run(101, 10),
+        "publisher_run": run(202, 20),
+        "concurrency_contract_hash": h("concurrency"),
+    }
+    default = PublicationAdmission(**values, concurrency_group="pr-review-publish-1234-8")
+    assert default.concurrency_scope == "pull_request"
+    repository_scope = PublicationAdmission(
+        **values,
+        concurrency_scope="repository",
+        concurrency_group="pr-review-publish-1234",
+    )
+    assert repository_scope.concurrency_group == "pr-review-publish-1234"
+
+    for scope, group in (
+        ("repository", "pr-review-publish-1234-8"),
+        ("pull_request", "pr-review-publish-1234"),
+        ("organization", "pr-review-publish-1234"),
+    ):
+        with pytest.raises(ReceiptContractError, match="concurrency"):
+            PublicationAdmission(**values, concurrency_scope=scope, concurrency_group=group)
+
+
 def test_receipt_ack_requires_exact_durable_bytes_and_publisher_run(monkeypatch):
     import pr_review_harness.publication_receipts as receipt_module
 

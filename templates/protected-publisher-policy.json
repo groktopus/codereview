@@ -1,0 +1,48 @@
+{
+  "schema": "pr-review-protected-publication-policy.v1",
+  "enabled": false,
+  "repository": {
+    "name": "REPLACE_WITH_OWNER_AND_REPOSITORY",
+    "id": "REPLACE_WITH_NUMERIC_REPOSITORY_ID"
+  },
+  "default_branch": "REPLACE_WITH_PROTECTED_DEFAULT_BRANCH",
+  "publisher_workflow": {
+    "id": "REPLACE_WITH_NUMERIC_PUBLISHER_WORKFLOW_ID",
+    "path": ".github/workflows/pr-publish.yml",
+    "ref": "REPLACE_WITH_OWNER_AND_REPOSITORY/.github/workflows/pr-publish.yml@refs/heads/REPLACE_WITH_PROTECTED_DEFAULT_BRANCH"
+  },
+  "source_workflow": {
+    "id": "REPLACE_WITH_NUMERIC_SOURCE_WORKFLOW_ID",
+    "path": ".github/workflows/REPLACE_WITH_PROTECTED_ANALYSIS_WORKFLOW.yml",
+    "ref": "REPLACE_WITH_OWNER_AND_REPOSITORY/.github/workflows/REPLACE_WITH_PROTECTED_ANALYSIS_WORKFLOW.yml@refs/heads/REPLACE_WITH_PROTECTED_DEFAULT_BRANCH"
+  },
+  "called_harness": {
+    "repository": "REPLACE_WITH_OWNER_AND_HARNESS_REPOSITORY",
+    "path": ".github/workflows/pr-analysis.yml",
+    "sha": "REPLACE_WITH_VERIFIED_40_CHARACTER_HARNESS_COMMIT_SHA"
+  },
+  "app": {
+    "id": "REPLACE_WITH_NUMERIC_GITHUB_APP_ID",
+    "installation_id": "REPLACE_WITH_NUMERIC_INSTALLATION_ID",
+    "slug": "REPLACE_WITH_GITHUB_APP_SLUG",
+    "actor_login": "REPLACE_WITH_GITHUB_APP_SLUG[bot]"
+  },
+  "profile": {
+    "version": "REPLACE_WITH_REVIEW_PROFILE_VERSION",
+    "sha256": "REPLACE_WITH_64_CHARACTER_PROFILE_SHA256",
+    "provider_configuration_identity": "provider-config-sha256:REPLACE_WITH_64_CHARACTER_CONFIG_SHA256"
+  },
+  "publication": {
+    "allowed_dispositions": ["COMMENT"],
+    "max_review_body_bytes": 60000,
+    "effect_policy": "PUBLISH_REVIEW"
+  },
+  "limits": {
+    "max_runs": 20,
+    "max_pages": 2,
+    "max_reviews": 100,
+    "deadline_seconds": 25
+  },
+  "artifact_trust_mode": "API_BOUND_SHA256",
+  "artifact_redirect_hosts": ["REPLACE_WITH_APPROVED_GITHUB_ARTIFACT_DOWNLOAD_HOST"]
+}

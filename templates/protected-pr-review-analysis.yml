@@ -25,7 +25,7 @@ jobs:
   analyze:
     # Deliberate hard stop. Remove only in a separately reviewed target-repo change.
     if: false
-    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@e5d1623ea69ae6b789c23c2c900acdb3913da3a7
+    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@7eaddf7c549c8060045578bc1702e394a35dfa2d
     permissions:
       contents: read
       checks: read
@@ -33,7 +33,7 @@ jobs:
       actions: read
     with:
       harness_repository: groktopus/codereview
-      harness_sha: e5d1623ea69ae6b789c23c2c900acdb3913da3a7
+      harness_sha: 7eaddf7c549c8060045578bc1702e394a35dfa2d
       target_repository: ${{ github.repository }}
       pull_request_number: ${{ github.event.pull_request.number }}
       base_ref: ${{ github.event.pull_request.base.ref }}

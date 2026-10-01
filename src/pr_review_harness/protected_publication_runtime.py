@@ -396,6 +396,7 @@ def _platform_context(
     event_raw: bytes,
     policy: ProtectedPublicationPolicy,
     target_claim: tuple[int, str, str],
+    source_workflow_sha: str,
 ) -> ProtectedCanaryRun:
     upstream, event_claim = _workflow_event_parts(environ, event_raw, policy)
     if event_claim is not None and event_claim != target_claim:
@@ -423,7 +424,7 @@ def _platform_context(
         source_workflow_path=source["path"],
         source_workflow_ref=source["ref"],
         source_event=upstream["event"],
-        source_workflow_sha=base_sha,
+        source_workflow_sha=source_workflow_sha,
         source_run_head_sha=upstream["head_sha"],
         pull_request_head_sha=head_sha,
         pull_request_number=pr_number,
@@ -464,6 +465,7 @@ def _publication_policy(
         profile_sha256=profile["sha256"],
         provider_configuration_identity=profile["provider_configuration_identity"],
         allowed_actor_login=app["actor_login"],
+        concurrency_scope="repository",
         artifact_trust_mode=ArtifactTrustMode.API_BOUND_SHA256,
         artifact_redirect_hosts=tuple(protected.raw["artifact_redirect_hosts"]),
     )
@@ -490,7 +492,7 @@ def _bootstrap_target_claim(
     transport: GitHubHTTPTransport,
     deadline: float,
     clock: Callable[[], float],
-) -> tuple[int, str, str]:
+) -> tuple[tuple[int, str, str], str]:
     """Extract only the PR identity from a bounded API-bound source manifest.
 
     All other manifest fields are compared with protected policy here and the
@@ -530,6 +532,21 @@ def _bootstrap_target_claim(
         ):
             raise ProtectedRuntimeError("source_artifact_api_unavailable")
         return response
+
+    default_branch = protected.raw["default_branch"]
+    branch_value = _json_object(
+        request("GET", f"{root}/branches/{quote(default_branch, safe='')}").body,
+        limit=256 * 1024,
+        code="default_branch_api_invalid",
+    )
+    branch_commit = branch_value.get("commit") if isinstance(branch_value.get("commit"), dict) else {}
+    source_workflow_sha = branch_commit.get("sha")
+    if (
+        branch_value.get("name") != default_branch
+        or not isinstance(source_workflow_sha, str)
+        or not _SHA.fullmatch(source_workflow_sha)
+    ):
+        raise ProtectedRuntimeError("default_branch_tip_invalid")
 
     source_run = _json_object(
         request("GET", f"{root}/actions/runs/{run_id}").body,
@@ -665,7 +682,7 @@ def _bootstrap_target_claim(
         or manifest.get("profile_version") != profile["version"]
         or manifest.get("profile_sha256") != profile["sha256"]
         or manifest.get("provider_configuration_identity") != profile["provider_configuration_identity"]
-        or manifest.get("caller_workflow_sha") != manifest.get("base_sha")
+        or manifest.get("caller_workflow_sha") != source_workflow_sha
         or manifest.get("head_sha") != source_run.get("head_sha")
     ):
         raise ProtectedRuntimeError("source_artifact_manifest_policy_mismatch")
@@ -677,7 +694,7 @@ def _bootstrap_target_claim(
     claim = (pr_number, base_sha, head_sha)
     if event_claim is not None and event_claim != claim:
         raise ProtectedRuntimeError("workflow_event_pr_binding_mismatch")
-    return claim
+    return claim, source_workflow_sha
 
 
 def _load_review_result(adapter: GitHubActionsPublicationAdapter, limits: ScanLimits) -> dict[str, object]:
@@ -808,8 +825,8 @@ def run_protected_publication(
             raise ProtectedRuntimeError("workflow_event_unavailable")
         event_raw = _read_regular(Path(event_path), _EVENT_MAX_BYTES, "workflow_event_unavailable")
         client = transport or UrllibGitHubTransport()
-        target_claim = _bootstrap_target_claim(env, event_raw, protected, client, deadline, clock)
-        platform = _platform_context(env, event_raw, protected, target_claim)
+        target_claim, source_workflow_sha = _bootstrap_target_claim(env, event_raw, protected, client, deadline, clock)
+        platform = _platform_context(env, event_raw, protected, target_claim, source_workflow_sha)
         app_policy = protected.app_policy()
         github_policy = _publication_policy(protected, platform)
         key_cache: list[str] = []
@@ -849,6 +866,42 @@ def run_protected_publication(
         result = _load_review_result(adapter, _with_deadline(publication_limits, remaining))
         if not isinstance(result, dict):
             raise ProtectedRuntimeError("result_artifact_intake_unavailable")
+
+        def fresh_head(timeout_seconds: float) -> str:
+            remaining_seconds = min(timeout_seconds, _remaining(deadline, clock))
+            default_branch = protected.raw["default_branch"]
+            branch_response = client.request(
+                "GET",
+                "https://api.github.com/repos/"
+                + quote(protected.raw["repository"]["name"], safe="/")
+                + "/branches/"
+                + quote(default_branch, safe=""),
+                token=env.get("GITHUB_TOKEN", ""),
+                json_body=None,
+                timeout_seconds=remaining_seconds,
+                max_response_bytes=256 * 1024,
+            )
+            if clock() >= deadline:
+                raise ProtectedRuntimeError("protected_publication_deadline_exhausted")
+            if (
+                getattr(branch_response, "status", None) != 200
+                or not isinstance(getattr(branch_response, "body", None), bytes)
+                or len(branch_response.body) > 256 * 1024
+            ):
+                raise ProtectedRuntimeError("default_branch_tip_unavailable")
+            branch_value = _json_object(
+                branch_response.body, limit=256 * 1024, code="default_branch_api_invalid"
+            )
+            branch_commit = branch_value.get("commit") if isinstance(branch_value.get("commit"), dict) else {}
+            if branch_value.get("name") != default_branch or branch_commit.get("sha") != source_workflow_sha:
+                raise ProtectedRuntimeError("default_branch_tip_changed")
+            pr = adapter._pull(remaining_seconds)
+            if clock() >= deadline:
+                raise ProtectedRuntimeError("protected_publication_deadline_exhausted")
+            if pr["base_sha"] != target_claim[1] or pr["head_sha"] != target_claim[2]:
+                raise ProtectedRuntimeError("pull_request_target_changed")
+            return pr["head_sha"]
+
         remaining = _remaining(deadline, clock)
         outcome = publish_review_stateless(
             result,
@@ -857,7 +910,7 @@ def run_protected_publication(
             admission_provider=adapter,
             history_reader=adapter,
             receipt_writer=adapter,
-            fresh_head=adapter.fresh_head,
+            fresh_head=fresh_head,
             submit_review=adapter.submit_review,
             limits=_with_deadline(publication_limits, remaining),
         )

@@ -336,6 +336,7 @@ class GitHubPublicationPolicy:
     max_api_response_bytes: int = _MAX_API_BYTES
     max_bundle_bytes: int = _MAX_ARCHIVE_BYTES
     max_receipt_archive_bytes: int = _MAX_RECEIPT_ARCHIVE_BYTES
+    concurrency_scope: str = "pull_request"
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -382,6 +383,8 @@ class GitHubPublicationPolicy:
             raise GitHubPublicationError("publication_actor_policy_invalid")
         if not isinstance(self.artifact_trust_mode, ArtifactTrustMode):
             raise GitHubPublicationError("artifact_trust_mode_invalid")
+        if not isinstance(self.concurrency_scope, str) or self.concurrency_scope not in {"pull_request", "repository"}:
+            raise GitHubPublicationError("publication_concurrency_scope_invalid")
         parsed = urllib.parse.urlsplit(self.api_base_url)
         if (
             parsed.scheme != "https"
@@ -744,10 +747,6 @@ class GitHubActionsPublicationAdapter:
             and item.get("number") == receipt.slot.pull_request_number
             and isinstance(item.get("base"), dict)
             and isinstance(item.get("head"), dict)
-            and (
-                upstream.get("event") != "pull_request_target"
-                or item["base"].get("sha") == receipt.upstream_run.workflow_sha
-            )
             and item["head"].get("sha") == receipt.slot.head_sha
         ] if isinstance(pull_requests, list) else []
         if (not isinstance(pull_requests, list) and not target_event_without_rows) or (
@@ -1119,6 +1118,11 @@ class GitHubActionsPublicationAdapter:
             )
             disposition = result.get("disposition")
             effect_key = _stateless_effect_key(slot, result["result_hash"], body_hash, disposition)
+            concurrency_group = (
+                f"pr-review-publish-{self.policy.repository_id}-{self.policy.pull_request_number}"
+                if self.policy.concurrency_scope == "pull_request"
+                else f"pr-review-publish-{self.policy.repository_id}"
+            )
             return PublicationAdmission(
                 slot=slot,
                 base_sha=pr["base_sha"],
@@ -1139,12 +1143,17 @@ class GitHubActionsPublicationAdapter:
                         "artifact_id": artifact["id"],
                         "artifact_archive_sha256": receipt.archive_sha256,
                         "artifact_result_sha256": receipt.result_sha256,
+                        "concurrency_scope": self.policy.concurrency_scope,
+                        "concurrency_group": concurrency_group,
                     }
                 ),
                 upstream_run=upstream_identity,
                 publisher_run=publisher_identity,
-                concurrency_group=f"pr-review-publish-{self.policy.repository_id}-{self.policy.pull_request_number}",
-                concurrency_contract_hash=_canonical_hash({"group": "repository-id+pull-request", "cancel": False}),
+                concurrency_group=concurrency_group,
+                concurrency_contract_hash=_canonical_hash(
+                    {"scope": self.policy.concurrency_scope, "group": concurrency_group, "cancel": False}
+                ),
+                concurrency_scope=self.policy.concurrency_scope,
             )
         except GitHubPublicationError as exc:
             raise RuntimeError(exc.code) from None

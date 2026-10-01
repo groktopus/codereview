@@ -428,10 +428,12 @@ class Uploader:
         ("lost_post_response", "CONFIRMED"),
         ("lost_post_history_unknown", "UNKNOWN"),
         ("admission_only", "CANDIDATE"),
+        ("admission_only_repository", "CANDIDATE"),
     ],
 )
 def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_posts_once(failure, expected_status):
-    policy = make_policy()
+    repository_scope = failure == "admission_only_repository"
+    policy = make_policy(concurrency_scope="repository" if repository_scope else "pull_request")
     result = make_valid_result()
     bundle = bundle_for(policy, result)
     receipt_archives = {}
@@ -584,7 +586,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
     uploader = Uploader("FAILED" if failure == "receipt_upload" else "UPLOADED")
     provider = Provider(
         permissions=(("actions", "read"), ("pull_requests", "read"))
-        if failure == "admission_only"
+        if failure in {"admission_only", "admission_only_repository"}
         else None
     )
     client = GitHubActionsPublicationAdapter(policy, provider, transport=transport, artifact_uploader=uploader)
@@ -597,7 +599,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         "allowed_actors": [WRITER],
         "max_review_body_bytes": 60_000,
     }
-    if failure == "admission_only":
+    if failure in {"admission_only", "admission_only_repository"}:
         admission = client.admit(
             result,
             config,
@@ -612,6 +614,33 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         assert admission.publisher_run.run_id == policy.publisher_run_id
         assert admission.publisher_run.run_attempt == policy.publisher_run_attempt
         assert admission.actor_login == WRITER
+        expected_group = "pr-review-publish-8123" if repository_scope else "pr-review-publish-8123-44"
+        assert admission.concurrency_scope == policy.concurrency_scope
+        assert admission.concurrency_group == expected_group
+        assert admission.concurrency_contract_hash == _canonical_hash(
+            {"scope": policy.concurrency_scope, "group": expected_group, "cancel": False}
+        )
+        with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+            result_sha256 = hashlib.sha256(archive.read(RESULT_FILENAME)).hexdigest()
+        assert admission.admission_evidence_hash == _canonical_hash(
+            {
+                "pr": {
+                    "repository_id": policy.repository_id,
+                    "repository": policy.repository,
+                    "pull_request_number": policy.pull_request_number,
+                    "base_sha": BASE,
+                    "head_sha": HEAD,
+                    "state": "open",
+                },
+                "upstream_run": admission.upstream_run.to_dict(),
+                "publisher_run": admission.publisher_run.to_dict(),
+                "artifact_id": 123,
+                "artifact_archive_sha256": hashlib.sha256(bundle).hexdigest(),
+                "artifact_result_sha256": result_sha256,
+                "concurrency_scope": policy.concurrency_scope,
+                "concurrency_group": expected_group,
+            }
+        )
         assert all(method == "GET" for method, *_ in transport.calls)
         assert all(required == {"actions": "read", "pull_requests": "read"} for _, required, _ in provider.calls)
         assert uploader.calls == []
@@ -681,6 +710,11 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         assert uploader.calls == []
         assert post_bodies == []
     assert all("/user" not in call[1] for call in transport.calls)
+
+
+def test_publication_policy_rejects_unbounded_concurrency_scope():
+    with pytest.raises(GitHubPublicationError, match="concurrency_scope"):
+        make_policy(concurrency_scope="organization")
 
 
 def test_publisher_deduplicates_exact_marker_from_real_adapter_history():

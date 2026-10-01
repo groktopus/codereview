@@ -25,7 +25,7 @@ _EVENT_LIMIT = 256 * 1024
 _BODY_LIMIT = 128 * 1024
 _TOKEN_LIMIT = 16 * 1024
 _TIME_LIMIT = 20.0
-_CALL_LIMIT = 3
+_CALL_LIMIT = 4
 _SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 _REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}\Z")
@@ -218,6 +218,16 @@ def run_probe(
     deadline = clock() + _TIME_LIMIT
     repo_path = "/repos/" + quote(repository, safe="/")
     repo = _api_get(api, token, _API_ROOT + repo_path, deadline=deadline, clock=clock)
+    default_branch = repo.get("default_branch")
+    if not isinstance(default_branch, str) or not _safe_ref(default_branch):
+        raise ProbeError("github_observation_invalid")
+    default_branch_api = _api_get(
+        api,
+        token,
+        _API_ROOT + repo_path + "/branches/" + quote(default_branch, safe=""),
+        deadline=deadline,
+        clock=clock,
+    )
     run = _api_get(
         api,
         token,
@@ -231,6 +241,8 @@ def run_probe(
     head = pr.get("head") if isinstance(pr.get("head"), dict) else {}
     base_repo = base.get("repo") if isinstance(base.get("repo"), dict) else {}
     run_repository = run.get("repository") if isinstance(run.get("repository"), dict) else {}
+    branch_commit = default_branch_api.get("commit") if isinstance(default_branch_api.get("commit"), dict) else {}
+    default_branch_tip = branch_commit.get("sha")
     if (
         repo.get("full_name") != repository
         or not _positive_integer(repo.get("id"))
@@ -245,8 +257,8 @@ def run_probe(
         or not _positive_integer(base_repo.get("id"))
         or not _sha(base.get("sha"))
         or not _sha(head.get("sha"))
-        or not isinstance(repo.get("default_branch"), str)
-        or not _safe_ref(repo["default_branch"])
+        or default_branch_api.get("name") != default_branch
+        or not _sha(default_branch_tip)
         or not isinstance(base.get("ref"), str)
         or not _safe_ref(base["ref"])
         or not isinstance(head.get("ref"), str)
@@ -254,7 +266,6 @@ def run_probe(
     ):
         raise ProbeError("github_observation_invalid")
 
-    default_branch = repo["default_branch"]
     base_ref = base["ref"]
     base_sha = base["sha"]
     head_sha = head["sha"]
@@ -270,6 +281,10 @@ def run_probe(
             "id": repo["id"],
             "default_branch": default_branch,
             "event_payload_id": event_repo["id"],
+        },
+        "default_branch_api": {
+            "name": default_branch,
+            "tip_sha": default_branch_tip,
         },
         "context": {
             "event_name": event_name,
@@ -315,6 +330,9 @@ def run_probe(
             "context_sha_equals_workflow_sha": context_sha == workflow_sha,
             "context_sha_equals_current_pr_base_sha": context_sha == base_sha,
             "workflow_sha_equals_current_pr_base_sha": workflow_sha == base_sha,
+            "context_sha_equals_default_branch_tip": context_sha == default_branch_tip,
+            "workflow_sha_equals_default_branch_tip": workflow_sha == default_branch_tip,
+            "pr_base_sha_equals_default_branch_tip": base_sha == default_branch_tip,
             "api_run_head_sha_equals_current_pr_head_sha": api_head_sha == head_sha,
             "api_run_head_branch_equals_current_pr_head_ref": api_head_branch == head["ref"],
             "event_base_sha_equals_current_pr_base_sha": event_base.get("sha") == base_sha,

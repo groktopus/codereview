@@ -41,7 +41,8 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Record bounded context and read-only API observations
+      - name: Record context, default-branch tip, and read-only API observations
+        timeout-minutes: 1
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}

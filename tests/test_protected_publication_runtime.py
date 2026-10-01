@@ -18,6 +18,7 @@ from pr_review_harness.actions_publication import (
 from pr_review_harness.publication_receipts import EffectSlot
 
 CALLED_SHA = "e" * 40
+DEFAULT_BRANCH_TIP = "f" * 40
 
 
 def policy_document(*, enabled=True, dispositions=None):
@@ -99,7 +100,7 @@ def event_payload(*, include_pr=True):
     }
 
 
-def rebind_manifest_target(bundle, *, base_sha=None, head_sha=None):
+def rebind_manifest_target(bundle, *, base_sha=None, head_sha=None, caller_workflow_sha=None):
     source = io.BytesIO(bundle)
     entries = {}
     with zipfile.ZipFile(source) as archive:
@@ -108,9 +109,10 @@ def rebind_manifest_target(bundle, *, base_sha=None, head_sha=None):
     manifest = json.loads(entries["provenance.json"])
     if base_sha is not None:
         manifest["base_sha"] = base_sha
-        manifest["caller_workflow_sha"] = base_sha
     if head_sha is not None:
         manifest["head_sha"] = head_sha
+    if caller_workflow_sha is not None:
+        manifest["caller_workflow_sha"] = caller_workflow_sha
     entries["provenance.json"] = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -234,26 +236,44 @@ def test_runtime_rejects_unprotected_source_event_before_app_key_or_api(tmp_path
 
 @pytest.mark.parametrize(
     "failure_mode",
-    ["success", "duplicate_source_artifact", "stale_base", "stale_head", "deadline", "receipt_ack_missing", "write_token_denied"],
+    [
+        "success",
+        "duplicate_source_artifact",
+        "stale_base",
+        "stale_head",
+        "caller_workflow_sha_mismatch",
+        "stale_default_tip_before_ack",
+        "stale_default_tip_after_ack",
+        "deadline",
+        "receipt_ack_missing",
+        "write_token_denied",
+    ],
 )
-@pytest.mark.parametrize("source_association", [[], None], ids=["empty-associations", "omitted-associations"])
+@pytest.mark.parametrize(
+    "source_association",
+    ["empty", "omitted", "row-with-older-pr-base"],
+    ids=["empty-associations", "omitted-associations", "associated-row-base-is-not-workflow-tip"],
+)
 def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_post(
-    tmp_path, failure_mode, source_association
+    tmp_path, monkeypatch, failure_mode, source_association
 ):
     workspace, revision, event_path = protected_checkout(tmp_path)
     event_path.write_text(json.dumps(event_payload(include_pr=False)), encoding="utf-8")
-    policy = make_policy(publisher_workflow_sha=revision, caller_workflow_sha=BASE)
+    policy = make_policy(publisher_workflow_sha=revision, caller_workflow_sha=DEFAULT_BRANCH_TIP)
     result = make_valid_result()
     bundle = bundle_for(policy, result)
     if failure_mode == "stale_base":
         bundle = rebind_manifest_target(bundle, base_sha="c" * 40)
     elif failure_mode == "stale_head":
         bundle = rebind_manifest_target(bundle, head_sha="c" * 40)
+    elif failure_mode == "caller_workflow_sha_mismatch":
+        bundle = rebind_manifest_target(bundle, caller_workflow_sha="d" * 40)
     receipt_archives = {}
     events = []
     stored_reviews = []
     post_bodies = []
     pull_reads = 0
+    default_branch_reads = 0
     publisher_run = {
         "id": policy.publisher_run_id,
         "run_attempt": policy.publisher_run_attempt,
@@ -281,12 +301,24 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         "event": "pull_request_target",
         "status": "completed",
         "conclusion": "success",
-        "pull_requests": source_association,
+        "pull_requests": (
+            []
+            if source_association == "empty"
+            else [
+                {
+                    "number": policy.pull_request_number,
+                    "base": {"sha": BASE},
+                    "head": {"sha": HEAD},
+                }
+            ]
+            if source_association == "row-with-older-pr-base"
+            else None
+        ),
         "referenced_workflows": [
             {"path": policy.called_harness_repository + "/" + policy.called_harness_path + "@refs/heads/main", "sha": CALLED_SHA}
         ],
     }
-    if source_association is None:
+    if source_association == "omitted":
         upstream_detail.pop("pull_requests")
     result_artifact = {
         "id": 123,
@@ -298,9 +330,14 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
     }
 
     def api_response(method, url, body):
-        nonlocal pull_reads
+        nonlocal pull_reads, default_branch_reads
         path = urlsplit(url).path
         query = urlsplit(url).query
+        if path.endswith("/branches/main"):
+            default_branch_reads += 1
+            changed_at = 3 if failure_mode == "stale_default_tip_before_ack" else 4
+            tip = "c" * 40 if failure_mode.startswith("stale_default_tip_") and default_branch_reads >= changed_at else DEFAULT_BRANCH_TIP
+            return response({"name": "main", "commit": {"sha": tip}})
         if path == "/app":
             return response({"id": 333, "slug": "review-agent"})
         if path == "/app/installations/444" or path.endswith("/repos/owner/repo/installation"):
@@ -400,6 +437,16 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
 
     uploader.upload = record_upload
     key_calls = []
+    admitted = []
+    real_adapter = runtime.GitHubActionsPublicationAdapter
+
+    class CapturingAdapter(real_adapter):
+        def admit(self, result, config, limits):
+            admission = super().admit(result, config, limits)
+            admitted.append(admission)
+            return admission
+
+    monkeypatch.setattr(runtime, "GitHubActionsPublicationAdapter", CapturingAdapter)
     outcome = runtime.run_protected_publication(
         actions_environment(workspace, revision, event_path),
         transport=transport,
@@ -410,10 +457,30 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
 
     if failure_mode == "success":
         assert outcome == {"schema": "pr-review-protected-publication.v1", "status": "CONFIRMED", "reason": None}
+        assert len(admitted) == 1
+        assert admitted[0].concurrency_scope == "repository"
+        assert admitted[0].concurrency_group == f"pr-review-publish-{policy.repository_id}"
     else:
         assert outcome["status"] == "UNKNOWN"
+        expected_reason = {
+            "caller_workflow_sha_mismatch": "source_artifact_manifest_policy_mismatch",
+            "stale_default_tip_before_ack": "pre_receipt_head_unavailable",
+            "stale_default_tip_after_ack": "post_receipt_head_unavailable",
+        }.get(failure_mode)
+        if expected_reason is not None:
+            assert outcome["reason"] == expected_reason
     assert len(uploader.calls) == (
-        0 if failure_mode in {"duplicate_source_artifact", "stale_base", "stale_head", "deadline"} else 1
+        0
+        if failure_mode
+        in {
+            "duplicate_source_artifact",
+            "stale_base",
+            "stale_head",
+            "caller_workflow_sha_mismatch",
+            "stale_default_tip_before_ack",
+            "deadline",
+        }
+        else 1
     ), (failure_mode, outcome, events)
     if failure_mode == "success":
         assert len(post_bodies) == 1
@@ -435,9 +502,20 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
     else:
         assert post_bodies == []
         assert events.count("review_post") == 0
-        assert len(key_calls) == (0 if failure_mode in {"duplicate_source_artifact", "stale_base", "stale_head", "deadline"} else 1)
+        assert len(key_calls) == (
+            0
+            if failure_mode in {"caller_workflow_sha_mismatch", "duplicate_source_artifact", "stale_base", "stale_head", "deadline"}
+            else 1
+        )
         assert events.count("write_token_mint") == (1 if failure_mode == "write_token_denied" else 0)
-        if failure_mode in {"duplicate_source_artifact", "stale_base", "stale_head", "deadline"}:
+        if failure_mode in {
+            "duplicate_source_artifact",
+            "stale_base",
+            "stale_head",
+            "caller_workflow_sha_mismatch",
+            "stale_default_tip_before_ack",
+            "deadline",
+        }:
             assert events.count("receipt_upload") == 0
         if failure_mode == "receipt_ack_missing":
             assert events.count("receipt_upload") == 1

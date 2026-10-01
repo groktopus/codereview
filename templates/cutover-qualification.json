@@ -1,0 +1,162 @@
+{
+  "schema": "pr-review-reversible-cutover-qualification.v1",
+  "packet_status": "NOT_STARTED",
+  "decision": "DEFER",
+  "decision_scope": "operational_reversible_cutover_only",
+  "current_authorization": {
+    "read_only_shadow": "NOT_AUTHORIZED_BY_THIS_PACKET",
+    "publication_canary": "NOT_AUTHORIZED",
+    "droid_cutover": "NOT_AUTHORIZED",
+    "droid_remains_authoritative": true,
+    "publication_remains_disabled": true
+  },
+  "requirement_basis": {
+    "acceptance_criteria": "AC-001..AC-039",
+    "nonfunctional_requirements": "NFR-001..NFR-012",
+    "cutover_requirement": "NFR-011",
+    "existing_six_milestones": [
+      "Reliable operation",
+      "Relevant context",
+      "Review judgment",
+      "Production reliability",
+      "GitHub delivery",
+      "Replacement evidence"
+    ]
+  },
+  "accountability": {
+    "candidate_owner": null,
+    "operational_owner": null,
+    "decision_owner": null,
+    "on_call_or_escalation_contact": null,
+    "reviewed_at_utc": null,
+    "owner_decision_record_uri": null
+  },
+  "candidate_identity": {
+    "repository": null,
+    "source_commit": null,
+    "installed_artifact_sha256": null,
+    "workflow_identity": null,
+    "profile_id_version_sha256": null,
+    "model_provider_runtime_identity": null,
+    "prompt_rubric_identity": null,
+    "limits_identity": null,
+    "authority_surface_identity": null,
+    "case_set_identity_sha256": null,
+    "split_and_sampling_plan_identity_sha256": null
+  },
+  "incumbent_and_switch_inputs": {
+    "incumbent_name": "Droid",
+    "incumbent_owner": null,
+    "verified_current_configuration_uri_or_hash": null,
+    "actual_enable_disable_control_from_operator_documentation": null,
+    "control_operator_and_authority": null,
+    "restore_previous_configuration_procedure_from_operator_documentation": null,
+    "incumbent_availability_verification": null,
+    "incumbent_control_status": "UNKNOWN_OPERATOR_INPUT_REQUIRED",
+    "harness_analysis_disable_control": {
+      "documented_name": "REVIEW_ANALYSIS_ENABLED",
+      "target_repository_effective_value_evidence": null,
+      "verified_for_this_target": false
+    },
+    "harness_publication_disable_controls": {
+      "workflow_job_guard": "literal false && vars.PR_REVIEW_PUBLICATION_ENABLED == 'true'",
+      "protected_runtime_policy_field": "enabled",
+      "current_write_path_status": "DISABLED",
+      "verified_for_this_target_evidence": null
+    }
+  },
+  "owner_selected_bounds": {
+    "natural_sample_definition": null,
+    "natural_sample_size": null,
+    "second_project_and_profile": null,
+    "observation_window_start_utc": null,
+    "observation_window_end_utc": null,
+    "max_concurrency": null,
+    "max_elapsed_time": null,
+    "max_spend_and_currency": null,
+    "allowed_incomplete_or_abstention_policy": null,
+    "other_operating_bounds": [],
+    "selected_by": null,
+    "selected_at_utc": null,
+    "preselected_before_dispatch": false,
+    "rationale_and_source": null
+  },
+  "quality_boundary": {
+    "independent_human_labels_available": false,
+    "semantic_accuracy": "UNKNOWN",
+    "semantic_error_rates": "UNKNOWN",
+    "quality_based_adoption_claim_allowed": false,
+    "model_teacher_evidence": "ADVISORY_ONLY",
+    "model_agreement_is_ground_truth": false,
+    "owner_explicitly_accepts_accuracy_remains_unknown": false,
+    "owner_acceptance_evidence_uri": null
+  },
+  "shadow_observations": [],
+  "required_accounting": {
+    "case_and_role_terminal_states": "NOT_RUN",
+    "required_check_statuses": "NOT_RUN",
+    "source_reference_statuses": "NOT_RUN",
+    "candidate_and_output_reconciliation": "NOT_RUN",
+    "freshness_and_snapshot_binding": "NOT_RUN",
+    "deterministic_safety_control_violations": "UNKNOWN",
+    "configured_limit_overruns": "UNKNOWN",
+    "unauthorized_effects": "UNKNOWN",
+    "latency_distribution_and_denominator": null,
+    "calls_retries_and_resource_use": null,
+    "known_spend_or_explicit_unknown": "UNKNOWN",
+    "abstention_and_disagreement_distributions": null,
+    "evidence_uri_or_immutable_ids": []
+  },
+  "stop_and_rollback": {
+    "stop_conditions_reviewed": false,
+    "stop_conditions": [
+      "Any deterministic safety or control invariant fails.",
+      "A required case, role, check, source reference, or artifact is missing or unaccounted for.",
+      "Stale, partial, failed, or unknown required evidence is represented as current or complete.",
+      "An unauthorized effect occurs.",
+      "An owner-selected operating bound is exceeded.",
+      "A required identity or submission state is ambiguous."
+    ],
+    "rollback_trigger_and_owner_selected_recovery_objective": null,
+    "rollback_runbook_uri_from_operator_documentation": null,
+    "rollback_rehearsal_status": "NOT_RUN",
+    "rollback_rehearsal_evidence_uri": null,
+    "rehearsal_observer": null,
+    "incumbent_retained_through_rollback_window": false,
+    "rollback_window_selected_by_owner": null,
+    "last_known_good_configuration_snapshot_uri_or_hash": null
+  },
+  "publication_gate": {
+    "separate_owner_authorization": "NOT_AUTHORIZED",
+    "exact_head_recheck_evidence": null,
+    "least_privilege_writer_evidence": null,
+    "duplicate_and_replay_recovery_evidence": null,
+    "ambiguous_submit_recovery_evidence": null,
+    "deterministic_effect_receipt_evidence": null,
+    "merge_eligibility_affected": false
+  },
+  "milestone_evidence": {
+    "Reliable operation": {"status": "INCOMPLETE", "evidence": []},
+    "Relevant context": {"status": "INCOMPLETE", "evidence": []},
+    "Review judgment": {"status": "INCOMPLETE", "evidence": []},
+    "Production reliability": {"status": "INCOMPLETE", "evidence": []},
+    "GitHub delivery": {"status": "INCOMPLETE", "evidence": []},
+    "Replacement evidence": {"status": "MISSING_EVIDENCE", "evidence": []}
+  },
+  "decision_record": {
+    "outcome": "DEFER",
+    "conditions_or_blockers": [
+      "No cutover or publication authorization is present.",
+      "Operational qualification and rollback rehearsal have not been evidenced by this packet.",
+      "Droid switch and rollback instructions are unknown and must come from its operator documentation.",
+      "Semantic accuracy and error rates remain unknown; no quality-based adoption claim is available."
+    ],
+    "exception": null,
+    "decision_date_utc": null,
+    "accountable_human_approver": null,
+    "reopen_if": [
+      "Source, installed artifact, profile, prompt/rubric, model, limits, case set, workflow, or authority changes.",
+      "A stop condition, incident, stale identity, missing artifact, or unresolved publication effect is observed."
+    ]
+  }
+}

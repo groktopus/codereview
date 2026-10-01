@@ -76,7 +76,7 @@ def make_platform(**overrides):
         "source_run_head_sha": "f" * 40,
         "pull_request_head_sha": "a" * 40,
         "pull_request_number": 44,
-        "base_sha": "b" * 40,
+        "base_sha": "8" * 40,
     }
     values.update(overrides)
     return ProtectedCanaryRun(**values)
@@ -101,6 +101,8 @@ class FakeTransport:
 
     def payload(self, method, url, body):
         platform = make_platform()
+        if url.endswith("/branches/main"):
+            return {"name": "main", "commit": {"sha": platform.source_workflow_sha}}, 200
         if url.endswith(f"/actions/runs/{platform.publisher_run_id}"):
             return {
                 "id": platform.publisher_run_id,
@@ -133,8 +135,8 @@ class FakeTransport:
                 source_record["pull_requests"] = [
                     {
                         "number": 44,
-                        "base": {"sha": "b" * 40},
-                        "head": {"sha": "a" * 40},
+                        "base": {"sha": platform.base_sha},
+                        "head": {"sha": platform.pull_request_head_sha},
                     }
                 ]
             return source_record, 200
@@ -143,8 +145,8 @@ class FakeTransport:
                 "number": 44,
                 "state": "open",
                 "draft": False,
-                "base": {"sha": "b" * 40, "ref": "main", "repo": {"id": REPO_ID}},
-                "head": {"sha": "a" * 40, "ref": "feature/update-dependency"},
+                "base": {"sha": platform.base_sha, "ref": "main", "repo": {"id": REPO_ID}},
+                "head": {"sha": platform.pull_request_head_sha, "ref": "feature/update-dependency"},
             }, 200
         if url.endswith("/app"):
             return {"id": APP_ID, "slug": APP_SLUG}, 200
@@ -199,12 +201,23 @@ def test_canary_verifies_platform_then_mints_read_only_single_repo_token_and_rec
     assert receipt.evidence_id == identity.evidence_id
     assert len(receipt.nonce) == 32
     assert dict(receipt.read_permissions) == {"actions": "read", "pull_requests": "read"}
-    assert len(transport.calls) == 9
-    assert [call[0] for call in transport.calls] == ["GET", "GET", "GET", "GET", "GET", "GET", "POST", "GET", "GET"]
-    assert [call[1].rsplit("/", 1)[-1] for call in transport.calls[:3]] == ["701", "601", "44"]
-    assert all(call[2] == GITHUB_ACTIONS_TOKEN for call in transport.calls[:3])
-    assert transport.calls[6][1].endswith(f"/app/installations/{INSTALLATION_ID}/access_tokens")
-    assert transport.calls[6][3] == {
+    assert len(transport.calls) == 10
+    assert [call[0] for call in transport.calls] == [
+        "GET",
+        "GET",
+        "GET",
+        "GET",
+        "GET",
+        "GET",
+        "GET",
+        "POST",
+        "GET",
+        "GET",
+    ]
+    assert [call[1].rsplit("/", 1)[-1] for call in transport.calls[:4]] == ["701", "601", "44", "main"]
+    assert all(call[2] == GITHUB_ACTIONS_TOKEN for call in transport.calls[:4])
+    assert transport.calls[7][1].endswith(f"/app/installations/{INSTALLATION_ID}/access_tokens")
+    assert transport.calls[7][3] == {
         "repository_ids": [REPO_ID],
         "permissions": {"actions": "read", "pull_requests": "read"},
     }
@@ -221,7 +234,7 @@ def test_canary_signs_real_rs256_app_jwt_only_after_platform_validation():
     private_key = serialization.load_pem_private_key(key.encode(), password=None)
     transport = FakeTransport()
     invoke(transport=transport, key_supplier=lambda: key)
-    app_jwt = transport.calls[3][2]
+    app_jwt = transport.calls[4][2]
     claims = jwt.decode(app_jwt, private_key.public_key(), algorithms=["RS256"], options={"verify_exp": False})
     assert jwt.get_unverified_header(app_jwt)["alg"] == "RS256"
     assert claims["iss"] == str(APP_ID)
@@ -237,6 +250,7 @@ def test_target_source_run_without_optional_pr_association_keeps_source_sha_dist
     assert receipt.pull_request_head_sha == "a" * 40
     assert receipt.source_workflow_sha != receipt.pull_request_head_sha
     assert receipt.source_run_head_sha != receipt.source_workflow_sha
+    assert receipt.base_sha == "8" * 40
 
 
 def test_target_source_run_accepts_exact_optional_pr_association():
@@ -369,6 +383,50 @@ def test_wrong_default_base_pr_identity_rejects_before_app_key_access(base_field
     assert key_calls == []
 
 
+@pytest.mark.parametrize(
+    "branch_record",
+    [
+        {"name": "release", "commit": {"sha": "b" * 40}},
+        {"name": "main", "commit": {"sha": "9" * 40}},
+        {"name": "main", "commit": {}},
+    ],
+)
+def test_default_branch_identity_mismatch_rejects_before_app_key_access(branch_record):
+    key_calls = []
+
+    def mutate(index, method, url, status, payload):
+        if index == 4:
+            payload = branch_record
+        return status, payload
+
+    with pytest.raises(GitHubPublicationError, match="github_app_canary_default_branch_mismatch"):
+        invoke(
+            transport=FakeTransport(mutate=mutate),
+            key_supplier=lambda: key_calls.append("read") or private_key_pem(),
+        )
+    assert key_calls == []
+
+
+def test_late_default_branch_response_rejects_before_app_key_access():
+    now = [100.0]
+    key_calls = []
+
+    class LateBranchTransport(FakeTransport):
+        def request(self, *args, **kwargs):
+            response = super().request(*args, **kwargs)
+            if len(self.calls) == 4:
+                now[0] = 131.0
+            return response
+
+    with pytest.raises(GitHubPublicationError, match="github_app_canary_deadline_exhausted"):
+        invoke(
+            transport=LateBranchTransport(),
+            key_supplier=lambda: key_calls.append("read") or private_key_pem(),
+            clock=lambda: now[0],
+        )
+    assert key_calls == []
+
+
 @pytest.mark.parametrize("draft", [True, None])
 def test_draft_or_unverified_pr_rejects_before_app_key_access(draft):
     key_calls = []
@@ -428,7 +486,7 @@ def test_app_identity_mismatch_and_bot_mismatch_fail_closed_without_review_post(
 
 def test_canary_limits_cannot_expand_call_deadline_or_response_caps():
     for kwargs in (
-        {"max_calls": 10},
+        {"max_calls": 11},
         {"deadline_seconds": 31},
         {"max_response_bytes": 256 * 1024 + 1},
     ):
@@ -456,7 +514,7 @@ def test_oversized_app_key_is_rejected_before_app_api_or_jwt_signing():
     with pytest.raises(GitHubPublicationError, match="publisher_identity_unavailable"):
         invoke(transport=transport, key_supplier=oversized_key)
     assert key_calls == ["read"]
-    assert len(transport.calls) == 3
+    assert len(transport.calls) == 4
     assert all(call[0] == "GET" for call in transport.calls)
 
 
@@ -466,7 +524,7 @@ def test_late_final_api_response_cannot_issue_verified_identity():
     class LateTransport(FakeTransport):
         def request(self, *args, **kwargs):
             response = super().request(*args, **kwargs)
-            if len(self.calls) == 9:
+            if len(self.calls) == 10:
                 now[0] = 131.0
             return response
 
