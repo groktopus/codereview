@@ -892,6 +892,25 @@ class OpenAIProvider:
         context_followup = _validate_context_followup_input(task, evidence)
         if context_followup is not None and not input_v2:
             raise ProviderError("context_followup_requires_specialist_input_v2")
+        evidence_ids = sorted(
+            {
+                item["evidence_id"]
+                for item in evidence
+                if isinstance(item, dict)
+                and isinstance(item.get("evidence_id"), str)
+                and item["evidence_id"]
+            }
+        )
+        # Bind citation-shaped output to this exact request. Keep the adapter's
+        # validators authoritative; this enum only prevents avoidable invented
+        # IDs. An empty evidence set uses contradictory string length bounds
+        # because JSON Schema enums must be non-empty. Empty arrays remain valid
+        # where the contract permits them (for example, partial coverage notes).
+        evidence_ref_item_schema = (
+            {"type": "string", "enum": evidence_ids}
+            if evidence_ids
+            else {"type": "string", "minLength": 1, "maxLength": 0}
+        )
         schema = {
             "name": "specialist_report",
             "strict": True,
@@ -948,7 +967,11 @@ class OpenAIProvider:
                                     "enum": ["critical", "high", "medium", "low", "informational", "unknown"],
                                 },
                                 "reasoning_kind": {"type": "string", "enum": ["observed", "inferred"]},
-                                "evidence_refs": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                                "evidence_refs": {
+                                    "type": "array",
+                                    "items": dict(evidence_ref_item_schema),
+                                    "minItems": 1,
+                                },
                                 "introducedness": {
                                     "type": "string",
                                     "enum": ["INTRODUCED", "REEXPOSED", "PRE_EXISTING", "UNKNOWN"],
@@ -1001,7 +1024,7 @@ class OpenAIProvider:
                                 "related_evidence_ids": {
                                     "type": "array",
                                     "maxItems": 500,
-                                    "items": {"type": "string", "minLength": 1, "maxLength": 256},
+                                    "items": dict(evidence_ref_item_schema),
                                 },
                                 "required_lens": {
                                     "type": "string",
@@ -1028,7 +1051,7 @@ class OpenAIProvider:
                                 "unit_id": {"type": "string"},
                                 "state": {"type": "string", "enum": ["COVERED", "PARTIAL", "NOT_COVERED"]},
                                 "reason_code": {"type": "string"},
-                                "evidence_refs": {"type": "array", "items": {"type": "string"}},
+                                "evidence_refs": {"type": "array", "items": dict(evidence_ref_item_schema)},
                                 "coverage_basis": {"type": "string", "enum": ["STATIC_REVIEW"]},
                             },
                         },
@@ -1057,7 +1080,7 @@ class OpenAIProvider:
                                     "type": "array",
                                     "minItems": 1,
                                     "maxItems": 20,
-                                    "items": {"type": "string", "minLength": 1, "maxLength": 256},
+                                    "items": dict(evidence_ref_item_schema),
                                 },
                             },
                         },
@@ -1086,7 +1109,7 @@ class OpenAIProvider:
                                     "type": "array",
                                     "minItems": 1,
                                     "maxItems": 20,
-                                    "items": {"type": "string", "minLength": 1, "maxLength": 256},
+                                    "items": dict(evidence_ref_item_schema),
                                 },
                             },
                         },

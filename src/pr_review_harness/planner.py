@@ -8,6 +8,8 @@ import json
 import re
 from typing import Any
 
+from .dependency_context import DependencyContextError, valid_projection_evidence, validate_dependency_context
+
 _MODE_ORDER = {"LIGHT": 0, "FOCUSED": 1, "DEEP": 2}
 _ALL_LENSES = ("correctness", "tests", "design", "security", "performance", "maintainability", "project_specific")
 _SECURITY_TERMS = (
@@ -456,6 +458,10 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
     allow_empty_approve(profile)
     validate_profile_lenses(profile)
     context_selection = validate_context_selection(profile)
+    try:
+        dependency_context = validate_dependency_context(profile)
+    except DependencyContextError as exc:
+        raise ValueError(str(exc)) from exc
     requested = str(mode).upper()
     if requested not in {*_MODE_ORDER, "AUTO"}:
         raise ValueError("mode must be AUTO, LIGHT, FOCUSED, or DEEP")
@@ -661,8 +667,59 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                                 continue
                             selected_bytes += item_bytes
                             unit_context_ids.extend(head_items)
+            if dependency_context:
+                unit_path = str(unit.get("path", ""))
+                snapshot_id = snapshot.get("snapshot_id")
+                evidence_map = snapshot.get("evidence", {})
+                for binding_index, binding in enumerate(dependency_context["bindings"]):
+                    if lens not in binding["lenses"] or not any(
+                        fnmatch.fnmatchcase(unit_path, pattern) for pattern in binding["unit_patterns"]
+                    ):
+                        continue
+                    binding_id = "dependency-binding-" + hashlib.sha256(
+                        _canonical({"index": binding_index, "binding": binding}).encode("utf-8")
+                    ).hexdigest()[:16]
+                    for side in binding["sides"]:
+                        revision = snapshot.get("base_sha" if side == "BASE" else "head_sha")
+                        candidates = [
+                            (evidence_id, item)
+                            for evidence_id, item in evidence_map.items()
+                            if isinstance(item, dict)
+                            and item.get("dependency_binding_id") == binding_id
+                            and item.get("source_side") == side
+                            and item.get("path") == binding["manifest_path"]
+                        ] if isinstance(evidence_map, dict) else []
+                        if (
+                            isinstance(snapshot_id, str)
+                            and len(candidates) == 1
+                            and isinstance(revision, str)
+                            and valid_projection_evidence(
+                                candidates[0][1],
+                                evidence_id=candidates[0][0],
+                                snapshot_id=snapshot_id,
+                                binding_id=binding_id,
+                                path=binding["manifest_path"],
+                                side=side,
+                                revision=revision,
+                                packages=binding["packages"],
+                            )
+                        ):
+                            unit_context_ids.append(candidates[0][0])
+                        else:
+                            unit_context_ids.append(
+                                _id(
+                                    "missing-dependency-context",
+                                    {
+                                        "snapshot": snapshot_id,
+                                        "binding": binding_id,
+                                        "side": side,
+                                        "revision": revision,
+                                    },
+                                )
+                            )
             unit_context_ids = list(dict.fromkeys(unit_context_ids))
             evidence_ids = list(dict.fromkeys(unit_review_ids + unit_context_ids))
+            context_grouping = context_selection is not None or dependency_context is not None
             task = next(
                 (
                     t
@@ -670,7 +727,7 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                     if t.get("task_kind") == "SPECIALIST_FINDINGS"
                     and t.get("lens") == lens
                     and t.get("_group") == tuple(sorted(selected))
-                    and (context_selection is None or t.get("_context_group") == tuple(sorted(unit_context_ids)))
+                    and (not context_grouping or t.get("_context_group") == tuple(sorted(unit_context_ids)))
                 ),
                 None,
             )
@@ -682,7 +739,7 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                             "snapshot": snapshot.get("snapshot_id"),
                             "lens": lens,
                             "group": sorted(selected),
-                            "context_group": sorted(unit_context_ids) if context_selection is not None else None,
+                            "context_group": sorted(unit_context_ids) if context_grouping else None,
                         },
                     ),
                     "scope_id": _id(
@@ -691,7 +748,7 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                             "snapshot": snapshot.get("snapshot_id"),
                             "lens": lens,
                             "group": sorted(selected),
-                            "context_group": sorted(unit_context_ids) if context_selection is not None else None,
+                            "context_group": sorted(unit_context_ids) if context_grouping else None,
                         },
                     ),
                     "obligation_id": oid,
@@ -703,12 +760,12 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                     "evidence_ids": evidence_ids,
                     "required": True,
                     "base_context_ids": unit_context_ids,
-                    "required_context_ids": unit_context_ids if context_selection is not None else [],
+                    "required_context_ids": unit_context_ids if context_grouping else [],
                     "review_criteria": (profile.get("review_criteria", {}) or {}).get(lens, ""),
                     "project_rules": list(profile.get("rules", []) or []),
                     "question_version": str(profile.get("question_version", "0.1")),
                     "_group": tuple(sorted(selected)),
-                    "_context_group": tuple(sorted(unit_context_ids)) if context_selection is not None else None,
+                    "_context_group": tuple(sorted(unit_context_ids)) if context_grouping else None,
                 }
                 tasks.append(task)
             else:
@@ -716,7 +773,7 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                 task["scope_unit_ids"].append(uid)
                 task["evidence_ids"] = list(dict.fromkeys(task["evidence_ids"] + evidence_ids))
                 task["base_context_ids"] = list(dict.fromkeys(task.get("base_context_ids", []) + unit_context_ids))
-                if context_selection is not None:
+                if context_grouping:
                     task["required_context_ids"] = list(
                         dict.fromkeys(task.get("required_context_ids", []) + unit_context_ids)
                     )

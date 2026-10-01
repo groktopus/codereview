@@ -13,6 +13,7 @@ import time
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
+from .dependency_context import DependencyContextError, project_python_dependencies, validate_dependency_context
 from .planner import validate_context_selection
 
 
@@ -311,6 +312,17 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
     context_revision_metadata = profile.get("context_revision_metadata", False)
     if not isinstance(context_revision_metadata, bool):
         raise SnapshotError("profile context_revision_metadata must be boolean")
+    profile_version = profile.get("version") or profile.get("profile_version")
+    if not isinstance(profile_version, str) or not profile_version.strip():
+        raise SnapshotError("profile version is required")
+    try:
+        context_selection = validate_context_selection(profile)
+    except ValueError as exc:
+        raise SnapshotError(str(exc)) from exc
+    try:
+        dependency_context = validate_dependency_context(profile)
+    except DependencyContextError as exc:
+        raise SnapshotError(str(exc)) from exc
     base_sha, head_sha = _sha(repo, base), _sha(repo, head)
     base_tree, head_tree = _tree(repo, base_sha), _tree(repo, head_sha)
     # Git's NUL-delimited status output safely handles whitespace/newlines.
@@ -331,13 +343,6 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
             changes.append(
                 (path, None, {"A": "added", "D": "deleted", "M": "modified", "T": "modified"}.get(code[:1], "modified"))
             )
-    profile_version = profile.get("version") or profile.get("profile_version")
-    if not isinstance(profile_version, str) or not profile_version.strip():
-        raise SnapshotError("profile version is required")
-    try:
-        context_selection = validate_context_selection(profile)
-    except ValueError as exc:
-        raise SnapshotError(str(exc)) from exc
     # A disabled opt-in is equivalent to the legacy absence of the field.
     # Preserve existing snapshot IDs and request hashes for unchanged profiles.
     profile_identity = profile
@@ -869,6 +874,161 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
                         entry["review_context_evidence_ids"].append(window_eid)
                         windows_used += 1
                         selection_bytes_remaining -= len(window_bytes)
+
+    if dependency_context:
+        projection_total = 0
+        for binding_index, binding in enumerate(dependency_context["bindings"]):
+            matching_units = [
+                entry
+                for entry in inventory
+                if any(fnmatch.fnmatchcase(entry["path"], pattern) for pattern in binding["unit_patterns"])
+            ]
+            if not matching_units:
+                continue
+            binding_id = "dependency-binding-" + _json_hash({"index": binding_index, "binding": binding})[:16]
+            for side in binding["sides"]:
+                revision = base_sha if side == "BASE" else head_sha
+                tree = base_tree if side == "BASE" else head_tree
+                manifest_entry = tree.get(binding["manifest_path"])
+                reason = None
+                projection = None
+                manifest_oid = None
+                lock_oid = None
+                lock_bytes = None
+                if manifest_entry is None:
+                    reason = "dependency_manifest_missing"
+                elif manifest_entry[0] != "100644" and manifest_entry[0] != "100755":
+                    reason = "dependency_manifest_unsafe_type"
+                else:
+                    manifest_oid = manifest_entry[1]
+                    manifest_size = int(_git(repo, "cat-file", "-s", manifest_oid).decode("ascii").strip())
+                    if manifest_size > dependency_context["max_source_bytes"]:
+                        reason = "dependency_manifest_source_limit"
+                    else:
+                        manifest_bytes, truncated = _git_limited(
+                            repo, ["cat-file", "blob", manifest_oid], manifest_size + 1
+                        )
+                        if truncated or len(manifest_bytes) != manifest_size:
+                            reason = "dependency_manifest_source_unavailable"
+                        else:
+                            lock_entry = tree.get(binding["lock_path"])
+                            if lock_entry is not None:
+                                if lock_entry[0] not in {"100644", "100755"}:
+                                    reason = "dependency_lock_unsafe_type"
+                                else:
+                                    lock_oid = lock_entry[1]
+                                    lock_size = int(_git(repo, "cat-file", "-s", lock_oid).decode("ascii").strip())
+                                    if lock_size > dependency_context["max_source_bytes"]:
+                                        reason = "dependency_lock_source_limit"
+                                    else:
+                                        lock_bytes, truncated = _git_limited(
+                                            repo, ["cat-file", "blob", lock_oid], lock_size + 1
+                                        )
+                                        if truncated or len(lock_bytes) != lock_size:
+                                            reason = "dependency_lock_source_unavailable"
+                            if reason is None:
+                                try:
+                                    projection = project_python_dependencies(
+                                        binding=binding,
+                                        side=side,
+                                        revision=revision,
+                                        manifest_oid=manifest_oid,
+                                        manifest_bytes=manifest_bytes,
+                                        lock_oid=lock_oid,
+                                        lock_bytes=lock_bytes,
+                                        max_bytes=binding["max_bytes"],
+                                    )
+                                except DependencyContextError as exc:
+                                    reason = str(exc)
+                selected_units = [entry["unit_id"] for entry in matching_units]
+                if projection is None:
+                    gaps.append(
+                        {
+                            "path": binding["manifest_path"],
+                            "source_kind": "dependency_projection",
+                            "reason": reason or "dependency_projection_unavailable",
+                            "required": True,
+                            "side": side,
+                            "source_revision": revision,
+                            "unit_ids": selected_units,
+                        }
+                    )
+                    projection_key = _json_hash(
+                        {"snapshot": snapshot_id, "binding": binding_id, "side": side, "revision": revision}
+                    )[:24]
+                    for entry in matching_units:
+                        for lens in binding["lenses"]:
+                            route = entry.setdefault("dependency_context_ids_by_lens", {}).setdefault(lens, [])
+                            route.append(f"missing-dependency-context-{projection_key}")
+                    continue
+                content = projection["content"]
+                content_bytes = len(content.encode("utf-8"))
+                if (
+                    content_bytes > binding["max_bytes"]
+                    or content_bytes > dependency_context["max_total_projection_bytes"] - projection_total
+                    or content_bytes > remaining
+                    or (context_selection and content_bytes > selection_bytes_remaining)
+                ):
+                    gaps.append(
+                        {
+                            "path": binding["manifest_path"],
+                            "source_kind": "dependency_projection",
+                            "reason": "dependency_projection_budget_exhausted",
+                            "required": True,
+                            "side": side,
+                            "source_revision": revision,
+                            "unit_ids": selected_units,
+                            "projection_bytes": content_bytes,
+                        }
+                    )
+                    projection_key = _json_hash(
+                        {"snapshot": snapshot_id, "binding": binding_id, "side": side, "revision": revision}
+                    )[:24]
+                    for entry in matching_units:
+                        for lens in binding["lenses"]:
+                            entry.setdefault("dependency_context_ids_by_lens", {}).setdefault(lens, []).append(
+                                f"missing-dependency-context-{projection_key}"
+                            )
+                    continue
+                evidence_id = "ev-dependency-" + _json_hash(
+                    {
+                        "snapshot": snapshot_id,
+                        "binding": binding_id,
+                        "side": side,
+                        "revision": revision,
+                        "manifest_oid": manifest_oid,
+                        "lock_oid": lock_oid,
+                        "content_hash": projection["content_hash"],
+                    }
+                )[:24]
+                evidence[evidence_id] = {
+                    "evidence_id": evidence_id,
+                    "path": binding["manifest_path"],
+                    "content": content,
+                    "content_hash": projection["content_hash"],
+                    "source_kind": "dependency_projection",
+                    "trust": "repository_evidence",
+                    "source_revision": revision,
+                    "source_side": side,
+                    "source_object_id": manifest_oid,
+                    "source_object_format": "sha256" if len(manifest_oid) == 64 else "sha1",
+                    "source_object_size_bytes": len(manifest_bytes),
+                    "manifest_sha256": projection["manifest_sha256"],
+                    "lock_object_id": lock_oid,
+                    "lock_sha256": projection["lock_sha256"],
+                    "snapshot_id": snapshot_id,
+                    "content_truncated": False,
+                    "dependency_binding_id": binding_id,
+                    "dependency_lenses": list(binding["lenses"]),
+                    "dependency_unit_ids": selected_units,
+                }
+                remaining -= content_bytes
+                projection_total += content_bytes
+                if context_selection:
+                    selection_bytes_remaining -= content_bytes
+                for entry in matching_units:
+                    for lens in binding["lenses"]:
+                        entry.setdefault("dependency_context_ids_by_lens", {}).setdefault(lens, []).append(evidence_id)
 
     payload = {
         "repository": repo_id,
