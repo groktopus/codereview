@@ -526,6 +526,20 @@ class FakeReceiptWriter:
         return ReceiptPersistence(self.status, acknowledgement=ack)
 
 
+def _freeze_receipt_clock(monkeypatch):
+    from datetime import datetime, timezone
+
+    import pr_review_harness.publication_receipts as receipt_module
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            current = datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
+            return current if tz is not None else current.replace(tzinfo=None)
+
+    monkeypatch.setattr(receipt_module, "datetime", FixedDateTime)
+
+
 def _stateless_config():
     return config(
         allowed_profile_versions=["publisher-v1"],
@@ -588,7 +602,8 @@ def preview(value, policy):
     return preview_publication(value, policy)
 
 
-def test_stateless_publication_requires_durable_receipt_before_single_post():
+def test_stateless_publication_requires_durable_receipt_before_single_post(monkeypatch):
+    _freeze_receipt_clock(monkeypatch)
     outcome, writer, history, calls, _ = _publish_stateless()
     assert outcome["status"] == "CONFIRMED"
     assert len(writer.receipts) == 1
@@ -633,7 +648,8 @@ def test_stateless_publication_refuses_prior_unknown_receipt_without_post():
     assert writer.receipts == []
 
 
-def test_stateless_publication_requires_complete_history_and_acknowledged_exact_receipt():
+def test_stateless_publication_requires_complete_history_and_acknowledged_exact_receipt(monkeypatch):
+    _freeze_receipt_clock(monkeypatch)
     from pr_review_harness.publication_receipts import HistoryScan, HistoryStatus
 
     outcome, writer, _, calls, _ = _publish_stateless(
@@ -691,7 +707,8 @@ def test_stateless_publication_treats_marker_match_as_confirmed_and_other_result
     assert calls == []
 
 
-def test_stateless_publication_rechecks_head_after_receipt_and_never_posts_stale_result():
+def test_stateless_publication_rechecks_head_after_receipt_and_never_posts_stale_result(monkeypatch):
+    _freeze_receipt_clock(monkeypatch)
     outcome, writer, _, calls, _ = _publish_stateless(fresh=["a" * 40, "b" * 40])
     assert outcome["status"] == "STALE"
     assert outcome["reason"] == "head_sha_changed_after_receipt"
@@ -699,7 +716,8 @@ def test_stateless_publication_rechecks_head_after_receipt_and_never_posts_stale
     assert calls == []
 
 
-def test_incomplete_terminal_result_publishes_comment_event_and_preserves_semantic_state():
+def test_incomplete_terminal_result_publishes_comment_event_and_preserves_semantic_state(monkeypatch):
+    _freeze_receipt_clock(monkeypatch)
     value = result()
     value["coverage_state"] = "PARTIAL"
     value["coverage_ledger"][0]["state"] = "PARTIAL"
@@ -720,6 +738,7 @@ def test_stateless_calls_share_one_decreasing_monotonic_deadline(monkeypatch):
     import pr_review_harness.publisher as publisher_module
     from pr_review_harness.publication_receipts import ScanLimits
 
+    _freeze_receipt_clock(monkeypatch)
     value = result()
     policy = _stateless_config()
     prepared = preview(value, policy)
@@ -783,7 +802,8 @@ def test_stateless_calls_share_one_decreasing_monotonic_deadline(monkeypatch):
     assert min(remaining_seen) > 0
 
 
-def test_stateless_publication_ambiguous_post_reconciles_once_then_stays_unknown():
+def test_stateless_publication_ambiguous_post_reconciles_once_then_stays_unknown(monkeypatch):
+    _freeze_receipt_clock(monkeypatch)
     from pr_review_harness.publication_receipts import HistoryScan, HistoryStatus
 
     history = FakeReceiptHistory([HistoryScan(HistoryStatus.COMPLETE), HistoryScan(HistoryStatus.COMPLETE)])

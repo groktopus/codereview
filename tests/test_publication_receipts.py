@@ -115,7 +115,16 @@ def test_limits_reject_bool_and_unbounded_deadline():
         ScanLimits(max_pages=0)
 
 
-def test_receipt_ack_requires_exact_durable_bytes_and_publisher_run():
+def test_receipt_ack_requires_exact_durable_bytes_and_publisher_run(monkeypatch):
+    import pr_review_harness.publication_receipts as receipt_module
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            current = datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
+            return current if tz is not None else current.replace(tzinfo=None)
+
+    monkeypatch.setattr(receipt_module, "datetime", FixedDateTime)
     item = receipt()
     ack = ReceiptAcknowledgement(
         artifact_id=7,
