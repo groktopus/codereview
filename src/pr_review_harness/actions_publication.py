@@ -653,9 +653,16 @@ class GitHubActionsPublicationAdapter:
         expected_sha = self.policy.publisher_workflow_sha if publisher else self.policy.caller_workflow_sha
         if not _positive_int(run.get("workflow_id")) or run.get("workflow_id") != expected_id:
             raise GitHubPublicationError("workflow_id_mismatch")
-        actual_path = run.get("path", "").split("@", 1)[0]
-        actual_ref = run.get("path", "").split("@", 1)[1] if "@" in run.get("path", "") else ""
-        if actual_path != expected_path or actual_ref not in {expected_ref, expected_ref.removeprefix("refs/heads/")}:
+        raw_path = run.get("path", "")
+        actual_path = raw_path.split("@", 1)[0]
+        has_ref = "@" in raw_path
+        actual_ref = raw_path.split("@", 1)[1] if has_ref else ""
+        # GitHub's workflow-run API commonly returns only the bare workflow
+        # path.  The ref remains the trusted policy value in RunIdentity; when
+        # the API includes a suffix, still require it to agree exactly.
+        if actual_path != expected_path or (
+            has_ref and actual_ref not in {expected_ref, expected_ref.removeprefix("refs/heads/")}
+        ):
             raise GitHubPublicationError("workflow_path_or_ref_mismatch")
         api_sha = run.get("head_sha") if publisher else expected_sha
         if not isinstance(api_sha, str) or not _SHA.fullmatch(api_sha):
@@ -695,10 +702,13 @@ class GitHubActionsPublicationAdapter:
         run = self._run(self.policy.upstream_run_id, self.policy.upstream_run_attempt, timeout_seconds)
         identity = self._run_identity(run, publisher=False)
         pull_requests = run.get("pull_requests")
-        if not isinstance(pull_requests, list) or not pull_requests:
+        target_event_without_rows = run.get("event") == "pull_request_target" and pull_requests in (None, [])
+        if (not isinstance(pull_requests, list) and not target_event_without_rows) or (
+            isinstance(pull_requests, list) and not pull_requests and not target_event_without_rows
+        ):
             raise GitHubPublicationError("workflow_run_pr_binding_missing")
         matches = []
-        for item in pull_requests:
+        for item in pull_requests if isinstance(pull_requests, list) else []:
             if not isinstance(item, dict) or item.get("number") != self.policy.pull_request_number:
                 continue
             base = item.get("base") if isinstance(item.get("base"), dict) else {}
@@ -706,8 +716,8 @@ class GitHubActionsPublicationAdapter:
             if base.get("sha") == pr["base_sha"] and head.get("sha") == pr["head_sha"]:
                 matches.append(item)
         if (
-            len(matches) != 1
-            or run.get("event") != "pull_request"
+            (len(matches) != 1 and not target_event_without_rows)
+            or run.get("event") not in {"pull_request", "pull_request_target"}
             or run.get("status") != "completed"
             or run.get("conclusion") != "success"
         ):
@@ -725,17 +735,27 @@ class GitHubActionsPublicationAdapter:
         if identity != receipt.upstream_run:
             raise GitHubPublicationError("receipt_upstream_workflow_mismatch")
         pull_requests = upstream.get("pull_requests")
-        if not isinstance(pull_requests, list) or not any(
-            isinstance(item, dict)
+        target_event_without_rows = upstream.get("event") == "pull_request_target" and pull_requests in (None, [])
+        pull_rows = pull_requests if isinstance(pull_requests, list) else []
+        receipt_matches = [
+            item
+            for item in pull_rows
+            if isinstance(item, dict)
             and item.get("number") == receipt.slot.pull_request_number
             and isinstance(item.get("base"), dict)
             and isinstance(item.get("head"), dict)
+            and (
+                upstream.get("event") != "pull_request_target"
+                or item["base"].get("sha") == receipt.upstream_run.workflow_sha
+            )
             and item["head"].get("sha") == receipt.slot.head_sha
-            for item in pull_requests
+        ] if isinstance(pull_requests, list) else []
+        if (not isinstance(pull_requests, list) and not target_event_without_rows) or (
+            not target_event_without_rows and len(receipt_matches) != 1
         ):
             raise GitHubPublicationError("receipt_upstream_pr_mismatch")
         if (
-            upstream.get("event") != "pull_request"
+            upstream.get("event") not in {"pull_request", "pull_request_target"}
             or upstream.get("status") != "completed"
             or upstream.get("conclusion") != "success"
         ):

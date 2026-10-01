@@ -11,6 +11,7 @@ from pr_review_harness.actions_publication import (
     ArtifactUploadResult,
     CredentialKind,
     GitHubActionsPublicationAdapter,
+    GitHubPublicationError,
     GitHubPublicationPolicy,
     HTTPResponse,
     IdentityState,
@@ -57,6 +58,44 @@ def make_policy(**overrides):
     }
     values.update(overrides)
     return GitHubPublicationPolicy(**values)
+
+
+def test_run_identity_accepts_bare_github_workflow_path_but_keeps_policy_identity():
+    policy = make_policy()
+    adapter = GitHubActionsPublicationAdapter(policy, Provider(), transport=FakeTransport(lambda *_: None))
+
+    identity = adapter._run_identity(
+        {
+            "id": policy.publisher_run_id,
+            "run_attempt": policy.publisher_run_attempt,
+            "workflow_id": policy.publisher_workflow_id,
+            "path": policy.publisher_workflow_path,
+            "head_sha": policy.publisher_workflow_sha,
+        },
+        publisher=True,
+    )
+
+    assert identity.workflow_path == policy.publisher_workflow_path
+    assert identity.workflow_ref == policy.publisher_workflow_ref
+    assert identity.workflow_sha == policy.publisher_workflow_sha
+
+
+@pytest.mark.parametrize("suffix", ["@", "@refs/heads/other"])
+def test_run_identity_rejects_empty_or_untrusted_workflow_ref_suffix(suffix):
+    policy = make_policy()
+    adapter = GitHubActionsPublicationAdapter(policy, Provider(), transport=FakeTransport(lambda *_: None))
+
+    with pytest.raises(GitHubPublicationError, match="workflow_path_or_ref_mismatch"):
+        adapter._run_identity(
+            {
+                "id": policy.publisher_run_id,
+                "run_attempt": policy.publisher_run_attempt,
+                "workflow_id": policy.publisher_workflow_id,
+                "path": policy.publisher_workflow_path + suffix,
+                "head_sha": policy.publisher_workflow_sha,
+            },
+            publisher=True,
+        )
 
 
 class Provider:

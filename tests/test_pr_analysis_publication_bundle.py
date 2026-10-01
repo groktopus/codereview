@@ -23,8 +23,8 @@ from scripts.pr_analysis_publication_bundle import BundleError, _canonical_hash,
 REPO = "owner/repo"
 BASE = "b" * 40
 HEAD = "a" * 40
-CALLER_SHA = "c" * 40
-EVENT_SHA = "f" * 40
+CALLER_SHA = BASE
+EVENT_SHA = HEAD
 HARNESS_SHA = "d" * 40
 PROFILE_SHA = "e" * 64
 RUN_ID = 731245
@@ -70,17 +70,33 @@ def sealed_result(**overrides):
 
 
 class FakeTransport:
-    def __init__(self, document):
+    def __init__(self, document, *, pull_request=None):
         self.document = document
+        self.pull_request = pull_request
         self.calls = 0
 
     def request(self, method, url, **kwargs):
         self.calls += 1
         assert method == "GET"
-        assert url == f"https://api.github.com/repos/{REPO}/actions/runs/{RUN_ID}/attempts/{ATTEMPT}"
         assert kwargs["timeout_seconds"] == 10
         assert kwargs["max_response_bytes"] <= 512_000
-        return HTTPResponse(200, {"content-type": "application/json"}, canonical(self.document))
+        if url == f"https://api.github.com/repos/{REPO}/actions/runs/{RUN_ID}/attempts/{ATTEMPT}":
+            document = self.document
+        elif url == f"https://api.github.com/repos/{REPO}/pulls/44":
+            document = self.pull_request or {
+                "number": 44,
+                "state": "open",
+                "draft": False,
+                "base": {
+                    "ref": "main",
+                    "sha": BASE,
+                    "repo": {"id": REPOSITORY_ID, "full_name": REPO, "default_branch": "main"},
+                },
+                "head": {"ref": "feature/update-dependency", "sha": HEAD},
+            }
+        else:
+            raise AssertionError(f"unexpected URL: {url}")
+        return HTTPResponse(200, {"content-type": "application/json"}, canonical(document))
 
 
 def run_api(**changes):
@@ -90,7 +106,7 @@ def run_api(**changes):
         "workflow_id": WORKFLOW_ID,
         "path": ".github/workflows/pr-review.yml",
         "head_sha": EVENT_SHA,
-        "head_branch": "main",
+        "head_branch": "feature/update-dependency",
         "repository": {"id": REPOSITORY_ID, "full_name": REPO},
         "pull_requests": [
             {
@@ -119,9 +135,12 @@ def make_inputs(tmp_path: Path, *, result=None):
         "TARGET_REPOSITORY": REPO,
         "GITHUB_RUN_ID": str(RUN_ID),
         "GITHUB_RUN_ATTEMPT": str(ATTEMPT),
-        "GITHUB_SHA": EVENT_SHA,
+        "GITHUB_SHA": BASE,
         "GITHUB_WORKFLOW_SHA": CALLER_SHA,
+        "GITHUB_REF": "refs/heads/main",
         "GITHUB_WORKFLOW_REF": f"{REPO}/.github/workflows/pr-review.yml@refs/heads/main",
+        "GITHUB_EVENT_NAME": "pull_request_target",
+        "GITHUB_DEFAULT_BRANCH": "main",
         "PR_NUMBER": "44",
         "BASE_SHA": BASE,
         "HEAD_SHA": HEAD,
@@ -195,7 +214,9 @@ def test_emitted_directory_round_trips_through_existing_intake(tmp_path):
     )
     assert receipt.attestation_state is AttestationState.UNAVAILABLE
     assert receipt.result_hash == manifest["result_hash"]
-    assert manifest["provider_configuration_identity"] == "provider-identity-sha256:" + _canonical_hash(PROVIDER_IDENTITY)
+    assert manifest["provider_configuration_identity"] == "provider-identity-sha256:" + _canonical_hash(
+        PROVIDER_IDENTITY
+    )
     assert manifest["contract_versions"] == {"artifact_manifest": "1.0", "review_result": "0.1"}
 
 
@@ -242,7 +263,7 @@ def _identity_from_manifest(manifest):
 def test_wrong_api_head_fails_before_creating_publication_directory(tmp_path):
     result_path, profile_path, env = make_inputs(tmp_path)
     output = tmp_path / "publication"
-    with pytest.raises(BundleError, match="github_run_head_sha_mismatch"):
+    with pytest.raises(BundleError, match="github_run_head_pr_binding_mismatch"):
         create_publication_directory(
             result_path=result_path,
             profile_path=profile_path,
@@ -251,6 +272,151 @@ def test_wrong_api_head_fails_before_creating_publication_directory(tmp_path):
             transport=FakeTransport(run_api(head_sha="9" * 40)),
         )
     assert not output.exists()
+
+
+def test_target_run_with_empty_associations_uses_current_pr_api_binding(tmp_path):
+    result_path, profile_path, env = make_inputs(tmp_path)
+    output = tmp_path / "publication"
+    create_publication_directory(
+        result_path=result_path,
+        profile_path=profile_path,
+        output_dir=output,
+        env=env,
+        transport=FakeTransport(run_api(pull_requests=[])),
+    )
+    assert sorted(path.name for path in output.iterdir()) == ["provenance.json", "review-result.json"]
+
+
+def test_target_run_with_omitted_associations_uses_current_pr_api_binding(tmp_path):
+    result_path, profile_path, env = make_inputs(tmp_path)
+    run = run_api()
+    del run["pull_requests"]
+    output = tmp_path / "publication"
+    create_publication_directory(
+        result_path=result_path,
+        profile_path=profile_path,
+        output_dir=output,
+        env=env,
+        transport=FakeTransport(run),
+    )
+    assert sorted(path.name for path in output.iterdir()) == ["provenance.json", "review-result.json"]
+
+
+@pytest.mark.parametrize(
+    ("associations", "reason"),
+    [
+        ([{"number": 45, "base": {"sha": BASE}, "head": {"sha": HEAD}}], "github_run_pull_request_revision_mismatch"),
+        (
+            [{"number": 44, "base": {"sha": "9" * 40}, "head": {"sha": HEAD}}],
+            "github_run_pull_request_revision_mismatch",
+        ),
+        ([{"number": 44, "base": {"sha": BASE}, "head": {"sha": HEAD}}] * 2, "github_run_pull_requests_invalid"),
+        (None, "github_run_pull_requests_invalid"),
+    ],
+)
+def test_target_run_rejects_mismatching_or_ambiguous_present_associations(tmp_path, associations, reason):
+    result_path, profile_path, env = make_inputs(tmp_path)
+    with pytest.raises(BundleError, match=reason):
+        create_publication_directory(
+            result_path=result_path,
+            profile_path=profile_path,
+            output_dir=tmp_path / "publication",
+            env=env,
+            transport=FakeTransport(run_api(pull_requests=associations)),
+        )
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        (
+            {
+                "base": {
+                    "ref": "release",
+                    "sha": BASE,
+                    "repo": {"id": REPOSITORY_ID, "full_name": REPO, "default_branch": "main"},
+                }
+            },
+            "github_pull_request_default_base_mismatch",
+        ),
+        (
+            {
+                "base": {
+                    "ref": "main",
+                    "sha": "9" * 40,
+                    "repo": {"id": REPOSITORY_ID, "full_name": REPO, "default_branch": "main"},
+                }
+            },
+            "caller_workflow_sha_invalid",
+        ),
+    ],
+)
+def test_moved_or_wrong_base_ref_fails_closed(tmp_path, change, reason):
+    result_path, profile_path, env = make_inputs(tmp_path)
+    pull = {
+        "number": 44,
+        "state": "open",
+        "draft": False,
+        "base": {
+            "ref": "main",
+            "sha": BASE,
+            "repo": {"id": REPOSITORY_ID, "full_name": REPO, "default_branch": "main"},
+        },
+        "head": {"ref": "feature/update-dependency", "sha": HEAD},
+    }
+    pull.update(change)
+    with pytest.raises(BundleError, match=reason):
+        create_publication_directory(
+            result_path=result_path,
+            profile_path=profile_path,
+            output_dir=tmp_path / "publication",
+            env=env,
+            transport=FakeTransport(run_api(), pull_request=pull),
+        )
+
+
+@pytest.mark.parametrize("event", ["pull_request", "workflow_dispatch", ""])
+def test_non_target_source_event_cannot_emit_publication_bundle(tmp_path, event):
+    result_path, profile_path, env = make_inputs(tmp_path)
+    env["GITHUB_EVENT_NAME"] = event
+    transport = FakeTransport(run_api())
+    with pytest.raises(BundleError, match="publication_source_event_invalid"):
+        create_publication_directory(
+            result_path=result_path,
+            profile_path=profile_path,
+            output_dir=tmp_path / "publication",
+            env=env,
+            transport=transport,
+        )
+    assert transport.calls == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("GITHUB_REF", "refs/heads/feature", "github_workflow_ref_mismatch"),
+        (
+            "GITHUB_WORKFLOW_REF",
+            f"{REPO}/.github/workflows/pr-review.yml@refs/heads/feature",
+            "github_workflow_ref_mismatch",
+        ),
+        ("GITHUB_WORKFLOW_SHA", "9" * 40, "caller_workflow_sha_invalid"),
+        ("GITHUB_SHA", "9" * 40, "caller_workflow_sha_invalid"),
+    ],
+)
+def test_untrusted_or_moved_source_context_fails_before_api_reads(tmp_path, field, value, reason):
+    result_path, profile_path, env = make_inputs(tmp_path)
+    env[field] = value
+    transport = FakeTransport(run_api())
+    with pytest.raises(BundleError, match=reason):
+        create_publication_directory(
+            result_path=result_path,
+            profile_path=profile_path,
+            output_dir=tmp_path / "publication",
+            env=env,
+            transport=transport,
+        )
+    assert transport.calls == 0
 
 
 @pytest.mark.parametrize(
@@ -314,6 +480,8 @@ def test_workflow_publication_opt_in_is_disabled_by_default_and_read_only():
     assert "github.repository == inputs.target_repository" in workflow
     assert "PROVIDER_CONFIG:" in producer_step
     assert "DECISION_CONFIG:" in producer_step
+    assert "github.event_name == 'pull_request_target'" in producer_step
+    assert "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)" in producer_step
     assert (chr(92) + "$" + "{{") not in workflow
     assert "actions: read" in docs
     assert "not a GitHub server attestation" in docs

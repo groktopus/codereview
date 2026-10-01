@@ -28,6 +28,7 @@ _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 _GIT_SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 _SHA64 = re.compile(r"[0-9a-f]{64}\Z")
+_WORKFLOW_PATH = re.compile(r"\.github/workflows/[A-Za-z0-9_.-]{1,128}\.ya?ml\Z")
 _MAX_RESULT = 15 * 1024 * 1024
 _MAX_PROFILE = 256_000
 _MAX_API = 512_000
@@ -125,10 +126,69 @@ def _github_run(
     return _parse_object(response.body, "github_run_response_invalid")
 
 
+def _github_pull_request(
+    *,
+    repository: str,
+    number: int,
+    token: str,
+    transport: Any,
+) -> dict[str, Any]:
+    if not _REPOSITORY.fullmatch(repository) or not token or isinstance(number, bool) or number <= 0:
+        raise BundleError("github_pull_request_request_invalid")
+    try:
+        response: HTTPResponse = transport.request(
+            "GET",
+            f"{_API_BASE}/repos/{repository}/pulls/{number}",
+            token=token,
+            json_body=None,
+            timeout_seconds=10,
+            max_response_bytes=_MAX_API,
+        )
+    except Exception:
+        raise BundleError("github_pull_request_read_failed") from None
+    if response.status != 200 or len(response.body) > _MAX_API:
+        raise BundleError("github_pull_request_read_failed")
+    return _parse_object(response.body, "github_pull_request_response_invalid")
+
+
+def _validate_local_target_context(env: dict[str, str], repository: str) -> tuple[str, str]:
+    default_branch = env.get("GITHUB_DEFAULT_BRANCH", "")
+    if (
+        env.get("GITHUB_EVENT_NAME") != "pull_request_target"
+        or not isinstance(default_branch, str)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}", default_branch)
+        or ".." in default_branch.split("/")
+        or "//" in default_branch
+    ):
+        raise BundleError("publication_source_event_invalid")
+    workflow_ref = env.get("GITHUB_WORKFLOW_REF", "")
+    prefix = f"{repository}/"
+    if not workflow_ref.startswith(prefix) or "@" not in workflow_ref:
+        raise BundleError("github_workflow_ref_invalid")
+    workflow_path, separator, caller_ref = workflow_ref[len(prefix) :].rpartition("@")
+    if (
+        not separator
+        or not _WORKFLOW_PATH.fullmatch(workflow_path)
+        or caller_ref != f"refs/heads/{default_branch}"
+        or env.get("GITHUB_REF") != caller_ref
+    ):
+        raise BundleError("github_workflow_ref_mismatch")
+    base_sha = env.get("BASE_SHA", "")
+    if (
+        not _GIT_SHA.fullmatch(base_sha)
+        or not _GIT_SHA.fullmatch(env.get("HEAD_SHA", ""))
+        or env.get("GITHUB_SHA") != base_sha
+        or env.get("GITHUB_WORKFLOW_SHA") != base_sha
+    ):
+        raise BundleError("caller_workflow_sha_invalid")
+    return default_branch, workflow_path
+
+
 def _identity_from_run(
     env: dict[str, str],
     run: dict[str, Any],
     provider_identity_hash: str,
+    pull_request: dict[str, Any],
 ) -> ArtifactIdentity:
     repository = env.get("GITHUB_REPOSITORY", "")
     target = env.get("TARGET_REPOSITORY", "")
@@ -142,6 +202,26 @@ def _identity_from_run(
     repository_id = repo_obj.get("id")
     if isinstance(repository_id, bool) or not isinstance(repository_id, int) or repository_id <= 0:
         raise BundleError("github_run_repository_id_invalid")
+
+    default_branch, _workflow_path = _validate_local_target_context(env, repository)
+    pr_number = _positive_int(env, "PR_NUMBER")
+    if _api_positive_int(pull_request.get("number"), "github_pull_request_number_invalid") != pr_number:
+        raise BundleError("github_pull_request_identity_mismatch")
+    if pull_request.get("state") != "open" or pull_request.get("draft") is not False:
+        raise BundleError("github_pull_request_not_open_ready")
+    base = pull_request.get("base")
+    head = pull_request.get("head")
+    base_repo = base.get("repo") if isinstance(base, dict) else None
+    if (
+        not isinstance(base, dict)
+        or not isinstance(head, dict)
+        or not isinstance(base_repo, dict)
+        or base_repo.get("full_name") != repository
+        or base_repo.get("id") != repository_id
+        or base_repo.get("default_branch") != default_branch
+        or base.get("ref") != default_branch
+    ):
+        raise BundleError("github_pull_request_default_base_mismatch")
 
     run_id = _positive_int(env, "GITHUB_RUN_ID")
     attempt = _positive_int(env, "GITHUB_RUN_ATTEMPT")
@@ -158,28 +238,34 @@ def _identity_from_run(
     ref_prefix = f"{repository}/"
     if not full_workflow_ref.startswith(ref_prefix) or "@" not in full_workflow_ref:
         raise BundleError("github_workflow_ref_invalid")
-    expected_path, separator, caller_ref = full_workflow_ref[len(ref_prefix):].rpartition("@")
+    expected_path, separator, caller_ref = full_workflow_ref[len(ref_prefix) :].rpartition("@")
     if not separator or not caller_ref.startswith("refs/"):
         raise BundleError("github_workflow_ref_invalid")
-    if not isinstance(workflow_path, str) or workflow_path != expected_path or not workflow_path.startswith(".github/workflows/"):
+    if (
+        not isinstance(workflow_path, str)
+        or workflow_path != expected_path
+        or not _WORKFLOW_PATH.fullmatch(workflow_path)
+    ):
         raise BundleError("github_workflow_path_mismatch")
     workflow_sha = run.get("head_sha")
     if not isinstance(workflow_sha, str) or not _GIT_SHA.fullmatch(workflow_sha):
         raise BundleError("github_run_head_sha_invalid")
-    if workflow_sha != env.get("GITHUB_SHA"):
-        raise BundleError("github_run_head_sha_mismatch")
+    if workflow_sha != head.get("sha"):
+        raise BundleError("github_run_head_pr_binding_mismatch")
     caller_workflow_sha = env.get("GITHUB_WORKFLOW_SHA", "")
-    if not _GIT_SHA.fullmatch(caller_workflow_sha):
+    if (
+        not _GIT_SHA.fullmatch(caller_workflow_sha)
+        or env.get("GITHUB_SHA") != caller_workflow_sha
+        or caller_workflow_sha != base.get("sha")
+        or env.get("BASE_SHA") != base.get("sha")
+        or env.get("HEAD_SHA") != head.get("sha")
+    ):
         raise BundleError("caller_workflow_sha_invalid")
     branch = run.get("head_branch")
     if not isinstance(branch, str) or not branch or any(c in branch for c in "\r\n\x00"):
         raise BundleError("github_run_branch_invalid")
     pr_number = _positive_int(env, "PR_NUMBER")
-    if caller_ref not in {
-        f"refs/heads/{branch}",
-        f"refs/tags/{branch}",
-        f"refs/pull/{pr_number}/merge",
-    }:
+    if caller_ref != f"refs/heads/{default_branch}" or branch != head.get("ref"):
         raise BundleError("github_workflow_ref_mismatch")
 
     base_sha = env.get("BASE_SHA", "")
@@ -187,28 +273,24 @@ def _identity_from_run(
     if not _GIT_SHA.fullmatch(base_sha) or not _GIT_SHA.fullmatch(head_sha):
         raise BundleError("target_revision_invalid")
     prs = run.get("pull_requests")
-    if not isinstance(prs, list):
-        raise BundleError("github_run_pull_requests_invalid")
-    matching = [
-        item
-        for item in prs
-        if isinstance(item, dict)
-        and isinstance(item.get("number"), int)
-        and not isinstance(item.get("number"), bool)
-        and item.get("number") == pr_number
-    ]
-    if len(matching) != 1:
-        raise BundleError("github_run_pull_request_binding_missing")
-    pr = matching[0]
-    base = pr.get("base")
-    head = pr.get("head")
-    if not isinstance(base, dict) or not isinstance(head, dict):
-        raise BundleError("github_run_pull_request_binding_invalid")
-    if base.get("sha") != base_sha or head.get("sha") != head_sha:
-        raise BundleError("github_run_pull_request_revision_mismatch")
-    base_repo = base.get("repo")
-    if isinstance(base_repo, dict) and base_repo.get("id") != repository_id:
-        raise BundleError("github_run_pull_request_repository_mismatch")
+    if "pull_requests" in run:
+        if not isinstance(prs, list):
+            raise BundleError("github_run_pull_requests_invalid")
+        if prs:
+            if len(prs) != 1:
+                raise BundleError("github_run_pull_requests_invalid")
+            pr = prs[0]
+            api_base = pr.get("base") if isinstance(pr, dict) else None
+            api_head = pr.get("head") if isinstance(pr, dict) else None
+            if (
+                not isinstance(pr, dict)
+                or pr.get("number") != pr_number
+                or not isinstance(api_base, dict)
+                or not isinstance(api_head, dict)
+                or api_base.get("sha") != base_sha
+                or api_head.get("sha") != head_sha
+            ):
+                raise BundleError("github_run_pull_request_revision_mismatch")
 
     harness_repository = env.get("HARNESS_REPOSITORY", "")
     harness_sha = env.get("HARNESS_SHA", "")
@@ -290,6 +372,7 @@ def create_publication_directory(
     repository = env.get("GITHUB_REPOSITORY", "")
     if repository != env.get("TARGET_REPOSITORY") or not _REPOSITORY.fullmatch(repository):
         raise BundleError("publication_target_must_be_local")
+    _validate_local_target_context(env, repository)
     result_raw = _read_regular(result_path, _MAX_RESULT, "sealed_result_unavailable")
     profile_raw = _read_regular(profile_path, _MAX_PROFILE, "profile_unavailable")
     result = _parse_object(result_raw, "sealed_result_invalid")
@@ -313,14 +396,22 @@ def create_publication_directory(
     token = env.get("GH_TOKEN", "")
     run_id = _positive_int(env, "GITHUB_RUN_ID")
     attempt = _positive_int(env, "GITHUB_RUN_ATTEMPT")
+    run_transport = transport or UrllibGitHubTransport()
     api_run = _github_run(
         repository=repository,
         run_id=run_id,
         attempt=attempt,
         token=token,
-        transport=transport or UrllibGitHubTransport(),
+        transport=run_transport,
     )
-    identity = _identity_from_run(env, api_run, provider_sha)
+    pr_number = _positive_int(env, "PR_NUMBER")
+    current_pr = _github_pull_request(
+        repository=repository,
+        number=pr_number,
+        token=token,
+        transport=run_transport,
+    )
+    identity = _identity_from_run(env, api_run, provider_sha, current_pr)
     expected_result_id = f"pr-{identity.pull_request_number}-{identity.upstream_run_id}"
     if (
         result.get("repository") != identity.repository
@@ -348,7 +439,10 @@ def create_publication_directory(
         raise BundleError("sealed_result_intake_validation_failed") from None
     manifest_raw = (json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
     secret_values = [env.get("LLM_API_KEY", ""), env.get("JEV_API_KEY", ""), token]
-    if any(secret and (secret.encode("utf-8") in result_raw or secret.encode("utf-8") in manifest_raw) for secret in secret_values):
+    if any(
+        secret and (secret.encode("utf-8") in result_raw or secret.encode("utf-8") in manifest_raw)
+        for secret in secret_values
+    ):
         raise BundleError("credential_leak_detected")
 
     try:
@@ -388,7 +482,10 @@ def main(
             transport=transport,
         )
     except BundleError as exc:
-        print(json.dumps({"status": "REJECTED", "error": exc.code}, sort_keys=True, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps({"status": "REJECTED", "error": exc.code}, sort_keys=True, separators=(",", ":")),
+            file=sys.stderr,
+        )
         return 2
     print('{"status":"BUNDLE_READY","identity_source":"bounded_github_run_attempt_api_plus_local_inputs"}')
     return 0

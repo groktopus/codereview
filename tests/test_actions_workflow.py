@@ -110,26 +110,46 @@ def _run_event_validator(tmp_path: Path, raw: bytes):
         namespace["main"]()
 
 
-def _run_repository_identity_preflight(caller_repository: str, target_repository: str):
+def _run_repository_identity_preflight(
+    caller_repository: str,
+    target_repository: str,
+    *,
+    emit_publication_bundle: bool = False,
+    caller_event: str = "pull_request",
+    caller_ref: str = "refs/heads/main",
+    caller_workflow_ref: str = "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main",
+    caller_sha: str = BASE_SHA,
+    caller_workflow_sha: str = BASE_SHA,
+    default_branch: str = "main",
+    base_ref: str = "main",
+):
     source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
     step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
     namespace = {"__name__": "test_reusable_analysis_repository_identity"}
     script = _python_script(step)
-    with patch.dict(
-        os.environ,
-        {
-            "HARNESS_REPOSITORY": "groktopus/codereview",
-            "HARNESS_SHA": "a" * 40,
-            "CALLER_REPOSITORY": caller_repository,
-            "CALLER_REF": "refs/heads/main",
-            "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main",
-            "TARGET_REPOSITORY": target_repository,
-            "PR_NUMBER": "477",
-            "BASE_REF": "main",
-            "BASE_SHA": BASE_SHA,
-            "HEAD_SHA": HEAD_SHA,
-        },
-    ), patch("subprocess.run") as run:
+    with (
+        patch.dict(
+            os.environ,
+            {
+                "HARNESS_REPOSITORY": "groktopus/codereview",
+                "HARNESS_SHA": "a" * 40,
+                "CALLER_REPOSITORY": caller_repository,
+                "CALLER_REF": caller_ref,
+                "CALLER_WORKFLOW_REF": caller_workflow_ref,
+                "CALLER_EVENT": caller_event,
+                "CALLER_DEFAULT_BRANCH": default_branch,
+                "CALLER_SHA": caller_sha,
+                "CALLER_WORKFLOW_SHA": caller_workflow_sha,
+                "EMIT_PUBLICATION_BUNDLE": "true" if emit_publication_bundle else "false",
+                "TARGET_REPOSITORY": target_repository,
+                "PR_NUMBER": "477",
+                "BASE_REF": base_ref,
+                "BASE_SHA": BASE_SHA,
+                "HEAD_SHA": HEAD_SHA,
+            },
+        ),
+        patch("subprocess.run") as run,
+    ):
         run.return_value.returncode = 0
         exec(compile(script, "reusable analysis repository identity", "exec"), namespace)
         return run
@@ -140,19 +160,22 @@ def test_reusable_analysis_rejects_a_different_caller_before_git_or_checkout():
     step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
     namespace = {"__name__": "test_reusable_analysis_repository_identity"}
     script = _python_script(step)
-    with patch.dict(
-        os.environ,
-        {
-            "HARNESS_REPOSITORY": "groktopus/codereview",
-            "HARNESS_SHA": "a" * 40,
-            "CALLER_REPOSITORY": "attacker/untrusted",
-            "TARGET_REPOSITORY": TARGET_REPOSITORY,
-            "PR_NUMBER": "477",
-            "BASE_REF": "main",
-            "BASE_SHA": BASE_SHA,
-            "HEAD_SHA": HEAD_SHA,
-        },
-    ), patch("subprocess.run") as run:
+    with (
+        patch.dict(
+            os.environ,
+            {
+                "HARNESS_REPOSITORY": "groktopus/codereview",
+                "HARNESS_SHA": "a" * 40,
+                "CALLER_REPOSITORY": "attacker/untrusted",
+                "TARGET_REPOSITORY": TARGET_REPOSITORY,
+                "PR_NUMBER": "477",
+                "BASE_REF": "main",
+                "BASE_SHA": BASE_SHA,
+                "HEAD_SHA": HEAD_SHA,
+            },
+        ),
+        patch("subprocess.run") as run,
+    ):
         with pytest.raises(SystemExit, match="caller_target_repository_mismatch"):
             exec(compile(script, "reusable analysis repository identity", "exec"), namespace)
         run.assert_not_called()
@@ -162,6 +185,71 @@ def test_reusable_analysis_accepts_the_exact_caller_target_repository():
     run = _run_repository_identity_preflight(TARGET_REPOSITORY, TARGET_REPOSITORY)
     run.assert_called_once()
     assert run.call_args.args[0] == ["git", "check-ref-format", "refs/heads/main"]
+
+
+def test_publication_opt_in_accepts_same_repo_protected_target_context():
+    run = _run_repository_identity_preflight(
+        TARGET_REPOSITORY,
+        TARGET_REPOSITORY,
+        emit_publication_bundle=True,
+        caller_event="pull_request_target",
+        caller_workflow_ref=f"{TARGET_REPOSITORY}/.github/workflows/review.yml@refs/heads/main",
+    )
+    run.assert_called_once_with(
+        ["git", "check-ref-format", "refs/heads/main"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=3,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"caller_event": "pull_request"},
+        {"caller_ref": "refs/heads/feature"},
+        {"caller_workflow_ref": f"{TARGET_REPOSITORY}/.github/workflows/review.yml@refs/heads/feature"},
+        {"caller_sha": "9" * 40},
+        {"caller_workflow_sha": "9" * 40},
+        {"base_ref": "release"},
+    ],
+)
+def test_publication_opt_in_rejects_unprotected_target_context_before_git(changes):
+    kwargs = {
+        "caller_event": "pull_request_target",
+        "caller_workflow_ref": f"{TARGET_REPOSITORY}/.github/workflows/review.yml@refs/heads/main",
+    }
+    kwargs.update(changes)
+    source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
+    step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
+    script = _python_script(step)
+    with (
+        patch.dict(
+            os.environ,
+            {
+                "HARNESS_REPOSITORY": "groktopus/codereview",
+                "HARNESS_SHA": "a" * 40,
+                "CALLER_REPOSITORY": TARGET_REPOSITORY,
+                "CALLER_REF": kwargs.get("caller_ref", "refs/heads/main"),
+                "CALLER_WORKFLOW_REF": kwargs["caller_workflow_ref"],
+                "CALLER_EVENT": kwargs["caller_event"],
+                "CALLER_DEFAULT_BRANCH": "main",
+                "CALLER_SHA": kwargs.get("caller_sha", BASE_SHA),
+                "CALLER_WORKFLOW_SHA": kwargs.get("caller_workflow_sha", BASE_SHA),
+                "EMIT_PUBLICATION_BUNDLE": "true",
+                "TARGET_REPOSITORY": TARGET_REPOSITORY,
+                "PR_NUMBER": "477",
+                "BASE_REF": kwargs.get("base_ref", "main"),
+                "BASE_SHA": BASE_SHA,
+                "HEAD_SHA": HEAD_SHA,
+            },
+        ),
+        patch("subprocess.run") as run,
+    ):
+        with pytest.raises(SystemExit, match="publication_source_context_mismatch"):
+            exec(compile(script, "reusable analysis publication source", "exec"), {})
+        run.assert_not_called()
 
 
 def test_reusable_analysis_accepts_only_the_pinned_central_pilot_pair_on_main():
@@ -182,21 +270,24 @@ def test_reusable_analysis_rejects_other_cross_repository_pairs(caller, target, 
     source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
     step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
     script = _python_script(step)
-    with patch.dict(
-        os.environ,
-        {
-            "HARNESS_REPOSITORY": "groktopus/codereview",
-            "HARNESS_SHA": "a" * 40,
-            "CALLER_REPOSITORY": caller,
-            "CALLER_REF": caller_ref,
-            "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main",
-            "TARGET_REPOSITORY": target,
-            "PR_NUMBER": "477",
-            "BASE_REF": "main",
-            "BASE_SHA": BASE_SHA,
-            "HEAD_SHA": HEAD_SHA,
-        },
-    ), patch("subprocess.run") as run:
+    with (
+        patch.dict(
+            os.environ,
+            {
+                "HARNESS_REPOSITORY": "groktopus/codereview",
+                "HARNESS_SHA": "a" * 40,
+                "CALLER_REPOSITORY": caller,
+                "CALLER_REF": caller_ref,
+                "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main",
+                "TARGET_REPOSITORY": target,
+                "PR_NUMBER": "477",
+                "BASE_REF": "main",
+                "BASE_SHA": BASE_SHA,
+                "HEAD_SHA": HEAD_SHA,
+            },
+        ),
+        patch("subprocess.run") as run,
+    ):
         with pytest.raises(SystemExit, match="caller_target_repository_mismatch"):
             exec(compile(script, "reusable analysis repository identity", "exec"), {})
         run.assert_not_called()
@@ -206,21 +297,24 @@ def test_reusable_analysis_rejects_other_central_workflows():
     source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
     step = _step(source, "Reject mutable or malformed harness and target identities before checkout")
     script = _python_script(step)
-    with patch.dict(
-        os.environ,
-        {
-            "HARNESS_REPOSITORY": "groktopus/codereview",
-            "HARNESS_SHA": "a" * 40,
-            "CALLER_REPOSITORY": "groktopus/codereview",
-            "CALLER_REF": "refs/heads/main",
-            "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/other.yml@refs/heads/main",
-            "TARGET_REPOSITORY": TARGET_REPOSITORY,
-            "PR_NUMBER": "477",
-            "BASE_REF": "main",
-            "BASE_SHA": BASE_SHA,
-            "HEAD_SHA": HEAD_SHA,
-        },
-    ), patch("subprocess.run") as run:
+    with (
+        patch.dict(
+            os.environ,
+            {
+                "HARNESS_REPOSITORY": "groktopus/codereview",
+                "HARNESS_SHA": "a" * 40,
+                "CALLER_REPOSITORY": "groktopus/codereview",
+                "CALLER_REF": "refs/heads/main",
+                "CALLER_WORKFLOW_REF": "groktopus/codereview/.github/workflows/other.yml@refs/heads/main",
+                "TARGET_REPOSITORY": TARGET_REPOSITORY,
+                "PR_NUMBER": "477",
+                "BASE_REF": "main",
+                "BASE_SHA": BASE_SHA,
+                "HEAD_SHA": HEAD_SHA,
+            },
+        ),
+        patch("subprocess.run") as run,
+    ):
         with pytest.raises(SystemExit, match="caller_target_repository_mismatch"):
             exec(compile(script, "reusable analysis repository identity", "exec"), {})
         run.assert_not_called()
@@ -322,7 +416,13 @@ def test_production_analysis_binds_all_six_provider_values_from_trusted_secrets(
         assert f"{name}: ${{{{ secrets.{name} }}}}" in source
     assert "inputs.llm_" not in source
     assert "inputs.jev_" not in source
-    assert "github.event." not in source.split("Materialize private provider configuration", 1)[1]
+    materialization_step = source.split("- name: Materialize private provider configuration", 1)[1].split(
+        "- name: Produce a bounded read-only report", 1
+    )[0]
+    assert "github.event." not in materialization_step
+    assert "PR_NUMBER:" not in materialization_step
+    assert "BASE_SHA:" not in materialization_step
+    assert "HEAD_SHA:" not in materialization_step
 
 
 def test_production_analysis_uses_generated_configs_without_catalog_or_target_execution():
@@ -359,7 +459,7 @@ def test_production_analysis_uses_fixed_bounded_claim_assessment_and_preserves_r
     assert '--decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json"' in review_command
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
     assert "--artifact-root artifacts" in manifest_step
-    assert 'DECISION_CONFIG: ${{ runner.temp }}/pr-review-provider-config/decision.json' in manifest_step
+    assert "DECISION_CONFIG: ${{ runner.temp }}/pr-review-provider-config/decision.json" in manifest_step
 
 
 def test_ordinary_context_budget_is_a_trusted_single_override_and_fixed_in_workflow():
@@ -390,7 +490,7 @@ def test_ordinary_context_budget_is_a_trusted_single_override_and_fixed_in_workf
     source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
     review_step = _step(source, "Produce a bounded read-only report from the bare target object store")
     review_command = review_step.split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
-    assert '--limits profiles/ordinary-review-limits-v2.json \\' in review_command
+    assert "--limits profiles/ordinary-review-limits-v2.json \\" in review_command
     assert "inputs.limits" not in source
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
 
