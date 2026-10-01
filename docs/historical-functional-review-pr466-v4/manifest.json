@@ -1,0 +1,125 @@
+{
+  "case": {
+    "base_sha": "63e3ecd2f09d79c34e3594a3be74f017a1c5a12c",
+    "head_sha": "7bce9dd246f141eb961c52ae96061203a98f083b",
+    "pull_request_number": 466,
+    "repository": "magnus919/SlopSearX"
+  },
+  "diagnostic_scope": {
+    "case_total_call_ceiling": 12,
+    "claim": "bounded dependency-context diagnostic; prepare admission is not installed-runtime resolution, runtime completion, quality, calibration, or cutover evidence",
+    "claim_assessment_max": 1,
+    "effect_policy": "READ_ONLY",
+    "provider_calls_in_retained_prepare": 0,
+    "source_auditor_calls": 0,
+    "target_code_execution": false
+  },
+  "historical_checks": {
+    "captured_at": "2026-09-27T04:06:00Z",
+    "freshness_basis": "HISTORICAL_SNAPSHOT",
+    "path": "docs/historical-functional-review-pr466-v4/historical-checks.json",
+    "sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963"
+  },
+  "limits": {
+    "path": "docs/historical-functional-review-pr466-v4/limits.json",
+    "sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e"
+  },
+  "prepare_observation": {
+    "admitted_obligations": 15,
+    "dependency_projection": {
+      "content_bytes": 858,
+      "content_hash": "75a555a088593a00fe5bea36ef4c819dd035eb55c72c25642052865d81e00b3a",
+      "evidence_id": "ev-7d389ea2e58de8c54ed68109",
+      "included_primary_task_ids": [
+        "task-73422d1d4452c592:chunk-1",
+        "task-43fc1554597a6096:chunk-1",
+        "task-37d44cb9339851be:chunk-1",
+        "task-6a0aad87db4d05a9:chunk-1",
+        "task-1191806e0932af14:chunk-1"
+      ],
+      "path": "pyproject.toml",
+      "source_kind": "dependency_projection",
+      "source_revision": "7bce9dd246f141eb961c52ae96061203a98f083b",
+      "trust": "repository_evidence"
+    },
+    "dynamic_stage_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
+    "historical_checks_sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963",
+    "installed_runtime_resolution": "UNKNOWN_FROM_DECLARATION_PROJECTION",
+    "limits_sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e",
+    "max_claim_assessments": 1,
+    "max_context_bytes": 600000,
+    "max_input_bytes_per_task": 80000,
+    "max_provider_calls": 10,
+    "no_provider_calls": true,
+    "no_target_code_execution": true,
+    "planned_obligations": 15,
+    "primary_request_count": 7,
+    "primary_requests": [
+      {
+        "input_bytes": 77234,
+        "input_sha256": "867f8adea5c83a2e933791438442f54866dadfc912a8cbf0e36db17197010f6b",
+        "lens": "correctness",
+        "task_id": "task-73422d1d4452c592:chunk-1"
+      },
+      {
+        "input_bytes": 53981,
+        "input_sha256": "c713acc5dc433175ca4349bcf484fd339927aa7b48a4f0d9b337485f8c8b0149",
+        "lens": "tests",
+        "task_id": "task-43fc1554597a6096:chunk-1"
+      },
+      {
+        "input_bytes": 51019,
+        "input_sha256": "594c47813e1bc391a3f00b47089b7189ce29d0592d1b69d2ddc064ffc1c622a4",
+        "lens": "maintainability",
+        "task_id": "task-825e221a4a67ace3:chunk-1"
+      },
+      {
+        "input_bytes": 73530,
+        "input_sha256": "923adccd993b6bc79ed1e4d1feb86868cc99d3a19e88f99920da4bad316365e1",
+        "lens": "correctness",
+        "task_id": "task-37d44cb9339851be:chunk-1"
+      },
+      {
+        "input_bytes": 74031,
+        "input_sha256": "b2d33f5b2fd0d613b2645a209eb7ab6da9d8600979e83996c17cf91be01d683f",
+        "lens": "tests",
+        "task_id": "task-6a0aad87db4d05a9:chunk-1"
+      },
+      {
+        "input_bytes": 37345,
+        "input_sha256": "06c581a5e50badb39ee5b5f3bc52675e7af4816c5cba4f4d73c8eb73b235e865",
+        "lens": "maintainability",
+        "task_id": "task-05c73b1f0fbc97b4:chunk-1"
+      },
+      {
+        "input_bytes": 74087,
+        "input_sha256": "06702f1bc05acc9d738eb0b75193decce38c8e6b8084e4113fcd5a2e51d0338d",
+        "lens": "security",
+        "task_id": "task-1191806e0932af14:chunk-1"
+      }
+    ],
+    "primary_scope_admission_complete": true,
+    "profile_sha256": "e2b1d9bbdafd6d054462b9abac48ce88fdc71400abcb7655902fcf3677c4d446",
+    "remaining_call_slots_after_primary": 3,
+    "source_revision": "1f99d58eb5bd009da62a0537be7e7eed7cf88f5b",
+    "status": "PREPARED_ONLY",
+    "total_primary_serialized_input_bytes": 441227
+  },
+  "profile": {
+    "path": "profiles/slopsearx-v12-dependency-context-candidate.json",
+    "sha256": "e2b1d9bbdafd6d054462b9abac48ce88fdc71400abcb7655902fcf3677c4d446",
+    "version": "slopsearx-production-v12-head-dependency-context-candidate"
+  },
+  "provider_identity": {
+    "decision": {
+      "endpoint": null,
+      "model": null
+    },
+    "primary": {
+      "base_url": null,
+      "model": null
+    },
+    "status": "UNKNOWN"
+  },
+  "schema": "historical-functional-review-pr466.v4"
+}
