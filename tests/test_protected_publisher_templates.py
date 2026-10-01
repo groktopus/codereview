@@ -25,6 +25,20 @@ def test_policy_template_is_explicitly_inert_and_rejected_until_real_identity_va
         ProtectedPublicationPolicy.parse(document)
 
 
+def test_analysis_template_pins_reviewed_harness_commit_consistently_and_stays_disabled():
+    workflow = (ROOT / "templates/protected-pr-review-analysis.yml").read_text(encoding="utf-8")
+    expected_sha = "7eaddf7c549c8060045578bc1702e394a35dfa2d"
+
+    uses = re.search(
+        r"(?m)^\s*uses: groktopus/codereview/\.github/workflows/pr-analysis\.yml@([0-9a-f]{40})$",
+        workflow,
+    )
+    input_sha = re.search(r"(?m)^\s*harness_sha: ([0-9a-f]{40})$", workflow)
+    assert uses is not None and uses.group(1) == expected_sha
+    assert input_sha is not None and input_sha.group(1) == expected_sha
+    assert re.search(r"(?m)^\s*if:\s*false\s*$", workflow)
+
+
 def test_workflow_template_stays_disabled_and_uses_existing_protected_runtime_and_pinned_bridge():
     workflow = (ROOT / "templates/protected-pr-review-publisher.yml").read_text(encoding="utf-8")
 
