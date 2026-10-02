@@ -19,6 +19,10 @@ from pr_review_harness.actions_publication import (
     VerifiedPublisherIdentity,
 )
 from pr_review_harness.artifact_intake import MANIFEST_FILENAME, RESULT_FILENAME
+from pr_review_harness.github_actions_credentials import (
+    GitHubActionsTokenCredentialProvider,
+    GitHubActionsTokenPolicy,
+)
 from pr_review_harness.publication_receipts import EffectSlot, HistoryStatus, ScanLimits
 from pr_review_harness.publisher import _canonical_hash, publish_review_stateless
 from pr_review_harness.report import render_report
@@ -27,6 +31,15 @@ HEAD = "a" * 40
 BASE = "b" * 40
 WRITER = "review-agent[bot]"
 EFFECT = "effect-" + "c" * 64
+ACTION_CREDENTIAL_PROVENANCE = {
+    "schema": "publisher-credential-provenance.v1",
+    "credential_kind": "ACTIONS_TOKEN",
+    "identity_state": "PLATFORM_BOUND",
+    "permission_basis": "WORKFLOW_DECLARATION",
+    "write_capability": "NOT_TESTED",
+    "publisher_workflow_sha256": "d" * 64,
+    "declared_job_permissions": {"actions": "read", "contents": "read", "pull-requests": "write"},
+}
 
 
 def make_policy(**overrides):
@@ -106,8 +119,10 @@ class Provider:
             identity=VerifiedPublisherIdentity(
                 state=state,
                 actor_login=actor,
-                credential_kind=CredentialKind.ACTIONS_TOKEN,
+                credential_kind=CredentialKind.APP_INSTALLATION,
                 evidence_id="3" * 64,
+                app_id=333,
+                installation_id=444,
             ),
             repository_id=8123,
             permissions=permissions or (("actions", "read"), ("pull_requests", "write")),
@@ -132,6 +147,87 @@ class FakeTransport:
     def download(self, url, *, timeout_seconds, max_response_bytes):
         self.download_calls.append((url, timeout_seconds, max_response_bytes))
         return HTTPResponse(200, {}, b"archive bytes")
+
+
+def test_platform_bound_actions_token_flows_through_real_adapter_and_checks_effect_actor():
+    actor = "github-actions[bot]"
+    policy = make_policy(allowed_actor_login=actor, credential_provenance=ACTION_CREDENTIAL_PROVENANCE)
+    actions_policy = GitHubActionsTokenPolicy(
+        repository_id=policy.repository_id,
+        repository=policy.repository,
+        actor_login=actor,
+        permissions=(("actions", "read"), ("pull_requests", "write")),
+    )
+    identity = VerifiedPublisherIdentity(
+        state=IdentityState.PLATFORM_BOUND,
+        actor_login=actor,
+        credential_kind=CredentialKind.ACTIONS_TOKEN,
+        evidence_id="8" * 64,
+    )
+    provider = GitHubActionsTokenCredentialProvider(
+        actions_policy,
+        "test-actions-token",
+        identity=identity,
+    )
+    body = "Review.\n\n<!-- pr-review-harness:" + EFFECT + " -->"
+    posts = []
+
+    def responder(method, url, payload):
+        posts.append((method, url, payload))
+        return response({
+            "id": 1234,
+            "commit_id": HEAD,
+            "state": "COMMENTED",
+            "body": body,
+            "user": {"login": actor},
+        })
+
+    client = GitHubActionsPublicationAdapter(policy, provider, transport=FakeTransport(responder))
+    observed = client.submit_review({"commit_id": HEAD, "event": "COMMENT", "body": body}, EFFECT, 4.0)
+
+    assert observed.actor_login == actor
+    assert len(posts) == 1
+    assert client.transport.calls[0][2] == "test-actions-token"
+    credential = provider.credential_for(policy.repository_id, {"actions": "read", "pull_requests": "write"}, 4.0)
+    assert credential.permission_basis.value == "WORKFLOW_DECLARATION"
+    assert credential.write_capability.value == "NOT_TESTED"
+
+
+def test_platform_bound_actions_token_mismatched_effect_actor_is_not_confirmed_or_retried():
+    actor = "github-actions[bot]"
+    policy = make_policy(allowed_actor_login=actor, credential_provenance=ACTION_CREDENTIAL_PROVENANCE)
+    identity = VerifiedPublisherIdentity(
+        state=IdentityState.PLATFORM_BOUND,
+        actor_login=actor,
+        credential_kind=CredentialKind.ACTIONS_TOKEN,
+        evidence_id="9" * 64,
+    )
+    provider = GitHubActionsTokenCredentialProvider(
+        GitHubActionsTokenPolicy(
+            repository_id=policy.repository_id,
+            repository=policy.repository,
+            actor_login=actor,
+            permissions=(("actions", "read"), ("pull_requests", "write")),
+        ),
+        "test-actions-token",
+        identity=identity,
+    )
+    body = "Review.\n\n<!-- pr-review-harness:" + EFFECT + " -->"
+    client = GitHubActionsPublicationAdapter(
+        policy,
+        provider,
+        transport=FakeTransport(lambda *_: response({
+            "id": 1234,
+            "commit_id": HEAD,
+            "state": "COMMENTED",
+            "body": body,
+            "user": {"login": "unexpected-actor"},
+        })),
+    )
+
+    with pytest.raises(GitHubPublicationError, match="review_post_response_identity_mismatch"):
+        client.submit_review({"commit_id": HEAD, "event": "COMMENT", "body": body}, EFFECT, 4.0)
+    assert len(client.transport.calls) == 1
 
 
 def response(value, status=200, headers=None):

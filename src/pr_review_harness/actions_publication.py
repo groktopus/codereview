@@ -50,6 +50,7 @@ from .publication_receipts import (
     ReviewState,
     RunIdentity,
     ScanLimits,
+    validate_credential_provenance,
 )
 from .publisher import _canonical_hash, _stateless_effect_key
 
@@ -86,7 +87,17 @@ class CredentialKind(StrEnum):
 
 class IdentityState(StrEnum):
     VERIFIED = "VERIFIED"
+    PLATFORM_BOUND = "PLATFORM_BOUND"
     UNAVAILABLE = "UNAVAILABLE"
+
+
+class PermissionBasis(StrEnum):
+    API_VERIFIED = "API_VERIFIED"
+    WORKFLOW_DECLARATION = "WORKFLOW_DECLARATION"
+
+
+class WriteCapability(StrEnum):
+    NOT_TESTED = "NOT_TESTED"
 
 
 class ArtifactTrustMode(StrEnum):
@@ -96,7 +107,7 @@ class ArtifactTrustMode(StrEnum):
 
 @dataclass(frozen=True)
 class VerifiedPublisherIdentity:
-    """Writer identity established by the trusted runtime adapter/canary."""
+    """Writer identity bound by the trusted runtime adapter/canary."""
 
     state: IdentityState
     actor_login: str
@@ -115,21 +126,33 @@ class VerifiedPublisherIdentity:
         if not _HASH.fullmatch(self.evidence_id):
             raise GitHubPublicationError("publisher_identity_evidence_invalid")
         if self.credential_kind is CredentialKind.APP_INSTALLATION:
+            if self.state not in {IdentityState.VERIFIED, IdentityState.UNAVAILABLE}:
+                raise GitHubPublicationError("app_identity_state_invalid")
             if not _positive_int(self.app_id) or not _positive_int(self.installation_id):
                 raise GitHubPublicationError("app_identity_invalid")
-        elif self.app_id is not None or self.installation_id is not None:
-            raise GitHubPublicationError("unexpected_app_identity")
+        else:
+            if self.state not in {IdentityState.PLATFORM_BOUND, IdentityState.UNAVAILABLE}:
+                raise GitHubPublicationError("actions_identity_state_invalid")
+            if self.app_id is not None or self.installation_id is not None:
+                raise GitHubPublicationError("unexpected_app_identity")
 
 
 @dataclass(frozen=True)
 class PublisherCredential:
-    """Short-lived, single-repository token from a trusted runtime provider."""
+    """Short-lived token from a trusted runtime provider.
+
+    ``permissions`` records only operations required by this adapter; it is not
+    a complete or independently observed token permission map. Actions-token
+    workflow declaration provenance is carried separately by protected policy.
+    """
 
     token: str = field(repr=False)
     identity: VerifiedPublisherIdentity
     repository_id: int
     permissions: tuple[tuple[str, str], ...]
     expires_at: str
+    permission_basis: PermissionBasis = PermissionBasis.API_VERIFIED
+    write_capability: WriteCapability = WriteCapability.NOT_TESTED
 
     def __post_init__(self) -> None:
         if (
@@ -141,7 +164,12 @@ class PublisherCredential:
             raise GitHubPublicationError("publisher_credential_invalid")
         if not isinstance(self.identity, VerifiedPublisherIdentity):
             raise GitHubPublicationError("publisher_identity_invalid")
-        if self.identity.state is not IdentityState.VERIFIED:
+        expected_state = (
+            IdentityState.VERIFIED
+            if self.identity.credential_kind is CredentialKind.APP_INSTALLATION
+            else IdentityState.PLATFORM_BOUND
+        )
+        if self.identity.state is not expected_state:
             raise GitHubPublicationError("publisher_identity_unverified")
         if not _positive_int(self.repository_id):
             raise GitHubPublicationError("credential_repository_invalid")
@@ -157,13 +185,27 @@ class PublisherCredential:
             )
         ):
             raise GitHubPublicationError("credential_permissions_invalid")
+        expected_basis = (
+            PermissionBasis.API_VERIFIED
+            if self.identity.credential_kind is CredentialKind.APP_INSTALLATION
+            else PermissionBasis.WORKFLOW_DECLARATION
+        )
+        if self.permission_basis is not expected_basis:
+            raise GitHubPublicationError("credential_permission_basis_invalid")
+        if self.write_capability is not WriteCapability.NOT_TESTED:
+            raise GitHubPublicationError("credential_write_capability_invalid")
         _parse_utc(self.expires_at, "credential_expiry")
 
     def valid_for(self, repository_id: int, required: Mapping[str, str], now: datetime | None = None) -> bool:
         current = now or datetime.now(timezone.utc)
         permissions = dict(self.permissions)
         return (
-            self.identity.state is IdentityState.VERIFIED
+            self.identity.state
+            is (
+                IdentityState.VERIFIED
+                if self.identity.credential_kind is CredentialKind.APP_INSTALLATION
+                else IdentityState.PLATFORM_BOUND
+            )
             and self.repository_id == repository_id
             and all(
                 permissions.get(name) == "write" or permissions.get(name) == level for name, level in required.items()
@@ -337,6 +379,7 @@ class GitHubPublicationPolicy:
     max_bundle_bytes: int = _MAX_ARCHIVE_BYTES
     max_receipt_archive_bytes: int = _MAX_RECEIPT_ARCHIVE_BYTES
     concurrency_scope: str = "pull_request"
+    credential_provenance: dict | None = None
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -385,6 +428,11 @@ class GitHubPublicationPolicy:
             raise GitHubPublicationError("artifact_trust_mode_invalid")
         if not isinstance(self.concurrency_scope, str) or self.concurrency_scope not in {"pull_request", "repository"}:
             raise GitHubPublicationError("publication_concurrency_scope_invalid")
+        if self.credential_provenance is not None:
+            try:
+                validate_credential_provenance(self.credential_provenance)
+            except Exception:
+                raise GitHubPublicationError("publication_credential_provenance_invalid") from None
         parsed = urllib.parse.urlsplit(self.api_base_url)
         if (
             parsed.scheme != "https"
@@ -528,6 +576,10 @@ class GitHubActionsPublicationAdapter:
             raise GitHubPublicationError("publisher_credential_unavailable")
         if credential.identity.actor_login != self.policy.allowed_actor_login:
             raise GitHubPublicationError("publisher_actor_policy_mismatch")
+        if credential.identity.credential_kind is CredentialKind.ACTIONS_TOKEN and self.policy.credential_provenance is None:
+            raise GitHubPublicationError("publisher_credential_provenance_missing")
+        if credential.identity.credential_kind is CredentialKind.APP_INSTALLATION and self.policy.credential_provenance is not None:
+            raise GitHubPublicationError("publisher_credential_provenance_unexpected")
         if self._identity is not None and credential.identity != self._identity:
             raise GitHubPublicationError("publisher_identity_changed")
         self._identity = credential.identity
@@ -1145,6 +1197,11 @@ class GitHubActionsPublicationAdapter:
                         "artifact_result_sha256": receipt.result_sha256,
                         "concurrency_scope": self.policy.concurrency_scope,
                         "concurrency_group": concurrency_group,
+                        **(
+                            {"credential_provenance": self.policy.credential_provenance}
+                            if self.policy.credential_provenance is not None
+                            else {}
+                        ),
                     }
                 ),
                 upstream_run=upstream_identity,
@@ -1154,6 +1211,7 @@ class GitHubActionsPublicationAdapter:
                     {"scope": self.policy.concurrency_scope, "group": concurrency_group, "cancel": False}
                 ),
                 concurrency_scope=self.policy.concurrency_scope,
+                credential_provenance=self.policy.credential_provenance,
             )
         except GitHubPublicationError as exc:
             raise RuntimeError(exc.code) from None

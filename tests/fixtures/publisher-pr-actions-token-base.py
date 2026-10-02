@@ -725,10 +725,6 @@ def publish_review_stateless(
         profile_hash=admission.profile_hash,
         upstream_run=admission.upstream_run,
         publisher_run=admission.publisher_run,
-        credential_provenance=admission.credential_provenance,
-        protocol_version=(
-            "actions-receipt-v2" if admission.credential_provenance is not None else "actions-receipt-v1"
-        ),
     )
     try:
         stage_bounds = remaining_bounds()
@@ -788,15 +784,7 @@ def publish_review_stateless(
         or submitted.state is not _expected_review_state(admission.review_event)
     ):
         return {"status": "UNKNOWN", "reason": "submit_response_binding_invalid", "request": request}
-    confirmed = {"status": "CONFIRMED", "reason": None, "request": request}
-    if admission.credential_provenance is not None:
-        confirmed["effect_observation"] = {
-            "actor_login": submitted.actor_login,
-            "review_state": submitted.state.value,
-            "review_id": submitted.review_id,
-            "write_capability": "OBSERVED_SUCCESS",
-        }
-    return confirmed
+    return {"status": "CONFIRMED", "reason": None, "request": request}
 
 
 def publish_review(

@@ -60,6 +60,41 @@ def test_receipt_round_trip_is_compact_and_binds_run_slot_and_state():
     assert "review body" not in original.to_bytes().decode()
 
 
+def test_actions_receipt_v2_binds_declared_workflow_provenance_without_claiming_write_capability():
+    provenance = {
+        "schema": "publisher-credential-provenance.v1",
+        "credential_kind": "ACTIONS_TOKEN",
+        "identity_state": "PLATFORM_BOUND",
+        "permission_basis": "WORKFLOW_DECLARATION",
+        "write_capability": "NOT_TESTED",
+        "publisher_workflow_sha256": h("workflow"),
+        "declared_job_permissions": {"actions": "read", "contents": "read", "pull-requests": "write"},
+    }
+    original = AttemptReceipt(
+        **{
+            key: value
+            for key, value in receipt().__dict__.items()
+            if key not in {"protocol_version", "schema_version", "credential_provenance"}
+        },
+        credential_provenance=provenance,
+        protocol_version="actions-receipt-v2",
+    )
+    encoded = original.to_bytes()
+    parsed = AttemptReceipt.from_bytes(encoded)
+    assert parsed == original
+    assert json.loads(encoded)["credential_provenance"] == provenance
+    assert json.loads(encoded)["credential_provenance"]["write_capability"] == "NOT_TESTED"
+
+    value = json.loads(encoded)
+    del value["credential_provenance"]
+    with pytest.raises(ReceiptContractError, match="fields"):
+        AttemptReceipt.from_bytes(json.dumps(value).encode())
+    value = json.loads(encoded)
+    value["credential_provenance"]["declared_job_permissions"]["contents"] = "write"
+    with pytest.raises(ReceiptContractError, match="provenance"):
+        AttemptReceipt.from_bytes(json.dumps(value).encode())
+
+
 def test_slot_key_is_stable_per_numeric_repository_pr_head_not_result():
     slot = receipt().slot
     assert slot.key == EffectSlot(1234, "owner/repo", 8, "a" * 40).key

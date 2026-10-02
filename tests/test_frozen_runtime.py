@@ -36,6 +36,12 @@ def test_contract_overlay_is_exact_a0988f2_base_blob():
     )
 
 
+def test_publisher_overlay_is_exact_publication_branch_base_blob():
+    assert hashlib.sha256(frozen_runtime.FROZEN_PUBLISHER.read_bytes()).hexdigest() == (
+        "5baa70200351cc580070c9d4cbe450a338b2e8ee4ee70eddd3e6483729390f8c"
+    )
+
+
 def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path):
     assert hashlib.sha256(frozen_runtime.FROZEN_CLI.read_bytes()).hexdigest() == (
         "bd35045224e9cce112a6423dddc1c396274eef9683d72a1659791d989d0c1bc6"

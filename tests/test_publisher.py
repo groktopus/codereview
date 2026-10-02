@@ -1,5 +1,6 @@
 import copy
 import hashlib
+from dataclasses import replace
 
 import pytest
 
@@ -641,7 +642,24 @@ def test_stateless_publication_refuses_prior_unknown_receipt_without_post():
     )
     prior = receipt_writer.receipts[0]
     history = FakeReceiptHistory([HistoryScan(HistoryStatus.COMPLETE, receipts=(prior,))])
-    outcome, writer, _, calls, _ = _publish_stateless(history=history)
+    current = FakeAdmissionProvider(policy, prepared)
+    current.value = replace(
+        current.value,
+        credential_provenance={
+            "schema": "publisher-credential-provenance.v1",
+            "credential_kind": "ACTIONS_TOKEN",
+            "identity_state": "PLATFORM_BOUND",
+            "permission_basis": "WORKFLOW_DECLARATION",
+            "write_capability": "NOT_TESTED",
+            "publisher_workflow_sha256": hashlib.sha256(b"workflow").hexdigest(),
+            "declared_job_permissions": {
+                "actions": "read",
+                "contents": "read",
+                "pull-requests": "write",
+            },
+        },
+    )
+    outcome, writer, _, calls, _ = _publish_stateless(history=history, admission=current)
     assert outcome["status"] == "UNKNOWN"
     assert outcome["reason"] == "prior_attempt_has_no_confirmed_review"
     assert calls == []

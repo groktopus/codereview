@@ -61,6 +61,34 @@ def _validate_hash(value: object, name: str) -> None:
         raise ReceiptContractError(f"{name} is invalid")
 
 
+def validate_credential_provenance(value: object) -> dict:
+    """Validate declaration provenance without implying effective permission."""
+    expected_permissions = {"actions": "read", "contents": "read", "pull-requests": "write"}
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema",
+            "credential_kind",
+            "identity_state",
+            "permission_basis",
+            "write_capability",
+            "publisher_workflow_sha256",
+            "declared_job_permissions",
+        }
+        or value.get("schema") != "publisher-credential-provenance.v1"
+        or value.get("credential_kind") != "ACTIONS_TOKEN"
+        or value.get("identity_state") != "PLATFORM_BOUND"
+        or value.get("permission_basis") != "WORKFLOW_DECLARATION"
+        or value.get("write_capability") != "NOT_TESTED"
+        or not isinstance(value.get("publisher_workflow_sha256"), str)
+        or not _HEX_64.fullmatch(value["publisher_workflow_sha256"])
+        or value.get("declared_job_permissions") != expected_permissions
+    ):
+        raise ReceiptContractError("credential provenance is invalid")
+    return value
+
+
 @dataclass(frozen=True)
 class EffectSlot:
     """Immutable one-head target slot; result hashes are deliberately separate."""
@@ -156,12 +184,18 @@ class AttemptReceipt:
     publisher_run: RunIdentity
     protocol_version: str = "actions-receipt-v1"
     schema_version: str = _RECEIPT_VERSION
+    credential_provenance: dict | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != _RECEIPT_VERSION:
             raise ReceiptContractError("receipt schema_version is unsupported")
-        if self.protocol_version != "actions-receipt-v1":
-            raise ReceiptContractError("protocol_version is unsupported")
+        if self.credential_provenance is None:
+            if self.protocol_version != "actions-receipt-v1":
+                raise ReceiptContractError("protocol_version is unsupported")
+        else:
+            validate_credential_provenance(self.credential_provenance)
+            if self.protocol_version != "actions-receipt-v2":
+                raise ReceiptContractError("protocol_version is unsupported")
         if not isinstance(self.effect_key, str) or not _EFFECT.fullmatch(self.effect_key):
             raise ReceiptContractError("effect_key is invalid")
         for field_name in ("result_hash", "review_body_hash", "profile_hash"):
@@ -179,7 +213,7 @@ class AttemptReceipt:
             raise ReceiptContractError("publisher repository binding is invalid")
 
     def to_dict(self) -> dict:
-        return {
+        value = {
             "schema_version": self.schema_version,
             "protocol_version": self.protocol_version,
             "slot": self.slot.to_dict(),
@@ -195,6 +229,9 @@ class AttemptReceipt:
             "publisher_run": self.publisher_run.to_dict(),
             "state": "SUBMISSION_STARTED",
         }
+        if self.credential_provenance is not None:
+            value["credential_provenance"] = self.credential_provenance
+        return value
 
     def to_bytes(self) -> bytes:
         encoded = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -265,6 +302,7 @@ class PublicationAdmission:
     concurrency_contract_hash: str
     verification_kind: str = "GITHUB_API_RUN_ARTIFACT_V1"
     concurrency_scope: str = "pull_request"
+    credential_provenance: dict | None = None
 
     def __post_init__(self) -> None:
         _validate_sha(self.base_sha, "base_sha")
@@ -297,6 +335,8 @@ class PublicationAdmission:
             raise ReceiptContractError("admission concurrency scope is invalid")
         if self.concurrency_group != expected_group:
             raise ReceiptContractError("admission concurrency binding is invalid")
+        if self.credential_provenance is not None:
+            validate_credential_provenance(self.credential_provenance)
         if self.upstream_run.repository_id != self.slot.repository_id:
             raise ReceiptContractError("admission upstream run binding is invalid")
         if self.publisher_run.repository_id != self.slot.repository_id:
@@ -511,7 +551,14 @@ def _receipt_from_dict(data: object) -> AttemptReceipt:
         "publisher_run",
         "state",
     }
-    if not isinstance(data, dict) or set(data) != keys or data.get("state") != "SUBMISSION_STARTED":
+    if not isinstance(data, dict) or data.get("state") != "SUBMISSION_STARTED":
+        raise ReceiptContractError("receipt fields are invalid")
+    protocol_version = data.get("protocol_version")
+    if protocol_version == "actions-receipt-v2":
+        keys.add("credential_provenance")
+    elif protocol_version != "actions-receipt-v1":
+        raise ReceiptContractError("receipt protocol is unsupported")
+    if set(data) != keys:
         raise ReceiptContractError("receipt fields are invalid")
     slot_value = data.get("slot")
     if not isinstance(slot_value, dict) or set(slot_value) != {
@@ -540,5 +587,6 @@ def _receipt_from_dict(data: object) -> AttemptReceipt:
         upstream_run=_run_from_dict(data["upstream_run"]),
         publisher_run=_run_from_dict(data["publisher_run"]),
         protocol_version=data["protocol_version"],
+        credential_provenance=data.get("credential_provenance"),
         schema_version=data["schema_version"],
     )

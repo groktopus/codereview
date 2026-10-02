@@ -257,6 +257,9 @@ def test_canary_identity_mismatch_fails_before_api_or_token_request(mismatch):
         identity["credential_kind"] = CredentialKind.ACTIONS_TOKEN
         identity["app_id"] = None
         identity["installation_id"] = None
+        with pytest.raises(GitHubPublicationError, match="actions_identity_state_invalid"):
+            canary_identity(**identity)
+        return
     transport = FakeTransport()
     credential_provider = GitHubAppPublisherCredentialProvider(
         make_policy(), private_key_pem(), canary_identity=canary_identity(**identity), transport=transport

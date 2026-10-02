@@ -60,11 +60,23 @@ def policy_document(*, enabled=True, dispositions=None):
     }
 
 
-def protected_checkout(tmp_path, *, enabled=True):
+def actions_token_policy_document(*, enabled=False):
+    value = policy_document(enabled=enabled)
+    value.pop("app")
+    value["schema"] = "pr-review-protected-publication-policy.v2"
+    value["authorization_mode"] = "STANDING_BOUNDED"
+    value["credential"] = {"kind": "ACTIONS_TOKEN", "actor_login": "github-actions[bot]"}
+    value["publisher_workflow"]["sha256"] = hashlib.sha256(
+        b"name: protected publisher\n"
+    ).hexdigest()
+    return value
+
+
+def protected_checkout(tmp_path, *, enabled=True, policy_value=None):
     workspace = tmp_path / "protected"
     (workspace / ".github/workflows").mkdir(parents=True)
     (workspace / ".github/pr-review-publisher-policy.json").write_text(
-        json.dumps(policy_document(enabled=enabled), sort_keys=True, separators=(",", ":")) + "\n",
+        json.dumps(policy_value or policy_document(enabled=enabled), sort_keys=True, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     (workspace / ".github/workflows/pr-publish.yml").write_text("name: protected publisher\n", encoding="utf-8")
@@ -195,6 +207,118 @@ def test_disabled_policy_returns_before_private_key_event_or_github_access(tmp_p
     assert key_calls == []
 
 
+def test_disabled_actions_token_policy_returns_before_any_credential_or_api_access(tmp_path):
+    workspace, revision, event_path = protected_checkout(tmp_path, enabled=False)
+    policy_path = workspace / ".github/pr-review-publisher-policy.json"
+    policy_path.write_text(
+        json.dumps(actions_token_policy_document(), sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "-C", str(workspace), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(workspace), "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "disabled actions policy"],
+        check=True,
+    )
+    revision = subprocess.check_output(["git", "-C", str(workspace), "rev-parse", "HEAD"], text=True).strip()
+    env = actions_environment(workspace, revision, event_path)
+    touched = []
+
+    class TrackingEnvironment(dict):
+        def get(self, key, default=None):
+            if key in {"GITHUB_TOKEN", "PR_REVIEW_GITHUB_APP_PRIVATE_KEY"}:
+                touched.append(key)
+            return super().get(key, default)
+
+    class NoGitHub:
+        def request(self, *_args, **_kwargs):
+            pytest.fail("disabled policy must not call GitHub")
+
+    class NoUpload:
+        def upload(self, *_args, **_kwargs):
+            pytest.fail("disabled policy must not upload a receipt")
+
+    result = runtime.run_protected_publication(TrackingEnvironment(env), transport=NoGitHub(), artifact_uploader=NoUpload())
+
+    assert result["status"] == "DISABLED"
+    assert result["reason"] == "publication_disabled"
+    assert touched == []
+
+
+def test_actions_token_v2_policy_is_strict_and_keeps_standing_authorization_explicit():
+    parsed = runtime.ProtectedPublicationPolicy.parse(actions_token_policy_document())
+    assert parsed.credential_kind.value == "ACTIONS_TOKEN"
+    assert parsed.actor_login == "github-actions[bot]"
+    assert parsed.actions_token_policy().permissions == (("actions", "read"), ("pull_requests", "write"))
+    assert parsed.publication_config()["allowed_actors"] == ["github-actions[bot]"]
+
+    malformed = actions_token_policy_document()
+    malformed["credential"]["app"] = {"id": 1}
+    with pytest.raises(runtime.ProtectedRuntimeError, match="protected_policy_credential_invalid"):
+        runtime.ProtectedPublicationPolicy.parse(malformed)
+
+    missing_workflow_hash = actions_token_policy_document()
+    missing_workflow_hash["publisher_workflow"].pop("sha256")
+    with pytest.raises(runtime.ProtectedRuntimeError, match="protected_policy_workflow_invalid"):
+        runtime.ProtectedPublicationPolicy.parse(missing_workflow_hash)
+
+    unspecified = actions_token_policy_document()
+    unspecified["authorization_mode"] = "PER_RESULT"
+    with pytest.raises(runtime.ProtectedRuntimeError, match="protected_policy_schema_invalid"):
+        runtime.ProtectedPublicationPolicy.parse(unspecified)
+
+
+@pytest.mark.parametrize("schema", ["v1", "v2"])
+@pytest.mark.parametrize("app_value", [None, "missing"])
+def test_app_routes_require_a_real_app_policy_object(schema, app_value):
+    value = policy_document()
+    if schema == "v2":
+        value = actions_token_policy_document()
+        value["credential"] = {"kind": "APP_INSTALLATION", "app": {}}
+    if app_value == "missing":
+        if schema == "v1":
+            value.pop("app")
+        else:
+            value["credential"].pop("app")
+    elif schema == "v1":
+        value["app"] = None
+    else:
+        value["credential"]["app"] = None
+    with pytest.raises(runtime.ProtectedRuntimeError):
+        runtime.ProtectedPublicationPolicy.parse(value)
+
+
+def test_actions_workflow_digest_mismatch_fails_before_token_transport_or_upload(tmp_path):
+    policy_value = actions_token_policy_document(enabled=True)
+    policy_value["publisher_workflow"]["sha256"] = "0" * 64
+    workspace, revision, event_path = protected_checkout(tmp_path, policy_value=policy_value)
+    touched = []
+
+    class NoGitHub:
+        def request(self, *_args, **_kwargs):
+            touched.append("http")
+            pytest.fail("workflow mismatch must be rejected before API access")
+
+    class NoUpload:
+        def upload(self, *_args, **_kwargs):
+            touched.append("upload")
+            pytest.fail("workflow mismatch must be rejected before upload")
+
+    class TrackingEnvironment(dict):
+        def get(self, key, default=None):
+            if key == "GITHUB_TOKEN":
+                touched.append("token")
+            return super().get(key, default)
+
+    result = runtime.run_protected_publication(
+        TrackingEnvironment(actions_environment(workspace, revision, event_path)),
+        transport=NoGitHub(),
+        artifact_uploader=NoUpload(),
+    )
+    assert result["status"] == "UNKNOWN"
+    assert result["reason"] == "protected_publisher_workflow_mismatch"
+    assert touched == []
+
+
 def test_protected_policy_drift_is_rejected_before_key_supplier(tmp_path):
     workspace, revision, event_path = protected_checkout(tmp_path)
     policy_path = workspace / ".github/pr-review-publisher-policy.json"
@@ -235,29 +359,35 @@ def test_runtime_rejects_unprotected_source_event_before_app_key_or_api(tmp_path
 
 
 @pytest.mark.parametrize(
-    "failure_mode",
+    ("failure_mode", "source_association", "credential_route"),
     [
-        "success",
-        "duplicate_source_artifact",
-        "stale_base",
-        "stale_head",
-        "caller_workflow_sha_mismatch",
-        "stale_default_tip_before_ack",
-        "stale_default_tip_after_ack",
-        "deadline",
-        "receipt_ack_missing",
-        "write_token_denied",
-    ],
-)
-@pytest.mark.parametrize(
-    "source_association",
-    ["empty", "omitted", "row-with-older-pr-base"],
-    ids=["empty-associations", "omitted-associations", "associated-row-base-is-not-workflow-tip"],
+        (mode, association, "APP")
+        for mode in (
+            "success",
+            "duplicate_source_artifact",
+            "stale_base",
+            "stale_head",
+            "caller_workflow_sha_mismatch",
+            "stale_default_tip_before_ack",
+            "stale_default_tip_after_ack",
+            "deadline",
+            "receipt_ack_missing",
+            "write_token_denied",
+        )
+        for association in ("empty", "omitted", "row-with-older-pr-base")
+    ]
+    + [("success", association, "ACTIONS_TOKEN") for association in ("empty", "omitted", "row-with-older-pr-base")]
+    + [("post_forbidden", "empty", "ACTIONS_TOKEN")],
 )
 def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_post(
-    tmp_path, monkeypatch, failure_mode, source_association
+    tmp_path, monkeypatch, failure_mode, source_association, credential_route
 ):
-    workspace, revision, event_path = protected_checkout(tmp_path)
+    policy_value = (
+        actions_token_policy_document(enabled=True)
+        if credential_route == "ACTIONS_TOKEN"
+        else policy_document(enabled=True)
+    )
+    workspace, revision, event_path = protected_checkout(tmp_path, policy_value=policy_value)
     event_path.write_text(json.dumps(event_payload(include_pr=False)), encoding="utf-8")
     policy = make_policy(publisher_workflow_sha=revision, caller_workflow_sha=DEFAULT_BRANCH_TIP)
     result = make_valid_result()
@@ -401,7 +531,10 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             return HTTPResponse(302, {"location": "https://downloads.example.test/receipt?signature=one-use"}, b"")
         if path.endswith("/pulls/44/reviews") and method == "POST":
             post_bodies.append(body)
-            return response({"id": 777, "commit_id": HEAD, "state": "COMMENTED", "body": body["body"], "user": {"login": WRITER}})
+            if failure_mode == "post_forbidden":
+                return response({"message": "permission denied"}, status=403)
+            post_actor = "github-actions[bot]" if credential_route == "ACTIONS_TOKEN" else WRITER
+            return response({"id": 777, "commit_id": HEAD, "state": "COMMENTED", "body": body["body"], "user": {"login": post_actor}})
         raise AssertionError(f"unexpected fake API request: {method} {url}")
 
     class TestClock:
@@ -456,12 +589,40 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
     )
 
     if failure_mode == "success":
-        assert outcome == {"schema": "pr-review-protected-publication.v1", "status": "CONFIRMED", "reason": None}
+        assert outcome["schema"] == "pr-review-protected-publication.v1"
+        assert outcome["status"] == "CONFIRMED", (outcome, events)
+        assert outcome["reason"] is None
+        if credential_route == "ACTIONS_TOKEN":
+            assert outcome["effect_observation"] == {
+                "actor_login": "github-actions[bot]",
+                "review_state": "COMMENTED",
+                "review_id": 777,
+                "write_capability": "OBSERVED_SUCCESS",
+            }
+            receipt_bytes = zipfile.ZipFile(io.BytesIO(receipt_archives[policy.publisher_run_id])).read(
+                "attempt-receipt.json"
+            )
+            receipt_value = json.loads(receipt_bytes)
+            assert receipt_value["protocol_version"] == "actions-receipt-v2"
+            assert receipt_value["credential_provenance"]["write_capability"] == "NOT_TESTED"
+            assert receipt_value["credential_provenance"]["permission_basis"] == "WORKFLOW_DECLARATION"
+            assert receipt_value["credential_provenance"]["declared_job_permissions"] == {
+                "actions": "read",
+                "contents": "read",
+                "pull-requests": "write",
+            }
+            assert receipt_value["credential_provenance"]["publisher_workflow_sha256"] == hashlib.sha256(
+                b"name: protected publisher\n"
+            ).hexdigest()
+        else:
+            assert outcome == {"schema": "pr-review-protected-publication.v1", "status": "CONFIRMED", "reason": None}
         assert len(admitted) == 1
         assert admitted[0].concurrency_scope == "repository"
         assert admitted[0].concurrency_group == f"pr-review-publish-{policy.repository_id}"
     else:
         assert outcome["status"] == "UNKNOWN"
+        if failure_mode == "post_forbidden":
+            assert outcome["reason"] == "submit_response_ambiguous"
         expected_reason = {
             "caller_workflow_sha_mismatch": "source_artifact_manifest_policy_mismatch",
             "stale_default_tip_before_ack": "pre_receipt_head_unavailable",
@@ -485,13 +646,14 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
     if failure_mode == "success":
         assert len(post_bodies) == 1
         assert events.count("source_artifact_download") == 3
-        assert events.count("write_token_mint") == 1
+        assert events.count("write_token_mint") == (1 if credential_route == "APP" else 0)
         assert events.count("receipt_upload") == 1
         assert events.count("receipt_artifact_download") == 1
         assert events.count("review_post") == 1
         assert max(i for i, item in enumerate(events) if item == "source_artifact_download") < events.index("receipt_upload")
         assert events.index("receipt_upload") < events.index("receipt_artifact_download")
-        assert events.index("receipt_artifact_download") < events.index("write_token_mint") < events.index("review_post")
+        if credential_route == "APP":
+            assert events.index("receipt_artifact_download") < events.index("write_token_mint") < events.index("review_post")
         assert post_bodies[0]["commit_id"] == HEAD
         assert post_bodies[0]["event"] == "COMMENT"
         assert post_bodies[0]["body"].endswith(" -->")
@@ -499,14 +661,21 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         assert any("/actions/artifacts/991/zip" in call[1] for call in transport.calls)
         assert pull_reads >= 3
         assert all(actual_key not in repr(call) for call in transport.calls)
+        if credential_route == "ACTIONS_TOKEN":
+            assert all(call[2] == "test-actions-read-token" for call in transport.calls)
+            assert all("/app" not in call[1] for call in transport.calls)
     else:
-        assert post_bodies == []
-        assert events.count("review_post") == 0
-        assert len(key_calls) == (
+        if failure_mode == "post_forbidden":
+            assert len(post_bodies) == 1
+            assert events.count("review_post") == 1
+        else:
+            assert post_bodies == []
+            assert events.count("review_post") == 0
+        assert len(key_calls) == (0 if credential_route == "ACTIONS_TOKEN" else (
             0
             if failure_mode in {"caller_workflow_sha_mismatch", "duplicate_source_artifact", "stale_base", "stale_head", "deadline"}
             else 1
-        )
+        ))
         assert events.count("write_token_mint") == (1 if failure_mode == "write_token_denied" else 0)
         if failure_mode in {
             "duplicate_source_artifact",
@@ -519,3 +688,8 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             assert events.count("receipt_upload") == 0
         if failure_mode == "receipt_ack_missing":
             assert events.count("receipt_upload") == 1
+    if credential_route == "ACTIONS_TOKEN":
+        assert key_calls == []
+        assert events.count("write_token_mint") == 0
+        assert all(call[2] == "test-actions-read-token" for call in transport.calls)
+        assert all("/app" not in call[1] for call in transport.calls)
