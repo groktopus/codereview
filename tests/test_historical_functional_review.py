@@ -76,15 +76,17 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
     base, head = _bare_repo(bare)
     monkeypatch.setattr(review, "BASE", base)
     monkeypatch.setattr(review, "HEAD", head)
-    monkeypatch.setattr(review, "_validate_source_and_inputs", lambda _case_id: {})
+    if case_id == "pr466-v6":
+        monkeypatch.setattr(review, "V6_PREPARE_OBSERVATION", None)
+    monkeypatch.setattr(review, "_validate_source_and_inputs", lambda _case_id, **_kwargs: {})
     monkeypatch.setattr(review, "_limits_valid", lambda _case_id: None)
 
     config_calls: list[bool] = []
 
-    def configs(directory: Path, *, live: bool) -> tuple[Path, Path]:
+    def configs(directory: Path, *, live: bool, case_id: str) -> tuple[Path, Path, str]:
         config_calls.append(live)
         assert live is False
-        return directory / "provider.json", directory / "decision.json"
+        return directory / "provider.json", directory / "decision.json", "a" * 64
 
     cli_calls: list[dict] = []
 
@@ -125,6 +127,16 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
                 },
                 "primary_requests": requests,
             }
+        if case_id == "pr466-v6":
+            scope, _row, result = _v6_prepare_fixture()
+            result["scope"] = scope
+            result["capacity"] = {
+                "exact_primary_call_demand": len(result["primary_requests"]),
+                "exact_primary_serialized_input_bytes": sum(
+                    row["input_bytes"] for row in result["primary_requests"]
+                ),
+            }
+            return result
         return {
             "no_provider_calls": True,
             "no_target_code_execution": True,
@@ -156,7 +168,7 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
     assert observation["provider_calls"] == 0
     assert observation["target_code_executed"] is False
     assert observation["case_id"] == case_id
-    assert observation["capacity"]["exact_primary_call_demand"] == 7
+    assert observation["capacity"]["exact_primary_call_demand"] == (4 if case_id == "pr466-v6" else 7)
     assert observation["profile_sha256"] == review._case_spec(case_id)["profile_sha256"]
 
 
@@ -184,7 +196,7 @@ def test_prepare_rejects_out_of_contract_demand_before_review(capacity: dict, re
 
 @pytest.mark.parametrize("case_id", review.CASE_CHOICES)
 def test_registered_case_manifest_and_limits_are_exact(case_id: str) -> None:
-    manifest = review._validate_source_and_inputs(case_id)
+    manifest = review._validate_source_and_inputs(case_id, allow_unpinned_prepare=case_id == "pr466-v6")
     review._limits_valid(case_id)
     assert manifest["case"]["pull_request_number"] == 466
     assert manifest["historical_checks"]["freshness_basis"] == "HISTORICAL_SNAPSHOT"
@@ -192,9 +204,11 @@ def test_registered_case_manifest_and_limits_are_exact(case_id: str) -> None:
     if case_id == "pr466-v1":
         assert "retained_prepare_observation" in manifest
         assert "prepare_observation" not in manifest
-    else:
+    elif case_id != "pr466-v6":
         assert "prepare_observation" in manifest
         assert "retained_prepare_observation" not in manifest
+        assert manifest["prepare_observation"] == review._case_spec(case_id)["prepare_observation"]
+    else:
         assert manifest["prepare_observation"] == review._case_spec(case_id)["prepare_observation"]
 
 
@@ -206,6 +220,7 @@ def test_registered_case_manifest_and_limits_are_exact(case_id: str) -> None:
         ("pr466-v3", 80_001),
         ("pr466-v4", 80_001),
         ("pr466-v5", 80_001),
+        ("pr466-v6", 80_001),
     ],
 )
 def test_case_specific_request_input_caps_remain_bounded(case_id: str, input_bytes: int) -> None:
@@ -257,6 +272,175 @@ def test_v5_case_preserves_v4_checks_limits_and_default() -> None:
     assert review.V5_LIMITS.read_bytes() == review.V4_LIMITS.read_bytes()
     assert review._case_spec("pr466-v5")["input_cap"] == review.V4_INPUT_CAP
     assert review.DEFAULT_CASE == "pr466-v1"
+
+
+def test_v6_case_preserves_caps_and_binds_required_reconciliation_profile() -> None:
+    manifest = json.loads(review.V6_MANIFEST.read_text(encoding="utf-8"))
+    profile = json.loads(review.V6_PROFILE.read_text(encoding="utf-8"))
+    assert review.V6_CHECKS.read_bytes() == review.V5_CHECKS.read_bytes()
+    assert review.V6_LIMITS.read_bytes() == review.V5_LIMITS.read_bytes()
+    assert review._case_spec("pr466-v6")["input_cap"] == review.V5_INPUT_CAP
+    assert profile["claim_reconciliation"] == {
+        "version": "claim-reconciliation.v1",
+        "enabled": True,
+        "required": True,
+        "max_assessments": 1,
+    }
+    assert manifest["case"] == {
+        "repository": review.REPOSITORY,
+        "pull_request_number": 466,
+        "base_sha": review.BASE,
+        "head_sha": review.HEAD,
+    }
+    assert manifest["diagnostic_scope"]["effect_policy"] == "READ_ONLY"
+    assert manifest["diagnostic_scope"]["target_code_execution"] is False
+    assert review.DEFAULT_CASE == "pr466-v1"
+
+
+def test_v6_live_run_rejects_unpinned_runner_descriptor_before_config(monkeypatch) -> None:
+    monkeypatch.setattr(review, "V6_PREPARE_OBSERVATION", None)
+    with pytest.raises(review.SafeFailure, match="case_prepare_observation_not_pinned_in_runner"):
+        review._validate_source_and_inputs("pr466-v6")
+
+
+def test_v6_provider_config_identity_ignores_key_values_but_pins_endpoint_model_and_options(tmp_path, monkeypatch):
+    configured = {
+        "LLM_BASE_URL": "https://inference-api.nousresearch.com/v1",
+        "LLM_MODEL": "openai/gpt-6-luna",
+        "LLM_API_KEY": "trusted-test-key-alpha",
+        "JEV_BASE_URL": "https://api.typesafe.ai/v1",
+        "JEV_MODEL": "jev-latest",
+        "JEV_API_KEY": "trusted-test-key-alpha",
+    }
+    for name, value in configured.items():
+        monkeypatch.setenv(name, value)
+    paths = review._configs(tmp_path / "first", live=True, case_id="pr466-v6")
+    first_identity = paths[2]
+
+    monkeypatch.setenv("LLM_API_KEY", "trusted-test-key-beta")
+    monkeypatch.setenv("JEV_API_KEY", "trusted-test-key-beta")
+    paths = review._configs(tmp_path / "second", live=True, case_id="pr466-v6")
+    assert paths[2] == first_identity
+
+    monkeypatch.setenv("LLM_MODEL", "unapproved-model")
+    with pytest.raises(review.SafeFailure, match="v6_provider_configuration_identity_mismatch"):
+        review._configs(tmp_path / "rejected", live=True, case_id="pr466-v6")
+
+
+def _v6_prepare_fixture():
+    lenses = ("correctness", "tests", "maintainability", "security")
+    planned_scopes = []
+    scope = {
+        "primary_scope_admission_complete": True,
+        "required_context_gaps": [],
+        "admitted_obligation_ids": [],
+        "unadmitted_obligation_ids": [],
+        "uncovered_or_unadmitted_units": [],
+        "skipped_units": [],
+        "planned_obligations": 15,
+    }
+    rows = []
+    for index, lens in enumerate(lenses):
+        evidence_id = f"evidence-{index}"
+        task_id = f"task-example-{index}"
+        unit_id = f"unit-example-{index}"
+        obligation_id = f"unit:{unit_id}:lens:{lens}"
+        scope["admitted_obligation_ids"].append(obligation_id)
+        planned_scopes.append(
+            {
+                "task_id": task_id,
+                "task_kind": "SPECIALIST_FINDINGS",
+                "lens": lens,
+                "unit_ids": [unit_id],
+                "obligation_ids": [obligation_id],
+                "required_context_ids": [evidence_id],
+                "evidence_ids": [evidence_id],
+            }
+        )
+        rows.append(
+            {
+                "task_id": f"{task_id}:chunk-1",
+                "lens": lens,
+                "input_bytes": 20,
+                "input_sha256": f"{index + 1:x}" * 64,
+                "admitted": True,
+                "unit_ids": [unit_id],
+                "obligation_ids": [obligation_id],
+                "evidence_ids": [evidence_id],
+                "evidence_bindings": [
+                    {
+                        "evidence_id": evidence_id,
+                        "path": "src/example.py",
+                        "source_revision": review.HEAD,
+                        "content_hash": "d" * 64,
+                        "source_kind": "profile_context",
+                        "trust": "repository_evidence",
+                        "content_bytes": 1,
+                    }
+                ],
+                "required_context_omissions": [],
+            }
+        )
+    scope["admitted_obligation_ids"].extend(f"check:fixture-{index}" for index in range(11))
+    scope["coverage_obligations"] = [
+        {"obligation_id": obligation_id}
+        for obligation_id in scope["admitted_obligation_ids"]
+    ]
+    scope["planned_task_scopes"] = planned_scopes
+    result = {
+        "no_provider_calls": True,
+        "no_target_code_execution": True,
+        "scope": scope,
+        "capacity": {"exact_primary_call_demand": len(rows), "exact_primary_serialized_input_bytes": 20 * len(rows)},
+        "primary_requests": rows,
+    }
+    return scope, rows, result
+
+
+def test_v6_first_prepare_rejects_required_context_gaps_before_observation(monkeypatch):
+    scope, _rows, result = _v6_prepare_fixture()
+    scope["required_context_gaps"] = [{"required": True, "reason": "missing"}]
+    monkeypatch.setattr(review, "V6_PREPARE_OBSERVATION", None)
+    with pytest.raises(review.SafeFailure, match="case_required_context_gaps_present"):
+        review._validate_prepare(result, "pr466-v6", reference_observation=True)
+
+
+@pytest.mark.parametrize("mutation", ["extra_lens", "unplanned_task", "missing_required_lens", "omitted_binding"])
+def test_v6_first_prepare_binds_requests_to_trusted_planned_specialist_scopes(monkeypatch, mutation):
+    scope, rows, result = _v6_prepare_fixture()
+    monkeypatch.setattr(review, "V6_PREPARE_OBSERVATION", None)
+    if mutation == "extra_lens":
+        rows[3]["lens"] = "unplanned"
+    elif mutation == "unplanned_task":
+        rows[3]["task_id"] = "task-not-in-plan:chunk-1"
+    elif mutation == "missing_required_lens":
+        rows[0]["lens"] = "security"
+    else:
+        rows[0]["evidence_bindings"] = []
+    with pytest.raises(review.SafeFailure, match="case_prepare_observation_mismatch"):
+        review._validate_prepare(result, "pr466-v6", reference_observation=True)
+
+
+@pytest.mark.parametrize("mutation", ["request_hash", "reported_scope"])
+def test_v6_live_prepare_binds_exact_body_hash_and_complete_scope(monkeypatch, mutation):
+    scope, rows, result = _v6_prepare_fixture()
+    monkeypatch.setattr(
+        review,
+        "V6_PREPARE_OBSERVATION",
+        {
+            "primary_requests": [
+                {key: row[key] for key in ("task_id", "lens", "input_bytes", "input_sha256")}
+                for row in rows
+            ],
+            "scope": scope,
+        },
+    )
+    if mutation == "request_hash":
+        result["primary_requests"][0]["input_sha256"] = "b" * 64
+    else:
+        result["scope"] = {**scope, "admitted_obligations": 0}
+    with pytest.raises(review.SafeFailure, match="case_prepare_observation_mismatch"):
+        review._validate_prepare(result, "pr466-v6", reference_observation=False)
 
 def test_prepare_rejects_missing_execution_invariants() -> None:
     with pytest.raises(review.SafeFailure, match="prepare_invariant_failed"):

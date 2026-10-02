@@ -66,6 +66,169 @@ V5_PROFILE_SHA256 = "f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200e
 V5_CHECKS_SHA256 = CHECKS_SHA256
 V5_LIMITS_SHA256 = V2_LIMITS_SHA256
 V5_MANIFEST_SCHEMA = "historical-functional-review-pr466.v5"
+V6_CASE_DIR = ROOT / "docs/historical-functional-review-pr466-v6"
+V6_MANIFEST = V6_CASE_DIR / "manifest.json"
+V6_CHECKS = V6_CASE_DIR / "historical-checks.json"
+V6_LIMITS = V6_CASE_DIR / "limits.json"
+V6_PROFILE = ROOT / "profiles/slopsearx-v14-jev-reconciliation-candidate.json"
+V6_PROFILE_VERSION = "slopsearx-production-v14-jev-reconciliation-candidate"
+V6_PROFILE_SHA256 = "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692"
+V6_CHECKS_SHA256 = CHECKS_SHA256
+V6_LIMITS_SHA256 = V2_LIMITS_SHA256
+V6_MANIFEST_SCHEMA = "historical-functional-review-pr466.v6"
+V6_PREPARE_OBSERVATION = json.loads(
+    '{"base_sha":"63e3ecd2f09d79c34e3594a3be74f017a1c5a12c","capacity":{"candidate_adjudication_candidate'
+    '_upper_bound_before_call_cap":700,"candidate_and_summary_request_sizes":"UNKNOWN_UNTIL_PRIMARY_RESUL'
+    'TS","candidate_count_for_semantic_adjudication":"UNKNOWN_UNTIL_PRIMARY_RESULTS","configured_claim_as'
+    'sessment_call_slots":1,"configured_followup_task_slots":0,"configured_max_context_bytes":600000,"con'
+    'figured_max_input_bytes_per_task":80000,"configured_max_provider_calls":10,"configured_optional_stag'
+    'e_slots_excluding_candidate_adjudication":2,"configured_summary_advisory_call_slots":1,"effective_ma'
+    'x_input_bytes_per_task":80000,"effective_snapshot_context_bytes":600000,"exact_primary_call_demand":'
+    '7,"exact_primary_serialized_input_bytes":442578,"fits_call_cap":null,"max_candidate_items_per_primar'
+    'y_response":100,"max_semantic_adjudication_calls_if_no_other_stage_uses_remaining_slots":3,"overall_'
+    'capacity":"UNKNOWN_RUNTIME_DEMAND_WITHIN_CAPPED_LEDGER","primary_serialized_input_bytes_fit_context_'
+    'cap":true,"remaining_global_call_slots_after_primary":3,"runtime_call_demand":"UNKNOWN_UNTIL_PRIMARY'
+    '_RESULTS_AND_OPTIONAL_STAGE_ADMISSION","semantic_adjudication_calls_per_structurally_valid_candidate'
+    '":1,"semantic_adjudication_supported_by_primary_provider":true,"status":"DYNAMIC_STAGE_DEMAND_UNKNOW'
+    'N"},"case_id":"pr466-v6","configuration_identity_sha256":"065a8b4a2ea1be645d67c228b2c0fae89fffd2d44c'
+    'd8d28de2bfbafe736c71e3","head_sha":"7bce9dd246f141eb961c52ae96061203a98f083b","historical_checks_sha'
+    '256":"c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963","limits_sha256":"964a11a8de3'
+    'bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e","primary_requests":[{"input_bytes":77471,"inp'
+    'ut_sha256":"df34d903482bae43aabea4be61eb8887fede6b130b9df0b192832d8f134aec4e","lens":"correctness","'
+    'task_id":"task-b67231b415e0fae4:chunk-1"},{"input_bytes":54176,"input_sha256":"4ecdee413db0c298ec260'
+    '5a2aaa294f976fc05297c7d8c2810e49fc434f36df9","lens":"tests","task_id":"task-c7bd62fae5d455e7:chunk-1'
+    '"},{"input_bytes":51256,"input_sha256":"a905a406b5f73faf6f362a0aad2150ae53e9c3a65548cffc4696f88152a2'
+    '0047","lens":"maintainability","task_id":"task-851071533f96bbe8:chunk-1"},{"input_bytes":73711,"inpu'
+    't_sha256":"37cef28365bd53d79588e37f1524e461a7998f04eece6853c0e4cf8028823eed","lens":"correctness","t'
+    'ask_id":"task-4ef4d2c78bf7eb5c:chunk-1"},{"input_bytes":74170,"input_sha256":"9ef86a3e75cebfa9a8c4c4'
+    '3c5b6771ee077a122d2f18a921c2ecc00923e8a430","lens":"tests","task_id":"task-1417f5e58bbfecc9:chunk-1"'
+    '},{"input_bytes":37526,"input_sha256":"de2c8d3117f95351d9083d8b6fd31d99f45fd4080f7e2047a9c30c2035644'
+    '248","lens":"maintainability","task_id":"task-02fca8f4164306d8:chunk-1"},{"input_bytes":74268,"input'
+    '_sha256":"09c051852d78364da38e2ab5f428ecf9acdefb2dc017bc37239c1b7912c9227f","lens":"security","task_'
+    'id":"task-ba31ed7705450763:chunk-1"}],"profile_sha256":"5e83bc43c615f717df0d3d29722de08dd5990c84c8e6'
+    '9d1705c94f3918d49692","provider_calls":0,"scope":{"admitted_obligation_ids":["check:portal-browser-e'
+    'vidence","check:portal-impact-evidence","unit:unit-085bee8621ac5b68ceb3:lens:correctness","unit:unit'
+    '-085bee8621ac5b68ceb3:lens:maintainability","unit:unit-085bee8621ac5b68ceb3:lens:security","unit:uni'
+    't-085bee8621ac5b68ceb3:lens:tests","unit:unit-20fc055da4ded703dfc0:lens:correctness","unit:unit-20fc'
+    '055da4ded703dfc0:lens:maintainability","unit:unit-20fc055da4ded703dfc0:lens:tests","unit:unit-a1b56f'
+    '57f84276c8a5b6:lens:correctness","unit:unit-a1b56f57f84276c8a5b6:lens:maintainability","unit:unit-a1'
+    'b56f57f84276c8a5b6:lens:tests","unit:unit-f1dcabcdb97f34fae272:lens:correctness","unit:unit-f1dcabcd'
+    'b97f34fae272:lens:maintainability","unit:unit-f1dcabcdb97f34fae272:lens:tests"],"admitted_primary_ta'
+    'sks":7,"coverage_obligations":[{"lens":"correctness","obligation_id":"unit:unit-f1dcabcdb97f34fae272'
+    ':lens:correctness","obligation_kind":"CHANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-f1d'
+    'cabcdb97f34fae272"]},{"lens":"tests","obligation_id":"unit:unit-f1dcabcdb97f34fae272:lens:tests","ob'
+    'ligation_kind":"CHANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-f1dcabcdb97f34fae272"]},{'
+    '"lens":"maintainability","obligation_id":"unit:unit-f1dcabcdb97f34fae272:lens:maintainability","obli'
+    'gation_kind":"CHANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-f1dcabcdb97f34fae272"]},{"l'
+    'ens":"correctness","obligation_id":"unit:unit-085bee8621ac5b68ceb3:lens:correctness","obligation_kin'
+    'd":"CHANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-085bee8621ac5b68ceb3"]},{"lens":"test'
+    's","obligation_id":"unit:unit-085bee8621ac5b68ceb3:lens:tests","obligation_kind":"CHANGED_UNIT_LENS"'
+    ',"required":true,"scope_unit_ids":["unit-085bee8621ac5b68ceb3"]},{"lens":"maintainability","obligati'
+    'on_id":"unit:unit-085bee8621ac5b68ceb3:lens:maintainability","obligation_kind":"CHANGED_UNIT_LENS","'
+    'required":true,"scope_unit_ids":["unit-085bee8621ac5b68ceb3"]},{"lens":"security","obligation_id":"u'
+    'nit:unit-085bee8621ac5b68ceb3:lens:security","obligation_kind":"CHANGED_UNIT_LENS","required":true,"'
+    'scope_unit_ids":["unit-085bee8621ac5b68ceb3"]},{"lens":"correctness","obligation_id":"unit:unit-20fc'
+    '055da4ded703dfc0:lens:correctness","obligation_kind":"CHANGED_UNIT_LENS","required":true,"scope_unit'
+    '_ids":["unit-20fc055da4ded703dfc0"]},{"lens":"tests","obligation_id":"unit:unit-20fc055da4ded703dfc0'
+    ':lens:tests","obligation_kind":"CHANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-20fc055da'
+    '4ded703dfc0"]},{"lens":"maintainability","obligation_id":"unit:unit-20fc055da4ded703dfc0:lens:mainta'
+    'inability","obligation_kind":"CHANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-20fc055da4d'
+    'ed703dfc0"]},{"lens":"correctness","obligation_id":"unit:unit-a1b56f57f84276c8a5b6:lens:correctness"'
+    ',"obligation_kind":"CHANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-a1b56f57f84276c8a5b6"'
+    ']},{"lens":"tests","obligation_id":"unit:unit-a1b56f57f84276c8a5b6:lens:tests","obligation_kind":"CH'
+    'ANGED_UNIT_LENS","required":true,"scope_unit_ids":["unit-a1b56f57f84276c8a5b6"]},{"lens":"maintainab'
+    'ility","obligation_id":"unit:unit-a1b56f57f84276c8a5b6:lens:maintainability","obligation_kind":"CHAN'
+    'GED_UNIT_LENS","required":true,"scope_unit_ids":["unit-a1b56f57f84276c8a5b6"]},{"check_binding_id":"'
+    'external:portal-contract","obligation_id":"check:portal-impact-evidence","obligation_kind":"PROJECT_'
+    'CHECK","reason":"Dependency manifests are packaging inputs; base AGENTS requires portal-impact revie'
+    'w and portal-contract CI evidence for packaging changes. Bind evidence to the target repository and '
+    'exact head from the configured GitHub check app; missing or mismatched evidence is UNKNOWN, and a fa'
+    'iling check remains FAIL.","required":true,"scope_unit_ids":["unit-085bee8621ac5b68ceb3"]},{"check_b'
+    'inding_id":"external:portal-browser","obligation_id":"check:portal-browser-evidence","obligation_kin'
+    'd":"PROJECT_CHECK","reason":"Base AGENTS requires portal impact and relevant browser-journey check e'
+    'vidence. This static pilot does not execute target code; evidence absent stays explicit.","required"'
+    ':true,"scope_unit_ids":["unit-085bee8621ac5b68ceb3"]}],"inventory_units":4,"optional_context_gaps":['
+    '{"path":"pyproject.toml","reason":"not_bound_by_context_selection","required":false,"retrievable":tr'
+    'ue,"source_kind":"profile_context"},{"path":"Dockerfile","reason":"not_bound_by_context_selection","'
+    'required":false,"retrievable":false,"source_kind":"profile_context"},{"path":".github/workflows/ci.y'
+    'ml","reason":"not_bound_by_context_selection","required":false,"retrievable":true,"source_kind":"pro'
+    'file_context"},{"path":"tests/test_mcp_gateway.py","reason":"not_bound_by_context_selection","requir'
+    'ed":false,"retrievable":true,"source_kind":"profile_context"},{"path":"tests/test_mcp_harness.py","r'
+    'eason":"not_bound_by_context_selection","required":false,"retrievable":true,"source_kind":"profile_c'
+    'ontext"},{"path":"slopsearx/filters.py","reason":"not_bound_by_context_selection","required":false,"'
+    'retrievable":true,"source_kind":"profile_context"},{"path":"slopsearx/config.py","reason":"not_bound'
+    '_by_context_selection","required":false,"retrievable":true,"source_kind":"profile_context"}],"planne'
+    'd_obligations":15,"planned_task_scopes":[{"evidence_ids":["ev-de145a5003dea0ca81a30cf5","ev-b8fc43e5'
+    'c8eee1441a28372a","ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1d","ev-af66ab2a87301d715b'
+    'bc8aa5","ev-9ccb507a2f619cc41e06a1fb","ev-065699951f269f92d32505bc","ev-81d4df109595015f954a73a3","e'
+    'v-a811ebcdbf76a391c96b65ee","ev-7da3e672442ae193c3853e74","ev-4539962fb622ee18c60fd1ab","ev-863b4617'
+    '3281c84e2fa795e6","ev-0fd051e134106f56f6aaeca3","ev-d7c8b3114e49045ec5fb4a10","ev-cc876aaec84d4ccd13'
+    '926cd0"],"lens":"correctness","obligation_ids":["unit:unit-f1dcabcdb97f34fae272:lens:correctness","u'
+    'nit:unit-20fc055da4ded703dfc0:lens:correctness","unit:unit-a1b56f57f84276c8a5b6:lens:correctness"],"'
+    'required_context_ids":["ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1d","ev-af66ab2a87301'
+    'd715bbc8aa5","ev-9ccb507a2f619cc41e06a1fb","ev-065699951f269f92d32505bc","ev-81d4df109595015f954a73a'
+    '3","ev-a811ebcdbf76a391c96b65ee"],"task_id":"task-b67231b415e0fae4","task_kind":"SPECIALIST_FINDINGS'
+    '","unit_ids":["unit-f1dcabcdb97f34fae272","unit-20fc055da4ded703dfc0","unit-a1b56f57f84276c8a5b6"]},'
+    '{"evidence_ids":["ev-de145a5003dea0ca81a30cf5","ev-b8fc43e5c8eee1441a28372a","ev-8b9cefc9a8663c79a1d'
+    '2c968","ev-d8ff93e4df2e04baf5afcb1d","ev-a811ebcdbf76a391c96b65ee","ev-7da3e672442ae193c3853e74","ev'
+    '-4539962fb622ee18c60fd1ab","ev-863b46173281c84e2fa795e6","ev-0fd051e134106f56f6aaeca3","ev-d7c8b3114'
+    'e49045ec5fb4a10","ev-cc876aaec84d4ccd13926cd0"],"lens":"tests","obligation_ids":["unit:unit-f1dcabcd'
+    'b97f34fae272:lens:tests","unit:unit-20fc055da4ded703dfc0:lens:tests","unit:unit-a1b56f57f84276c8a5b6'
+    ':lens:tests"],"required_context_ids":["ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1d","e'
+    'v-a811ebcdbf76a391c96b65ee"],"task_id":"task-c7bd62fae5d455e7","task_kind":"SPECIALIST_FINDINGS","un'
+    'it_ids":["unit-f1dcabcdb97f34fae272","unit-20fc055da4ded703dfc0","unit-a1b56f57f84276c8a5b6"]},{"evi'
+    'dence_ids":["ev-de145a5003dea0ca81a30cf5","ev-b8fc43e5c8eee1441a28372a","ev-8b9cefc9a8663c79a1d2c968'
+    '","ev-d8ff93e4df2e04baf5afcb1d","ev-7da3e672442ae193c3853e74","ev-4539962fb622ee18c60fd1ab","ev-863b'
+    '46173281c84e2fa795e6","ev-0fd051e134106f56f6aaeca3","ev-d7c8b3114e49045ec5fb4a10","ev-cc876aaec84d4c'
+    'cd13926cd0"],"lens":"maintainability","obligation_ids":["unit:unit-f1dcabcdb97f34fae272:lens:maintai'
+    'nability","unit:unit-20fc055da4ded703dfc0:lens:maintainability","unit:unit-a1b56f57f84276c8a5b6:lens'
+    ':maintainability"],"required_context_ids":["ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1'
+    'd"],"task_id":"task-851071533f96bbe8","task_kind":"SPECIALIST_FINDINGS","unit_ids":["unit-f1dcabcdb9'
+    '7f34fae272","unit-20fc055da4ded703dfc0","unit-a1b56f57f84276c8a5b6"]},{"evidence_ids":["ev-065699951'
+    'f269f92d32505bc","ev-7ef2b76f2637f9692cfd4a1d","ev-81d4df109595015f954a73a3","ev-8b9cefc9a8663c79a1d'
+    '2c968","ev-d8ff93e4df2e04baf5afcb1d","ev-af66ab2a87301d715bbc8aa5","ev-9ccb507a2f619cc41e06a1fb","ev'
+    '-0fd051e134106f56f6aaeca3","ev-cc876aaec84d4ccd13926cd0","ev-7da3e672442ae193c3853e74","ev-863b46173'
+    '281c84e2fa795e6","ev-de145a5003dea0ca81a30cf5","ev-b8fc43e5c8eee1441a28372a","ev-a811ebcdbf76a391c96'
+    'b65ee"],"lens":"correctness","obligation_ids":["unit:unit-085bee8621ac5b68ceb3:lens:correctness"],"r'
+    'equired_context_ids":["ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1d","ev-af66ab2a87301d'
+    '715bbc8aa5","ev-9ccb507a2f619cc41e06a1fb","ev-0fd051e134106f56f6aaeca3","ev-cc876aaec84d4ccd13926cd0'
+    '","ev-7da3e672442ae193c3853e74","ev-863b46173281c84e2fa795e6","ev-de145a5003dea0ca81a30cf5","ev-b8fc'
+    '43e5c8eee1441a28372a","ev-a811ebcdbf76a391c96b65ee"],"task_id":"task-4ef4d2c78bf7eb5c","task_kind":"'
+    'SPECIALIST_FINDINGS","unit_ids":["unit-085bee8621ac5b68ceb3"]},{"evidence_ids":["ev-065699951f269f92'
+    'd32505bc","ev-7ef2b76f2637f9692cfd4a1d","ev-81d4df109595015f954a73a3","ev-8b9cefc9a8663c79a1d2c968",'
+    '"ev-d8ff93e4df2e04baf5afcb1d","ev-af66ab2a87301d715bbc8aa5","ev-9ccb507a2f619cc41e06a1fb","ev-0fd051'
+    'e134106f56f6aaeca3","ev-cc876aaec84d4ccd13926cd0","ev-7da3e672442ae193c3853e74","ev-863b46173281c84e'
+    '2fa795e6","ev-de145a5003dea0ca81a30cf5","ev-b8fc43e5c8eee1441a28372a","ev-a811ebcdbf76a391c96b65ee"]'
+    ',"lens":"tests","obligation_ids":["unit:unit-085bee8621ac5b68ceb3:lens:tests"],"required_context_ids'
+    '":["ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1d","ev-af66ab2a87301d715bbc8aa5","ev-9cc'
+    'b507a2f619cc41e06a1fb","ev-0fd051e134106f56f6aaeca3","ev-cc876aaec84d4ccd13926cd0","ev-7da3e672442ae'
+    '193c3853e74","ev-863b46173281c84e2fa795e6","ev-de145a5003dea0ca81a30cf5","ev-b8fc43e5c8eee1441a28372'
+    'a","ev-a811ebcdbf76a391c96b65ee"],"task_id":"task-1417f5e58bbfecc9","task_kind":"SPECIALIST_FINDINGS'
+    '","unit_ids":["unit-085bee8621ac5b68ceb3"]},{"evidence_ids":["ev-065699951f269f92d32505bc","ev-7ef2b'
+    '76f2637f9692cfd4a1d","ev-81d4df109595015f954a73a3","ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04b'
+    'af5afcb1d"],"lens":"maintainability","obligation_ids":["unit:unit-085bee8621ac5b68ceb3:lens:maintain'
+    'ability"],"required_context_ids":["ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1d"],"task'
+    '_id":"task-02fca8f4164306d8","task_kind":"SPECIALIST_FINDINGS","unit_ids":["unit-085bee8621ac5b68ceb'
+    '3"]},{"evidence_ids":["ev-065699951f269f92d32505bc","ev-7ef2b76f2637f9692cfd4a1d","ev-81d4df10959501'
+    '5f954a73a3","ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04baf5afcb1d","ev-af66ab2a87301d715bbc8aa5'
+    '","ev-9ccb507a2f619cc41e06a1fb","ev-0fd051e134106f56f6aaeca3","ev-cc876aaec84d4ccd13926cd0","ev-7da3'
+    'e672442ae193c3853e74","ev-863b46173281c84e2fa795e6","ev-de145a5003dea0ca81a30cf5","ev-b8fc43e5c8eee1'
+    '441a28372a","ev-a811ebcdbf76a391c96b65ee"],"lens":"security","obligation_ids":["unit:unit-085bee8621'
+    'ac5b68ceb3:lens:security"],"required_context_ids":["ev-8b9cefc9a8663c79a1d2c968","ev-d8ff93e4df2e04b'
+    'af5afcb1d","ev-af66ab2a87301d715bbc8aa5","ev-9ccb507a2f619cc41e06a1fb","ev-0fd051e134106f56f6aaeca3"'
+    ',"ev-cc876aaec84d4ccd13926cd0","ev-7da3e672442ae193c3853e74","ev-863b46173281c84e2fa795e6","ev-de145'
+    'a5003dea0ca81a30cf5","ev-b8fc43e5c8eee1441a28372a","ev-a811ebcdbf76a391c96b65ee"],"task_id":"task-ba'
+    '31ed7705450763","task_kind":"SPECIALIST_FINDINGS","unit_ids":["unit-085bee8621ac5b68ceb3"]},{"eviden'
+    'ce_ids":[],"lens":"project_specific","obligation_ids":["check:portal-impact-evidence"],"required_con'
+    'text_ids":[],"task_id":"task-0a6ce508701dac4e","task_kind":"DETERMINISTIC_CHECK","unit_ids":["unit-0'
+    '85bee8621ac5b68ceb3"]},{"evidence_ids":[],"lens":"project_specific","obligation_ids":["check:portal-'
+    'browser-evidence"],"required_context_ids":[],"task_id":"task-7fa3d9fdf579373b","task_kind":"DETERMIN'
+    'ISTIC_CHECK","unit_ids":["unit-085bee8621ac5b68ceb3"]}],"planned_tasks":9,"primary_scope_admission_c'
+    'omplete":true,"required_context_gaps":[],"required_unadmitted_obligation_ids":[],"skipped_units":[],'
+    '"unadmitted_obligation_ids":[],"uncovered_or_unadmitted_units":[],"units_assigned_to_admitted_primar'
+    'y_tasks":4},"source_revision":"85dd6066491932f6f4f6eee5dab298df6537d3cd","status":"PREPARED_ONLY","t'
+    'arget_code_executed":false,"target_repository":"magnus919/SlopSearX"}'
+)
 V5_PROJECTION = {
     "path": "pyproject.toml",
     "source_kind": "dependency_projection",
@@ -99,7 +262,7 @@ V4_PROJECTION = {
     ],
 }
 DEFAULT_CASE = "pr466-v1"
-CASE_CHOICES = ("pr466-v1", "pr466-v2", "pr466-v3", "pr466-v4", "pr466-v5")
+CASE_CHOICES = ("pr466-v1", "pr466-v2", "pr466-v3", "pr466-v4", "pr466-v5", "pr466-v6")
 CALL_CAP = 10
 CONTEXT_CAP = 600_000
 INPUT_CAP = 64_000
@@ -107,6 +270,7 @@ V2_INPUT_CAP = 80_000
 V3_INPUT_CAP = 80_000
 V4_INPUT_CAP = 80_000
 V5_INPUT_CAP = 80_000
+V6_INPUT_CAP = 80_000
 
 V2_PREPARE_OBSERVATION = {
     "status": "PREPARED_ONLY",
@@ -471,10 +635,25 @@ def _case_spec(case_id: str) -> dict:
             "input_cap": V5_INPUT_CAP,
             "prepare_observation": V5_PREPARE_OBSERVATION,
         }
+    if case_id == "pr466-v6":
+        return {
+            "case_dir": V6_CASE_DIR,
+            "manifest": V6_MANIFEST,
+            "checks": V6_CHECKS,
+            "limits": V6_LIMITS,
+            "profile": V6_PROFILE,
+            "schema": V6_MANIFEST_SCHEMA,
+            "profile_version": V6_PROFILE_VERSION,
+            "profile_sha256": V6_PROFILE_SHA256,
+            "checks_sha256": V6_CHECKS_SHA256,
+            "limits_sha256": V6_LIMITS_SHA256,
+            "input_cap": V6_INPUT_CAP,
+            "prepare_observation": V6_PREPARE_OBSERVATION,
+        }
     raise SafeFailure("case_not_supported")
 
 
-def _validate_source_and_inputs(case_id: str = DEFAULT_CASE) -> dict:
+def _validate_source_and_inputs(case_id: str = DEFAULT_CASE, *, allow_unpinned_prepare: bool = False) -> dict:
     spec = _case_spec(case_id)
     if os.environ.get("GITHUB_ACTIONS") == "true":
         if (
@@ -523,6 +702,18 @@ def _validate_source_and_inputs(case_id: str = DEFAULT_CASE) -> dict:
             "historical_checks",
             "limits",
             "provider_identity",
+            "prepare_observation",
+            "diagnostic_scope",
+        }
+        if case_id == "pr466-v6"
+        else
+        {
+            "schema",
+            "case",
+            "profile",
+            "historical_checks",
+            "limits",
+            "provider_identity",
             "retained_prepare_observation",
             "diagnostic_scope",
         }
@@ -561,7 +752,16 @@ def _validate_source_and_inputs(case_id: str = DEFAULT_CASE) -> dict:
         or scope.get("source_auditor_calls") != 0
     ):
         raise SafeFailure("case_manifest_binding_mismatch")
-    if spec["prepare_observation"] is None:
+    if case_id == "pr466-v6":
+        stored_observation = manifest.get("prepare_observation")
+        if stored_observation is None:
+            if not allow_unpinned_prepare:
+                raise SafeFailure("case_prepare_observation_unbound")
+        elif spec["prepare_observation"] is None:
+            raise SafeFailure("case_prepare_observation_not_pinned_in_runner")
+        elif stored_observation != spec["prepare_observation"]:
+            raise SafeFailure("case_prepare_observation_mismatch")
+    elif spec["prepare_observation"] is None:
         if (
             retained.get("status") != "PREPARED_ONLY"
             or retained.get("primary_request_count") != 7
@@ -609,7 +809,13 @@ def _limits_valid(case_id: str = DEFAULT_CASE) -> None:
         raise SafeFailure("limits_contract_mismatch")
 
 
-def _configs(directory: Path, *, live: bool) -> tuple[Path, Path]:
+def _configuration_identity_sha256(provider: dict, decision: dict) -> str:
+    identity = {"primary": provider, "decision": decision}
+    encoded = json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _configs(directory: Path, *, live: bool, case_id: str = DEFAULT_CASE) -> tuple[Path, Path, str]:
     sys.path.insert(0, str(ROOT / "src"))
     sys.path.insert(0, str(ROOT / "scripts"))
     from provider_config_from_env import configurations_from_environment, write_config_files
@@ -630,10 +836,25 @@ def _configs(directory: Path, *, live: bool) -> tuple[Path, Path]:
         }
     try:
         provider, decision = configurations_from_environment(env)
+        configuration_identity_sha256 = _configuration_identity_sha256(provider, decision)
+        if case_id == "pr466-v6":
+            sizing_env = {
+                "LLM_BASE_URL": "https://inference-api.nousresearch.com/v1",
+                "LLM_MODEL": "openai/gpt-6-luna",
+                "LLM_API_KEY": "SIZING_ONLY_NOT_A_CREDENTIAL",
+                "JEV_BASE_URL": "https://api.typesafe.ai/v1",
+                "JEV_MODEL": "jev-latest",
+                "JEV_API_KEY": "SIZING_ONLY_NOT_A_CREDENTIAL",
+            }
+            sizing_provider, sizing_decision = configurations_from_environment(sizing_env)
+            if configuration_identity_sha256 != _configuration_identity_sha256(sizing_provider, sizing_decision):
+                raise SafeFailure("v6_provider_configuration_identity_mismatch")
         paths = write_config_files(directory, provider, decision)
+    except SafeFailure:
+        raise
     except Exception:
         raise SafeFailure("provider_configuration_invalid") from None
-    return Path(paths["provider_config"]), Path(paths["decision_config"])
+    return Path(paths["provider_config"]), Path(paths["decision_config"]), configuration_identity_sha256
 
 
 def _cli(
@@ -731,9 +952,162 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
         or review_scope.get("primary_scope_admission_complete") is not True
     ):
         raise SafeFailure("primary_request_capacity_exceeded")
-    if case_id in ("pr466-v4", "pr466-v5"):
+    if case_id in ("pr466-v4", "pr466-v5", "pr466-v6"):
+        if case_id == "pr466-v6" and review_scope.get("required_context_gaps") != []:
+            raise SafeFailure("case_required_context_gaps_present")
+        if case_id == "pr466-v6" and V6_PREPARE_OBSERVATION is None:
+            # The first v6 preparation measures this new, pinned profile and source code.
+            # Live mode is rejected until the exact observation is committed in both
+            # the packet and this runner's immutable descriptor.
+            profile = json.loads(V6_PROFILE.read_text(encoding="utf-8"))
+            required_lenses = profile.get("required_lenses")
+            actual_lenses = {row.get("lens") for row in requests if isinstance(row, dict)}
+            planned_scopes = review_scope.get("planned_task_scopes")
+            specialist_scopes = (
+                [row for row in planned_scopes if isinstance(row, dict) and row.get("task_kind") == "SPECIALIST_FINDINGS"]
+                if isinstance(planned_scopes, list)
+                else []
+            )
+            scope_by_task = {
+                row.get("task_id"): row
+                for row in specialist_scopes
+                if isinstance(row.get("task_id"), str) and row.get("task_id")
+            }
+
+            def request_matches_planned_scope(row: object) -> bool:
+                if not isinstance(row, dict):
+                    return False
+                task_id = row.get("task_id")
+                if not isinstance(task_id, str) or not task_id.endswith(":chunk-1"):
+                    return False
+                planned = scope_by_task.get(task_id[:-len(":chunk-1")])
+                if not isinstance(planned, dict):
+                    return False
+                required_context_ids = planned.get("required_context_ids")
+                request_evidence_ids = row.get("evidence_ids")
+                return (
+                    row.get("lens") == planned.get("lens")
+                    and row.get("unit_ids") == planned.get("unit_ids")
+                    and row.get("obligation_ids") == planned.get("obligation_ids")
+                    and isinstance(required_context_ids, list)
+                    and all(isinstance(item, str) for item in required_context_ids)
+                    and isinstance(request_evidence_ids, list)
+                    and all(isinstance(item, str) for item in request_evidence_ids)
+                    and set(required_context_ids) <= set(request_evidence_ids)
+                )
+
+            admitted_ids = review_scope.get("admitted_obligation_ids")
+            planned_count = review_scope.get("planned_obligations")
+            obligation_rows = review_scope.get("coverage_obligations")
+            request_scopes_are_bound = (
+                len(scope_by_task) == len(specialist_scopes)
+                and len(requests) == len(specialist_scopes)
+                and all(request_matches_planned_scope(row) for row in requests)
+            )
+            valid_obligations = (
+                isinstance(planned_count, int)
+                and not isinstance(planned_count, bool)
+                and planned_count > 0
+                and isinstance(admitted_ids, list)
+                and len(admitted_ids) == planned_count
+                and all(isinstance(item, str) and item for item in admitted_ids)
+                and len(set(admitted_ids)) == len(admitted_ids)
+                and isinstance(obligation_rows, list)
+                and len(obligation_rows) == planned_count
+                and all(isinstance(item, dict) and isinstance(item.get("obligation_id"), str) for item in obligation_rows)
+                and {item["obligation_id"] for item in obligation_rows} == set(admitted_ids)
+            )
+            required_context_shape = (
+                isinstance(review_scope.get("admitted_obligation_ids"), list)
+                and isinstance(review_scope.get("unadmitted_obligation_ids"), list)
+                and not review_scope["unadmitted_obligation_ids"]
+                and isinstance(review_scope.get("uncovered_or_unadmitted_units"), list)
+                and not review_scope["uncovered_or_unadmitted_units"]
+                and isinstance(review_scope.get("skipped_units"), list)
+                and not review_scope["skipped_units"]
+                and valid_obligations
+            )
+            request_evidence_is_bound = all(
+                isinstance(row.get("task_id"), str)
+                and bool(row["task_id"])
+                and isinstance(row.get("lens"), str)
+                and isinstance(row.get("input_sha256"), str)
+                and re.fullmatch(r"[0-9a-f]{64}", row["input_sha256"])
+                and row.get("admitted") is True
+                and isinstance(row.get("evidence_ids"), list)
+                and isinstance(row.get("evidence_bindings"), list)
+                and row["evidence_ids"]
+                and len(row["evidence_ids"]) == len(row["evidence_bindings"])
+                and [binding.get("evidence_id") for binding in row["evidence_bindings"] if isinstance(binding, dict)]
+                == row["evidence_ids"]
+                and all(
+                    isinstance(binding, dict)
+                    and isinstance(binding.get("evidence_id"), str)
+                    and binding.get("evidence_id") in row["evidence_ids"]
+                    and isinstance(binding.get("path"), str)
+                    and isinstance(binding.get("source_revision"), str)
+                    and binding["source_revision"] in {BASE, HEAD}
+                    and isinstance(binding.get("content_hash"), str)
+                    and re.fullmatch(r"[0-9a-f]{64}", binding["content_hash"])
+                    and isinstance(binding.get("source_kind"), str)
+                    and binding["source_kind"] in {"source_window", "diff", "profile_context", "dependency_projection"}
+                    and binding.get("trust") in {
+                        "untrusted_pr_content",
+                        "trusted_policy",
+                        "repository_evidence",
+                    }
+                    and (
+                        (binding["source_kind"] in {"source_window", "diff"}
+                         and binding.get("trust") == "untrusted_pr_content")
+                        or (binding["source_kind"] == "profile_context"
+                            and binding.get("trust") in {"trusted_policy", "repository_evidence"})
+                        or (binding["source_kind"] == "dependency_projection"
+                            and binding.get("trust") == "repository_evidence")
+                    )
+                    and isinstance(binding.get("content_bytes"), int)
+                    and not isinstance(binding.get("content_bytes"), bool)
+                    and binding["content_bytes"] >= 0
+                    for binding in row["evidence_bindings"]
+                )
+                and row.get("required_context_omissions") == []
+                for row in requests
+            )
+            if (
+                not isinstance(required_lenses, list)
+                or not required_lenses
+                or not set(required_lenses).issubset(actual_lenses)
+                or not required_context_shape
+                or not request_evidence_is_bound
+                or not request_scopes_are_bound
+                or not valid_obligations
+                or len({row.get("task_id") for row in requests if isinstance(row, dict)}) != len(requests)
+            ):
+                raise SafeFailure("case_prepare_observation_mismatch")
+            return
         projection = V4_PROJECTION if case_id == "pr466-v4" else V5_PROJECTION
-        observation = V4_PREPARE_OBSERVATION if case_id == "pr466-v4" else V5_PREPARE_OBSERVATION
+        if case_id == "pr466-v6":
+            observation = V6_PREPARE_OBSERVATION
+        else:
+            observation = V4_PREPARE_OBSERVATION if case_id == "pr466-v4" else V5_PREPARE_OBSERVATION
+        if case_id == "pr466-v6":
+            expected_requests = observation["primary_requests"]
+            actual_requests = [
+                {key: row.get(key) for key in ("task_id", "lens", "input_bytes", "input_sha256")}
+                for row in requests
+            ]
+            if actual_requests != expected_requests:
+                raise SafeFailure("case_prepare_observation_mismatch")
+            expected_scopes = [(row["task_id"], row["lens"]) for row in expected_requests]
+            actual_scopes = [(row["task_id"], row["lens"]) for row in actual_requests]
+            if actual_scopes != expected_scopes or any(
+                not isinstance(row.get("input_sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", row["input_sha256"])
+                for row in actual_requests
+            ):
+                raise SafeFailure("case_prepare_observation_mismatch")
+            if review_scope != observation.get("scope"):
+                raise SafeFailure("case_prepare_observation_mismatch")
+            return
         if review_scope.get("required_context_gaps") != []:
             raise SafeFailure("dependency_projection_required_context_invalid")
         expected_requests = observation["primary_requests"]
@@ -807,14 +1181,16 @@ def main() -> int:
             != "groktopus/codereview/.github/workflows/historical-functional-review.yml@refs/heads/main"
         ):
             raise SafeFailure("live_mode_requires_trusted_workflow_dispatch")
-        _validate_source_and_inputs(args.case)
+        _validate_source_and_inputs(args.case, allow_unpinned_prepare=args.command == "prepare")
         _limits_valid(args.case)
         _validate_target(args.target_bare, args.case)
         args.output_dir.mkdir(parents=True, exist_ok=False, mode=0o700)
         os.chmod(args.output_dir, 0o700)
         with tempfile.TemporaryDirectory(prefix="pr466-provider-config-") as temp:
             config_dir = Path(temp) / "config"
-            provider, decision = _configs(config_dir, live=args.command == "run")
+            provider, decision, configuration_identity_sha256 = _configs(
+                config_dir, live=args.command == "run", case_id=args.case
+            )
             prepared = _cli(
                 args.target_bare.resolve(),
                 args.output_dir / "prepare",
@@ -844,6 +1220,8 @@ def main() -> int:
                     if isinstance(row, dict)
                 ],
             }
+            if args.case == "pr466-v6":
+                observation["configuration_identity_sha256"] = configuration_identity_sha256
             if args.case == "pr466-v4":
                 observation["dependency_projection"] = V4_PROJECTION
             elif args.case == "pr466-v5":
