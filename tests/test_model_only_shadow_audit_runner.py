@@ -43,6 +43,33 @@ CASE_IDENTITY = {
 AUDIT_ROLES = ("source_auditor", "jev", "claim_auditor")
 
 
+@pytest.mark.parametrize("occupied_kind", ["file", "dangling_symlink"])
+def test_existing_final_receipt_blocks_before_capture_or_provider_setup(tmp_path, monkeypatch, occupied_kind):
+    receipt = tmp_path / "receipt.json"
+    original = b"preserve-existing-receipt\n"
+    if occupied_kind == "file":
+        receipt.write_bytes(original)
+    else:
+        receipt.symlink_to(tmp_path / "missing-target.json")
+
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("provider or audit setup must not run")
+
+    monkeypatch.setattr(RUNNER, "_packet_candidates", unexpected)
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", unexpected)
+    monkeypatch.setattr(RUNNER, "run_shadow_audit", unexpected)
+    with pytest.raises(ValueError, match="receipt_already_exists"):
+        RUNNER.run(
+            tmp_path / "missing-capture", tmp_path / "missing-provider.json", None,
+            tmp_path / "private-output", receipt,
+        )
+    if occupied_kind == "file":
+        assert receipt.read_bytes() == original
+    else:
+        assert receipt.is_symlink()
+        assert not receipt.exists()
+
+
 def _receipt_dispatch_fields(accounting):
     return {
         "audit_provider_calls": sum(row["dispatched"] for row in accounting.values()),

@@ -432,6 +432,11 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path | 
         selection_receipt_path: Path | None = None,
         source_dispatch_receipt_path: Path | None = None,
         current_source_plan_path: Path | None = None) -> dict[str, Any]:
+    # Do not perform any validation that might later dispatch providers when
+    # the caller's final receipt path is already occupied.  _write_receipt
+    # also uses an exclusive create so a later collision cannot overwrite it.
+    if receipt_path.exists() or receipt_path.is_symlink():
+        raise ValueError("receipt_already_exists")
     try:
         selected_case_id, _selected_policy = case_for_plan_path(plan_path, ROOT)
     except ValueError:
