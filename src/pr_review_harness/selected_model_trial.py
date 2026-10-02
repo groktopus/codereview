@@ -1747,10 +1747,19 @@ def _bounded_string_list(value: Any, *, maximum: int = 1_000) -> list[str] | Non
 def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     rows = result.get("coverage_ledger")
     task_results = result.get("task_results", {})
+
+    def invalid(reason_code: str = "INVALID_COVERAGE_PROJECTION") -> tuple[dict[str, Any], bool]:
+        return {
+            "state": "INVALID",
+            "row_count_observed": len(rows) if isinstance(rows, list) else None,
+            "rows": [],
+            "invalid_reason_code": reason_code,
+        }, False
+
     if not isinstance(task_results, dict) or len(task_results) > 1_000:
-        return {"state": "INVALID", "row_count_observed": len(rows) if isinstance(rows, list) else None, "rows": []}, False
+        return invalid("INVALID_TASK_RESULTS")
     if not isinstance(rows, list) or len(rows) > MAX_CURRENT_COVERAGE_ROWS:
-        return {"state": "INVALID", "row_count_observed": len(rows) if isinstance(rows, list) else None, "rows": []}, False
+        return invalid("INVALID_COVERAGE_ROWS")
     ledger = result.get("ledger")
     candidate_records = ledger.get("candidate_records") if isinstance(ledger, dict) else None
     candidate_inventory_present = isinstance(ledger, dict) and "candidate_records" in ledger
@@ -1784,7 +1793,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
         or (claim_inventory_present and not claim_inventory_valid)
         or (findings_present and not finding_inventory_valid)
     ):
-        return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+        return invalid("INVALID_RESULT_INVENTORY")
     if native_reconciliation_enabled and not (
         candidate_inventory_present
         and claim_inventory_present
@@ -1793,7 +1802,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
         and claim_inventory_valid
         and finding_inventory_valid
     ):
-        return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+        return invalid("INVALID_NATIVE_CLAIM_BINDING")
     if not finding_inventory_valid:
         findings = []
     candidate_by_id = {
@@ -1822,7 +1831,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
             or any(not isinstance(record, dict) for record in records)
         ):
             finding_details_valid = False
-            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+            return invalid("INVALID_ASSESSMENT_RECORDS")
         for record in records:
             if (
                 isinstance(record, dict)
@@ -1833,7 +1842,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
     projected: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
-            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+            return invalid("INVALID_COVERAGE_ROW")
         coverage_id = _bounded_id(row.get("coverage_id"))
         obligation_id = _bounded_id(row.get("obligation_id"))
         scope_units = _bounded_string_list(row.get("scope_unit_ids"), maximum=100)
@@ -1907,50 +1916,70 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
             claim_request_hash_valid = (
                 claim_request_hash is None or _bounded_hash(claim_request_hash) is not None
             ) and (claim_status != "COMPLETE" or claim_request_hash is not None)
-            native_valid = bool(
-                candidate_inventory_valid
-                and claim_inventory_valid
-                and finding_inventory_valid
-                and findings_present
-                and finding_details_valid
-                and candidate_id is not None
-                and candidate_counts.get(candidate_id) == 1
-                and claim_counts.get(candidate_id) == 1
-                and isinstance(candidate_record, dict)
-                and isinstance(claim_row, dict)
-                and candidate_validation_state in {"VALID", "NEEDS_CONTEXT", "INVALID"}
-                and (unit_id is not None or candidate_validation_state != "VALID")
-                and (candidate_validation_state != "VALID" or bool(raw_refs))
-                and (raw_candidate_is_object or invalid_nonobject_candidate)
-                and task_id is not None
-                and len(primary_rows) <= 1
-                and raw_refs_valid
-                and primary_refs_valid
-                and "lens" not in row
-                and coverage_id is not None
-                and obligation_id is not None
-                and scope_units is not None
-                and task_ids is not None
-                and context_gap_ids is not None
-                and evidence_refs is not None
-                and row.get("obligation_id") == f"claim-reconciliation:{candidate_id}"
-                and row.get("reconciliation_state") == relation.get("state")
-                and row.get("state") == ("COMPLETE" if relation.get("state") == "AGREES" else "PARTIAL")
-                and row.get("reason_code") == relation.get("reason_code")
-                and row.get("required") is True
-                and row.get("scope_unit_ids") == expected_scope
-                and row.get("task_ids") == expected_tasks
-                and row.get("evidence_refs") == expected_refs
-                and row.get("primary_assessment_hash") == relation.get("primary_assessment_hash")
-                and row.get("claim_assessment_hash") == expected_claim_hash
-                and claim_request_hash_valid
-                and row.get("request_hash") == claim_request_hash
-                and row.get("context_gap_ids") == []
-                and isinstance(row.get("reason_code"), str)
-                and re.fullmatch(r"[A-Z][A-Z0-9_]{0,99}", row["reason_code"])
-            )
-            if not native_valid:
-                return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+            native_checks = [
+                (
+                    "INVALID_NATIVE_INVENTORY",
+                    candidate_inventory_valid
+                    and claim_inventory_valid
+                    and finding_inventory_valid
+                    and findings_present
+                    and finding_details_valid,
+                ),
+                (
+                    "INVALID_NATIVE_CANDIDATE",
+                    candidate_id is not None
+                    and candidate_counts.get(candidate_id) == 1
+                    and claim_counts.get(candidate_id) == 1
+                    and isinstance(candidate_record, dict)
+                    and isinstance(claim_row, dict)
+                    and candidate_validation_state in {"VALID", "NEEDS_CONTEXT", "INVALID"}
+                    and (unit_id is not None or candidate_validation_state != "VALID")
+                    and (candidate_validation_state != "VALID" or bool(raw_refs))
+                    and (raw_candidate_is_object or invalid_nonobject_candidate)
+                    and task_id is not None,
+                ),
+                (
+                    "INVALID_NATIVE_PRIMARY_ASSESSMENT",
+                    len(primary_rows) <= 1 and primary_refs_valid,
+                ),
+                (
+                    "INVALID_NATIVE_EVIDENCE_BINDING",
+                    raw_refs_valid and row.get("evidence_refs") == expected_refs,
+                ),
+                (
+                    "INVALID_NATIVE_ROW_SHAPE",
+                    "lens" not in row
+                    and coverage_id is not None
+                    and obligation_id is not None
+                    and scope_units is not None
+                    and task_ids is not None
+                    and context_gap_ids is not None
+                    and evidence_refs is not None,
+                ),
+                (
+                    "INVALID_NATIVE_RELATION_BINDING",
+                    row.get("obligation_id") == f"claim-reconciliation:{candidate_id}"
+                    and row.get("reconciliation_state") == relation.get("state")
+                    and row.get("state") == ("COMPLETE" if relation.get("state") == "AGREES" else "PARTIAL")
+                    and row.get("reason_code") == relation.get("reason_code")
+                    and row.get("required") is True
+                    and row.get("scope_unit_ids") == expected_scope
+                    and row.get("task_ids") == expected_tasks
+                    and row.get("context_gap_ids") == [],
+                ),
+                (
+                    "INVALID_NATIVE_HASH_BINDING",
+                    row.get("primary_assessment_hash") == relation.get("primary_assessment_hash")
+                    and row.get("claim_assessment_hash") == expected_claim_hash
+                    and claim_request_hash_valid
+                    and row.get("request_hash") == claim_request_hash
+                    and isinstance(row.get("reason_code"), str)
+                    and re.fullmatch(r"[A-Z][A-Z0-9_]{0,99}", row["reason_code"]),
+                ),
+            ]
+            native_failures = [code for code, passed in native_checks if not passed]
+            if native_failures:
+                return invalid(native_failures[0])
             projected.append(
                 {
                     "coverage_id": coverage_id,
@@ -1988,21 +2017,21 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
             or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,99}", reason_code)
             or not isinstance(required, bool)
         ):
-            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+            return invalid("INVALID_COVERAGE_ROW")
         explanatory_notes: list[dict[str, Any]] = []
         if state == "PARTIAL" and reason_code == "PARTIAL_REVIEW_COVERAGE":
             if not task_ids:
-                return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                return invalid("MISSING_TASK_BINDING")
             for task_id in task_ids:
                 task = task_results.get(task_id)
                 if not isinstance(task, dict):
-                    return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                    return invalid("INVALID_TASK_COVERAGE_NOTE")
                 if task.get("status") != "SUCCEEDED":
                     continue
                 payload = task.get("payload")
                 notes = payload.get("coverage_notes") if isinstance(payload, dict) else None
                 if not isinstance(notes, list) or len(notes) > 64:
-                    return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                    return invalid("INVALID_TASK_COVERAGE_NOTES")
                 dispatched = task.get("input_evidence_ids")
                 task_units = task.get("unit_ids")
                 if (
@@ -2013,11 +2042,11 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
                     or len(task_units) > 100
                     or any(_bounded_id(unit) is None for unit in task_units)
                 ):
-                    return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                    return invalid("INVALID_TASK_EVIDENCE_BINDING")
                 dispatched_ids = set(dispatched)
                 for note in notes:
                     if not isinstance(note, dict):
-                        return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                        return invalid("INVALID_TASK_COVERAGE_NOTE")
                     unit_id = note.get("unit_id")
                     note_state = note.get("state")
                     basis = note.get("coverage_basis", "STATIC_REVIEW")
@@ -2025,28 +2054,29 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
                     refs = note.get("evidence_refs")
                     if (
                         _bounded_id(unit_id) is None
-                        or unit_id not in scope_units
                         or unit_id not in task_units
                         or note_state not in {"COVERED", "PARTIAL", "NOT_COVERED"}
                         or basis != "STATIC_REVIEW"
                         or not isinstance(reason, str)
                         or not reason.strip()
-                        or len(reason) > 128
                         or any(ord(char) < 32 for char in reason)
                         or not isinstance(refs, list)
                         or len(refs) > 100
                         or any(_bounded_id(ref) is None or ref not in dispatched_ids for ref in refs)
                         or (note_state == "COVERED" and not refs)
                     ):
-                        return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                        return invalid("INVALID_TASK_COVERAGE_NOTE")
                     try:
                         if len(reason.encode("utf-8")) > 256:
-                            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                            return invalid("INVALID_TASK_COVERAGE_NOTE_TEXT")
                     except UnicodeEncodeError:
-                        return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
-                    if note_state in {"PARTIAL", "NOT_COVERED"}:
+                        return invalid("INVALID_TASK_COVERAGE_NOTE_TEXT")
+                    # A deterministic row scopes the explanation it publishes, but
+                    # a specialist task may cover several units. Validate all notes
+                    # against the task evidence above, then retain only this row's.
+                    if unit_id in scope_units and note_state in {"PARTIAL", "NOT_COVERED"}:
                         if len(explanatory_notes) >= 64:
-                            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                            return invalid("TOO_MANY_EXPLANATORY_NOTES")
                         explanatory_notes.append(
                             {
                                 "task_id": task_id,
@@ -2060,7 +2090,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
                             }
                         )
             if not explanatory_notes:
-                return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+                return invalid("MISSING_SCOPED_EXPLANATION")
         projected.append(
             {
                 "coverage_id": coverage_id,
@@ -2095,7 +2125,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
             or set(candidate_ids) != set(claim_ids)
             or set(candidate_ids) != set(projected_claim_ids)
         ):
-            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+            return invalid("INVALID_NATIVE_CLAIM_BINDING")
     return {
         "state": "PRESERVED",
         "row_count_observed": len(rows),

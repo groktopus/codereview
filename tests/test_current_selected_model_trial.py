@@ -163,6 +163,52 @@ def test_current_coverage_projection_retains_bounded_task_explanation_and_refere
     assert "evidence-001" not in json.dumps(projected)
 
 
+def test_current_coverage_projection_filters_other_units_from_shared_task_explanations():
+    result = _coverage_note_result(
+        {
+            "unit_id": "unit-001",
+            "state": "PARTIAL",
+            "coverage_basis": "STATIC_REVIEW",
+            "reason_code": "The timeout test is missing.",
+            "evidence_refs": ["evidence-001"],
+        }
+    )
+    result["task_results"]["task-001"]["unit_ids"] = ["unit-001", "unit-002"]
+    result["task_results"]["task-001"]["payload"]["coverage_notes"].append(
+        {
+            "unit_id": "unit-002",
+            "state": "PARTIAL",
+            "coverage_basis": "STATIC_REVIEW",
+            "reason_code": "A separate unit has no error-path test.",
+            "evidence_refs": ["evidence-001"],
+        }
+    )
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is True
+    assert [note["unit_id"] for note in projected["rows"][0]["explanatory_notes"]] == ["unit-001"]
+    assert "unit-002" not in json.dumps(projected)
+
+
+def test_current_coverage_projection_accepts_contract_maximum_reason_bytes():
+    reason = "é" * 128  # 128 characters and exactly 256 UTF-8 bytes.
+    projected, valid = trial._current_coverage_diagnostics(
+        _coverage_note_result(
+            {
+                "unit_id": "unit-001",
+                "state": "PARTIAL",
+                "coverage_basis": "STATIC_REVIEW",
+                "reason_code": reason,
+                "evidence_refs": ["evidence-001"],
+            }
+        )
+    )
+
+    assert valid is True
+    assert projected["rows"][0]["explanatory_notes"][0]["reason_sha256"] == _hash(reason)
+
+
 @pytest.mark.parametrize(
     "note",
     [
@@ -188,6 +234,7 @@ def test_current_coverage_projection_rejects_missing_or_unbound_task_explanation
     assert valid is False
     assert projected["state"] == "INVALID"
     assert projected["rows"] == []
+    assert isinstance(projected["invalid_reason_code"], str)
 
 
 def test_malformed_coverage_row_is_explicitly_invalid_instead_of_silently_dropped():
