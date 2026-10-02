@@ -1833,6 +1833,21 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
             finding_details_valid = False
             return invalid("INVALID_ASSESSMENT_RECORDS")
         for record in records:
+            if native_reconciliation_enabled:
+                record_candidate_id = _bounded_id(record.get("candidate_id"))
+                record_task_id = _bounded_id(record.get("task_id"))
+                bound_candidate = candidate_by_id.get(record_candidate_id)
+                expected_task_id = (
+                    _bounded_id(bound_candidate.get("task_id")) if isinstance(bound_candidate, dict) else None
+                )
+                if (
+                    record_candidate_id is None
+                    or bound_candidate is None
+                    or record_task_id is None
+                    or expected_task_id is None
+                    or record_task_id != expected_task_id
+                ):
+                    return invalid("UNBOUND_PRIMARY_ASSESSMENT")
             if (
                 isinstance(record, dict)
                 and isinstance(record.get("candidate_id"), str)

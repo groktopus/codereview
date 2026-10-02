@@ -336,7 +336,11 @@ def _native_claim_coverage_fixture(*, complete: bool):
             {
                 "candidate_ids": [candidate_id],
                 "assessment_records": [
-                    {"candidate_id": candidate_id, "semantic_assessment": primary}
+                    {
+                        "candidate_id": candidate_id,
+                        "task_id": task_id,
+                        "semantic_assessment": primary,
+                    }
                 ],
             }
         ],
@@ -489,6 +493,28 @@ def test_current_coverage_projection_still_rejects_generic_row_without_lens():
 
     assert valid is False
     assert projected["state"] == "INVALID"
+
+
+def test_native_projection_rejects_primary_assessment_from_another_task():
+    result = _native_claim_coverage_fixture(complete=False)
+    result["findings"][0]["assessment_records"][0]["task_id"] = "task-other"
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["invalid_reason_code"] == "UNBOUND_PRIMARY_ASSESSMENT"
+
+
+def test_native_projection_rejects_unknown_candidate_even_without_semantic_assessment():
+    result = _native_claim_coverage_fixture(complete=False)
+    result["findings"][0]["assessment_records"].append(
+        {"candidate_id": "candidate-unknown", "task_id": "task-unknown", "semantic_assessment": None}
+    )
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["invalid_reason_code"] == "UNBOUND_PRIMARY_ASSESSMENT"
 
 
 def test_quarantine_diagnostics_keep_reason_and_content_hash_only():
