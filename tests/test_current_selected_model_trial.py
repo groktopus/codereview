@@ -200,6 +200,250 @@ def test_malformed_coverage_row_is_explicitly_invalid_instead_of_silently_droppe
     assert projected["rows"] == []
 
 
+def _native_claim_coverage_fixture(*, complete: bool):
+    from pr_review_harness.claim_reconciliation import classify_reconciliation
+
+    candidate_id = "candidate-001"
+    task_id = "task-001"
+    candidate_refs = ["candidate-evidence-001"]
+    primary = {
+        "observation_support": "SUPPORTED",
+        "consequence_support": "SUPPORTED",
+        "rule_connection_support": "SUPPORTED",
+        "introducedness": "INTRODUCED",
+        "material_consequence": True,
+        "evidence_refs": ["primary-evidence-001"],
+    }
+    assessments = None
+    claim = {
+        "candidate_id": candidate_id,
+        "status": "NOT_RUN",
+        "request_hash": None,
+        "assessments": None,
+        "primary_assessment_hash": None,
+    }
+    if complete:
+        answer_choices = {
+            "observation_support": "SUPPORTED",
+            "consequence_support": "SUPPORTED",
+            "rule_connection_support": "SUPPORTED",
+            "introducedness": "INTRODUCED",
+            "materiality": "MATERIAL",
+            "missing_context": "NO_MISSING_CONTEXT_IDENTIFIED",
+        }
+        assessments = {
+            dimension: {
+                "status": "ANSWERED",
+                "choice": choice,
+                "evidence_refs": sorted(candidate_refs + primary["evidence_refs"]),
+            }
+            for dimension, choice in answer_choices.items()
+        }
+        claim = {
+            "candidate_id": candidate_id,
+            "status": "COMPLETE",
+            "response_valid": True,
+            "request_hash": "a" * 64,
+            "assessments": assessments,
+            "primary_assessment_hash": _hash(primary),
+        }
+    candidate = {
+        "candidate_id": candidate_id,
+        "validation_state": "VALID",
+        "task_id": task_id,
+        "raw": {"unit_id": "unit-001", "evidence_refs": candidate_refs},
+    }
+    relation = classify_reconciliation(
+        primary,
+        claim,
+        candidate_valid=True,
+        introducedness_available=complete,
+    )
+    obligation_id = f"claim-reconciliation:{candidate_id}"
+    coverage = {
+        "coverage_id": "coverage-001",
+        "obligation_id": obligation_id,
+        "obligation_kind": "CLAIM_RECONCILIATION",
+        "required": True,
+        "candidate_id": candidate_id,
+        "scope_unit_ids": ["unit-001"],
+        "state": "COMPLETE" if relation["state"] == "AGREES" else "PARTIAL",
+        "reconciliation_state": relation["state"],
+        "reason_code": relation["reason_code"],
+        "task_ids": [task_id],
+        "evidence_refs": sorted(candidate_refs + primary["evidence_refs"]),
+        "primary_assessment_hash": relation["primary_assessment_hash"],
+        "claim_assessment_hash": relation["claim_assessment_hash"],
+        "request_hash": relation["request_hash"],
+        "context_gap_ids": [],
+    }
+    result = {
+        "coverage_ledger": [coverage],
+        "task_results": {},
+        "ledger": {
+            "candidate_records": [candidate],
+            "identity": {"claim_reconciliation": {"version": "claim-reconciliation.v1"}},
+        },
+        "claim_assessments": [claim],
+        "findings": [
+            {
+                "candidate_ids": [candidate_id],
+                "assessment_records": [
+                    {"candidate_id": candidate_id, "semantic_assessment": primary}
+                ],
+            }
+        ],
+    }
+    return result
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_current_coverage_projection_preserves_engine_native_claim_reconciliation_rows(complete):
+    result = _native_claim_coverage_fixture(complete=complete)
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is True
+    row = projected["rows"][0]
+    assert row["obligation_kind"] == "CLAIM_RECONCILIATION"
+    assert row["candidate_id"] == "candidate-001"
+    assert row["reconciliation_state"] == ("AGREES" if complete else "PARTIAL")
+    assert row["state"] == ("COMPLETE" if complete else "PARTIAL")
+    assert row["evidence_ref_count"] == 2
+    assert row["evidence_refs_sha256"] == _hash(
+        ["candidate-evidence-001", "primary-evidence-001"]
+    )
+    assert "candidate-evidence-001" not in json.dumps(projected)
+    assert "lens" not in row
+
+
+def test_current_coverage_projection_rejects_malformed_completed_request_hash():
+    result = _native_claim_coverage_fixture(complete=True)
+    result["claim_assessments"][0]["request_hash"] = "not-a-sha256"
+    result["coverage_ledger"][0]["request_hash"] = "not-a-sha256"
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["state"] == "INVALID"
+    assert projected["rows"] == []
+
+
+@pytest.mark.parametrize(
+    "remove_key",
+    ["coverage_ledger", "candidate_records", "claim_assessments"],
+)
+def test_current_native_policy_rejects_missing_candidate_claim_or_coverage_rows(remove_key):
+    result = _native_claim_coverage_fixture(complete=False)
+    if remove_key == "coverage_ledger":
+        result["coverage_ledger"] = []
+    elif remove_key == "candidate_records":
+        result["ledger"].pop("candidate_records")
+    else:
+        result.pop("claim_assessments")
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["state"] == "INVALID"
+
+
+def test_current_native_policy_rejects_duplicate_reconciliation_row():
+    result = _native_claim_coverage_fixture(complete=False)
+    result["coverage_ledger"].append(dict(result["coverage_ledger"][0]))
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["state"] == "INVALID"
+
+
+def test_native_coverage_row_requires_exact_inventory_even_without_policy_marker():
+    result = _native_claim_coverage_fixture(complete=False)
+    result["ledger"]["identity"].pop("claim_reconciliation")
+    result["ledger"]["candidate_records"].append(
+        {
+            "candidate_id": "candidate-unprojected",
+            "validation_state": "INVALID",
+            "task_id": "task-001",
+            "raw_hash": "b" * 64,
+        }
+    )
+    result["claim_assessments"].append(
+        {"candidate_id": "candidate-unprojected", "status": "NOT_RUN", "request_hash": None}
+    )
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["state"] == "INVALID"
+
+
+def test_current_coverage_projection_rejects_malformed_present_inventories_even_without_rows():
+    result = {
+        "coverage_ledger": [],
+        "ledger": {"candidate_records": [None]},
+        "claim_assessments": [None],
+        "findings": [None],
+    }
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["state"] == "INVALID"
+
+
+def test_current_coverage_projection_allows_legacy_claim_rows_without_native_policy():
+    result = _coverage_note_result(
+        {
+            "unit_id": "unit-001",
+            "state": "PARTIAL",
+            "coverage_basis": "STATIC_REVIEW",
+            "reason_code": "Legacy row is independently preserved.",
+            "evidence_refs": ["evidence-001"],
+        }
+    )
+    result["claim_assessments"] = [{"candidate_id": "legacy-candidate", "status": "NOT_RUN"}]
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is True
+    assert projected["state"] == "PRESERVED"
+
+
+@pytest.mark.parametrize(
+    ("mutate",),
+    [
+        (lambda result: result["coverage_ledger"][0].update({"lens": "correctness"}),),
+        (lambda result: result["coverage_ledger"][0].update({"reconciliation_state": "AGREES"}),),
+        (lambda result: result["coverage_ledger"][0].update({"candidate_id": "candidate-other"}),),
+        (lambda result: result["coverage_ledger"][0].update({"task_ids": []}),),
+        (lambda result: result["coverage_ledger"][0].update({"coverage_id": None}),),
+        (lambda result: result["findings"].append(None),),
+        (lambda result: result["findings"][0].update({"assessment_records": None}),),
+    ],
+)
+def test_current_coverage_projection_rejects_unbound_or_malformed_native_claim_rows(mutate):
+    result = _native_claim_coverage_fixture(complete=False)
+    mutate(result)
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["state"] == "INVALID"
+    assert projected["rows"] == []
+
+
+def test_current_coverage_projection_still_rejects_generic_row_without_lens():
+    result = _coverage_note_result()
+    result["coverage_ledger"][0].pop("lens")
+
+    projected, valid = trial._current_coverage_diagnostics(result)
+
+    assert valid is False
+    assert projected["state"] == "INVALID"
+
+
 def test_quarantine_diagnostics_keep_reason_and_content_hash_only():
     secretish_note = "raw candidate note must not leave the result"
     result = {

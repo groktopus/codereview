@@ -18,6 +18,7 @@ from typing import Any
 
 from .budget import _safe_local_http_exchange
 from .claim_assessment import _DIMENSIONS as _CLAIM_CHOICES
+from .claim_reconciliation import classify_reconciliation
 from .external_effect_observer import CLEANUP_GRACE_SECONDS, OBSERVER_ID, observe_cli
 from .injection_trials import (
     MAX_RESULT_BYTES,
@@ -1750,6 +1751,85 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
         return {"state": "INVALID", "row_count_observed": len(rows) if isinstance(rows, list) else None, "rows": []}, False
     if not isinstance(rows, list) or len(rows) > MAX_CURRENT_COVERAGE_ROWS:
         return {"state": "INVALID", "row_count_observed": len(rows) if isinstance(rows, list) else None, "rows": []}, False
+    ledger = result.get("ledger")
+    candidate_records = ledger.get("candidate_records") if isinstance(ledger, dict) else None
+    candidate_inventory_present = isinstance(ledger, dict) and "candidate_records" in ledger
+    claim_rows = result.get("claim_assessments")
+    claim_inventory_present = "claim_assessments" in result
+    findings_present = "findings" in result
+    findings = result.get("findings", [])
+    identity = ledger.get("identity") if isinstance(ledger, dict) else None
+    native_reconciliation_enabled = (
+        isinstance(identity, dict) and identity.get("claim_reconciliation") is not None
+    ) or any(
+        isinstance(row, dict) and row.get("obligation_kind") == "CLAIM_RECONCILIATION" for row in rows
+    )
+    if not isinstance(candidate_records, list) or len(candidate_records) > MAX_CANDIDATES_PER_RESULT:
+        candidate_records = []
+        candidate_inventory_valid = False
+    else:
+        candidate_inventory_valid = all(isinstance(row, dict) for row in candidate_records)
+    if not isinstance(claim_rows, list) or len(claim_rows) > MAX_CANDIDATES_PER_RESULT:
+        claim_rows = []
+        claim_inventory_valid = False
+    else:
+        claim_inventory_valid = all(isinstance(row, dict) for row in claim_rows)
+    if not isinstance(findings, list) or len(findings) > MAX_CANDIDATES_PER_RESULT:
+        findings = []
+        finding_inventory_valid = False
+    else:
+        finding_inventory_valid = all(isinstance(row, dict) for row in findings)
+    if (
+        (candidate_inventory_present and not candidate_inventory_valid)
+        or (claim_inventory_present and not claim_inventory_valid)
+        or (findings_present and not finding_inventory_valid)
+    ):
+        return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+    if native_reconciliation_enabled and not (
+        candidate_inventory_present
+        and claim_inventory_present
+        and findings_present
+        and candidate_inventory_valid
+        and claim_inventory_valid
+        and finding_inventory_valid
+    ):
+        return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+    if not finding_inventory_valid:
+        findings = []
+    candidate_by_id = {
+        row.get("candidate_id"): row for row in candidate_records
+        if isinstance(row, dict) and isinstance(row.get("candidate_id"), str)
+    }
+    claim_by_id = {
+        row.get("candidate_id"): row for row in claim_rows
+        if isinstance(row, dict) and isinstance(row.get("candidate_id"), str)
+    }
+    candidate_counts: dict[str, int] = {}
+    claim_counts: dict[str, int] = {}
+    for item in candidate_records:
+        if isinstance(item, dict) and isinstance(item.get("candidate_id"), str):
+            candidate_counts[item["candidate_id"]] = candidate_counts.get(item["candidate_id"], 0) + 1
+    for item in claim_rows:
+        if isinstance(item, dict) and isinstance(item.get("candidate_id"), str):
+            claim_counts[item["candidate_id"]] = claim_counts.get(item["candidate_id"], 0) + 1
+    primary_assessments: dict[str, list[dict[str, Any]]] = {}
+    finding_details_valid = True
+    for finding in findings:
+        records = finding.get("assessment_records", [])
+        if (
+            not isinstance(records, list)
+            or len(records) > MAX_CANDIDATES_PER_RESULT
+            or any(not isinstance(record, dict) for record in records)
+        ):
+            finding_details_valid = False
+            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+        for record in records:
+            if (
+                isinstance(record, dict)
+                and isinstance(record.get("candidate_id"), str)
+                and isinstance(record.get("semantic_assessment"), dict)
+            ):
+                primary_assessments.setdefault(record["candidate_id"], []).append(record["semantic_assessment"])
     projected: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -1765,6 +1845,133 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
         state = row.get("state")
         reason_code = row.get("reason_code")
         required = row.get("required")
+        if obligation_kind == "CLAIM_RECONCILIATION":
+            candidate_id = _bounded_id(row.get("candidate_id"))
+            candidate_record = candidate_by_id.get(candidate_id)
+            claim_row = claim_by_id.get(candidate_id)
+            primary_rows = primary_assessments.get(candidate_id, [])
+            raw_candidate = candidate_record.get("raw") if isinstance(candidate_record, dict) else None
+            candidate_validation_state = (
+                candidate_record.get("validation_state") if isinstance(candidate_record, dict) else None
+            )
+            raw_candidate_is_object = isinstance(raw_candidate, dict)
+            invalid_nonobject_candidate = bool(
+                candidate_validation_state == "INVALID"
+                and raw_candidate is None
+                and isinstance(candidate_record, dict)
+                and isinstance(candidate_record.get("raw_hash"), str)
+                and re.fullmatch(r"[0-9a-f]{64}", candidate_record["raw_hash"])
+            )
+            raw_candidate = raw_candidate if raw_candidate_is_object else {}
+            unit_id = _bounded_id(raw_candidate.get("unit_id"))
+            expected_scope = [unit_id] if unit_id else []
+            task_id = _bounded_id(candidate_record.get("task_id")) if isinstance(candidate_record, dict) else None
+            expected_tasks = [task_id] if task_id else []
+            raw_refs = raw_candidate.get("evidence_refs", [])
+            if invalid_nonobject_candidate:
+                raw_refs = []
+                raw_refs_valid = True
+            elif (
+                raw_candidate_is_object
+                and isinstance(raw_refs, list)
+                and len(raw_refs) <= 100
+                and all(_bounded_id(ref) is not None for ref in raw_refs)
+            ):
+                raw_refs_valid = True
+            else:
+                raw_refs = []
+                raw_refs_valid = False
+            primary = primary_rows[0] if len(primary_rows) == 1 else None
+            primary_refs = primary.get("evidence_refs") if isinstance(primary, dict) else []
+            if not isinstance(primary_refs, list) or len(primary_refs) > 100 or any(_bounded_id(ref) is None for ref in primary_refs):
+                primary_refs = []
+                primary_refs_valid = False
+            else:
+                primary_refs_valid = True
+            expected_refs = sorted(set(raw_refs) | set(primary_refs))
+            introducedness_available = (
+                isinstance(claim_row, dict)
+                and isinstance(claim_row.get("assessments"), dict)
+                and isinstance(claim_row["assessments"].get("introducedness"), dict)
+                and claim_row["assessments"]["introducedness"].get("status") == "ANSWERED"
+            )
+            relation = classify_reconciliation(
+                primary,
+                claim_row,
+                candidate_valid=(isinstance(candidate_record, dict) and candidate_record.get("validation_state") == "VALID"),
+                introducedness_available=introducedness_available,
+            )
+            expected_claim_hash = relation.get("claim_assessment_hash")
+            claim_request_hash = claim_row.get("request_hash") if isinstance(claim_row, dict) else None
+            claim_status = claim_row.get("status") if isinstance(claim_row, dict) else None
+            claim_request_hash_valid = (
+                claim_request_hash is None or _bounded_hash(claim_request_hash) is not None
+            ) and (claim_status != "COMPLETE" or claim_request_hash is not None)
+            native_valid = bool(
+                candidate_inventory_valid
+                and claim_inventory_valid
+                and finding_inventory_valid
+                and findings_present
+                and finding_details_valid
+                and candidate_id is not None
+                and candidate_counts.get(candidate_id) == 1
+                and claim_counts.get(candidate_id) == 1
+                and isinstance(candidate_record, dict)
+                and isinstance(claim_row, dict)
+                and candidate_validation_state in {"VALID", "NEEDS_CONTEXT", "INVALID"}
+                and (unit_id is not None or candidate_validation_state != "VALID")
+                and (candidate_validation_state != "VALID" or bool(raw_refs))
+                and (raw_candidate_is_object or invalid_nonobject_candidate)
+                and task_id is not None
+                and len(primary_rows) <= 1
+                and raw_refs_valid
+                and primary_refs_valid
+                and "lens" not in row
+                and coverage_id is not None
+                and obligation_id is not None
+                and scope_units is not None
+                and task_ids is not None
+                and context_gap_ids is not None
+                and evidence_refs is not None
+                and row.get("obligation_id") == f"claim-reconciliation:{candidate_id}"
+                and row.get("reconciliation_state") == relation.get("state")
+                and row.get("state") == ("COMPLETE" if relation.get("state") == "AGREES" else "PARTIAL")
+                and row.get("reason_code") == relation.get("reason_code")
+                and row.get("required") is True
+                and row.get("scope_unit_ids") == expected_scope
+                and row.get("task_ids") == expected_tasks
+                and row.get("evidence_refs") == expected_refs
+                and row.get("primary_assessment_hash") == relation.get("primary_assessment_hash")
+                and row.get("claim_assessment_hash") == expected_claim_hash
+                and claim_request_hash_valid
+                and row.get("request_hash") == claim_request_hash
+                and row.get("context_gap_ids") == []
+                and isinstance(row.get("reason_code"), str)
+                and re.fullmatch(r"[A-Z][A-Z0-9_]{0,99}", row["reason_code"])
+            )
+            if not native_valid:
+                return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
+            projected.append(
+                {
+                    "coverage_id": coverage_id,
+                    "obligation_id": obligation_id,
+                    "obligation_kind": obligation_kind,
+                    "candidate_id": candidate_id,
+                    "scope_unit_ids": scope_units,
+                    "required": True,
+                    "state": state,
+                    "reconciliation_state": relation["state"],
+                    "reason_code": reason_code,
+                    "task_ids": task_ids,
+                    "context_gap_count": 0,
+                    "evidence_ref_count": len(evidence_refs),
+                    "evidence_refs_sha256": _safe_hash(evidence_refs),
+                    "primary_assessment_hash": _bounded_hash(row.get("primary_assessment_hash")),
+                    "claim_assessment_hash": _bounded_hash(row.get("claim_assessment_hash")),
+                    "request_hash": _bounded_hash(row.get("request_hash")),
+                }
+            )
+            continue
         if (
             coverage_id is None
             or obligation_id is None
@@ -1873,6 +2080,22 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
                 "explanatory_notes": explanatory_notes,
             }
         )
+    if native_reconciliation_enabled:
+        candidate_ids = [row.get("candidate_id") for row in candidate_records]
+        claim_ids = [row.get("candidate_id") for row in claim_rows]
+        projected_claim_ids = [
+            row.get("candidate_id") for row in projected if row.get("obligation_kind") == "CLAIM_RECONCILIATION"
+        ]
+        all_native_ids = candidate_ids + claim_ids + projected_claim_ids
+        if (
+            any(_bounded_id(item) is None for item in all_native_ids)
+            or len(candidate_ids) != len(set(candidate_ids))
+            or len(claim_ids) != len(set(claim_ids))
+            or len(projected_claim_ids) != len(set(projected_claim_ids))
+            or set(candidate_ids) != set(claim_ids)
+            or set(candidate_ids) != set(projected_claim_ids)
+        ):
+            return {"state": "INVALID", "row_count_observed": len(rows), "rows": []}, False
     return {
         "state": "PRESERVED",
         "row_count_observed": len(rows),
