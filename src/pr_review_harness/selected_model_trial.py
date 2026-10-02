@@ -15,6 +15,7 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from .budget import _safe_local_http_exchange
 from .claim_assessment import _DIMENSIONS as _CLAIM_CHOICES
 from .external_effect_observer import CLEANUP_GRACE_SECONDS, OBSERVER_ID, observe_cli
 from .injection_trials import (
@@ -1771,6 +1772,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
                 "state": state,
                 "reason_code": reason_code,
                 "task_ids": task_ids,
+                "explanatory_note_count": len(explanatory_notes),
                 "context_gap_count": len(context_gap_ids),
                 "context_gap_ids_sha256": _safe_hash(context_gap_ids),
                 "evidence_ref_count": len(evidence_refs),
@@ -1885,6 +1887,228 @@ def _current_budget_accounting(result: dict[str, Any]) -> dict[str, Any]:
         "billing": cost_status,
         **projected,
     }
+
+
+def _current_report_note_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    sections = result.get("report_sections")
+    if not isinstance(sections, dict):
+        return {"state": "INVALID"}, False
+    projected: dict[str, Any] = {"state": "OBSERVED"}
+    for name in ("specific_strengths", "future_guidance"):
+        rows = sections.get(name)
+        if not isinstance(rows, list) or len(rows) > 10:
+            return {"state": "INVALID"}, False
+        try:
+            encoded = canonical_json(rows)
+        except SelectedTrialError:
+            return {"state": "INVALID"}, False
+        if len(encoded) > 64_000:
+            return {"state": "INVALID"}, False
+        projected[f"{name}_count"] = len(rows)
+        projected[f"{name}_sha256"] = hashlib.sha256(encoded).hexdigest()
+    return projected, True
+
+
+def _safe_review_disposition(value: Any) -> str:
+    allowed = {"APPROVE", "REQUEST_CHANGES", "COMMENT", "INCOMPLETE", "UNKNOWN"}
+    return value if isinstance(value, str) and value in allowed else "UNKNOWN"
+
+
+_REPORTED_USAGE_FIELDS = (
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "input_tokens",
+    "output_tokens",
+    "tokens",
+    "billed_cost_microunits",
+    "billed_cost_usd",
+)
+
+
+def _current_provider_telemetry(result: dict[str, Any], *, bound: bool) -> tuple[dict[str, Any], bool]:
+    """Project bounded reservation, usage, and local HTTP receipt facts only."""
+    if not bound:
+        return {"state": "UNKNOWN_UNBOUND_RESULT"}, True
+    ledger = result.get("ledger")
+    ledger_budget = ledger.get("budget") if isinstance(ledger, dict) else None
+    summary_budget = result.get("budget")
+    if (
+        not isinstance(ledger_budget, dict)
+        or not isinstance(summary_budget, dict)
+        or not isinstance(ledger_budget.get("reservations"), dict)
+        or not isinstance(ledger_budget.get("settlements"), dict)
+    ):
+        return {"state": "INVALID"}, False
+    reservations = ledger_budget["reservations"]
+    settlements = ledger_budget["settlements"]
+    if len(reservations) > 4_096 or len(settlements) > 4_096:
+        return {"state": "INVALID"}, False
+
+    provider_keys: list[str] = []
+    local_check_count = 0
+    for key, row in reservations.items():
+        if (
+            _bounded_id(key) is None
+            or not isinstance(row, dict)
+            or row.get("key") != key
+            or type(row.get("provider_calls")) is not int
+            or row["provider_calls"] not in {0, 1}
+        ):
+            return {"state": "INVALID"}, False
+        if row["provider_calls"] == 1:
+            provider_keys.append(key)
+        elif row.get("kind") == "deterministic_check":
+            local_check_count += 1
+    if (
+        any(key not in reservations for key in settlements)
+        or type(summary_budget.get("provider_calls_reserved")) is not int
+        or len(provider_keys) != summary_budget.get("provider_calls_reserved")
+        or type(summary_budget.get("local_check_reservations")) is not int
+        or local_check_count != summary_budget.get("local_check_reservations")
+    ):
+        return {"state": "INVALID"}, False
+
+    known_usage_count = 0
+    usage_field_counts = {name: 0 for name in _REPORTED_USAGE_FIELDS}
+    usage_field_sums: dict[str, int | float] = {name: 0 for name in _REPORTED_USAGE_FIELDS}
+    for key in provider_keys:
+        settlement = settlements.get(key)
+        if settlement is None:
+            continue
+        if not isinstance(settlement, dict) or not isinstance(settlement.get("usage"), dict):
+            return {"state": "INVALID"}, False
+        usage = settlement["usage"]
+        observed_in_record = False
+        record_valid = True
+        for name in _REPORTED_USAGE_FIELDS:
+            value = usage.get(name)
+            if value is None:
+                continue
+            safe = _finite_usage(value)
+            if safe is None:
+                record_valid = False
+                continue
+            observed_in_record = True
+        known_flag = usage.get("known")
+        if known_flag is not None and type(known_flag) is not bool:
+            record_valid = False
+        if not record_valid:
+            return {"state": "INVALID"}, False
+        if known_flag is True and observed_in_record:
+            known_usage_count += 1
+            for name in _REPORTED_USAGE_FIELDS:
+                value = usage.get(name)
+                if value is None:
+                    continue
+                # Unknown usage values are validated above but never enter reported totals.
+                safe = _finite_usage(value)
+                if safe is not None:
+                    usage_field_counts[name] += 1
+                    usage_field_sums[name] += safe
+
+    receipt_by_key: dict[str, dict[str, Any]] = {}
+
+    def record_receipt(key: str, raw: Any) -> bool:
+        if raw is None:
+            return True
+        if key not in provider_keys or key in receipt_by_key:
+            return False
+        safe = _safe_local_http_exchange(raw)
+        if safe is None:
+            return False
+        receipt_by_key[key] = safe
+        return True
+
+    task_results = result.get("task_results")
+    if not isinstance(task_results, dict) or len(task_results) > 1_000:
+        return {"state": "INVALID"}, False
+    for task_id, task in task_results.items():
+        if _bounded_id(task_id) is None or not isinstance(task, dict):
+            return {"state": "INVALID"}, False
+        attempts = task.get("attempts")
+        if type(attempts) is not int or not 1 <= attempts <= MAX_PROVIDER_CALLS_PER_RUN:
+            continue
+        attempt_index = attempts - 1
+        reservation_key = next(
+            (
+                candidate
+                for candidate in (
+                    f"{task_id}:review:{attempt_index}",
+                    f"{task_id}:check:{attempt_index}",
+                )
+                if candidate in provider_keys
+            ),
+            None,
+        )
+        provenance = task.get("provenance")
+        error_meta = task.get("provider_error_meta")
+        exchange = provenance.get("local_http_exchange") if isinstance(provenance, dict) else None
+        if exchange is None and isinstance(error_meta, dict):
+            exchange = error_meta.get("local_http_exchange")
+        if exchange is not None:
+            if reservation_key is None or not record_receipt(reservation_key, exchange):
+                return {"state": "INVALID"}, False
+
+    claims = result.get("claim_assessments", [])
+    if not isinstance(claims, list) or len(claims) > MAX_CANDIDATES_PER_RESULT:
+        return {"state": "INVALID"}, False
+    for claim in claims:
+        if not isinstance(claim, dict):
+            return {"state": "INVALID"}, False
+        key = claim.get("reservation_key") or claim.get("settlement_key")
+        provenance = claim.get("provenance")
+        exchange = provenance.get("local_http_exchange") if isinstance(provenance, dict) else None
+        if exchange is not None:
+            if not isinstance(key, str) or not record_receipt(key, exchange):
+                return {"state": "INVALID"}, False
+
+    advisory = result.get("advisory_assessment")
+    if advisory is not None:
+        if not isinstance(advisory, dict):
+            return {"state": "INVALID"}, False
+        provenance = advisory.get("provenance")
+        error_meta = advisory.get("provider_error_meta")
+        exchange = provenance.get("local_http_exchange") if isinstance(provenance, dict) else None
+        if exchange is None and isinstance(error_meta, dict):
+            exchange = error_meta.get("local_http_exchange")
+        if exchange is not None:
+            advisory_keys = [key for key in provider_keys if key.startswith("system-one:advisory:")]
+            if len(advisory_keys) != 1 or not record_receipt(advisory_keys[0], exchange):
+                return {"state": "INVALID"}, False
+
+    attempts_observed = sum(row["request_attempted"] is True for row in receipt_by_key.values())
+    no_http_attempt = sum(row["request_attempted"] is False for row in receipt_by_key.values())
+    settlements_observed = sum(key in settlements for key in provider_keys)
+    usage_unknown_count = len(provider_keys) - known_usage_count
+    uncovered_receipts = len(provider_keys) - len(receipt_by_key)
+    fields = {
+        name: {
+            "reported_record_count": usage_field_counts[name],
+            "reported_sum": usage_field_sums[name] if usage_field_counts[name] else None,
+        }
+        for name in _REPORTED_USAGE_FIELDS
+    }
+    return {
+        "state": "OBSERVED" if not uncovered_receipts else "PARTIAL",
+        "provider_call_reservations": len(provider_keys),
+        "provider_call_settlements": settlements_observed,
+        "provider_usage_known_records": known_usage_count,
+        "provider_usage_unknown_records": usage_unknown_count,
+        "provider_usage_fields": fields,
+        "local_http_attempt_receipts": len(receipt_by_key),
+        "local_http_attempts_observed": attempts_observed,
+        "local_http_receipts_without_attempt": no_http_attempt,
+        "provider_reservations_without_local_http_receipt": uncovered_receipts,
+        "remote_delivery_observation": "UNKNOWN",
+        "billing": "KNOWN" if summary_budget.get("cost_billing_known") is True else "UNKNOWN",
+        "billed_cost_microunits": (
+            _finite_usage(summary_budget.get("cost_billed_microunits"))
+            if summary_budget.get("cost_billing_known") is True
+            else None
+        ),
+        "local_check_reservations": local_check_count,
+    }, True
 
 
 def _case_result_summary(
@@ -2007,9 +2231,7 @@ def _case_result_summary(
         "snapshot_content_binding": snapshot_content_binding,
         "profile_content_binding": profile_content_binding,
         "result_artifact": artifact,
-        "disposition": result.get("disposition")
-        if result.get("disposition") in {"APPROVE", "REQUEST_CHANGES", "INCOMPLETE", "UNKNOWN"}
-        else "UNKNOWN",
+        "disposition": _safe_review_disposition(result.get("disposition")),
         "coverage_state": result.get("coverage_state")
         if result.get("coverage_state") in {"COMPLETE", "PARTIAL", "NOT_STARTED", "UNKNOWN"}
         else "UNKNOWN",
@@ -2053,12 +2275,21 @@ def _case_result_summary(
     if current_diagnostics:
         coverage, coverage_valid = _current_coverage_diagnostics(result)
         quarantine, quarantine_valid = _current_quarantine_diagnostics(result)
+        report_notes, report_notes_valid = _current_report_note_diagnostics(result)
+        provider_telemetry, provider_telemetry_valid = _current_provider_telemetry(
+            result, bound=result_integrity_valid and result_identity_match
+        )
         summary.update(
             {
                 "coverage_diagnostics": coverage,
                 "quarantine_diagnostics": quarantine,
+                "report_note_diagnostics": report_notes,
+                "provider_telemetry": provider_telemetry,
                 "budget_accounting": _current_budget_accounting(result),
-                "diagnostic_projection_valid": coverage_valid and quarantine_valid,
+                "diagnostic_projection_valid": coverage_valid
+                and quarantine_valid
+                and report_notes_valid
+                and provider_telemetry_valid,
             }
         )
     return summary

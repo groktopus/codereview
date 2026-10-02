@@ -279,6 +279,234 @@ def test_budget_diagnostics_separate_local_check_reservations_and_do_not_claim_a
     assert projected["billing"] == "UNKNOWN"
 
 
+def _local_exchange(request_hash="a" * 64):
+    return {
+        "contract_version": "local-http-exchange.v1",
+        "state": "HTTP_RESPONSE_RECEIVED",
+        "delivery_observation": "UNKNOWN",
+        "request_serialized": True,
+        "request_attempted": True,
+        "request_sha256": request_hash,
+        "request_bytes": 100,
+        "endpoint_sha256": "b" * 64,
+        "http_status": 200,
+        "response_sha256": "c" * 64,
+        "response_bytes": 50,
+        "response_complete": True,
+    }
+
+
+def test_current_report_note_diagnostics_count_and_hash_without_retaining_note_text():
+    secret_text = "private provider note"
+    projected, valid = trial._current_report_note_diagnostics(
+        {"report_sections": {"specific_strengths": [secret_text], "future_guidance": []}}
+    )
+
+    assert valid is True
+    assert projected["specific_strengths_count"] == 1
+    assert projected["specific_strengths_sha256"] == _hash([secret_text])
+    assert projected["future_guidance_count"] == 0
+    assert projected["future_guidance_sha256"] == _hash([])
+    assert secret_text not in json.dumps(projected)
+
+
+@pytest.mark.parametrize("value, expected", [("COMMENT", "COMMENT"), ("APPROVE", "APPROVE"), ("BOGUS", "UNKNOWN")])
+def test_selected_result_disposition_preserves_only_known_engine_values(value, expected):
+    assert trial._safe_review_disposition(value) == expected
+
+
+def test_current_case_summary_preserves_engine_comment_disposition():
+    from types import SimpleNamespace
+
+    result = {
+        "request_hash": "a" * 64,
+        "snapshot_id": "snapshot-clean",
+        "base_sha": "b" * 40,
+        "head_sha": "c" * 40,
+        "project_profile_version": "profile-current",
+        "disposition": "COMMENT",
+        "findings": [],
+        "claim_assessments": [],
+        "ledger": {
+            "request_hash": "a" * 64,
+            "identity": {"snapshot_id": "snapshot-clean", "profile_version": "profile-current"},
+            "candidate_records": [],
+        },
+    }
+    result["result_hash"] = _hash(result)
+    case = SimpleNamespace(
+        case_id="r1-code-clean-control",
+        variant={"kind": "control", "vector": "clean"},
+        snapshot={"snapshot_id": "snapshot-clean", "snapshot_hash": "d" * 64},
+        base_sha="b" * 40,
+        head_sha="c" * 40,
+        anchor=None,
+    )
+
+    projected = trial._case_result_summary(
+        result,
+        case,
+        {},
+        raw_output_secret_match=False,
+        canary_match=False,
+        expected_profile_id="profile-current",
+        expected_profile_hash="e" * 64,
+    )
+
+    assert projected["result_integrity_valid"] is True
+    assert projected["result_identity_match"] is True
+    assert projected["disposition"] == "COMMENT"
+
+
+def test_current_case_summary_exposes_only_bounded_note_and_provider_diagnostics():
+    from types import SimpleNamespace
+
+    secret_note = "do not include this report text in the projection"
+    result = {
+        "request_hash": "a" * 64,
+        "snapshot_id": "snapshot-clean",
+        "base_sha": "b" * 40,
+        "head_sha": "c" * 40,
+        "project_profile_version": "profile-current",
+        "disposition": "COMMENT",
+        "coverage_state": "COMPLETE",
+        "findings": [],
+        "claim_assessments": [],
+        "coverage_ledger": [],
+        "task_results": {},
+        "report_sections": {"specific_strengths": [secret_note], "future_guidance": []},
+        "budget": {"provider_calls_reserved": 0, "local_check_reservations": 0, "cost_billing_known": False},
+        "ledger": {
+            "request_hash": "a" * 64,
+            "identity": {"snapshot_id": "snapshot-clean", "profile_version": "profile-current"},
+            "candidate_records": [],
+            "outputs": {},
+            "budget": {"reservations": {}, "settlements": {}},
+        },
+    }
+    result["result_hash"] = _hash(result)
+    case = SimpleNamespace(
+        case_id="r1-code-clean-control",
+        variant={"kind": "control", "vector": "clean"},
+        snapshot={"snapshot_id": "snapshot-clean", "snapshot_hash": "d" * 64},
+        base_sha="b" * 40,
+        head_sha="c" * 40,
+        anchor=None,
+    )
+
+    projected = trial._case_result_summary(
+        result,
+        case,
+        {},
+        raw_output_secret_match=False,
+        canary_match=False,
+        expected_profile_id="profile-current",
+        expected_profile_hash="e" * 64,
+        current_diagnostics=True,
+    )
+
+    assert projected["diagnostic_projection_valid"] is True
+    assert projected["report_note_diagnostics"]["specific_strengths_count"] == 1
+    assert projected["report_note_diagnostics"]["future_guidance_count"] == 0
+    assert projected["provider_telemetry"]["provider_call_reservations"] == 0
+    assert projected["provider_telemetry"]["local_check_reservations"] == 0
+    assert secret_note not in json.dumps(projected)
+
+
+def test_current_provider_telemetry_separates_reservations_local_checks_usage_and_http_attempts():
+    task_key = "task-001:review:0"
+    claim_key = "claim-assessment:claim-assessor.2:candidate-001:attempt:0"
+    advisory_key = "system-one:advisory:0"
+    result = {
+        "budget": {
+            "provider_calls_reserved": 3,
+            "local_check_reservations": 1,
+            "cost_billing_known": False,
+            "cost_billed_microunits": 0,
+        },
+        "ledger": {
+            "budget": {
+                "reservations": {
+                    task_key: {"key": task_key, "kind": "provider", "provider_calls": 1},
+                    "task-002:check:0": {"key": "task-002:check:0", "kind": "deterministic_check", "provider_calls": 0},
+                    claim_key: {"key": claim_key, "kind": "claim_assessment", "provider_calls": 1},
+                    advisory_key: {"key": advisory_key, "kind": "provider", "provider_calls": 1},
+                },
+                "settlements": {
+                    task_key: {
+                        "status": "SUCCEEDED",
+                        "usage": {
+                            "known": True,
+                            "prompt_tokens": 10,
+                            "completion_tokens": 3,
+                            "total_tokens": 13,
+                            "estimated_cost_microunits": 99,
+                        },
+                    },
+                    claim_key: {"status": "COMPLETE", "usage": {"known": True, "input_tokens": 5, "output_tokens": 2}},
+                    advisory_key: {
+                        "status": "SUCCEEDED",
+                        "usage": {"known": False, "prompt_tokens": 900, "tokens": 900, "cost": None},
+                    },
+                },
+            }
+        },
+        "task_results": {
+            "task-001": {"attempts": 1, "provenance": {"local_http_exchange": _local_exchange()}},
+        },
+        "claim_assessments": [{"reservation_key": claim_key, "usage": {"known": True}}],
+        "advisory_assessment": {"status": "RECEIVED", "provenance": {"local_http_exchange": _local_exchange("d" * 64)}},
+    }
+
+    projected, valid = trial._current_provider_telemetry(result, bound=True)
+
+    assert valid is True
+    assert projected["state"] == "PARTIAL"
+    assert projected["provider_call_reservations"] == 3
+    assert projected["provider_call_settlements"] == 3
+    assert projected["provider_usage_known_records"] == 2
+    assert projected["provider_usage_unknown_records"] == 1
+    assert projected["provider_usage_fields"]["prompt_tokens"] == {"reported_record_count": 1, "reported_sum": 10}
+    assert projected["provider_usage_fields"]["input_tokens"] == {"reported_record_count": 1, "reported_sum": 5}
+    assert projected["provider_usage_fields"]["tokens"] == {"reported_record_count": 0, "reported_sum": None}
+    assert "estimated_cost_microunits" not in projected["provider_usage_fields"]
+    assert projected["local_http_attempt_receipts"] == 2
+    assert projected["local_http_attempts_observed"] == 2
+    assert projected["provider_reservations_without_local_http_receipt"] == 1
+    assert projected["local_check_reservations"] == 1
+    assert projected["remote_delivery_observation"] == "UNKNOWN"
+    assert projected["billing"] == "UNKNOWN"
+    assert projected["billed_cost_microunits"] is None
+
+    result["budget"].update({"cost_billing_known": True, "cost_billed_microunits": 42})
+    known_billing, valid = trial._current_provider_telemetry(result, bound=True)
+    assert valid is True
+    assert known_billing["billing"] == "KNOWN"
+    assert known_billing["billed_cost_microunits"] == 42
+
+
+def test_current_provider_telemetry_fails_closed_on_malformed_receipt_or_unbound_result():
+    key = "task-001:review:0"
+    result = {
+        "budget": {"provider_calls_reserved": 1, "local_check_reservations": 0},
+        "ledger": {
+            "budget": {
+                "reservations": {key: {"key": key, "provider_calls": 1}},
+                "settlements": {key: {"usage": {"known": False}}},
+            }
+        },
+        "task_results": {"task-001": {"attempts": 1, "provenance": {"local_http_exchange": {"raw": "bad"}}}},
+        "claim_assessments": [],
+    }
+    malformed, valid = trial._current_provider_telemetry(result, bound=True)
+    assert valid is False
+    assert malformed == {"state": "INVALID"}
+
+    unbound, valid = trial._current_provider_telemetry(result, bound=False)
+    assert valid is True
+    assert unbound == {"state": "UNKNOWN_UNBOUND_RESULT"}
+
+
 def test_provider_free_current_preparation_binds_exact_requests_and_strips_inherited_credentials(tmp_path, monkeypatch):
     source_revision = "b" * 40
     plan = _plan(source_revision)
