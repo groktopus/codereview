@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 import pr_review_harness.engine as engine_module
+from pr_review_harness import selected_model_trial
 from pr_review_harness.budget import BudgetExhausted, IsolatedCallError
 from pr_review_harness.claim_assessment import (
     CLAIM_ASSESSMENT_ERROR_CODES,
@@ -224,6 +225,11 @@ class EmptyCandidatePrimaryProvider(PrimaryProvider):
         result = super().review(task, evidence, limits)
         result["finding_candidates"] = []
         return result
+
+
+class NonObjectCandidatePrimaryProvider(PrimaryProvider):
+    def review(self, task: dict, evidence: list[dict], limits: dict) -> dict:
+        return {"finding_candidates": [None], "context_gap_proposals": [], "coverage_notes": []}
 
 
 class DeadlineQuotePrimaryProvider(SupportedPrimaryProvider):
@@ -847,6 +853,12 @@ def test_native_jev_agreement_is_bound_and_reaches_deterministic_reducer(tmp_pat
     ]
     assert result["coverage_state"] == "COMPLETE"
     assert result["disposition"] == "REQUEST_CHANGES"
+    projected, valid = selected_model_trial._current_coverage_diagnostics(result)
+    assert valid is True
+    native_rows = [row for row in projected["rows"] if row["obligation_kind"] == "CLAIM_RECONCILIATION"]
+    assert len(native_rows) == 1
+    assert native_rows[0]["candidate_id"] == finding["candidate_ids"][0]
+    assert native_rows[0]["reconciliation_state"] == "AGREES"
 
 
 def test_native_jev_dissent_is_visible_partial_and_cannot_clear_accepted_blocker(tmp_path, monkeypatch):
@@ -1011,6 +1023,33 @@ def test_required_classifier_cap_exhaustion_is_explicit_partial(tmp_path, monkey
     )
     assert result["coverage_state"] == "PARTIAL"
     assert result["disposition"] == "REQUEST_CHANGES"
+    projected, valid = selected_model_trial._current_coverage_diagnostics(result)
+    assert valid is True
+    native_rows = [row for row in projected["rows"] if row["obligation_kind"] == "CLAIM_RECONCILIATION"]
+    assert len(native_rows) == 2
+    assert {row["reconciliation_state"] for row in native_rows} == {"AGREES", "PARTIAL"}
+    assert {row["state"] for row in native_rows} == {"COMPLETE", "PARTIAL"}
+
+
+def test_invalid_nonobject_candidate_keeps_engine_partial_reconciliation_projectable(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=NonObjectCandidatePrimaryProvider(),
+    )
+
+    assert requests == []
+    assert result["claim_assessments"][0]["status"] == "NOT_RUN"
+    assert result["claim_assessments"][0]["reason_code"] == "PRIMARY_CANDIDATE_INVALID"
+    projected, valid = selected_model_trial._current_coverage_diagnostics(result)
+    assert valid is True
+    row = next(row for row in projected["rows"] if row["obligation_kind"] == "CLAIM_RECONCILIATION")
+    assert row["candidate_id"] == result["ledger"]["candidate_records"][0]["candidate_id"]
+    assert row["state"] == "PARTIAL"
+    assert row["reconciliation_state"] == "PARTIAL"
+    assert row["scope_unit_ids"] == []
+    assert row["evidence_ref_count"] == 0
 
 
 def test_required_classifier_slot_and_deadline_are_protected_from_extra_adjudications(tmp_path, monkeypatch):
