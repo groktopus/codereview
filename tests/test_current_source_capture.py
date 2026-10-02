@@ -147,7 +147,7 @@ def test_current_source_plan_binds_fixed_target_runtime_requests_and_receipt():
     "wrong_source", "wrong_head", "wrong_profile", "extra_request", "mutated_request_hash",
     "wrong_module", "receipt_plan_hash", "boolean_provider_calls", "source_request_too_large",
     "missing_check", "duplicate_check", "forged_check_binding", "conclusive_check_without_evidence",
-    "mutated_check_input_hash",
+    "mutated_check_input_hash", "unhashable_expected_outcome",
 ])
 def test_current_source_plan_rejects_identity_budget_and_receipt_mutations(mutation: str):
     plan, receipt = _plan()
@@ -188,8 +188,29 @@ def test_current_source_plan_rejects_identity_budget_and_receipt_mutations(mutat
         receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
     elif mutation == "mutated_check_input_hash":
         plan["deterministic_check_tasks"][0]["expected_input_hash"] = "2" * 64
+    elif mutation == "unhashable_expected_outcome":
+        plan["deterministic_check_tasks"][0]["expected_outcome"] = []
+        receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
     with pytest.raises(CurrentSourceCaptureError):
         validate_plan(plan, receipt, source_sha=source_sha, module_inventory=inventory)
+
+
+@pytest.mark.parametrize("field_value", [["unhashable"], {"unhashable": True}])
+def test_prepare_rejects_non_string_check_evidence_id(field_value):
+    prepared = _prepared()
+    binding_id = next(iter(capture.CHECK_BINDINGS.values()))[1]
+    prepared["checks"]["check_results"][binding_id]["evidence_id"] = field_value
+    with pytest.raises(CurrentSourceCaptureError, match="prepared_check_evidence_mismatch"):
+        _plan(prepared)
+
+
+@pytest.mark.parametrize("field_value", [["unhashable"], {"unhashable": True}])
+def test_prepare_rejects_non_string_check_outcome(field_value):
+    prepared = _prepared()
+    binding_id = next(iter(capture.CHECK_BINDINGS.values()))[1]
+    prepared["checks"]["check_results"][binding_id]["outcome"] = field_value
+    with pytest.raises(CurrentSourceCaptureError, match="prepared_check_result_invalid"):
+        _plan(prepared)
 
 
 def test_prepare_rejects_duplicate_or_unbound_input_bytes():

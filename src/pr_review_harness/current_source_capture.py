@@ -341,12 +341,15 @@ def _deterministic_check_tasks(prepared: dict[str, Any]) -> list[dict[str, Any]]
         if task_id != expected_task_id:
             raise CurrentSourceCaptureError("prepared_check_task_identity_mismatch")
         check_result = check_results.get(binding_id)
-        if not isinstance(check_result, dict) or check_result.get("outcome") not in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}:
+        outcome = check_result.get("outcome") if isinstance(check_result, dict) else None
+        if not isinstance(outcome, str) or outcome not in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}:
             raise CurrentSourceCaptureError("prepared_check_result_invalid")
         evidence_id = check_result.get("evidence_id")
         if evidence_id is not None:
+            if not isinstance(evidence_id, str):
+                raise CurrentSourceCaptureError("prepared_check_evidence_mismatch")
             evidence = evidence_by_id.get(evidence_id)
-            if (not isinstance(evidence_id, str) or not isinstance(evidence, dict)
+            if (not isinstance(evidence, dict)
                     or evidence.get("source_kind") != "github_check_run"
                     or evidence.get("trust") != "generated_result"
                     or not isinstance(evidence.get("content_hash"), str)
@@ -518,6 +521,7 @@ def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory:
                 or row.get("unit_ids") != list(CHECK_SCOPE_UNITS)
                 or any(not isinstance(unit, str) for unit in row["unit_ids"])
                 or len(set(row["unit_ids"])) != len(row["unit_ids"])
+                or not isinstance(row.get("expected_outcome"), str)
                 or row.get("expected_outcome") not in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}
                 or not isinstance(row.get("expected_input_hash"), str)
                 or not SHA256.fullmatch(row["expected_input_hash"])
