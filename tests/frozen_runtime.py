@@ -23,6 +23,7 @@ FROZEN_PUBLICATION_RECEIPTS = Path(__file__).resolve().parent / "fixtures" / "pu
 FROZEN_PUBLISHER = Path(__file__).resolve().parent / "fixtures" / "publisher-pr-actions-token-base.py"
 MODULE_INVENTORY = Path(__file__).resolve().parent / "fixtures" / "pr170-module-inventory.json"
 FROZEN_SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "snapshot-pr170-base.py"
+FROZEN_SHADOW_AUDIT = Path(__file__).resolve().parent / "fixtures" / "shadow_audit-pr201-base.py"
 FROZEN_CLI = Path(__file__).resolve().parent / "fixtures" / "cli-pr170-base.py"
 EXPECTED_MODULE_COUNT = 35
 EXPECTED_MODEL_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
@@ -79,6 +80,7 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
         ("publisher.py", FROZEN_PUBLISHER),
         ("snapshot.py", FROZEN_SNAPSHOT),
         ("cli.py", FROZEN_CLI),
+        ("shadow_audit.py", FROZEN_SHADOW_AUDIT),
     ):
         (module_dir / name).write_bytes(fixture.read_bytes())
 

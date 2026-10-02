@@ -31,7 +31,12 @@ from shadow_case_policy import CASE_POLICY, case_for_plan_path, validate_plan_bi
 
 from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
-from pr_review_harness.shadow_audit import MAX_CASE_BYTES, run_shadow_audit  # noqa: E402
+from pr_review_harness.shadow_audit import (  # noqa: E402
+    MAX_CASE_BYTES,
+    SOURCE_AUDIT_SERIALIZER_CANONICAL,
+    SOURCE_AUDIT_SERIALIZER_LEGACY,
+    run_shadow_audit,
+)
 from pr_review_harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
 
 MAX_CAPTURE_MANIFEST_BYTES = 256_000
@@ -307,6 +312,8 @@ def _load_current_source_plan(path: Path) -> dict[str, Any]:
 def _check_source_request_pin(snapshot: dict[str, Any] | None, packet: dict[str, Any], request: bytes) -> None:
     if snapshot is None:
         return
+    if snapshot.get("source_audit_serializer") != SOURCE_AUDIT_SERIALIZER_CANONICAL:
+        raise ProviderError("current_source_serializer_mismatch")
     task = packet.get("source_task")
     task_id = task.get("task_id") if isinstance(task, dict) else None
     pins = snapshot.get("source_audit_requests")
@@ -593,6 +600,11 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path | 
             packet, source_provider=source_provider, jev_transport=jev_transport,
             claim_provider=claim_provider, limits=limits, output_dir=output_root,
             before_dispatch=before_dispatch,
+            source_request_serializer=(
+                current_source_snapshot["source_audit_serializer"]
+                if current_source_snapshot is not None
+                else SOURCE_AUDIT_SERIALIZER_LEGACY
+            ),
             on_source_http_attempt=(
                 lambda: source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "1")
                 if source_only_dispatch and source_dispatch_receipt_path is not None else None

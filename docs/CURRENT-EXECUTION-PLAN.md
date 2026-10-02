@@ -1,6 +1,16 @@
-# Current execution plan
+# Execution update — 2026-10-02 (source cutoff `24998b9`)
 
-**Current evidence cutoff:** `groktopus/codereview` main `425f16b273451e34cf3c8476b293cc0e72493eb4`. Acceptance scope remains all 39 ACs, 12 NFRs, and six milestones in [the specification](design/SPEC.md). Earlier execution snapshots below are retained as historical records.
+The repair and inert Actions-token source routes are merged and their post-merge checks passed. The next bounded work is:
+
+1. Repair the reproduced source-audit key-order mismatch with a versioned current-source canonical serializer. Test the actual installed prepare → writer capture/reload → source request → byte guard path; keep legacy bytes and the current budgets unchanged.
+2. Retain enum/count-only final engine disposition and full coverage denominators in the sanitized reconciliation projection. Do not infer them from zero candidate findings or relabel prior evidence.
+3. PR466 v6 run 36969454191 completed seven LLM calls and one final Jev advisory call, returning INCOMPLETE/PARTIAL with a supported-version SDK-contract gap. Zero candidates left constituent classification NOT_EXERCISED. Exercise that path with the existing bounded synthetic/injection cases under their unchanged authorization and caps.
+4. Finish the concrete target-local setup packet with qualified pins and rollback. Root owns technical IDs, hashes, permissions, and existing policy discovery; operator secret setup and a final target activation/publication decision remain separate from the authorized read-only tests. Keep the target workflows disabled until that decision.
+5. Close the remaining requirement trace, reusable-operation checks, and replacement evaluation. Preserve all 39 ACs, 12 NFRs, and six milestones; do not introduce human-label or App prerequisites.
+
+# Historical execution snapshot — source cutoff 425f16b
+
+**Historical evidence cutoff:** `groktopus/codereview` main `425f16b273451e34cf3c8476b293cc0e72493eb4`. Acceptance scope remains all 39 ACs, 12 NFRs, and six milestones in [the specification](design/SPEC.md). Earlier execution snapshots below are retained as historical records.
 
 ## Current status and next actions
 

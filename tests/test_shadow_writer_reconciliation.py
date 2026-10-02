@@ -59,6 +59,143 @@ def test_deterministic_check_projection_binds_exact_snapshot_evidence_and_attemp
         reconciliation.validate_deterministic_check_rows({}, outputs, check_tasks, snapshot_hash)
 
 
+def _engine_summary_fixture():
+    writer_ids = [f"writer-{index}" for index in range(6)]
+    check_ids = ["check-a", "check-b"]
+    plan = {
+        "writer_requests": [{"task_id": task_id} for task_id in writer_ids],
+        "deterministic_check_tasks": {task_id: {} for task_id in check_ids},
+        "coverage_obligations": [
+            {"obligation_id": "planned-a"}, {"obligation_id": "planned-b"},
+        ],
+    }
+    outputs = {
+        task_id: {"task_id": task_id, "status": "SUCCEEDED", "payload": {}}
+        for task_id in writer_ids
+    }
+    outputs.update({
+        "check-a": {"task_id": "check-a", "status": "SUCCEEDED", "payload": {"outcome": "FINDINGS"}},
+        "check-b": {"task_id": "check-b", "status": "SUCCEEDED", "payload": {"outcome": "PASS"}},
+    })
+    rows = [
+        {"obligation_id": "planned-a", "state": "COMPLETE", "required": True},
+        {"obligation_id": "planned-b", "state": "PARTIAL", "required": True},
+        {"obligation_id": "claim-a", "state": "NOT_STARTED", "required": False},
+    ]
+    result = {"disposition": "REQUEST_CHANGES", "coverage_state": "PARTIAL", "coverage_ledger": rows}
+    return result, {"outputs": outputs}, plan
+
+
+def test_current_source_engine_summary_counts_full_ledger_without_text():
+    result, ledger, plan = _engine_summary_fixture()
+    summary = reconciliation.engine_summary(result, ledger, plan)
+
+    assert summary["disposition"] == "REQUEST_CHANGES"
+    assert summary["coverage_state"] == "PARTIAL"
+    assert summary["coverage"] == {
+        "inventory_state": "OBSERVED", "row_count": 3,
+        "state_counts": {"COMPLETE": 1, "NOT_STARTED": 1, "PARTIAL": 1},
+        "unknown_state_count": 0, "required_row_count": 2,
+        "required_state_counts": {"COMPLETE": 1, "NOT_STARTED": 0, "PARTIAL": 1},
+        "unknown_required_state_count": 0, "requiredness_unknown_count": 0,
+        "planned_inventory_state": "OBSERVED",
+        "planned_obligation_count": 2, "planned_obligations_present": 2,
+        "planned_obligations_missing": 0, "planned_obligation_duplicates": 0,
+        "actual_obligation_duplicates": 0, "unplanned_coverage_row_count": 1,
+    }
+    assert summary["tasks"]["writer_expected_count"] == 6
+    assert summary["tasks"]["deterministic_check_expected_count"] == 2
+    assert summary["tasks"]["ledger_task_count"] == 8
+    assert summary["tasks"]["status_counts"]["SUCCEEDED"] == 8
+    assert summary["deterministic_checks"]["outcome_counts"] == {
+        "ERROR": 0, "FINDINGS": 1, "PASS": 1, "UNKNOWN": 0,
+    }
+    assert "sensitive model text" not in json.dumps(summary)
+
+
+def test_engine_summary_marks_missing_unknown_and_unrecognized_values_explicitly():
+    result, ledger, plan = _engine_summary_fixture()
+    result["disposition"] = "UNRECOGNIZED"
+    result["coverage_state"] = "UNRECOGNIZED"
+    result["coverage_ledger"][0].pop("required")
+    result["coverage_ledger"][0]["state"] = "FUTURE_STATE"
+    result["coverage_ledger"].pop(1)
+    ledger["outputs"]["writer-0"]["status"] = "FUTURE_STATUS"
+    ledger["outputs"]["check-a"]["payload"]["outcome"] = "FUTURE_OUTCOME"
+    summary = reconciliation.engine_summary(result, ledger, plan)
+
+    assert summary["disposition"] == "UNKNOWN"
+    assert summary["coverage_state"] == "UNKNOWN"
+    assert summary["coverage"]["requiredness_unknown_count"] == 1
+    assert summary["coverage"]["unknown_state_count"] == 1
+    assert summary["coverage"]["required_row_count"] == 0
+    assert summary["coverage"]["planned_obligations_missing"] == 1
+    assert summary["coverage"]["unplanned_coverage_row_count"] == 1
+    assert summary["tasks"]["ledger_task_count"] == 8
+    assert summary["tasks"]["unknown_status_count"] == 1
+    assert summary["deterministic_checks"]["unknown_outcome_count"] == 1
+
+
+def test_engine_summary_counts_duplicate_and_unknown_coverage_rows_and_mismatched_task_denominator():
+    result, ledger, plan = _engine_summary_fixture()
+    result["coverage_ledger"][0]["state"] = None
+    result["coverage_ledger"].append(
+        {"obligation_id": "planned-a", "state": None, "required": "unknown"}
+    )
+    ledger["outputs"].pop("writer-5")
+    summary = reconciliation.engine_summary(result, ledger, plan)
+
+    assert summary["coverage"]["actual_obligation_duplicates"] == 1
+    assert summary["coverage"]["unknown_state_count"] == 2
+    assert summary["coverage"]["requiredness_unknown_count"] == 1
+    assert summary["coverage"]["required_row_count"] == 2
+    assert summary["tasks"]["writer_expected_count"] == 6
+    assert summary["tasks"]["ledger_task_count"] == 7
+    assert summary["deterministic_checks"]["task_count"] == 2
+
+
+def test_engine_summary_does_not_infer_missing_planned_obligations_or_check_success():
+    result, ledger, plan = _engine_summary_fixture()
+    plan.pop("coverage_obligations")
+    plan["deterministic_check_tasks"] = {}
+    summary = reconciliation.engine_summary(result, ledger, plan)
+
+    assert summary["coverage"]["planned_inventory_state"] == "UNKNOWN"
+    assert summary["coverage"]["planned_obligation_count"] is None
+    assert summary["coverage"]["planned_obligations_missing"] is None
+    assert summary["coverage"]["unplanned_coverage_row_count"] is None
+    assert summary["deterministic_checks"] == {
+        "applicability": "NOT_APPLICABLE", "task_count": 0,
+        "outcome_counts": {"ERROR": 0, "FINDINGS": 0, "PASS": 0, "UNKNOWN": 0},
+        "unknown_outcome_count": 0,
+    }
+
+    result, ledger, plan = _engine_summary_fixture()
+    result["disposition"] = "COMMENT"
+    ledger["outputs"]["check-a"]["payload"]["outcome"] = "PASS"
+    summary = reconciliation.engine_summary(result, ledger, plan)
+    assert summary["deterministic_checks"]["outcome_counts"]["PASS"] == 2
+    assert summary["deterministic_checks"]["outcome_counts"]["FINDINGS"] == 0
+    assert summary["disposition"] == "COMMENT"
+
+
+def test_reconciliation_v2_is_opt_in_and_v1_shape_stays_unchanged(tmp_path):
+    values = _synthetic_run(tmp_path)
+    args = (
+        values["result"], values["ledger"], values["outcomes"], values["manifest"],
+        values["response_payloads"], values["packet_pairs"], values["plan"],
+        values["writer_receipt"], values["result"]["result_hash"], values["plan_sha"],
+        values["manifest_sha"], values["writer_receipt_sha"],
+    )
+    legacy = reconciliation.build_receipt(*args)
+    current = reconciliation.build_receipt(*args, current_source=True)
+
+    assert legacy["schema"] == "model-only-shadow-writer-reconciliation.v1"
+    assert "engine_summary" not in legacy
+    assert current["schema"] == "model-only-shadow-writer-reconciliation.v2"
+    assert current["engine_summary"]["schema"] == "model-only-shadow-engine-summary.v1"
+
+
 class _SingleCandidateProvider(seeded._SerializedFixtureProvider):
     def __init__(self, *, missing_title: bool, mixed_candidates: bool = False):
         super().__init__(candidate_enabled=True)
