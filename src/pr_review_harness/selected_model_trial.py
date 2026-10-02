@@ -1456,14 +1456,17 @@ def _suite_and_runtime(
     workspace: Path,
     root: Path,
     cli_executable: Path,
+    *,
+    version: str = "v1",
 ) -> tuple[Any, dict[str, Any]]:
+    contract = trial_contract(version)
     suite_path = root / "examples" / "injection" / "fixture-suite.v2.json"
     prepared = prepare_suite(
         workspace,
         suite_path=suite_path,
         repo_support_root=root,
         repetitions=1,
-        limits=_limits(),
+        limits=_limits(contract),
     )
     selected = validate_trial_selection(prepared.cases, list(CASE_IDS))
     if (
@@ -1471,6 +1474,22 @@ def _suite_and_runtime(
         or tuple(case.case_id for case in prepared.cases if case.case_id in selected) != CASE_IDS
     ):
         raise SelectedTrialError("fixed_case_selection_mismatch")
+    if contract.version == "v2":
+        # The v2 preparation contract adds a required native claim pass to the
+        # otherwise shared fixture profile. Reconstruct those exact policy
+        # bytes here and keep the frozen-profile equality check in the runner.
+        profile = dict(prepared.profile)
+        profile["version"] = "prompt-injection-native-paired-claim-v2"
+        profile["claim_reconciliation"] = {
+            "version": "claim-reconciliation.v1",
+            "enabled": True,
+            "required": True,
+            "max_assessments": contract.max_claim_assessments,
+        }
+        profile_raw = canonical_json(profile) + b"\n"
+        prepared.profile_path.write_bytes(profile_raw)
+        prepared.profile_path.chmod(0o600)
+        prepared.profile.update(profile)
     runtime = _runtime_provenance(cli_executable, root)
     return prepared, runtime
 
@@ -2476,7 +2495,9 @@ def run_provider_trial(
                 ):
                     raise SelectedTrialError("current_preparation_binding_mismatch")
                 limits = frozen["limits"]
-                generated, runtime = _suite_and_runtime(work / "fixtures", root, cli_executable)
+                generated, runtime = _suite_and_runtime(
+                    work / "fixtures", root, cli_executable, version=contract.version
+                )
                 if canonical_json(generated.profile) != canonical_json(json.loads(profile_path.read_bytes())):
                     raise SelectedTrialError("prepared_profile_mismatch")
                 source_fingerprint = runtime.get("source_fingerprint")
@@ -2587,7 +2608,9 @@ def run_provider_trial(
                     cases=tuple(run_cases),
                 )
             else:
-                prepared, runtime = _suite_and_runtime(work / "fixtures", root, cli_executable)
+                prepared, runtime = _suite_and_runtime(
+                    work / "fixtures", root, cli_executable, version=contract.version
+                )
                 source_fingerprint = runtime.get("source_fingerprint")
                 limits = _limits(contract)
                 limits_path = work / "limits.json"
