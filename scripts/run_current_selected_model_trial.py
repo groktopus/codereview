@@ -28,6 +28,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--output", type=Path, required=True)
     result.add_argument("--cli-executable", type=Path, required=True)
     result.add_argument("--expected-source-revision", required=True)
+    result.add_argument("--trial-version", choices=("v1", "v2"), default="v1")
     result.add_argument("--preparation-dir", type=Path)
     result.add_argument("--provider-config", type=Path)
     result.add_argument("--decision-config", type=Path)
@@ -46,14 +47,15 @@ def main(argv: list[str] | None = None) -> int:
             plan_output = args.output / "prepared"
             plan_output.mkdir(parents=True, mode=0o700)
             plan_output.chmod(0o700)
-            prepared = prepare_trial(plan_output, root=ROOT)
+            prepared = prepare_trial(plan_output, root=ROOT, version=args.trial_version)
             result = prepare_current_source_trial(
-                prepared_plan=plan_output / "selected-pair-clean-control-trial-v1.json",
+                prepared_plan=plan_output / f"selected-pair-clean-control-trial-{args.trial_version}.json",
                 cli_executable=args.cli_executable,
                 expected_source_revision=args.expected_source_revision,
                 output=args.output,
                 repo_support_root=ROOT,
                 environ=dict(os.environ),
+                version=args.trial_version,
             )
             result["prepared_plan_sha256"] = prepared["plan_sha256"]
         else:
@@ -74,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
                 repo_support_root=ROOT,
                 environ=dict(os.environ),
                 observe_effects=True,
+                version=args.trial_version,
             )
     except SelectedTrialError as exc:
         print(json.dumps({"status": "FAILED", "error": exc.code}, sort_keys=True, separators=(",", ":")))

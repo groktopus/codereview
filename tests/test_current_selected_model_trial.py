@@ -530,7 +530,7 @@ def test_provider_free_current_preparation_binds_exact_requests_and_strips_inher
         "profile": {"version": "test-profile"},
         "limits": trial._limits(),
     }
-    monkeypatch.setattr(trial, "_prepared_plan", lambda *_args: (plan, profile, limits, frozen))
+    monkeypatch.setattr(trial, "_prepared_plan", lambda *_args, **_kwargs: (plan, profile, limits, frozen))
     monkeypatch.setattr(
         trial,
         "_expected_cli_snapshot_projection",
@@ -631,7 +631,7 @@ def test_provider_free_current_preparation_rejects_exact_request_descriptor_drif
         "profile": {"version": "test-profile"},
         "limits": trial._limits(),
     }
-    monkeypatch.setattr(trial, "_prepared_plan", lambda *_args: (plan, profile, limits, frozen))
+    monkeypatch.setattr(trial, "_prepared_plan", lambda *_args, **_kwargs: (plan, profile, limits, frozen))
     monkeypatch.setattr(
         trial,
         "_expected_cli_snapshot_projection",
@@ -747,7 +747,7 @@ def test_current_run_receipt_rechecks_exact_plan_and_request_bindings(tmp_path, 
     frozen = {"repositories": {case_id: tmp_path for case_id in trial.PREPARED_CASE_IDS}}
     root = tmp_path / "repo"
     root.mkdir()
-    monkeypatch.setattr(trial, "_prepared_plan", lambda *_args: (plan, tmp_path / "profile", tmp_path / "limits", frozen))
+    monkeypatch.setattr(trial, "_prepared_plan", lambda *_args, **_kwargs: (plan, tmp_path / "profile", tmp_path / "limits", frozen))
     seen = {}
 
     def fake_run(**kwargs):
