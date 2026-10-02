@@ -23,11 +23,14 @@ from urllib.parse import quote, urlsplit
 
 from .actions_publication import (
     ArtifactTrustMode,
+    CredentialKind,
     GitHubActionsPublicationAdapter,
     GitHubHTTPTransport,
     GitHubPublicationError,
     GitHubPublicationPolicy,
+    IdentityState,
     UrllibGitHubTransport,
+    VerifiedPublisherIdentity,
 )
 from .actions_runtime import OfficialActionsArtifactUploader
 from .artifact_intake import (
@@ -38,6 +41,7 @@ from .artifact_intake import (
     IntakeLimits,
     intake_artifact_bundle,
 )
+from .github_actions_credentials import GitHubActionsTokenCredentialProvider, GitHubActionsTokenPolicy
 from .github_app_canary import (
     CanaryLimits,
     ProtectedCanaryRun,
@@ -45,15 +49,17 @@ from .github_app_canary import (
 )
 from .github_app_credentials import GitHubAppCredentialPolicy, GitHubAppPublisherCredentialProvider
 from .publication_receipts import ScanLimits
-from .publisher import publish_review_stateless
+from .publisher import _canonical_hash, publish_review_stateless
 
 _POLICY_PATH = Path(".github/pr-review-publisher-policy.json")
 _POLICY_MAX_BYTES = 64 * 1024
 _EVENT_MAX_BYTES = 256 * 1024
 _SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
+_ACTOR = re.compile(r"[A-Za-z0-9-]{1,39}(?:\[bot\])?\Z")
 _WORKFLOW_PATH = re.compile(r"\.github/workflows/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\.ya?ml\Z")
 _PROFILE_HASH = re.compile(r"[0-9a-f]{64}\Z")
+_WORKFLOW_HASH = re.compile(r"[0-9a-f]{64}\Z")
 _PROVIDER_IDENTITY = re.compile(r"provider-config-sha256:[0-9a-f]{64}\Z")
 _CONFIG_KEYS = {
     "schema",
@@ -70,6 +76,7 @@ _CONFIG_KEYS = {
     "artifact_trust_mode",
     "artifact_redirect_hosts",
 }
+_V2_CONFIG_KEYS = (_CONFIG_KEYS - {"app"}) | {"credential", "authorization_mode"}
 
 
 class ProtectedRuntimeError(ValueError):
@@ -137,7 +144,29 @@ class ProtectedPublicationPolicy:
 
     @classmethod
     def parse(cls, value: dict[str, object]) -> "ProtectedPublicationPolicy":
-        if set(value) != _CONFIG_KEYS or value.get("schema") != "pr-review-protected-publication-policy.v1":
+        schema = value.get("schema")
+        if schema == "pr-review-protected-publication-policy.v1":
+            if set(value) != _CONFIG_KEYS:
+                raise ProtectedRuntimeError("protected_policy_schema_invalid")
+            credential = {"kind": "APP_INSTALLATION", "app": value.get("app")}
+        elif schema == "pr-review-protected-publication-policy.v2":
+            if set(value) != _V2_CONFIG_KEYS or value.get("authorization_mode") != "STANDING_BOUNDED":
+                raise ProtectedRuntimeError("protected_policy_schema_invalid")
+            credential = value.get("credential")
+            if not isinstance(credential, dict):
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            if credential.get("kind") == "APP_INSTALLATION":
+                if set(credential) != {"kind", "app"}:
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            elif credential.get("kind") == "ACTIONS_TOKEN":
+                if (
+                    set(credential) != {"kind", "actor_login"}
+                    or credential.get("actor_login") != "github-actions[bot]"
+                ):
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            else:
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
+        else:
             raise ProtectedRuntimeError("protected_policy_schema_invalid")
         if not isinstance(value.get("enabled"), bool):
             raise ProtectedRuntimeError("protected_policy_enablement_invalid")
@@ -154,7 +183,10 @@ class ProtectedPublicationPolicy:
         for key in ("publisher_workflow", "source_workflow"):
             workflow = value.get(key)
             expected_path = ".github/workflows/pr-publish.yml" if key == "publisher_workflow" else None
-            if not isinstance(workflow, dict) or set(workflow) != {"id", "path", "ref"}:
+            expected_workflow_fields = {"id", "path", "ref"}
+            if schema == "pr-review-protected-publication-policy.v2" and key == "publisher_workflow":
+                expected_workflow_fields.add("sha256")
+            if not isinstance(workflow, dict) or set(workflow) != expected_workflow_fields:
                 raise ProtectedRuntimeError("protected_policy_workflow_invalid")
             if (
                 not _positive_int(workflow.get("id"))
@@ -162,6 +194,10 @@ class ProtectedPublicationPolicy:
                 or not _WORKFLOW_PATH.fullmatch(workflow["path"])
                 or (expected_path is not None and workflow.get("path") != expected_path)
                 or workflow.get("ref") != f"{repository['name']}/{workflow['path']}@refs/heads/{branch}"
+                or (
+                    "sha256" in expected_workflow_fields
+                    and (not isinstance(workflow.get("sha256"), str) or not _WORKFLOW_HASH.fullmatch(workflow["sha256"]))
+                )
             ):
                 raise ProtectedRuntimeError("protected_policy_workflow_invalid")
         harness = value.get("called_harness")
@@ -176,8 +212,8 @@ class ProtectedPublicationPolicy:
             or not _SHA.fullmatch(harness["sha"])
         ):
             raise ProtectedRuntimeError("protected_policy_harness_invalid")
-        app = value.get("app")
-        if (
+        app = credential.get("app") if credential.get("kind") == "APP_INSTALLATION" else None
+        if credential.get("kind") == "APP_INSTALLATION" and (
             not isinstance(app, dict)
             or set(app) != {"id", "installation_id", "slug", "actor_login"}
             or not _positive_int(app.get("id"))
@@ -246,8 +282,25 @@ class ProtectedPublicationPolicy:
     def enabled(self) -> bool:
         return self.raw["enabled"] is True
 
+    @property
+    def credential_kind(self) -> CredentialKind:
+        if self.raw["schema"] == "pr-review-protected-publication-policy.v1":
+            return CredentialKind.APP_INSTALLATION
+        return CredentialKind(self.raw["credential"]["kind"])
+
+    @property
+    def actor_login(self) -> str:
+        if self.raw["schema"] == "pr-review-protected-publication-policy.v1":
+            return self.raw["app"]["actor_login"]
+        credential = self.raw["credential"]
+        if credential["kind"] == "APP_INSTALLATION":
+            return credential["app"]["actor_login"]
+        return credential["actor_login"]
+
     def app_policy(self) -> GitHubAppCredentialPolicy:
-        app = self.raw["app"]
+        if self.credential_kind is not CredentialKind.APP_INSTALLATION:
+            raise ProtectedRuntimeError("protected_policy_credential_invalid")
+        app = self.raw["app"] if self.raw["schema"].endswith(".v1") else self.raw["credential"]["app"]
         repo = self.raw["repository"]
         return GitHubAppCredentialPolicy(
             app_id=app["id"],
@@ -258,6 +311,17 @@ class ProtectedPublicationPolicy:
             actor_login=app["actor_login"],
         )
 
+    def actions_token_policy(self) -> GitHubActionsTokenPolicy:
+        if self.credential_kind is not CredentialKind.ACTIONS_TOKEN:
+            raise ProtectedRuntimeError("protected_policy_credential_invalid")
+        repo = self.raw["repository"]
+        return GitHubActionsTokenPolicy(
+            repository_id=repo["id"],
+            repository=repo["name"],
+            actor_login=self.actor_login,
+            permissions=(("actions", "read"), ("pull_requests", "write")),
+        )
+
     def publication_config(self) -> dict[str, object]:
         return {
             "schema_version": "1.0",
@@ -265,7 +329,7 @@ class ProtectedPublicationPolicy:
             "allowed_repositories": [self.raw["repository"]["name"]],
             "allowed_dispositions": list(self.raw["publication"]["allowed_dispositions"]),
             "allowed_profile_versions": [self.raw["profile"]["version"]],
-            "allowed_actors": [self.raw["app"]["actor_login"]],
+            "allowed_actors": [self.actor_login],
             "max_review_body_bytes": self.raw["publication"]["max_review_body_bytes"],
         }
 
@@ -292,9 +356,25 @@ def _policy_from_workspace(environ: Mapping[str, str]) -> ProtectedPublicationPo
     committed = _git_read(root, "show", f"{expected_sha}:{relative}", limit=_POLICY_MAX_BYTES)
     if raw != committed:
         raise ProtectedRuntimeError("protected_policy_source_mismatch")
-    return ProtectedPublicationPolicy.parse(
+    policy = ProtectedPublicationPolicy.parse(
         _json_object(raw, limit=_POLICY_MAX_BYTES, code="protected_policy_invalid")
     )
+    if policy.raw["schema"] == "pr-review-protected-publication-policy.v2":
+        workflow = policy.raw["publisher_workflow"]
+        workflow_path = root / workflow["path"]
+        try:
+            resolved_workflow = workflow_path.resolve(strict=True)
+            resolved_workflow.relative_to(root)
+        except (OSError, ValueError):
+            raise ProtectedRuntimeError("protected_publisher_workflow_unavailable") from None
+        if resolved_workflow != workflow_path or workflow_path.is_symlink():
+            raise ProtectedRuntimeError("protected_publisher_workflow_unavailable")
+        working_bytes = _read_regular(workflow_path, 1024 * 1024, "protected_publisher_workflow_unavailable")
+        committed_bytes = _git_read(root, "show", f"{expected_sha}:{workflow['path']}", limit=1024 * 1024)
+        digest = hashlib.sha256(working_bytes).hexdigest()
+        if working_bytes != committed_bytes or digest != workflow["sha256"]:
+            raise ProtectedRuntimeError("protected_publisher_workflow_mismatch")
+    return policy
 
 
 def _git_read(root: Path, *args: str, limit: int = 4096) -> bytes:
@@ -440,8 +520,22 @@ def _publication_policy(
     publisher = protected.raw["publisher_workflow"]
     harness = protected.raw["called_harness"]
     profile = protected.raw["profile"]
-    app = protected.raw["app"]
     repo = protected.raw["repository"]
+    credential_provenance = None
+    if protected.credential_kind is CredentialKind.ACTIONS_TOKEN:
+        credential_provenance = {
+            "schema": "publisher-credential-provenance.v1",
+            "credential_kind": "ACTIONS_TOKEN",
+            "identity_state": "PLATFORM_BOUND",
+            "permission_basis": "WORKFLOW_DECLARATION",
+            "write_capability": "NOT_TESTED",
+            "publisher_workflow_sha256": publisher["sha256"],
+            "declared_job_permissions": {
+                "actions": "read",
+                "contents": "read",
+                "pull-requests": "write",
+            },
+        }
     return GitHubPublicationPolicy(
         repository_id=repo["id"],
         repository=repo["name"],
@@ -464,8 +558,9 @@ def _publication_policy(
         profile_version=profile["version"],
         profile_sha256=profile["sha256"],
         provider_configuration_identity=profile["provider_configuration_identity"],
-        allowed_actor_login=app["actor_login"],
+        allowed_actor_login=protected.actor_login,
         concurrency_scope="repository",
+        credential_provenance=credential_provenance,
         artifact_trust_mode=ArtifactTrustMode.API_BOUND_SHA256,
         artifact_redirect_hosts=tuple(protected.raw["artifact_redirect_hosts"]),
     )
@@ -795,7 +890,32 @@ def _safe_outcome(value: object) -> dict[str, object]:
         status = "UNKNOWN"
     if not isinstance(reason, str) or not re.fullmatch(r"[a-z0-9_]{1,64}", reason):
         reason = None
-    return {"schema": "pr-review-protected-publication.v1", "status": status, "reason": reason}
+    safe = {"schema": "pr-review-protected-publication.v1", "status": status, "reason": reason}
+    observation = value.get("effect_observation")
+    if isinstance(observation, dict) and set(observation) == {
+        "actor_login",
+        "review_state",
+        "review_id",
+        "write_capability",
+    }:
+        actor = observation.get("actor_login")
+        state = observation.get("review_state")
+        review_id = observation.get("review_id")
+        if (
+            isinstance(actor, str)
+            and _ACTOR.fullmatch(actor)
+            and state in {"APPROVED", "CHANGES_REQUESTED", "COMMENTED"}
+            and _positive_int(review_id)
+            and observation.get("write_capability") == "OBSERVED_SUCCESS"
+            and status == "CONFIRMED"
+        ):
+            safe["effect_observation"] = {
+                "actor_login": actor,
+                "review_state": state,
+                "review_id": review_id,
+                "write_capability": "OBSERVED_SUCCESS",
+            }
+    return safe
 
 
 def run_protected_publication(
@@ -827,33 +947,75 @@ def run_protected_publication(
         client = transport or UrllibGitHubTransport()
         target_claim, source_workflow_sha = _bootstrap_target_claim(env, event_raw, protected, client, deadline, clock)
         platform = _platform_context(env, event_raw, protected, target_claim, source_workflow_sha)
-        app_policy = protected.app_policy()
         github_policy = _publication_policy(protected, platform)
-        key_cache: list[str] = []
-        source_key_supplier = key_supplier or (lambda: env.get("PR_REVIEW_GITHUB_APP_PRIVATE_KEY", ""))
+        if protected.credential_kind is CredentialKind.APP_INSTALLATION:
+            app_policy = protected.app_policy()
+            key_cache: list[str] = []
+            source_key_supplier = key_supplier or (lambda: env.get("PR_REVIEW_GITHUB_APP_PRIVATE_KEY", ""))
 
-        def actual_key_supplier() -> str:
-            if not key_cache:
-                key_cache.append(source_key_supplier())
-            return key_cache[0]
-        identity, _canary_receipt = verify_github_app_identity_canary(
-            enabled=True,
-            platform=platform,
-            policy=app_policy,
-            actions_token=env.get("GITHUB_TOKEN", ""),
-            app_private_key_supplier=actual_key_supplier,
-            transport=client,
-            limits=CanaryLimits(deadline_seconds=min(30.0, _remaining(deadline, clock))),
-            clock=clock,
-        )
-        remaining = _remaining(deadline, clock)
-        provider = GitHubAppPublisherCredentialProvider(
-            app_policy,
-            actual_key_supplier(),
-            canary_identity=identity,
-            transport=client,
-            clock=clock,
-        )
+            def actual_key_supplier() -> str:
+                if not key_cache:
+                    key_cache.append(source_key_supplier())
+                return key_cache[0]
+
+            identity, _canary_receipt = verify_github_app_identity_canary(
+                enabled=True,
+                platform=platform,
+                policy=app_policy,
+                actions_token=env.get("GITHUB_TOKEN", ""),
+                app_private_key_supplier=actual_key_supplier,
+                transport=client,
+                limits=CanaryLimits(deadline_seconds=min(30.0, _remaining(deadline, clock))),
+                clock=clock,
+            )
+            remaining = _remaining(deadline, clock)
+            provider = GitHubAppPublisherCredentialProvider(
+                app_policy,
+                actual_key_supplier(),
+                canary_identity=identity,
+                transport=client,
+                clock=clock,
+            )
+        else:
+            actions_policy = protected.actions_token_policy()
+            identity_evidence = _canonical_hash(
+                {
+                    "binding": "github-token-fixed-context-and-api-run",
+                    "repository": protected.raw["repository"],
+                    "policy_sha256": _canonical_hash(protected.raw),
+                    "publisher_workflow": protected.raw["publisher_workflow"],
+                    "publisher_workflow_sha256": protected.raw["publisher_workflow"].get("sha256"),
+                    "publisher_run": {
+                        "id": platform.publisher_run_id,
+                        "attempt": platform.publisher_run_attempt,
+                        "sha": platform.publisher_workflow_sha,
+                    },
+                    "source_workflow": protected.raw["source_workflow"],
+                    "source_run": {
+                        "id": platform.source_run_id,
+                        "attempt": platform.source_run_attempt,
+                        "sha": platform.source_run_head_sha,
+                    },
+                    "source_default_branch_sha": platform.source_workflow_sha,
+                    "pull_request": {
+                        "number": platform.pull_request_number,
+                        "base_sha": platform.base_sha,
+                        "head_sha": platform.pull_request_head_sha,
+                    },
+                }
+            )
+            identity = VerifiedPublisherIdentity(
+                state=IdentityState.PLATFORM_BOUND,
+                actor_login=actions_policy.actor_login,
+                credential_kind=CredentialKind.ACTIONS_TOKEN,
+                evidence_id=identity_evidence,
+            )
+            provider = GitHubActionsTokenCredentialProvider(
+                actions_policy,
+                env.get("GITHUB_TOKEN", ""),
+                identity=identity,
+            )
+            remaining = _remaining(deadline, clock)
         uploader = artifact_uploader or OfficialActionsArtifactUploader(environ=_artifact_environment(env))
         adapter = GitHubActionsPublicationAdapter(
             github_policy,
