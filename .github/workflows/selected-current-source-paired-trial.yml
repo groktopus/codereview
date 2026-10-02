@@ -165,6 +165,7 @@ jobs:
           TRIAL_VERSION: ${{ inputs.trial_version }}
           RESULT_OUTPUT: ${{ runner.temp }}/selected-current-source-result
           CONFIG_OUTPUT: ${{ runner.temp }}/selected-current-source-provider-config
+          FAILURE_RECEIPT: ${{ runner.temp }}/selected-current-source-failure-${{ github.run_id }}.json
         run: |
           set -euo pipefail
           python scripts/provider_config_from_env.py --output-dir "$CONFIG_OUTPUT" --json >/dev/null
@@ -177,7 +178,8 @@ jobs:
             --cli-executable "$(command -v pr-review)" \
             --provider-config "$CONFIG_OUTPUT/provider.json" \
             --decision-config "$CONFIG_OUTPUT/decision.json" \
-            --observe-effects >/dev/null
+            --observe-effects \
+            --failure-receipt "$FAILURE_RECEIPT" >/dev/null
 
       - name: Remove only the private provider configs
         if: always()
@@ -218,6 +220,7 @@ jobs:
             ${{ runner.temp }}/selected-current-source-trial/summary.json
             ${{ runner.temp }}/selected-current-source-result/manifest.json
             ${{ runner.temp }}/selected-current-source-result/summary.json
+            ${{ runner.temp }}/selected-current-source-failure-${{ github.run_id }}.json
           if-no-files-found: warn
           retention-days: 7
 

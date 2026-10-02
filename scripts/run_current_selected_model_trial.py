@@ -33,7 +33,43 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--provider-config", type=Path)
     result.add_argument("--decision-config", type=Path)
     result.add_argument("--observe-effects", action="store_true")
+    result.add_argument("--failure-receipt", type=Path)
     return result
+
+
+def _persist_failure_receipt(path: Path | None, *, error_code: str, version: str) -> None:
+    """Persist only a fixed-schema failure code; never exception text or inputs."""
+    if path is None:
+        return
+    payload = (
+        json.dumps(
+            {
+                "schema": "selected-current-source-failure.v1",
+                "status": "FAILED",
+                "error": error_code,
+                "trial_version": version,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
+    try:
+        if not path.is_absolute() or len(payload) > 512:
+            return
+        parent = path.parent.resolve(strict=True)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(parent / path.name, flags, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except OSError:
+        # Stdout still carries the same sanitized code if the optional receipt
+        # cannot be created (for example, an existing destination).
+        return
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -79,9 +115,11 @@ def main(argv: list[str] | None = None) -> int:
                 version=args.trial_version,
             )
     except SelectedTrialError as exc:
+        _persist_failure_receipt(args.failure_receipt, error_code=exc.code, version=args.trial_version)
         print(json.dumps({"status": "FAILED", "error": exc.code}, sort_keys=True, separators=(",", ":")))
         return 2
     except Exception:
+        _persist_failure_receipt(args.failure_receipt, error_code="current_trial_failed", version=args.trial_version)
         print(json.dumps({"status": "FAILED", "error": "current_trial_failed"}, sort_keys=True, separators=(",", ":")))
         return 2
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))

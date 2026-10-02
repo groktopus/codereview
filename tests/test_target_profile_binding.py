@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from pr_review_harness.claim_reconciliation import validate_claim_reconciliation_policy
 from scripts.resolve_target_profile import ProfileBindingError, main, resolve_target_profile
 
 ROOT = Path(__file__).parents[1]
@@ -42,11 +43,30 @@ def test_trusted_binding_resolves_exact_repository_profile_and_digest():
 
     assert binding == {
         "target_repository": TARGET,
-        "profile_path": "profiles/slopsearx.json",
-        "profile_version": "slopsearx-production-v8-static-review-boundaries",
-        "profile_sha256": "cc9c4631882662c27be5fb8534e65abbd352489afefa78e9dd3d3160fe0b1c65",
+        "profile_path": "profiles/slopsearx-v14-jev-reconciliation-candidate.json",
+        "profile_version": "slopsearx-production-v14-jev-reconciliation-candidate",
+        "profile_sha256": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
         "profile_map_sha256": hashlib.sha256((ROOT / "profiles/targets.json").read_bytes()).hexdigest(),
     }
+
+
+def test_resolved_slopsearx_profile_enforces_bounded_required_claim_policy():
+    binding = resolve_target_profile(TARGET)
+    profile = json.loads((ROOT / binding["profile_path"]).read_text(encoding="utf-8"))
+
+    policy = validate_claim_reconciliation_policy(profile)
+    assert policy == {
+        "version": "claim-reconciliation.v1",
+        "enabled": True,
+        "required": True,
+        "max_assessments": 1,
+    }
+    assert profile["profile_status"] == "context_selection_candidate_not_quality_validated"
+
+    workflow = (ROOT / ".github/workflows/pr-analysis.yml").read_text(encoding="utf-8")
+    assert "--max-claim-assessments 1" in workflow
+    assert "PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}" in workflow
+    assert "EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}" in workflow
 
 
 def test_unknown_repository_fails_closed_without_generic_fallback():
@@ -142,7 +162,7 @@ def test_resolver_cli_emits_hash_bound_profile_outputs(tmp_path: Path, monkeypat
     binding = json.loads(binding_artifact.read_text(encoding="utf-8"))
     outputs = github_output.read_text(encoding="utf-8").splitlines()
     assert binding["target_repository"] == TARGET
-    assert binding["profile_path"] == "profiles/slopsearx.json"
+    assert binding["profile_path"] == "profiles/slopsearx-v14-jev-reconciliation-candidate.json"
     assert binding["profile_sha256"] == hashlib.sha256((ROOT / binding["profile_path"]).read_bytes()).hexdigest()
     assert f"profile_path={binding['profile_path']}" in outputs
     assert f"profile_sha256={binding['profile_sha256']}" in outputs

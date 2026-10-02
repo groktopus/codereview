@@ -60,7 +60,7 @@ def test_unavailable_effect_observer_does_not_dispatch_cli_or_later_cases(tmp_pa
     monkeypatch.setattr(
         trial,
         "_suite_and_runtime",
-        lambda *_args: (prepared, {"cli_path": str(cli), "source_fingerprint": source_fingerprint}),
+        lambda *_args, **_kwargs: (prepared, {"cli_path": str(cli), "source_fingerprint": source_fingerprint}),
     )
     monkeypatch.setattr(trial, "_load_matrix_tools", lambda _root: Matrix())
     monkeypatch.setattr(
