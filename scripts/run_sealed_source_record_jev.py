@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -23,6 +24,10 @@ from source_record_decision import MAX_PAYLOAD_BYTES, SourceRecordTransport, Sou
 
 MAX_CONFIG_BYTES = 16_000
 MAX_JEV_SECONDS = 90
+ADVISORY_SUMMARY_NAME = "source-record-jev-advisory-summary.json"
+ADVISORY_SUMMARY_SCHEMA = "private-sealed-source-record-advisory.v1"
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_ADVISORY_CHOICES = {"SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED", "UNCERTAIN"}
 ARTIFACTS = {
     "shadow-audit-manifest": "shadow-audit-manifest.json",
     "case-packet": "private/case-packet.json",
@@ -152,6 +157,107 @@ def _sanitized_receipt(
     }
 
 
+def _private_advisory_summary(receipt: Mapping[str, Any], advisory_choice: Any) -> dict[str, Any]:
+    """Project only bounded, hash-bound advisory state into a private summary."""
+    if (receipt.get("case_id") != "PR-464"
+            or receipt.get("snapshot_id") != "snap-e20deb18f2ac6cb39c6ebafd"
+            or receipt.get("snapshot_sha256") != "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"):
+        raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
+    plan_hash = receipt.get("plan_sha256")
+    record_hash = receipt.get("selected_record_id_sha256")
+    if not isinstance(plan_hash, str) or not _SHA256.fullmatch(plan_hash):
+        raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
+    source_status, record_count = receipt.get("source_status"), receipt.get("source_record_count")
+    source_request_hash = receipt.get("source_record_replay_request_sha256")
+    source_response_hash = receipt.get("source_response_sha256")
+    jev_request_hash, jev_response_hash = receipt.get("jev_request_sha256"), receipt.get("jev_response_sha256")
+    if (not isinstance(source_request_hash, str) or not _SHA256.fullmatch(source_request_hash)
+            or (source_response_hash is not None and
+                (not isinstance(source_response_hash, str) or not _SHA256.fullmatch(source_response_hash)))
+            or (jev_request_hash is not None and
+                (not isinstance(jev_request_hash, str) or not _SHA256.fullmatch(jev_request_hash)))
+            or (jev_response_hash is not None and
+                (not isinstance(jev_response_hash, str) or not _SHA256.fullmatch(jev_response_hash)))):
+        raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
+    if (not isinstance(source_status, str) or source_status not in {"completed", "abstained", "failed"}
+            or isinstance(record_count, bool) or not isinstance(record_count, int) or record_count < 0):
+        raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+    if source_status == "completed":
+        if (record_count < 1 or (record_hash is not None
+                and (not isinstance(record_hash, str) or not _SHA256.fullmatch(record_hash)))):
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+    elif source_status == "abstained":
+        if record_count != 0 or record_hash is not None:
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+    elif record_count != 0 or record_hash is not None:
+        raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+    if source_status in {"completed", "abstained"} and source_response_hash is None:
+        raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
+
+    jev_status, choice = receipt.get("jev_status"), advisory_choice
+    if not isinstance(jev_status, str):
+        raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+    if jev_status == "completed":
+        if (record_hash is None or not isinstance(choice, str) or choice not in _ADVISORY_CHOICES
+                or jev_request_hash is None or jev_response_hash is None):
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+    elif jev_status in {"abstained", "not_run", "failed"}:
+        if choice is not None:
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+        if (record_hash is None and (jev_status != "not_run" or jev_response_hash is not None)):
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+        if (record_hash is None and source_status != "completed" and jev_request_hash is not None):
+            raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
+        if (record_hash is not None and jev_request_hash is None):
+            raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
+        if jev_status == "abstained" and (record_hash is None or jev_response_hash is None):
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+        if jev_status == "failed" and record_hash is None:
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+        if jev_status == "not_run" and jev_response_hash is not None:
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+    else:
+        raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+
+    return {
+        "schema_version": ADVISORY_SUMMARY_SCHEMA,
+        "case_id": "PR-464",
+        "snapshot_id": receipt["snapshot_id"],
+        "snapshot_sha256": receipt["snapshot_sha256"],
+        "plan_sha256": plan_hash,
+        "source_record_replay_request_sha256": source_request_hash,
+        "source_response_sha256": source_response_hash,
+        "jev_request_sha256": jev_request_hash,
+        "jev_response_sha256": jev_response_hash,
+        "selected_record_id_sha256": record_hash,
+        "source_record_count": record_count,
+        "source_status": source_status,
+        "jev_status": jev_status,
+        "choice": choice if jev_status == "completed" else None,
+    }
+
+
+def _write_private_json(path: Path, value: Mapping[str, Any], error_code: str) -> None:
+    raw = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except Exception:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
+    except FileExistsError:
+        raise SealedSourceIntegrationError("receipt_output_exists") from None
+    except OSError:
+        raise SealedSourceIntegrationError(error_code) from None
+
+
 def run_private_artifact_decision(
     artifact_dir: Path,
     jev_config: Mapping[str, Any],
@@ -159,6 +265,7 @@ def run_private_artifact_decision(
     *,
     jev_transport: Callable[[bytes, float, int], bytes] | None = None,
     decision_runner: Callable[..., dict[str, Any]] = run_sealed_no_candidate_decision,
+    write_advisory_summary: bool = False,
 ) -> dict[str, Any]:
     """Verify private source artifacts, make at most one Jev call, and write a hash-only receipt."""
     artifact_dir = _private_artifact_dir(artifact_dir)
@@ -214,23 +321,18 @@ def run_private_artifact_decision(
         result, jev_external_calls=len(external_calls), jev_transport_invocations=len(calls),
         jev_dispatch_state=dispatch_state[0],
     )
+    advisory_summary = None
+    if write_advisory_summary:
+        advisory = result.get("advisory_source_record_decision")
+        if not isinstance(advisory, Mapping):
+            raise SealedSourceIntegrationError("advisory_summary_state_invalid")
+        advisory_summary = _private_advisory_summary(receipt, advisory.get("advisory_choice"))
     try:
         output_dir.mkdir(mode=0o700, parents=False, exist_ok=False)
         os.chmod(output_dir, 0o700)
-        receipt_path = output_dir / "source-record-jev-receipt.json"
-        raw = json.dumps(receipt, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-        fd = os.open(receipt_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
-        try:
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(raw)
-                stream.flush()
-                os.fsync(stream.fileno())
-        except Exception:
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-            raise
+        _write_private_json(output_dir / "source-record-jev-receipt.json", receipt, "receipt_output_failed")
+        if advisory_summary is not None:
+            _write_private_json(output_dir / ADVISORY_SUMMARY_NAME, advisory_summary, "advisory_summary_output_failed")
     except FileExistsError:
         raise SealedSourceIntegrationError("receipt_output_exists") from None
     except OSError:
@@ -248,11 +350,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--jev-config", type=Path, required=True, help="trusted TypeSafe decision.json; no literal credentials")
     parser.add_argument("--output-dir", type=Path, required=True, help="new private directory for sanitized receipt")
     parser.add_argument("--live", action="store_true", help="authorize at most one bounded Jev provider call")
+    parser.add_argument("--write-private-advisory-summary", action="store_true",
+                        help="also write a bounded private advisory summary; it is not uploaded by the workflow")
     args = parser.parse_args(argv)
     if not args.live:
         parser.error("provider dispatch requires --live after reviewing the frozen PR464 artifacts")
     try:
-        receipt = run_private_artifact_decision(args.artifacts, _read_jev_config(args.jev_config), args.output_dir)
+        receipt = run_private_artifact_decision(
+            args.artifacts, _read_jev_config(args.jev_config), args.output_dir,
+            write_advisory_summary=args.write_private_advisory_summary,
+        )
     except (OSError, ValueError, SourceRecordTransportError) as exc:
         code = getattr(exc, "code", None)
         if not isinstance(code, str) or not code.replace("_", "").isalnum():
