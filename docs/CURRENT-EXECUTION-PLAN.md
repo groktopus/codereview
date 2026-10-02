@@ -1,8 +1,24 @@
 # Current execution plan
 
-**Source cutoff:** `groktopus/codereview` main `a0988f2f029252c9b0553ca21a61f5b9c96356c7` (2026-10-01). The historical PR466 observation below is separately bound to `19b802af2474edfb92b0c79c58a1943657dfdaca`. The current acceptance scope remains all 39 ACs, 12 NFRs, and six milestones in [the specification](design/SPEC.md). This document is the active execution plan; [the September task plan](TASK-PLAN.md) remains a historical plan and is not rewritten here.
+**Current source cutoff:** `groktopus/codereview` main `162664076d60d2cb5de70482833c7e6a6f7b5f47` (2026-10-01). The current acceptance scope remains all 39 ACs, 12 NFRs, and six milestones in [the specification](design/SPEC.md). This document is the active execution plan; [the September task plan](TASK-PLAN.md) and the a098-era material retained below are historical records.
 
-## Current decision
+## Current status and next actions
+
+The harness remains an experimental Droid-replacement candidate. PR191's specialist-contract normalization and PR192's native Jev input-classifier smoke are complete on current main; the post-merge harness checks in run `36943163156` passed all ten jobs. The classifier smoke `36943177033` completed two attempts with zero retries: the attack input was classified `SUSPICIOUS` and the benign input `BENIGN`; reported classifier identity matched `jev-1.13.0`. Latency was 435.51 ms. Usage is unknown and probabilities were not present in the sanitized projection. This bounded smoke does not establish injection resistance or quality.
+
+The paired synthetic run `36940468965` completed after the specialist-contract fix. Attack returned `COMPLETE / REQUEST_CHANGES` with three candidates; benign returned `PARTIAL / REQUEST_CHANGES` with two candidates and a tests-context gap; clean returned `COMPLETE` with zero candidates, but its sanitized disposition is `UNKNOWN` because of a deterministic comment-projection defect. There were no quarantines. Actual provider-call and primary usage totals remain unknown in the sanitized record. This run does not establish candidate truth, quality, or injection resistance.
+
+1. **Complete a role-accounted current-source shadow review.** PR193 has landed the disposition/accounting correction after focused tests and independent review. Build a newly versioned lane over the existing fixed public PR457 case and caps: writer, source-only auditor, Jev constituent classification, and claim-aware auditor. Keep the source-only result sealed before Jev/claim exposure; disclose candidate-localized scope. With zero writer candidates, run the auditor on a deterministic planned task and mark candidate-bound roles not applicable rather than inventing a candidate. Preserve every disagreement, abstention, incomplete result, identity, and unknown usage. No accuracy or calibration gate follows from agreement.
+2. **Resolve the imported MCP SDK contract with exact runtime evidence.** PR466's BASE already selected `hasattr(server, "http_app")`; HEAD only adds `stateless_http` and `json_response` kwargs to that existing branch. The target imports `mcp.server.fastmcp.FastMCP` while FastMCP major is below 4, so Prefect FastMCP tag signatures alone do not establish compatibility. The source-only tag and SDK evidence is recorded in [the PR466 SDK source audit](experiments/slopsearx-pr466-sdk-source-audit-2026-10-01.md). Bind the resolved package versions/artifact hashes, imported class, and immutable method/settings contract to an exact source/runtime identity. If this evidence is missing, preserve `UNKNOWN`; do not execute target code in the credentialed workflow or infer the whole range from sampled tags.
+3. **Diagnose the benign tests-context gap from the paired run.** Use run `36940468965`'s exact prepared request and retained bounded explanation. The raw report is unavailable, so do not assume the benign case used the same source window as v5 or change the adequacy rubric without a demonstrated evidence gap. Preserve the explicit partial reason unless the retained evidence supports a narrower conclusion.
+4. **Preserve the bounded secretless recovery evidence.** The pair at source `88b5b2a` completed: Run A `36944248422` was canceled after active readiness validation and Run B `36945104586` resumed with zero new requests, retaining one succeeded outcome and an interrupted-unknown result. See [the bounded recovery record](experiments/hosted-recovery-2026-10-01.md). Keep this exact source/scenario attribution; later diagnostic-only changes do not justify an identical drill rerun. This does not cover live-provider faults, hard termination, or service failure.
+5. **Continue operational qualification under existing authority.** Use the existing two configured providers only for the authorized public SlopSearX scope and fixed case limits. Keep model-teacher and Jev roles separate and advisory. Human labels are not a prerequisite for shadow operation or an owner risk decision, but their absence prevents quantified accuracy/calibration claims. A second public project can be prepared provider-free; any new target/provider/cutover remains separately governed.
+
+Source PRs may be merged by the coordinating root after all enabled checks pass at the exact reviewed head and independent review is clear, followed by merge and post-merge verification. This standing authority does not authorize target activation, App configuration, publication, releases, automatic target-PR merging, or Droid cutover.
+
+The sections below retain the earlier a098-era snapshot and its original evidence for history.
+
+## Prior plan snapshot — source cutoff a0988f2
 
 The harness is not accepted as a Droid replacement. Read-only shadow review remains the active use. No target code, hooks, or tests ran in the credentialed review workflow, and no review was published. Standing authority permits bounded tests of public SlopSearX changes through the two already configured providers under each frozen case's limits. It also permits the coordinating root to merge reviewed harness-source PRs after all enabled checks pass at the exact reviewed head and independent review is clear.
 
@@ -10,7 +26,7 @@ Human labels are unavailable. That does not block bounded read-only shadow opera
 
 Current-source paired workflow PR #189 merged at `a0988f2`; all ten post-merge jobs passed. Run `36937174118` returned two accepted blockers in each attack/benign case and an incomplete clean case. The next contract correction normalizes validated external strength/guidance fields to the engine's internal `detail` field, with an adapter-to-engine regression. Align coverage request constraints with strict validation and retain safe rejection reasons. Preserve the recorded partial outcomes; another versioned trial follows reviewed source changes. These observations are not measured accuracy or injection resistance.
 
-## Evidence at cutoff
+## Historical evidence at cutoff a0988f2
 
 The main-revision Harness verification run `36933733892` passed its enabled jobs on `19b802a`. This covers the exercised source, packaging, workflow, and safe-default behavior; it does not establish review quality or target deployment.
 
@@ -22,7 +38,7 @@ The v4 provider-free prepare admitted all 15 planned obligations in seven primar
 
 PR #188, the OpenAI-compatible request-options change, subsequently merged as `78434b7` with 23 enabled checks passing. Its post-merge run `36935074525` passed all ten jobs. This source change is not part of the v4 run. Preserve the default request bytes and frozen historical cases while validating explicit trusted request-format and token-parameter options. Do not treat endpoint compatibility as universal until exercised against the operator-configured endpoint.
 
-## Ranked work and exit conditions
+## Prior ranked work and exit conditions
 
 1. **Resolve the tests-lens partial with a bounded, versioned prompt/context correction.** The current v4 input included HEAD-bound test evidence, but the tests specialist still reported that evidence as insufficient for the documented stateless HTTP behavior. The closed v5 packet with profile v13 is prepared: fresh provider-free admission at source `a0988f2` succeeded with zero provider calls. Review whether it binds the implementation behavior to the right test evidence and asks an answerable adequacy question. Do not add more HEAD context unless a concrete evidence gap is demonstrated. Preserve existing limits and pass provider-free admission checks before one read-only case. Exit when the result either completes the obligation with evidence IDs resolving to exact HEAD objects or records a specific reason it remains partial. Do not special-case PR 466 or promote a partial result.
 

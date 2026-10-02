@@ -1,4 +1,20 @@
-# Current evidence status — 2026-10-01 (source cutoff `dd2ffe6`)
+# Current evidence status — 2026-10-01 (source cutoff `1626640`)
+
+Main at cutoff is `groktopus/codereview` `162664076d60d2cb5de70482833c7e6a6f7b5f47`, after PR191's native specialist-contract normalization and PR192's Jev input-classifier smoke. The post-merge Harness run `36943163156` passed all ten jobs. The classifier smoke `36943177033` completed two attempts with zero retries: attack was classified `SUSPICIOUS`, benign was `BENIGN`, and reported classifier identity matched `jev-1.13.0`; latency was 435.51 ms. Usage is unknown and probabilities were not present in the sanitized projection. This is a bounded classifier smoke, not injection-resistance or review-quality evidence.
+
+Paired synthetic run `36940468965` completed after the contract repair: attack was `COMPLETE / REQUEST_CHANGES` with three candidates; benign was `PARTIAL / REQUEST_CHANGES` with two candidates and a tests-context gap; clean was `COMPLETE` with zero candidates, while its sanitized disposition is `UNKNOWN` due to a comment-projection defect. There were zero quarantines. Provider-call and primary usage totals are unknown in the sanitized record. No finding-truth or injection-resistance conclusion follows. PR193 later fixed the deterministic disposition projection and passed focused verification; the earlier run remains `UNKNOWN` in its original artifact. The next behavioral check should use a new run at its own exact source identity.
+
+The target PR466 API question remains unresolved at the installed-runtime level. BASE already had the `http_app` presence check and legacy fallback; HEAD only added two kwargs to the existing branch. The target's `<4` branch imports `mcp.server.fastmcp.FastMCP`, so Prefect FastMCP release signatures are not sufficient evidence. Exact resolved `fastmcp`/`mcp` identities and the imported method/settings contract must be bound before claiming compatibility. No target execution was used to determine this.
+
+The harness remains experimental, with all 39 acceptance criteria, 12 NFRs, and six milestones in scope. Human labels are not a prerequisite for read-only shadow operation or an explicit owner risk decision; without them, accuracy and calibration claims remain unavailable. Model-teacher and Jev outputs remain distinct advisory observations. Publication, target App/configuration, target activation, release, and Droid cutover remain separate gates.
+
+PR193 merged the result-summary correction at `1626640` after 23 enabled checks and independent review passed. It preserves valid `COMMENT` dispositions, optional-note counts/hashes, known provider usage, and separate reservations/HTTP receipts; unknown billing has a null amount. The earlier clean case remains `UNKNOWN` in its original artifact and is not retrospectively relabeled.
+
+The secretless hosted recovery pair completed at earlier source `88b5b2a`: Run A `36944248422` was canceled after active readiness validation; Run B `36945104586` retained the prior success and the interrupted operation as unknown, with zero new requests. See [the bounded recovery record](experiments/hosted-recovery-2026-10-01.md). This is an orderly synthetic cancellation observation, not live-provider or universal crash-recovery evidence.
+
+The [complete requirement audit](COMPLETE-REQUIREMENT-AUDIT-2026-10-01.md) accounts for all 39 ACs, 12 NFRs, and six milestones. The [current execution plan](CURRENT-EXECUTION-PLAN.md) retains the remaining role-accounted review, context, cross-project, and deployment work.
+
+## Historical evidence status — 2026-10-01 (source cutoff `dd2ffe6`)
 
 The harness remains an experimental Droid-replacement candidate. All 39 acceptance criteria, 12 nonfunctional requirements, and six milestones remain in scope. The [current execution plan](CURRENT-EXECUTION-PLAN.md) governs next work; earlier snapshots below remain historical. Human labels are unavailable and are not a delivery prerequisite. Model-teacher and Jev observations must remain clearly distinguished from measured accuracy or calibrated approval.
 
