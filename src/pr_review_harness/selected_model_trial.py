@@ -1907,7 +1907,37 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
                 raw_refs_valid = False
             primary = primary_rows[0] if len(primary_rows) == 1 else None
             primary_refs = primary.get("evidence_refs") if isinstance(primary, dict) else []
-            if not isinstance(primary_refs, list) or len(primary_refs) > 100 or any(_bounded_id(ref) is None for ref in primary_refs):
+            deferred_reason = (
+                candidate_record.get("adjudication_reason_code")
+                if isinstance(candidate_record, dict)
+                and candidate_record.get("adjudication_state") == "DEFERRED"
+                else None
+            )
+            deferred_primary_without_refs = bool(
+                deferred_reason
+                in {
+                    "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED",
+                    "REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED",
+                }
+                and isinstance(primary, dict)
+                and set(primary) == {"outcome", "reason", "error_code", "reason_code"}
+                and primary.get("outcome") == "UNCERTAIN"
+                and primary.get("reason") == "BudgetExhausted"
+                and primary.get("error_code") == deferred_reason
+                and primary.get("reason_code") == deferred_reason
+                and isinstance(claim_row, dict)
+                and claim_row.get("status") == "NOT_RUN"
+                and claim_row.get("reason_code") == "PRIMARY_ASSESSMENT_UNAVAILABLE"
+                and "evidence_refs" not in primary
+            )
+            if deferred_primary_without_refs:
+                # The engine emits this exact typed partial when it reserves the
+                # required classifier slot. There was no primary payload to
+                # cite; preserve the blocker and unresolved state without
+                # treating a missing-ref model assessment as valid evidence.
+                primary_refs = []
+                primary_refs_valid = True
+            elif not isinstance(primary_refs, list) or len(primary_refs) > 100 or any(_bounded_id(ref) is None for ref in primary_refs):
                 primary_refs = []
                 primary_refs_valid = False
             else:
