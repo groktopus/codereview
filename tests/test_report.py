@@ -75,6 +75,19 @@ def test_partial_report_renders_native_lowercase_reason_for_bound_changed_unit()
     ) in rendered
 
 
+@pytest.mark.parametrize("reason", ["a" * 129, "é" * 128])
+def test_partial_report_renders_contract_valid_long_coverage_reason(reason):
+    rendered = render_report(result_with_coverage_reason(reason))
+
+    assert f"Specialist reported partial coverage: {reason}." in rendered
+
+
+def test_partial_report_omits_over_contract_size_coverage_reason():
+    rendered = render_report(result_with_coverage_reason("é" * 129))
+
+    assert "Specialist reported partial coverage" not in rendered
+
+
 def test_report_escapes_native_reason_text_and_rejects_unbound_reason():
     untrusted = render_report(result_with_coverage_reason("leak: key=abc [click](https://attacker.invalid)"))
     unbound = render_report(result_with_coverage_reason("NO_TEST_SOURCE_SUPPLIED", references=["not-dispatched"]))

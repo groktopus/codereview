@@ -293,7 +293,6 @@ def _specialist_partial_reasons(row: dict, task_results: Any) -> list[str]:
                 and all(isinstance(ref, str) and ref in dispatched_ids for ref in refs)
                 and isinstance(reason, str)
                 and reason.strip()
-                and len(reason) <= 128
             ):
                 try:
                     if len(reason.encode("utf-8")) <= 256:
