@@ -1,0 +1,402 @@
+name: PR-457 role-accounted shadow review
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_live:
+        description: Run the bounded read-only PR-457 review after fresh provider-free preflight
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr457-role-accounted-shadow
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the trusted runner at this dispatch revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: groktopus/codereview
+          ref: ${{ github.sha }}
+          path: trusted-runner
+          persist-credentials: false
+
+      - name: Verify fixed repository, manual trigger, branch, and runner SHA
+        working-directory: trusted-runner
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          expected = os.environ.get("EXPECTED_SHA", "")
+          if (os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview"
+                  or os.environ.get("GITHUB_REF") != "refs/heads/main"
+                  or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+                  or os.environ.get("GITHUB_WORKFLOW_REF") !=
+                  "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
+                  or not re.fullmatch(r"[0-9a-f]{40}", expected)):
+              raise SystemExit("trusted_dispatch_context_invalid")
+          result = subprocess.run(["git", "rev-parse", "HEAD"], check=False,
+                                  capture_output=True, text=True, timeout=10)
+          if result.returncode or result.stdout.strip() != expected:
+              raise SystemExit("trusted_runner_revision_mismatch")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Build and install the exact current harness wheel
+        id: runtime
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'build>=1.2,<2'
+          mkdir -m 700 -p "$RUNNER_TEMP/pr457-wheelhouse"
+          python -m build --wheel --outdir "$RUNNER_TEMP/pr457-wheelhouse" . >/dev/null
+          python - "$RUNNER_TEMP/pr457-wheelhouse" <<'PY'
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          wheels = list(Path(sys.argv[1]).glob("*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit("runtime_wheel_count_invalid")
+          result = subprocess.run([sys.executable, "-m", "pip", "install", str(wheels[0])],
+                                  check=False, timeout=180, capture_output=True, text=True)
+          if result.returncode:
+              raise SystemExit("runtime_wheel_install_failed")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+              stream.write(f"wheel={wheels[0]}\n")
+          PY
+
+      - name: Fetch the fixed SlopSearX commits as data only
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+
+          workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
+          target = workspace / "target-repo"
+          if target.exists() or target.is_symlink():
+              raise SystemExit("fixed_target_path_not_new")
+          target.mkdir(mode=0o700)
+          env = dict(os.environ)
+          env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_TERMINAL_PROMPT": "0"})
+          commands = [
+              ["git", "init", "--quiet", str(target)],
+              ["git", "-C", str(target), "-c", "core.hooksPath=/dev/null", "fetch", "--no-tags",
+               "--depth=1", "--no-recurse-submodules", "https://github.com/magnus919/SlopSearX.git",
+               "595f143607961d21d162efe76518d86e416d2548", "53dbafd9207eed175228c594058af85ed8e9bd0e"],
+              ["git", "-C", str(target), "-c", "core.hooksPath=/dev/null", "checkout", "--quiet", "--detach",
+               "595f143607961d21d162efe76518d86e416d2548"],
+          ]
+          for index, command in enumerate(commands):
+              result = subprocess.run(command, check=False, capture_output=True, text=True,
+                                      timeout=120 if index == 1 else 15, env=env)
+              if result.returncode:
+                  raise SystemExit("fixed_target_object_fetch_failed")
+          PY
+
+      - name: Verify the exact target objects without executing target code
+        working-directory: target-repo
+        run: |
+          python3 - <<'PY'
+          import subprocess
+
+          expected = "595f143607961d21d162efe76518d86e416d2548"
+          head = subprocess.run(["git", "rev-parse", "HEAD"], check=False,
+                                capture_output=True, text=True, timeout=10)
+          base = subprocess.run(["git", "cat-file", "-e",
+                                 "53dbafd9207eed175228c594058af85ed8e9bd0e^{commit}"],
+                                check=False, timeout=10)
+          if head.returncode or head.stdout.strip() != expected or base.returncode:
+              raise SystemExit("fixed_target_revision_mismatch")
+          PY
+
+      - name: Create private provider-free preparation paths
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import os
+          import stat
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          info = root.lstat()
+          if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid():
+              raise SystemExit("runner_temp_owner_or_type_invalid")
+          os.chmod(root, 0o700)
+          if stat.S_IMODE(root.stat().st_mode) != 0o700:
+              raise SystemExit("runner_temp_permissions_invalid")
+          PY
+          mkdir -m 700 "$RUNNER_TEMP/pr457-prepare-output" "$RUNNER_TEMP/pr457-private"
+
+      - name: Record hash-only installed runtime identity
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          WHEEL_PATH: ${{ steps.runtime.outputs.wheel }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          import re
+          import stat
+          from pathlib import Path
+
+          temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          wheel = Path(os.environ["WHEEL_PATH"]).resolve(strict=True)
+          expected_dir = (temp / "pr457-wheelhouse").resolve(strict=True)
+          info = wheel.stat()
+          source_sha = os.environ.get("SOURCE_SHA", "")
+          if (wheel.parent != expected_dir or not stat.S_ISREG(info.st_mode)
+                  or not 0 < info.st_size <= 50_000_000
+                  or not re.fullmatch(r"[0-9a-f]{40}", source_sha)):
+              raise SystemExit("runtime_identity_input_invalid")
+          digest = hashlib.sha256()
+          with wheel.open("rb") as stream:
+              for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          manifest = {
+              "schema": "pr457-installed-runtime-identity.v1",
+              "source_sha": source_sha,
+              "wheel_sha256": digest.hexdigest(),
+              "python_implementation": platform.python_implementation(),
+              "python_version": platform.python_version(),
+          }
+          output = temp / "pr457-private" / "runtime-identity.json"
+          with output.open("x", encoding="utf-8") as stream:
+              json.dump(manifest, stream, sort_keys=True, separators=(",", ":"))
+              stream.write("\n")
+          os.chmod(output, 0o600)
+          PY
+
+      - name: Prepare the exact PR-457 requests without credentials or provider calls
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          pr-review review \
+            --repo "$GITHUB_WORKSPACE/target-repo" \
+            --base 53dbafd9207eed175228c594058af85ed8e9bd0e \
+            --head 595f143607961d21d162efe76518d86e416d2548 \
+            --profile "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/profiles/PR-457.json" \
+            --historical-checks-json "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/checks/PR-457.json" \
+            --limits "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-limits-v1.json" \
+            --provider-config "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-provider-v1.json" \
+            --mode AUTO --effect-policy READ_ONLY --max-claim-assessments 0 \
+            --private-shadow-preflight-case-id PR-457 \
+            --run-id "prepare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output "$RUNNER_TEMP/pr457-prepare-output" --prepare-only --json \
+            > "$RUNNER_TEMP/pr457-private/prepared.json" 2>/dev/null
+          python3 scripts/prepare_pr457_current_source_capture.py \
+            --prepared "$RUNNER_TEMP/pr457-private/prepared.json" \
+            --output-dir "$RUNNER_TEMP" --source-sha "$GITHUB_SHA" \
+            > "$RUNNER_TEMP/pr457-private/prepare-observation.json"
+
+      - name: Upload only the hash-only provider-free preparation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr457-shadow-prepare-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/pr457-current-source-plan.json
+            ${{ runner.temp }}/pr457-current-source-receipt.json
+            ${{ runner.temp }}/pr457-private/prepare-observation.json
+            ${{ runner.temp }}/pr457-private/runtime-identity.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Materialize the fixed writer provider config
+        if: inputs.run_live == true
+        working-directory: trusted-runner
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 scripts/build_model_only_shadow_writer_provider_config.py \
+            --plan experiments/model-only-shadow-live-pr457-plan-v3.json \
+            --output-dir "$RUNNER_TEMP/pr457-private/writer-config" > /dev/null
+
+      - name: Run the bounded read-only PR-457 writer
+        id: writer
+        if: inputs.run_live == true
+        working-directory: trusted-runner
+        env:
+          PR_REVIEW_TRUSTED_PRIVATE_CAPTURE: '1'
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -m 700 "$RUNNER_TEMP/pr457-private/writer-output" "$RUNNER_TEMP/pr457-private/writer-capture"
+          PR457_CURRENT_SOURCE_RUNTIME=1 pr-review review \
+            --repo "$GITHUB_WORKSPACE/target-repo" \
+            --base 53dbafd9207eed175228c594058af85ed8e9bd0e \
+            --head 595f143607961d21d162efe76518d86e416d2548 \
+            --profile "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/profiles/PR-457.json" \
+            --historical-checks-json "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/checks/PR-457.json" \
+            --limits "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-limits-v1.json" \
+            --provider-config "$RUNNER_TEMP/pr457-private/writer-config/provider.json" \
+            --mode AUTO --effect-policy READ_ONLY --max-claim-assessments 0 \
+            --run-id "writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output "$RUNNER_TEMP/pr457-private/writer-output" \
+            --private-shadow-capture "$RUNNER_TEMP/pr457-private/writer-capture" \
+            --private-shadow-case-id PR-457 \
+            --private-shadow-plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
+            --private-shadow-preflight-receipt "$RUNNER_TEMP/pr457-current-source-receipt.json" \
+            --private-shadow-current-source-plan \
+            --json > "$RUNNER_TEMP/pr457-private/writer-result.json" 2>/dev/null
+
+      - name: Sanitize writer capture accounting
+        id: writer-sanitize
+        if: inputs.run_live == true && steps.writer.outcome == 'success'
+        working-directory: trusted-runner
+        env:
+          PR457_CURRENT_SOURCE_RUNTIME: '1'
+        run: |
+          set -euo pipefail
+          python3 scripts/sanitize_model_only_shadow_writer_receipt.py \
+            --capture-root "$RUNNER_TEMP/pr457-private/writer-capture" \
+            --plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
+            --preflight "$RUNNER_TEMP/pr457-current-source-receipt.json" \
+            --current-source \
+            --output-dir "$RUNNER_TEMP/pr457-private/writer-sanitized" > /dev/null
+          python3 scripts/sanitize_model_only_shadow_reconciliation.py \
+            --result "$RUNNER_TEMP/pr457-private/writer-result.json" \
+            --capture-root "$RUNNER_TEMP/pr457-private/writer-capture" \
+            --plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
+            --preflight "$RUNNER_TEMP/pr457-current-source-receipt.json" \
+            --current-source \
+            --writer-receipt "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-receipt.json" \
+            --writer-outcomes "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-outcomes.json" \
+            --output "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-reconciliation.json" > /dev/null
+
+      - name: Check candidate count from sanitized reconciliation
+        id: candidate-count
+        if: inputs.run_live == true && steps.writer-sanitize.outcome == 'success'
+        run: |
+          python3 - "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-reconciliation.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          value = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          count = value.get("packet_candidate_count_total")
+          if type(count) is not int or not 0 <= count <= 120:
+              raise SystemExit("writer_candidate_count_invalid")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+              stream.write(f"count={count}\n")
+          PY
+
+      - name: Materialize bounded audit provider configs
+        if: inputs.run_live == true && steps.candidate-count.outputs.count != '0'
+        working-directory: trusted-runner
+        env:
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+          JEV_MODEL: ${{ secrets.JEV_MODEL }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 scripts/provider_config_from_env.py \
+            --output-dir "$RUNNER_TEMP/pr457-private/audit-config" --json > /dev/null
+
+      - name: Run the current-source role-accounted audit
+        id: audit
+        if: inputs.run_live == true && steps.candidate-count.outputs.count != ''
+        working-directory: trusted-runner
+        env:
+          PR457_CURRENT_SOURCE_RUNTIME: '1'
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          JEV_API_KEY: ${{ steps.candidate-count.outputs.count != '0' && secrets.JEV_API_KEY || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/pr457-private/audit-receipt"
+          AUDIT_ARGS=()
+          if [[ "${{ steps.candidate-count.outputs.count }}" != "0" ]]; then
+            AUDIT_ARGS+=(--jev-config "$RUNNER_TEMP/pr457-private/audit-config/decision.json")
+          fi
+          python3 scripts/run_model_only_shadow_audit.py \
+            --capture-root "$RUNNER_TEMP/pr457-private/writer-capture" \
+            --provider-config "$RUNNER_TEMP/pr457-private/writer-config/provider.json" \
+            "${AUDIT_ARGS[@]}" \
+            --plan experiments/model-only-shadow-live-pr457-plan-v3.json \
+            --limits experiments/model-only-shadow-audit-limits-v3.json \
+            --current-source-plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
+            --output-root "$RUNNER_TEMP/pr457-private/audit-output" \
+            --receipt "$RUNNER_TEMP/pr457-private/audit-receipt/shadow-audit-receipt.json" \
+            --live > /dev/null
+
+      - name: Sanitize the role receipt
+        id: audit-sanitize
+        if: inputs.run_live == true && steps.audit.outcome == 'success'
+        working-directory: trusted-runner
+        run: |
+          set -euo pipefail
+          python3 scripts/sanitize_model_only_shadow_audit_receipt.py \
+            --input "$RUNNER_TEMP/pr457-private/audit-receipt/shadow-audit-receipt.json" \
+            --output-dir "$RUNNER_TEMP/pr457-private/audit-sanitized" > /dev/null
+
+      - name: Upload only sanitized writer and role receipts
+        if: inputs.run_live == true && steps.audit-sanitize.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr457-shadow-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/pr457-private/writer-sanitized/writer-receipt.json
+            ${{ runner.temp }}/pr457-private/writer-sanitized/writer-outcomes.json
+            ${{ runner.temp }}/pr457-private/writer-sanitized/writer-reconciliation.json
+            ${{ runner.temp }}/pr457-private/audit-sanitized/shadow-audit-receipt.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove private request, response, capture, and provider configuration data
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          for name in ("pr457-prepare-output", "pr457-private"):
+              target = root / name
+              if target.exists() and not target.is_symlink() and target.parent == root:
+                  shutil.rmtree(target)
+          for name in ("pr457-current-source-plan.json", "pr457-current-source-receipt.json"):
+              target = root / name
+              if target.is_file() and not target.is_symlink() and target.parent == root:
+                  target.unlink()
+          PY

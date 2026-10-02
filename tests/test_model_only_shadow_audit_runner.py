@@ -43,6 +43,33 @@ CASE_IDENTITY = {
 AUDIT_ROLES = ("source_auditor", "jev", "claim_auditor")
 
 
+@pytest.mark.parametrize("occupied_kind", ["file", "dangling_symlink"])
+def test_existing_final_receipt_blocks_before_capture_or_provider_setup(tmp_path, monkeypatch, occupied_kind):
+    receipt = tmp_path / "receipt.json"
+    original = b"preserve-existing-receipt\n"
+    if occupied_kind == "file":
+        receipt.write_bytes(original)
+    else:
+        receipt.symlink_to(tmp_path / "missing-target.json")
+
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("provider or audit setup must not run")
+
+    monkeypatch.setattr(RUNNER, "_packet_candidates", unexpected)
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", unexpected)
+    monkeypatch.setattr(RUNNER, "run_shadow_audit", unexpected)
+    with pytest.raises(ValueError, match="receipt_already_exists"):
+        RUNNER.run(
+            tmp_path / "missing-capture", tmp_path / "missing-provider.json", None,
+            tmp_path / "private-output", receipt,
+        )
+    if occupied_kind == "file":
+        assert receipt.read_bytes() == original
+    else:
+        assert receipt.is_symlink()
+        assert not receipt.exists()
+
+
 def _receipt_dispatch_fields(accounting):
     return {
         "audit_provider_calls": sum(row["dispatched"] for row in accounting.values()),
@@ -990,3 +1017,142 @@ def test_completed_sanitized_receipt_cannot_include_unconfirmed_role_call():
     receipt["audit_provider_calls"] = 2
     with pytest.raises(SANITIZER.ReceiptError, match="terminal_role_accounting_mismatch"):
         SANITIZER._valid(receipt)
+
+
+def _pr457_test_plan(task_ids: list[str]) -> dict:
+    value = _plan(task_ids)
+    value["case"]["case_id"] = "PR-457"
+    value["budget"].update({
+        "audit_max_input_bytes_per_call": 96_000,
+        "audit_max_provider_calls": 3,
+        "audit_max_retries": 0,
+        "audit_max_deadline_seconds_per_call": 90,
+        "audit_max_response_bytes_per_call": 64_000,
+        "audit_max_output_tokens_per_llm_call": 1_800,
+        "total_provider_deadline_seconds_max": 870,
+    })
+    return value
+
+
+def _write_audit_configs(tmp_path: Path, *, with_jev: bool) -> tuple[Path, Path | None]:
+    provider = tmp_path / "provider.json"
+    provider.write_text(json.dumps({
+        "kind": "openai_compatible", "base_url": RUNNER.EXPECTED_LLM[0],
+        "model": RUNNER.EXPECTED_LLM[1], "api_key_env": "LLM_API_KEY",
+    }))
+    if not with_jev:
+        return provider, None
+    jev = tmp_path / "jev.json"
+    jev.write_text(json.dumps({
+        "kind": "typesafe", "endpoint": RUNNER.EXPECTED_JEV[0],
+        "model": RUNNER.EXPECTED_JEV[1], "api_key_env": "JEV_API_KEY",
+    }))
+    return provider, jev
+
+
+def _bind_pr457_runner(monkeypatch, audit_rows: dict[str, bytes]) -> None:
+    policy = {**RUNNER.CASE_POLICY["PR-464"], "profile_sha256": _PROFILE_FILE_SHA256}
+    monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-457", policy))
+    monkeypatch.setattr(RUNNER, "validate_plan_binding", lambda _plan, _raw: ("PR-457", policy))
+    monkeypatch.setattr(RUNNER, "_load_current_source_plan", lambda _path: {
+        "case_id": "PR-457", "source_audit_requests": {
+            task_id: {"task_id": task_id, "input_bytes": len(raw),
+                      "input_sha256": hashlib.sha256(raw).hexdigest()}
+            for task_id, raw in audit_rows.items()
+        },
+        "audit_max_input_bytes_per_call": 96_000,
+    })
+
+
+def test_current_source_zero_candidate_selects_first_plan_task_and_dispatches_source_only(tmp_path, monkeypatch):
+    root = _capture(tmp_path / "capture", [
+        _packet("PR-457", None, "task-second"), _packet("PR-457", None, "task-first"),
+    ])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_pr457_test_plan(["task-first", "task-second"])))
+    provider, jev = _write_audit_configs(tmp_path, with_jev=False)
+    receipt_path = tmp_path / "receipt" / "audit.json"
+    current_plan = tmp_path / "pr457-current-source-plan.json"
+    current_plan.write_text("{}")
+    pinned_request = b"current-source-audit-request"
+    _bind_pr457_runner(monkeypatch, {"task-first": pinned_request, "task-second": b"unused"})
+
+    class FakeProvider:
+        def __init__(self, config):
+            self.identity = {"provider_id": "operator_openai_compatible", "model_id": config["model"]}
+
+    class FakeDispatchGuard:
+        def __init__(self, _limits):
+            pass
+
+        def check(self, role, raw):
+            assert role == "source_auditor"
+            assert raw == pinned_request
+
+    observed = {}
+
+    def fake_source_audit(packet, *, source_provider, jev_transport, claim_provider, limits,
+                          output_dir, before_dispatch, on_source_http_attempt=None):
+        observed["task_id"] = packet["source_task"]["task_id"]
+        observed["same_provider"] = source_provider is claim_provider
+        observed["jev_transport"] = jev_transport
+        before_dispatch("source_auditor", pinned_request)
+        if on_source_http_attempt:
+            on_source_http_attempt()
+        return {"manifest": {"roles": {
+            "source_auditor": {"status": "completed", "calls": [{
+                "dispatch_state": "http_attempted",
+                "request_sha256": hashlib.sha256(pinned_request).hexdigest(),
+            }]}, "jev": {"status": "not_run", "calls": []},
+            "claim_auditor": {"status": "not_run", "calls": []}}, "terminal_state": "missing_writer_candidate"}}
+
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", FakeProvider)
+    monkeypatch.setattr(RUNNER, "AuditDispatchGuard", FakeDispatchGuard)
+    monkeypatch.setattr(RUNNER, "run_shadow_audit", fake_source_audit)
+    monkeypatch.setattr(RUNNER.ClaimTransport, "from_decision_config",
+                        lambda _config: (_ for _ in ()).throw(AssertionError("Jev is N/A without a candidate")))
+
+    result = RUNNER.run(root, provider, jev, tmp_path / "private-output", receipt_path,
+                        plan, RUNNER.DEFAULT_LIMITS, current_source_plan_path=current_plan)
+
+    assert observed["task_id"] == "task-first"
+    assert observed["same_provider"] is True
+    assert callable(observed["jev_transport"])
+    assert result["terminal_state"] == "incomplete"
+    assert result["reason"] == "no_writer_candidate"
+    assert result["roles"] == {"source_auditor": "completed", "jev": "not_run", "claim_auditor": "not_run"}
+    assert result["role_dispatched_call_counts"]["source_auditor"] == 1
+    assert result["role_dispatched_call_counts"]["jev"] == 0
+    assert result["role_dispatched_call_counts"]["claim_auditor"] == 0
+
+
+def test_current_source_candidate_path_rejects_changed_source_request_before_transport(tmp_path, monkeypatch):
+    root = _capture(tmp_path / "capture", [_packet("PR-457", "candidate-a", "task-first")])
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_pr457_test_plan(["task-first"])))
+    provider, jev = _write_audit_configs(tmp_path, with_jev=True)
+    receipt_path = tmp_path / "receipt" / "audit.json"
+    current_plan = tmp_path / "pr457-current-source-plan.json"
+    current_plan.write_text("{}")
+    _bind_pr457_runner(monkeypatch, {"task-first": b"pinned-source-request"})
+
+    class FakeProvider:
+        def __init__(self, config):
+            self.identity = {"provider_id": "operator_openai_compatible", "model_id": config["model"]}
+
+    def fake_source_audit(packet, *, before_dispatch, **kwargs):
+        assert packet["writer_candidate"]["candidate_id"] == "candidate-a"
+        before_dispatch("source_auditor", b"different-request")
+        raise AssertionError("request mismatch must block before transport")
+
+    monkeypatch.setattr(RUNNER, "OpenAIProvider", FakeProvider)
+    monkeypatch.setattr(RUNNER, "run_shadow_audit", fake_source_audit)
+    monkeypatch.setattr(RUNNER.ClaimTransport, "from_decision_config", lambda _config: lambda *_args: b"")
+
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(root, provider, jev, tmp_path / "private-output", receipt_path,
+                   plan, RUNNER.DEFAULT_LIMITS, current_source_plan_path=current_plan)
+    assert error.value.stage == "audit_validation"
+    assert error.value.code == "audit_input_invalid"
+    assert not (tmp_path / "private-output").exists()
+    assert json.loads(receipt_path.read_text())["audit_provider_calls"] == 0

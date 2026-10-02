@@ -20,7 +20,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-sys.path.insert(0, str(ROOT / "src"))
+if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
+    sys.path.insert(0, str(ROOT / "src"))
 from shadow_case_policy import case_for_plan_path, validate_plan_binding  # noqa: E402
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -270,7 +271,42 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
     return outcomes, diagnostics
 
 
-def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_dir: Path) -> dict[str, Any]:
+def _current_source_plan(plan: dict[str, Any], preflight: dict[str, Any], plan_path: Path,
+                         preflight_path: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    try:
+        from pr_review_harness.current_source_capture import installed_module_inventory, validate_plan
+        module = __import__("pr_review_harness.current_source_capture", fromlist=["__file__"])
+        module_path = Path(module.__file__).resolve()
+        if module_path.is_relative_to((ROOT / "src").resolve()):
+            raise ValueError("installed_runtime_required")
+        if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+            runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+            if (plan_path.absolute() != runner_temp / "pr457-current-source-plan.json"
+                    or preflight_path.absolute() != runner_temp / "pr457-current-source-receipt.json"
+                    or os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview"
+                    or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+                    or os.environ.get("GITHUB_REF") != "refs/heads/main"
+                    or os.environ.get("GITHUB_WORKFLOW_REF") != (
+                        "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
+                    )):
+                raise ValueError("current_source_context_invalid")
+        writer_pins, snapshot = validate_plan(
+            plan, preflight, source_sha=os.environ.get("GITHUB_SHA", ""),
+            module_inventory=installed_module_inventory(),
+        )
+    except (OSError, KeyError, TypeError, ValueError, RecursionError):
+        raise ReceiptError("current_source_plan_invalid") from None
+    target = plan.get("target")
+    if not isinstance(target, dict):
+        raise ReceiptError("current_source_plan_invalid")
+    projected_case = {"case_id": "PR-457", "snapshot_id": target.get("snapshot_id"),
+                      "snapshot_sha256": target.get("snapshot_sha256")}
+    projected_plan = {"case": projected_case, "writer_requests": list(writer_pins.values())}
+    return projected_plan, {"writer_calls": 6}, snapshot
+
+
+def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_dir: Path, *,
+             current_source: bool = False) -> dict[str, Any]:
     runner_temp_value = os.environ.get("RUNNER_TEMP")
     if not runner_temp_value:
         raise ReceiptError("runner_temp_unavailable")
@@ -289,32 +325,44 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     plan, plan_bytes = _read_json(plan_path, 128_000)
     preflight, _preflight_bytes = _read_json(preflight_path, 16_384)
     plan_hash = hashlib.sha256(plan_bytes).hexdigest()
-    try:
-        case_id, case_policy = case_for_plan_path(plan_path, ROOT)
-        validated_case_id, _ = validate_plan_binding(plan, plan_bytes)
-    except ValueError:
-        raise ReceiptError("plan_hash_mismatch") from None
-    if plan_hash != case_policy["plan_sha256"] or validated_case_id != case_id:
-        raise ReceiptError("plan_hash_mismatch")
-    case = plan.get("case")
-    budget = plan.get("budget")
-    requests = plan.get("writer_requests")
-    if (
-        plan.get("schema") != case_policy["plan_schema"]
-        or not isinstance(case, dict) or case.get("case_id") != case_id
-        or not isinstance(budget, dict) or budget.get("writer_exact_call_count") != case_policy["writer_calls"]
-        or budget.get("writer_max_retries_per_task") != 0
-        or not isinstance(requests, list) or len(requests) != case_policy["writer_calls"]
-        or preflight.get("schema") != "model-only-shadow-live-preflight-receipt.v1"
-        or preflight.get("status") != "PLAN_MATCHED_PROVIDER_FREE"
-        or preflight.get("plan_sha256") != plan_hash
-        or preflight.get("case_id") != case.get("case_id")
-        or preflight.get("snapshot_sha256") != case.get("snapshot_sha256")
-        or preflight.get("provider_calls") != 0
-        or preflight.get("target_code_execution") is not False
-        or preflight.get("publication_enabled") is not False
-    ):
-        raise ReceiptError("preflight_binding_invalid")
+    if current_source:
+        projection_plan, case_policy, current_snapshot = _current_source_plan(
+            plan, preflight, plan_path, preflight_path,
+        )
+        case = projection_plan["case"]
+        requests = projection_plan["writer_requests"]
+        case_id = "PR-457"
+        if (current_snapshot.get("case_id") != case_id
+                or current_snapshot.get("snapshot_id") != case.get("snapshot_id")
+                or current_snapshot.get("snapshot_sha256") != case.get("snapshot_sha256")):
+            raise ReceiptError("current_source_plan_invalid")
+    else:
+        try:
+            case_id, case_policy = case_for_plan_path(plan_path, ROOT)
+            validated_case_id, _ = validate_plan_binding(plan, plan_bytes)
+        except ValueError:
+            raise ReceiptError("plan_hash_mismatch") from None
+        if plan_hash != case_policy["plan_sha256"] or validated_case_id != case_id:
+            raise ReceiptError("plan_hash_mismatch")
+        case = plan.get("case")
+        budget = plan.get("budget")
+        requests = plan.get("writer_requests")
+        if (
+            plan.get("schema") != case_policy["plan_schema"]
+            or not isinstance(case, dict) or case.get("case_id") != case_id
+            or not isinstance(budget, dict) or budget.get("writer_exact_call_count") != case_policy["writer_calls"]
+            or budget.get("writer_max_retries_per_task") != 0
+            or not isinstance(requests, list) or len(requests) != case_policy["writer_calls"]
+            or preflight.get("schema") != "model-only-shadow-live-preflight-receipt.v1"
+            or preflight.get("status") != "PLAN_MATCHED_PROVIDER_FREE"
+            or preflight.get("plan_sha256") != plan_hash
+            or preflight.get("case_id") != case.get("case_id")
+            or preflight.get("snapshot_sha256") != case.get("snapshot_sha256")
+            or preflight.get("provider_calls") != 0
+            or preflight.get("target_code_execution") is not False
+            or preflight.get("publication_enabled") is not False
+        ):
+            raise ReceiptError("preflight_binding_invalid")
     expected = {}
     for row in requests:
         if (not isinstance(row, dict) or not isinstance(row.get("task_id"), str)
@@ -467,9 +515,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--preflight", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--current-source", action="store_true",
+                        help="validate the closed per-run PR-457 plan and receipt")
     args = parser.parse_args(argv)
     try:
-        sanitize(args.capture_root, args.plan, args.preflight, args.output_dir)
+        sanitize(args.capture_root, args.plan, args.preflight, args.output_dir,
+                 current_source=args.current_source)
     except (OSError, ReceiptError) as exc:
         code = str(exc) if isinstance(exc, ReceiptError) else "input_unavailable"
         print(json.dumps({"ok": False, "error_code": code}, separators=(",", ":")), file=sys.stderr)

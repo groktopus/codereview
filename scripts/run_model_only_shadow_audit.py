@@ -20,7 +20,11 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-sys.path.insert(0, str(ROOT / "src"))
+# The current-source workflow installs the exact wheel built from its trusted
+# dispatch revision. Keep its installed package authoritative; legacy frozen
+# workflows retain their historical source-tree import behavior.
+if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
+    sys.path.insert(0, str(ROOT / "src"))
 
 import source_dispatch_accounting  # noqa: E402
 from shadow_case_policy import CASE_POLICY, case_for_plan_path, validate_plan_binding  # noqa: E402
@@ -246,14 +250,72 @@ def _validate_plan_budget(plan_budget: dict[str, int], limits: dict[str, Any]) -
 
 
 def _validate_provider_identity(provider: dict[str, Any], jev: dict[str, Any]) -> None:
+    _validate_llm_identity(provider)
+    _validate_jev_identity(jev)
+
+
+def _validate_llm_identity(provider: dict[str, Any]) -> None:
     if (provider.get("kind") != "openai_compatible"
             or (provider.get("base_url"), provider.get("model")) != EXPECTED_LLM
             or provider.get("api_key_env") != "LLM_API_KEY"):
         raise ValueError("llm_identity_mismatch")
+
+
+def _validate_jev_identity(jev: dict[str, Any]) -> None:
     if (jev.get("kind") != "typesafe"
             or (jev.get("endpoint"), jev.get("model")) != EXPECTED_JEV
             or jev.get("api_key_env") != "JEV_API_KEY"):
         raise ValueError("jev_identity_mismatch")
+
+
+def _load_current_source_plan(path: Path) -> dict[str, Any]:
+    """Validate the closed PR-457 request pins against the installed runtime."""
+    try:
+        from pr_review_harness.current_source_capture import (
+            installed_module_inventory,
+            validate_plan,
+        )
+        module_path = Path(__import__("pr_review_harness.current_source_capture", fromlist=["__file__"]).__file__).resolve()
+        if module_path.is_relative_to((ROOT / "src").resolve()):
+            raise ValueError("installed_runtime_required")
+        plan_path = path.absolute()
+        if plan_path.name != "pr457-current-source-plan.json":
+            raise ValueError("current_source_plan_path_invalid")
+        if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+            runner_temp = Path(os.environ.get("RUNNER_TEMP", "")).resolve(strict=True)
+            expected = runner_temp / "pr457-current-source-plan.json"
+            if (os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview"
+                    or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+                    or os.environ.get("GITHUB_REF") != "refs/heads/main"
+                    or os.environ.get("GITHUB_WORKFLOW_REF") != (
+                        "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
+                    )
+                    or plan_path != expected):
+                raise ValueError("current_source_workflow_context_invalid")
+        receipt_path = plan_path.with_name("pr457-current-source-receipt.json")
+        plan, _plan_raw = _read_json(plan_path, 256_000)
+        receipt, _receipt_raw = _read_json(receipt_path, 64_000)
+        _writer_pins, audit_snapshot = validate_plan(
+            plan, receipt, source_sha=os.environ.get("GITHUB_SHA", ""),
+            module_inventory=installed_module_inventory(),
+        )
+        return audit_snapshot
+    except (OSError, TypeError, ValueError, RecursionError):
+        raise ValueError("current_source_plan_invalid") from None
+
+
+def _check_source_request_pin(snapshot: dict[str, Any] | None, packet: dict[str, Any], request: bytes) -> None:
+    if snapshot is None:
+        return
+    task = packet.get("source_task")
+    task_id = task.get("task_id") if isinstance(task, dict) else None
+    pins = snapshot.get("source_audit_requests")
+    pin = pins.get(task_id) if isinstance(pins, dict) and isinstance(task_id, str) else None
+    digest = hashlib.sha256(request).hexdigest()
+    if (not isinstance(pin, dict) or pin.get("task_id") != task_id
+            or pin.get("input_bytes") != len(request) or pin.get("input_sha256") != digest
+            or len(request) > snapshot.get("audit_max_input_bytes_per_call", 0)):
+        raise ProviderError("current_source_request_pin_mismatch")
 
 
 def _predispatch_failure(receipt_path: Path, case_id: str, stage: str, code: str) -> PreDispatchFailure:
@@ -364,11 +426,17 @@ def _task_order(plan_path: Path, packets: list[tuple[str, Path, dict[str, Any], 
     return ordered
 
 
-def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
+def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path | None,
         output_root: Path, receipt_path: Path, plan_path: Path = DEFAULT_PLAN,
         limits_path: Path = DEFAULT_LIMITS, *, source_only_no_candidate: bool = False,
         selection_receipt_path: Path | None = None,
-        source_dispatch_receipt_path: Path | None = None) -> dict[str, Any]:
+        source_dispatch_receipt_path: Path | None = None,
+        current_source_plan_path: Path | None = None) -> dict[str, Any]:
+    # Do not perform any validation that might later dispatch providers when
+    # the caller's final receipt path is already occupied.  _write_receipt
+    # also uses an exclusive create so a later collision cannot overwrite it.
+    if receipt_path.exists() or receipt_path.is_symlink():
+        raise ValueError("receipt_already_exists")
     try:
         selected_case_id, _selected_policy = case_for_plan_path(plan_path, ROOT)
     except ValueError:
@@ -381,6 +449,14 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         packets, plan_budget = _task_order(plan_path, packets, manifest, include_budget=True)
     except (OSError, TypeError, ValueError, RecursionError):
         raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid") from None
+    current_source_snapshot = None
+    if current_source_plan_path is not None:
+        if selected_case_id != "PR-457":
+            raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid")
+        try:
+            current_source_snapshot = _load_current_source_plan(current_source_plan_path)
+        except (OSError, TypeError, ValueError, RecursionError):
+            raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid") from None
     try:
         limits = _load_limits(limits_path)
     except (OSError, ValueError, RecursionError):
@@ -391,9 +467,11 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
         raise _predispatch_failure(receipt_path, selected_case_id, "budget_validation", "audit_budget_exceeded") from None
     capture_hash = hashlib.sha256(manifest_raw).hexdigest()
     candidates = [row for row in packets if row[0]]
+    current_source_no_candidate = current_source_snapshot is not None and not candidates
+    source_only_dispatch = source_only_no_candidate or current_source_no_candidate
     selected = _select_packet(packets)
     if selected is None:
-        if not source_only_no_candidate:
+        if not current_source_no_candidate and not source_only_no_candidate:
             _packet_id, _packet_path, packet, packet_raw = packets[0]
             zero_counts = {role: 0 for role in AUDIT_ROLES}
             receipt = {
@@ -412,43 +490,52 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
             }
             _write_receipt(receipt_path, receipt)
             return receipt
-        if selected_case_id != "PR-464":
+        if selected_case_id == "PR-457" and current_source_no_candidate:
+            if selection_receipt_path is not None:
+                raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid")
+            selected = packets[0]
+            task = selected[2].get("source_task")
+            task_id = task.get("task_id") if isinstance(task, dict) else None
+            if not isinstance(task_id, str) or task_id not in current_source_snapshot["source_audit_requests"]:
+                raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid")
+        elif selected_case_id != "PR-464":
             raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid")
-        if selection_receipt_path is None:
+        elif selection_receipt_path is None:
             raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid")
-        try:
-            selection, _ = _read_json(selection_receipt_path, 16_000)
-            plan, plan_raw = _read_json(plan_path, 256_000)
-            selection_fields = {
-                "schema", "case_id", "packet_path", "selected_packet_sha256", "capture_manifest_sha256",
-                "plan_sha256", "snapshot_sha256", "selected_task_sha256", "writer_calls",
-                "audit_provider_calls", "publication_enabled", "target_code_execution",
-            }
-            if (set(selection) != selection_fields
-                    or selection.get("schema") != "frozen-pr464-no-candidate-selection.v1"
-                    or selection.get("case_id") != "PR-464"
-                    or selection.get("writer_calls") != 10 or selection.get("audit_provider_calls") != 0
-                    or selection.get("publication_enabled") is not False
-                    or selection.get("target_code_execution") is not False
-                    or selection.get("capture_manifest_sha256") != capture_hash
-                    or selection.get("plan_sha256") != hashlib.sha256(plan_raw).hexdigest()
-                    or selection.get("snapshot_sha256") != plan.get("case", {}).get("snapshot_sha256")):
-                raise ValueError("selection_receipt_invalid")
-            selected_path = selection.get("packet_path")
-            if (not isinstance(selected_path, str) or not re.fullmatch(r"case-packets/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json", selected_path)
-                    or not isinstance(selection.get("selected_packet_sha256"), str)
-                    or not re.fullmatch(r"[0-9a-f]{64}", selection["selected_packet_sha256"])
-                    or not isinstance(selection.get("selected_task_sha256"), str)
-                    or not re.fullmatch(r"[0-9a-f]{64}", selection["selected_task_sha256"])):
-                raise ValueError("selection_receipt_invalid")
-            matches = [row for row in packets if row[1].relative_to(capture_root).as_posix() == selected_path]
-            if (len(matches) != 1 or matches[0][0] or hashlib.sha256(matches[0][3]).hexdigest() != selection["selected_packet_sha256"]
-                    or hashlib.sha256(matches[0][2]["source_task"]["task_id"].encode("utf-8")).hexdigest()
-                    != selection["selected_task_sha256"]):
-                raise ValueError("selection_receipt_invalid")
-            selected = matches[0]
-        except (OSError, KeyError, TypeError, ValueError, RecursionError):
-            raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid") from None
+        else:
+            try:
+                selection, _ = _read_json(selection_receipt_path, 16_000)
+                plan, plan_raw = _read_json(plan_path, 256_000)
+                selection_fields = {
+                    "schema", "case_id", "packet_path", "selected_packet_sha256", "capture_manifest_sha256",
+                    "plan_sha256", "snapshot_sha256", "selected_task_sha256", "writer_calls",
+                    "audit_provider_calls", "publication_enabled", "target_code_execution",
+                }
+                if (set(selection) != selection_fields
+                        or selection.get("schema") != "frozen-pr464-no-candidate-selection.v1"
+                        or selection.get("case_id") != "PR-464"
+                        or selection.get("writer_calls") != 10 or selection.get("audit_provider_calls") != 0
+                        or selection.get("publication_enabled") is not False
+                        or selection.get("target_code_execution") is not False
+                        or selection.get("capture_manifest_sha256") != capture_hash
+                        or selection.get("plan_sha256") != hashlib.sha256(plan_raw).hexdigest()
+                        or selection.get("snapshot_sha256") != plan.get("case", {}).get("snapshot_sha256")):
+                    raise ValueError("selection_receipt_invalid")
+                selected_path = selection.get("packet_path")
+                if (not isinstance(selected_path, str) or not re.fullmatch(r"case-packets/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json", selected_path)
+                        or not isinstance(selection.get("selected_packet_sha256"), str)
+                        or not re.fullmatch(r"[0-9a-f]{64}", selection["selected_packet_sha256"])
+                        or not isinstance(selection.get("selected_task_sha256"), str)
+                        or not re.fullmatch(r"[0-9a-f]{64}", selection["selected_task_sha256"])):
+                    raise ValueError("selection_receipt_invalid")
+                matches = [row for row in packets if row[1].relative_to(capture_root).as_posix() == selected_path]
+                if (len(matches) != 1 or matches[0][0] or hashlib.sha256(matches[0][3]).hexdigest() != selection["selected_packet_sha256"]
+                        or hashlib.sha256(matches[0][2]["source_task"]["task_id"].encode("utf-8")).hexdigest()
+                        != selection["selected_task_sha256"]):
+                    raise ValueError("selection_receipt_invalid")
+                selected = matches[0]
+            except (OSError, KeyError, TypeError, ValueError, RecursionError):
+                raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid") from None
         # The frozen PR464 path runs one source-only audit here. Its no-candidate
         # result is sealed locally, then run_sealed_source_record_jev.py may make
         # one distinct Jev call. The normal three-role path remains unchanged.
@@ -457,28 +544,39 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
 
     # Plan task order is trusted and fixed; packet digest breaks ties within one task.
     candidate_id, _packet_path, packet, packet_raw = selected
-    if source_only_no_candidate and source_dispatch_receipt_path is not None:
+    if source_only_dispatch and source_dispatch_receipt_path is not None:
         source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "unknown", create=True)
     try:
         if output_root.exists() or output_root.is_symlink():
             raise ValueError("private_output_exists")
         source_config, _ = _read_json(provider_config_path, 16_000)
-        jev_config, _ = _read_json(jev_config_path, 16_000)
-        _validate_provider_identity(source_config, jev_config)
+        _validate_llm_identity(source_config)
+        jev_config: dict[str, Any] = {}
+        if not current_source_no_candidate:
+            if jev_config_path is None:
+                raise ValueError("jev_config_required")
+            jev_config, _ = _read_json(jev_config_path, 16_000)
+            _validate_jev_identity(jev_config)
         source_config["timeout_seconds"] = limits["deadline_seconds"]
         source_config["max_request_bytes"] = limits["max_input_bytes_per_task"]
         source_config["max_response_bytes"] = limits["max_output_bytes_per_task"]
         source_config["max_output_tokens"] = limits["max_output_tokens"]
         claim_config = dict(source_config)
         source_provider = OpenAIProvider(source_config)
-        claim_provider = OpenAIProvider(claim_config)
-        jev_transport = ClaimTransport.from_decision_config(jev_config)
-        jev_transport.timeout_seconds = limits["deadline_seconds"]
-        jev_transport.max_request_bytes = limits["max_input_bytes_per_task"]
-        jev_transport.max_response_bytes = limits["max_output_bytes_per_task"]
+        if current_source_no_candidate:
+            claim_provider = source_provider
+
+            def jev_transport(*_args):
+                raise ProviderError("jev_not_applicable")
+        else:
+            claim_provider = OpenAIProvider(claim_config)
+            jev_transport = ClaimTransport.from_decision_config(jev_config)
+            jev_transport.timeout_seconds = limits["deadline_seconds"]
+            jev_transport.max_request_bytes = limits["max_input_bytes_per_task"]
+            jev_transport.max_response_bytes = limits["max_output_bytes_per_task"]
         dispatch_guard = AuditDispatchGuard(limits)
     except (OSError, ValueError, ProviderError, RecursionError):
-        if source_only_no_candidate and source_dispatch_receipt_path is not None:
+        if source_only_dispatch and source_dispatch_receipt_path is not None:
             source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "0")
         raise _predispatch_failure(receipt_path, selected_case_id, "provider_setup", "provider_setup_invalid") from None
 
@@ -486,6 +584,8 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
 
     def before_dispatch(role: str, request_bytes: bytes) -> None:
         dispatch_guard.check(role, request_bytes)
+        if role == "source_auditor":
+            _check_source_request_pin(current_source_snapshot, packet, request_bytes)
         guard_passed_roles.add(role)
 
     try:
@@ -495,14 +595,14 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
             before_dispatch=before_dispatch,
             on_source_http_attempt=(
                 lambda: source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "1")
-                if source_only_no_candidate and source_dispatch_receipt_path is not None else None
+                if source_only_dispatch and source_dispatch_receipt_path is not None else None
             ),
         )
     except (OSError, ValueError, ProviderError, RecursionError):
         # This records budget reservation only; HTTP-attempt evidence is
         # collected from the provider transports.
         if not guard_passed_roles:
-            if source_only_no_candidate and source_dispatch_receipt_path is not None:
+            if source_only_dispatch and source_dispatch_receipt_path is not None:
                 source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id, "0")
             raise _predispatch_failure(
                 receipt_path, selected_case_id, "audit_validation", "audit_input_invalid"
@@ -511,13 +611,13 @@ def run(capture_root: Path, provider_config_path: Path, jev_config_path: Path,
     audit_manifest = result["manifest"]
     roles = audit_manifest.get("roles", {})
     terminal = audit_manifest.get("terminal_state", "incomplete")
-    if source_only_no_candidate and not candidates:
+    if source_only_dispatch and not candidates:
         # The private audit manifest keeps the source stage's raw terminal
         # state (for example, missing_writer_candidate or source_audit_failed).
         # The hash-only public receipt uses the zero-candidate contract, whose
         # terminal state is always incomplete regardless of source outcome.
         terminal = "incomplete"
-    if source_only_no_candidate and source_dispatch_receipt_path is not None:
+    if source_only_dispatch and source_dispatch_receipt_path is not None:
         source_dispatch_accounting.write(source_dispatch_receipt_path, selected_case_id,
                                          source_dispatch_accounting.classify_source_call(roles))
     dispatch = _dispatch_accounting(roles)
@@ -553,7 +653,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capture-root", type=Path, required=True)
     parser.add_argument("--provider-config", type=Path, required=True)
-    parser.add_argument("--jev-config", type=Path, required=True)
+    parser.add_argument("--jev-config", type=Path)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
@@ -562,6 +662,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="for frozen PR464 no-candidate captures, run only one source auditor before sealed Jev")
     parser.add_argument("--selection-receipt", type=Path,
                         help="hash-only frozen PR464 packet selector receipt required with source-only mode")
+    parser.add_argument("--current-source-plan", type=Path,
+                        help="closed PR457 current-source plan in RUNNER_TEMP; required for its bounded audit path")
     parser.add_argument("--source-dispatch-receipt", type=Path,
                         help="private durable source HTTP-attempt accounting receipt")
     parser.add_argument("--live", action="store_true", help="dispatch at most three bounded provider calls")
@@ -573,7 +675,8 @@ def main(argv: list[str] | None = None) -> int:
                       args.receipt, args.plan, args.limits,
                       source_only_no_candidate=args.source_only_no_candidate,
                       selection_receipt_path=args.selection_receipt,
-                      source_dispatch_receipt_path=args.source_dispatch_receipt)
+                      source_dispatch_receipt_path=args.source_dispatch_receipt,
+                      current_source_plan_path=args.current_source_plan)
     except (OSError, ValueError, ProviderError) as exc:
         code = getattr(exc, "code", None)
         if not isinstance(code, str) or not code.isidentifier():
