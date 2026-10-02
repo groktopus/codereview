@@ -169,6 +169,12 @@ def _hash(value: Any) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
 
 
+def _check_evidence_hash(value: Any) -> str:
+    """Match checks.py's historical ensure_ascii=True evidence identity contract."""
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 _REQUIRED_CONTEXT_NOTE_CODES = (
     "NOTE_NOT_OBJECT",
     "STATE_NOT_COVERED",
@@ -343,6 +349,8 @@ _CAUSAL_SUPPORT = set(review_contracts.CAUSAL_SUPPORT_VALUES)
 _MAX_CAUSAL_ASSESSMENT_BYTES = review_contracts.MAX_CAUSAL_ASSESSMENT_BYTES
 _MAX_CAUSAL_ROLE_EVIDENCE_REFS = review_contracts.MAX_CAUSAL_ROLE_EVIDENCE_REFS
 _MAX_CAUSAL_ROLE_EVIDENCE_REF_BYTES = 256
+_CLAIM_ASSESSMENT_DISPATCH_SECONDS = 8.0
+_CLAIM_FRESHNESS_TAIL_SECONDS = 16.0
 
 
 def _validated_v3_causal_roles(
@@ -1666,10 +1674,50 @@ def run_review(
     def remaining_call_limits() -> dict:
         return {**limits, "deadline_seconds": max(0.0, budget.remaining_seconds())}
 
-    def call_estimate(target: Any, task_kind: str, task: dict, evidence: list[dict], fallback_size: int) -> dict:
+    def required_claim_calls_remaining() -> int:
+        """Return the outstanding required calls for currently validated candidates."""
+        if reconciliation_policy is None:
+            return 0
+        if not callable(getattr(provider, "adjudicate", None)):
+            return 0
+        eligible_candidates = sum(
+            1
+            for record in ledger.get("candidate_records", [])
+            if isinstance(record, dict) and record.get("validation_state") == "VALID"
+        )
+        demand = min(int(reconciliation_policy["max_assessments"]), eligible_candidates)
+        used = sum(
+            reservation.get("provider_calls", 0)
+            for reservation in budget.state.get("reservations", {}).values()
+            if isinstance(reservation, dict) and reservation.get("kind") == "claim_assessment"
+        )
+        return max(0, demand - used)
+
+    def required_claim_deadline_floor() -> float:
+        calls = required_claim_calls_remaining()
+        if not calls:
+            return 0.0
+        return calls * _CLAIM_ASSESSMENT_DISPATCH_SECONDS + (
+            _CLAIM_FRESHNESS_TAIL_SECONDS if callable(freshness_check) else 0.0
+        )
+
+    def call_estimate(
+        target: Any,
+        task_kind: str,
+        task: dict,
+        evidence: list[dict],
+        fallback_size: int,
+        *,
+        deadline_floor_seconds: float = 0.0,
+    ) -> dict:
+        current_remaining = budget.remaining_seconds()
+        quote_deadline = max(0.0, current_remaining - deadline_floor_seconds)
+        if deadline_floor_seconds and quote_deadline <= 0:
+            raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED")
+        quote_limits = {**remaining_call_limits(), "deadline_seconds": quote_deadline}
         estimator = getattr(target, "estimate_call", None)
         if callable(estimator):
-            estimate = estimator(task_kind, task, evidence, remaining_call_limits())
+            estimate = estimator(task_kind, task, evidence, quote_limits)
             if not isinstance(estimate, dict):
                 raise ValueError("provider estimate_call must return an object")
             estimate = dict(estimate)
@@ -1684,19 +1732,41 @@ def run_review(
         estimate["input_bytes"] = estimate.get("input_bytes", fallback_size)
         estimate["max_output_bytes"] = estimate.get("max_output_bytes", int(limits["max_output_bytes_per_task"]))
         estimate["deadline_seconds"] = min(
-            float(estimate.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
-            remaining_call_limits()["deadline_seconds"],
+            float(estimate.get("deadline_seconds", quote_deadline)),
+            quote_deadline,
         )
         if limits.get("max_cost_microunits") is not None and estimate.get("reservation_kind") != "operator_bound":
             raise ValueError(
                 "configured monetary budget reservation is unsupported without an operator-bound per-call quote"
             )
+        if deadline_floor_seconds:
+            after_quote_deadline = max(0.0, budget.remaining_seconds() - deadline_floor_seconds)
+            if after_quote_deadline <= 0:
+                raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED")
+            estimate["deadline_seconds"] = min(float(estimate["deadline_seconds"]), after_quote_deadline)
         return estimate
 
     def reserve_provider_call(
         key: str, target: Any, task_kind: str, task: dict, evidence: list[dict], fallback_size: int
     ) -> dict:
-        estimate = call_estimate(target, task_kind, task, evidence, fallback_size)
+        protect_required_claim_stage = task_kind in {"SEMANTIC_ADJUDICATION", "SYSTEM_ONE_ASSESSMENT"}
+        protected_claim_calls = required_claim_calls_remaining() if protect_required_claim_stage else 0
+        claim_deadline_floor = required_claim_deadline_floor() if protect_required_claim_stage else 0.0
+        estimate = call_estimate(
+            target,
+            task_kind,
+            task,
+            evidence,
+            fallback_size,
+            deadline_floor_seconds=claim_deadline_floor,
+        )
+        if protected_claim_calls or claim_deadline_floor:
+            return budget.reserve(
+                key,
+                estimate,
+                provider_call_floor=protected_claim_calls,
+                deadline_floor_seconds=claim_deadline_floor,
+            )
         return budget.reserve(key, estimate)
 
     def reserve_local_check(key: str, input_bytes: int) -> dict:
@@ -1748,7 +1818,7 @@ def run_review(
                 unsigned_item = {
                     key: value
                     for key, value in item.items()
-                    if key not in {"content_hash", "evidence_id", "source_kind", "trust"}
+                    if key not in {"content_hash", "evidence_id", "source_kind", "trust", "snapshot_id"}
                 }
                 evidence_outcome = (
                     "PASS"
@@ -1767,9 +1837,10 @@ def run_review(
                     or item.get("repository") != snapshot.get("repository")
                     or item.get("pull_request_number") != snapshot.get("pull_request_number")
                     or item.get("head_sha") != snapshot.get("head_sha")
+                    or ("snapshot_id" in item and item["snapshot_id"] != snapshot.get("snapshot_id"))
                     or evidence_outcome != outcome
                     or not isinstance(content_hash, str)
-                    or _hash(unsigned_item) != content_hash
+                    or _check_evidence_hash(unsigned_item) != content_hash
                     or evidence_id != "check-" + content_hash[:24]
                 ):
                     raise ValueError("check_evidence_binding_invalid")
@@ -2717,21 +2788,21 @@ def run_review(
                 else "location_or_evidence_not_validated"
             )
             fid = stable_candidate_id(snapshot.get("snapshot_id", ""), candidate)
-            ledger.setdefault("candidate_records", []).append(
-                {
-                    "candidate_id": candidate_id,
-                    "finding_id": fid,
-                    "task_id": task["task_id"],
-                    "snapshot_id": snapshot.get("snapshot_id"),
-                    "validation_state": candidate["validation_state"],
-                    "validation_reason": candidate["validation_reason"],
-                    "raw": candidate,
-                }
-            )
+            candidate_record = {
+                "candidate_id": candidate_id,
+                "finding_id": fid,
+                "task_id": task["task_id"],
+                "snapshot_id": snapshot.get("snapshot_id"),
+                "validation_state": candidate["validation_state"],
+                "validation_reason": candidate["validation_reason"],
+                "raw": candidate,
+            }
+            ledger.setdefault("candidate_records", []).append(candidate_record)
             known_ids.add(fid)
             assessment = None
             semantic_result = None
             reservation_key = None
+            adjudication_dispatch_started = False
             causal_roles_valid = False
             semantic_role_refs: set[str] = set()
             if (
@@ -2791,14 +2862,20 @@ def run_review(
                             adjudication_evidence,
                             len(_canonical({"candidate": candidate, "evidence": adjudication_evidence})),
                         )
+                        adjudication_deadline = min(
+                            float(reservation.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
+                            max(0.0, budget.remaining_seconds() - required_claim_deadline_floor()),
+                        )
+                        if adjudication_deadline <= 0 and required_claim_deadline_floor() > 0:
+                            raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED")
+                        if adjudication_deadline <= 0:
+                            raise BudgetExhausted("DEADLINE_EXHAUSTED")
+                        adjudication_dispatch_started = True
                         response = isolated_call(
                             provider,
                             "adjudicate",
                             (candidate, adjudication_evidence, remaining_call_limits()),
-                            deadline_seconds=min(
-                                float(reservation.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
-                                remaining_call_limits()["deadline_seconds"],
-                            ),
+                            deadline_seconds=adjudication_deadline,
                             output_limit=int(reservation["max_output_bytes"]),
                             lock=call_lock,
                         )
@@ -2867,6 +2944,8 @@ def run_review(
                                 "OUTPUT_BYTE_BUDGET_EXHAUSTED",
                                 "OUTPUT_BYTE_LIMIT_EXCEEDED",
                                 "PROVIDER_CALL_BUDGET_EXHAUSTED",
+                                "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED",
+                                "REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED",
                             }
                             else type(exc).__name__
                         )
@@ -2877,6 +2956,13 @@ def run_review(
                         "reason": type(exc).__name__,
                         "error_code": safe_error_code,
                     }
+                    if safe_error_code in {
+                        "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED",
+                        "REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED",
+                    }:
+                        assessment["reason_code"] = safe_error_code
+                        candidate_record["adjudication_state"] = "DEFERRED"
+                        candidate_record["adjudication_reason_code"] = safe_error_code
                     # Persist the failure on the finding even when reservation
                     # fails before a provider result or adjudication record exists.
                     # UNCERTAIN is deliberately unresolved and cannot support a blocker.
@@ -2892,7 +2978,11 @@ def run_review(
                                 if isinstance(remote_meta, dict)
                                 else None,
                                 usage=semantic_usage,
-                                status="FAILED",
+                                status=(
+                                    "NOT_RUN"
+                                    if isinstance(exc, BudgetExhausted) and not adjudication_dispatch_started
+                                    else "FAILED"
+                                ),
                             )
                         except (ValueError, KeyError):
                             pass
@@ -3984,18 +4074,23 @@ def run_review(
                 [{"content": advisory_text}],
                 len(advisory_text.encode("utf-8")),
             )
+            advisory_deadline = min(
+                float(reservation.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
+                max(0.0, budget.remaining_seconds() - required_claim_deadline_floor()),
+            )
+            if advisory_deadline <= 0:
+                if required_claim_deadline_floor() > 0:
+                    raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED")
+                raise BudgetExhausted("DEADLINE_EXHAUSTED")
             response = isolated_call(
                 decision_provider,
                 "assess",
                 (
                     "Provide an advisory risk/context assessment of this bounded deterministic review summary. Do not decide disposition or clear findings.",
                     advisory_text,
-                    remaining_call_limits(),
+                    {**limits, "deadline_seconds": advisory_deadline},
                 ),
-                deadline_seconds=min(
-                    float(reservation.get("deadline_seconds", remaining_call_limits()["deadline_seconds"])),
-                    remaining_call_limits()["deadline_seconds"],
-                ),
+                deadline_seconds=advisory_deadline,
                 output_limit=int(reservation["max_output_bytes"]),
                 lock=call_lock,
             )
@@ -4008,6 +4103,14 @@ def run_review(
                 "provenance": provenance,
             }
         except BudgetExhausted as exc:
+            if (
+                reservation_key in budget.state.get("reservations", {})
+                and reservation_key not in budget.state.get("settlements", {})
+            ):
+                try:
+                    budget.settle(reservation_key, output_bytes=None, usage={}, status="NOT_RUN")
+                except (ValueError, KeyError):
+                    pass
             advisory_assessment = {"status": "NOT_RUN", "reason": str(exc)}
         except Exception as exc:
             meta = getattr(exc, "meta", {})

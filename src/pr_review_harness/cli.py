@@ -1095,6 +1095,36 @@ def _run_one(
         primary_scope_complete = not required_unadmitted
         primary_request_bytes = sum(request["input_bytes"] for request in primary)
         primary_context_fits = primary_request_bytes <= limits["max_context_bytes"]
+        # The PR-457 private current-source plan also binds the deterministic
+        # checks' exact engine input digest. The prepare result otherwise only
+        # exposes evidence metadata, while the engine hashes the bounded unit
+        # evidence selected by _evidence_for for these local tasks.
+        if preflight_case_id == "PR-457":
+            for task_scope in plan.get("tasks", []):
+                if not isinstance(task_scope, dict) or task_scope.get("task_kind") != "DETERMINISTIC_CHECK":
+                    continue
+                check_evidence = _evidence_for(task_scope, snapshot, effective_input_ceiling)
+                binding_id = task_scope.get("check_binding_id")
+                external = snapshot.get("external_check_results", {})
+                bound = external.get(binding_id) if isinstance(external, dict) else None
+                check_evidence_ids = (
+                    [bound["evidence_id"]]
+                    if isinstance(bound, dict) and isinstance(bound.get("evidence_id"), str)
+                    else []
+                )
+                evidence_hash = _sha256(json.dumps(
+                    check_evidence, sort_keys=True, separators=(",", ":"),
+                    ensure_ascii=False, allow_nan=False,
+                ).encode("utf-8"))
+                task_scope["current_source_input_hash"] = _sha256(json.dumps(
+                    {
+                        "evidence": evidence_hash,
+                        "snapshot_hash": snapshot.get("snapshot_hash"),
+                        "check_binding_id": binding_id,
+                        "check_evidence_ids": check_evidence_ids,
+                    },
+                    sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
+                ).encode("utf-8"))
         source_audit_preflight = None
         if preflight_case_id is not None:
             from .shadow_audit import serialize_source_audit_request
@@ -1194,6 +1224,9 @@ def _run_one(
                         "obligation_ids": list(task.get("obligation_ids", [task.get("obligation_id")])),
                         "required_context_ids": list(task.get("required_context_ids", [])),
                         "evidence_ids": list(task.get("evidence_ids", [])),
+                        **({"current_source_input_hash": task["current_source_input_hash"]}
+                           if preflight_case_id == "PR-457"
+                           and task.get("task_kind") == "DETERMINISTIC_CHECK" else {}),
                     }
                     for task in plan.get("tasks", [])
                     if isinstance(task, dict)

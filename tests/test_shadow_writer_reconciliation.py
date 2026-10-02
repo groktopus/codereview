@@ -18,6 +18,47 @@ from pr_review_harness.planner import plan_review  # noqa: E402
 from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
 
 
+def _deterministic_check_fixture():
+    snapshot_hash = "a" * 64
+    evidence_id = "check-" + "b" * 24
+    task_id = "task-check-fixed"
+    binding = {
+        "task_id": task_id,
+        "check_id": "portal-contract",
+        "check_binding_id": "external:portal-contract",
+        "expected_evidence_id": evidence_id,
+        "expected_outcome": "FINDINGS",
+        "expected_input_hash": "c" * 64,
+        "lens": "project_specific",
+        "unit_ids": ["unit-98ecf75f7878cd37c560"],
+    }
+    payload = {
+        "check_id": binding["check_id"], "outcome": binding["expected_outcome"],
+        "finding_candidates": [], "evidence_refs": [evidence_id], "diagnostics": [],
+    }
+    expected_input_hash = binding["expected_input_hash"]
+    output = {
+        "task_id": task_id, "task_kind": "DETERMINISTIC_CHECK", "lens": binding["lens"],
+        "unit_ids": binding["unit_ids"], "status": "SUCCEEDED", "input_evidence_ids": [evidence_id],
+        "input_hash": expected_input_hash, "payload": payload,
+        "output_hash": reconciliation.digest(reconciliation.canonical(payload)), "attempts": 1,
+    }
+    return snapshot_hash, {task_id: binding}, {task_id: output}
+
+
+def test_deterministic_check_projection_binds_exact_snapshot_evidence_and_attempt():
+    snapshot_hash, check_tasks, outputs = _deterministic_check_fixture()
+    reconciliation.validate_deterministic_check_rows(outputs, outputs, check_tasks, snapshot_hash)
+
+    for field, value in (("input_hash", "d" * 64), ("input_evidence_ids", []), ("attempts", True)):
+        mutated = {task_id: {**row, field: value} for task_id, row in outputs.items()}
+        with pytest.raises(reconciliation.ReconciliationError, match="check_task_output_invalid"):
+            reconciliation.validate_deterministic_check_rows(mutated, mutated, check_tasks, snapshot_hash)
+
+    with pytest.raises(reconciliation.ReconciliationError, match="check_task_binding_invalid"):
+        reconciliation.validate_deterministic_check_rows({}, outputs, check_tasks, snapshot_hash)
+
+
 class _SingleCandidateProvider(seeded._SerializedFixtureProvider):
     def __init__(self, *, missing_title: bool, mixed_candidates: bool = False):
         super().__init__(candidate_enabled=True)

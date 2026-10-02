@@ -263,14 +263,18 @@ def test_slopsearx_dependency_portal_check_uses_trusted_exact_head_binding():
     assert outcome(app_id=999) == "UNKNOWN"
 
 
-def _fixture_engine_inputs():
+def _fixture_engine_inputs(*, unicode_check_name: bool = False):
     root = Path(__file__).resolve().parents[1]
     document = json.loads((root / "tests/fixtures/pr464-check-evidence.json").read_text())
+    if unicode_check_name:
+        for run in document["runs"]:
+            if run.get("name") == "portal-contract":
+                run["name"] = "portal-contract-é"
     bindings = [
         {
             "id": "external:portal-contract",
             "check_id": "portal-impact-evidence",
-            "github_check_name": "portal-contract",
+            "github_check_name": "portal-contract-é" if unicode_check_name else "portal-contract",
             "github_app_id": 15368,
             "unit_ids": ["u0"],
         },
@@ -367,6 +371,43 @@ def test_engine_check_coverage_preserves_actual_ingested_binding_evidence(tmp_pa
     assert result["budget"]["local_check_reservations"] == 2
     assert result["budget"]["local_check_input_bytes_reserved"] > 0
     assert result["budget"]["local_check_output_bytes_reserved"] > 0
+
+
+@pytest.mark.parametrize(
+    "binding_case",
+    [
+        "matching_snapshot",
+        "wrong_snapshot",
+        "null_snapshot",
+        "malformed_snapshot",
+        "tampered_payload",
+        "unicode_snapshot",
+    ],
+)
+def test_check_evidence_allows_only_derived_snapshot_metadata(binding_case, tmp_path):
+    snapshot, profile, plan, limits = _fixture_engine_inputs(unicode_check_name=binding_case == "unicode_snapshot")
+    binding_id = "external:portal-contract"
+    evidence_id = snapshot["external_check_results"][binding_id]["evidence_id"]
+    item = snapshot["evidence"][evidence_id]
+    if binding_case in {"matching_snapshot", "unicode_snapshot"}:
+        # The CLI binds captured check evidence to its completed snapshot after
+        # ingestion; this derived field is not part of the source evidence hash.
+        item["snapshot_id"] = snapshot["snapshot_id"]
+    elif binding_case == "wrong_snapshot":
+        item["snapshot_id"] = "another-snapshot"
+    elif binding_case == "null_snapshot":
+        item["snapshot_id"] = None
+    elif binding_case == "malformed_snapshot":
+        item["snapshot_id"] = ["not", "a", "snapshot"]
+    else:
+        item["snapshot_id"] = snapshot["snapshot_id"]
+        item["name"] = "tampered check name"
+
+    result = _run_engine(snapshot, profile, plan, limits, tmp_path)
+    row = next(row for row in result["coverage_ledger"] if row["check_binding_id"] == binding_id)
+    assert row["state"] == ("COMPLETE" if binding_case in {"matching_snapshot", "unicode_snapshot"} else "PARTIAL")
+    if binding_case not in {"matching_snapshot", "unicode_snapshot"}:
+        assert result["disposition"] == "INCOMPLETE"
 
 
 def test_local_checks_do_not_consume_provider_call_cap(tmp_path):

@@ -301,7 +301,11 @@ def _current_source_plan(plan: dict[str, Any], preflight: dict[str, Any], plan_p
         raise ReceiptError("current_source_plan_invalid")
     projected_case = {"case_id": "PR-457", "snapshot_id": target.get("snapshot_id"),
                       "snapshot_sha256": target.get("snapshot_sha256")}
-    projected_plan = {"case": projected_case, "writer_requests": list(writer_pins.values())}
+    projected_plan = {
+        "case": projected_case,
+        "writer_requests": list(writer_pins.values()),
+        "deterministic_check_tasks": snapshot.get("deterministic_check_tasks", {}),
+    }
     return projected_plan, {"writer_calls": 6}, snapshot
 
 

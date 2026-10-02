@@ -383,6 +383,51 @@ def test_context_retrieval_reserves_input_but_not_provider_output_capacity():
     assert summary["output_bytes_reserved"] == 163_840
 
 
+def test_required_claim_assessment_floor_reserves_existing_calls_without_fake_reservations():
+    limits = {**LIMITS, "max_provider_calls": 3}
+    state = {}
+    budget = BudgetLedger(limits, state, deadline_epoch=time.time() + 10)
+    estimate = {
+        "provider_calls": 1,
+        "input_bytes": 10,
+        "max_output_bytes": 100,
+        "max_cost_microunits": 0,
+        "reservation_kind": "operator_bound",
+    }
+
+    budget.reserve("primary", estimate)
+    budget.reserve("adjudication-1", estimate, provider_call_floor=1)
+    with pytest.raises(BudgetExhausted, match="REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED"):
+        budget.reserve("adjudication-2", estimate, provider_call_floor=1)
+
+    assert set(state["reservations"]) == {"primary", "adjudication-1"}
+    budget.reserve("required-claim", estimate)
+    assert budget.summary()["provider_calls_reserved"] == 3
+
+
+def test_required_claim_deadline_floor_rejects_exact_remaining_time():
+    budget = BudgetLedger({**LIMITS, "max_cost_microunits": None}, {}, deadline_epoch=time.time() + 20)
+    budget.remaining_seconds = lambda: 10.0
+    with pytest.raises(BudgetExhausted, match="REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED"):
+        budget.reserve(
+            "adjudication",
+            {"provider_calls": 1, "input_bytes": 10, "max_output_bytes": 100},
+            deadline_floor_seconds=10,
+        )
+    assert budget.state["reservations"] == {}
+
+
+def test_required_claim_deadline_floor_allows_dispatch_above_floor():
+    budget = BudgetLedger({**LIMITS, "max_cost_microunits": None}, {}, deadline_epoch=time.time() + 20)
+    budget.remaining_seconds = lambda: 10.01
+    reservation = budget.reserve(
+        "adjudication",
+        {"provider_calls": 1, "input_bytes": 10, "max_output_bytes": 100},
+        deadline_floor_seconds=10,
+    )
+    assert reservation["provider_calls"] == 1
+
+
 def test_context_retrieval_settlement_uses_input_cap_while_provider_output_uses_output_cap():
     limits = {**LIMITS, "max_context_retrievals": 2}
     budget = BudgetLedger(limits, {}, deadline_epoch=time.time() + 10)

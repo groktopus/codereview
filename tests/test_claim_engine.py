@@ -219,6 +219,40 @@ class TwoCandidatePrimaryProvider(SupportedPrimaryProvider):
         return result
 
 
+class EmptyCandidatePrimaryProvider(PrimaryProvider):
+    def review(self, task: dict, evidence: list[dict], limits: dict) -> dict:
+        result = super().review(task, evidence, limits)
+        result["finding_candidates"] = []
+        return result
+
+
+class DeadlineQuotePrimaryProvider(SupportedPrimaryProvider):
+    quote_elapsed = False
+
+    def estimate_call(self, task_kind, task, evidence, limits):
+        if task_kind == "SEMANTIC_ADJUDICATION":
+            type(self).quote_elapsed = True
+        return {
+            "provider_calls": 1,
+            "input_bytes": 100,
+            "max_output_bytes": limits["max_output_bytes_per_task"],
+            "max_cost_microunits": 0,
+            "reservation_kind": "operator_bound",
+            "deadline_seconds": limits["deadline_seconds"],
+        }
+
+
+class LateDeadlinePrimaryProvider(DeadlineQuotePrimaryProvider):
+    elapsed_remaining_reads = 0
+
+
+class LocalAdvisory:
+    identity = {"kind": "offline-advisory-fixture"}
+
+    def assess(self, question: str, text: str, limits: dict) -> dict:
+        return {"outcome": "UNKNOWN", "confidence": 0.0}
+
+
 @dataclass(frozen=True)
 class Prepared:
     contract_version: str
@@ -511,6 +545,7 @@ def _run(
     snapshot=None,
     profile=None,
     primary=None,
+    decision_provider=None,
 ):
     snapshot = snapshot or _snapshot()
     profile = profile or _profile()
@@ -520,7 +555,7 @@ def _run(
         plan,
         profile,
         primary or PrimaryProvider(),
-        None,
+        decision_provider,
         limits or LIMITS,
         str(tmp_path),
         run_id,
@@ -719,6 +754,9 @@ def _run_with_native_claim_choices(
     primary: PrimaryProvider,
     http_status: int = 200,
     include_revision_evidence: bool = True,
+    limits: dict | None = None,
+    claim_cap: int = 1,
+    decision_provider=None,
 ):
     snapshot = _snapshot()
     if include_revision_evidence:
@@ -759,10 +797,11 @@ def _run_with_native_claim_choices(
             tmp_path,
             snapshot=snapshot,
             assessor=ClaimAssessmentAdapter(transport, "jev-latest"),
-            cap=1,
-            limits={**LIMITS, "max_input_bytes_per_task": 128_000},
-            profile=_profile(reconciliation=True, cap=1),
+            cap=claim_cap,
+            limits=limits or {**LIMITS, "max_input_bytes_per_task": 128_000},
+            profile=_profile(reconciliation=True, cap=claim_cap),
             primary=primary,
+            decision_provider=decision_provider,
         )
     finally:
         server.shutdown()
@@ -972,6 +1011,124 @@ def test_required_classifier_cap_exhaustion_is_explicit_partial(tmp_path, monkey
     )
     assert result["coverage_state"] == "PARTIAL"
     assert result["disposition"] == "REQUEST_CHANGES"
+
+
+def test_required_classifier_slot_and_deadline_are_protected_from_extra_adjudications(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=TwoCandidatePrimaryProvider(),
+        limits={**LIMITS, "max_provider_calls": 3, "deadline_seconds": 30},
+    )
+
+    assert len(requests) == 1
+    rows = result["claim_assessments"]
+    assert [row["status"] for row in rows].count("COMPLETE") == 1
+    assert [row["status"] for row in rows].count("NOT_RUN") == 1
+    deferred = next(
+        row for row in result["ledger"]["candidate_records"] if row.get("adjudication_state") == "DEFERRED"
+    )
+    assert deferred["adjudication_reason_code"] == "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED"
+    reservations = result["ledger"]["budget"]["reservations"]
+    assert len([row for row in reservations.values() if row.get("provider_calls") == 1]) == 3
+    assert any(row.get("blocking_class") == "BLOCKING" for row in result["findings"])
+    assert result["disposition"] == "REQUEST_CHANGES"
+    assert result["coverage_state"] == "PARTIAL"
+
+
+def test_claim_floor_uses_valid_candidate_demand_not_policy_ceiling(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=SupportedPrimaryProvider(),
+        claim_cap=4,
+        limits={**LIMITS, "max_provider_calls": 3, "deadline_seconds": 60},
+    )
+
+    assert len(requests) == 1
+    assert len(result["findings"]) == 1
+    assert result["claim_assessments"][0]["status"] == "COMPLETE"
+    assert result["budget"]["provider_calls_reserved"] == 3
+
+
+def test_zero_candidate_does_not_reserve_classifier_call_against_final_advisory(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=EmptyCandidatePrimaryProvider(),
+        claim_cap=4,
+        limits={**LIMITS, "max_provider_calls": 2, "deadline_seconds": 60},
+        decision_provider=LocalAdvisory(),
+    )
+
+    assert requests == []
+    assert result["findings"] == []
+    assert result["claim_assessments"] == []
+    assert result["advisory_assessment"]["status"] == "RECEIVED"
+    assert result["budget"]["provider_calls_reserved"] == 2
+
+
+def test_slow_adjudication_quote_rechecks_required_classifier_time_floor(tmp_path, monkeypatch):
+    DeadlineQuotePrimaryProvider.quote_elapsed = False
+    original_remaining = engine_module.BudgetLedger.remaining_seconds
+
+    def remaining_with_quote_elapsed(budget):
+        remaining = original_remaining(budget)
+        return min(remaining, 7.0) if DeadlineQuotePrimaryProvider.quote_elapsed else remaining
+
+    monkeypatch.setattr(engine_module.BudgetLedger, "remaining_seconds", remaining_with_quote_elapsed)
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=DeadlineQuotePrimaryProvider(),
+        limits={**LIMITS, "max_provider_calls": 3, "deadline_seconds": 60},
+    )
+
+    assert DeadlineQuotePrimaryProvider.quote_elapsed is True
+    assert requests == []
+    assert result["claim_assessments"][0]["status"] == "NOT_RUN"
+    deferred = next(
+        row for row in result["ledger"]["candidate_records"] if row.get("adjudication_state") == "DEFERRED"
+    )
+    assert deferred["adjudication_reason_code"] == "REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED"
+
+
+def test_deadline_loss_after_adjudication_reservation_settles_not_run(tmp_path, monkeypatch):
+    LateDeadlinePrimaryProvider.quote_elapsed = False
+    LateDeadlinePrimaryProvider.elapsed_remaining_reads = 0
+    original_remaining = engine_module.BudgetLedger.remaining_seconds
+
+    def late_deadline(budget):
+        remaining = original_remaining(budget)
+        if not LateDeadlinePrimaryProvider.quote_elapsed:
+            return remaining
+        LateDeadlinePrimaryProvider.elapsed_remaining_reads += 1
+        if LateDeadlinePrimaryProvider.elapsed_remaining_reads <= 3:
+            return remaining
+        return min(remaining, 7.0)
+
+    monkeypatch.setattr(engine_module.BudgetLedger, "remaining_seconds", late_deadline)
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=LateDeadlinePrimaryProvider(),
+        limits={**LIMITS, "max_provider_calls": 3, "deadline_seconds": 60},
+    )
+
+    assert LateDeadlinePrimaryProvider.elapsed_remaining_reads >= 4
+    assert requests == []
+    adjudication = next(
+        item
+        for key, item in result["ledger"]["budget"]["settlements"].items()
+        if ":adjudicate:" in key
+    )
+    assert adjudication["status"] == "NOT_RUN"
+    assert result["claim_assessments"][0]["status"] == "NOT_RUN"
 
 
 def test_shadow_runs_after_primary_and_records_exact_reservation_without_changing_disposition(tmp_path):
