@@ -536,7 +536,8 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
             assert raw == request
 
     def source_only_audit(packet, *, source_provider, jev_transport, claim_provider, limits,
-                          output_dir, before_dispatch, on_source_http_attempt=None):
+                          output_dir, before_dispatch, on_source_http_attempt=None,
+                          source_request_serializer=RUNNER.SOURCE_AUDIT_SERIALIZER_LEGACY):
         assert packet["writer_candidate"] is None
         assert source_provider is not claim_provider
         assert jev_transport.timeout_seconds == limits["deadline_seconds"]
@@ -1061,6 +1062,7 @@ def _bind_pr457_runner(monkeypatch, audit_rows: dict[str, bytes]) -> None:
             for task_id, raw in audit_rows.items()
         },
         "audit_max_input_bytes_per_call": 96_000,
+        "source_audit_serializer": RUNNER.SOURCE_AUDIT_SERIALIZER_CANONICAL,
     })
 
 
@@ -1092,8 +1094,10 @@ def test_current_source_zero_candidate_selects_first_plan_task_and_dispatches_so
     observed = {}
 
     def fake_source_audit(packet, *, source_provider, jev_transport, claim_provider, limits,
-                          output_dir, before_dispatch, on_source_http_attempt=None):
+                          output_dir, before_dispatch, on_source_http_attempt=None,
+                          source_request_serializer=RUNNER.SOURCE_AUDIT_SERIALIZER_LEGACY):
         observed["task_id"] = packet["source_task"]["task_id"]
+        assert source_request_serializer == RUNNER.SOURCE_AUDIT_SERIALIZER_CANONICAL
         observed["same_provider"] = source_provider is claim_provider
         observed["jev_transport"] = jev_transport
         before_dispatch("source_auditor", pinned_request)

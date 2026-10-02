@@ -213,6 +213,7 @@ jobs:
             --provider-config "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-provider-v1.json" \
             --mode AUTO --effect-policy READ_ONLY --max-claim-assessments 0 \
             --private-shadow-preflight-case-id PR-457 \
+            --private-shadow-current-source-preflight \
             --run-id "prepare-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --output "$RUNNER_TEMP/pr457-prepare-output" --prepare-only --json \
             > "$RUNNER_TEMP/pr457-private/prepared.json" 2>/dev/null

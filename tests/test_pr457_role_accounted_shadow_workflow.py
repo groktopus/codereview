@@ -45,6 +45,9 @@ def test_installed_current_source_paths_and_output_creation_order_are_consistent
 
     assert '--private-shadow-plan "$RUNNER_TEMP/pr457-current-source-plan.json"' in writer
     assert '--private-shadow-preflight-receipt "$RUNNER_TEMP/pr457-current-source-receipt.json"' in writer
+    assert "--private-shadow-current-source-preflight" in steps[
+        "Prepare the exact PR-457 requests without credentials or provider calls"
+    ]["run"]
     assert "--private-shadow-current-source-plan" in writer
     assert sanitizer["env"]["PR457_CURRENT_SOURCE_RUNTIME"] == "1"
     assert "--current-source" in sanitizer["run"]

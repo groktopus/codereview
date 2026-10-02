@@ -13,17 +13,27 @@ import pytest
 from pr_review_harness import snapshot as snapshot_module
 from pr_review_harness.providers import OpenAIProvider
 from pr_review_harness.shadow_audit import (
+    SOURCE_AUDIT_SERIALIZER_CANONICAL,
+    SOURCE_AUDIT_SERIALIZER_LEGACY,
     ShadowAuditError,
     _json_hash,
     _not_run,
     _validate_packet,
     run_shadow_audit,
+    serialize_canonical_source_audit_request,
+    serialize_source_audit_request,
 )
 
 _CLI_SPEC = importlib.util.spec_from_file_location("run_shadow_audit_cli", Path(__file__).resolve().parents[1] / "scripts/run_shadow_audit.py")
 _CLI = importlib.util.module_from_spec(_CLI_SPEC)
 _CLI_SPEC.loader.exec_module(_CLI)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+_RUNNER_SPEC = importlib.util.spec_from_file_location(
+    "run_model_only_shadow_audit_for_canonical_pin_test",
+    Path(__file__).resolve().parents[1] / "scripts/run_model_only_shadow_audit.py",
+)
+_RUNNER = importlib.util.module_from_spec(_RUNNER_SPEC)
+_RUNNER_SPEC.loader.exec_module(_RUNNER)
 from run_sealed_source_record_jev import main as sealed_source_jev_main  # noqa: E402
 from run_sealed_source_record_jev import run_private_artifact_decision  # noqa: E402
 from sealed_source_record_integration import (  # noqa: E402
@@ -262,6 +272,64 @@ def test_pipeline_seals_blind_source_audit_before_jev_and_keeps_views_separate(m
     source_request = json.loads(result["artifact_paths"]["source-auditor-request"].read_bytes())
     source_text = json.dumps(source_request)
     assert "Missing validation" not in source_text
+
+
+def test_canonical_source_request_pin_survives_capture_reload(monkeypatch, tmp_path):
+    packet = _packet(candidate=False)
+    packet["source_task"] = {
+        "task_id": "task-current-source-1",
+        "summary": "Review the handler.",
+        "context": {"zeta": [3, 2, 1], "alpha": {"z": True, "a": False}},
+    }
+    provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))
+    limits = _limits()
+    prepared_request = serialize_canonical_source_audit_request(
+        provider, case_id=packet["case_id"], snapshot=packet["snapshot"],
+        profile_id=packet["profile_id"], task=packet["source_task"],
+        evidence=packet["source_evidence"], limits=limits,
+    )
+    legacy_prepared = serialize_source_audit_request(
+        provider, case_id=packet["case_id"], snapshot=packet["snapshot"],
+        profile_id=packet["profile_id"], task=packet["source_task"],
+        evidence=packet["source_evidence"], limits=limits,
+    )
+    capture_path = tmp_path / "case-packet.json"
+    capture_path.write_text(json.dumps(packet, sort_keys=True, separators=(",", ":")))
+    reloaded = json.loads(capture_path.read_bytes())
+    legacy_reloaded = serialize_source_audit_request(
+        provider, case_id=reloaded["case_id"], snapshot=reloaded["snapshot"],
+        profile_id=reloaded["profile_id"], task=reloaded["source_task"],
+        evidence=reloaded["source_evidence"], limits=limits,
+    )
+    assert legacy_prepared != legacy_reloaded
+
+    request_hash = hashlib.sha256(prepared_request).hexdigest()
+    guard_snapshot = {
+        "source_audit_serializer": SOURCE_AUDIT_SERIALIZER_CANONICAL,
+        "source_audit_requests": {"task-current-source-1": {
+            "task_id": "task-current-source-1", "input_bytes": len(prepared_request),
+            "input_sha256": request_hash,
+        }},
+        "audit_max_input_bytes_per_call": len(prepared_request),
+    }
+    dispatched = []
+
+    def check_pin(role, raw):
+        assert role == "source_auditor"
+        _RUNNER._check_source_request_pin(guard_snapshot, reloaded, raw)
+        dispatched.append((role, raw))
+
+    run_shadow_audit(
+        reloaded, source_provider=provider,
+        jev_transport=lambda *_args: pytest.fail("no candidate means no Jev call"),
+        claim_provider=_provider(monkeypatch, "claim-model", lambda _user: pytest.fail("no claim call")),
+        limits=limits, output_dir=tmp_path / "canonical-reloaded",
+        before_dispatch=check_pin,
+        source_request_serializer=SOURCE_AUDIT_SERIALIZER_CANONICAL,
+    )
+    assert SOURCE_AUDIT_SERIALIZER_CANONICAL != SOURCE_AUDIT_SERIALIZER_LEGACY
+    assert [role for role, _raw in dispatched] == ["source_auditor"]
+    assert dispatched[0][1] == prepared_request
 
 
 def test_source_injection_is_data_and_candidate_is_missing_terminal(monkeypatch, tmp_path):

@@ -124,6 +124,10 @@ def _parser() -> argparse.ArgumentParser:
         choices=["PR-457", "PR-464"],
         help="apply the frozen private-shadow snapshot hash for provider-free prepare-only; creates no capture",
     )
+    review.add_argument(
+        "--private-shadow-current-source-preflight", action="store_true",
+        help="use the versioned canonical source-request serializer for the current-source PR-457 plan",
+    )
     review.add_argument("--private-shadow-plan", help="trusted exact writer request plan for strict private capture")
     review.add_argument("--private-shadow-preflight-receipt", help="provider-free receipt matching the writer plan")
     review.add_argument(
@@ -812,6 +816,7 @@ def _run_one(
     capture_dir = getattr(args, "private_shadow_capture", None)
     capture_case_id = getattr(args, "private_shadow_case_id", None)
     preflight_case_id = getattr(args, "private_shadow_preflight_case_id", None)
+    current_source_preflight = bool(getattr(args, "private_shadow_current_source_preflight", False))
     capture_pins = None
     capture_snapshot_pin = None
     plan_path = getattr(args, "private_shadow_plan", None)
@@ -840,6 +845,10 @@ def _run_one(
         or preflight_case_id not in {"PR-457", "PR-464"}
     ):
         raise ValueError("private shadow preflight case requires matching prepare-only without capture")
+    if current_source_preflight and (
+        preflight_case_id != "PR-457" or not getattr(args, "prepare_only", False) or capture_dir is not None
+    ):
+        raise ValueError("current source preflight requires prepare-only PR-457 without capture")
     if capture_dir and (
         getattr(args, "command", "review") != "review"
         or getattr(args, "resume", False)
@@ -1127,7 +1136,10 @@ def _run_one(
                 ).encode("utf-8"))
         source_audit_preflight = None
         if preflight_case_id is not None:
-            from .shadow_audit import serialize_source_audit_request
+            from .shadow_audit import (
+                serialize_canonical_source_audit_request,
+                serialize_source_audit_request,
+            )
 
             audit_limit = TRUSTED_SHADOW_PLANS[preflight_case_id]["audit_max_input_bytes_per_call"]
             audit_limits = {
@@ -1141,7 +1153,12 @@ def _run_one(
                 if task.get("task_kind") != "SPECIALIST_FINDINGS":
                     continue
                 evidence = _evidence_for(task, snapshot, effective_input_ceiling)
-                request_bytes = serialize_source_audit_request(
+                serializer = (
+                    serialize_canonical_source_audit_request
+                    if current_source_preflight
+                    else serialize_source_audit_request
+                )
+                request_bytes = serializer(
                     provider,
                     case_id=preflight_case_id,
                     snapshot=snapshot,
@@ -1157,6 +1174,10 @@ def _run_one(
                     "admitted": len(request_bytes) <= audit_limit,
                 })
             source_audit_preflight = {
+                "source_audit_serializer": (
+                    "shadow-source-request.canonical-json.v1"
+                    if current_source_preflight else "shadow-source-request.legacy-order.v1"
+                ),
                 "active_input_limit_bytes": audit_limit,
                 "request_count": len(source_audit_rows),
                 "request_bytes_max": max((row["input_bytes"] for row in source_audit_rows), default=0),

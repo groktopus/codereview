@@ -106,6 +106,7 @@ def _prepared() -> dict:
             "configured_max_provider_calls": LIMITS["writer_max_provider_calls"],
             "configured_max_input_bytes_per_task": LIMITS["writer_max_request_bytes"],
             "source_audit_preflight": {
+                "source_audit_serializer": capture.SOURCE_AUDIT_SERIALIZER,
                 "active_input_limit_bytes": LIMITS["audit_max_input_bytes_per_call"],
                 "request_count": len(source_rows),
                 "request_bytes_max": max(row["input_bytes"] for row in source_rows),
@@ -134,6 +135,7 @@ def test_current_source_plan_binds_fixed_target_runtime_requests_and_receipt():
         "case_id": "PR-457", "snapshot_id": TARGET["snapshot_id"],
         "snapshot_sha256": TARGET["snapshot_sha256"],
         "audit_max_input_bytes_per_call": LIMITS["audit_max_input_bytes_per_call"],
+        "source_audit_serializer": capture.SOURCE_AUDIT_SERIALIZER,
         "provider_identity_sha256": "a" * 64,
         "source_audit_requests": {row["task_id"]: row for row in plan["source_audit_requests"]},
     }
@@ -147,7 +149,7 @@ def test_current_source_plan_binds_fixed_target_runtime_requests_and_receipt():
     "wrong_source", "wrong_head", "wrong_profile", "extra_request", "mutated_request_hash",
     "wrong_module", "receipt_plan_hash", "boolean_provider_calls", "source_request_too_large",
     "missing_check", "duplicate_check", "forged_check_binding", "conclusive_check_without_evidence",
-    "mutated_check_input_hash", "unhashable_expected_outcome",
+    "mutated_check_input_hash", "unhashable_expected_outcome", "wrong_source_audit_serializer",
 ])
 def test_current_source_plan_rejects_identity_budget_and_receipt_mutations(mutation: str):
     plan, receipt = _plan()
@@ -191,6 +193,9 @@ def test_current_source_plan_rejects_identity_budget_and_receipt_mutations(mutat
     elif mutation == "unhashable_expected_outcome":
         plan["deterministic_check_tasks"][0]["expected_outcome"] = []
         receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
+    elif mutation == "wrong_source_audit_serializer":
+        plan["source_audit_serializer"] = "shadow-source-request.unknown.v9"
+        receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
     with pytest.raises(CurrentSourceCaptureError):
         validate_plan(plan, receipt, source_sha=source_sha, module_inventory=inventory)
 
@@ -201,6 +206,15 @@ def test_prepare_rejects_non_string_check_evidence_id(field_value):
     binding_id = next(iter(capture.CHECK_BINDINGS.values()))[1]
     prepared["checks"]["check_results"][binding_id]["evidence_id"] = field_value
     with pytest.raises(CurrentSourceCaptureError, match="prepared_check_evidence_mismatch"):
+        _plan(prepared)
+
+
+def test_current_source_plan_rejects_prepared_requests_from_legacy_serializer():
+    prepared = _prepared()
+    prepared["capacity"]["source_audit_preflight"]["source_audit_serializer"] = (
+        "shadow-source-request.legacy-order.v1"
+    )
+    with pytest.raises(CurrentSourceCaptureError, match="source_audit_preflight_missing"):
         _plan(prepared)
 
 

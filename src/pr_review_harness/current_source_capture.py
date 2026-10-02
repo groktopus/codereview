@@ -14,8 +14,11 @@ import stat
 from pathlib import Path
 from typing import Any
 
-PLAN_SCHEMA = "pr457-current-source-capture-plan.v2"
-RECEIPT_SCHEMA = "pr457-current-source-capture-receipt.v2"
+from .shadow_audit import SOURCE_AUDIT_SERIALIZER_CANONICAL
+
+PLAN_SCHEMA = "pr457-current-source-capture-plan.v3"
+RECEIPT_SCHEMA = "pr457-current-source-capture-receipt.v3"
+SOURCE_AUDIT_SERIALIZER = SOURCE_AUDIT_SERIALIZER_CANONICAL
 SOURCE_WORKFLOW_REF = (
     "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
 )
@@ -219,7 +222,9 @@ def _source_audit_requests(prepared: dict[str, Any]) -> list[dict[str, Any]]:
     preflight = capacity.get("source_audit_preflight") if isinstance(capacity, dict) else None
     rows = preflight.get("requests") if isinstance(preflight, dict) else None
     expected = _read_static_tasks()
-    if (not isinstance(preflight, dict) or preflight.get("active_input_limit_bytes") != LIMITS["audit_max_input_bytes_per_call"]
+    if (not isinstance(preflight, dict)
+            or preflight.get("source_audit_serializer") != SOURCE_AUDIT_SERIALIZER
+            or preflight.get("active_input_limit_bytes") != LIMITS["audit_max_input_bytes_per_call"]
             or preflight.get("status") != "ADMITTED" or preflight.get("request_count") != len(expected)
             or not isinstance(rows, list) or len(rows) != len(expected)):
         raise CurrentSourceCaptureError("source_audit_preflight_missing")
@@ -423,6 +428,7 @@ def create_plan(prepared: dict[str, Any], *, source_sha: str, module_inventory: 
     plan = {
         "schema": PLAN_SCHEMA, "source_sha": source_sha, "target": TARGET,
         "provider_identity_sha256": identity_sha,
+        "source_audit_serializer": SOURCE_AUDIT_SERIALIZER,
         "runtime": {"fingerprint_kind": "installed_source_resource_files.v1",
                     "module_count": len(module_inventory), "module_inventory_sha256": module_inventory_sha256(module_inventory),
                     "module_sha256": module_inventory},
@@ -441,13 +447,15 @@ def create_plan(prepared: dict[str, Any], *, source_sha: str, module_inventory: 
 def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory: dict[str, str]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     if not isinstance(plan, dict) or set(plan) != {
         "schema", "source_sha", "target", "provider_identity_sha256", "runtime", "limits", "writer_requests",
-        "source_audit_requests", "deterministic_check_tasks",
+        "source_audit_serializer", "source_audit_requests", "deterministic_check_tasks",
     }:
         raise CurrentSourceCaptureError("plan_shape_invalid")
     if plan.get("schema") != PLAN_SCHEMA or plan.get("source_sha") != source_sha or not SHA40.fullmatch(source_sha):
         raise CurrentSourceCaptureError("plan_source_invalid")
     if plan.get("target") != TARGET or plan.get("limits") != LIMITS:
         raise CurrentSourceCaptureError("plan_contract_mismatch")
+    if plan.get("source_audit_serializer") != SOURCE_AUDIT_SERIALIZER:
+        raise CurrentSourceCaptureError("plan_source_audit_serializer_invalid")
     expected_identity = plan.get("provider_identity_sha256")
     if not isinstance(expected_identity, str) or not SHA256.fullmatch(expected_identity):
         raise CurrentSourceCaptureError("plan_provider_identity_mismatch")
@@ -553,6 +561,7 @@ def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory:
     return pins, {"case_id": "PR-457", "snapshot_id": TARGET["snapshot_id"],
                   "snapshot_sha256": TARGET["snapshot_sha256"],
                   "audit_max_input_bytes_per_call": LIMITS["audit_max_input_bytes_per_call"],
+                  "source_audit_serializer": SOURCE_AUDIT_SERIALIZER,
                   "provider_identity_sha256": expected_identity,
                   "source_audit_requests": source_pins,
                   "deterministic_check_tasks": {row["task_id"]: row for row in check_tasks}}

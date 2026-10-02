@@ -26,6 +26,14 @@ from pr_review_harness.contracts import ContractIssue, validate_candidate  # noq
 FIELDS = ("title", "observation", "consequence", "rule_or_contract", "evidence_refs")
 SHA = re.compile(r"^[0-9a-f]{64}$")
 
+_COVERAGE_STATES = {"COMPLETE", "PARTIAL", "NOT_STARTED"}
+_DISPOSITIONS = {"APPROVE", "REQUEST_CHANGES", "COMMENT", "INCOMPLETE"}
+_TASK_STATES = {
+    "SUCCEEDED", "FAILED", "INVALID", "SKIPPED", "TIMED_OUT",
+    "INTERRUPTED_UNKNOWN", "NOT_RUN",
+}
+_CHECK_OUTCOMES = {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}
+
 
 class ReconciliationError(ValueError):
     pass
@@ -135,10 +143,125 @@ def validate_deterministic_check_rows(tasks: dict[str, Any], ledger_outputs: dic
             raise ReconciliationError("check_task_output_invalid")
 
 
+def _enum_counts(values: list[Any], allowed: set[str]) -> tuple[dict[str, int], int]:
+    counts = {value: 0 for value in sorted(allowed)}
+    unknown = 0
+    for value in values:
+        if isinstance(value, str) and value in counts:
+            counts[value] += 1
+        else:
+            unknown += 1
+    return counts, unknown
+
+
+def engine_summary(result: dict[str, Any], ledger: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    """Retain bounded engine enums and denominators without model-authored text."""
+    planned_rows = plan.get("coverage_obligations")
+    actual_rows = result.get("coverage_ledger")
+    planned_ids: list[str] = []
+    planned_shape_valid = isinstance(planned_rows, list)
+    if planned_shape_valid:
+        for row in planned_rows:
+            if not isinstance(row, dict) or not isinstance(row.get("obligation_id"), str):
+                planned_shape_valid = False
+                break
+            planned_ids.append(row["obligation_id"])
+    if not isinstance(actual_rows, list):
+        actual_rows = []
+        coverage_inventory = "UNKNOWN"
+    else:
+        coverage_inventory = "OBSERVED"
+
+    actual_ids: list[str] = []
+    states: list[Any] = []
+    required_state_values: list[Any] = []
+    requiredness_unknown = 0
+    for row in actual_rows:
+        if not isinstance(row, dict):
+            actual_ids.append("")
+            states.append(None)
+            requiredness_unknown += 1
+            continue
+        actual_ids.append(row.get("obligation_id") if isinstance(row.get("obligation_id"), str) else "")
+        state = row.get("state")
+        states.append(state)
+        required = row.get("required")
+        if isinstance(required, bool):
+            if required:
+                required_state_values.append(state)
+        else:
+            requiredness_unknown += 1
+    state_counts, unknown_states = _enum_counts(states, _COVERAGE_STATES)
+    required_state_counts, unknown_required_states = _enum_counts(required_state_values, _COVERAGE_STATES)
+    duplicate_ids = len(actual_ids) - len(set(actual_ids))
+    planned_duplicates = len(planned_ids) - len(set(planned_ids))
+    actual_counts: dict[str, int] = {}
+    for obligation_id in actual_ids:
+        actual_counts[obligation_id] = actual_counts.get(obligation_id, 0) + 1
+    planned_missing = sum(1 for obligation_id in set(planned_ids) if actual_counts.get(obligation_id, 0) == 0)
+    planned_present = sum(1 for obligation_id in set(planned_ids) if actual_counts.get(obligation_id, 0) > 0)
+    unplanned_rows = sum(1 for obligation_id in actual_ids if obligation_id not in set(planned_ids))
+
+    planned_tasks = plan.get("writer_requests")
+    expected_writer = len(planned_tasks) if isinstance(planned_tasks, list) else 0
+    check_tasks = plan.get("deterministic_check_tasks")
+    expected_checks = len(check_tasks) if isinstance(check_tasks, dict) else 0
+    outputs = ledger.get("outputs") if isinstance(ledger, dict) else None
+    output_rows = list(outputs.values()) if isinstance(outputs, dict) else []
+    task_status_counts, unknown_task_states = _enum_counts(
+        [row.get("status") if isinstance(row, dict) else None for row in output_rows], _TASK_STATES
+    )
+    check_outcomes: list[Any] = []
+    if isinstance(check_tasks, dict) and isinstance(outputs, dict):
+        for task_id in check_tasks:
+            row = outputs.get(task_id)
+            payload = row.get("payload") if isinstance(row, dict) else None
+            check_outcomes.append(payload.get("outcome") if isinstance(payload, dict) else None)
+    check_outcome_counts, unknown_check_outcomes = _enum_counts(check_outcomes, _CHECK_OUTCOMES)
+    disposition = result.get("disposition")
+    coverage_state = result.get("coverage_state")
+    return {
+        "schema": "model-only-shadow-engine-summary.v1",
+        "disposition": disposition if isinstance(disposition, str) and disposition in _DISPOSITIONS else "UNKNOWN",
+        "coverage_state": coverage_state if isinstance(coverage_state, str) and coverage_state in _COVERAGE_STATES else "UNKNOWN",
+        "coverage": {
+            "inventory_state": coverage_inventory,
+            "row_count": len(actual_rows),
+            "state_counts": state_counts,
+            "unknown_state_count": unknown_states,
+            "required_row_count": len(required_state_values),
+            "required_state_counts": required_state_counts,
+            "unknown_required_state_count": unknown_required_states,
+            "requiredness_unknown_count": requiredness_unknown,
+            "planned_inventory_state": "OBSERVED" if planned_shape_valid else "UNKNOWN",
+            "planned_obligation_count": len(planned_ids) if planned_shape_valid else None,
+            "planned_obligations_present": planned_present if planned_shape_valid else None,
+            "planned_obligations_missing": planned_missing if planned_shape_valid else None,
+            "planned_obligation_duplicates": planned_duplicates if planned_shape_valid else None,
+            "actual_obligation_duplicates": duplicate_ids,
+            "unplanned_coverage_row_count": unplanned_rows if planned_shape_valid else None,
+        },
+        "tasks": {
+            "writer_expected_count": expected_writer,
+            "deterministic_check_expected_count": expected_checks,
+            "ledger_task_count": len(output_rows),
+            "status_counts": task_status_counts,
+            "unknown_status_count": unknown_task_states,
+        },
+        "deterministic_checks": {
+            "applicability": "APPLICABLE" if expected_checks else "NOT_APPLICABLE",
+            "task_count": len(check_outcomes),
+            "outcome_counts": check_outcome_counts,
+            "unknown_outcome_count": unknown_check_outcomes,
+        },
+    }
+
+
 def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict[str, Any],
                   manifest: dict[str, Any], response_payloads: dict[str, tuple[str, dict]],
                   packet_pairs: set[tuple[str, str]], plan: dict[str, Any], writer_receipt: dict[str, Any],
-                  result_sha: str, plan_sha: str, manifest_sha: str, writer_receipt_sha: str) -> dict[str, Any]:
+                  result_sha: str, plan_sha: str, manifest_sha: str, writer_receipt_sha: str,
+                  *, current_source: bool = False) -> dict[str, Any]:
     tasks = result.get("task_results")
     requests = plan.get("writer_requests")
     outcome_rows = outcomes.get("tasks")
@@ -342,7 +465,7 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
         raise ReconciliationError("finding_candidate_unmatched")
     if not packet_pairs.issubset(expected_pairs):
         raise ReconciliationError("packet_candidate_unmatched")
-    return {"schema": "model-only-shadow-writer-reconciliation.v1", "status": "PROJECTION_COMPLETE",
+    projection = {"schema": "model-only-shadow-writer-reconciliation.v1", "status": "PROJECTION_COMPLETE",
             "case_id": plan.get("case", {}).get("case_id", "unknown"), "run_id_sha256": digest(str(result.get("run_id")).encode()),
             "snapshot_id": result.get("snapshot_id"), "snapshot_sha256": plan["case"]["snapshot_sha256"],
             "plan_sha256": plan_sha, "capture_manifest_sha256": manifest_sha,
@@ -355,6 +478,10 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
             ),
             "unknown_candidate_provenance_count": sum(c["record_provenance"] == "UNKNOWN"
                 for t in projected_tasks for c in t["candidates"]), "tasks": projected_tasks}
+    if current_source:
+        projection["schema"] = "model-only-shadow-writer-reconciliation.v2"
+        projection["engine_summary"] = engine_summary(result, ledger, plan)
+    return projection
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -425,6 +552,7 @@ def main(argv: list[str] | None = None) -> int:
         projection = build_receipt(
             result, result.get("ledger"), outcomes, manifest, response_payloads, packet_pairs,
             projection_plan, receipt, expected_hash, digest(plan_raw), digest(manifest_raw), digest(canonical(receipt)),
+            current_source=args.current_source,
         )
         out = canonical(projection) + b"\n"
         fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
