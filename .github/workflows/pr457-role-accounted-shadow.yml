@@ -82,7 +82,7 @@ jobs:
           wheels = list(Path(sys.argv[1]).glob("*.whl"))
           if len(wheels) != 1:
               raise SystemExit("runtime_wheel_count_invalid")
-          result = subprocess.run([sys.executable, "-m", "pip", "install", str(wheels[0])],
+          result = subprocess.run([sys.executable, "-m", "pip", "install", "--force-reinstall", str(wheels[0])],
                                   check=False, timeout=180, capture_output=True, text=True)
           if result.returncode:
               raise SystemExit("runtime_wheel_install_failed")
@@ -245,7 +245,7 @@ jobs:
           set -euo pipefail
           python3 scripts/build_model_only_shadow_writer_provider_config.py \
             --plan experiments/model-only-shadow-live-pr457-plan-v3.json \
-            --output-dir "$RUNNER_TEMP/pr457-private/writer-config" > /dev/null
+            --output-dir "$RUNNER_TEMP/pr457-writer-config" > /dev/null
 
       - name: Run the bounded read-only PR-457 writer
         id: writer
@@ -257,7 +257,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          mkdir -m 700 "$RUNNER_TEMP/pr457-private/writer-output" "$RUNNER_TEMP/pr457-private/writer-capture"
+          mkdir -m 700 "$RUNNER_TEMP/pr457-private/writer-output"
           PR457_CURRENT_SOURCE_RUNTIME=1 pr-review review \
             --repo "$GITHUB_WORKSPACE/target-repo" \
             --base 53dbafd9207eed175228c594058af85ed8e9bd0e \
@@ -265,11 +265,11 @@ jobs:
             --profile "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/profiles/PR-457.json" \
             --historical-checks-json "$GITHUB_WORKSPACE/trusted-runner/docs/real-case-trial-v1/checks/PR-457.json" \
             --limits "$GITHUB_WORKSPACE/trusted-runner/experiments/model-only-shadow-live-writer-limits-v1.json" \
-            --provider-config "$RUNNER_TEMP/pr457-private/writer-config/provider.json" \
+            --provider-config "$RUNNER_TEMP/pr457-writer-config/provider.json" \
             --mode AUTO --effect-policy READ_ONLY --max-claim-assessments 0 \
             --run-id "writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --output "$RUNNER_TEMP/pr457-private/writer-output" \
-            --private-shadow-capture "$RUNNER_TEMP/pr457-private/writer-capture" \
+            --private-shadow-capture "$RUNNER_TEMP/pr457-writer-capture" \
             --private-shadow-case-id PR-457 \
             --private-shadow-plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
             --private-shadow-preflight-receipt "$RUNNER_TEMP/pr457-current-source-receipt.json" \
@@ -285,26 +285,26 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/sanitize_model_only_shadow_writer_receipt.py \
-            --capture-root "$RUNNER_TEMP/pr457-private/writer-capture" \
+            --capture-root "$RUNNER_TEMP/pr457-writer-capture" \
             --plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
             --preflight "$RUNNER_TEMP/pr457-current-source-receipt.json" \
             --current-source \
-            --output-dir "$RUNNER_TEMP/pr457-private/writer-sanitized" > /dev/null
+            --output-dir "$RUNNER_TEMP/pr457-writer-sanitized" > /dev/null
           python3 scripts/sanitize_model_only_shadow_reconciliation.py \
             --result "$RUNNER_TEMP/pr457-private/writer-result.json" \
-            --capture-root "$RUNNER_TEMP/pr457-private/writer-capture" \
+            --capture-root "$RUNNER_TEMP/pr457-writer-capture" \
             --plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
             --preflight "$RUNNER_TEMP/pr457-current-source-receipt.json" \
             --current-source \
-            --writer-receipt "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-receipt.json" \
-            --writer-outcomes "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-outcomes.json" \
-            --output "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-reconciliation.json" > /dev/null
+            --writer-receipt "$RUNNER_TEMP/pr457-writer-sanitized/writer-receipt.json" \
+            --writer-outcomes "$RUNNER_TEMP/pr457-writer-sanitized/writer-outcomes.json" \
+            --output "$RUNNER_TEMP/pr457-writer-sanitized/writer-reconciliation.json" > /dev/null
 
       - name: Check candidate count from sanitized reconciliation
         id: candidate-count
         if: inputs.run_live == true && steps.writer-sanitize.outcome == 'success'
         run: |
-          python3 - "$RUNNER_TEMP/pr457-private/writer-sanitized/writer-reconciliation.json" <<'PY'
+          python3 - "$RUNNER_TEMP/pr457-writer-sanitized/writer-reconciliation.json" <<'PY'
           import json
           import os
           import sys
@@ -331,7 +331,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/provider_config_from_env.py \
-            --output-dir "$RUNNER_TEMP/pr457-private/audit-config" --json > /dev/null
+            --output-dir "$RUNNER_TEMP/pr457-audit-config" --json > /dev/null
 
       - name: Run the current-source role-accounted audit
         id: audit
@@ -346,11 +346,11 @@ jobs:
           mkdir -m 700 "$RUNNER_TEMP/pr457-private/audit-receipt"
           AUDIT_ARGS=()
           if [[ "${{ steps.candidate-count.outputs.count }}" != "0" ]]; then
-            AUDIT_ARGS+=(--jev-config "$RUNNER_TEMP/pr457-private/audit-config/decision.json")
+            AUDIT_ARGS+=(--jev-config "$RUNNER_TEMP/pr457-audit-config/decision.json")
           fi
           python3 scripts/run_model_only_shadow_audit.py \
-            --capture-root "$RUNNER_TEMP/pr457-private/writer-capture" \
-            --provider-config "$RUNNER_TEMP/pr457-private/writer-config/provider.json" \
+            --capture-root "$RUNNER_TEMP/pr457-writer-capture" \
+            --provider-config "$RUNNER_TEMP/pr457-writer-config/provider.json" \
             "${AUDIT_ARGS[@]}" \
             --plan experiments/model-only-shadow-live-pr457-plan-v3.json \
             --limits experiments/model-only-shadow-audit-limits-v3.json \
@@ -375,9 +375,9 @@ jobs:
         with:
           name: pr457-shadow-review-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/pr457-private/writer-sanitized/writer-receipt.json
-            ${{ runner.temp }}/pr457-private/writer-sanitized/writer-outcomes.json
-            ${{ runner.temp }}/pr457-private/writer-sanitized/writer-reconciliation.json
+            ${{ runner.temp }}/pr457-writer-sanitized/writer-receipt.json
+            ${{ runner.temp }}/pr457-writer-sanitized/writer-outcomes.json
+            ${{ runner.temp }}/pr457-writer-sanitized/writer-reconciliation.json
             ${{ runner.temp }}/pr457-private/audit-sanitized/shadow-audit-receipt.json
           if-no-files-found: error
           retention-days: 7
@@ -391,7 +391,10 @@ jobs:
           from pathlib import Path
 
           root = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
-          for name in ("pr457-prepare-output", "pr457-private"):
+          for name in (
+              "pr457-prepare-output", "pr457-private", "pr457-writer-config",
+              "pr457-audit-config", "pr457-writer-capture", "pr457-writer-sanitized",
+          ):
               target = root / name
               if target.exists() and not target.is_symlink() and target.parent == root:
                   shutil.rmtree(target)
