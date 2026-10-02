@@ -25,13 +25,7 @@ TRUSTED_CAPTURE_WORKFLOW_REF = "groktopus/codereview/.github/workflows/private-s
 TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF = (
     "groktopus/codereview/.github/workflows/synth-001-live-writer.yml@refs/heads/main"
 )
-TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF = (
-    "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
-)
-TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset({
-    TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF,
-    TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF,
-})
+TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset({TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF})
 TRUSTED_SHADOW_PLANS = {
     "PR-457": {
         "path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
@@ -125,10 +119,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     review.add_argument("--private-shadow-plan", help="trusted exact writer request plan for strict private capture")
     review.add_argument("--private-shadow-preflight-receipt", help="provider-free receipt matching the writer plan")
-    review.add_argument(
-        "--private-shadow-current-source-plan", action="store_true",
-        help="use closed per-run PR-457 request pins from the trusted main-branch workflow",
-    )
     review.add_argument(
         "--max-claim-assessments",
         type=int,
@@ -234,30 +224,9 @@ def _read_private_json(path: str, limit: int) -> tuple[dict, str]:
     return value, _sha256(bytes(data))
 
 
-def _load_private_shadow_pins(
-    plan_path: str, receipt_path: str, *, current_source: bool = False,
-) -> tuple[dict[str, dict], dict[str, Any]]:
+def _load_private_shadow_pins(plan_path: str, receipt_path: str) -> tuple[dict[str, dict], dict[str, Any]]:
     plan, plan_hash = _read_private_json(plan_path, 128_000)
     receipt, _receipt_hash = _read_private_json(receipt_path, 16_384)
-    if current_source:
-        from .current_source_capture import CurrentSourceCaptureError, installed_module_inventory, validate_plan
-
-        source_sha = os.environ.get("GITHUB_SHA", "")
-        if (
-            os.environ.get("GITHUB_ACTIONS", "").lower() != "true"
-            or os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview"
-            or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
-            or os.environ.get("GITHUB_REF") != "refs/heads/main"
-            or os.environ.get("GITHUB_WORKFLOW_REF") != TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF
-        ):
-            raise ValueError("current source capture requires the trusted main-branch workflow")
-        try:
-            pins, snapshot_pin = validate_plan(
-                plan, receipt, source_sha=source_sha, module_inventory=installed_module_inventory(),
-            )
-        except CurrentSourceCaptureError as exc:
-            raise ValueError("current source plan or receipt mismatch") from exc
-        return pins, snapshot_pin
     budget = plan.get("budget")
     case = plan.get("case")
     requests = plan.get("writer_requests")
@@ -343,30 +312,20 @@ def _canonical_private_input_path(value: str) -> Path:
     return path
 
 
-def _validate_trusted_private_plan_paths(
-    plan_path: str, receipt_path: str, case_id: str, *, current_source: bool = False,
-) -> None:
+def _validate_trusted_private_plan_paths(plan_path: str, receipt_path: str, case_id: str) -> None:
     if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
         return
     workspace = os.environ.get("GITHUB_WORKSPACE")
     runner_temp = os.environ.get("RUNNER_TEMP")
     policy = TRUSTED_SHADOW_PLANS.get(case_id)
-    if not workspace or not runner_temp or (policy is None and not current_source):
+    if not workspace or not runner_temp or policy is None:
         raise ValueError("trusted private preflight paths unavailable")
     supplied_plan = _canonical_private_input_path(plan_path)
     supplied_receipt = _canonical_private_input_path(receipt_path)
     trusted_workspace = _canonical_private_input_path(workspace)
     trusted_runner_temp = _canonical_private_input_path(runner_temp)
-    if current_source:
-        if case_id != "PR-457" or os.environ.get("GITHUB_WORKFLOW_REF") != TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF:
-            raise ValueError("current source plan paths require the fixed PR-457 workflow")
-        expected_plan = trusted_runner_temp / "pr457-current-source-plan.json"
-        expected_receipt = trusted_runner_temp / "pr457-current-source-receipt.json"
-    else:
-        if policy is None:
-            raise ValueError("trusted private preflight paths unavailable")
-        expected_plan = trusted_workspace / "trusted-runner" / policy["path"]
-        expected_receipt = trusted_runner_temp / "private-shadow-preparation" / "live-preflight-receipt.json"
+    expected_plan = trusted_workspace / "trusted-runner" / policy["path"]
+    expected_receipt = trusted_runner_temp / "private-shadow-preparation" / "live-preflight-receipt.json"
     if supplied_plan != expected_plan or supplied_receipt != expected_receipt:
         raise ValueError("trusted private preflight paths required")
 
@@ -814,15 +773,8 @@ def _run_one(
     if bool(plan_path) != bool(receipt_path):
         raise ValueError("private shadow plan and preflight receipt must be provided together")
     if capture_dir and plan_path and receipt_path:
-        current_source = bool(getattr(args, "private_shadow_current_source_plan", False))
-        if current_source and capture_case_id != "PR-457":
-            raise ValueError("current source capture is restricted to PR-457")
-        _validate_trusted_private_plan_paths(
-            plan_path, receipt_path, capture_case_id, current_source=current_source,
-        )
-        capture_pins, capture_snapshot_pin = _load_private_shadow_pins(
-            plan_path, receipt_path, current_source=current_source,
-        )
+        _validate_trusted_private_plan_paths(plan_path, receipt_path, capture_case_id)
+        capture_pins, capture_snapshot_pin = _load_private_shadow_pins(plan_path, receipt_path)
         if capture_case_id != capture_snapshot_pin.get("case_id"):
             raise ValueError("private shadow case does not match plan")
     if capture_dir and os.environ.get("GITHUB_ACTIONS", "").lower() == "true" and capture_pins is None:
@@ -1497,23 +1449,13 @@ def main(argv=None) -> int:
                 raise ValueError("--prepare-only requires explicit historical revisions without a GitHub event")
             if not args.provider_config:
                 raise ValueError("--prepare-only requires --provider-config for exact request sizing")
-        current_source_plan = bool(getattr(args, "private_shadow_current_source_plan", False))
-        if current_source_plan and (
-            args.command != "review" or not args.private_shadow_capture
-            or args.private_shadow_case_id != "PR-457" or not args.private_shadow_plan
-            or not args.private_shadow_preflight_receipt or args.prepare_only or args.dry_run
-        ):
-            raise ValueError("current source plan requires a fresh PR-457 private capture")
         if args.command == "review" and args.private_shadow_capture:
             plan_path = args.private_shadow_plan
             receipt_path = args.private_shadow_preflight_receipt
             if bool(plan_path) != bool(receipt_path):
                 raise ValueError("private shadow plan and preflight receipt must be provided together")
             if plan_path and receipt_path:
-                _validate_trusted_private_plan_paths(
-                    plan_path, receipt_path, args.private_shadow_case_id,
-                    current_source=current_source_plan,
-                )
+                _validate_trusted_private_plan_paths(plan_path, receipt_path, args.private_shadow_case_id)
         if args.dry_run:
             if args.command == "recent" and not 1 <= args.count <= 100:
                 raise ValueError("count must be between 1 and 100")
@@ -1548,17 +1490,6 @@ def main(argv=None) -> int:
             _emit(args, preview)
             return 0
         profile, limits, provider, decision_provider, claim_assessor = _configs(args)
-        if bool(getattr(args, "private_shadow_current_source_plan", False)):
-            from .current_source_capture import _canonical, installed_module_inventory, validate_plan
-
-            plan, _ = _read_private_json(args.private_shadow_plan, 128_000)
-            receipt, _ = _read_private_json(args.private_shadow_preflight_receipt, 16_384)
-            _pins, current_pin = validate_plan(
-                plan, receipt, source_sha=os.environ.get("GITHUB_SHA", ""),
-                module_inventory=installed_module_inventory(),
-            )
-            if provider is None or _sha256(_canonical(provider.identity)) != current_pin["provider_identity_sha256"]:
-                raise ValueError("current source provider identity mismatch")
         if args.command == "review":
             if args.private_shadow_capture and (args.resume or args.prepare_only or args.dry_run):
                 raise ValueError("private shadow capture is incompatible with resume, prepare-only, and dry-run")

@@ -15,7 +15,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-sys.path.insert(0, str(ROOT / "src"))
+if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
+    sys.path.insert(0, str(ROOT / "src"))
+from sanitize_model_only_shadow_writer_receipt import _current_source_plan  # noqa: E402
 from sanitize_model_only_shadow_writer_receipt import sanitize as sanitize_writer_capture  # noqa: E402
 from shadow_case_policy import case_for_plan_path  # noqa: E402
 
@@ -326,18 +328,36 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ("result", "capture-root", "plan", "preflight", "writer-receipt", "writer-outcomes", "output"):
         parser.add_argument("--" + option, type=Path, required=True)
+    parser.add_argument("--current-source", action="store_true",
+                        help="validate the closed per-run PR-457 plan and receipt")
     args = parser.parse_args(argv)
     try:
         plan, plan_raw = read_json(args.plan, 128_000)
-        case_id, policy = case_for_plan_path(args.plan, ROOT)
-        if case_id != "PR-464" or policy["writer_calls"] != 10:
-            raise ReconciliationError("plan_identity_invalid")
+        if args.current_source:
+            preflight, _ = read_json(args.preflight, 16_384)
+            projection_plan, policy, _snapshot = _current_source_plan(
+                plan, preflight, args.plan, args.preflight,
+            )
+            case_id = "PR-457"
+        else:
+            case_id, policy = case_for_plan_path(args.plan, ROOT)
+            if case_id != "PR-464" or policy["writer_calls"] != 10:
+                raise ReconciliationError("plan_identity_invalid")
+            projection_plan = plan
         # Reuse the authoritative capture validator; supplied sanitized artifacts must match its output.
         runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
         generated_dir = Path(tempfile.mkdtemp(prefix="reconcile-generated-", dir=runner_temp))
         generated_dir.rmdir()
         try:
-            generated_receipt = sanitize_writer_capture(args.capture_root, args.plan, args.preflight, generated_dir)
+            if args.current_source:
+                generated_receipt = sanitize_writer_capture(
+                    args.capture_root, args.plan, args.preflight, generated_dir,
+                    current_source=True,
+                )
+            else:
+                generated_receipt = sanitize_writer_capture(
+                    args.capture_root, args.plan, args.preflight, generated_dir,
+                )
             receipt_file, _ = read_json(args.writer_receipt, 128_000)
             outcomes_file, _ = read_json(args.writer_outcomes, 128_000)
             generated_outcomes, _ = read_json(generated_dir / "writer-outcomes.json", 128_000, True)
@@ -371,7 +391,7 @@ def main(argv: list[str] | None = None) -> int:
                 packet_pairs.add((candidate["candidate_id"], source_task["task_id"]))
         projection = build_receipt(
             result, result.get("ledger"), outcomes, manifest, response_payloads, packet_pairs,
-            plan, receipt, expected_hash, digest(plan_raw), digest(manifest_raw), digest(canonical(receipt)),
+            projection_plan, receipt, expected_hash, digest(plan_raw), digest(manifest_raw), digest(canonical(receipt)),
         )
         out = canonical(projection) + b"\n"
         fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
