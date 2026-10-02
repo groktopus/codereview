@@ -199,12 +199,29 @@ def test_preparation_records_only_bounded_runtime_identity() -> None:
 
 
 def test_review_upload_is_limited_to_sanitized_receipts() -> None:
-    step = _steps(_workflow())["Upload only sanitized writer and role receipts"]
+    steps = _steps(_workflow())
+    step = steps["Upload only sanitized writer and role receipts"]
     paths = step["with"]["path"]
 
     assert "writer-receipt.json" in paths
     assert "writer-outcomes.json" in paths
+    assert "writer-task-diagnostics.json" in paths
     assert "writer-reconciliation.json" in paths
     assert "shadow-audit-receipt.json" in paths
-    for private_name in ("writer-result.json", "writer-capture", "audit-output", "audit-config"):
+    assert step["if"] == "always() && inputs.run_live == true && steps.writer.outcome == 'success'"
+    assert step["with"]["if-no-files-found"] == "ignore"
+    for private_name in ("writer-cli-output.json", "writer-capture", "audit-output", "audit-config"):
         assert private_name not in paths
+
+
+def test_reconciliation_reads_hash_bound_durable_writer_result_and_upload_survives_later_failure() -> None:
+    steps = _steps(_workflow())
+    writer = steps["Run the bounded read-only PR-457 writer"]["run"]
+    sanitize = steps["Sanitize writer capture accounting"]["run"]
+
+    run_id = 'writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'
+    durable = f'--result "$RUNNER_TEMP/pr457-private/writer-output/{run_id}.json"'
+    assert f'--run-id "{run_id}"' in writer
+    assert durable in sanitize
+    assert "--result \"$RUNNER_TEMP/pr457-private/writer-cli-output.json\"" not in sanitize
+    assert 'if: always() && inputs.run_live == true && steps.writer.outcome == \'success\'' in WORKFLOW.read_text()

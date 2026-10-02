@@ -8,6 +8,7 @@ import json
 import re
 from typing import Any
 
+from .claim_reconciliation import validate_claim_reconciliation_policy
 from .dependency_context import DependencyContextError, valid_projection_evidence, validate_dependency_context
 
 _MODE_ORDER = {"LIGHT": 0, "FOCUSED": 1, "DEEP": 2}
@@ -457,6 +458,7 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
         raise ValueError("snapshot and profile must be objects")
     allow_empty_approve(profile)
     validate_profile_lenses(profile)
+    validate_claim_reconciliation_policy(profile)
     context_selection = validate_context_selection(profile)
     try:
         dependency_context = validate_dependency_context(profile)

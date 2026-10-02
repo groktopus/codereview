@@ -274,7 +274,7 @@ jobs:
             --private-shadow-plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
             --private-shadow-preflight-receipt "$RUNNER_TEMP/pr457-current-source-receipt.json" \
             --private-shadow-current-source-plan \
-            --json > "$RUNNER_TEMP/pr457-private/writer-result.json" 2>/dev/null
+            --json > "$RUNNER_TEMP/pr457-private/writer-cli-output.json" 2>/dev/null
 
       - name: Sanitize writer capture accounting
         id: writer-sanitize
@@ -291,7 +291,7 @@ jobs:
             --current-source \
             --output-dir "$RUNNER_TEMP/pr457-writer-sanitized" > /dev/null
           python3 scripts/sanitize_model_only_shadow_reconciliation.py \
-            --result "$RUNNER_TEMP/pr457-private/writer-result.json" \
+            --result "$RUNNER_TEMP/pr457-private/writer-output/writer-live-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json" \
             --capture-root "$RUNNER_TEMP/pr457-writer-capture" \
             --plan "$RUNNER_TEMP/pr457-current-source-plan.json" \
             --preflight "$RUNNER_TEMP/pr457-current-source-receipt.json" \
@@ -370,16 +370,17 @@ jobs:
             --output-dir "$RUNNER_TEMP/pr457-private/audit-sanitized" > /dev/null
 
       - name: Upload only sanitized writer and role receipts
-        if: inputs.run_live == true && steps.audit-sanitize.outcome == 'success'
+        if: always() && inputs.run_live == true && steps.writer.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: pr457-shadow-review-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/pr457-writer-sanitized/writer-receipt.json
             ${{ runner.temp }}/pr457-writer-sanitized/writer-outcomes.json
+            ${{ runner.temp }}/pr457-writer-sanitized/writer-task-diagnostics.json
             ${{ runner.temp }}/pr457-writer-sanitized/writer-reconciliation.json
             ${{ runner.temp }}/pr457-private/audit-sanitized/shadow-audit-receipt.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Remove private request, response, capture, and provider configuration data

@@ -22,6 +22,7 @@ from pr_review_harness.claim_assessment import (
     ClaimAssessmentAdapter,
     ClaimAssessmentError,
 )
+from pr_review_harness.claim_reconciliation import classify_reconciliation
 from pr_review_harness.claim_transport import ClaimTransport
 from pr_review_harness.engine import run_review
 from pr_review_harness.planner import plan_review
@@ -83,8 +84,16 @@ def _snapshot() -> dict:
     }
 
 
-def _profile() -> dict:
-    return {"version": "profile-v1", "required_lenses": ["correctness"], "allow_empty_approval": True}
+def _profile(*, reconciliation: bool = False, cap: int = 1) -> dict:
+    profile = {"version": "profile-v1", "required_lenses": ["correctness"], "allow_empty_approval": True}
+    if reconciliation:
+        profile["claim_reconciliation"] = {
+            "version": "claim-reconciliation.v1",
+            "enabled": True,
+            "required": True,
+            "max_assessments": cap,
+        }
+    return profile
 
 
 class PrimaryProvider:
@@ -161,6 +170,53 @@ class PrimaryProvider:
             },
             "material_consequence": False,
         }
+
+
+class SupportedPrimaryProvider(PrimaryProvider):
+    def __init__(self, *, material: bool = True, introducedness: str = "INTRODUCED"):
+        super().__init__(outcome="SUPPORTED")
+        self.material = material
+        self.introducedness = introducedness
+
+    def adjudicate(self, candidate: dict, evidence: list[dict], limits: dict) -> dict:
+        refs = [item["evidence_id"] for item in evidence]
+        payload = {
+            "contract_version": "semantic-adjudication.v3",
+            "source_contract_version": "semantic-adjudication.v3",
+            "outcome": "SUPPORTED",
+            "observation_support": "SUPPORTED",
+            "consequence_support": "SUPPORTED",
+            "rule_connection_support": "SUPPORTED",
+            "introducedness": self.introducedness,
+            "assumptions": [],
+            "uncertainties": [],
+            "summary": "The bounded fixture supports the candidate.",
+            "evidence_refs": refs,
+            "causal_roles": {
+                role: {
+                    "support": "SUPPORTED",
+                    "assessment": f"The fixture supports the {role} link.",
+                    "evidence_refs": refs,
+                }
+                for role in ("behavior", "consumer", "impact")
+            },
+            "material_consequence": self.material,
+        }
+        return {
+            "payload": payload,
+            "usage": {},
+            "provenance": {"provider_rubric_version": "causal-roles.behavior-consumer-impact.v1"},
+        }
+
+
+class TwoCandidatePrimaryProvider(SupportedPrimaryProvider):
+    def review(self, task: dict, evidence: list[dict], limits: dict) -> dict:
+        result = super().review(task, evidence, limits)
+        second = dict(result["finding_candidates"][0])
+        second["title"] = "A distinct fixture candidate"
+        second["observation"] = "The second changed predicate also admits the request."
+        result["finding_candidates"].append(second)
+        return result
 
 
 @dataclass(frozen=True)
@@ -385,19 +441,34 @@ class ClaimChoiceHandler(BaseHTTPRequestHandler):
 
     seen: list[bytes] = []
     token = "claim-engine-loopback-test-token"
+    choices: dict[str, str] | None = None
+    http_status = 200
 
     def do_POST(self):
         request_bytes = self.rfile.read(int(self.headers.get("Content-Length", "0")))
         type(self).seen.append(request_bytes)
+        if type(self).http_status != 200:
+            response = b'{"error":"fixture unavailable"}'
+            self.send_response(type(self).http_status)
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+            return
         request = json.loads(request_bytes)
         answers = {}
         for question_id, question in request["questions"].items():
             choices = list(question["criteria"])
             probabilities = {choice: 0.0 for choice in choices}
-            probabilities[choices[0]] = 1.0
+            dimension = next(
+                (name for name in _CLAIM_CHOICES if f"category for {name}" in question["instructions"]), None
+            )
+            selected = (type(self).choices or {}).get(dimension, choices[0])
+            if selected not in choices:
+                selected = choices[0]
+            probabilities[selected] = 1.0
             answers[question_id] = {
                 "type": "choice",
-                "choice": choices[0],
+                "choice": selected,
                 "probabilities": probabilities,
                 "confidence": 1.0,
             }
@@ -416,6 +487,16 @@ class ClaimChoiceHandler(BaseHTTPRequestHandler):
 
     def log_message(self, *_args):
         pass
+
+
+_CLAIM_CHOICES = (
+    "observation_support",
+    "consequence_support",
+    "rule_connection_support",
+    "materiality",
+    "missing_context",
+    "introducedness",
+)
 
 
 def _run(
@@ -547,6 +628,350 @@ def test_positive_cap_requires_assessor_before_any_run_artifact(tmp_path):
     with pytest.raises(ValueError, match="requires a claim assessor"):
         _run(tmp_path, cap=1)
     assert not (tmp_path / "r1.json").exists()
+
+
+def test_required_reconciliation_profile_rejects_missing_or_wrong_cap_before_primary_dispatch(tmp_path):
+    class CountingPrimary(PrimaryProvider):
+        calls = 0
+
+        def review(self, task, evidence, limits):
+            self.calls += 1
+            return super().review(task, evidence, limits)
+
+    primary = CountingPrimary()
+    profile = _profile(reconciliation=True, cap=1)
+    with pytest.raises(ValueError, match="review request is invalid"):
+        _run(tmp_path, profile=profile, primary=primary, cap=0, assessor=FakeClaimAssessor())
+    assert primary.calls == 0
+    assert not (tmp_path / "r1.json").exists()
+
+
+def test_reconciliation_rejects_stale_primary_assessment_binding():
+    primary = {
+        "observation_support": "SUPPORTED",
+        "consequence_support": "SUPPORTED",
+        "rule_connection_support": "SUPPORTED",
+        "material_consequence": True,
+        "introducedness": "INTRODUCED",
+    }
+    assessments = {
+        "observation_support": {"status": "ANSWERED", "choice": "SUPPORTED"},
+        "consequence_support": {"status": "ANSWERED", "choice": "SUPPORTED"},
+        "rule_connection_support": {"status": "ANSWERED", "choice": "SUPPORTED"},
+        "materiality": {"status": "ANSWERED", "choice": "MATERIAL"},
+        "missing_context": {"status": "ANSWERED", "choice": "NO_MISSING_CONTEXT_IDENTIFIED"},
+        "introducedness": {"status": "ANSWERED", "choice": "INTRODUCED"},
+    }
+    row = {
+        "status": "COMPLETE",
+        "response_valid": True,
+        "primary_assessment_hash": "0" * 64,
+        "candidate_hash": "1" * 64,
+        "evidence_hash": "2" * 64,
+        "request_hash": "3" * 64,
+        "assessments": assessments,
+    }
+
+    result = classify_reconciliation(primary, row, candidate_valid=True)
+
+    assert result["state"] == "PARTIAL"
+    assert result["reason_code"] == "PRIMARY_ASSESSMENT_BINDING_MISMATCH"
+
+
+def test_reconciliation_uses_engine_hash_for_unicode_primary_assessment():
+    primary = {
+        "observation_support": "SUPPORTED",
+        "consequence_support": "SUPPORTED",
+        "rule_connection_support": "SUPPORTED",
+        "material_consequence": True,
+        "introducedness": "INTRODUCED",
+        "summary": "Réponse sûre — café",
+    }
+    assessments = {
+        "observation_support": {"status": "ANSWERED", "choice": "SUPPORTED"},
+        "consequence_support": {"status": "ANSWERED", "choice": "SUPPORTED"},
+        "rule_connection_support": {"status": "ANSWERED", "choice": "SUPPORTED"},
+        "materiality": {"status": "ANSWERED", "choice": "MATERIAL"},
+        "missing_context": {"status": "ANSWERED", "choice": "NO_MISSING_CONTEXT_IDENTIFIED"},
+        "introducedness": {"status": "ANSWERED", "choice": "INTRODUCED"},
+    }
+    row = {
+        "status": "COMPLETE",
+        "response_valid": True,
+        "primary_assessment_hash": engine_module._hash(primary),
+        "candidate_hash": "1" * 64,
+        "evidence_hash": "2" * 64,
+        "request_hash": "3" * 64,
+        "assessments": assessments,
+    }
+
+    result = classify_reconciliation(primary, row, candidate_valid=True)
+
+    assert result["state"] == "AGREES"
+    assert result["primary_assessment_hash"] == engine_module._hash(primary)
+
+
+def _run_with_native_claim_choices(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    choices: dict[str, str],
+    primary: PrimaryProvider,
+    http_status: int = 200,
+    include_revision_evidence: bool = True,
+):
+    snapshot = _snapshot()
+    if include_revision_evidence:
+        for evidence_id, source_kind, revision, content in (
+            ("base:u0", "base_file", BASE, "def authorize(request): return False"),
+            ("head:u0", "head_file", HEAD, "def authorize(request): return True"),
+        ):
+            snapshot["evidence"][evidence_id] = {
+                "evidence_id": evidence_id,
+                "snapshot_id": snapshot["snapshot_id"],
+                "path": "src/auth.py",
+                "source_revision": revision,
+                "content": content,
+                "content_hash": hashlib.sha256(content.encode()).hexdigest(),
+                "source_kind": source_kind,
+                "trust": "repository_evidence",
+            }
+            snapshot["inventory"][0]["evidence_ids"].append(evidence_id)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ClaimChoiceHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    ClaimChoiceHandler.seen = []
+    ClaimChoiceHandler.choices = choices
+    ClaimChoiceHandler.http_status = http_status
+    thread.start()
+    monkeypatch.setenv("CLAIM_ENGINE_TEST_KEY", ClaimChoiceHandler.token)
+    try:
+        transport = ClaimTransport(
+            {
+                "endpoint": f"http://127.0.0.1:{server.server_port}/v1/systemone",
+                "api_key_env": "CLAIM_ENGINE_TEST_KEY",
+                "model": "jev-latest",
+                "timeout_seconds": 2,
+                "max_request_bytes": 64_000,
+                "max_response_bytes": 64_000,
+            }
+        )
+        result = _run(
+            tmp_path,
+            snapshot=snapshot,
+            assessor=ClaimAssessmentAdapter(transport, "jev-latest"),
+            cap=1,
+            limits={**LIMITS, "max_input_bytes_per_task": 128_000},
+            profile=_profile(reconciliation=True, cap=1),
+            primary=primary,
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+        ClaimChoiceHandler.choices = None
+        ClaimChoiceHandler.http_status = 200
+    return result, list(ClaimChoiceHandler.seen)
+
+
+def _supported_choices(*, consequence: str = "SUPPORTED") -> dict[str, str]:
+    return {
+        "observation_support": "SUPPORTED",
+        "consequence_support": consequence,
+        "rule_connection_support": "SUPPORTED",
+        "materiality": "MATERIAL",
+        "missing_context": "NO_MISSING_CONTEXT_IDENTIFIED",
+        "introducedness": "INTRODUCED",
+    }
+
+
+def test_native_jev_agreement_is_bound_and_reaches_deterministic_reducer(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=SupportedPrimaryProvider(),
+    )
+
+    assert len(requests) == 1
+    request = json.loads(requests[0])
+    state = request["state"]
+    assert state["primary_assessment"]["outcome"] == "SUPPORTED"
+    assert state["candidate"]["observation"] == "The changed predicate admits the request."
+    assert {item["evidence_id"] for item in state["cited_evidence"]} == {"diff:u0", "base:u0", "head:u0"}
+    finding = result["findings"][0]
+    assert finding["status"] == "ACCEPTED"
+    assert finding["blocking_class"] == "BLOCKING"
+    assert finding["claim_reconciliations"][0]["state"] == "AGREES"
+    assert finding["claim_reconciliations"][0]["uncompared_dimensions"] == ["missing_context"]
+    assert finding["claim_reconciliations"][0]["primary_assessment_hash"] == result["claim_assessments"][0][
+        "primary_assessment_hash"
+    ]
+    assert result["coverage_state"] == "COMPLETE"
+    assert result["disposition"] == "REQUEST_CHANGES"
+
+
+def test_native_jev_dissent_is_visible_partial_and_cannot_clear_accepted_blocker(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(consequence="CONTRADICTED"),
+        primary=SupportedPrimaryProvider(),
+    )
+
+    assert len(requests) == 1
+    finding = result["findings"][0]
+    reconciliation = finding["claim_reconciliations"][0]
+    assert reconciliation["state"] == "CONFLICT"
+    assert reconciliation["disagreeing_dimensions"] == ["consequence_support"]
+    assert reconciliation["uncompared_dimensions"] == ["missing_context"]
+    assert finding["status"] == "ACCEPTED"
+    assert finding["blocking_class"] == "BLOCKING"
+    assert result["coverage_state"] == "PARTIAL"
+    assert any(
+        row["obligation_kind"] == "CLAIM_RECONCILIATION"
+        and row["state"] == "PARTIAL"
+        and row["reconciliation_state"] == "CONFLICT"
+        for row in result["coverage_ledger"]
+    )
+    assert result["disposition"] == "REQUEST_CHANGES"
+
+
+def test_native_jev_support_cannot_promote_primary_unsupported_candidate(tmp_path, monkeypatch):
+    choices = _supported_choices()
+    choices["introducedness"] = "UNKNOWN"
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=choices,
+        primary=PrimaryProvider(outcome="NOT_SUPPORTED"),
+    )
+
+    assert len(requests) == 1
+    finding = result["findings"][0]
+    assert finding["claim_reconciliations"][0]["state"] == "CONFLICT"
+    assert finding["blocking_class"] != "BLOCKING"
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["disposition"] == "INCOMPLETE"
+
+
+def test_native_jev_http_failure_is_partial_and_preserves_existing_blocker(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=SupportedPrimaryProvider(),
+        http_status=503,
+    )
+
+    assert len(requests) == 1
+    assert result["claim_assessments"][0]["status"] == "FAILED"
+    assert result["findings"][0]["claim_reconciliations"][0]["state"] == "PARTIAL"
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["findings"][0]["blocking_class"] == "BLOCKING"
+    assert result["disposition"] == "REQUEST_CHANGES"
+
+
+def test_required_reconciliation_missing_revision_evidence_cannot_clear(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=SupportedPrimaryProvider(),
+        include_revision_evidence=False,
+    )
+
+    assert len(requests) == 1
+    relation = result["findings"][0]["claim_reconciliations"][0]
+    assert relation["state"] == "PARTIAL"
+    assert relation["reason_code"] == "CLAIM_ASSESSMENT_DIMENSION_UNAVAILABLE"
+    assert relation["unassessed_dimensions"] == ["introducedness"]
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["findings"][0]["blocking_class"] == "BLOCKING"
+    assert result["disposition"] == "REQUEST_CHANGES"
+
+
+@pytest.mark.parametrize("missing_context", ["MISSING_CONTEXT_IDENTIFIED", "UNCERTAIN"])
+def test_native_jev_context_qualifier_never_counts_as_comparable_agreement(tmp_path, monkeypatch, missing_context):
+    choices = _supported_choices()
+    choices["missing_context"] = missing_context
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=choices,
+        primary=SupportedPrimaryProvider(),
+    )
+
+    assert len(requests) == 1
+    relation = result["findings"][0]["claim_reconciliations"][0]
+    assert relation["state"] == "PARTIAL"
+    assert "missing_context" in relation["uncompared_dimensions"]
+    assert relation["disagreeing_dimensions"] == []
+    assert relation["qualifier_status"] in {"UNSATISFIED", "UNRESOLVED"}
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["disposition"] == "REQUEST_CHANGES"
+
+
+def test_comparable_mismatch_remains_conflict_with_unsatisfied_context_qualifier(tmp_path, monkeypatch):
+    choices = _supported_choices(consequence="CONTRADICTED")
+    choices["missing_context"] = "MISSING_CONTEXT_IDENTIFIED"
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=choices,
+        primary=SupportedPrimaryProvider(),
+    )
+
+    assert len(requests) == 1
+    relation = result["findings"][0]["claim_reconciliations"][0]
+    assert relation["state"] == "CONFLICT"
+    assert relation["disagreeing_dimensions"] == ["consequence_support"]
+    assert relation["uncompared_dimensions"] == ["missing_context"]
+    assert relation["qualifier_status"] == "UNSATISFIED"
+    assert relation["qualifier_reason"] == "MISSING_CONTEXT_IDENTIFIED"
+
+
+@pytest.mark.parametrize(
+    ("introducedness", "material", "materiality_choice"),
+    [("PRE_EXISTING", True, "MATERIAL"), ("INTRODUCED", False, "NOT_MATERIAL")],
+)
+def test_consistent_jev_answers_cannot_create_blocker_for_nonqualifying_primary(
+    tmp_path, monkeypatch, introducedness, material, materiality_choice
+):
+    choices = _supported_choices()
+    choices["introducedness"] = introducedness
+    choices["materiality"] = materiality_choice
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=choices,
+        primary=SupportedPrimaryProvider(material=material, introducedness=introducedness),
+    )
+
+    assert len(requests) == 1
+    assert all(
+        finding.get("status") != "ACCEPTED" or finding.get("blocking_class") != "BLOCKING"
+        for finding in result["findings"]
+    )
+    assert result["disposition"] != "REQUEST_CHANGES"
+
+
+def test_required_classifier_cap_exhaustion_is_explicit_partial(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=TwoCandidatePrimaryProvider(),
+    )
+
+    assert len(requests) == 1
+    assert len(result["claim_assessments"]) == 2
+    statuses = {row["status"] for row in result["claim_assessments"]}
+    assert statuses == {"COMPLETE", "NOT_RUN"}
+    assert any(
+        row.get("reason_code") == "CLAIM_ASSESSMENT_CAP_EXHAUSTED" for row in result["claim_assessments"]
+    )
+    assert result["coverage_state"] == "PARTIAL"
+    assert result["disposition"] == "REQUEST_CHANGES"
 
 
 def test_shadow_runs_after_primary_and_records_exact_reservation_without_changing_disposition(tmp_path):
