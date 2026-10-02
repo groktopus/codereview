@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .claim_reconciliation import validate_claim_reconciliation_policy
 from .engine import EnginePreflightError, _private_capture_profile_id
 from .private_capture import MAX_REQUEST_BYTES
 from .snapshot import SnapshotError, bind_repository_url, collect_snapshot, recent_commits
@@ -129,14 +130,6 @@ def _parser() -> argparse.ArgumentParser:
         "--private-shadow-current-source-plan", action="store_true",
         help="use closed per-run PR-457 request pins from the trusted main-branch workflow",
     )
-    review.add_argument(
-        "--max-claim-assessments",
-        type=int,
-        choices=range(5),
-        default=0,
-        metavar="0..4",
-        help="run up to four optional TypeSafe claim assessments (requires --decision-config; default: disabled)",
-    )
     recent = sub.add_parser("recent", help="review recent first-parent commit pairs")
     _common(recent)
     recent.add_argument("--count", type=int, default=5)
@@ -179,6 +172,14 @@ def _common(p: argparse.ArgumentParser) -> None:
     )
     p.add_argument("--output", default="artifacts", help="local output directory")
     p.add_argument("--json", action="store_true", help="emit a single JSON value on stdout")
+    p.add_argument(
+        "--max-claim-assessments",
+        type=int,
+        choices=range(5),
+        default=0,
+        metavar="0..4",
+        help="run up to four TypeSafe claim assessments per review (requires --decision-config; required profiles enforce their exact cap)",
+    )
 
 
 def _load_json(path: str, label: str) -> dict:
@@ -738,10 +739,14 @@ def _freshness(event: dict | None, expected_head: str):
     return GitHubFreshnessCheck(event["repository"], event["pull_request_number"], expected_head)
 
 
-def _claim_assessment_cap(args) -> int:
+def _claim_assessment_cap(args, profile: dict | None = None) -> int:
     cap = getattr(args, "max_claim_assessments", 0)
     if isinstance(cap, bool) or not isinstance(cap, int) or not 0 <= cap <= 4:
         raise ValueError("max claim assessments must be between 0 and 4")
+    policy = validate_claim_reconciliation_policy(profile) if profile is not None else None
+    if policy is not None:
+        if cap != policy["max_assessments"]:
+            raise ValueError("required claim reconciliation needs its exact profile cap")
     if cap > 0 and not getattr(args, "decision_config", None):
         raise ValueError("positive max claim assessments requires --decision-config")
     return cap
@@ -758,12 +763,12 @@ def _claim_transport_from_config(config: dict):
         raise ValueError("claim assessment decision configuration is invalid") from None
 
 
-def _configs(args):
-    profile = _load_json(args.profile, "profile")
+def _configs(args, profile: dict | None = None):
+    profile = profile if profile is not None else _load_json(args.profile, "profile")
     limits = _read_limits(args)
     provider_config = decision_config = None
     claim_assessor = None
-    claim_cap = _claim_assessment_cap(args)
+    claim_cap = _claim_assessment_cap(args, profile)
     try:
         from .providers import load_provider_config, make_decision_provider, make_provider
 
@@ -1489,7 +1494,8 @@ def main(argv=None) -> int:
             return code
         if getattr(args, "effect_policy", "READ_ONLY") != "READ_ONLY":
             raise ValueError("PUBLISH_REVIEW is disabled")
-        claim_cap = _claim_assessment_cap(args)
+        profile_input = _load_json(args.profile, "profile")
+        claim_cap = _claim_assessment_cap(args, profile_input)
         if getattr(args, "prepare_only", False):
             if args.command != "review" or args.dry_run:
                 raise ValueError("--prepare-only is available only for a non-dry-run review")
@@ -1541,10 +1547,10 @@ def main(argv=None) -> int:
                         "historical_checks_path": args.historical_checks_json,
                     }
                 )
-                if claim_cap > 0:
-                    preview["max_claim_assessments"] = claim_cap
             else:
                 preview.update({"count": args.count, "head": "HEAD"})
+            if claim_cap > 0:
+                preview["max_claim_assessments"] = claim_cap
             _emit(args, preview)
             return 0
         profile, limits, provider, decision_provider, claim_assessor = _configs(args)
@@ -1701,7 +1707,16 @@ def main(argv=None) -> int:
             run_id = str(uuid.uuid4())
             try:
                 result = _run_one(
-                    args, pair["base"], pair["head"], profile, limits, provider, decision_provider, run_id
+                    args,
+                    pair["base"],
+                    pair["head"],
+                    profile,
+                    limits,
+                    provider,
+                    decision_provider,
+                    run_id,
+                    claim_assessor=claim_assessor,
+                    max_claim_assessments=claim_cap,
                 )
                 runs.append(
                     {

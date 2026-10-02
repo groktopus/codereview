@@ -1,0 +1,342 @@
+{
+  "allow_empty_approval": true,
+  "claim_reconciliation": {
+    "enabled": true,
+    "max_assessments": 1,
+    "required": true,
+    "version": "claim-reconciliation.v1"
+  },
+  "classifications": {
+    "requirements-dev.txt": "config"
+  },
+  "context_paths": [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "pyproject.toml",
+    "Dockerfile",
+    ".github/workflows/ci.yml",
+    "tests/test_mcp_gateway.py",
+    "tests/test_mcp_harness.py",
+    "slopsearx/mcp/security.py",
+    "slopsearx/mcp/oauth.py",
+    "slopsearx/filters.py",
+    "slopsearx/config.py"
+  ],
+  "context_revision_metadata": true,
+  "context_selection": {
+    "bindings": [
+      {
+        "context_paths": [
+          "pyproject.toml"
+        ],
+        "head_context_paths": [],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 8000,
+        "unit_patterns": [
+          ".github/dependabot.yml",
+          ".github/workflows/*",
+          "pyproject.toml",
+          "uv.lock",
+          "requirements*.txt",
+          "Dockerfile"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/config.py"
+        ],
+        "head_context_paths": [],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 20000,
+        "unit_patterns": [
+          "slopsearx/config.py",
+          "config.yaml",
+          "docker-compose*"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/mcp/security.py",
+          "slopsearx/mcp/oauth.py"
+        ],
+        "head_context_paths": [
+          "tests/test_mcp_security.py",
+          "tests/test_mcp_oauth.py",
+          "docs/MCP_SERVER.md"
+        ],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 24000,
+        "unit_patterns": [
+          "slopsearx/mcp/security.py",
+          "slopsearx/mcp/oauth.py",
+          "slopsearx/mcp/oauth_client.py",
+          "slopsearx/mcp/tools.py"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/filters.py"
+        ],
+        "head_context_paths": [],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "max_context_bytes": 11000,
+        "unit_patterns": [
+          "slopsearx/mcp/tools.py"
+        ]
+      },
+      {
+        "context_paths": [
+          "pyproject.toml",
+          "Dockerfile",
+          ".github/workflows/ci.yml"
+        ],
+        "head_context_paths": [],
+        "lenses": [
+          "security",
+          "correctness"
+        ],
+        "max_context_bytes": 16000,
+        "unit_patterns": [
+          "requirements*.txt",
+          "uv.lock",
+          "pyproject.toml",
+          "Dockerfile"
+        ]
+      },
+      {
+        "context_paths": [
+          "pyproject.toml",
+          ".github/workflows/ci.yml",
+          "tests/test_mcp_gateway.py",
+          "tests/test_mcp_harness.py"
+        ],
+        "head_context_paths": [],
+        "lenses": [
+          "tests"
+        ],
+        "max_context_bytes": 44000,
+        "unit_patterns": [
+          "requirements*.txt",
+          "uv.lock",
+          "pyproject.toml",
+          "Dockerfile"
+        ]
+      },
+      {
+        "context_paths": [
+          "slopsearx/mcp/security.py",
+          "slopsearx/mcp/oauth.py"
+        ],
+        "head_context_paths": [
+          "slopsearx/mcp/security.py"
+        ],
+        "lenses": [
+          "correctness"
+        ],
+        "max_context_bytes": 24000,
+        "unit_patterns": [
+          "docs/MCP_SERVER.md",
+          "tests/test_mcp_security.py",
+          "tests/test_mcp_oauth.py"
+        ]
+      }
+    ],
+    "mandatory_policy_paths": [
+      "AGENTS.md",
+      "CONTRIBUTING.md"
+    ],
+    "max_total_context_bytes": 120000,
+    "version": "context-selection.v2",
+    "window": {
+      "after_lines": 20,
+      "before_lines": 20,
+      "max_bytes": 12000,
+      "max_scan_bytes": 1048576,
+      "max_windows_per_unit": 4
+    }
+  },
+  "docs_lenses": [
+    "correctness"
+  ],
+  "effect_policy": "READ_ONLY",
+  "generated_patterns": [
+    "*.lock"
+  ],
+  "profile_status": "context_selection_candidate_not_quality_validated",
+  "repository": "magnus919/SlopSearX",
+  "required_checks": [
+    {
+      "binding": "external:portal-contract",
+      "github_app_id": 15368,
+      "github_check_name": "portal-contract",
+      "id": "portal-impact-evidence",
+      "patterns": [
+        "slopsearx/*.py",
+        "slopsearx/mcp/*.py",
+        "engines/*.py",
+        "docker-compose*",
+        "pyproject.toml",
+        "requirements*.txt"
+      ],
+      "reason": "Dependency manifests are packaging inputs; base AGENTS requires portal-impact review and portal-contract CI evidence for packaging changes. Bind evidence to the target repository and exact head from the configured GitHub check app; missing or mismatched evidence is UNKNOWN, and a failing check remains FAIL."
+    },
+    {
+      "binding": "external:portal-browser",
+      "github_app_id": 15368,
+      "github_check_name": "portal-browser",
+      "id": "portal-browser-evidence",
+      "patterns": [
+        "slopsearx/*.py",
+        "slopsearx/mcp/*.py",
+        "engines/*.py",
+        "docker-compose*",
+        "pyproject.toml"
+      ],
+      "reason": "Base AGENTS requires portal impact and relevant browser-journey check evidence. This static pilot does not execute target code; evidence absent stays explicit."
+    }
+  ],
+  "required_lenses": [
+    "correctness",
+    "tests",
+    "maintainability"
+  ],
+  "retrieval_context_patterns": [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "pyproject.toml",
+    "slopsearx/*.py",
+    "engines/*.py",
+    "tests/*.py",
+    "docs/*.md",
+    "references/*.md",
+    "docker-compose*.yml",
+    ".github/workflows/*",
+    "uv.lock"
+  ],
+  "review_criteria": {
+    "correctness": "Review intended changed behavior against base/head and supplied contracts: failure paths, exception handling, state consistency, concurrency, replay/recovery, API compatibility and callers. Separate observed facts from assumptions. Flag concrete introduced or re-exposed regressions; do not attribute unrelated base defects to this change. Ask for missing critical context as a typed gap.",
+    "design": "Assess explicit contracts, module responsibilities, abstraction leakage, dependencies and caller compatibility using supplied project context; generic preference alone is not a blocker.",
+    "maintainability": "Honor trusted project conventions and architecture boundaries. Consider cohesive responsibilities, coupling, complexity, clarity and operational failure visibility with concrete consequences. Generic book/style preferences and mechanical smell counts alone do not justify blockers. Keep actionable suggestions proportional to the change.",
+    "performance": "Assess plausible complexity, resource bounds, shared-state races and backpressure with concrete workloads from supplied evidence. Do not invent measured timings, costs or regressions.",
+    "project_specific": "Apply only trusted project rules and their consequences; report unsupported or missing rule evidence rather than inventing requirements.",
+    "security": "Explicitly inspect authentication and authorization, fail-closed policy, mixed request atomicity, source/control/sink paths, input handling, secrets exposure and trust-boundary changes. Substantiate plausible reach and consequence with actual code evidence; static alerts and absent context are not proof. For dependency-manifest changes, describe only scope and version facts established by supplied manifests and configuration; vulnerability or advisory status remains unknown without authoritative supplied evidence. Do not request external provenance or mark static coverage partial solely because a pin changed. Treat missing advisory or provenance evidence as a typed unresolved context gap only when the stated change purpose, material security risk, or a trusted project rule makes it necessary. Static review does not certify the supply chain or establish absence of vulnerabilities. A diff review is not application-wide security certification.",
+    "tests": "Assess whether the static review can be completed separately from whether the available tests adequately cover changed behavior. When the supplied changed code, relevant existing or changed test sources, and applicable contract evidence let you evaluate what the tests cover and omit, complete the static assessment with coverage_basis STATIC_REVIEW even when you identify a concrete test gap. Report that gap as a finding or nonblocking improvement according to its evidenced consequence and trusted policy; do not invent a blocker or imply that tests ran. Use PARTIAL or NOT_COVERED only when missing, truncated, stale, or contradictory evidence prevents the assigned assessment. Absence of a preferred behavioral test or of execution evidence alone is not a reason for PARTIAL. A completed static assessment does not establish runtime behavior or test execution."
+  },
+  "risk_rules": [
+    {
+      "lenses": [
+        "security",
+        "correctness",
+        "tests"
+      ],
+      "min_mode": "FOCUSED",
+      "patterns": [
+        "slopsearx/mcp/*",
+        "slopsearx/capabilities.py",
+        "slopsearx/filters.py"
+      ],
+      "reason": "Authentication, MCP grants, and filter enforcement require explicit security and contract review."
+    },
+    {
+      "lenses": [
+        "security",
+        "correctness"
+      ],
+      "min_mode": "FOCUSED",
+      "patterns": [
+        "docker-compose*",
+        ".github/*",
+        "slopsearx/config.py"
+      ],
+      "reason": "Credential/deployment/CI configuration crosses an operational trust boundary."
+    },
+    {
+      "lenses": [
+        "security",
+        "correctness",
+        "tests"
+      ],
+      "min_mode": "FOCUSED",
+      "patterns": [
+        "requirements*.txt",
+        "uv.lock",
+        "pyproject.toml",
+        "Dockerfile"
+      ],
+      "reason": "Dependency and image-install changes affect the software supply chain and deployed runtime compatibility."
+    },
+    {
+      "lenses": [
+        "correctness",
+        "tests",
+        "performance"
+      ],
+      "min_mode": "DEEP",
+      "patterns": [
+        "slopsearx/snapshot.py",
+        "slopsearx/research*.py",
+        "slopsearx/cache.py",
+        "slopsearx/saved*.py"
+      ],
+      "reason": "Shared state, cursor, replay, and recovery need broader reliability context."
+    }
+  ],
+  "rules": [
+    "Engine adapters classify errors rather than leak exceptions; internal schemas remain independent of wire representations.",
+    "MCP search paths share a fail-closed policy gate; sensitive grants are independent and mixed forbidden requests reject atomically.",
+    "Report actual filter enforcement; supported parameters alone do not demonstrate enforcement.",
+    "Valkey owns shared state; review replay, cursor, cache and snapshot consistency.",
+    "Portal is first-class; search, policy, serialization, configuration and engine changes need portal-impact review and applicable checks.",
+    "Honor import-linter architecture boundaries; generic code-smell preferences alone are nonblocking."
+  ],
+  "trusted_policy_paths": [
+    "AGENTS.md",
+    "CONTRIBUTING.md"
+  ],
+  "version": "slopsearx-production-v14-jev-reconciliation-candidate",
+  "dependency_context": {
+    "version": "dependency-context.v1",
+    "max_total_projection_bytes": 24000,
+    "max_source_bytes": 262144,
+    "bindings": [
+      {
+        "unit_patterns": [
+          "slopsearx/mcp/*.py",
+          "tests/test_mcp_*.py",
+          "docs/MCP_SERVER.md"
+        ],
+        "lenses": [
+          "correctness",
+          "security",
+          "tests"
+        ],
+        "sides": [
+          "HEAD"
+        ],
+        "manifest_path": "pyproject.toml",
+        "lock_path": "uv.lock",
+        "packages": [
+          "fastmcp",
+          "mcp"
+        ],
+        "max_bytes": 4000
+      }
+    ]
+  }
+}

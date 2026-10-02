@@ -26,6 +26,7 @@ from .budget import (
     wait_for_any,
 )
 from .claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES, ClaimAssessmentError
+from .claim_reconciliation import classify_reconciliation, validate_claim_reconciliation_policy
 from .planner import allow_empty_approve
 from .private_capture import (
     MAX_CAPTURE_CALLS,
@@ -419,7 +420,15 @@ def _validated_v3_causal_roles(
 def _core_contract_hash() -> str:
     """Fingerprint execution and normalization rules into every resume identity."""
     root = Path(__file__).resolve().parent
-    names = ("engine.py", "planner.py", "providers.py", "contracts.py", "reconcile.py", "budget.py")
+    names = (
+        "engine.py",
+        "planner.py",
+        "providers.py",
+        "contracts.py",
+        "reconcile.py",
+        "budget.py",
+        "claim_reconciliation.py",
+    )
     return _hash({name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in names})
 
 
@@ -1250,6 +1259,15 @@ def run_review(
         or not 0 <= max_claim_assessments <= 4
     ):
         raise EnginePreflightError("invalid_review_request", "max_claim_assessments must be an integer from 0 to 4")
+    try:
+        reconciliation_policy = validate_claim_reconciliation_policy(profile)
+    except (TypeError, ValueError) as exc:
+        raise EnginePreflightError("invalid_review_request", str(exc)) from None
+    if reconciliation_policy is not None and max_claim_assessments != reconciliation_policy["max_assessments"]:
+        raise EnginePreflightError(
+            "invalid_review_request",
+            "required claim reconciliation cap must match the trusted profile",
+        )
     claim_assessor_identity_hash = None
     claim_assessor_contract = None
     claim_assessor_code_hash = None
@@ -1323,6 +1341,8 @@ def run_review(
             "contract_version": claim_assessor_contract,
             "max_assessments": max_claim_assessments,
         }
+    if reconciliation_policy is not None:
+        request_basis["claim_reconciliation"] = reconciliation_policy
     request_hash = _hash(request_basis)
     deadline_epoch = time.time() + float(limits["deadline_seconds"])
     ledger = {
@@ -1351,6 +1371,8 @@ def run_review(
             "contract_version": claim_assessor_contract,
             "max_assessments": max_claim_assessments,
         }
+    if reconciliation_policy is not None:
+        ledger["identity"]["claim_reconciliation"] = reconciliation_policy
     if output_path.exists():
         if not resume:
             raise EnginePreflightError("run_id_already_exists")
@@ -3436,7 +3458,73 @@ def run_review(
                 )
                 checkpoint()
 
+    claim_reconciliation_rows: list[dict[str, Any]] = []
+    reconciliation_by_candidate: dict[str, dict[str, Any]] = {}
+    if reconciliation_policy is not None:
+        primary_finding_by_candidate = {
+            item.get("candidate_id"): item
+            for item in findings
+            if isinstance(item, dict) and isinstance(item.get("candidate_id"), str)
+        }
+        claim_rows = ledger.get("claim_assessments", {})
+        for candidate_record in ledger.get("candidate_records", []):
+            if not isinstance(candidate_record, dict) or not isinstance(candidate_record.get("candidate_id"), str):
+                continue
+            candidate_id = candidate_record["candidate_id"]
+            primary_finding = primary_finding_by_candidate.get(candidate_id)
+            primary = primary_finding.get("semantic_assessment") if isinstance(primary_finding, dict) else None
+            claim_row = claim_rows.get(candidate_id) if isinstance(claim_rows, dict) else None
+            relation = classify_reconciliation(
+                primary,
+                claim_row,
+                candidate_valid=candidate_record.get("validation_state") == "VALID",
+                introducedness_available=(
+                    isinstance(claim_row, dict)
+                    and isinstance(claim_row.get("assessments"), dict)
+                    and isinstance(claim_row["assessments"].get("introducedness"), dict)
+                    and claim_row["assessments"]["introducedness"].get("status") == "ANSWERED"
+                ),
+            )
+            relation["candidate_id"] = candidate_id
+            reconciliation_by_candidate[candidate_id] = relation
+            raw_candidate = candidate_record.get("raw")
+            raw_candidate = raw_candidate if isinstance(raw_candidate, dict) else {}
+            refs = set(raw_candidate.get("evidence_refs", [])) if isinstance(raw_candidate.get("evidence_refs"), list) else set()
+            if isinstance(primary, dict) and isinstance(primary.get("evidence_refs"), list):
+                refs.update(primary["evidence_refs"])
+            claim_reconciliation_rows.append(
+                {
+                    "obligation_id": f"claim-reconciliation:{candidate_id}",
+                    "obligation_kind": "CLAIM_RECONCILIATION",
+                    "required": True,
+                    "candidate_id": candidate_id,
+                    "scope_unit_ids": [raw_candidate["unit_id"]]
+                    if isinstance(raw_candidate.get("unit_id"), str)
+                    else [],
+                    "state": "COMPLETE" if relation["state"] == "AGREES" else "PARTIAL",
+                    "reconciliation_state": relation["state"],
+                    "reason_code": relation["reason_code"],
+                    "task_ids": [candidate_record["task_id"]]
+                    if isinstance(candidate_record.get("task_id"), str)
+                    else [],
+                    "evidence_refs": sorted(ref for ref in refs if isinstance(ref, str)),
+                    "primary_assessment_hash": relation["primary_assessment_hash"],
+                    "claim_assessment_hash": relation["claim_assessment_hash"],
+                    "request_hash": relation["request_hash"],
+                }
+            )
+
     findings = consolidate_findings(findings)
+    if reconciliation_policy is not None:
+        for finding in findings:
+            candidate_ids = finding.get("candidate_ids", [])
+            linked = [
+                reconciliation_by_candidate[candidate_id]
+                for candidate_id in candidate_ids
+                if candidate_id in reconciliation_by_candidate
+            ]
+            if linked:
+                finding["claim_reconciliations"] = linked
     gap_obligations = {}
     for gap in context_gaps:
         if gap.get("status") != "RESOLVED_BY_FOLLOWUP":
@@ -3681,6 +3769,17 @@ def run_review(
                 ),
             }
         coverage.append(coverage_row)
+    for obligation in claim_reconciliation_rows:
+        coverage.append(
+            {
+                "coverage_id": _hash({"run_id": run_id, "obligation": obligation["obligation_id"]})[:20],
+                "run_id": run_id,
+                "snapshot_id": snapshot.get("snapshot_id"),
+                **obligation,
+                "context_gap_ids": [],
+                "updated_at": _now(),
+            }
+        )
     required_cov = [c for c in coverage if c.get("required", True)]
     coverage_state = (
         "COMPLETE"

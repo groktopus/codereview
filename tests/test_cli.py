@@ -377,6 +377,47 @@ def test_positive_claim_cap_requires_trusted_decision_config_before_run(tmp_path
     assert "API_KEY" not in output
 
 
+@pytest.mark.parametrize("cap", ["0", "2"])
+def test_required_reconciliation_cli_rejects_missing_or_mismatched_cap_before_config(
+    tmp_path, monkeypatch, cap, capsys
+):
+    from pr_review_harness import cli
+
+    repo, base, head, profile = fixture_repo(tmp_path)
+    profile_value = json.loads(profile.read_text(encoding="utf-8"))
+    profile_value["claim_reconciliation"] = {
+        "version": "claim-reconciliation.v1",
+        "enabled": True,
+        "required": True,
+        "max_assessments": 1,
+    }
+    profile.write_text(json.dumps(profile_value), encoding="utf-8")
+
+    def forbidden_configs(_args):
+        pytest.fail("required reconciliation cap mismatch must fail before provider configuration")
+
+    monkeypatch.setattr(cli, "_configs", forbidden_configs)
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--max-claim-assessments",
+            cap,
+            "--json",
+        ]
+    )
+
+    assert code == 2
+    assert "preflight_rejected" in capsys.readouterr().out
+
+
 def test_claim_dry_run_shows_enabled_cap_without_loading_config(tmp_path):
     repo, base, head, profile = fixture_repo(tmp_path)
     preview = run_cli(
@@ -828,6 +869,58 @@ def test_recent_valid_incomplete_result_exits_zero(tmp_path, monkeypatch, capsys
     assert payload["runs"][0]["disposition"] == "INCOMPLETE"
     assert "error" not in payload["runs"][0]
     assert Path(payload["runs"][0]["artifact_path"]).is_file()
+
+
+def test_recent_passes_required_classifier_cap_and_assessor_per_review(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli
+
+    repo, _base, _head, profile_path = fixture_repo(tmp_path)
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile["claim_reconciliation"] = {
+        "version": "claim-reconciliation.v1",
+        "enabled": True,
+        "required": True,
+        "max_assessments": 1,
+    }
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    assessor = object()
+    monkeypatch.setattr(
+        cli,
+        "_configs",
+        lambda _args: (profile, {}, None, None, assessor),
+    )
+    monkeypatch.setattr(
+        cli,
+        "recent_commits",
+        lambda *_args: [{"base": "a" * 40, "head": "b" * 40, "subject": "fixture"}],
+    )
+    calls = []
+
+    def fake_run_one(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"disposition": "INCOMPLETE", "artifact_path": str(tmp_path / "review.json")}
+
+    monkeypatch.setattr(cli, "_run_one", fake_run_one)
+    code = cli.main(
+        [
+            "recent",
+            "--repo",
+            str(repo),
+            "--profile",
+            str(profile_path),
+            "--decision-config",
+            str(tmp_path / "trusted-decision-config.json"),
+            "--max-claim-assessments",
+            "1",
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    assert len(calls) == 1
+    assert calls[0][1]["claim_assessor"] is assessor
+    assert calls[0][1]["max_claim_assessments"] == 1
+    assert json.loads(capsys.readouterr().out)["runs"][0]["disposition"] == "INCOMPLETE"
 
 
 def test_human_runtime_error_reports_only_the_existing_diagnostic_path(tmp_path, monkeypatch, capsys):
