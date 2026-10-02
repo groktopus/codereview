@@ -47,6 +47,39 @@ def _prepared() -> dict:
          "input_sha256": hashlib.sha256(f"source:{task_id}".encode()).hexdigest(), "admitted": True}
         for index, task_id in enumerate(TASK_LENSES)
     ]
+    check_descriptors = [
+        {
+            "task_id": task_id.removesuffix(":chunk-1"), "task_kind": "SPECIALIST_FINDINGS", "lens": lens,
+            "obligation_ids": [], "unit_ids": [], "required_context_ids": [], "evidence_ids": [],
+        }
+        for task_id, lens in TASK_LENSES.items()
+    ]
+    coverage_obligations = [
+        {"obligation_id": f"other:{index}"}
+        for index in range(TARGET["scope_obligations"] - len(capture.CHECK_BINDINGS))
+    ]
+    evidence_index = []
+    check_results = {}
+    for obligation_id, (check_id, binding_id) in capture.CHECK_BINDINGS.items():
+        evidence_hash = hashlib.sha256(f"evidence:{binding_id}".encode()).hexdigest()
+        evidence_id = "check-" + evidence_hash[:24]
+        evidence_index.append({
+            "evidence_id": evidence_id, "content_hash": evidence_hash,
+            "source_kind": "github_check_run", "trust": "generated_result",
+        })
+        check_results[binding_id] = {"outcome": "FINDINGS", "evidence_id": evidence_id, "reason": None}
+        coverage_obligations.append({
+            "obligation_id": obligation_id, "obligation_kind": "PROJECT_CHECK", "required": True,
+            "scope_unit_ids": list(capture.CHECK_SCOPE_UNITS), "check_binding_id": binding_id,
+        })
+        task_id = "task-" + hashlib.sha256(
+            _canonical({"snapshot": TARGET["snapshot_id"], "obligation": obligation_id})
+        ).hexdigest()[:16]
+        check_descriptors.append({
+            "task_id": task_id, "task_kind": "DETERMINISTIC_CHECK", "lens": "project_specific",
+            "obligation_ids": [obligation_id], "unit_ids": list(capture.CHECK_SCOPE_UNITS),
+            "required_context_ids": [], "evidence_ids": [], "current_source_input_hash": "c" * 64,
+        })
     return {
         "status": "PREPARED_ONLY", "disposition": None,
         "no_provider_calls": True, "no_target_code_execution": True,
@@ -57,12 +90,15 @@ def _prepared() -> dict:
             "profile_version": TARGET["profile_version"],
             "profile_file_sha256": TARGET["profile_file_sha256"],
             "provider_identity_sha256": "a" * 64,
+            "evidence_index": evidence_index,
         },
         "checks": {
             "check_evidence_hash": TARGET["check_evidence_sha256"],
             "historical_check_identity": {"check_document_sha256": TARGET["historical_checks_sha256"]},
+            "check_results": check_results,
         },
-        "scope": {"coverage_obligations": [{} for _ in range(TARGET["scope_obligations"])]},
+        "scope": {"coverage_obligations": coverage_obligations,
+                  "planned_task_scopes": check_descriptors},
         "primary_requests": requests,
         "capacity": {
             "exact_primary_call_demand": len(requests),
@@ -93,12 +129,16 @@ def test_current_source_plan_binds_fixed_target_runtime_requests_and_receipt():
         plan, receipt, source_sha="1" * 40, module_inventory=installed_module_inventory(),
     )
     assert len(pins) == 6
-    assert snapshot == {
+    assert len(snapshot["deterministic_check_tasks"]) == 2
+    assert {key: value for key, value in snapshot.items() if key != "deterministic_check_tasks"} == {
         "case_id": "PR-457", "snapshot_id": TARGET["snapshot_id"],
         "snapshot_sha256": TARGET["snapshot_sha256"],
         "audit_max_input_bytes_per_call": LIMITS["audit_max_input_bytes_per_call"],
         "provider_identity_sha256": "a" * 64,
         "source_audit_requests": {row["task_id"]: row for row in plan["source_audit_requests"]},
+    }
+    assert set(snapshot["deterministic_check_tasks"]) == {
+        row["task_id"] for row in plan["deterministic_check_tasks"]
     }
     assert sum(row["input_bytes"] for row in plan["writer_requests"]) == 300_015
 
@@ -106,6 +146,8 @@ def test_current_source_plan_binds_fixed_target_runtime_requests_and_receipt():
 @pytest.mark.parametrize("mutation", [
     "wrong_source", "wrong_head", "wrong_profile", "extra_request", "mutated_request_hash",
     "wrong_module", "receipt_plan_hash", "boolean_provider_calls", "source_request_too_large",
+    "missing_check", "duplicate_check", "forged_check_binding", "conclusive_check_without_evidence",
+    "mutated_check_input_hash", "unhashable_expected_outcome",
 ])
 def test_current_source_plan_rejects_identity_budget_and_receipt_mutations(mutation: str):
     plan, receipt = _plan()
@@ -132,8 +174,43 @@ def test_current_source_plan_rejects_identity_budget_and_receipt_mutations(mutat
     elif mutation == "source_request_too_large":
         plan["source_audit_requests"][0]["input_bytes"] = LIMITS["audit_max_input_bytes_per_call"] + 1
         receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
+    elif mutation == "missing_check":
+        plan["deterministic_check_tasks"].pop()
+        receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
+    elif mutation == "duplicate_check":
+        plan["deterministic_check_tasks"].append(copy.deepcopy(plan["deterministic_check_tasks"][0]))
+        receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
+    elif mutation == "forged_check_binding":
+        plan["deterministic_check_tasks"][0]["check_binding_id"] = "external:untrusted"
+        receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
+    elif mutation == "conclusive_check_without_evidence":
+        plan["deterministic_check_tasks"][0]["expected_evidence_id"] = None
+        receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
+    elif mutation == "mutated_check_input_hash":
+        plan["deterministic_check_tasks"][0]["expected_input_hash"] = "2" * 64
+    elif mutation == "unhashable_expected_outcome":
+        plan["deterministic_check_tasks"][0]["expected_outcome"] = []
+        receipt["plan_sha256"] = hashlib.sha256(_canonical(plan)).hexdigest()
     with pytest.raises(CurrentSourceCaptureError):
         validate_plan(plan, receipt, source_sha=source_sha, module_inventory=inventory)
+
+
+@pytest.mark.parametrize("field_value", [["unhashable"], {"unhashable": True}])
+def test_prepare_rejects_non_string_check_evidence_id(field_value):
+    prepared = _prepared()
+    binding_id = next(iter(capture.CHECK_BINDINGS.values()))[1]
+    prepared["checks"]["check_results"][binding_id]["evidence_id"] = field_value
+    with pytest.raises(CurrentSourceCaptureError, match="prepared_check_evidence_mismatch"):
+        _plan(prepared)
+
+
+@pytest.mark.parametrize("field_value", [["unhashable"], {"unhashable": True}])
+def test_prepare_rejects_non_string_check_outcome(field_value):
+    prepared = _prepared()
+    binding_id = next(iter(capture.CHECK_BINDINGS.values()))[1]
+    prepared["checks"]["check_results"][binding_id]["outcome"] = field_value
+    with pytest.raises(CurrentSourceCaptureError, match="prepared_check_result_invalid"):
+        _plan(prepared)
 
 
 def test_prepare_rejects_duplicate_or_unbound_input_bytes():

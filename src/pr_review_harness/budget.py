@@ -232,10 +232,27 @@ class BudgetLedger:
             return 0.0
         return max(0.0, self._deadline_monotonic - time.monotonic())
 
-    def reserve(self, key: str, estimate: dict, *, kind: str = "provider") -> dict:
+    def reserve(
+        self,
+        key: str,
+        estimate: dict,
+        *,
+        kind: str = "provider",
+        provider_call_floor: int = 0,
+        deadline_floor_seconds: float = 0.0,
+    ) -> dict:
         """Atomically reserve every resource before invocation starts."""
         if not isinstance(key, str) or not key or not isinstance(estimate, dict):
             raise ValueError("reservation key and estimate are required")
+        if isinstance(provider_call_floor, bool) or not isinstance(provider_call_floor, int) or provider_call_floor < 0:
+            raise ValueError("provider_call_floor must be a nonnegative integer")
+        if (
+            isinstance(deadline_floor_seconds, bool)
+            or not isinstance(deadline_floor_seconds, (int, float))
+            or not math.isfinite(deadline_floor_seconds)
+            or deadline_floor_seconds < 0
+        ):
+            raise ValueError("deadline_floor_seconds must be a finite nonnegative number")
         cost = estimate.get("max_cost_microunits")
         reservation = {
             "key": key,
@@ -262,13 +279,23 @@ class BudgetLedger:
                 if existing.get("estimate_hash") != reservation["estimate_hash"]:
                     raise ValueError("reservation key reused with different estimate")
                 return existing
-            if self.remaining_seconds() <= 0:
+            current_remaining_seconds = self.remaining_seconds()
+            if current_remaining_seconds <= 0:
                 raise BudgetExhausted("DEADLINE_EXHAUSTED")
+            if deadline_floor_seconds:
+                available_deadline_seconds = current_remaining_seconds - deadline_floor_seconds
+                if available_deadline_seconds <= 0:
+                    raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED")
+                reservation["deadline_seconds"] = min(
+                    reservation["deadline_seconds"], available_deadline_seconds
+                )
             reservations = list(self.state["reservations"].values())
-            if sum(r.get("provider_calls", 0) for r in reservations) + reservation["provider_calls"] > int(
-                self.limits["max_provider_calls"]
-            ):
+            reserved_calls = sum(r.get("provider_calls", 0) for r in reservations)
+            projected_calls = reserved_calls + reservation["provider_calls"]
+            if projected_calls > int(self.limits["max_provider_calls"]):
                 raise BudgetExhausted("PROVIDER_CALL_BUDGET_EXHAUSTED")
+            if projected_calls + provider_call_floor > int(self.limits["max_provider_calls"]):
+                raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED")
             if sum(r.get("input_bytes", 0) for r in reservations) + reservation["input_bytes"] > int(
                 self.limits["max_context_bytes"]
             ):

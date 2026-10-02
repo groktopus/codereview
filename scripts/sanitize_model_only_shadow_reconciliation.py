@@ -107,6 +107,34 @@ def finding_pairs(findings: Any) -> set[tuple[str, str]]:
     return pairs
 
 
+def validate_deterministic_check_rows(tasks: dict[str, Any], ledger_outputs: dict[str, Any],
+                                      check_tasks: dict[str, dict[str, Any]], snapshot_hash: str) -> None:
+    """Validate the exact prepared checks without removing them from the ledger."""
+    for task_id, binding in check_tasks.items():
+        output = tasks.get(task_id)
+        if not isinstance(output, dict) or ledger_outputs.get(task_id) != output:
+            raise ReconciliationError("check_task_binding_invalid")
+        evidence_id = binding["expected_evidence_id"]
+        expected_refs = [evidence_id] if evidence_id is not None else []
+        expected_payload = {
+            "check_id": binding["check_id"],
+            "outcome": binding["expected_outcome"],
+            "finding_candidates": [],
+            "evidence_refs": expected_refs,
+            "diagnostics": [] if evidence_id is not None else ["authoritative_check_run_evidence_unavailable"],
+        }
+        expected_hash = digest(canonical(expected_payload))
+        expected_input_hash = binding["expected_input_hash"]
+        if (output.get("task_id") != task_id or output.get("task_kind") != "DETERMINISTIC_CHECK"
+                or output.get("lens") != binding["lens"] or output.get("unit_ids") != binding["unit_ids"]
+                or output.get("status") != "SUCCEEDED" or output.get("input_evidence_ids") != expected_refs
+                or output.get("input_hash") != expected_input_hash
+                or output.get("payload") != expected_payload or output.get("output_hash") != expected_hash
+                or isinstance(output.get("attempts"), bool) or output.get("attempts") != 1
+                or ledger_outputs[task_id].get("output_hash") != expected_hash):
+            raise ReconciliationError("check_task_output_invalid")
+
+
 def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict[str, Any],
                   manifest: dict[str, Any], response_payloads: dict[str, tuple[str, dict]],
                   packet_pairs: set[tuple[str, str]], plan: dict[str, Any], writer_receipt: dict[str, Any],
@@ -129,8 +157,13 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
     task_ids = [row.get("task_id") if isinstance(row, dict) else None for row in requests]
     if any(not isinstance(task_id, str) for task_id in task_ids) or len(set(task_ids)) != expected_count:
         raise ReconciliationError("task_coverage_invalid")
-    if set(tasks) != set(task_ids) or ledger.get("outputs") != tasks:
+    check_tasks = plan.get("deterministic_check_tasks", {})
+    if (not isinstance(check_tasks, dict) or set(check_tasks).intersection(task_ids)
+            or set(tasks) != set(task_ids).union(check_tasks) or ledger.get("outputs") != tasks):
         raise ReconciliationError("result_task_binding_invalid")
+    validate_deterministic_check_rows(
+        tasks, ledger["outputs"], check_tasks, plan.get("case", {}).get("snapshot_sha256"),
+    )
     if (result.get("run_id") != manifest.get("case_id")
             or result.get("snapshot_id") != manifest.get("snapshot_id")
             or plan.get("case", {}).get("snapshot_id") != result.get("snapshot_id")
