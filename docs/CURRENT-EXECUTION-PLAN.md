@@ -1,4 +1,14 @@
-# Execution update — 2026-10-02 (source cutoff `24998b9`)
+# Delivery update — 2026-10-02 (source cutoff `5e4b751`)
+
+The current-source audit repair is merged. All 23 enabled exact-head checks, independent review, installed qualification, and all ten postmerge jobs passed. Run 36971851543 exercised the repaired source-auditor dispatch without a guard rejection and retained explicit INCOMPLETE/PARTIAL accounting. Earlier failed runs stay part of the evidence record. The next work is:
+
+1. Finish and independently review the separate v2 synthetic pairing opt-in. Keep the same attack, benign-lookalike, and clean-control fixtures; require native claim reconciliation at cap one. The shared ledger permits five total calls per case, fifteen across the matrix, zero retries. Fresh preparation must leave classifier capacity. Run once after source qualification and retain candidates, assessment bindings, disagreements, abstentions, partial outcomes, and observed injection effects. A zero-candidate case leaves constituent classification NOT_EXERCISED.
+2. Integrate the current 39-AC, 12-NFR, six-milestone delivery trace with concrete source and run references. Distinguish implementation tests, bounded operational observations, and unknown semantic quality. Existing recovery evidence keeps its actual source/scenario scope; do not require every failure to be induced against a live paid provider. Preserve the SDK-contract gap on the applicable historical case rather than treating it as a universal product failure or asserting unsupported compatibility.
+3. Finish the target-local installation packet: qualified immutable harness/profile/config bindings, provider secret names, workflow identities, effective permissions, admission/receipt behavior, and exact stop/restore controls. Root owns routine technical choices and a concrete tested diff. The operator must configure the six provider secrets in the target repository; encrypted secrets cannot be transferred from codereview. The existing central read-only tests remain authorized while that setup proceeds.
+4. Present one concrete target activation/publication decision after the packet is reviewable. Keep target effects disabled beforehand. An authorized canary must verify actual posting/readback, no duplicate submission, and rollback; it cannot silently merge target PRs or disable Droid. Prepare the incumbent controls from actual repository/operator evidence.
+5. Finish the operational adoption record with the full original scope. Human labels are unavailable, and model-teacher/Jev agreement is advisory. Do not claim calibrated accuracy or convert a complete transport run into a quality pass. Any final owner adoption decision must state the remaining semantic-quality uncertainty.
+
+# Historical execution update — 2026-10-02 (source cutoff `24998b9`)
 
 The repair and inert Actions-token source routes are merged and their post-merge checks passed. The next bounded work is:
 

@@ -32,9 +32,7 @@ from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 from pr_review_harness.injection_trials import prepare_suite  # noqa: E402
 from pr_review_harness.selected_model_trial import (  # noqa: E402
     DECISION_IDENTITY,
-    MAX_CLAIM_ASSESSMENTS_PER_RUN,
     MAX_OUTPUT_TOKENS_PER_CALL,
-    MAX_PROVIDER_CALLS_PER_RUN,
     MAX_RESPONSE_BYTES_PER_CALL,
     PRIMARY_IDENTITY,
     RUN_TIMEOUT_SECONDS,
@@ -42,6 +40,7 @@ from pr_review_harness.selected_model_trial import (  # noqa: E402
     _limits,
     _synthetic_configs,
     _write_json,
+    trial_contract,
 )
 
 CONTRACT = "selected-pair-clean-control-trial.v1"
@@ -177,9 +176,10 @@ def _current_revision(root: Path) -> str:
     return result.stdout.strip()
 
 
-def _implementation_identity(root: Path) -> dict[str, Any]:
+def _implementation_identity(root: Path, *, version: str = "v1") -> dict[str, Any]:
     hashes = {}
-    for relative in IMPLEMENTATION_PATHS:
+    paths = (*IMPLEMENTATION_PATHS, "scripts/run_current_selected_model_trial.py") if version == "v2" else IMPLEMENTATION_PATHS
+    for relative in paths:
         path = root / relative
         try:
             raw = path.read_bytes()
@@ -264,9 +264,10 @@ def _assert_body_content(case_id: str, bodies: list[bytes], suite: dict[str, Any
             raise PreparationError("clean_fixture_owner_rule_missing")
 
 
-def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
+def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> dict[str, Any]:
     """Build the three fixture requests and write a hash-only preparation plan."""
     global _ACTIVE_CASE
+    contract = trial_contract(version)
     root = root.resolve(strict=True)
     output = output.resolve()
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
@@ -276,7 +277,7 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
     _CAPTURED_BODIES.clear()
     manifest, clean_files = _read_clean_fixture()
     revision = _current_revision(root)
-    implementation_identity = _implementation_identity(root)
+    implementation_identity = _implementation_identity(root, version=contract.version)
     plan: dict[str, Any]
     with tempfile.TemporaryDirectory(prefix="selected-pair-clean-control-", dir=output) as temporary:
         work = Path(temporary)
@@ -285,7 +286,7 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
             suite_path=SUITE_PATH,
             repo_support_root=root,
             repetitions=1,
-            limits=_limits(),
+            limits=_limits(contract),
         )
         injection_cases = {case.case_id: case for case in prepared.cases}
         if any(case_id not in injection_cases for case_id in CASE_IDS[:2]):
@@ -298,9 +299,21 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
             CASE_IDS[2]: SimpleNamespace(case_id=CASE_IDS[2], repo=clean_repo, base_sha=clean_base, head_sha=clean_head),
         }
         limits_path = work / "limits.json"
-        limits = _limits()
+        limits = _limits(contract)
         _write_json(limits_path, limits)
         provider_path, decision_path, config_hashes = _synthetic_configs(work)
+        if contract.version == "v2":
+            profile_data = json.loads(prepared.profile_path.read_bytes())
+            profile_data["version"] = "prompt-injection-native-paired-claim-v2"
+            profile_data["claim_reconciliation"] = {
+                "version": "claim-reconciliation.v1",
+                "enabled": True,
+                "required": True,
+                "max_assessments": 1,
+            }
+            prepared.profile_path.write_bytes(_canonical(profile_data) + b"\n")
+            prepared.profile_path.chmod(0o600)
+            prepared.profile.update(profile_data)
         profile_raw = prepared.profile_path.read_bytes()
         limits_raw = limits_path.read_bytes()
         profile_hash = _sha(profile_raw)
@@ -314,8 +327,9 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
             "decision_config_sha256": config_hashes["decision_config_sha256"],
             "mode": "AUTO",
             "effect_policy": "READ_ONLY",
-            "max_claim_assessments": MAX_CLAIM_ASSESSMENTS_PER_RUN,
+            "max_claim_assessments": contract.max_claim_assessments,
             "identity_evidence": "FIXED_REFERENCE_FOR_PROVIDER_FREE_PREPARE_ONLY; OPERATOR_CONFIG_AND_LIVE_ENDPOINT_NOT_OBSERVED",
+            **({"trial_contract_version": contract.version} if contract.version == "v2" else {}),
         }
         policy_hash = _sha(_canonical(policy))
         case_rows: list[dict[str, Any]] = []
@@ -334,6 +348,7 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
                 command = _command(
                     Path("/prepare-only/pr-review"), case, prepared.profile_path, limits_path, cli_output,
                     provider_path, decision_path, dry_run=False,
+                    max_claim_assessments=contract.max_claim_assessments,
                 )
                 argv = [*command[1:-1], "--prepare-only", command[-1]]
                 from io import StringIO
@@ -358,6 +373,8 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
                 ):
                     raise PreparationError("cli_prepare_only_identity_mismatch")
                 descriptors = _capture_primary_descriptors(case_id, report)
+                if len(descriptors) > contract.max_primary_requests:
+                    raise PreparationError("primary_request_count_exceeds_trial_cap")
                 bodies = _CAPTURED_BODIES[case_id]
                 _assert_body_content(case_id, bodies, json.loads(SUITE_PATH.read_bytes()), clean_files)
                 if case_id.startswith("r1-code-comment-"):
@@ -414,7 +431,7 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
             if variant["case_id"] in {"code-comment-attack", "code-comment-benign"}
         }
         plan = {
-            "schema": CONTRACT,
+            "schema": contract.plan_schema,
             "state": "PREPARED_PROVIDER_FREE",
             "source_revision": revision,
             "implementation_identity": implementation_identity,
@@ -472,18 +489,19 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
             "cases": case_rows,
             "bounds": {
                 "reviews": len(CASE_IDS),
-                "primary_calls_per_review_max": MAX_PROVIDER_CALLS_PER_RUN,
-                "primary_calls_total_max": len(CASE_IDS) * MAX_PROVIDER_CALLS_PER_RUN,
+                "primary_calls_per_review_max": contract.max_primary_requests,
+                "primary_calls_total_max": len(CASE_IDS) * contract.max_primary_requests,
                 "primary_output_tokens_per_call_max": MAX_OUTPUT_TOKENS_PER_CALL,
-                "primary_output_tokens_total_max": len(CASE_IDS) * MAX_PROVIDER_CALLS_PER_RUN * MAX_OUTPUT_TOKENS_PER_CALL,
+                "primary_output_tokens_total_max": len(CASE_IDS) * contract.max_primary_requests * MAX_OUTPUT_TOKENS_PER_CALL,
                 "primary_response_bytes_per_call_max": MAX_RESPONSE_BYTES_PER_CALL,
-                "primary_response_bytes_total_max": len(CASE_IDS) * MAX_PROVIDER_CALLS_PER_RUN * MAX_RESPONSE_BYTES_PER_CALL,
-                "claim_jev_calls_per_review_max": MAX_CLAIM_ASSESSMENTS_PER_RUN,
-                "claim_jev_calls_total_max": len(CASE_IDS) * MAX_CLAIM_ASSESSMENTS_PER_RUN,
-                "injection_classifier_calls_max": DETECTOR_CALLS,
+                "primary_response_bytes_total_max": len(CASE_IDS) * contract.max_primary_requests * MAX_RESPONSE_BYTES_PER_CALL,
+                "claim_jev_calls_per_review_max": contract.max_claim_assessments,
+                "claim_jev_calls_total_max": len(CASE_IDS) * contract.max_claim_assessments,
+                "injection_classifier_calls_max": DETECTOR_CALLS if contract.version == "v1" else 0,
                 "total_external_calls_max_if_classifier_enabled": (
-                    len(CASE_IDS) * MAX_PROVIDER_CALLS_PER_RUN
-                    + len(CASE_IDS) * MAX_CLAIM_ASSESSMENTS_PER_RUN
+                    len(CASE_IDS) * contract.max_provider_calls if contract.version == "v2"
+                    else len(CASE_IDS) * contract.max_provider_calls
+                    + len(CASE_IDS) * contract.max_claim_assessments
                     + DETECTOR_CALLS
                 ),
                 "review_deadline_seconds_total_max": len(CASE_IDS) * RUN_TIMEOUT_SECONDS,
@@ -498,14 +516,16 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
                 "target_execution": "DISABLED",
             },
             "jev_injection_classifier": {
-                "status": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED",
+                "status": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED"
+                if contract.version == "v1" else "DISABLED_BY_V2_CONTRACT",
                 "input_scope": "exact_attack_and_benign_fixture_payloads_only_after_review_input_exposure_is_proven",
-                "calls_max": DETECTOR_CALLS,
+                "calls_max": DETECTOR_CALLS if contract.version == "v1" else 0,
                 "selected_claim_model": DECISION_IDENTITY["model"],
                 "classifier_existing_fixed_model": DECISION_CLASSIFIER_REQUIRED_MODEL,
                 "compatibility_resolution": "do_not_override_operator_model; verify or report UNKNOWN before enabling",
                 "fixture_input_payloads": payload_hashes,
-                "request_payload": "NOT_BUILT_FIXED_TEXT_INPUT; REQUEST_BYTES_REQUIRE_COMPATIBLE_CONFIGURED_JEV_CONTRACT",
+                "request_payload": "NOT_BUILT_FIXED_TEXT_INPUT; REQUEST_BYTES_REQUIRE_COMPATIBLE_CONFIGURED_JEV_CONTRACT"
+                if contract.version == "v1" else "NOT_APPLICABLE_NATIVE_CLAIM_ASSESSMENT_PATH",
                 "claim_assessment_request": "NOT_BUILT_CANDIDATE_DEPENDENT",
                 "independence": "classify_fixture_text_only_never_review_model_output",
                 "interpretation": "one_pair_descriptive_sensitivity_only_no_calibration_or_release_gate",
@@ -525,12 +545,12 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
                 "publication": "NOT_PERFORMED",
             },
         }
-    plan_path = output / "selected-pair-clean-control-trial-v1.json"
+    plan_path = output / f"selected-pair-clean-control-trial-{contract.version}.json"
     raw = _canonical(plan) + b"\n"
     plan_path.write_bytes(raw)
     plan_path.chmod(0o600)
     return {
-        "schema": CONTRACT,
+        "schema": contract.plan_schema,
         "status": plan["state"],
         "plan_path": str(plan_path),
         "plan_sha256": _sha(raw),
@@ -542,9 +562,10 @@ def prepare_trial(output: Path, *, root: Path = ROOT) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="new private output directory")
+    parser.add_argument("--version", choices=("v1", "v2"), default="v1")
     args = parser.parse_args(argv)
     try:
-        result = prepare_trial(args.output)
+        result = prepare_trial(args.output, version=args.version)
     except PreparationError as exc:
         print(json.dumps({"status": "FAILED", "error": str(exc)}, sort_keys=True, separators=(",", ":")))
         return 2

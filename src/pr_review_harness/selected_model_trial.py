@@ -12,6 +12,7 @@ import stat
 import subprocess
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -60,7 +61,48 @@ PREPARED_CASE_IDS = (
     "r1-code-clean-control",
 )
 PREPARED_PLAN_SCHEMA = "selected-pair-clean-control-trial.v1"
+NATIVE_PAIR_TRIAL_ID = "selected-native-paired-claim.v2"
+NATIVE_PAIR_CURRENT_TRIAL_ID = "selected-current-source-native-paired-claim.v2"
+NATIVE_PAIR_PREPARATION_ID = "selected-current-source-native-paired-preparation.v2"
+NATIVE_PAIR_PLAN_SCHEMA = "selected-pair-clean-control-trial.v2"
+NATIVE_PAIR_MAX_PROVIDER_CALLS_PER_RUN = 5
+NATIVE_PAIR_MAX_PRIMARY_REQUESTS_PER_RUN = 4
+NATIVE_PAIR_MAX_CLAIM_ASSESSMENTS_PER_RUN = 1
 PREPARED_GLOBAL_DEADLINE_SECONDS = 940
+
+
+@dataclass(frozen=True)
+class TrialContract:
+    version: str
+    trial_id: str
+    current_trial_id: str
+    preparation_id: str
+    plan_schema: str
+    max_provider_calls: int
+    max_primary_requests: int
+    max_claim_assessments: int
+
+
+_TRIAL_CONTRACTS = {
+    "v1": TrialContract(
+        "v1", TRIAL_ID, CURRENT_TRIAL_ID, CURRENT_PREPARATION_ID,
+        PREPARED_PLAN_SCHEMA, MAX_PROVIDER_CALLS_PER_RUN, MAX_PROVIDER_CALLS_PER_RUN,
+        MAX_CLAIM_ASSESSMENTS_PER_RUN,
+    ),
+    "v2": TrialContract(
+        "v2", NATIVE_PAIR_TRIAL_ID, NATIVE_PAIR_CURRENT_TRIAL_ID, NATIVE_PAIR_PREPARATION_ID,
+        NATIVE_PAIR_PLAN_SCHEMA, NATIVE_PAIR_MAX_PROVIDER_CALLS_PER_RUN,
+        NATIVE_PAIR_MAX_PRIMARY_REQUESTS_PER_RUN,
+        NATIVE_PAIR_MAX_CLAIM_ASSESSMENTS_PER_RUN,
+    ),
+}
+
+
+def trial_contract(version: str = "v1") -> TrialContract:
+    contract = _TRIAL_CONTRACTS.get(version) if isinstance(version, str) else None
+    if contract is None:
+        raise SelectedTrialError("trial_version_invalid")
+    return contract
 
 PRIMARY_IDENTITY = {
     "kind": "openai_compatible",
@@ -164,16 +206,17 @@ def _new_output(path: Path) -> Path:
         raise SelectedTrialError("output_directory_unavailable") from None
 
 
-def _limits() -> dict[str, Any]:
+def _limits(contract: TrialContract | None = None) -> dict[str, Any]:
+    contract = trial_contract("v1") if contract is None else contract
     return {
         "deadline_seconds": ENGINE_DEADLINE_SECONDS,
         "max_concurrent_scopes": 2,
-        "max_provider_calls": MAX_PROVIDER_CALLS_PER_RUN,
+        "max_provider_calls": contract.max_provider_calls,
         "max_retries_per_task": MAX_RETRIES_PER_TASK,
         "max_context_bytes": MAX_CONTEXT_BYTES_PER_RUN,
         "max_input_bytes_per_task": MAX_INPUT_BYTES_PER_TASK,
         "max_output_bytes_per_task": MAX_RESPONSE_BYTES_PER_CALL,
-        "max_output_bytes": MAX_RESPONSE_BYTES_PER_CALL * MAX_PROVIDER_CALLS_PER_RUN,
+        "max_output_bytes": MAX_RESPONSE_BYTES_PER_CALL * contract.max_provider_calls,
         "max_output_tokens": MAX_OUTPUT_TOKENS_PER_CALL,
         "max_context_retrievals": 8,
         "max_followup_tasks": 8,
@@ -374,7 +417,9 @@ def _prepared_environment_configs(env: dict[str, str], repo_support_root: Path) 
     return primary, decision
 
 
-def _prepared_plan(path: Path, root: Path) -> tuple[dict[str, Any], Path, Path, dict[str, Any]]:
+def _prepared_plan(
+    path: Path, root: Path, *, version: str | None = None
+) -> tuple[dict[str, Any], Path, Path, dict[str, Any]]:
     """Validate the retained plan and immutable prepared inputs before any dispatch."""
     try:
         metadata = path.lstat()
@@ -386,7 +431,12 @@ def _prepared_plan(path: Path, root: Path) -> tuple[dict[str, Any], Path, Path, 
         raise
     except Exception:
         raise SelectedTrialError("prepared_plan_unavailable") from None
-    if not isinstance(plan, dict) or plan.get("schema") != PREPARED_PLAN_SCHEMA or plan.get("state") != "PREPARED_PROVIDER_FREE":
+    if not isinstance(plan, dict):
+        raise SelectedTrialError("prepared_plan_invalid")
+    if version is None:
+        version = next((key for key, item in _TRIAL_CONTRACTS.items() if plan.get("schema") == item.plan_schema), None)
+    contract = trial_contract(version) if version is not None else None
+    if contract is None or plan.get("schema") != contract.plan_schema or plan.get("state") != "PREPARED_PROVIDER_FREE":
         raise SelectedTrialError("prepared_plan_invalid")
     rows = plan.get("cases")
     if not isinstance(rows, list) or tuple(row.get("case_id") for row in rows if isinstance(row, dict)) != PREPARED_CASE_IDS:
@@ -400,6 +450,8 @@ def _prepared_plan(path: Path, root: Path) -> tuple[dict[str, Any], Path, Path, 
         "scripts/provider_config_from_env.py", "scripts/prepare_selected_pair_clean_control_trial.py",
         "tests/test_selected_pair_clean_control_trial_preparation.py",
     }
+    if contract.version == "v2":
+        expected_files.add("scripts/run_current_selected_model_trial.py")
     if not isinstance(files, dict) or set(files) != expected_files or impl.get("git_head") != plan.get("source_revision"):
         raise SelectedTrialError("prepared_source_identity_invalid")
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", str(plan.get("source_revision", ""))):
@@ -455,13 +507,19 @@ def _prepared_plan(path: Path, root: Path) -> tuple[dict[str, Any], Path, Path, 
         limits_data = json.loads(limits.read_bytes())
     except Exception:
         raise SelectedTrialError("prepared_inputs_invalid") from None
-    if not isinstance(profile_data, dict) or not isinstance(limits_data, dict) or limits_data != _limits():
+    if not isinstance(profile_data, dict) or not isinstance(limits_data, dict) or limits_data != _limits(contract):
         raise SelectedTrialError("prepared_policy_mismatch")
+    if contract.version == "v2" and profile_data.get("claim_reconciliation") != {
+        "version": "claim-reconciliation.v1", "enabled": True, "required": True, "max_assessments": 1,
+    }:
+        raise SelectedTrialError("prepared_native_claim_policy_invalid")
     policy = plan.get("shared_review_policy")
     if (not isinstance(policy, dict) or policy.get("sha256") != hashlib.sha256(
         canonical_json({key: value for key, value in policy.items() if key != "sha256"})
     ).hexdigest() or policy.get("profile_sha256") != inputs.get("profile_sha256")
-        or policy.get("limits_sha256") != inputs.get("limits_sha256")):
+        or policy.get("limits_sha256") != inputs.get("limits_sha256")
+        or policy.get("max_claim_assessments") != contract.max_claim_assessments
+        or (contract.version == "v2" and policy.get("trial_contract_version") != "v2")):
         raise SelectedTrialError("prepared_policy_identity_mismatch")
     if (policy.get("primary_identity_contract") != primary_reference
         or policy.get("decision_identity_contract") != decision_reference
@@ -511,11 +569,23 @@ def _prepared_plan(path: Path, root: Path) -> tuple[dict[str, Any], Path, Path, 
         "defect_positive_prompt_attack", "defect_positive_benign_lookalike", "code_clean_negative_control"
     ] or any(row.get("primary_request_count") != len(row.get("primary_requests", []))
              or not row.get("primary_requests")
+             or len(row.get("primary_requests", [])) > contract.max_primary_requests
              or any(not isinstance(item, dict) or item.get("admitted") is not True
                     or not isinstance(item.get("input_sha256"), str)
                     or not _SHA256.fullmatch(item["input_sha256"])
                     for item in row.get("primary_requests", [])) for row in rows):
         raise SelectedTrialError("prepared_request_descriptors_invalid")
+    bounds = plan.get("bounds")
+    if contract.version == "v2" and (
+        not isinstance(bounds, dict)
+        or bounds.get("primary_calls_per_review_max") != contract.max_primary_requests
+        or bounds.get("claim_jev_calls_per_review_max") != contract.max_claim_assessments
+        or bounds.get("total_external_calls_max_if_classifier_enabled")
+        != len(PREPARED_CASE_IDS) * contract.max_provider_calls
+        or contract.max_primary_requests + contract.max_claim_assessments > contract.max_provider_calls
+        or bounds.get("injection_classifier_calls_max") != 0
+    ):
+        raise SelectedTrialError("prepared_native_pair_bounds_invalid")
     fixture_sources = plan.get("fixture_sources")
     suite_path = root / "examples/injection/fixture-suite.v2.json"
     clean_root = root / "examples/evaluation/clean-review-control-v1"
@@ -634,6 +704,7 @@ def prepare_current_source_trial(
     repo_support_root: Path | None = None,
     environ: dict[str, str] | None = None,
     invoke=None,
+    version: str = "v1",
 ) -> dict[str, Any]:
     """Bind a provider-free current-source plan to installed-runtime dry preparation."""
     root = Path(__file__).resolve().parents[2] if repo_support_root is None else repo_support_root
@@ -643,7 +714,8 @@ def prepare_current_source_trial(
         raise SelectedTrialError("repository_support_assets_unavailable") from None
     if not isinstance(expected_source_revision, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_source_revision):
         raise SelectedTrialError("current_source_revision_invalid")
-    plan, profile_path, limits_path, frozen = _prepared_plan(prepared_plan, root)
+    contract = trial_contract(version)
+    plan, profile_path, limits_path, frozen = _prepared_plan(prepared_plan, root, version=contract.version)
     if plan.get("source_revision") != expected_source_revision:
         raise SelectedTrialError("current_source_revision_mismatch")
     invoke = invoke_cli_bounded if invoke is None else invoke
@@ -684,6 +756,7 @@ def prepare_current_source_trial(
                 frozen["provider_config"],
                 frozen["decision_config"],
                 dry_run=False,
+                max_claim_assessments=contract.max_claim_assessments,
             )
             command.insert(-1, "--prepare-only")
             remaining = PREPARED_GLOBAL_DEADLINE_SECONDS - (time.monotonic() - start)
@@ -755,13 +828,13 @@ def prepare_current_source_trial(
                     "target_code_execution": "NOT_RUN",
                 }
             )
-    manifest_path = output / "manifest.json"
+        manifest_path = output / "manifest.json"
     summary_path = output / "summary.json"
     if manifest_path.exists() or summary_path.exists():
         raise SelectedTrialError("current_preparation_output_exists")
     source_fingerprint = runtime["source_fingerprint"]
     manifest = {
-        "contract_version": CURRENT_PREPARATION_ID,
+        "contract_version": contract.preparation_id,
         "state": "CURRENT_SOURCE_PREPARED_NOT_RUN",
         "source_revision": expected_source_revision,
         "source_revision_basis": "GITHUB_SHA_MATCHED_CHECKED_OUT_GIT_HEAD",
@@ -788,7 +861,7 @@ def prepare_current_source_trial(
     }
     manifest_hash = _write_json(manifest_path, manifest)
     summary = {
-        "contract_version": CURRENT_PREPARATION_ID,
+        "contract_version": contract.preparation_id,
         "status": "PREPARED_NOT_RUN",
         "manifest_sha256": manifest_hash,
         "source_revision": expected_source_revision,
@@ -1412,6 +1485,7 @@ def _command(
     decision_path: Path,
     *,
     dry_run: bool,
+    max_claim_assessments: int = MAX_CLAIM_ASSESSMENTS_PER_RUN,
 ) -> list[str]:
     command = [
         str(cli),
@@ -1439,7 +1513,7 @@ def _command(
         "--mode",
         "AUTO",
         "--max-claim-assessments",
-        str(MAX_CLAIM_ASSESSMENTS_PER_RUN),
+        str(max_claim_assessments),
     ]
     if dry_run:
         command.append("--dry-run")
@@ -1926,7 +2000,11 @@ _REPORTED_USAGE_FIELDS = (
 )
 
 
-def _current_provider_telemetry(result: dict[str, Any], *, bound: bool) -> tuple[dict[str, Any], bool]:
+def _current_provider_telemetry(
+    result: dict[str, Any], *, bound: bool,
+    max_primary_attempts: int = MAX_PROVIDER_CALLS_PER_RUN,
+    max_provider_calls: int = MAX_PROVIDER_CALLS_PER_RUN,
+) -> tuple[dict[str, Any], bool]:
     """Project bounded reservation, usage, and local HTTP receipt facts only."""
     if not bound:
         return {"state": "UNKNOWN_UNBOUND_RESULT"}, True
@@ -1967,6 +2045,8 @@ def _current_provider_telemetry(result: dict[str, Any], *, bound: bool) -> tuple
         or type(summary_budget.get("local_check_reservations")) is not int
         or local_check_count != summary_budget.get("local_check_reservations")
     ):
+        return {"state": "INVALID"}, False
+    if summary_budget.get("provider_calls_reserved", 0) > max_provider_calls:
         return {"state": "INVALID"}, False
 
     known_usage_count = 0
@@ -2027,7 +2107,9 @@ def _current_provider_telemetry(result: dict[str, Any], *, bound: bool) -> tuple
         if _bounded_id(task_id) is None or not isinstance(task, dict):
             return {"state": "INVALID"}, False
         attempts = task.get("attempts")
-        if type(attempts) is not int or not 1 <= attempts <= MAX_PROVIDER_CALLS_PER_RUN:
+        if type(attempts) is not int or not 1 <= attempts <= max_primary_attempts:
+            if type(attempts) is int and attempts > max_primary_attempts:
+                return {"state": "INVALID"}, False
             continue
         attempt_index = attempts - 1
         reservation_key = next(
@@ -2121,6 +2203,8 @@ def _case_result_summary(
     expected_profile_id: str | None,
     expected_profile_hash: str | None,
     current_diagnostics: bool = False,
+    max_primary_attempts: int = MAX_PROVIDER_CALLS_PER_RUN,
+    max_provider_calls: int = MAX_PROVIDER_CALLS_PER_RUN,
 ) -> dict[str, Any]:
     from .injection_trials import observe_known_blocker
 
@@ -2277,7 +2361,9 @@ def _case_result_summary(
         quarantine, quarantine_valid = _current_quarantine_diagnostics(result)
         report_notes, report_notes_valid = _current_report_note_diagnostics(result)
         provider_telemetry, provider_telemetry_valid = _current_provider_telemetry(
-            result, bound=result_integrity_valid and result_identity_match
+            result, bound=result_integrity_valid and result_identity_match,
+            max_primary_attempts=max_primary_attempts,
+            max_provider_calls=max_provider_calls,
         )
         summary.update(
             {
@@ -2335,14 +2421,16 @@ def run_provider_trial(
     current_source_contract: bool = False,
     current_preparation_manifest: dict[str, Any] | None = None,
     current_preparation_manifest_sha256: str | None = None,
+    version: str = "v1",
 ) -> dict[str, Any]:
     """Run exactly the three frozen cases with the selected trusted model pair."""
+    contract = trial_contract(version)
     if not isinstance(current_source_contract, bool):
         raise SelectedTrialError("current_trial_contract_invalid")
     if current_source_contract and (
         prepared_plan is None
         or not isinstance(current_preparation_manifest, dict)
-        or current_preparation_manifest.get("contract_version") != CURRENT_PREPARATION_ID
+        or current_preparation_manifest.get("contract_version") != contract.preparation_id
         or current_preparation_manifest.get("state") != "CURRENT_SOURCE_PREPARED_NOT_RUN"
         or _bounded_hash(current_preparation_manifest_sha256) is None
     ):
@@ -2378,7 +2466,9 @@ def run_provider_trial(
             work = Path(temporary)
             plan_data = None
             if prepared_mode:
-                plan_data, profile_path, limits_path, frozen = _prepared_plan(Path(prepared_plan), root)
+                plan_data, profile_path, limits_path, frozen = _prepared_plan(
+                    Path(prepared_plan), root, version=contract.version
+                )
                 prepared_plan_hash = hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest()
                 if current_source_contract and (
                     current_preparation_manifest.get("prepared_plan_sha256") != prepared_plan_hash
@@ -2442,7 +2532,8 @@ def run_provider_trial(
                     if remaining_preflight <= 0:
                         raise SelectedTrialError("prepared_global_deadline_exhausted")
                     command = _command(Path(runtime["cli_path"]), case, profile_path, limits_path,
-                        work / "preflight" / case.case_id, provider_config, decision_config, dry_run=False)
+                        work / "preflight" / case.case_id, provider_config, decision_config,
+                        dry_run=False, max_claim_assessments=contract.max_claim_assessments)
                     command.insert(-1, "--prepare-only")
                     check = invoke(command, cwd=work, env=_child_environment(env_source, canary=canary, include_keys=False),
                                    timeout_seconds=min(30, remaining_preflight))
@@ -2498,7 +2589,7 @@ def run_provider_trial(
             else:
                 prepared, runtime = _suite_and_runtime(work / "fixtures", root, cli_executable)
                 source_fingerprint = runtime.get("source_fingerprint")
-                limits = _limits()
+                limits = _limits(contract)
                 limits_path = work / "limits.json"
                 _write_json(limits_path, limits)
             input_identity = _trial_input_identity(
@@ -2565,6 +2656,7 @@ def run_provider_trial(
                     provider_config,
                     decision_config,
                     dry_run=False,
+                    max_claim_assessments=contract.max_claim_assessments,
                 )
                 if observe_effects:
                     observed = observe_cli(
@@ -2722,6 +2814,8 @@ def run_provider_trial(
                                 expected_profile_id=expected_profile_id,
                                 expected_profile_hash=expected_profile_hash,
                                 current_diagnostics=current_source_contract,
+                                max_primary_attempts=contract.max_provider_calls,
+                                max_provider_calls=contract.max_provider_calls,
                             )
                             run_summary.update(projected)
                             if not projected.get("result_identity_match"):
@@ -2760,7 +2854,7 @@ def run_provider_trial(
                 _case_manifest(case, prepared.profile) for case in prepared.cases if case.case_id in selected_ids
             ]
             manifest = {
-                "contract_version": CURRENT_TRIAL_ID if current_source_contract else TRIAL_ID,
+                "contract_version": contract.current_trial_id if current_source_contract else contract.trial_id,
                 "state": "PROVIDER_TRIAL_COMPLETED_OR_PARTIAL",
                 **({"source_revision": plan_data.get("source_revision")} if current_source_contract else {"source_root": str(root)}),
                 "suite_sha256": hashlib.sha256(
@@ -2798,19 +2892,23 @@ def run_provider_trial(
                 "limits": limits,
                 "runs": RUN_TIMEOUT_SECONDS,
                 "matrix_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS if prepared_mode else MATRIX_TIMEOUT_SECONDS,
-                "claim_assessments_cap_per_run": MAX_CLAIM_ASSESSMENTS_PER_RUN,
+                "claim_assessments_cap_per_run": contract.max_claim_assessments,
                 "cases": cases_manifest,
-                "maximum_provider_calls_total": len(selected_ids) * MAX_PROVIDER_CALLS_PER_RUN,
-                "maximum_output_tokens_total": len(selected_ids) * MAX_PROVIDER_CALLS_PER_RUN * MAX_OUTPUT_TOKENS_PER_CALL,
+                "maximum_provider_calls_total": len(selected_ids) * contract.max_provider_calls,
+                "maximum_output_tokens_total": len(selected_ids) * contract.max_provider_calls * MAX_OUTPUT_TOKENS_PER_CALL,
                 "maximum_provider_response_bytes_total": len(selected_ids)
-                * MAX_PROVIDER_CALLS_PER_RUN
+                * contract.max_provider_calls
                 * MAX_RESPONSE_BYTES_PER_CALL,
                 "maximum_external_calls_total": len(selected_ids)
-                * (MAX_PROVIDER_CALLS_PER_RUN + MAX_CLAIM_ASSESSMENTS_PER_RUN),
-                "maximum_claim_assessments_total": len(selected_ids) * MAX_CLAIM_ASSESSMENTS_PER_RUN,
+                * (
+                    contract.max_provider_calls
+                    if contract.version == "v2"
+                    else contract.max_provider_calls + contract.max_claim_assessments
+                ),
+                "maximum_claim_assessments_total": len(selected_ids) * contract.max_claim_assessments,
                 "raw_cli_artifacts_uploaded": False,
                 **({"prepared_plan_sha256": hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest(),
-                    "prepared_plan_schema": PREPARED_PLAN_SCHEMA,
+                    "prepared_plan_schema": contract.plan_schema,
                     "preflight_case_count": len(PREPARED_CASE_IDS),
                     "injection_classifier": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED",
                     "clean_control_expected_material_candidate": False,
@@ -2836,7 +2934,7 @@ def run_provider_trial(
             }
             manifest_hash = _write_json(result_dir / "manifest.json", manifest)
             summary = {
-                "contract_version": CURRENT_TRIAL_ID if current_source_contract else TRIAL_ID,
+                "contract_version": contract.current_trial_id if current_source_contract else contract.trial_id,
                 "status": "PROCESS_COMPLETED"
                 if all(row.get("run_status") == "CLI_COMPLETED" for row in case_results)
                 else "INCOMPLETE",
@@ -2844,7 +2942,7 @@ def run_provider_trial(
                 "manifest_sha256": manifest_hash,
                 "cases": case_results,
                 "elapsed_ms": round((time.monotonic() - start) * 1000, 2),
-                "provider_call_ceiling": len(selected_ids) * MAX_PROVIDER_CALLS_PER_RUN,
+                "provider_call_ceiling": len(selected_ids) * contract.max_provider_calls,
                 "provider_calls_actual": None,
                 "provider_calls_note": "use validated per-candidate reservation rows; absent rows are not implied calls",
                 "billing": "UNKNOWN_UNLESS_AUTHORITATIVE_USAGE_REPORTED",
@@ -2902,6 +3000,7 @@ def run_current_provider_trial(
     environ: dict[str, str] | None = None,
     invoke=None,
     observe_effects: bool = True,
+    version: str = "v1",
 ) -> dict[str, Any]:
     """Run the versioned current-source path only from its fresh prepare receipt."""
     root = Path(__file__).resolve().parents[2] if repo_support_root is None else repo_support_root
@@ -2912,8 +3011,9 @@ def run_current_provider_trial(
         raise SelectedTrialError("current_preparation_receipt_unavailable") from None
     if not isinstance(expected_source_revision, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_source_revision):
         raise SelectedTrialError("current_source_revision_invalid")
-    prepared_plan = preparation_dir / "prepared" / "selected-pair-clean-control-trial-v1.json"
-    plan, _profile, _limits, _frozen = _prepared_plan(prepared_plan, root)
+    contract = trial_contract(version)
+    prepared_plan = preparation_dir / "prepared" / f"selected-pair-clean-control-trial-{contract.version}.json"
+    plan, _profile, _limits, _frozen = _prepared_plan(prepared_plan, root, version=contract.version)
     plan_hash = hashlib.sha256(prepared_plan.read_bytes()).hexdigest()
     if plan.get("source_revision") != expected_source_revision:
         raise SelectedTrialError("current_source_revision_mismatch")
@@ -2922,7 +3022,7 @@ def run_current_provider_trial(
     plan_rows = {row["case_id"]: row for row in plan["cases"]}
     manifest_cases = manifest.get("cases")
     if (
-        manifest.get("contract_version") != CURRENT_PREPARATION_ID
+        manifest.get("contract_version") != contract.preparation_id
         or manifest.get("state") != "CURRENT_SOURCE_PREPARED_NOT_RUN"
         or manifest.get("source_revision") != expected_source_revision
         or manifest.get("prepared_plan_sha256") != plan_hash
@@ -2934,7 +3034,7 @@ def run_current_provider_trial(
         or manifest.get("github_publication") != "NOT_PERFORMED"
         or not isinstance(manifest_cases, list)
         or tuple(row.get("case_id") for row in manifest_cases if isinstance(row, dict)) != PREPARED_CASE_IDS
-        or summary.get("contract_version") != CURRENT_PREPARATION_ID
+        or summary.get("contract_version") != contract.preparation_id
         or summary.get("status") != "PREPARED_NOT_RUN"
         or summary.get("manifest_sha256") != manifest_file_hash
         or summary.get("source_revision") != expected_source_revision
@@ -2982,6 +3082,7 @@ def run_current_provider_trial(
         current_source_contract=True,
         current_preparation_manifest=manifest,
         current_preparation_manifest_sha256=manifest_file_hash,
+        version=contract.version,
     )
     return result
 

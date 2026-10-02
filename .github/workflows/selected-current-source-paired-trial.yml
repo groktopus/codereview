@@ -8,6 +8,14 @@ on:
         type: boolean
         required: true
         default: false
+      trial_version:
+        description: Versioned fixed synthetic trial contract; v2 adds required native Jev claim reconciliation
+        type: choice
+        required: true
+        default: v1
+        options:
+          - v1
+          - v2
 
 permissions:
   contents: read
@@ -133,10 +141,12 @@ jobs:
         env:
           EXPECTED_SOURCE_REVISION: ${{ github.sha }}
           PREPARATION_OUTPUT: ${{ runner.temp }}/selected-current-source-trial
+          TRIAL_VERSION: ${{ inputs.trial_version }}
         run: |
           set -euo pipefail
           python scripts/run_current_selected_model_trial.py \
             --prepare-only \
+            --trial-version "$TRIAL_VERSION" \
             --expected-source-revision "$EXPECTED_SOURCE_REVISION" \
             --output "$PREPARATION_OUTPUT" \
             --cli-executable "$(command -v pr-review)" >/dev/null
@@ -152,6 +162,7 @@ jobs:
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           EXPECTED_SOURCE_REVISION: ${{ github.sha }}
           PREPARATION_OUTPUT: ${{ runner.temp }}/selected-current-source-trial
+          TRIAL_VERSION: ${{ inputs.trial_version }}
           RESULT_OUTPUT: ${{ runner.temp }}/selected-current-source-result
           CONFIG_OUTPUT: ${{ runner.temp }}/selected-current-source-provider-config
         run: |
@@ -159,6 +170,7 @@ jobs:
           python scripts/provider_config_from_env.py --output-dir "$CONFIG_OUTPUT" --json >/dev/null
           python scripts/run_current_selected_model_trial.py \
             --run-provider-trial \
+            --trial-version "$TRIAL_VERSION" \
             --expected-source-revision "$EXPECTED_SOURCE_REVISION" \
             --preparation-dir "$PREPARATION_OUTPUT" \
             --output "$RESULT_OUTPUT" \
