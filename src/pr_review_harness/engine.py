@@ -640,6 +640,83 @@ def _merge_evidence_rows(rows: list[dict]) -> list[dict]:
     return merged
 
 
+def _complete_snapshot_context_evidence(
+    snapshot: dict, binding: dict, captured_evidence: dict | None = None
+) -> dict | None:
+    """Return only a complete, exact HEAD file already captured in this snapshot.
+
+    This is a reuse path, not a retrieval: the row retains its original
+    ``head_file`` / ``untrusted_pr_content`` classification. Every immutable
+    source binding and both content/object hashes are rechecked before reuse.
+    """
+    evidence_map = captured_evidence if isinstance(captured_evidence, dict) else snapshot.get("evidence")
+    if not isinstance(evidence_map, dict):
+        return None
+    path = binding.get("path")
+    revision = binding.get("source_sha")
+    object_id = binding.get("source_object_id")
+    object_format = binding.get("source_object_format")
+    if (
+        not isinstance(path, str)
+        or not isinstance(revision, str)
+        or revision != snapshot.get("head_sha")
+        or not isinstance(object_id, str)
+        or object_format not in {"sha1", "sha256"}
+        or len(object_id) != (40 if object_format == "sha1" else 64)
+        or binding.get("evidence_kind") not in {"implementation", "test"}
+    ):
+        return None
+    matches = [
+        item
+        for item in evidence_map.values()
+        if isinstance(item, dict)
+        and item.get("path") == path
+        and item.get("source_revision") == revision
+        and item.get("source_object_id") == object_id
+        and item.get("source_object_format") == object_format
+        and item.get("source_kind") == "head_file"
+        and item.get("trust") == "untrusted_pr_content"
+        and item.get("snapshot_id") == snapshot.get("snapshot_id")
+        and item.get("content_truncated") is False
+    ]
+    if len(matches) != 1:
+        return None
+    item = matches[0]
+    content = item.get("content")
+    evidence_id = item.get("evidence_id")
+    line_start = item.get("line_start")
+    if not isinstance(content, str) or not isinstance(evidence_id, str) or not evidence_id or line_start != 1:
+        return None
+    try:
+        raw = content.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
+    content_hash = hashlib.sha256(raw).hexdigest()
+    if item.get("content_hash") != content_hash:
+        return None
+    git_header = f"blob {len(raw)}\0".encode("ascii")
+    object_hash = hashlib.new(object_format, git_header + raw).hexdigest()
+    if object_hash != object_id or item.get("source_object_size_bytes") != len(raw):
+        return None
+    expected_id_payload = json.dumps(
+        {
+            "snapshot": snapshot.get("snapshot_id"),
+            "path": path,
+            "source": "head_file",
+            "sha": revision,
+            "hash": content_hash,
+            "start": line_start,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode()
+    expected_id = "ev-" + hashlib.sha256(expected_id_payload).hexdigest()[:24]
+    if evidence_id != expected_id:
+        return None
+    return item
+
+
 def _bind_specialist_input(task: dict, snapshot: dict, profile: dict, evidence: list[dict]) -> dict:
     """Attach the trusted unit-local evidence relation to one measured request."""
     if task.get("task_kind", "SPECIALIST_FINDINGS") != "SPECIALIST_FINDINGS":
@@ -1488,7 +1565,8 @@ def run_review(
     # Dynamic follow-up requests and retrieved immutable evidence are part of
     # the durable run state, while request identity remains the original
     # snapshot+plan+profile contract.
-    snapshot = {**snapshot, "evidence": dict(snapshot.get("evidence", {}))}
+    snapshot_captured_evidence = dict(snapshot.get("evidence", {}))
+    snapshot = {**snapshot, "evidence": dict(snapshot_captured_evidence)}
     retrieved_context = ledger.get("retrieved_context", {})
     if isinstance(retrieved_context, dict):
         for entry in retrieved_context.values():
@@ -2555,66 +2633,92 @@ def run_review(
             checkpoint()
             if valid and callable(context_retriever) and ":followup:" not in task["task_id"]:
                 retrieval_key = f"{record['proposal_id']}:context-retrieval"
-                reserved_bytes = max(
-                    0,
-                    min(
-                        int(limits["max_input_bytes_per_task"]),
-                        int(limits["max_output_bytes_per_task"]),
-                        int(limits["max_context_bytes"]) - budget.summary()["context_bytes_reserved"],
-                    ),
+                target_binding = record.get("context_target_binding")
+                snapshot_item = (
+                    _complete_snapshot_context_evidence(snapshot, target_binding, snapshot_captured_evidence)
+                    if isinstance(target_binding, dict)
+                    and isinstance(profile.get("context_target_manifest"), dict)
+                    else None
+                )
+                snapshot_reuse = snapshot_item is not None
+                reserved_bytes = (
+                    len(snapshot_item["content"].encode("utf-8"))
+                    if snapshot_reuse
+                    else max(
+                        0,
+                        min(
+                            int(limits["max_input_bytes_per_task"]),
+                            int(limits["max_output_bytes_per_task"]),
+                            int(limits["max_context_bytes"]) - budget.summary()["context_bytes_reserved"],
+                        ),
+                    )
                 )
                 retrieved = None
                 try:
-                    if reserved_bytes <= 0:
-                        raise BudgetExhausted("CONTEXT_BYTE_BUDGET_EXHAUSTED")
-                    budget.reserve_retrieval(retrieval_key, reserved_bytes)
                     cached = ledger.get("retrieved_context", {}).get(record["proposal_id"])
-                    if isinstance(cached, dict):
-                        retrieved = cached.get("result")
-                        fetched = cached.get("evidence", [])
-                    else:
-                        retrieval_limits = {
-                            **remaining_call_limits(),
-                            "max_bytes": reserved_bytes,
-                            "max_retrieval_bytes": reserved_bytes,
-                            "context_bytes_remaining": reserved_bytes,
-                            "max_result_bytes": int(limits["max_output_bytes_per_task"]),
+                    if snapshot_reuse:
+                        retrieved = {
+                            "status": "RESOLVED",
+                            "reason": "reused_complete_snapshot_evidence",
+                            "source": "SNAPSHOT_REUSE",
                         }
-                        invocation = IsolatedInvocation(
-                            context_retriever,
-                            "__call__",
-                            (
-                                snapshot,
-                                profile,
-                                {
-                                    **proposal,
-                                    "_proposal_id": record["proposal_id"],
-                                    "_task_id": task["task_id"],
-                                    **(
-                                        {"_context_target_binding": record["context_target_binding"]}
-                                        if "context_target_binding" in record
-                                        else {}
-                                    ),
-                                },
-                                retrieval_limits,
-                            ),
-                            deadline_seconds=budget.remaining_seconds(),
-                            output_limit=int(limits["max_output_bytes_per_task"]),
-                        )
-                        while not invocation.poll() and budget.remaining_seconds() > 0:
-                            invocation.wait_for_ready(timeout=budget.remaining_seconds())
-                        if invocation.poll():
-                            retrieved = invocation.result()
+                        fetched = [{
+                            **snapshot_item,
+                            "proposal_id": record["proposal_id"],
+                            "task_id": task["task_id"],
+                            "required_lens": lens,
+                        }]
+                        cached = None
+                    else:
+                        if reserved_bytes <= 0:
+                            raise BudgetExhausted("CONTEXT_BYTE_BUDGET_EXHAUSTED")
+                        budget.reserve_retrieval(retrieval_key, reserved_bytes)
+                        if isinstance(cached, dict):
+                            retrieved = cached.get("result")
+                            fetched = cached.get("evidence", [])
                         else:
-                            invocation.cancel()
-                            raise BudgetExhausted("DEADLINE_EXHAUSTED")
-                        fetched = retrieved.get("evidence", []) if isinstance(retrieved, dict) else []
-                        if isinstance(fetched, dict):
-                            fetched = [fetched]
-                        elif fetched is None:
-                            fetched = []
-                    retrieval_envelope_bytes = len(_canonical(retrieved))
-                    if retrieval_envelope_bytes > int(limits["max_output_bytes_per_task"]):
+                            retrieval_limits = {
+                                **remaining_call_limits(),
+                                "max_bytes": reserved_bytes,
+                                "max_retrieval_bytes": reserved_bytes,
+                                "context_bytes_remaining": reserved_bytes,
+                                "max_result_bytes": int(limits["max_output_bytes_per_task"]),
+                            }
+                            invocation = IsolatedInvocation(
+                                context_retriever,
+                                "__call__",
+                                (
+                                    snapshot,
+                                    profile,
+                                    {
+                                        **proposal,
+                                        "_proposal_id": record["proposal_id"],
+                                        "_task_id": task["task_id"],
+                                        **(
+                                            {"_context_target_binding": record["context_target_binding"]}
+                                            if "context_target_binding" in record
+                                            else {}
+                                        ),
+                                    },
+                                    retrieval_limits,
+                                ),
+                                deadline_seconds=budget.remaining_seconds(),
+                                output_limit=int(limits["max_output_bytes_per_task"]),
+                            )
+                            while not invocation.poll() and budget.remaining_seconds() > 0:
+                                invocation.wait_for_ready(timeout=budget.remaining_seconds())
+                            if invocation.poll():
+                                retrieved = invocation.result()
+                            else:
+                                invocation.cancel()
+                                raise BudgetExhausted("DEADLINE_EXHAUSTED")
+                            fetched = retrieved.get("evidence", []) if isinstance(retrieved, dict) else []
+                            if isinstance(fetched, dict):
+                                fetched = [fetched]
+                            elif fetched is None:
+                                fetched = []
+                    retrieval_envelope_bytes = None if snapshot_reuse else len(_canonical(retrieved))
+                    if not snapshot_reuse and retrieval_envelope_bytes > int(limits["max_output_bytes_per_task"]):
                         raise BudgetExhausted("OUTPUT_BYTE_LIMIT_EXCEEDED")
                     if not isinstance(retrieved, dict) or retrieved.get("status") not in {
                         "RESOLVED",
@@ -2641,6 +2745,18 @@ def run_review(
                             raise ValueError("invalid_context_retrieval_evidence")
                         raw_bytes = content.encode("utf-8")
                         byte_count += len(raw_bytes)
+                        if snapshot_reuse:
+                            original = evidence_map.get(item.get("evidence_id"))
+                            if (
+                                not isinstance(original, dict)
+                                or not _same_evidence_content(original, item)
+                                or _complete_snapshot_context_evidence(
+                                    snapshot, target_binding, snapshot_captured_evidence
+                                ) is None
+                            ):
+                                raise ValueError("context_snapshot_reuse_binding_failed")
+                            verified.append(item)
+                            continue
                         if (
                             item.get("snapshot_id") != snapshot.get("snapshot_id")
                             or item.get("trust") not in {"repository_evidence", "trusted_policy"}
@@ -2683,15 +2799,18 @@ def run_review(
                             raise ValueError("context_retrieval_evidence_binding_failed")
                         verified.append(item)
                     verified = _merge_evidence_rows(verified)
-                    if byte_count > reserved_bytes:
+                    if not snapshot_reuse and byte_count > reserved_bytes:
                         raise BudgetExhausted("CONTEXT_RETRIEVAL_BYTE_LIMIT_EXCEEDED")
-                    budget.settle(retrieval_key, output_bytes=byte_count, usage={}, status=retrieved["status"])
+                    if not snapshot_reuse:
+                        budget.settle(retrieval_key, output_bytes=byte_count, usage={}, status=retrieved["status"])
                     record["retrieval_status"] = retrieved["status"]
                     record["retrieval_reason"] = retrieved.get("reason")
+                    if retrieved.get("source") == "SNAPSHOT_REUSE":
+                        record["retrieval_source"] = "SNAPSHOT_REUSE"
                     record["retrieved_evidence_ids"] = [item["evidence_id"] for item in verified]
                     record["retrieved_bytes"] = byte_count
                     record["retrieval_envelope_bytes"] = retrieval_envelope_bytes
-                    if not isinstance(cached, dict):
+                    if not isinstance(cached, dict) or snapshot_reuse:
                         ledger.setdefault("retrieved_context", {})[record["proposal_id"]] = {
                             "result": retrieved,
                             "evidence": verified,

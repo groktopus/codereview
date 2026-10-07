@@ -545,6 +545,56 @@ class GapProvider(EmptyProvider):
         }
 
 
+class SnapshotReuseGapProvider(EmptyProvider):
+    def __init__(self):
+        super().__init__()
+        self.followup_evidence = None
+
+    def review(self, task, evidence, limits):
+        self.calls += 1
+        unit = task["unit_ids"][0]
+        if task.get("context_gap_followup_for"):
+            self.followup_evidence = [dict(item) for item in evidence]
+            refs = [item["evidence_id"] for item in evidence]
+            return {
+                "payload": {
+                    "finding_candidates": [],
+                    "context_gap_proposals": [],
+                    "coverage_notes": [{
+                        "unit_id": unit,
+                        "state": "COVERED",
+                        "reason_code": "reviewed_with_captured_source",
+                        "evidence_refs": refs,
+                        "coverage_basis": "STATIC_REVIEW",
+                    }],
+                },
+                "usage": {},
+                "provenance": {"provider": "snapshot-reuse-fixture"},
+            }
+        evidence_id = task["evidence_ids"][0]
+        return {
+            "payload": {
+                "finding_candidates": [],
+                "context_gap_proposals": [{
+                    "evidence_kind": "implementation",
+                    "target": {"target_unit_id": None, "target_path": "src/m0.py", "target_symbol": None},
+                    "rationale": "Review the captured implementation source.",
+                    "related_evidence_ids": [evidence_id],
+                    "required_lens": task["lens"],
+                }],
+                "coverage_notes": [{
+                    "unit_id": unit,
+                    "state": "COVERED",
+                    "reason_code": "initial_review",
+                    "evidence_refs": [evidence_id],
+                    "coverage_basis": "STATIC_REVIEW",
+                }],
+            },
+            "usage": {},
+            "provenance": {"provider": "snapshot-reuse-fixture"},
+        }
+
+
 class ContextFollowupProvider(EmptyProvider):
     def __init__(self, marker=None):
         super().__init__()
@@ -2567,6 +2617,120 @@ def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatche
     assert result["budget"]["followup_tasks_reserved"] == 0
     assert len(result["task_results"]) == 1
     assert result["disposition"] == "INCOMPLETE"
+
+
+def test_manifest_bound_reuses_exact_complete_snapshot_head_file_without_retrieval_ipc(tmp_path):
+    snapshot = make_snapshot()
+    content = ("captured implementation detail\n" * 900).encode("utf-8")
+    object_id = hashlib.sha1(f"blob {len(content)}\0".encode() + content).hexdigest()
+    content_hash = hashlib.sha256(content).hexdigest()
+    source_id = "ev-" + engine_module._hash({
+        "snapshot": snapshot["snapshot_id"],
+        "path": "src/m0.py",
+        "source": "head_file",
+        "sha": snapshot["head_sha"],
+        "hash": content_hash,
+        "start": 1,
+    })[:24]
+    snapshot["evidence"][source_id] = {
+        "evidence_id": source_id,
+        "snapshot_id": snapshot["snapshot_id"],
+        "path": "src/m0.py",
+        "content": content.decode("utf-8"),
+        "content_hash": content_hash,
+        "content_truncated": False,
+        "line_start": 1,
+        "line_end": len(content.decode("utf-8").splitlines()),
+        "source_kind": "head_file",
+        "trust": "untrusted_pr_content",
+        "source_revision": snapshot["head_sha"],
+        "source_object_id": object_id,
+        "source_object_format": "sha1",
+        "source_object_size_bytes": len(content),
+    }
+    binding = {
+        "path": "src/m0.py",
+        "source_sha": snapshot["head_sha"],
+        "source_object_id": object_id,
+        "source_object_format": "sha1",
+        "evidence_kind": "implementation",
+    }
+    assert engine_module._complete_snapshot_context_evidence(snapshot, binding) == snapshot["evidence"][source_id]
+    for field, value in (
+        ("content_truncated", True),
+        ("source_revision", "f" * 40),
+        ("source_object_id", "e" * 40),
+        ("trust", "repository_evidence"),
+        ("content", "altered bytes\n"),
+        ("source_object_size_bytes", len(content) + 1),
+        ("evidence_id", "ev-" + "0" * 24),
+        ("content", "\ud800"),
+    ):
+        tampered = copy.deepcopy(snapshot)
+        tampered["evidence"][source_id][field] = value
+        assert engine_module._complete_snapshot_context_evidence(tampered, binding) is None
+    unicode_path = "src/naïve.py"
+    unicode_row = {**snapshot["evidence"][source_id], "path": unicode_path}
+    unicode_row["evidence_id"] = "ev-" + hashlib.sha256(
+        json.dumps(
+            {
+                "snapshot": snapshot["snapshot_id"],
+                "path": unicode_path,
+                "source": "head_file",
+                "sha": snapshot["head_sha"],
+                "hash": content_hash,
+                "start": 1,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode()
+    ).hexdigest()[:24]
+    unicode_snapshot = {**snapshot, "evidence": {unicode_row["evidence_id"]: unicode_row}}
+    assert engine_module._complete_snapshot_context_evidence(
+        unicode_snapshot, {**binding, "path": unicode_path}
+    ) == unicode_row
+    prof = {
+        **profile(),
+        "retrieval_context_patterns": ["src/*.py"],
+        "trusted_policy_paths": [],
+        "retrieval_revisions": {"implementation": "head", "test": "head"},
+        "context_target_manifest": {
+            "version": "context-target-manifest.v1",
+            "max_entries": 16,
+            "max_bytes": 16_384,
+        },
+    }
+    provider = SnapshotReuseGapProvider()
+    retriever = CountingContextRetriever()
+    result = run(
+        tmp_path,
+        snap=snapshot,
+        prof=prof,
+        provider=provider,
+        context_retriever=retriever,
+    )
+
+    gap = result["ledger"]["context_gaps"][0]
+    entry = result["ledger"]["retrieved_context"][gap["proposal_id"]]
+    reused = entry["evidence"][0]
+    assert gap["retrieval_status"] == "RESOLVED"
+    assert gap["retrieval_source"] == "SNAPSHOT_REUSE"
+    assert gap["retrieved_bytes"] == len(content)
+    assert gap["retrieval_envelope_bytes"] is None
+    assert reused["evidence_id"] == source_id
+    assert reused["source_kind"] == "head_file"
+    assert reused["trust"] == "untrusted_pr_content"
+    assert result["budget"]["context_retrievals_reserved"] == 0
+    assert not any(key.endswith(":context-retrieval") for key in result["ledger"]["budget"]["reservations"])
+    assert retriever.calls == 0
+    followup_id = gap["followup_task_id"]
+    followup_result = result["task_results"][followup_id]
+    assert source_id in followup_result["input_evidence_ids"]
+    assert reused["content"] == content.decode("utf-8")
+    assert reused["content_hash"] == content_hash
+    assert result["budget"]["followup_tasks_reserved"] == 1
+    assert gap["status"] == "RESOLVED_BY_FOLLOWUP"
 
 
 def test_oversized_untrusted_retriever_is_rejected_by_ipc_without_metadata_leak(tmp_path):
