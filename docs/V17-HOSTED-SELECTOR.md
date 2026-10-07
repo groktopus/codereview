@@ -22,7 +22,9 @@ byte-identical (8,087 bytes, SHA-256
 `004df69e267e61f3457099ef2febcadee7bf2378e6f1cc0507f19881adc4e129`).
 
 The selected reusable workflow is pinned to the qualified v17-capable runtime
-at `dd01a24976631c957a34f3ecc80dcb097948e450`. This makes the v17 input
+at `b075e50db01154cbd996a5549afef62f065df2d9`. That commit contains both the manifest engine and the closed contract registry.
+Contract resolution runs from the pinned checkout, so qualification must exercise
+that exact resolver as well as CLI preparation. This makes the v17 input
 available to the caller; it does not validate the profile's review quality or
 establish production behavior. The provider wire quote uses adapter 0.2 and
 continues to use the same quote/ledger checks before dispatch. Publication

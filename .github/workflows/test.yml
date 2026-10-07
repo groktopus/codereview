@@ -184,10 +184,10 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install the Linux syscall observer
+        timeout-minutes: 3
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes strace
+          bash scripts/install_ci_strace.sh
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: pr-review-distributions
