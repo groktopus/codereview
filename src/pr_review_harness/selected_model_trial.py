@@ -105,6 +105,13 @@ def trial_contract(version: str = "v1") -> TrialContract:
         raise SelectedTrialError("trial_version_invalid")
     return contract
 
+
+def _injection_classifier_status(contract: TrialContract) -> str:
+    """Distinguish a contract-disabled classifier from an unresolved v1 one."""
+    if contract.version == "v2":
+        return "DISABLED_BY_V2_CONTRACT"
+    return "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED"
+
 PRIMARY_IDENTITY = {
     "kind": "openai_compatible",
     "provider_id": "operator_openai_compatible",
@@ -3231,11 +3238,11 @@ def run_provider_trial(
                 **({"prepared_plan_sha256": hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest(),
                     "prepared_plan_schema": contract.plan_schema,
                     "preflight_case_count": len(PREPARED_CASE_IDS),
-                    "injection_classifier": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED",
+                    "injection_classifier": _injection_classifier_status(contract),
                     "clean_control_expected_material_candidate": False,
                     "global_wall_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS} if prepared_mode else {}),
                 **({"jev_injection_classifier": {
-                    "status": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED",
+                    "status": _injection_classifier_status(contract),
                     "calls_max": 0,
                 }} if prepared_mode else {}),
                 "billing": "UNKNOWN_UNLESS_AUTHORITATIVE_USAGE_REPORTED",
