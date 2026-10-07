@@ -64,6 +64,9 @@ def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path)
     assert hashlib.sha256(frozen_runtime.FROZEN_MODULE.read_bytes()).hexdigest() == (
         "a2efc2c78368c7d18c6f678bd889a62c0425652529316bb0c9b8d8bf699d7664"
     )
+    assert hashlib.sha256(frozen_runtime.FROZEN_EVIDENCE.read_bytes()).hexdigest() == (
+        "4b6f7a3d7b1a9fe95fc2614395e153b36cc0c577b61e871933008ef847b86bfc"
+    )
     runtime_root = frozen_runtime.build_frozen_runtime_root(tmp_path)
     assert _inventory_hashes(runtime_root) == (
         35,
@@ -83,8 +86,11 @@ def test_modified_archived_module_is_rejected(tmp_path: Path, monkeypatch: pytes
 def test_unlisted_new_module_is_excluded_from_historical_runtime(tmp_path: Path):
     new_module = ROOT / "src/pr_review_harness/github_app_credentials.py"
     assert new_module.is_file()
+    context_targets = ROOT / "src/pr_review_harness/context_targets.py"
+    assert context_targets.is_file()
     runtime_root = frozen_runtime.build_frozen_runtime_root(tmp_path)
     assert not (runtime_root / "src/pr_review_harness/github_app_credentials.py").exists()
+    assert not (runtime_root / "src/pr_review_harness/context_targets.py").exists()
     assert _inventory_hashes(runtime_root)[0] == frozen_runtime.EXPECTED_MODULE_COUNT
 
 

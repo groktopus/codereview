@@ -27,6 +27,7 @@ from .budget import (
 )
 from .claim_assessment import CLAIM_ASSESSMENT_ERROR_CODES, ClaimAssessmentError
 from .claim_reconciliation import classify_reconciliation, validate_claim_reconciliation_policy
+from .context_targets import build_context_target_manifest, validate_context_target_choice
 from .planner import allow_empty_approve
 from .private_capture import (
     MAX_CAPTURE_CALLS,
@@ -680,11 +681,15 @@ def _bind_specialist_input(task: dict, snapshot: dict, profile: dict, evidence: 
             selected_ids = [evidence_id for evidence_id in task_evidence_ids if evidence_id in selected_set and evidence_id in delivered]
             binding_status = "VERIFIED"
         bindings.append({"unit_id": unit_id, "binding_status": binding_status, "evidence_ids": selected_ids})
-    return {
+    bound = {
         **task,
         "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
         "unit_evidence_bindings": bindings,
     }
+    manifest = build_context_target_manifest(task, snapshot, profile)
+    if manifest is not None:
+        bound["context_target_manifest"] = manifest
+    return bound
 
 
 def _task_input_provenance(task: dict) -> dict[str, Any]:
@@ -692,6 +697,8 @@ def _task_input_provenance(task: dict) -> dict[str, Any]:
         "request_input_contract": task.get("request_input_contract"),
         "unit_evidence_bindings": task.get("unit_evidence_bindings"),
     }
+    if "context_target_manifest" in task:
+        provenance["context_target_manifest"] = task["context_target_manifest"]
     if "context_followup" in task:
         provenance["context_followup"] = task["context_followup"]
     return provenance
@@ -910,10 +917,16 @@ def _validate_bound_specialist_input(task: dict, snapshot: dict, profile: dict, 
     """Reject persisted or caller-supplied mappings not derivable from trusted input."""
     if task.get("request_input_contract") != review_contracts.SPECIALIST_INPUT_V2:
         raise ValueError("invalid_specialist_input_contract")
-    source_task = {key: value for key, value in task.items() if key not in {"request_input_contract", "unit_evidence_bindings"}}
+    source_task = {
+        key: value
+        for key, value in task.items()
+        if key not in {"request_input_contract", "unit_evidence_bindings", "context_target_manifest"}
+    }
     expected = _bind_specialist_input(source_task, snapshot, profile, evidence)
     if task.get("unit_evidence_bindings") != expected["unit_evidence_bindings"]:
         raise ValueError("invalid_specialist_unit_evidence_binding")
+    if task.get("context_target_manifest") != expected.get("context_target_manifest"):
+        raise ValueError("invalid_context_target_manifest_binding")
 
 
 def effective_task_input_ceiling(limits: dict, provider: Any) -> int:
@@ -2125,7 +2138,11 @@ def run_review(
                         "check_evidence_ids": check_input_evidence_ids,
                     }
                     if prepared["is_check"]
-                    else evidence
+                    else (
+                        {"evidence": evidence, "context_target_manifest": task["context_target_manifest"]}
+                        if isinstance(task.get("context_target_manifest"), dict)
+                        else evidence
+                    )
                 ),
                 "input_evidence_ids": check_input_evidence_ids
                 if prepared["is_check"]
@@ -2223,6 +2240,11 @@ def run_review(
                     else {}
                 ),
                 **({"context_followup": task["context_followup"]} if "context_followup" in task else {}),
+                **(
+                    {"context_target_manifest": task["context_target_manifest"]}
+                    if isinstance(task.get("context_target_manifest"), dict)
+                    else {}
+                ),
             }
     active: dict[int, dict] = {}
 
@@ -2236,6 +2258,8 @@ def run_review(
                 }
             if "context_followup" in task:
                 outcome = {**outcome, "context_followup": task["context_followup"]}
+            if isinstance(task.get("context_target_manifest"), dict):
+                outcome = {**outcome, "context_target_manifest": task["context_target_manifest"]}
             task_results[task["task_id"]] = outcome
             ledger["outputs"] = task_results
             if reservation_key:
@@ -2428,6 +2452,12 @@ def run_review(
         task_units = set(task.get("unit_ids", task.get("scope_unit_ids", [])))
         for index, proposal in enumerate(payload.get("context_gap_proposals", [])):
             record = {"task_id": task["task_id"], "proposal_id": f"{task['task_id']}:gap:{index}", "proposal": proposal}
+            manifest = task.get("context_target_manifest")
+            manifest_choice = (
+                validate_context_target_choice(manifest, proposal)
+                if isinstance(manifest, dict)
+                else None
+            )
             valid = isinstance(proposal, dict) and proposal.get("evidence_kind") in {
                 "caller",
                 "implementation",
@@ -2485,8 +2515,26 @@ def run_review(
                 and set(refs).issubset(set(task.get("evidence_ids", [])))
                 and refs
             )
+            if isinstance(manifest, dict) and manifest_choice is None:
+                valid = False
+                record["reason_code"] = "context_target_not_in_trusted_manifest"
             record["status"] = "VALID_UNRESOLVED" if valid else "INVALID"
             record["resolved_unit_id"] = target_unit if valid else None
+            if valid and manifest_choice is not None:
+                selected_path = manifest_choice["value"] if manifest_choice["kind"] == "path" else unit_map.get(
+                    manifest_choice["value"], {}
+                ).get("path")
+                record["context_target_binding"] = {
+                    "choice_id": manifest_choice["choice_id"],
+                    "target_kind": manifest_choice["kind"],
+                    "target_value": manifest_choice["value"],
+                    "evidence_kind": proposal["evidence_kind"],
+                    "path": selected_path,
+                    "source_sha": manifest_choice["source_sha"],
+                    "source_object_id": manifest_choice["source_object_id"],
+                    "source_object_format": manifest_choice["source_object_format"],
+                    "snapshot_id": snapshot.get("snapshot_id"),
+                }
             target_obligations = [
                 oid
                 for oid in task.get("obligation_ids", [task["obligation_id"]])
@@ -2538,7 +2586,16 @@ def run_review(
                             (
                                 snapshot,
                                 profile,
-                                {**proposal, "_proposal_id": record["proposal_id"], "_task_id": task["task_id"]},
+                                {
+                                    **proposal,
+                                    "_proposal_id": record["proposal_id"],
+                                    "_task_id": task["task_id"],
+                                    **(
+                                        {"_context_target_binding": record["context_target_binding"]}
+                                        if "context_target_binding" in record
+                                        else {}
+                                    ),
+                                },
                                 retrieval_limits,
                             ),
                             deadline_seconds=budget.remaining_seconds(),
@@ -2568,6 +2625,9 @@ def run_review(
                     if not isinstance(fetched, list):
                         raise ValueError("invalid_context_retrieval_evidence")
                     target_path = target.get("target_path") if isinstance(target, dict) else None
+                    target_binding = record.get("context_target_binding")
+                    if isinstance(target_binding, dict):
+                        target_path = target_binding.get("path")
                     patterns = profile.get("retrieval_context_patterns") or profile.get("context_paths") or []
                     if not isinstance(patterns, list):
                         patterns = []
@@ -2610,6 +2670,13 @@ def run_review(
                             ).hexdigest()[:24]
                             or item.get("proposal_id") not in (None, record["proposal_id"])
                             or item.get("task_id") not in (None, task["task_id"])
+                            or (
+                                isinstance(target_binding, dict)
+                                and (
+                                    item.get("source_revision") != target_binding.get("source_sha")
+                                    or item.get("source_object_id") != target_binding.get("source_object_id")
+                                )
+                            )
                             or not any(fnmatch.fnmatchcase(path, pat) for pat in patterns if isinstance(pat, str))
                             or (target_path and path != target_path)
                         ):

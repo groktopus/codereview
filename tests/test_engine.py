@@ -396,6 +396,29 @@ class FindingProvider(EmptyProvider):
         }
 
 
+class FindingWithUnmanifestedGapProvider(FindingProvider):
+    def review(self, task, evidence, limits):
+        result = super().review(task, evidence, limits)
+        result["context_gap_proposals"] = [{
+            "evidence_kind": "implementation",
+            "target": {"target_unit_id": None, "target_path": "src/not-captured.py", "target_symbol": None},
+            "rationale": "Inspect the related implementation.",
+            "related_candidate_ids": [],
+            "related_evidence_ids": [evidence[0]["evidence_id"]],
+            "required_lens": task["lens"],
+        }]
+        return result
+
+
+class CountingContextRetriever:
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, *_args):
+        self.calls += 1
+        raise AssertionError("unmanifested target must not reach retrieval")
+
+
 class LegacyFindingProvider(FindingProvider):
     def adjudicate(self, candidate, evidence, limits):
         response = super().adjudicate(candidate, evidence, limits)
@@ -2658,6 +2681,52 @@ def test_evidence_linked_semantic_blocker_is_preserved_in_report(tmp_path):
     assert "caller receives an invalid result" in report
     assert "[diff:u0](./src/m0.py#L1)" in report
     assert report.count("## ") == 4
+
+
+def test_unmanifested_context_target_is_quarantined_without_losing_blocker_or_spending_retrieval(tmp_path):
+    snapshot = make_snapshot()
+    snapshot["evidence"]["source:src/m0.py"] = {
+        "evidence_id": "source:src/m0.py",
+        "snapshot_id": snapshot["snapshot_id"],
+        "path": "src/m0.py",
+        "content": "new source\n",
+        "content_hash": hashlib.sha256(b"new source\n").hexdigest(),
+        "source_kind": "head_file",
+        "source_revision": snapshot["head_sha"],
+        "source_object_id": "e" * 40,
+        "source_object_format": "sha1",
+        "trust": "untrusted_pr_content",
+    }
+    prof = {
+        **profile(),
+        "retrieval_context_patterns": ["src/*.py"],
+        "trusted_policy_paths": [],
+        "retrieval_revisions": {"implementation": "head", "test": "head"},
+        "context_target_manifest": {
+            "version": "context-target-manifest.v1",
+            "max_entries": 16,
+            "max_bytes": 16_384,
+        },
+    }
+    retriever = CountingContextRetriever()
+    result = run(
+        tmp_path,
+        snap=snapshot,
+        prof=prof,
+        provider=FindingWithUnmanifestedGapProvider(),
+        context_retriever=retriever,
+    )
+
+    assert len(result["findings"]) == 1
+    assert result["findings"][0]["blocking_class"] == "BLOCKING"
+    assert result["disposition"] != "APPROVE"
+    assert result["coverage_state"] != "COMPLETE"
+    gap = result["ledger"]["context_gaps"][0]
+    assert gap["status"] == "INVALID"
+    assert gap["reason_code"] == "context_target_not_in_trusted_manifest"
+    assert gap["affected_obligation_ids"]
+    assert retriever.calls == 0
+    assert not any(key.endswith(":context-retrieval") for key in result["ledger"]["budget"]["reservations"])
 
 
 def test_valid_candidate_records_typed_adjudication_reservation_failure_as_unresolved(tmp_path):

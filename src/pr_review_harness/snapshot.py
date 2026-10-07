@@ -13,6 +13,7 @@ import time
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
+from .context_targets import validate_context_target_manifest_profile
 from .dependency_context import DependencyContextError, project_python_dependencies, validate_dependency_context
 from .planner import validate_context_selection
 
@@ -317,6 +318,10 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
         raise SnapshotError("profile version is required")
     try:
         context_selection = validate_context_selection(profile)
+    except ValueError as exc:
+        raise SnapshotError(str(exc)) from exc
+    try:
+        validate_context_target_manifest_profile(profile)
     except ValueError as exc:
         raise SnapshotError(str(exc)) from exc
     try:
