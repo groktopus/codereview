@@ -8,6 +8,7 @@ on:
       - main # Replace with the target repository's protected base branch.
     types:
       - opened
+      - ready_for_review
       - reopened
       - synchronize
 
