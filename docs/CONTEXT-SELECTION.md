@@ -98,6 +98,26 @@ test/documentation windows are included. That gap remains explicit; the v8
 profile and target selection are unchanged. Documentation supplies a declared
 contract, not evidence of actual external-client behavior.
 
+### Bounded source-window splitting (v3)
+
+`context-selection.v3` uses the v2 binding envelope, including
+`head_context_paths`, and changes only how selected source windows are emitted.
+When one merged changed range exceeds `window.max_bytes`, the snapshotter may
+split it into contiguous, complete UTF-8 source lines. Each emitted window stays
+within `max_bytes` and is bound to its exact path, BASE or HEAD revision, Git
+blob ID, line interval, and content hash. The window hash covers that window's
+bytes only; it is not a full-file hash. Valid multibyte UTF-8 is counted by
+encoded bytes. A line that cannot fit intact or cannot be represented as valid
+UTF-8 is omitted with a required line-specific gap rather than clipped or
+replacement-decoded as exact evidence.
+
+The existing `max_windows_per_unit`, `max_scan_bytes`, aggregate selector
+budget, and snapshot byte budget remain in force. When one stops capture, every
+uncovered requested line interval receives a required gap, including the tail
+beyond a truncated scan. A truncated CRLF line is not accepted as complete
+unless its LF byte was captured. V1 and v2 continue to use their historical
+whole-range behavior; a profile must opt into v3 to split an oversized range.
+
 ### Historical v1 preflight
 
 The PR 464 preflight used the same frozen base/head pair and the current full

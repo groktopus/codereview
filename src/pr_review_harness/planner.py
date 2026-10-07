@@ -103,9 +103,13 @@ def validate_context_selection(profile: dict) -> dict | None:
     if selection is None:
         return None
     if not isinstance(selection, dict) or set(selection) != _CONTEXT_SELECTION_KEYS:
-        raise ValueError("context_selection must match context-selection.v1")
+        raise ValueError("context_selection must match a supported version contract")
     version = selection.get("version")
-    if not isinstance(version, str) or version not in {"context-selection.v1", "context-selection.v2"}:
+    if not isinstance(version, str) or version not in {
+        "context-selection.v1",
+        "context-selection.v2",
+        "context-selection.v3",
+    }:
         raise ValueError("context_selection version is unsupported")
 
     def bounded_int(value: Any, name: str, low: int, high: int) -> int:
@@ -175,7 +179,7 @@ def validate_context_selection(profile: dict) -> dict | None:
     for binding in bindings:
         expected_binding_keys = (
             _CONTEXT_SELECTION_BINDING_V2_KEYS
-            if version == "context-selection.v2"
+            if version in {"context-selection.v2", "context-selection.v3"}
             else _CONTEXT_SELECTION_BINDING_V1_KEYS
         )
         if not isinstance(binding, dict) or set(binding) != expected_binding_keys:
@@ -203,7 +207,7 @@ def validate_context_selection(profile: dict) -> dict | None:
             )
             if not allowed:
                 raise ValueError("context_selection binding path is outside profile allowlists")
-        if version == "context-selection.v2":
+        if version in {"context-selection.v2", "context-selection.v3"}:
             head_paths = binding.get("head_context_paths")
             if (
                 not isinstance(head_paths, list)
