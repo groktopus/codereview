@@ -2879,6 +2879,10 @@ def run_review(
                         followup_task = _bind_specialist_input(
                             followup_task, snapshot, profile, followup_evidence
                         )
+                        if record.get("retrieval_source") == "SNAPSHOT_REUSE":
+                            quoted_input_bytes = review_input_size(followup_task, followup_evidence)
+                            if quoted_input_bytes > input_ceiling:
+                                raise BudgetExhausted("INPUT_BYTE_LIMIT_EXCEEDED")
                         budget.reserve_followup(followup_id)
                         obligation_by_id[followup_obligation_id] = obligation
                         if not any(o.get("obligation_id") == followup_obligation_id for o in obligations):

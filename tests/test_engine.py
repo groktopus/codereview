@@ -546,9 +546,10 @@ class GapProvider(EmptyProvider):
 
 
 class SnapshotReuseGapProvider(EmptyProvider):
-    def __init__(self):
+    def __init__(self, target_paths=("src/m0.py",)):
         super().__init__()
         self.followup_evidence = None
+        self.target_paths = tuple(target_paths)
 
     def review(self, task, evidence, limits):
         self.calls += 1
@@ -560,13 +561,16 @@ class SnapshotReuseGapProvider(EmptyProvider):
                 "payload": {
                     "finding_candidates": [],
                     "context_gap_proposals": [],
-                    "coverage_notes": [{
-                        "unit_id": unit,
-                        "state": "COVERED",
-                        "reason_code": "reviewed_with_captured_source",
-                        "evidence_refs": refs,
-                        "coverage_basis": "STATIC_REVIEW",
-                    }],
+                    "coverage_notes": [
+                        {
+                            "unit_id": unit_id,
+                            "state": "COVERED",
+                            "reason_code": "reviewed_with_captured_source",
+                            "evidence_refs": refs,
+                            "coverage_basis": "STATIC_REVIEW",
+                        }
+                        for unit_id in task["unit_ids"]
+                    ],
                 },
                 "usage": {},
                 "provenance": {"provider": "snapshot-reuse-fixture"},
@@ -575,13 +579,16 @@ class SnapshotReuseGapProvider(EmptyProvider):
         return {
             "payload": {
                 "finding_candidates": [],
-                "context_gap_proposals": [{
-                    "evidence_kind": "implementation",
-                    "target": {"target_unit_id": None, "target_path": "src/m0.py", "target_symbol": None},
-                    "rationale": "Review the captured implementation source.",
-                    "related_evidence_ids": [evidence_id],
-                    "required_lens": task["lens"],
-                }],
+                "context_gap_proposals": [
+                    {
+                        "evidence_kind": "implementation",
+                        "target": {"target_unit_id": None, "target_path": path, "target_symbol": None},
+                        "rationale": "Review the captured implementation source.",
+                        "related_evidence_ids": [evidence_id],
+                        "required_lens": task["lens"],
+                    }
+                    for path in self.target_paths
+                ],
                 "coverage_notes": [{
                     "unit_id": unit,
                     "state": "COVERED",
@@ -2731,6 +2738,84 @@ def test_manifest_bound_reuses_exact_complete_snapshot_head_file_without_retriev
     assert reused["content_hash"] == content_hash
     assert result["budget"]["followup_tasks_reserved"] == 1
     assert gap["status"] == "RESOLVED_BY_FOLLOWUP"
+
+
+def test_oversized_snapshot_reuse_does_not_consume_followup_slot_before_later_fit(tmp_path):
+    snapshot = make_snapshot(units=2)
+    rows = {}
+    for path, content in (
+        ("src/m0.py", "oversized source line\n" * 5_000),
+        ("src/m1.py", "small captured source\n" * 5),
+    ):
+        raw = content.encode("utf-8")
+        object_id = hashlib.sha1(f"blob {len(raw)}\0".encode() + raw).hexdigest()
+        content_hash = hashlib.sha256(raw).hexdigest()
+        evidence_id = "ev-" + hashlib.sha256(
+            json.dumps(
+                {
+                    "snapshot": snapshot["snapshot_id"],
+                    "path": path,
+                    "source": "head_file",
+                    "sha": snapshot["head_sha"],
+                    "hash": content_hash,
+                    "start": 1,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode()
+        ).hexdigest()[:24]
+        rows[path] = {
+            "evidence_id": evidence_id,
+            "snapshot_id": snapshot["snapshot_id"],
+            "path": path,
+            "content": content,
+            "content_hash": content_hash,
+            "content_truncated": False,
+            "line_start": 1,
+            "line_end": len(content.splitlines()),
+            "source_kind": "head_file",
+            "trust": "untrusted_pr_content",
+            "source_revision": snapshot["head_sha"],
+            "source_object_id": object_id,
+            "source_object_format": "sha1",
+            "source_object_size_bytes": len(raw),
+        }
+        snapshot["evidence"][evidence_id] = rows[path]
+    prof = {
+        **profile(),
+        "retrieval_context_patterns": ["src/*.py"],
+        "trusted_policy_paths": [],
+        "retrieval_revisions": {"implementation": "head", "test": "head"},
+        "context_target_manifest": {
+            "version": "context-target-manifest.v1",
+            "max_entries": 16,
+            "max_bytes": 16_384,
+        },
+    }
+    limits = {
+        **LIMITS,
+        "max_input_bytes_per_task": 96_000,
+        "max_context_bytes": 500_000,
+        "max_followup_tasks": 1,
+    }
+    result = run(
+        tmp_path,
+        snap=snapshot,
+        prof=prof,
+        provider=SnapshotReuseGapProvider(("src/m0.py", "src/m1.py")),
+        limits=limits,
+        context_retriever=CountingContextRetriever(),
+    )
+
+    first, second = result["ledger"]["context_gaps"]
+    assert first["retrieval_source"] == second["retrieval_source"] == "SNAPSHOT_REUSE"
+    assert first["followup_error"] == "INPUT_BYTE_LIMIT_EXCEEDED"
+    assert first.get("followup_task_id") is None
+    assert second["status"] == "RESOLVED_BY_FOLLOWUP"
+    assert second["followup_task_id"] in result["task_results"]
+    assert result["budget"]["followup_tasks_reserved"] == 1
+    assert result["budget"]["context_retrievals_reserved"] == 0
 
 
 def test_oversized_untrusted_retriever_is_rejected_by_ipc_without_metadata_leak(tmp_path):
