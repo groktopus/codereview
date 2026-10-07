@@ -40,6 +40,11 @@ from .reconcile import consolidate_findings, stable_candidate_id, validate_locat
 from .report import render_report as _render_report
 from .shadow_audit import serialize_source_audit_request
 
+_SYSTEM_ONE_ADVISORY_QUESTION = (
+    "Provide an advisory risk/context assessment of this bounded deterministic review summary. "
+    "Do not decide disposition or clear findings."
+)
+
 
 class EnginePreflightError(ValueError):
     """A closed, deterministic rejection found before provider dispatch or writes."""
@@ -4102,7 +4107,7 @@ def run_review(
                 reservation_key,
                 decision_provider,
                 "SYSTEM_ONE_ASSESSMENT",
-                {"task_id": reservation_key},
+                {"task_id": reservation_key, "question": _SYSTEM_ONE_ADVISORY_QUESTION},
                 [{"content": advisory_text}],
                 len(advisory_text.encode("utf-8")),
             )
@@ -4118,7 +4123,7 @@ def run_review(
                 decision_provider,
                 "assess",
                 (
-                    "Provide an advisory risk/context assessment of this bounded deterministic review summary. Do not decide disposition or clear findings.",
+                    _SYSTEM_ONE_ADVISORY_QUESTION,
                     advisory_text,
                     {**limits, "deadline_seconds": advisory_deadline},
                 ),
