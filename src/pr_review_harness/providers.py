@@ -932,8 +932,42 @@ class OpenAIProvider:
             except ValueError as exc:
                 raise ProviderError("invalid_context_target_manifest") from exc
             target_pairs = list(
-                { (choice["kind"], choice["value"]) for choice in choices }
+                {(choice["kind"], choice["value"]) for choice in choices}
             )
+        if target_pairs:
+            target_schema = {
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["kind", "value"],
+                        "properties": {
+                            "kind": {"type": "string", "enum": [kind]},
+                            "value": {
+                                "type": "string",
+                                "enum": sorted(value for pair_kind, value in target_pairs if pair_kind == kind),
+                            },
+                        },
+                    }
+                    for kind in sorted({kind for kind, _ in target_pairs})
+                ]
+            }
+        elif manifest is not None:
+            # Empty opted-in manifests are valid, but cannot yield a target.
+            # Keep the nested item schema itself valid and make the array
+            # uninhabitable with maxItems=0 instead of contradictory string bounds.
+            target_schema = {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["kind", "value"],
+                "properties": {
+                    "kind": {"type": "string", "enum": ["unit"]},
+                    "value": {"type": "string", "minLength": 1, "maxLength": 2000},
+                },
+            }
+        else:
+            # Preserve the legacy v4 schema and serialized request exactly.
+            target_schema = None
         if context_followup is not None and not input_v2:
             raise ProviderError("context_followup_requires_specialist_input_v2")
         evidence_ids = sorted(
@@ -1029,6 +1063,7 @@ class OpenAIProvider:
                     },
                     "context_gap_proposals": {
                         "type": "array",
+                        **({"maxItems": 0} if manifest is not None and not target_pairs else {}),
                         "items": {
                             "type": "object",
                             "additionalProperties": False,
@@ -1054,38 +1089,19 @@ class OpenAIProvider:
                                         "other",
                                     ],
                                 },
-                                "target": {
+                                "target": target_schema if target_schema is not None else {
                                     "type": "object",
                                     "additionalProperties": False,
                                     "required": ["kind", "value"],
-                                    **(
-                                        {
-                                            "enum": [
-                                                {"kind": kind, "value": value}
-                                                for kind, value in sorted(target_pairs)
-                                            ]
-                                        }
-                                        if target_pairs
-                                        else {}
-                                    ),
                                     "properties": {
                                         "kind": {
                                             "type": "string",
-                                            "enum": (
-                                                sorted({kind for kind, _ in target_pairs})
-                                                if target_pairs
-                                                else (["unit"] if manifest is not None else ["unit", "path", "symbol"])
-                                            ),
+                                            "enum": ["unit", "path", "symbol"],
                                         },
                                         "value": {
                                             "type": "string",
                                             "minLength": 1,
                                             "maxLength": 2000,
-                                            **(
-                                                {"enum": sorted({value for _, value in target_pairs})}
-                                                if target_pairs
-                                                else ({"maxLength": 0} if manifest is not None else {})
-                                            ),
                                         },
                                     },
                                 },

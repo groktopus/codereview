@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 import pr_review_harness.engine as engine_module
@@ -159,15 +161,13 @@ def test_provider_v4_schema_enumerates_opt_in_targets_but_default_stays_legacy()
     evidence = [{"evidence_id": "ev-1"}]
     system, user, schema = provider._review_parts(task, evidence)
     target = schema["schema"]["properties"]["context_gap_proposals"]["items"]["properties"]["target"]
-    assert target["enum"] == [
-        {"kind": "path", "value": "engines/exa.py"},
-        {"kind": "path", "value": "tests/test_exa.py"},
-        {"kind": "unit", "value": "unit-test"},
-    ]
-    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.Draft202012Validator.check_schema(schema["schema"])
     validator = jsonschema.Draft202012Validator(target)
     assert validator.is_valid({"kind": "path", "value": "engines/exa.py"})
+    assert validator.is_valid({"kind": "path", "value": "tests/test_exa.py"})
+    assert validator.is_valid({"kind": "unit", "value": "unit-test"})
     assert not validator.is_valid({"kind": "unit", "value": "engines/exa.py"})
+    assert not validator.is_valid({"kind": "path", "value": "unit-test"})
     assert "choose only one exact {kind,value} pair" in system
     assert user["task"]["context_target_manifest"] == task["context_target_manifest"]
 
@@ -190,3 +190,41 @@ def test_provider_v4_schema_enumerates_opt_in_targets_but_default_stays_legacy()
     assert provider.review_input_bytes(task, evidence, limits) > provider.review_input_bytes(
         default_task, evidence, limits
     )
+    legacy_body = provider.serialize_review_request(default_task, evidence, limits)
+    assert len(legacy_body) == 8050
+    assert hashlib.sha256(legacy_body).hexdigest() == "f443fa38c082303824cec8b393e842c70739a00b4e4100283daa66b64775b9a0"
+
+
+def test_empty_target_manifest_uses_valid_uninhabitable_gap_schema():
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://provider.invalid/v1",
+            "model": "fixture-model",
+            "api_key_env": "UNUSED_TEST_CREDENTIAL_REFERENCE",
+            "max_request_bytes": 100_000,
+        }
+    )
+    snapshot = _snapshot()
+    snapshot["inventory"] = []
+    snapshot["evidence"] = {}
+    task = {
+        "task_id": "task-empty",
+        "unit_ids": ["unit-test"],
+        "evidence_ids": ["ev-1"],
+        "request_input_contract": "specialist-input.v2",
+        "unit_evidence_bindings": [
+            {"unit_id": "unit-test", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}
+        ],
+        "context_target_manifest": build_context_target_manifest(
+            {"task_id": "task-empty", "unit_ids": ["unit-test"]}, snapshot, _profile()
+        ),
+    }
+    assert task["context_target_manifest"]["choices"] == []
+    system, _, schema = provider._review_parts(task, [{"evidence_id": "ev-1"}])
+    proposal_schema = schema["schema"]["properties"]["context_gap_proposals"]
+    assert proposal_schema["maxItems"] == 0
+    jsonschema.Draft202012Validator.check_schema(schema["schema"])
+    assert jsonschema.Draft202012Validator(proposal_schema).is_valid([])
+    assert not jsonschema.Draft202012Validator(proposal_schema).is_valid([{}])
+    assert "no available context-gap targets" in system

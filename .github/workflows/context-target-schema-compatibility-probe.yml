@@ -1,0 +1,122 @@
+name: Context target schema compatibility probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_probe:
+        description: Send exactly one request per fixed schema variant to the configured LLM
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: context-target-schema-compatibility-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'groktopus/codereview' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.run_probe == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the runner at the immutable dispatch revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify source dispatch context
+        env:
+          ACTUAL_REPOSITORY: ${{ github.repository }}
+          ACTUAL_REF: ${{ github.ref }}
+          ACTUAL_EVENT: ${{ github.event_name }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          if os.environ.get("ACTUAL_REPOSITORY") != "groktopus/codereview":
+              raise SystemExit("probe_repository_invalid")
+          if os.environ.get("ACTUAL_REF") != "refs/heads/main" or os.environ.get("ACTUAL_EVENT") != "workflow_dispatch":
+              raise SystemExit("probe_dispatch_context_invalid")
+          expected = os.environ.get("EXPECTED_SHA", "")
+          if not re.fullmatch(r"[0-9a-f]{40}", expected):
+              raise SystemExit("probe_source_sha_invalid")
+          result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10, check=False)
+          if result.returncode or result.stdout.strip() != expected:
+              raise SystemExit("probe_source_sha_mismatch")
+          PY
+
+      - name: Acquire fixed PR305 Git objects without checking out PR files
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_LFS_SKIP_SMUDGE: "1"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          target_repo="$RUNNER_TEMP/pr305-source.git"
+          git init --bare "$target_repo"
+          git -C "$target_repo" config core.hooksPath /dev/null
+          git -C "$target_repo" remote add origin https://github.com/magnus919/SlopSearX.git
+          timeout 120s git -C "$target_repo" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch \
+            --no-tags --no-recurse-submodules --filter=blob:none --depth=10000 origin \
+            00accc58a42eaa470e12831498b572cab2483981 \
+            90165dd65be3595006171d7abef34a082c90a71d
+          git -C "$target_repo" cat-file -e '00accc58a42eaa470e12831498b572cab2483981^{commit}'
+          git -C "$target_repo" cat-file -e '90165dd65be3595006171d7abef34a082c90a71d^{commit}'
+          test "$(git -C "$target_repo" merge-base 00accc58a42eaa470e12831498b572cab2483981 90165dd65be3595006171d7abef34a082c90a71d)" = \
+            "00accc58a42eaa470e12831498b572cab2483981"
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      - name: Install the fixed review harness source
+        run: python -m pip install --disable-pip-version-check .
+
+      - name: Prepare the exact fresh task pair without provider calls
+        env:
+          TARGET_SOURCE_DIR: ${{ runner.temp }}/pr305-source.git
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          RUNNER_TEMP: ${{ runner.temp }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_LFS_SKIP_SMUDGE: "1"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: python scripts/run_context_target_schema_probe.py --prepare-only
+
+      - name: Compare the fixed old and candidate schema encodings
+        env:
+          TARGET_SOURCE_DIR: ${{ runner.temp }}/pr305-source.git
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          RUNNER_TEMP: ${{ runner.temp }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_LFS_SKIP_SMUDGE: "1"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: python scripts/run_context_target_schema_probe.py
+
+      - name: Upload only the bounded probe summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: context-target-schema-compatibility-${{ github.run_id }}
+          path: ${{ runner.temp }}/context-target-schema-probe-summary.json
+          if-no-files-found: ignore
+          retention-days: 30
