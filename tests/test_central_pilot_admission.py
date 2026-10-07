@@ -43,11 +43,35 @@ class FakeTransport:
         return response
 
 
-def _candidate(tmp_path):
-    root, identity, checkpoint, profile, provider, decision = fixtures._fixture(tmp_path, central_pilot=True)
+def _candidate(tmp_path, contract_name="legacy-v14"):
+    root, identity, checkpoint, _fixture_profile, provider, decision = fixtures._fixture(tmp_path, central_pilot=True)
     identity.update({"called_workflow_sha": admission.REUSABLE_SHA,
                      "harness_sha": admission.REUSABLE_SHA,
                      "called_workflow_ref": f"{admission.CALLER}/{admission.REUSABLE_PATH}@{admission.REUSABLE_SHA}"})
+    contract = admission.review_contracts.CONTRACTS[contract_name]
+    profile = ROOT / contract["profile_path"]
+    profile_doc = json.loads(profile.read_text(encoding="utf-8"))
+    profile_version = profile_doc["version"]
+    profile_sha256 = hashlib.sha256(profile.read_bytes()).hexdigest()
+    identity.update({"profile_version": profile_version, "profile_sha256": profile_sha256})
+    checkpoint_doc = json.loads(checkpoint.read_text(encoding="utf-8"))
+    checkpoint_doc["project_profile_version"] = profile_version
+    checkpoint_doc["ledger"]["identity"]["profile_version"] = profile_version
+    checkpoint.write_text(json.dumps(checkpoint_doc, sort_keys=True) + "\n", encoding="utf-8")
+    profile_binding = {
+        "target_repository": admission.TARGET,
+        "profile_path": contract["profile_path"],
+        "profile_version": contract["profile_version"],
+        "profile_sha256": contract["profile_sha256"],
+        "profile_map_sha256": hashlib.sha256((ROOT / "profiles/targets.json").read_bytes()).hexdigest(),
+        "review_contract": contract_name,
+        "limits_path": contract["limits_path"],
+        "limits_sha256": contract["limits_sha256"],
+        "max_claim_assessments": str(contract["max_claim_assessments"]),
+    }
+    (root / "profile-binding.json").write_text(
+        json.dumps(profile_binding, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
+    )
     manifest.create_manifest(root, identity, checkpoint=checkpoint, profile=profile,
                              provider_config=provider, decision_config=decision)
     archive = _archive(root)
@@ -80,15 +104,71 @@ def _candidate(tmp_path):
     return json.dumps(event).encode(), FakeTransport(responses)
 
 
-def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_path):
-    event, transport = _candidate(tmp_path)
+@pytest.mark.parametrize("contract_name", ["legacy-v14", "bounded-production-v16"])
+def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_path, contract_name):
+    event, transport = _candidate(tmp_path, contract_name)
     receipt = admission.verify_candidate(event_bytes=event, pull_request_number=7, token="fake-read-token", transport=transport)
     assert receipt["status"] == "CONSISTENCY_VALIDATED"
+    assert receipt["review_contract"] == contract_name
+    expected_contract = admission.review_contracts.CONTRACTS[contract_name]
+    assert receipt["profile_path"] == expected_contract["profile_path"]
+    assert receipt["profile_sha256"] == expected_contract["profile_sha256"]
+    assert receipt["limits_path"] == expected_contract["limits_path"]
+    assert receipt["limits_sha256"] == expected_contract["limits_sha256"]
+    assert receipt["max_claim_assessments"] == expected_contract["max_claim_assessments"]
     assert receipt["publication_authorized"] is False
     assert all("sha256" in key for key in receipt if key.endswith("_sha256"))
-    assert not any("review" in key.lower() or "text" in key.lower() for key in receipt)
+    assert not any("text" in key.lower() for key in receipt)
     assert all(call[1]["Authorization"] == "Bearer fake-read-token" for call in transport.calls if "blob.core" not in call[0])
     assert len(transport.calls) == 5
+
+
+@pytest.mark.parametrize("contract_name", ["legacy-v14", "bounded-production-v16"])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("profile_path", "profiles/attacker.json"),
+        ("profile_sha256", "f" * 64),
+        ("limits_path", "profiles/attacker-limits.json"),
+        ("limits_sha256", "e" * 64),
+        ("max_claim_assessments", "99"),
+    ],
+)
+def test_contract_binding_rejects_tampered_profile_limits_or_cap(contract_name, field, value):
+    contract = admission.review_contracts.CONTRACTS[contract_name]
+    binding = {
+        "target_repository": admission.TARGET,
+        "profile_path": contract["profile_path"],
+        "profile_version": contract["profile_version"],
+        "profile_sha256": contract["profile_sha256"],
+        "profile_map_sha256": "a" * 64,
+        "review_contract": contract_name,
+        "limits_path": contract["limits_path"],
+        "limits_sha256": contract["limits_sha256"],
+        "max_claim_assessments": str(contract["max_claim_assessments"]),
+    }
+    binding[field] = value
+    identity = {"profile_sha256": contract["profile_sha256"], "profile_version": contract["profile_version"]}
+
+    with pytest.raises(admission.AdmissionError, match="review_contract_binding_mismatch"):
+        admission._validate_review_contract_binding(json.dumps(binding).encode(), identity)
+
+
+def test_contract_binding_rejects_unknown_contract_without_path_resolution():
+    binding = {
+        "target_repository": admission.TARGET,
+        "profile_path": "profiles/attacker.json",
+        "profile_version": "attacker",
+        "profile_sha256": "a" * 64,
+        "profile_map_sha256": "b" * 64,
+        "review_contract": "../attacker",
+        "limits_path": "profiles/attacker-limits.json",
+        "limits_sha256": "c" * 64,
+        "max_claim_assessments": "99",
+    }
+
+    with pytest.raises(admission.AdmissionError, match="review_contract_unsupported"):
+        admission._validate_review_contract_binding(json.dumps(binding).encode(), {})
 
 
 def test_trusted_reusable_pin_matches_pilot_caller_and_runtime_identity():

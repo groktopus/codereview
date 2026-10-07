@@ -22,6 +22,7 @@ from typing import Any
 import fetch_pr_analysis_artifact as fetch
 import intake_pr_analysis_artifact as intake
 import pr_analysis_artifact_manifest as manifests
+import resolve_review_contract as review_contracts
 
 # This operator entry point is run directly from a source checkout by Actions.
 # Make the package used by the recovery-manifest verifier available even when
@@ -36,11 +37,12 @@ CALLER_REF = "refs/heads/main"
 TARGET = "magnus919/SlopSearX"
 BASE_REF = "main"
 REUSABLE_PATH = ".github/workflows/pr-analysis.yml"
-REUSABLE_SHA = "180eaf7bff9b094441633f5669ce167d07b7ed87"
+REUSABLE_SHA = "0379e2001eebc07981aa99553e832ea342d781a7"
 MAX_EVENT_BYTES = 64 * 1024
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 RUN_ID = re.compile(r"^[1-9][0-9]{0,19}$")
 RUN_ATTEMPT = re.compile(r"^[1-9][0-9]{0,5}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class AdmissionError(ValueError):
@@ -213,6 +215,50 @@ def _validate_current_pr(raw: bytes, number: int) -> dict[str, Any]:
     return {"number": number, "base_sha": base["sha"], "head_sha": head["sha"]}
 
 
+def _validate_review_contract_binding(raw: bytes, identity: dict[str, Any]) -> dict[str, Any]:
+    """Bind artifact profile metadata to one fixed caller-selected contract."""
+    binding = _object(raw, "review_contract_binding_invalid")
+    required_fields = {
+        "target_repository",
+        "profile_path",
+        "profile_version",
+        "profile_sha256",
+        "profile_map_sha256",
+        "review_contract",
+        "limits_path",
+        "limits_sha256",
+        "max_claim_assessments",
+    }
+    if set(binding) != required_fields or binding.get("target_repository") != TARGET:
+        raise AdmissionError("review_contract_binding_invalid")
+    if not isinstance(binding.get("profile_map_sha256"), str) or not SHA256.fullmatch(binding["profile_map_sha256"]):
+        raise AdmissionError("review_contract_binding_invalid")
+    contract_name = binding.get("review_contract")
+    contract = review_contracts.CONTRACTS.get(contract_name) if isinstance(contract_name, str) else None
+    if contract is None:
+        raise AdmissionError("review_contract_unsupported")
+    expected = {
+        "profile_path": contract["profile_path"],
+        "profile_version": contract["profile_version"],
+        "profile_sha256": contract["profile_sha256"],
+        "limits_path": contract["limits_path"],
+        "limits_sha256": contract["limits_sha256"],
+        "max_claim_assessments": str(contract["max_claim_assessments"]),
+    }
+    if any(binding.get(key) != value for key, value in expected.items()):
+        raise AdmissionError("review_contract_binding_mismatch")
+    if (
+        identity.get("profile_sha256") != binding["profile_sha256"]
+        or identity.get("profile_version") != binding["profile_version"]
+    ):
+        raise AdmissionError("review_contract_identity_mismatch")
+    return {
+        "review_contract": contract_name,
+        **expected,
+        "max_claim_assessments": contract["max_claim_assessments"],
+    }
+
+
 def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str,
                      transport: Any, api_base: str = "https://api.github.com") -> dict[str, Any]:
     """Verify one dispatch run, its retained artifact and current target PR.
@@ -266,6 +312,7 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
     }
     if any(identity.get(key) != value for key, value in expected.items()):
         raise AdmissionError("recovery_trusted_identity_mismatch")
+    contract_binding = _validate_review_contract_binding(files.get("profile-binding.json", b""), identity)
     # Verify complete archive inventory and the strict recovery-inputs packet.
     with tempfile.TemporaryDirectory(prefix="central-pilot-admission-") as temp:
         root = Path(temp)
@@ -293,6 +340,7 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
         "artifact_id": artifact["id"], "artifact_sha256": hashlib.sha256(archive).hexdigest(),
         "manifest_sha256": hashlib.sha256(files[manifests.MANIFEST_NAME]).hexdigest(),
         "recovery_inputs_sha256": manifest_doc["recovery_inputs"]["packet_sha256"],
+        **contract_binding,
         "publication_authorized": False,
     }
     return receipt

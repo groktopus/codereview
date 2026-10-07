@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/slopsearx-pilot.yml"
-PIN = "180eaf7bff9b094441633f5669ce167d07b7ed87"
+PIN = "0379e2001eebc07981aa99553e832ea342d781a7"
 SECRETS = (
     "LLM_BASE_URL",
     "LLM_MODEL",
@@ -75,12 +75,16 @@ def _run_metadata(monkeypatch, tmp_path, response):
     return output.read_text(encoding="utf-8")
 
 
-def test_pilot_dispatch_has_only_pr_number_and_runs_dispatcher_on_default_branch():
+def test_pilot_dispatch_has_closed_contract_choice_and_runs_dispatcher_on_default_branch():
     source = _source()
     dispatch = source.split("on:\n", 1)[1].split("\npermissions:\n", 1)[0]
     assert "workflow_dispatch:" in dispatch
     assert "pull_request_number:" in dispatch
     assert "type: number" in dispatch
+    assert "review_contract:" in dispatch
+    assert "type: choice" in dispatch
+    assert "default: legacy-v14" in dispatch
+    assert "          - legacy-v14\n          - bounded-production-v16" in dispatch
     assert "target_repository:" not in dispatch
     assert "harness_sha:" not in dispatch
     assert "LLM_BASE_URL:" not in dispatch
@@ -98,6 +102,9 @@ def test_pilot_calls_immutable_harness_and_passes_only_named_provider_secrets():
     assert "harness_repository: groktopus/codereview" in call
     assert "target_repository: magnus919/SlopSearX" in call
     assert "pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}" in call
+    assert "review_contract: ${{ inputs.review_contract }}" in call
+    assert "profile_path:" not in call
+    assert "limits_path:" not in call
     secret_block = call.split("    secrets:\n", 1)[1]
     for name in SECRETS:
         assert f"      {name}: ${{{{ secrets.{name} }}}}" in secret_block
