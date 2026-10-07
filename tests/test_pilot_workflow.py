@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/slopsearx-pilot.yml"
-PIN = "a451acc2796ace9e3535a56c07684cc0be213c03"
+PIN = "9e2646d7c2ad7a443bcb3ef52ebb954090aab2ea"
 SECRETS = (
     "LLM_BASE_URL",
     "LLM_MODEL",
