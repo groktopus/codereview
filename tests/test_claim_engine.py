@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 import os
@@ -217,6 +218,16 @@ class TwoCandidatePrimaryProvider(SupportedPrimaryProvider):
         second["title"] = "A distinct fixture candidate"
         second["observation"] = "The second changed predicate also admits the request."
         result["finding_candidates"].append(second)
+        return result
+
+
+class ThreeTaskTwoCandidatePrimaryProvider(TwoCandidatePrimaryProvider):
+    """Emit two candidates in one lens and empty results in the other two."""
+
+    def review(self, task: dict, evidence: list[dict], limits: dict) -> dict:
+        result = super().review(task, evidence, limits)
+        if task.get("lens") != "correctness":
+            result["finding_candidates"] = []
         return result
 
 
@@ -1029,6 +1040,69 @@ def test_required_classifier_cap_exhaustion_is_explicit_partial(tmp_path, monkey
     assert len(native_rows) == 2
     assert {row["reconciliation_state"] for row in native_rows} == {"AGREES", "PARTIAL"}
     assert {row["state"] for row in native_rows} == {"COMPLETE", "PARTIAL"}
+
+
+def test_deferred_primary_without_refs_projects_as_bound_partial_fallback(tmp_path):
+    profile = _profile(reconciliation=True, cap=1)
+    profile["required_lenses"] = ["correctness", "security", "tests"]
+    result = _run(
+        tmp_path,
+        assessor=FakeClaimAssessor(),
+        cap=1,
+        limits={**LIMITS, "max_provider_calls": 5},
+        profile=profile,
+        primary=ThreeTaskTwoCandidatePrimaryProvider(),
+    )
+
+    assert len(result["task_results"]) == 3
+    assert len(result["ledger"]["budget"]["reservations"]) == 5
+    candidates = result["ledger"]["candidate_records"]
+    deferred = next(row for row in candidates if row.get("adjudication_state") == "DEFERRED")
+    deferred_finding = next(row for row in result["findings"] if row.get("candidate_id") == deferred["candidate_id"])
+    deferred_claim = next(
+        row for row in result["claim_assessments"] if row.get("candidate_id") == deferred["candidate_id"]
+    )
+    assert deferred["adjudication_reason_code"] == "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED"
+    assert deferred_finding["semantic_assessment"] == {
+        "outcome": "UNCERTAIN",
+        "reason": "BudgetExhausted",
+        "error_code": "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED",
+        "reason_code": "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED",
+    }
+    assert deferred_claim["status"] == "NOT_RUN"
+    assert deferred_claim["reason_code"] == "PRIMARY_ASSESSMENT_UNAVAILABLE"
+    assert any(
+        row.get("status") == "ACCEPTED" and row.get("blocking_class") == "BLOCKING"
+        for row in result["findings"]
+    )
+    assert result["disposition"] == "REQUEST_CHANGES"
+    assert result["coverage_state"] == "PARTIAL"
+
+    projected, valid = selected_model_trial._current_coverage_diagnostics(result)
+    assert valid is True
+    assert projected["state"] == "PRESERVED"
+    assert len([row for row in projected["rows"] if row["obligation_kind"] == "CLAIM_RECONCILIATION"]) == 2
+
+    # The exception is limited to the engine's exact closed deferred shape.
+    for mutation in ("candidate_reason", "primary_reason", "extra_primary_field"):
+        altered = copy.deepcopy(result)
+        altered_candidate = next(
+            row
+            for row in altered["ledger"]["candidate_records"]
+            if row.get("candidate_id") == deferred["candidate_id"]
+        )
+        altered_finding = next(
+            row for row in altered["findings"] if row.get("candidate_id") == deferred["candidate_id"]
+        )
+        if mutation == "candidate_reason":
+            altered_candidate["adjudication_reason_code"] = "OTHER"
+        elif mutation == "primary_reason":
+            altered_finding["semantic_assessment"]["reason"] = "RuntimeError"
+        else:
+            altered_finding["semantic_assessment"]["support"] = "SUPPORTED"
+        projected, valid = selected_model_trial._current_coverage_diagnostics(altered)
+        assert valid is False
+        assert projected["invalid_reason_code"] == "INVALID_NATIVE_PRIMARY_ASSESSMENT"
 
 
 def test_invalid_nonobject_candidate_keeps_engine_partial_reconciliation_projectable(tmp_path, monkeypatch):
