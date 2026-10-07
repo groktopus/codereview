@@ -1,0 +1,38 @@
+# PR305 and PR676 v17 operational evidence — 2026-10-07
+
+This note records two audited read-only reviews using the merged event-bound snapshot-reuse runtime. It supplements the existing 39 acceptance criteria, 12 NFRs, and six milestones; it is not a quality or release certificate.
+
+## Source qualification and shared bindings
+
+PR #229 merged as `7294d355de8d594b25653298111ee71384bdcbd4`; exact-head checks and post-merge verification succeeded. Both runs below used caller/workflow head `7294d355de8d594b25653298111ee71384bdcbd4` and reusable runtime `c09321f2e963098c3ce665f3db144e22d37dd382`. The v17 profile hash is `28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac`, limits-v3 hash is `ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6`, the recorded provider-configuration hash is `8b74b00f10beb35698c578f99855e1afba5f8b12454627b0708f9166106279da`, and the observed canonical public provider-identity hash is `c87999815e0c8d35d486803558939375130c79a332ed6d421bbfb7171d4a63b6`. Both used adapter 0.2. The workflow acquires target source as data in a bare object store, with read-only target permissions; target code was not executed and publication steps were skipped. No target write or review publication occurred.
+
+## PR305 run 37695037742
+
+Run [37695037742](https://github.com/groktopus/codereview/actions/runs/37695037742) reviewed PR305 at API base and merge base `00accc58a42eaa470e12831498b572cab2483981`, head `90165dd65be3595006171d7abef34a082c90a71d`; freshness was CURRENT. Snapshot identity was `snap-dd2203be2e3153a1b1ad98c3`. Review disposition was `INCOMPLETE / PARTIAL`: 19 of 43 required rows complete, 24 partial (18 `CONTEXT_GAP_UNRESOLVED`, four `PARTIAL_REVIEW_COVERAGE`, and two `CHECK_RESULT_UNAVAILABLE`). No findings or candidate claims were returned. The System One Noul advisory is distinct from candidate assessment and does not establish truth.
+
+The report contains 12 gap records: nine with complete-snapshot reuse, eight oversized-input preflight rejections, and three fallback IPC retrievals. These categories can overlap across records/attempts. One of eight follow-up slots was used; the single follow-up resolved one gap. Three of eight context-retrieval slots were reserved. The run reserved 21/32 calls, 1,497,305/2,500,000 input bytes, and 368,000/512,000 output bytes, with no recorded budget breach. No retries were authorized. Cost/billing remains `UNKNOWN`.
+
+The recovery manifest SHA-256 is `162189ee73ae5969936ff182ffb9915e43da01921d05b0d0af366c68c9dfeffc`; profile-binding SHA-256 is `0b3f61bc57324d5852e0dacd4062c5fbbf3afe0d355c5578e182805e11972126`; recovery-inputs SHA-256 is `177f257ef11aa391b128197b9bb1e3ee1c869b29da7f902f3bc915982b8c6710`; review-result SHA-256 is `cb0876a229f1902e8cd7c2ac531d3b1f0fbd554daada6bf8123c54c0f7fbb8a5`; review JSON SHA-256 is `095b4e908eb2ac07d8b5b5f9e67e2d5e5a412000f1455b90258ec21693a47154`; rendered report SHA-256 is `3075b295fd09b8999e2535896aad6f9ab0ffea8479d692485549f88c619ec7a2` (24,374 bytes). All artifact hashes and byte counts match the recovery manifest. Sanitized artifacts are retained at `/private/tmp/codereview-v17-event-fixed-pr305-37695037742-artifacts/pr-review-305-37695037742-1/`.
+
+A separate provider-free reconstruction tested whether removing same-target source-window context would make the eight oversized follow-ups fit. None of those eight proposals had an eligible same-target HEAD source-window row; zero of eight fit under the existing request ceiling with its 1,024-byte margin. The measured serialized sizes including the 1,024-byte safety margin were 113,684–121,318 bytes. This falsifies that compression avenue for this run; it is not a new gate or a reason to raise limits.
+
+## PR676 run 37695747602
+
+Run [37695747602](https://github.com/groktopus/codereview/actions/runs/37695747602) reviewed PR676 at API base and merge base `112c0e15d84c61da01a045f9ca2c630842328633`, head `a3395b664ccc739688bf67e183f809ff92779a76`; freshness was CURRENT. Snapshot identity was `snap-010d42d99767f094f494ac58`. Review disposition was `INCOMPLETE / PARTIAL`: 23 of 44 required rows complete, 21 partial (10 `PARTIAL_REVIEW_COVERAGE`, seven `CONTEXT_GAP_UNRESOLVED`, two `CHECK_RESULT_UNAVAILABLE`, and two `PRIMARY_CANDIDATE_INVALID`). Six follow-ups succeeded and resolved five gaps; one follow-up generated a nested unresolved caller/registration gap for `engines/__init__.py`. A report audit matched all 44 rendered coverage rows and decoded evidence aliases to the JSON result row-by-row.
+
+Two low-severity findings remain `NEEDS_EVIDENCE`; the corresponding claim rows were `NOT_RUN / PRIMARY_CANDIDATE_INVALID`, so there was no semantic claim assessment or native TypeSafe Choice classification for them:
+
+| Finding title | Candidate anchor | Recorded state and reason |
+|---|---|---|
+| Engine count remains 50 after adding Bing | `README.md:31`, candidate `d1a8e7f2005242c45bdace5f` | `NEEDS_CONTEXT`; `location_or_evidence_not_validated` |
+| Engine count remains stale after adding Bing | `README.md:40`, candidate `a0bacdb6de05c8617386324a` | `NEEDS_CONTEXT`; `location_or_evidence_not_validated` |
+
+The separate System One Noul advisory returned `UNRESOLVED` at probability 0.66 and is explicitly uncalibrated; it did not adjudicate either finding. The run reserved 20/32 provider calls, 1,329,300/2,500,000 input bytes, and 352,000/512,000 output bytes; six of eight follow-up slots were used. There were no budget breaches. Nineteen LLM calls (13 primary and six follow-up) had single-attempt HTTP 200 receipts; provider-reported usage across those calls was 338,117 prompt and 11,038 completion tokens. The additional Noul call was one provider call, for 20 total. The Noul request had a 1,189-byte quote/reservation/receipt and matching request hash; Noul usage and billing remain UNKNOWN.
+
+The recovery-manifest SHA-256 is `b4db9d026c7ed1ba2a172c133132e6bde3e3dc7ab4864292286a12a2f612e9e8`; profile-binding SHA-256 is `0b3f61bc57324d5852e0dacd4062c5fbbf3afe0d355c5578e182805e11972126`; review-result SHA-256 is `e9f86b21f5f39573033529571ada2fcaab61b38e7129473337f2bbffe445a128`; review JSON SHA-256 is `047058a1ef1810ba67225c914146d768f44684771d9e3706af0a524d7a41963f`; rendered report SHA-256 is `85c153e5f137518ee8eaaa9a01d7f10704cad8cf5f0283eebe82d3f5e82ddf52` (22,239 bytes). All artifact hashes and byte counts match the recovery manifest. Sanitized artifacts are retained at `/private/tmp/codereview-v17-pr676-37695747602-artifacts/pr-review-676-37695747602-1/`.
+
+## Current boundary and remaining operational work
+
+These runs show bounded source review, captured-context reuse, follow-up execution, and honest partial-result reporting on two PRs. They do not establish that findings are correct, that absent findings imply a clean review, or that the system resists prompt injection. Human labels are unavailable; that does not block advisory operation or an explicit owner risk decision, and this update adds no human-label, accuracy, confidence, or paid-comparison prerequisite.
+
+GitHub API returned target main SHA `ef017cb47b94b18bfee7c877cddfe10640de3b6d`. A separate names-only secret listing showed `LLM_API_KEY` and `JEV_API_KEY` absent; no secret values were inspected. The current activation packet is private and unapplied. Next work is to preserve the incomplete run outcomes, complete the required source/profile and target-configuration work under the existing specification, and prepare any target activation or publication as a separate concrete operator decision with existing rollback controls. Do not infer production cutover from these read-only runs or from the successful CI state.
