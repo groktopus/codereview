@@ -7,6 +7,14 @@ on:
         description: Open SlopSearX pull request number to analyze
         required: true
         type: number
+      review_contract:
+        description: Select the fixed read-only analysis contract
+        required: true
+        type: choice
+        default: legacy-v14
+        options:
+          - legacy-v14
+          - bounded-production-v16
 
 permissions:
   contents: read
@@ -113,15 +121,16 @@ jobs:
       checks: read
       pull-requests: read
       actions: read
-    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@180eaf7bff9b094441633f5669ce167d07b7ed87
+    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@0379e2001eebc07981aa99553e832ea342d781a7
     with:
       harness_repository: groktopus/codereview
-      harness_sha: 180eaf7bff9b094441633f5669ce167d07b7ed87
+      harness_sha: 0379e2001eebc07981aa99553e832ea342d781a7
       target_repository: magnus919/SlopSearX
       pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
       base_ref: ${{ needs.resolve-target.outputs.base_ref }}
       base_sha: ${{ needs.resolve-target.outputs.base_sha }}
       head_sha: ${{ needs.resolve-target.outputs.head_sha }}
+      review_contract: ${{ inputs.review_contract }}
     secrets:
       LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
       LLM_MODEL: ${{ secrets.LLM_MODEL }}
