@@ -3,14 +3,16 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
+from urllib.error import HTTPError
 
 import jsonschema
 import pytest
 
 from pr_review_harness.context_targets import build_context_target_manifest, validate_context_target_manifest
-from pr_review_harness.providers import OpenAIProvider, ProviderError
+from pr_review_harness.providers import OpenAIProvider
 
 _SCRIPT_PATH = Path(__file__).parents[1] / "scripts/run_context_target_schema_probe.py"
 _SPEC = importlib.util.spec_from_file_location("context_target_schema_probe", _SCRIPT_PATH)
@@ -125,7 +127,96 @@ def test_probe_requests_differ_only_at_target_schema_and_fit_the_fixed_cap(monke
     assert hashlib.sha256(old_body).digest() != hashlib.sha256(new_body).digest()
 
 
-def test_probe_error_receipt_drops_untrusted_text_and_keeps_only_safe_fields():
+def test_probe_reads_real_provider_success_and_error_receipt_shapes_without_leaking_text(monkeypatch):
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "http://provider.invalid/v1",
+            "model": "fixture-model",
+            "api_key_env": "TEST_SCHEMA_PROBE_KEY",
+            "max_response_bytes": 4096,
+        }
+    )
+    limits = {
+        "max_input_bytes_per_task": 4096,
+        "max_output_bytes_per_task": 4096,
+        "max_output_tokens": 64,
+        "deadline_seconds": 5,
+    }
+    success_body = json.dumps(
+        {
+            "id": "fixture-response",
+            "model": "fixture-model",
+            "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        },
+        separators=(",", ":"),
+    ).encode()
+    error_body = b'{"error":"do not echo this or sk-secret"}'
+
+    class FakeResponse:
+        status = 200
+
+        def __init__(self, body):
+            self._body = io.BytesIO(body)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read1(self, size):
+            return self._body.read(size)
+
+    class FakeOpener:
+        def __init__(self):
+            self.requests = []
+
+        def open(self, request, timeout):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return FakeResponse(success_body)
+            raise HTTPError(request.full_url, 400, "fixture failure", None, io.BytesIO(error_body))
+
+    opener = FakeOpener()
+    monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", opener)
+    monkeypatch.setenv("TEST_SCHEMA_PROBE_KEY", "dummy-test-only")
+
+    success = _run_variant(
+        provider,
+        system="unused",
+        user={},
+        schema={"type": "object"},
+        limits=limits,
+        body=b'{"fixture":"success"}',
+    )
+    failure = _run_variant(
+        provider,
+        system="unused",
+        user={},
+        schema={"type": "object"},
+        limits=limits,
+        body=b'{"fixture":"failure"}',
+    )
+    assert len(opener.requests) == 2
+    assert success["state"] == "HTTP_RESPONSE"
+    assert success["receipt_state"] == "RECORDED"
+    assert success["http_status"] == 200
+    assert success["request_attempted"] is True
+    assert success["response_bytes"] == len(success_body)
+    assert success["response_sha256"] == hashlib.sha256(success_body).hexdigest()
+    assert failure["state"] == "PROVIDER_ERROR"
+    assert failure["receipt_state"] == "RECORDED"
+    assert failure["http_status"] == 400
+    assert failure["request_attempted"] is True
+    assert failure["response_bytes"] == len(error_body)
+    assert failure["response_sha256"] == hashlib.sha256(error_body).hexdigest()
+    assert "do not echo" not in json.dumps(failure)
+    assert "sk-secret" not in json.dumps(failure)
+
+
+def test_missing_success_exchange_receipt_is_unknown_not_false():
     provider = OpenAIProvider(
         {
             "kind": "openai_compatible",
@@ -134,25 +225,10 @@ def test_probe_error_receipt_drops_untrusted_text_and_keeps_only_safe_fields():
             "api_key_env": "UNUSED_TEST_CREDENTIAL_REFERENCE",
         }
     )
-
-    def fail(**_kwargs):
-        raise ProviderError(
-            "http_status_400",
-            meta={
-                "error_text": "do not echo this or sk-secret",
-                "local_http_exchange": {
-                    "http_status": 400,
-                    "request_attempted": True,
-                    "request_bytes": 100,
-                    "request_sha256": "a" * 64,
-                    "response_bytes": 211,
-                    "response_sha256": "b" * 64,
-                    "elapsed_ms": 12.5,
-                },
-            },
-        )
-
-    provider._call = fail
+    provider._call = lambda **_kwargs: (
+        {},
+        {"provenance": {"configured_model_alias": "fixture-model", "local_http_exchange": {}}},
+    )
     result = _run_variant(
         provider,
         system="unused",
@@ -161,38 +237,10 @@ def test_probe_error_receipt_drops_untrusted_text_and_keeps_only_safe_fields():
         limits={},
         body=b"request",
     )
-    serialized = json.dumps(result)
-    assert result["state"] == "PROVIDER_ERROR"
-    assert result["http_status"] == 400
-    assert result["response_sha256"] == "b" * 64
-    assert "do not echo" not in serialized
-    assert "sk-secret" not in serialized
-
-    def fail_after_attempt(**_kwargs):
-        error = RuntimeError("private failure text")
-        error.meta = {
-            "local_http_exchange": {
-                "http_status": 502,
-                "request_attempted": True,
-                "request_bytes": 100,
-                "request_sha256": "c" * 64,
-            }
-        }
-        raise error
-
-    provider._call = fail_after_attempt
-    result = _run_variant(
-        provider,
-        system="unused",
-        user={},
-        schema={},
-        limits={},
-        body=b"request",
-    )
-    assert result["state"] == "LOCAL_ERROR"
-    assert result["http_status"] == 502
-    assert result["request_attempted"] is True
-    assert "private failure text" not in json.dumps(result)
+    assert result["state"] == "HTTP_RESPONSE"
+    assert result["receipt_state"] == "UNKNOWN"
+    assert result["request_attempted"] is None
+    assert result["http_status"] is None
 
 
 @pytest.mark.parametrize(
