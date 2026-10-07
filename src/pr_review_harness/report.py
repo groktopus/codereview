@@ -69,6 +69,58 @@ def render_report(result: dict) -> str:
         f"Reviewed: {safe(result.get('base_sha', 'unknown'))}..{safe(result.get('head_sha', 'unknown'))} | Comparison baseline: {safe(result.get('change_base_sha', result.get('base_sha', 'unknown')))} | Profile: {safe(result.get('project_profile_version', 'unknown'))}",
         f"Budgets: provider-call reservations {result.get('budget', {}).get('provider_calls_reserved', 0)}/{result.get('budget', {}).get('provider_calls_limit', 'unknown')}; input {result.get('budget', {}).get('context_bytes_reserved', 0)}/{result.get('budget', {}).get('context_bytes_limit', 'unknown')} bytes; output {result.get('budget', {}).get('output_bytes_reserved', 0)}/{result.get('budget', {}).get('output_bytes_limit', 'unknown')} bytes; cost {safe(result.get('budget', {}).get('cost', 'UNKNOWN'))}.",
     ]
+    observability = result.get("budget", {}).get("provider_observability", {})
+    if isinstance(observability, dict) and observability:
+        run_elapsed = result.get("run_elapsed_ms")
+        run_elapsed_text = f"{safe(run_elapsed)} ms" if isinstance(run_elapsed, (int, float)) else "UNKNOWN"
+        attempted = sum(
+            row.get("request_attempted", 0) for row in observability.get("stages", {}).values() if isinstance(row, dict)
+        )
+        not_attempted = sum(
+            row.get("request_not_attempted", 0)
+            for row in observability.get("stages", {}).values()
+            if isinstance(row, dict)
+        )
+        attempt_unknown = sum(
+            row.get("request_attempt_unknown", 0)
+            for row in observability.get("stages", {}).values()
+            if isinstance(row, dict)
+        )
+        lines.extend(
+            (
+                f"Provider observations: run elapsed {run_elapsed_text}; {observability.get('provider_calls_reserved', 0)} provider calls reserved, {observability.get('retry_calls', 0)} retries, {observability.get('tool_calls_reserved', 0)} local tool calls; request attempted/not attempted/unknown {attempted}/{not_attempted}/{attempt_unknown}.",
+                "Stage observations (summed call latency is not run wall time; missing receipts and usage remain unknown):",
+            )
+        )
+        for stage, row in sorted(observability.get("stages", {}).items()):
+            if not isinstance(row, dict):
+                continue
+            reserved = row.get("provider_calls_reserved", 0)
+            billed_known = row.get("billed_cost_known", 0)
+            estimated_known = row.get("estimated_cost_known", 0)
+            stage_retries = row.get("retry_calls", 0)
+            call_counts = (
+                f"tools {row.get('tool_calls_reserved', 0)} reserved/{row.get('settled_reservations', 0)} settled"
+                if row.get("tool_calls_reserved", 0)
+                else f"calls {reserved} reserved/{row.get('settled_calls', 0)} settled"
+            )
+            if row.get("tool_calls_reserved", 0):
+                lines.append(
+                    f"- {safe(stage)}: {call_counts}; summed tool latency {safe(row.get('call_elapsed_ms_sum', 0))} ms across {row.get('call_elapsed_known', 0)}/{row.get('tool_calls_reserved', 0)} observations."
+                )
+                continue
+            usage_fields = row.get("usage_fields", {})
+            token_totals = (
+                ", ".join(
+                    f"{field} {values.get('reported_sum', 0)} ({values.get('reported_count', 0)} reported)"
+                    for field, values in sorted(usage_fields.items())
+                    if isinstance(values, dict) and values.get("reported_count", 0) > 0
+                )
+                or "no token counts reported"
+            )
+            lines.append(
+                f"- {safe(stage)}: {call_counts}; retries {stage_retries}; dispatch attempted/not attempted/unknown {row.get('request_attempted', 0)}/{row.get('request_not_attempted', 0)}/{row.get('request_attempt_unknown', 0)}; token records known/partial/unknown {row.get('usage_known', 0)}/{row.get('usage_partial', 0)}/{row.get('usage_unknown', 0)}; token sums {token_totals}; summed call latency {safe(row.get('call_elapsed_ms_sum', 0))} ms across {row.get('call_elapsed_known', 0)}/{reserved} calls; HTTP latency {safe(row.get('http_elapsed_ms_sum', 0))} ms across {row.get('http_elapsed_known', 0)}/{reserved} calls; billed cost {row.get('billed_cost_microunits', 0)} microunits known {billed_known}/{reserved}, estimated cost {row.get('estimated_cost_microunits', 0)} microunits known {estimated_known}/{reserved}."
+            )
     if freshness_basis == "HISTORICAL_SNAPSHOT":
         lines.append("Historical snapshot freshness compares the fixed revisions only; it does not check the pull request's current state.")
     names = (

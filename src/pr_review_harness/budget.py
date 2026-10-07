@@ -357,7 +357,15 @@ class BudgetLedger:
             self.state["followup_tasks"] = len(existing)
             self._persist()
 
-    def settle(self, key: str, *, output_bytes: int | None, usage: dict, status: str) -> None:
+    def settle(
+        self,
+        key: str,
+        *,
+        output_bytes: int | None,
+        usage: dict,
+        status: str,
+        observation: dict | None = None,
+    ) -> None:
         """Append actual usage while keeping unavailable billing explicitly unknown."""
         with self._lock:
             reservation = self.state["reservations"].get(key)
@@ -371,10 +379,20 @@ class BudgetLedger:
                 "estimated_cost_microunits": (usage or {}).get("estimated_cost_microunits"),
                 "settled_at_epoch": time.time(),
             }
+            safe_observation = _safe_settlement_observation(observation)
+            if safe_observation is not None:
+                settlement["observation"] = safe_observation
             current = self.state["settlements"].get(key)
             if current is not None:
                 comparable = {k: v for k, v in settlement.items() if k != "settled_at_epoch"}
                 prior = {k: v for k, v in current.items() if k != "settled_at_epoch"}
+                # Pre-observability checkpoints have no observation field. A
+                # replay may add the optional argument now, but cannot invent
+                # a receipt for work whose old checkpoint omitted one.
+                if "observation" not in prior:
+                    comparable.pop("observation", None)
+                elif safe_observation is None:
+                    prior.pop("observation", None)
                 if prior != comparable:
                     raise ValueError("conflicting settlement replay")
                 return
@@ -442,6 +460,7 @@ class BudgetLedger:
             def valid_estimate(value: Any) -> bool:
                 return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
+            provider_observability = _provider_observability(reservations, settlements)
             return {
                 "provider_calls_reserved": sum(r.get("provider_calls", 0) for r in reservations),
                 "provider_calls_limit": self.limits["max_provider_calls"],
@@ -465,8 +484,210 @@ class BudgetLedger:
                 "cost_estimated_microunits": sum(v for v in estimated if valid_estimate(v)),
                 "cost_estimate_known": bool(estimated) and all(valid_estimate(v) for v in estimated),
                 "cost": sum(billed) if bool(billed) and all(valid_billed(v) for v in billed) else "UNKNOWN",
+                "provider_observability": provider_observability,
                 "budget_breaches": list(self.state.get("budget_breaches", [])),
             }
+
+
+_OBSERVATION_STAGES = frozenset(
+    {
+        "primary",
+        "followup",
+        "semantic_adjudication",
+        "claim_assessment",
+        "advisory",
+        "deterministic_check",
+        "context_retrieval",
+        "other",
+    }
+)
+_TOKEN_FIELDS = ("prompt_tokens", "completion_tokens", "input_tokens", "output_tokens", "total_tokens")
+
+
+def _valid_token_count(value: Any) -> bool:
+    return type(value) is int and value >= 0
+
+
+def _usage_state(usage: Any, known_flag: Any = None) -> str:
+    if not isinstance(usage, dict):
+        return "UNKNOWN"
+    has_any = any(_valid_token_count(usage.get(field)) for field in _TOKEN_FIELDS)
+    required = all(_valid_token_count(usage.get(field)) for field in ("prompt_tokens", "completion_tokens", "total_tokens"))
+    if known_flag is True and required:
+        return "KNOWN"
+    return "PARTIAL" if has_any else "UNKNOWN"
+
+
+def _safe_elapsed(value: Any) -> float | None:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    try:
+        elapsed = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return round(elapsed, 2) if math.isfinite(elapsed) and elapsed >= 0 else None
+
+
+def _safe_settlement_observation(value: Any) -> dict | None:
+    """Keep only finite scalar counters; provider payloads and metadata stay out."""
+    if not isinstance(value, dict):
+        return None
+    stage = value.get("stage")
+    if not isinstance(stage, str) or stage not in _OBSERVATION_STAGES:
+        stage = "other"
+    result: dict[str, Any] = {"stage": stage}
+    attempted = value.get("request_attempted")
+    result["request_attempted"] = attempted if isinstance(attempted, bool) else None
+    status = value.get("http_status")
+    result["http_status"] = status if type(status) is int and 100 <= status <= 599 else None
+    for field in ("call_elapsed_ms", "http_elapsed_ms"):
+        result[field] = _safe_elapsed(value.get(field))
+    token_values = {}
+    for field in _TOKEN_FIELDS:
+        token_count = value.get(field)
+        token_values[field] = token_count if type(token_count) is int and token_count >= 0 else None
+    result["usage"] = token_values
+    result["usage_state"] = _usage_state(token_values, value.get("usage_known"))
+    return result
+
+
+def _stage_for_reservation(reservation: dict) -> str:
+    key = reservation.get("key", "")
+    kind = reservation.get("kind")
+    if kind == "context_retrieval":
+        return "context_retrieval"
+    if kind == "deterministic_check":
+        return "deterministic_check"
+    if isinstance(key, str):
+        if ":review:" in key:
+            return "followup" if ":followup:" in key else "primary"
+        if ":adjudicate:" in key:
+            return "semantic_adjudication"
+        if key.startswith("claim-assessment:"):
+            return "claim_assessment"
+        if key.startswith("system-one:advisory:"):
+            return "advisory"
+    return "other"
+
+
+def _attempt_family(key: Any) -> str:
+    if not isinstance(key, str):
+        return "unknown"
+    if ":review:" in key:
+        prefix, _, suffix = key.rpartition(":")
+        return prefix if suffix.isdigit() else key
+    if ":attempt:" in key:
+        prefix, _, suffix = key.rpartition(":")
+        return prefix if suffix.isdigit() else key
+    if key.startswith("system-one:advisory:"):
+        prefix, _, suffix = key.rpartition(":")
+        return prefix if suffix.isdigit() else key
+    return key
+
+
+def _provider_observability(reservations: list[dict], settlements: dict) -> dict:
+    """Summarize actual scalar observations with explicit unknown denominators."""
+    stages: dict[str, dict[str, Any]] = {}
+    families: dict[str, dict[str, set[str]]] = {}
+    for reservation in reservations:
+        if not isinstance(reservation, dict):
+            continue
+        key = reservation.get("key")
+        settlement = settlements.get(key, {}) if isinstance(key, str) else {}
+        observation = settlement.get("observation", {}) if isinstance(settlement, dict) else {}
+        stage = observation.get("stage") if isinstance(observation, dict) else None
+        if stage not in _OBSERVATION_STAGES:
+            stage = _stage_for_reservation(reservation)
+        row = stages.setdefault(
+            stage,
+            {
+                "provider_calls_reserved": 0,
+                "tool_calls_reserved": 0,
+                "retry_calls": 0,
+                "settled_calls": 0,
+                "settled_reservations": 0,
+                "request_attempted": 0,
+                "request_not_attempted": 0,
+                "request_attempt_unknown": 0,
+                "call_elapsed_ms_sum": 0.0,
+                "call_elapsed_known": 0,
+                "http_elapsed_ms_sum": 0.0,
+                "http_elapsed_known": 0,
+                "usage_known": 0,
+                "usage_partial": 0,
+                "usage_unknown": 0,
+                "billed_cost_known": 0,
+                "billed_cost_microunits": 0,
+                "estimated_cost_known": 0,
+                "estimated_cost_microunits": 0,
+                "usage_fields": {field: {"reported_count": 0, "reported_sum": 0} for field in _TOKEN_FIELDS},
+            },
+        )
+        provider_calls = reservation.get("provider_calls", 0)
+        if type(provider_calls) is not int or provider_calls < 0:
+            provider_calls = 0
+        if isinstance(observation, dict):
+            for field, counter in (("call_elapsed_ms", "call"), ("http_elapsed_ms", "http")):
+                elapsed = _safe_elapsed(observation.get(field))
+                if elapsed is not None:
+                    row[f"{counter}_elapsed_ms_sum"] += elapsed
+                    row[f"{counter}_elapsed_known"] += 1
+        if provider_calls:
+            row["provider_calls_reserved"] += provider_calls
+            if isinstance(key, str):
+                family = _attempt_family(key)
+                families.setdefault(stage, {}).setdefault(family, set()).add(key)
+            if key in settlements:
+                row["settled_calls"] += provider_calls
+            attempted = observation.get("request_attempted") if isinstance(observation, dict) else None
+            if attempted is True:
+                row["request_attempted"] += provider_calls
+            elif attempted is False:
+                row["request_not_attempted"] += provider_calls
+            else:
+                row["request_attempt_unknown"] += provider_calls
+            if isinstance(observation, dict):
+                usage_state = observation.get("usage_state")
+                usage = observation.get("usage", {})
+                if "usage_state" not in observation:
+                    usage = settlement.get("usage", {}) if isinstance(settlement, dict) else {}
+                    usage_state = _usage_state(usage, usage.get("known") if isinstance(usage, dict) else None)
+                else:
+                    usage_state = _usage_state(usage, usage_state == "KNOWN")
+            else:
+                usage = settlement.get("usage", {}) if isinstance(settlement, dict) else {}
+                usage_state = _usage_state(usage, usage.get("known") if isinstance(usage, dict) else None)
+            if not isinstance(usage_state, str) or usage_state not in {"KNOWN", "PARTIAL"}:
+                usage_state = "UNKNOWN"
+            row[f"usage_{usage_state.lower()}"] += provider_calls
+            for field in _TOKEN_FIELDS:
+                value = usage.get(field) if isinstance(usage, dict) else None
+                if type(value) is int and value >= 0:
+                    row["usage_fields"][field]["reported_count"] += provider_calls
+                    row["usage_fields"][field]["reported_sum"] += value
+            if isinstance(settlement, dict):
+                for field, count_key, sum_key in (
+                    ("billed_cost_microunits", "billed_cost_known", "billed_cost_microunits"),
+                    ("estimated_cost_microunits", "estimated_cost_known", "estimated_cost_microunits"),
+                ):
+                    value = settlement.get(field)
+                    if type(value) is int and value >= 0:
+                        row[count_key] += provider_calls
+                        row[sum_key] += value
+        elif reservation.get("kind") in {"context_retrieval", "deterministic_check"}:
+            row["tool_calls_reserved"] += 1
+        if isinstance(key, str) and key in settlements:
+            row["settled_reservations"] += 1
+    for stage, row in stages.items():
+        row["retry_calls"] = sum(max(0, len(keys) - 1) for keys in families.get(stage, {}).values())
+        row["call_elapsed_ms_sum"] = round(row["call_elapsed_ms_sum"], 2)
+        row["http_elapsed_ms_sum"] = round(row["http_elapsed_ms_sum"], 2)
+    return {
+        "provider_calls_reserved": sum(row["provider_calls_reserved"] for row in stages.values()),
+        "tool_calls_reserved": sum(row["tool_calls_reserved"] for row in stages.values()),
+        "retry_calls": sum(max(0, len(keys) - 1) for groups in families.values() for keys in groups.values()),
+        "stages": stages,
+    }
 
 
 def _positive_int(value: Any, name: str) -> int:
