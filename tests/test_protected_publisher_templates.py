@@ -36,6 +36,14 @@ def test_analysis_template_pins_reviewed_harness_commit_consistently_and_stays_d
     input_sha = re.search(r"(?m)^\s*harness_sha: ([0-9a-f]{40})$", workflow)
     assert uses is not None and uses.group(1) == expected_sha
     assert input_sha is not None and input_sha.group(1) == expected_sha
+    trigger = workflow.split("  pull_request_target:", 1)[1].split("\npermissions:", 1)[0]
+    trigger_types = trigger.split("    types:", 1)[1].split("\n\n", 1)[0]
+    assert {item.strip() for item in trigger_types.splitlines() if item.strip()} == {
+        "- opened",
+        "- ready_for_review",
+        "- reopened",
+        "- synchronize",
+    }
     assert re.search(r"(?m)^\s*if:\s*false\s*$", workflow)
 
 
