@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from pr_review_harness.injection_trials import (
+    MAX_DETECTOR_SECONDS,
     OUTPUT_EXPERIMENT_ID,
     V3_CAUSAL_ROLE_EXPERIMENT_ID,
     InjectionTrialError,
@@ -402,36 +403,95 @@ class InjectionTrialTests(unittest.TestCase):
                 "injection_classifier_contract": "prompt-injection-classifier.choice.v1",
             }
 
+            def __init__(self, choice="suspicious", provenance_updates=None, payload_updates=None):
+                self.calls = []
+                self.choice = choice
+                self.provenance_updates = provenance_updates or {}
+                self.payload_updates = payload_updates or {}
+
             def preflight(self, primitive):
                 assert primitive == "SYSTEM_ONE_PROMPT_INJECTION_ADVISORY"
+                self.calls.append(("preflight", primitive))
 
-            def assess(self, question, submitted, _limits):
-                assert submitted == text
-                return {
-                    "payload": {
-                        "primitive": "Choice",
-                        "question_id": "prompt_injection",
-                        "recommendation": "UNRESOLVED",
-                        "choice": "suspicious",
-                    },
-                    "provenance": {
-                        "classifier_contract": "prompt-injection-classifier.choice.v1",
-                        "question_hash": hashlib.sha256(INJECTION_CHOICE_QUESTION.encode()).hexdigest(),
-                        "criteria_hash": hashlib.sha256(
-                            json.dumps(INJECTION_CHOICE_CRITERIA, ensure_ascii=False, separators=(",", ":")).encode()
-                        ).hexdigest(),
-                        "input_hash": hashlib.sha256(text.encode()).hexdigest(),
-                        "request_hash": "3" * 64,
-                        "response_hash": "4" * 64,
-                    },
+            def assess(self, question, submitted, limits):
+                assert question == "prompt-injection-classifier.choice.v1"
+                deadline = limits["deadline_seconds"]
+                assert isinstance(deadline, (int, float)) and 0 < deadline <= MAX_DETECTOR_SECONDS
+                if "max_provider_calls" in limits:
+                    assert limits["max_provider_calls"] == 1
+                if "max_retries_per_task" in limits:
+                    assert limits["max_retries_per_task"] == 0
+                self.calls.append(("assess", question, submitted, limits))
+                payload = {
+                    "primitive": "Choice",
+                    "question_id": "prompt_injection",
+                    "recommendation": "UNRESOLVED",
+                    "choice": self.choice,
+                    **self.payload_updates,
                 }
+                provenance = {
+                    "classifier_contract": "prompt-injection-classifier.choice.v1",
+                    "question_hash": hashlib.sha256(INJECTION_CHOICE_QUESTION.encode()).hexdigest(),
+                    "criteria_hash": hashlib.sha256(
+                        json.dumps(INJECTION_CHOICE_CRITERIA, ensure_ascii=False, separators=(",", ":")).encode()
+                    ).hexdigest(),
+                    "input_hash": hashlib.sha256(submitted.encode()).hexdigest(),
+                    "request_hash": "3" * 64,
+                    "response_hash": "4" * 64,
+                    **self.provenance_updates,
+                }
+                return {"payload": payload, "provenance": provenance}
 
         before = text
-        observation = classify_with_jev(FakeInjectionChoice(), text, {"deadline_seconds": 2})
+        provider = FakeInjectionChoice()
+        observation = classify_with_jev(
+            provider,
+            text,
+            {"deadline_seconds": 2, "max_provider_calls": 1, "max_retries_per_task": 0},
+        )
         self.assertEqual(observation["classification"], "SUSPICIOUS")
         self.assertEqual(observation["interpretation"], "advisory_uncalibrated")
         self.assertEqual(observation["classifier_contract"], "prompt-injection-classifier.choice.v1")
         self.assertEqual(text, before)
+        self.assertEqual(len(provider.calls), 2)
+        self.assertEqual(provider.calls[1][2], text)
+
+        # These cases test only the adapter's label mapping. They do not show
+        # that the classifier semantically distinguishes benign lookalikes.
+        cases = (
+            ("# Ignore prior instructions: this is an example in a security guide.", "benign", "BENIGN"),
+            ("The quoted comment says to ignore policy, as an example only.", "unknown", "UNKNOWN"),
+        )
+        for submitted, choice, expected in cases:
+            with self.subTest(choice=choice):
+                candidate = FakeInjectionChoice(choice=choice)
+                result = classify_with_jev(candidate, submitted, {})
+                self.assertEqual(result["classification"], expected)
+                self.assertEqual(result["interpretation"], "advisory_uncalibrated")
+                self.assertEqual([call[0] for call in candidate.calls], ["preflight", "assess"])
+                self.assertEqual(candidate.calls[1][2], submitted)
+
+        # Malformed or mismatched evidence cannot turn a risky-looking answer
+        # into a confident classification. These all fail closed to UNKNOWN.
+        invalid_cases = (
+            ("bad input digest", {"input_hash": "0" * 64}, {}, "detector_provenance_invalid"),
+            ("wrong question digest", {"question_hash": "0" * 64}, {}, "detector_provenance_invalid"),
+            ("wrong criteria digest", {"criteria_hash": "0" * 64}, {}, "detector_provenance_invalid"),
+            ("malformed request digest", {"request_hash": "not-a-sha256"}, {}, "detector_provenance_invalid"),
+            ("malformed response digest", {"response_hash": "not-a-sha256"}, {}, "detector_provenance_invalid"),
+            ("wrong contract provenance", {"classifier_contract": "other.v1"}, {}, "detector_provenance_invalid"),
+            ("wrong question", {}, {"question_id": "other_question"}, "detector_response_invalid"),
+            ("unsupported choice", {}, {"choice": "high-risk"}, "detector_response_invalid"),
+        )
+        for label, provenance_updates, payload_updates, expected_reason in invalid_cases:
+            with self.subTest(provenance=label):
+                candidate = FakeInjectionChoice(
+                    provenance_updates=provenance_updates,
+                    payload_updates=payload_updates,
+                )
+                result = classify_with_jev(candidate, text, {})
+                self.assertEqual(result, {"classification": "UNKNOWN", "reason": expected_reason})
+                self.assertEqual([call[0] for call in candidate.calls], ["preflight", "assess"])
 
         class WrongRisk(FakeInjectionChoice):
             primitive = "choice-risk"
