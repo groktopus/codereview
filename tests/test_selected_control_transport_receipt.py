@@ -755,7 +755,9 @@ def test_secretless_ci_runs_opt_in_roundtrip_against_the_built_wheel():
     job = workflow.split("  transport-receipt-roundtrip:", 1)[1]
     assert "needs: build" in job
     assert "runs-on: ubuntu-latest" in job
-    assert "sudo apt-get install --yes strace" in job
+    assert "- name: Install the Linux syscall observer\n        timeout-minutes: 3" in job
+    assert "bash scripts/install_ci_strace.sh" in job
+    assert "continue-on-error" not in job
     assert "actions/download-artifact" in job and "pr-review-distributions" in job
     assert 'pip install "$ROUNDTRIP_DIST"/*.whl pytest' in job
     assert "RUN_INSTALLED_LOOPBACK_TRANSPORT_VALIDATOR_TEST: '1'" in job
