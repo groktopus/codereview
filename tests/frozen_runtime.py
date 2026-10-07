@@ -29,6 +29,7 @@ FROZEN_CLAIM_ASSESSMENT = Path(__file__).resolve().parent / "fixtures" / "claim_
 FROZEN_CLAIM_TRANSPORT = Path(__file__).resolve().parent / "fixtures" / "claim_transport-pr214-base.py"
 FROZEN_GITHUB = Path(__file__).resolve().parent / "fixtures" / "github-pr214-base.py"
 FROZEN_POLICY_INVENTORY = Path(__file__).resolve().parent / "fixtures" / "policy_inventory-pr214-base.py"
+FROZEN_EVIDENCE = Path(__file__).resolve().parent / "fixtures" / "evidence-pr223-base.py"
 EXPECTED_MODULE_COUNT = 35
 EXPECTED_MODEL_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
 EXPECTED_SYNTH_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991"
@@ -89,6 +90,7 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
         ("github.py", FROZEN_GITHUB),
         ("policy_inventory.py", FROZEN_POLICY_INVENTORY),
         ("shadow_audit.py", FROZEN_SHADOW_AUDIT),
+        ("evidence.py", FROZEN_EVIDENCE),
     ):
         (module_dir / name).write_bytes(fixture.read_bytes())
 
