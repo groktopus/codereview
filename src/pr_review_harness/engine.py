@@ -527,7 +527,7 @@ def _provider_identity(provider: Any, decision_provider: Any) -> Any:
     return {"provider": identity(provider), "decision_provider": identity(decision_provider)}
 
 
-def _claim_assessor_binding(assessor: Any) -> tuple[str, str, str]:
+def _claim_assessor_binding(assessor: Any, expected_contract_version: str) -> tuple[str, str, str]:
     """Validate the opt-in shadow adapter and return a stable non-secret identity binding."""
     for name in ("prepare", "estimate_prepared", "assess_prepared"):
         if not callable(getattr(assessor, name, None)):
@@ -540,6 +540,15 @@ def _claim_assessor_binding(assessor: Any) -> tuple[str, str, str]:
     version = identity.get("contract_version")
     if not isinstance(version, str) or not version or len(version) > 128:
         raise ValueError("claim assessor contract identity is required")
+    supported_versions = identity.get("supported_contract_versions", [version])
+    if (
+        not isinstance(supported_versions, list)
+        or not supported_versions
+        or any(not isinstance(item, str) or not item or len(item) > 128 for item in supported_versions)
+        or len(set(supported_versions)) != len(supported_versions)
+        or expected_contract_version not in supported_versions
+    ):
+        raise ValueError("claim assessor does not support the required contract version")
     try:
         encoded_identity = _canonical(identity)
         serialized_assessor = pickle.dumps(assessor, protocol=pickle.HIGHEST_PROTOCOL)
@@ -554,7 +563,7 @@ def _claim_assessor_binding(assessor: Any) -> tuple[str, str, str]:
             for name in ("claim_assessment.py", "claim_transport.py")
         }
     )
-    return _hash(identity), version, implementation_hash
+    return _hash(identity), expected_contract_version, implementation_hash
 
 
 def _evidence_for(task: dict, snapshot: dict, limit: int) -> list[dict]:
@@ -1279,12 +1288,15 @@ def run_review(
     claim_assessor_identity_hash = None
     claim_assessor_contract = None
     claim_assessor_code_hash = None
+    expected_claim_contract = (
+        "claim-assessment.3" if snapshot.get("comparison_mode") == "PR_MERGE_BASE" else "claim-assessment.2"
+    )
     if max_claim_assessments > 0:
         if claim_assessor is None:
             raise EnginePreflightError("invalid_review_request", "positive max_claim_assessments requires a claim assessor")
         try:
             claim_assessor_identity_hash, claim_assessor_contract, claim_assessor_code_hash = _claim_assessor_binding(
-                claim_assessor
+                claim_assessor, expected_claim_contract
             )
         except (TypeError, ValueError) as exc:
             raise EnginePreflightError("invalid_review_request", str(exc)) from None
@@ -2568,7 +2580,14 @@ def run_review(
                             item.get("snapshot_id") != snapshot.get("snapshot_id")
                             or item.get("trust") not in {"repository_evidence", "trusted_policy"}
                             or item.get("source_kind") != "repository_file"
-                            or item.get("source_revision") not in {snapshot.get("base_sha"), snapshot.get("head_sha")}
+                            or item.get("source_revision") not in (
+                                {snapshot.get("base_sha"), snapshot.get("head_sha")}
+                                | (
+                                    {snapshot["change_base_sha"]}
+                                    if isinstance(snapshot.get("change_base_sha"), str)
+                                    else set()
+                                )
+                            )
                             or not isinstance(item.get("content_hash"), str)
                             or hashlib.sha256(raw_bytes).hexdigest() != item.get("content_hash")
                             or not isinstance(item.get("evidence_id"), str)
@@ -2746,7 +2765,11 @@ def run_review(
                 anchor_hash = anchor.get("evidence_hash") if isinstance(anchor, dict) else None
                 anchor_record = evidence_map.get(anchor_id) if isinstance(anchor_id, str) else None
                 anchor_side = anchor.get("side") if isinstance(anchor, dict) else None
-                expected_revision = snapshot.get("base_sha") if anchor_side == "BASE" else snapshot.get("head_sha")
+                expected_revision = (
+                    snapshot.get("change_base_sha", snapshot.get("base_sha"))
+                    if anchor_side == "BASE"
+                    else snapshot.get("head_sha")
+                )
                 expected_source_kind = "base_file" if anchor_side == "BASE" else "head_file"
                 anchor_valid = bool(
                     isinstance(anchor, dict)
@@ -3102,6 +3125,8 @@ def run_review(
             "base_sha": snapshot.get("base_sha"),
             "head_sha": snapshot.get("head_sha"),
         }
+        if snapshot.get("comparison_mode") == "PR_MERGE_BASE":
+            claim_identity["change_base_sha"] = snapshot.get("change_base_sha")
         freshness_reserve_seconds = 16.0 if callable(freshness_check) else 0.0
         for candidate_id in ordered_candidates:
             prior = claim_rows.get(candidate_id)
@@ -3245,7 +3270,6 @@ def run_review(
                     or not isinstance(prepared_hash, str)
                     or hashlib.sha256(prepared_request).hexdigest() != prepared_hash
                     or prepared_version != claim_assessor_contract
-                    or prepared_version != "claim-assessment.2"
                 ):
                     raise ValueError("invalid_prepared_claim_request")
                 try:
@@ -3976,6 +4000,11 @@ def run_review(
         "snapshot_id": snapshot.get("snapshot_id"),
         "base_sha": snapshot.get("base_sha"),
         "head_sha": snapshot.get("head_sha"),
+        **(
+            {"comparison_mode": snapshot["comparison_mode"], "change_base_sha": snapshot["change_base_sha"]}
+            if snapshot.get("comparison_mode") == "PR_MERGE_BASE"
+            else {}
+        ),
         "project_profile_version": profile.get(
             "version",
             profile.get("profile_version", snapshot.get("profile_version", snapshot.get("project_profile_version"))),

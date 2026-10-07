@@ -720,7 +720,11 @@ def _rebind_snapshot_evidence_references(snapshot: dict, old_to_new: dict[str, s
             raise ValueError("snapshot file-level location has an unbound evidence ID")
         new_id = old_to_new[old_id]
         record = evidence.get(new_id) if isinstance(evidence, dict) else None
-        expected_revision = snapshot.get("base_sha") if anchor.get("side") == "BASE" else snapshot.get("head_sha")
+        expected_revision = (
+            snapshot.get("change_base_sha", snapshot.get("base_sha"))
+            if anchor.get("side") == "BASE"
+            else snapshot.get("head_sha")
+        )
         if (
             not isinstance(record, dict)
             or anchor.get("side") not in {"BASE", "HEAD"}
@@ -868,7 +872,7 @@ def _run_one(
         raise ValueError("max claim assessments must be between 0 and 4")
     if max_claim_assessments > 0 and claim_assessor is None:
         raise ValueError("positive max claim assessments requires a claim assessor")
-    snapshot = collect_snapshot(args.repo, base, head, profile, limits)
+    snapshot = collect_snapshot(args.repo, base, head, profile, limits, pr_diff=event is not None)
     if event is not None:
         # Event identity is run provenance. Bind it before planning and refresh
         # evidence references so every reference remains tied to this snapshot.
@@ -1224,6 +1228,8 @@ def _run_one(
                 ],
                 "base_sha": snapshot.get("base_sha"),
                 "head_sha": snapshot.get("head_sha"),
+                **({"comparison_mode": snapshot["comparison_mode"], "change_base_sha": snapshot["change_base_sha"]}
+                   if snapshot.get("comparison_mode") == "PR_MERGE_BASE" else {}),
                 "profile_version": profile.get("version", profile.get("profile_version")),
                 "profile_file_sha256": _sha256(Path(args.profile).read_bytes()),
                 "limits_sha256": _sha256(Path(args.limits).read_bytes()) if args.limits else None,

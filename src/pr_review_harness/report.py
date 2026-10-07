@@ -23,7 +23,7 @@ def render_report(result: dict) -> str:
         revision = (
             side
             if isinstance(side, str) and len(side) == 40
-            else result.get("base_sha")
+            else result.get("change_base_sha", result.get("base_sha"))
             if side == "BASE"
             else result.get("head_sha")
         )
@@ -63,7 +63,7 @@ def render_report(result: dict) -> str:
     lines = [
         f"PR review {safe(result.get('run_id', 'unknown'))}: {safe(result.get('disposition', 'INCOMPLETE'))}",
         f"Coverage: {result.get('coverage_state', 'NOT_STARTED')} | Freshness: {freshness_text} | Merge eligibility: {result.get('merge_eligibility', 'NOT_EVALUATED')}",
-        f"Reviewed: {safe(result.get('base_sha', 'unknown'))}..{safe(result.get('head_sha', 'unknown'))} | Profile: {safe(result.get('project_profile_version', 'unknown'))}",
+        f"Reviewed: {safe(result.get('base_sha', 'unknown'))}..{safe(result.get('head_sha', 'unknown'))} | Comparison baseline: {safe(result.get('change_base_sha', result.get('base_sha', 'unknown')))} | Profile: {safe(result.get('project_profile_version', 'unknown'))}",
         f"Budgets: provider-call reservations {result.get('budget', {}).get('provider_calls_reserved', 0)}/{result.get('budget', {}).get('provider_calls_limit', 'unknown')}; input {result.get('budget', {}).get('context_bytes_reserved', 0)}/{result.get('budget', {}).get('context_bytes_limit', 'unknown')} bytes; output {result.get('budget', {}).get('output_bytes_reserved', 0)}/{result.get('budget', {}).get('output_bytes_limit', 'unknown')} bytes; cost {safe(result.get('budget', {}).get('cost', 'UNKNOWN'))}.",
     ]
     if freshness_basis == "HISTORICAL_SNAPSHOT":

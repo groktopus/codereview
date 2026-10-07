@@ -78,7 +78,7 @@ def _sha(repo: str, revision: str) -> str:
         raise SnapshotError("invalid revision")
     out = _git(repo, "rev-parse", "--verify", "--end-of-options", f"{revision}^{{commit}}")
     sha = out.decode("ascii", "strict").strip()
-    if len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
+    if len(sha) not in {40, 64} or any(c not in "0123456789abcdef" for c in sha):
         raise SnapshotError("revision did not resolve to a full commit SHA")
     return sha
 
@@ -299,7 +299,7 @@ def _deleted_line_ranges(diff: str) -> list[list[int]]:
     return ranges
 
 
-def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dict) -> dict:
+def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dict, *, pr_diff: bool = False) -> dict:
     """Capture immutable diff and bounded file evidence from Git objects only.
 
     `max_snapshot_context_bytes` bounds source context payloads in aggregate
@@ -323,10 +323,20 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
         dependency_context = validate_dependency_context(profile)
     except DependencyContextError as exc:
         raise SnapshotError(str(exc)) from exc
+    if not isinstance(pr_diff, bool):
+        raise SnapshotError("PR diff mode must be boolean")
     base_sha, head_sha = _sha(repo, base), _sha(repo, head)
+    if pr_diff:
+        merge_bases = [row.decode("ascii", "strict") for row in _git(repo, "merge-base", "--all", base_sha, head_sha).splitlines()]
+        if len(merge_bases) != 1 or not re.fullmatch(r"[0-9a-f]{40,64}", merge_bases[0]):
+            raise SnapshotError("PR comparison requires one unique merge base")
+        change_base_sha = merge_bases[0]
+    else:
+        change_base_sha = base_sha
     base_tree, head_tree = _tree(repo, base_sha), _tree(repo, head_sha)
+    change_base_tree = base_tree if change_base_sha == base_sha else _tree(repo, change_base_sha)
     # Git's NUL-delimited status output safely handles whitespace/newlines.
-    status = _git(repo, "diff", "--name-status", "-z", "--find-renames", base_sha, head_sha).split(b"\0")
+    status = _git(repo, "diff", "--name-status", "-z", "--find-renames", change_base_sha, head_sha).split(b"\0")
     changes: list[tuple[str, str | None, str]] = []
     i = 0
     while i < len(status) and status[i]:
@@ -349,7 +359,10 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
     if not context_revision_metadata and "context_revision_metadata" in profile:
         profile_identity = {key: value for key, value in profile.items() if key != "context_revision_metadata"}
     profile_hash = _json_hash(profile_identity)
-    snapshot_id = "snap-" + _json_hash({"base": base_sha, "head": head_sha, "profile_hash": profile_hash})[:24]
+    snapshot_identity = {"base": base_sha, "head": head_sha, "profile_hash": profile_hash}
+    if pr_diff:
+        snapshot_identity.update({"comparison_mode": "PR_MERGE_BASE", "change_base": change_base_sha})
+    snapshot_id = "snap-" + _json_hash(snapshot_identity)[:24]
     repo_id = os.path.realpath(repo)
     repository_url = _repository_url(profile)
     evidence: dict[str, dict] = {}
@@ -438,7 +451,7 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
 
     diff_quota = max(1, max_context // max(len(changes), 1))
     for path, old_path, change in changes:
-        old_entry = base_tree.get(old_path or path)
+        old_entry = change_base_tree.get(old_path or path)
         new_entry = head_tree.get(path)
         modes = (old_entry[0] if old_entry else None, new_entry[0] if new_entry else None)
         diff_bytes, diff_truncated = _git_limited(
@@ -451,10 +464,10 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
                 "--no-color",
                 "--find-renames",
                 "--unified=3",
-                base_sha,
+                change_base_sha,
                 head_sha,
                 "--",
-                path,
+                *([old_path, path] if pr_diff and old_path else [path]),
             ],
             min(remaining, diff_quota),
         )
@@ -504,7 +517,7 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
     file_sources = []
     for entry, (_path, old_path, _change) in zip(inventory, changes):
         path = entry["path"]
-        old_entry = base_tree.get(old_path or path)
+        old_entry = change_base_tree.get(old_path or path)
         new_entry = head_tree.get(path)
         for source_path, tree_entry, source_kind in (
             (old_path or path, old_entry, "base_file"),
@@ -531,7 +544,7 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
         )
         fair_share = file_available // max(1, len(file_sources) - index)
         data, _truncated = _git_limited(repo, ["cat-file", "blob", oid], fair_share)
-        source_rev = base_sha if source_kind == "base_file" else head_sha
+        source_rev = change_base_sha if source_kind == "base_file" else head_sha
         eid = add_evidence(
             source_path,
             data,
@@ -559,7 +572,7 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
             wanted_path, wanted_side, reason = entry["old_path"], "BASE", "rename_only_base_blob"
         else:
             wanted_path, wanted_side, reason = entry["path"], "HEAD", "changed_file_head_blob"
-        wanted_revision = base_sha if wanted_side == "BASE" else head_sha
+        wanted_revision = change_base_sha if wanted_side == "BASE" else head_sha
         anchor_evidence = next(
             (
                 evidence[eid]
@@ -732,8 +745,8 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
                     "BASE",
                     old_path or entry["path"],
                     entry["old_line_ranges"],
-                    base_tree.get(old_path or entry["path"]),
-                    base_sha,
+                    change_base_tree.get(old_path or entry["path"]),
+                    change_base_sha,
                 ),
                 ("HEAD", entry["path"], entry["changed_lines"], head_tree.get(entry["path"]), head_sha),
             )
@@ -887,8 +900,8 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
                 continue
             binding_id = "dependency-binding-" + _json_hash({"index": binding_index, "binding": binding})[:16]
             for side in binding["sides"]:
-                revision = base_sha if side == "BASE" else head_sha
-                tree = base_tree if side == "BASE" else head_tree
+                revision = change_base_sha if side == "BASE" else head_sha
+                tree = change_base_tree if side == "BASE" else head_tree
                 manifest_entry = tree.get(binding["manifest_path"])
                 reason = None
                 projection = None
@@ -1042,6 +1055,9 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
         "gaps": gaps,
         "trusted_context_refs": trusted_context_refs,
     }
+    if pr_diff:
+        payload["comparison_mode"] = "PR_MERGE_BASE"
+        payload["change_base_sha"] = change_base_sha
     return {"snapshot_id": snapshot_id, **payload, "snapshot_hash": _json_hash(payload)}
 
 
@@ -1055,7 +1071,7 @@ def recent_commits(repo: str, count: int, head: str = "HEAD") -> list[dict]:
     pairs = []
     for row in commits:
         sha = row[0]
-        if len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
+        if len(sha) not in {40, 64} or any(c not in "0123456789abcdef" for c in sha):
             raise SnapshotError("git returned an invalid commit identity")
         if len(row) == 1:
             continue

@@ -167,6 +167,40 @@ def test_v2_binds_primary_generated_assessment_separately_and_preserves_v1_contr
     assert captured["raw"] == prepared.request_bytes
 
 
+def test_pr_comparison_assessment_binds_merge_base_as_base_evidence():
+    from pr_review_harness.claim_transport import _parse_request
+
+    identity = {**_identity(), "change_base_sha": "c" * 40}
+    candidate = {**_candidate(), "evidence_refs": ["ev-base", "ev-current", "ev-head"]}
+    base_evidence = {**_evidence("ev-base", "BASE"), "source_revision": "c" * 40}
+    current_base_evidence = _evidence("ev-current", "BASE")
+    class FakeTransport:
+        def __call__(self, raw, _deadline, _cap):
+            _parse_request(raw)
+            return _envelope(raw)
+
+        def estimate_call(self, raw, _limits):
+            return {
+                "provider_calls": 1,
+                "input_bytes": len(raw),
+                "max_output_bytes": 4096,
+                "deadline_seconds": 1,
+            }
+
+    adapter = ClaimAssessmentAdapter(FakeTransport(), "jev-latest")
+    prepared = adapter.prepare(candidate, [base_evidence, current_base_evidence, _evidence()], identity, _limits())
+    request = _parse_request(prepared.request_bytes)
+    assert prepared.contract_version == "claim-assessment.3"
+    quote = adapter.estimate_prepared(prepared, _limits())
+    assert quote["provider_calls"] == 1
+    assert request["state"]["assessment_identity"] == identity
+    assert {item["side"] for item in request["state"]["cited_evidence"]} == {"BASE", "HEAD"}
+    assert all(question["type"] == "choice" for question in request["questions"].values())
+    result = adapter.assess_prepared(prepared, _limits())
+    assert result["contract_version"] == "claim-assessment.3"
+    assert result["status"] == "COMPLETE"
+
+
 def test_v2_rejects_primary_assessment_refs_without_delivered_source_records():
     primary = _primary_assessment()
     primary["causal_roles"]["consumer"]["evidence_refs"] = ["not-delivered"]

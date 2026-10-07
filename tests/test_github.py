@@ -51,6 +51,27 @@ def test_github_pr_metadata_is_bound_to_requested_repository_and_number():
     assert runner.calls[0][0] == ["gh", "api", "repos/owner/repo/pulls/7"]
 
 
+def test_github_comparison_returns_only_bound_merge_base_metadata():
+    runner = Runner([{"base_commit": {"sha": "a" * 40}, "merge_base_commit": {"sha": BASE}, "ahead_by": 3, "behind_by": 2}])
+    result = GitHubPRAdapter(runner).compare_revisions("owner/repo", "a" * 40, "b" * 40)
+    assert result == {"merge_base_sha": BASE, "ahead_by": 3, "behind_by": 2}
+    assert runner.calls[0][0] == ["gh", "api", f"repos/owner/repo/compare/{'a' * 40}...{'b' * 40}?per_page=1"]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"base_commit": {"sha": "a" * 40}, "merge_base_commit": {"sha": "not-a-sha"}, "ahead_by": 1, "behind_by": 1},
+        {"base_commit": {"sha": "a" * 40}, "merge_base_commit": {"sha": BASE}, "ahead_by": True, "behind_by": 1},
+        {"base_commit": {"sha": "a" * 40}, "merge_base_commit": {"sha": BASE}, "ahead_by": 10_000, "behind_by": 0},
+        {"base_commit": {"sha": "c" * 40}, "merge_base_commit": {"sha": BASE}, "ahead_by": 1, "behind_by": 1},
+    ],
+)
+def test_github_comparison_rejects_invalid_or_unbounded_metadata(response):
+    with pytest.raises(GitHubReadError):
+        GitHubPRAdapter(Runner([response])).compare_revisions("owner/repo", BASE, HEAD)
+
+
 def test_github_adapter_rejects_injection_and_identity_mismatch():
     adapter = GitHubPRAdapter(Runner([]))
     with pytest.raises(GitHubReadError):

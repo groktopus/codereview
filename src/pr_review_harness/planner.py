@@ -414,7 +414,7 @@ def _verified_prose_document(snapshot: dict, unit: dict) -> bool:
         }.get(unit.get("change"))
     path = unit.get("path")
     old_path = unit.get("old_path") or path
-    base_sha = snapshot.get("base_sha")
+    base_sha = snapshot.get("change_base_sha", snapshot.get("base_sha"))
     head_sha = snapshot.get("head_sha")
     snapshot_id = snapshot.get("snapshot_id")
     if not all(isinstance(value, str) and value for value in (path, base_sha, head_sha, snapshot_id)):
@@ -682,7 +682,10 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
                         _canonical({"index": binding_index, "binding": binding}).encode("utf-8")
                     ).hexdigest()[:16]
                     for side in binding["sides"]:
-                        revision = snapshot.get("base_sha" if side == "BASE" else "head_sha")
+                        revision = snapshot.get(
+                            "change_base_sha" if side == "BASE" and snapshot.get("comparison_mode") == "PR_MERGE_BASE"
+                            else "base_sha" if side == "BASE" else "head_sha"
+                        )
                         candidates = [
                             (evidence_id, item)
                             for evidence_id, item in evidence_map.items()

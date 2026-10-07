@@ -72,6 +72,103 @@ def test_snapshot_uses_immutable_objects_and_trusted_base_context(repo):
     assert snap["snapshot_hash"] and snap["snapshot_id"]
 
 
+def test_pr_snapshot_excludes_unrelated_changes_on_ahead_base_tip(tmp_path):
+    repo = tmp_path / "divergent"
+    subprocess.run(["git", "init", str(repo)], check=True, stdout=subprocess.DEVNULL)
+    git(repo, "config", "user.email", "fixture@example.invalid")
+    git(repo, "config", "user.name", "Fixture")
+    (repo / "shared.txt").write_text("common\n")
+    (repo / "policy.md").write_text("policy at fork\n")
+    (repo / "delete-me.txt").write_text("deleted by PR\n")
+    (repo / "old-name.txt").write_text("renamed by PR\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "common base")
+    common = git(repo, "rev-parse", "HEAD")
+
+    default_branch = git(repo, "branch", "--show-current")
+    git(repo, "checkout", default_branch)
+    (repo / "main-only.txt").write_text("unrelated default-branch change\n")
+    (repo / "policy.md").write_text("current trusted policy\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "advance default branch")
+    current_base = git(repo, "rev-parse", "HEAD")
+
+    git(repo, "checkout", "-b", "pr", common)
+    (repo / "pr-change.txt").write_text("intended pull request change\n")
+    (repo / "delete-me.txt").unlink()
+    (repo / "old-name.txt").rename(repo / "new-name.txt")
+    git(repo, "add", "-A")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "pull request change")
+    pr_head = git(repo, "rev-parse", "HEAD")
+    merge_base = git(repo, "merge-base", current_base, pr_head)
+    assert merge_base == common
+
+    profile = {
+        "version": "divergent-pr-v1",
+        "context_paths": ["policy.md"],
+        "trusted_policy_paths": ["policy.md"],
+    }
+    limits = {"max_context_bytes": 10_000}
+    snapshot = collect_snapshot(str(repo), current_base, pr_head, profile, limits, pr_diff=True)
+
+    # GitHub's PR `base.sha` is the current target-branch tip. The review
+    # inventory should reflect the PR-side changes from the merge base, while
+    # the current base revision remains available for policy/context/freshness.
+    assert snapshot["base_sha"] == current_base
+    assert snapshot["change_base_sha"] == common
+    by_path = {item["path"]: item for item in snapshot["inventory"]}
+    assert set(by_path) == {"pr-change.txt", "delete-me.txt", "new-name.txt"}
+    assert by_path["delete-me.txt"]["change_type"] == "delete"
+    assert by_path["new-name.txt"]["change_type"] == "rename"
+    for path, source_path in (("delete-me.txt", "delete-me.txt"), ("new-name.txt", "old-name.txt")):
+        unit = by_path[path]
+        anchor = unit["file_level_location"]
+        assert anchor["side"] == "BASE" and anchor["path"] == source_path, (path, unit, anchor)
+        anchor_evidence = snapshot["evidence"][anchor["evidence_id"]]
+        assert anchor_evidence["source_revision"] == common
+
+    policy_ref = snapshot["trusted_context_refs"][0]
+    policy_evidence = snapshot["evidence"][policy_ref]
+    assert policy_evidence["trust"] == "trusted_policy"
+    assert policy_evidence["source_revision"] == current_base
+    assert policy_evidence["content"] == "current trusted policy\n"
+
+    exact = collect_snapshot(str(repo), current_base, pr_head, profile, limits)
+    exact_paths = {item["path"] for item in exact["inventory"]}
+    assert "main-only.txt" in exact_paths
+    assert "change_base_sha" not in exact and "comparison_mode" not in exact
+
+    # Match the reusable workflow's bare, shallow, blob-filtered object store;
+    # lazy blob hydration must still support immutable snapshot evidence.
+    remote = tmp_path / "target.git"
+    subprocess.run(["git", "init", "--bare", str(remote)], check=True, stdout=subprocess.DEVNULL)
+    git(remote, "config", "uploadpack.allowFilter", "true")
+    git(repo, "remote", "add", "target", str(remote))
+    git(repo, "push", "target", f"{current_base}:refs/heads/main", f"{pr_head}:refs/pull/1/head")
+    store = tmp_path / "object-store.git"
+    subprocess.run(["git", "init", "--bare", str(store)], check=True, stdout=subprocess.DEVNULL)
+    for key, value in (
+        ("remote.origin.url", str(remote)),
+        ("remote.origin.promisor", "true"),
+        ("remote.origin.partialclonefilter", "blob:none"),
+        ("extensions.partialClone", "origin"),
+    ):
+        git(store, "config", key, value)
+    for depth, refspec in (
+        (2, "+refs/pull/1/head:refs/pr/head"),
+        (2, "+refs/heads/main:refs/pr/base"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(store), "fetch", "--no-tags", "--filter=blob:none", f"--depth={depth}", "origin", refspec],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+    filtered_snapshot = collect_snapshot(str(store), current_base, pr_head, profile, limits, pr_diff=True)
+    assert {item["path"] for item in filtered_snapshot["inventory"]} == set(by_path)
+    assert filtered_snapshot["evidence"][filtered_snapshot["trusted_context_refs"][0]]["content"] == "current trusted policy\n"
+
+
 def test_disabled_context_revision_metadata_preserves_legacy_snapshot_identity(repo):
     path, base, head = repo
     profile = {

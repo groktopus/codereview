@@ -596,7 +596,7 @@ def test_run_one_only_forwards_claim_options_when_enabled(tmp_path, monkeypatch,
     monkeypatch.setattr(
         cli,
         "collect_snapshot",
-        lambda *_args: {"head_sha": "head-sha", "snapshot_id": "snapshot-id", "evidence": {}},
+        lambda *_args, **_kwargs: {"head_sha": "head-sha", "snapshot_id": "snapshot-id", "evidence": {}},
     )
     monkeypatch.setattr(planner, "plan_review", lambda *_args: {"snapshot_id": "snapshot-id", "tasks": []})
     monkeypatch.setattr(checks, "GitHubCheckAdapter", lambda: object())
@@ -652,7 +652,7 @@ def _phase_aware_cli(monkeypatch, tmp_path, *, report_failure=None):
         "inventory": [],
     }
     monkeypatch.setattr(cli, "_configs", lambda _args: ({"version": "phase-test-v1"}, {}, None, None, None))
-    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: snapshot)
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args, **_kwargs: snapshot)
     monkeypatch.setattr(planner, "plan_review", lambda *_args: {"tasks": [], "coverage_obligations": []})
     monkeypatch.setattr(checks, "GitHubCheckAdapter", lambda: object())
     monkeypatch.setattr(evidence, "ContextRetriever", lambda *_args: object())
@@ -743,7 +743,7 @@ def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, mo
     repo, base, _head, profile_path = fixture_repo(tmp_path)
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
-    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("preflight must reject before snapshot"))
     monkeypatch.setattr(
         engine, "run_review", lambda *_args, **_kwargs: pytest.fail("preflight must reject before dispatch")
     )
@@ -779,7 +779,7 @@ def test_prepare_only_without_historical_checks_rejects_ambient_event(tmp_path, 
 
     repo, base, head, profile_path = fixture_repo(tmp_path)
     monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
-    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("preflight must reject before snapshot"))
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("preflight must reject before snapshot"))
     assert (
         cli.main(
             [
@@ -969,7 +969,7 @@ def test_run_one_fails_closed_for_positive_claim_cap_without_assessor(tmp_path, 
     from pr_review_harness import cli
 
     args = SimpleNamespace(effect_policy="READ_ONLY", repo=str(tmp_path))
-    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args: pytest.fail("snapshot collection must not start"))
+    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("snapshot collection must not start"))
     with pytest.raises(ValueError, match="requires a claim assessor"):
         cli._run_one(
             args,
@@ -1611,6 +1611,70 @@ def test_recovery_inputs_rebuild_original_snapshot_and_reject_check_drift(tmp_pa
         cli._run_one(args, base, head, profile, limits, provider, None, "pr-7-42", packet["event"], drifted)
     assert calls["count"] == original_calls
 
+
+def test_resume_rejects_a_changed_recomputed_pr_comparison_baseline(tmp_path, monkeypatch):
+    from pr_review_harness import cli
+    from pr_review_harness import snapshot as snapshot_module
+    from pr_review_harness.engine import EnginePreflightError
+
+    repo = tmp_path / "divergent-recovery"
+    subprocess.run(["git", "init", str(repo)], check=True, stdout=subprocess.DEVNULL)
+    git(repo, "config", "user.email", "fixture@example.invalid")
+    git(repo, "config", "user.name", "Fixture")
+    (repo / "AGENTS.md").write_text("Use current trusted policy.\n")
+    (repo / "old.txt").write_text("old\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "common")
+    common = git(repo, "rev-parse", "HEAD")
+    (repo / "main-only.txt").write_text("target-only\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "advance target")
+    current_base = git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "-b", "pr", common)
+    (repo / "old.txt").write_text("changed by pr\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "pr change")
+    head = git(repo, "rev-parse", "HEAD")
+    profile = {
+        "version": "baseline-recovery-v1",
+        "repository": "owner/project",
+        "required_lenses": ["correctness"],
+        "allow_empty_approval": True,
+        "context_paths": ["AGENTS.md"],
+        "trusted_policy_paths": ["AGENTS.md"],
+    }
+    limits = {
+        "deadline_seconds": 2,
+        "max_concurrent_scopes": 2,
+        "max_provider_calls": 4,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 32_000,
+        "max_input_bytes_per_task": 16_000,
+        "max_output_bytes_per_task": 4_000,
+        "max_output_bytes": 8_000,
+        "max_context_retrievals": 0,
+        "max_followup_tasks": 0,
+    }
+    args = SimpleNamespace(effect_policy="READ_ONLY", repo=str(repo), mode="AUTO", output=str(tmp_path / "review"), resume=False)
+    event = {"repository": "owner/project", "pull_request_number": 17, "event_id": "run-17", "base_sha": current_base, "head_sha": head}
+    monkeypatch.setattr(cli, "_freshness", lambda current_event, expected: _FakeFreshness(expected))
+    provider = _InertContextProvider()
+    first = cli._run_one(args, current_base, head, profile, limits, provider, None, "pr-17", event)
+    assert first["change_base_sha"] == common
+
+    original_git = snapshot_module._git
+    use_altered_baseline = {"value": False}
+
+    def altered_git(path, *git_args, **kwargs):
+        if use_altered_baseline["value"] and git_args[:2] == ("merge-base", "--all"):
+            return (current_base + "\n").encode()
+        return original_git(path, *git_args, **kwargs)
+
+    monkeypatch.setattr(snapshot_module, "_git", altered_git)
+    args.resume = True
+    use_altered_baseline["value"] = True
+    with pytest.raises(EnginePreflightError, match="resume request mismatch"):
+        cli._run_one(args, current_base, head, profile, limits, provider, None, "pr-17", event)
 
 def test_cli_capture_and_resume_flags_reuse_original_event_and_checks(tmp_path, monkeypatch, capsys):
     from pr_review_harness import cli, github
