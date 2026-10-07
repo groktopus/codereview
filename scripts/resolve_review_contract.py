@@ -36,6 +36,14 @@ CONTRACTS = {
         "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
         "max_claim_assessments": 4,
     },
+    "bounded-production-v17": {
+        "profile_path": "profiles/slopsearx-v17-context-target-manifest-candidate.json",
+        "limits_path": "profiles/ordinary-review-limits-v3.json",
+        "profile_version": "slopsearx-production-v17-context-target-manifest-candidate",
+        "profile_sha256": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
+        "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+        "max_claim_assessments": 4,
+    },
 }
 # Keep this Slop-only mapping stable for the separate central pilot admission
 # consumer. New target contracts are resolved through the target-scoped map.
@@ -51,7 +59,7 @@ CODE_REVIEW_CONTRACTS = {
 }
 ALL_CONTRACTS = {**CONTRACTS, **CODE_REVIEW_CONTRACTS}
 TARGET_CONTRACTS = {
-    "magnus919/SlopSearX": frozenset({"legacy-v14", "bounded-production-v16"}),
+    "magnus919/SlopSearX": frozenset({"legacy-v14", "bounded-production-v16", "bounded-production-v17"}),
     "groktopus/codereview": frozenset({"codereview-native-v1"}),
 }
 CODE_REVIEW_TARGET = "groktopus/codereview"
@@ -154,19 +162,31 @@ def resolve_review_contract(
             "max_input_bytes_per_task": 96_000,
         }:
             raise ProfileBindingError("review_contract_limits_mismatch")
-    elif review_contract == "bounded-production-v16":
+    elif review_contract in {"bounded-production-v16", "bounded-production-v17"}:
         selector = profile.get("context_selection")
         retrieval = profile.get("retrieval_revisions")
+        expected_status = (
+            "bounded_production_capacity_candidate_not_quality_validated"
+            if review_contract == "bounded-production-v16"
+            else "bounded_production_capacity_and_context_target_candidate_not_quality_validated"
+        )
+        expected_manifest = (
+            None
+            if review_contract == "bounded-production-v16"
+            else {"version": "context-target-manifest.v1", "max_entries": 256, "max_bytes": 16384}
+        )
         if (
-            profile.get("profile_status") != "bounded_production_capacity_candidate_not_quality_validated"
+            profile.get("profile_status") != expected_status
             or not isinstance(selector, dict)
             or selector.get("version") != "context-selection.v3"
             or selector.get("max_total_context_bytes") != 128_000
             or retrieval != {"implementation": "head", "test": "head"}
             or V16_RISK_RULE not in profile.get("risk_rules", [])
+            or profile.get("context_target_manifest") != expected_manifest
             or limits != V16_LIMITS
         ):
-            raise ProfileBindingError("review_contract_v16_contract_mismatch")
+            mismatch = "v16" if review_contract == "bounded-production-v16" else "v17"
+            raise ProfileBindingError(f"review_contract_{mismatch}_contract_mismatch")
     else:
         selector = profile.get("context_selection")
         required_checks = profile.get("required_checks")

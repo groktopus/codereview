@@ -21,6 +21,7 @@ V14_PROFILE = "profiles/slopsearx-v14-jev-reconciliation-candidate.json"
 V14_LIMITS = "profiles/ordinary-review-limits-v2.json"
 V16_PROFILE = "profiles/slopsearx-v16-bounded-production-candidate.json"
 V16_LIMITS = "profiles/ordinary-review-limits-v3.json"
+V17_PROFILE = "profiles/slopsearx-v17-context-target-manifest-candidate.json"
 
 
 def _root(tmp_path: Path) -> Path:
@@ -169,6 +170,31 @@ def test_v16_contract_rejects_changed_native_output_cap(tmp_path: Path, monkeypa
         resolve_review_contract(TARGET, "bounded-production-v16", root=root)
 
 
+def test_v17_contract_rejects_manifest_change_even_if_registry_digest_is_rebound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    root = _root(tmp_path)
+    profile_path = root / V17_PROFILE
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
+    profile = json.loads((Path(__file__).parents[1] / V17_PROFILE).read_text(encoding="utf-8"))
+    profile["context_target_manifest"]["max_entries"] = 257
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    limits_path = root / V16_LIMITS
+    limits_path.parent.mkdir(parents=True, exist_ok=True)
+    limits_path.write_bytes((Path(__file__).parents[1] / V16_LIMITS).read_bytes())
+    monkeypatch.setitem(
+        CONTRACTS,
+        "bounded-production-v17",
+        {
+            **CONTRACTS["bounded-production-v17"],
+            "profile_sha256": hashlib.sha256(profile_path.read_bytes()).hexdigest(),
+        },
+    )
+
+    with pytest.raises(ProfileBindingError, match="review_contract_v17_contract_mismatch"):
+        resolve_review_contract(TARGET, "bounded-production-v17", root=root)
+
+
 def test_v16_contract_rejects_untrusted_target_repository_before_file_reads(tmp_path: Path):
     root = tmp_path / "does-not-exist"
     with pytest.raises(ProfileBindingError, match="target_repository_unsupported"):
@@ -211,11 +237,29 @@ def test_codereview_contract_resolves_its_exact_profile_and_shared_finite_limits
     assert profile["review_criteria"]["project_specific"].startswith("Use AGENTS.md from the base revision")
 
 
+def test_v17_hosted_contract_resolves_only_its_exact_profile_and_manifest():
+    binding = resolve_review_contract(TARGET, "bounded-production-v17")
+    profile = json.loads((Path(__file__).parents[1] / V17_PROFILE).read_text(encoding="utf-8"))
+
+    assert binding["review_contract"] == "bounded-production-v17"
+    assert binding["profile_path"] == V17_PROFILE
+    assert binding["profile_version"] == "slopsearx-production-v17-context-target-manifest-candidate"
+    assert binding["profile_sha256"] == "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac"
+    assert binding["limits_path"] == V16_LIMITS
+    assert binding["limits_sha256"] == "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6"
+    assert binding["max_claim_assessments"] == "4"
+    assert profile["context_target_manifest"] == {
+        "version": "context-target-manifest.v1",
+        "max_entries": 256,
+        "max_bytes": 16_384,
+    }
+
+
 def test_target_contract_allowlist_keeps_slop_contracts_closed():
-    assert TARGET_CONTRACTS[TARGET] == frozenset({"legacy-v14", "bounded-production-v16"})
+    assert TARGET_CONTRACTS[TARGET] == frozenset({"legacy-v14", "bounded-production-v16", "bounded-production-v17"})
     assert TARGET_CONTRACTS[CODEREVIEW_TARGET] == frozenset({"codereview-native-v1"})
-    assert set(CONTRACTS) == {"legacy-v14", "bounded-production-v16"}
-    assert set(ALL_CONTRACTS) == {"legacy-v14", "bounded-production-v16", "codereview-native-v1"}
+    assert set(CONTRACTS) == {"legacy-v14", "bounded-production-v16", "bounded-production-v17"}
+    assert set(ALL_CONTRACTS) == {"legacy-v14", "bounded-production-v16", "bounded-production-v17", "codereview-native-v1"}
     assert CONTRACTS == {
         "legacy-v14": {
             "profile_path": V14_PROFILE,
@@ -230,6 +274,14 @@ def test_target_contract_allowlist_keeps_slop_contracts_closed():
             "limits_path": V16_LIMITS,
             "profile_version": "slopsearx-production-v16-bounded-production-candidate",
             "profile_sha256": "699f93fd7bc78d310de2455cad7402a1c3c8cf5ad61c3d4cbb77bb38da1189ed",
+            "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+            "max_claim_assessments": 4,
+        },
+        "bounded-production-v17": {
+            "profile_path": V17_PROFILE,
+            "limits_path": V16_LIMITS,
+            "profile_version": "slopsearx-production-v17-context-target-manifest-candidate",
+            "profile_sha256": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
             "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
             "max_claim_assessments": 4,
         },

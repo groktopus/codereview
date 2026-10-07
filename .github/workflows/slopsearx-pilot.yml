@@ -15,6 +15,7 @@ on:
         options:
           - legacy-v14
           - bounded-production-v16
+          - bounded-production-v17
 
 permissions:
   contents: read
@@ -121,10 +122,10 @@ jobs:
       checks: read
       pull-requests: read
       actions: read
-    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@9e2646d7c2ad7a443bcb3ef52ebb954090aab2ea
+    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@dd01a24976631c957a34f3ecc80dcb097948e450
     with:
       harness_repository: groktopus/codereview
-      harness_sha: 9e2646d7c2ad7a443bcb3ef52ebb954090aab2ea
+      harness_sha: dd01a24976631c957a34f3ecc80dcb097948e450
       target_repository: magnus919/SlopSearX
       pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
       base_ref: ${{ needs.resolve-target.outputs.base_ref }}
