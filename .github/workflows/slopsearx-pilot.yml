@@ -121,10 +121,10 @@ jobs:
       checks: read
       pull-requests: read
       actions: read
-    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@0379e2001eebc07981aa99553e832ea342d781a7
+    uses: groktopus/codereview/.github/workflows/pr-analysis.yml@a451acc2796ace9e3535a56c07684cc0be213c03
     with:
       harness_repository: groktopus/codereview
-      harness_sha: 0379e2001eebc07981aa99553e832ea342d781a7
+      harness_sha: a451acc2796ace9e3535a56c07684cc0be213c03
       target_repository: magnus919/SlopSearX
       pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
       base_ref: ${{ needs.resolve-target.outputs.base_ref }}
