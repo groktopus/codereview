@@ -1019,6 +1019,53 @@ def _unwrap(response: Any) -> tuple[dict, dict, dict]:
     return payload, usage, provenance
 
 
+def _settlement_observation(
+    stage: str,
+    usage: Any,
+    provenance: Any = None,
+    *,
+    call_elapsed_ms: float | None = None,
+    error_meta: Any = None,
+) -> dict:
+    """Project provider metadata into bounded scalar settlement facts only."""
+    exchange = None
+    for container in (provenance, error_meta):
+        if not isinstance(container, dict):
+            continue
+        candidate = container.get("local_http_exchange")
+        if not isinstance(candidate, dict) and isinstance(container.get("provenance"), dict):
+            candidate = container["provenance"].get("local_http_exchange")
+        if isinstance(candidate, dict):
+            exchange = candidate
+            break
+    exchange = exchange if isinstance(exchange, dict) else {}
+    exchange_elapsed = exchange.get("elapsed_ms")
+    safe_usage = usage if isinstance(usage, dict) else {}
+    observation = {
+        "stage": stage,
+        # A missing receipt is deliberately UNKNOWN, never inferred from an
+        # adapter return, exception, or worker launch.
+        "request_attempted": exchange.get("request_attempted")
+        if isinstance(exchange.get("request_attempted"), bool)
+        else None,
+        "http_status": exchange.get("http_status"),
+        "call_elapsed_ms": call_elapsed_ms,
+        "http_elapsed_ms": exchange_elapsed,
+        "usage_known": safe_usage.get("known") is True,
+    }
+    for field in ("prompt_tokens", "completion_tokens", "input_tokens", "output_tokens", "total_tokens"):
+        observation[field] = safe_usage.get(field)
+    return observation
+
+
+def _run_elapsed_ms(ledger: dict) -> float | None:
+    started = ledger.get("run_started_at_epoch")
+    if isinstance(started, bool) or not isinstance(started, (int, float)) or not math.isfinite(started):
+        return None
+    elapsed = (time.time() - started) * 1000
+    return round(elapsed, 2) if math.isfinite(elapsed) and elapsed >= 0 else None
+
+
 def safe_provider_error(exc: Exception) -> str | None:
     from .providers import ProviderError
 
@@ -1448,6 +1495,7 @@ def run_review(
     ledger = {
         "ledger_version": "0.2",
         "request_hash": request_hash,
+        "run_started_at_epoch": time.time(),
         "events": [],
         "outputs": {},
         "candidate_records": [],
@@ -2096,7 +2144,20 @@ def run_review(
             if capture_spec is not None:
                 private_capture.finalize_pending(capture_spec["call_id"], "failed")
             try:
-                budget.settle(reservation_key, output_bytes=None, usage={}, status="FAILED")
+                budget.settle(
+                    reservation_key,
+                    output_bytes=None,
+                    usage={},
+                    status="FAILED",
+                    observation=_settlement_observation(
+                        "deterministic_check"
+                        if is_check
+                        else "followup"
+                        if ":followup:" in task_id
+                        else "primary",
+                        {},
+                    ),
+                )
             except (ValueError, KeyError):
                 pass
             return {
@@ -2120,6 +2181,7 @@ def run_review(
             "attempt_index": attempt_index,
             "capture_spec": capture_spec,
             "started_at": _now(),
+            "started_monotonic": time.monotonic(),
         }
 
     def finish_attempt(prepared: dict) -> dict:
@@ -2186,7 +2248,22 @@ def run_review(
                             )
                     payload[field] = accepted
                 payload["quarantined_items"] = quarantined
-            budget.settle(key, output_bytes=len(_canonical(response)), usage=usage, status="SUCCEEDED")
+            budget.settle(
+                key,
+                output_bytes=len(_canonical(response)),
+                usage=usage,
+                status="SUCCEEDED",
+                observation=_settlement_observation(
+                    "deterministic_check"
+                    if prepared["is_check"]
+                    else "followup"
+                    if ":followup:" in prepared["task_id"]
+                    else "primary",
+                    usage,
+                    provenance,
+                    call_elapsed_ms=(time.monotonic() - prepared["started_monotonic"]) * 1000,
+                ),
+            )
             return {
                 "task_id": task_id,
                 "task_kind": prepared["kind"],
@@ -2237,6 +2314,16 @@ def run_review(
                     output_bytes=meta.get("actual_output_bytes") if isinstance(meta, dict) else None,
                     usage=usage,
                     status="INVALID" if isinstance(exc, ValueError) else "FAILED",
+                    observation=_settlement_observation(
+                        "deterministic_check"
+                        if prepared["is_check"]
+                        else "followup"
+                        if ":followup:" in prepared["task_id"]
+                        else "primary",
+                        usage,
+                        error_meta=meta,
+                        call_elapsed_ms=(time.monotonic() - prepared["started_monotonic"]) * 1000,
+                    ),
                 )
             except (ValueError, KeyError):
                 pass
@@ -2406,7 +2493,21 @@ def run_review(
                     "finished_at": _now(),
                 }
                 try:
-                    budget.settle(prepared["reservation_key"], output_bytes=None, usage={}, status="TIMED_OUT")
+                    budget.settle(
+                        prepared["reservation_key"],
+                        output_bytes=None,
+                        usage={},
+                        status="TIMED_OUT",
+                        observation=_settlement_observation(
+                            "deterministic_check"
+                            if prepared["is_check"]
+                            else "followup"
+                            if ":followup:" in prepared["task_id"]
+                            else "primary",
+                            {},
+                            call_elapsed_ms=(time.monotonic() - prepared["started_monotonic"]) * 1000,
+                        ),
+                    )
                 except (ValueError, KeyError):
                     pass
                 record_task_outcome(prepared["task"], outcome, prepared["reservation_key"])
@@ -3008,6 +3109,7 @@ def run_review(
             assessment = None
             semantic_result = None
             reservation_key = None
+            adjudication_started_monotonic = None
             adjudication_dispatch_started = False
             causal_roles_valid = False
             semantic_role_refs: set[str] = set()
@@ -3077,6 +3179,7 @@ def run_review(
                         if adjudication_deadline <= 0:
                             raise BudgetExhausted("DEADLINE_EXHAUSTED")
                         adjudication_dispatch_started = True
+                        adjudication_started_monotonic = time.monotonic()
                         response = isolated_call(
                             provider,
                             "adjudicate",
@@ -3131,6 +3234,14 @@ def run_review(
                             output_bytes=len(_canonical(response)),
                             usage=semantic_usage,
                             status="SUCCEEDED" if assessment.get("outcome") != "UNCERTAIN" else "INVALID",
+                            observation=_settlement_observation(
+                                "semantic_adjudication",
+                                semantic_usage,
+                                semantic_provenance,
+                                call_elapsed_ms=(time.monotonic() - adjudication_started_monotonic) * 1000
+                                if adjudication_started_monotonic is not None
+                                else None,
+                            ),
                         )
                 except Exception as exc:
                     if isinstance(exc, BudgetExhausted):
@@ -3188,6 +3299,14 @@ def run_review(
                                     "NOT_RUN"
                                     if isinstance(exc, BudgetExhausted) and not adjudication_dispatch_started
                                     else "FAILED"
+                                ),
+                                observation=_settlement_observation(
+                                    "semantic_adjudication",
+                                    semantic_usage,
+                                    error_meta=remote_meta,
+                                    call_elapsed_ms=(time.monotonic() - adjudication_started_monotonic) * 1000
+                                    if adjudication_started_monotonic is not None
+                                    else None,
                                 ),
                             )
                         except (ValueError, KeyError):
@@ -3433,6 +3552,7 @@ def run_review(
             checkpoint()
             prepared = None
             reservation = None
+            claim_call_started = None
             try:
                 call_limits = {
                     **limits,
@@ -3576,6 +3696,7 @@ def run_review(
                         "FRESHNESS_BUDGET_RESERVED" if freshness_reserve_seconds else "DEADLINE_EXHAUSTED"
                     )
                 started = time.monotonic()
+                claim_call_started = started
                 response = isolated_call(
                     claim_assessor,
                     "assess_prepared",
@@ -3655,7 +3776,15 @@ def run_review(
                 )
                 if not response_valid:
                     status = "FAILED"
-                budget.settle(reservation_key, output_bytes=output_bytes, usage=usage, status=status)
+                budget.settle(
+                    reservation_key,
+                    output_bytes=output_bytes,
+                    usage=usage,
+                    status=status,
+                    observation=_settlement_observation(
+                        "claim_assessment", usage, provenance, call_elapsed_ms=elapsed_ms
+                    ),
+                )
                 record_update = {
                     "status": status,
                     "normalized_result_hash": _hash(response),
@@ -3695,7 +3824,13 @@ def run_review(
                 )
                 if reservation is not None:
                     try:
-                        budget.settle(reservation_key, output_bytes=None, usage={}, status="NOT_RUN")
+                        budget.settle(
+                            reservation_key,
+                            output_bytes=None,
+                            usage={},
+                            status="NOT_RUN",
+                            observation=_settlement_observation("claim_assessment", {}),
+                        )
                     except (ValueError, KeyError):
                         pass
                 claim_rows[candidate_id].update(
@@ -3730,6 +3865,14 @@ def run_review(
                             output_bytes=settlement_bytes,
                             usage=meta.get("usage", {}) if isinstance(meta.get("usage"), dict) else {},
                             status="INTERRUPTED_UNKNOWN" if uncertain else "FAILED",
+                            observation=_settlement_observation(
+                                "claim_assessment",
+                                meta.get("usage", {}) if isinstance(meta.get("usage"), dict) else {},
+                                error_meta=meta,
+                                call_elapsed_ms=(time.monotonic() - claim_call_started) * 1000
+                                if claim_call_started is not None
+                                else None,
+                            ),
                         )
                     except (ValueError, KeyError):
                         pass
@@ -4180,6 +4323,7 @@ def run_review(
     result = {
         "contract_version": "0.1",
         "run_id": run_id,
+        "run_elapsed_ms": _run_elapsed_ms(ledger),
         "snapshot_id": snapshot.get("snapshot_id"),
         "base_sha": snapshot.get("base_sha"),
         "head_sha": snapshot.get("head_sha"),
@@ -4267,6 +4411,7 @@ def run_review(
             + 1
         )
         reservation_key = f"system-one:advisory:{advisory_attempt}"
+        advisory_call_started = None
         try:
             advisory_text = json.dumps(
                 {
@@ -4294,6 +4439,7 @@ def run_review(
                 if required_claim_deadline_floor() > 0:
                     raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED")
                 raise BudgetExhausted("DEADLINE_EXHAUSTED")
+            advisory_call_started = time.monotonic()
             response = isolated_call(
                 decision_provider,
                 "assess",
@@ -4307,7 +4453,20 @@ def run_review(
                 lock=call_lock,
             )
             payload, usage, provenance = _unwrap(response)
-            budget.settle(reservation_key, output_bytes=len(_canonical(response)), usage=usage, status="SUCCEEDED")
+            budget.settle(
+                reservation_key,
+                output_bytes=len(_canonical(response)),
+                usage=usage,
+                status="SUCCEEDED",
+                observation=_settlement_observation(
+                    "advisory",
+                    usage,
+                    provenance,
+                    call_elapsed_ms=(time.monotonic() - advisory_call_started) * 1000
+                    if advisory_call_started is not None
+                    else None,
+                ),
+            )
             advisory_assessment = {
                 "status": "RECEIVED",
                 "result": payload,
@@ -4320,7 +4479,13 @@ def run_review(
                 and reservation_key not in budget.state.get("settlements", {})
             ):
                 try:
-                    budget.settle(reservation_key, output_bytes=None, usage={}, status="NOT_RUN")
+                    budget.settle(
+                        reservation_key,
+                        output_bytes=None,
+                        usage={},
+                        status="NOT_RUN",
+                        observation=_settlement_observation("advisory", {}),
+                    )
                 except (ValueError, KeyError):
                     pass
             advisory_assessment = {"status": "NOT_RUN", "reason": str(exc)}
@@ -4333,6 +4498,14 @@ def run_review(
                     output_bytes=meta.get("actual_output_bytes") if isinstance(meta, dict) else None,
                     usage=usage,
                     status="FAILED",
+                    observation=_settlement_observation(
+                        "advisory",
+                        usage,
+                        error_meta=meta,
+                        call_elapsed_ms=(time.monotonic() - advisory_call_started) * 1000
+                        if advisory_call_started is not None
+                        else None,
+                    ),
                 )
             except (ValueError, KeyError):
                 pass
@@ -4343,6 +4516,10 @@ def run_review(
                 "usage": usage,
             }
     result["advisory_assessment"] = advisory_assessment
+    # The deterministic report is assembled before the optional System One
+    # advisory call; finalize elapsed at the actual end of the run.
+    result["run_elapsed_ms"] = _run_elapsed_ms(ledger)
+    result["completed_at"] = _now()
     result["budget"] = budget.summary()
     ledger["outputs"] = task_results
     ledger["findings"] = findings
