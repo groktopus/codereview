@@ -160,7 +160,7 @@ def _fake_invoker(
 
 
 def _run(
-    prepared_inputs, monkeypatch, invoke, *, env=None, output_name="trial-output", plan_path=None
+    prepared_inputs, monkeypatch, invoke, *, env=None, output_name="trial-output", plan_path=None, version="v1"
 ):
     _runtime(monkeypatch, prepared_inputs["cli"])
     monkeypatch.setattr(trial, "MATRIX_TIMEOUT_SECONDS", 940)
@@ -173,6 +173,7 @@ def _run(
         environ=prepared_inputs["env"] if env is None else env,
         invoke=invoke,
         prepared_plan=prepared_inputs["plan_path"] if plan_path is None else plan_path,
+        version=version,
     )
 
 
@@ -309,6 +310,43 @@ def test_clean_control_claim_binds_to_its_real_changed_unit_and_snapshot(prepare
     assert claim["candidate_location"]["path"] == prepared_inputs["snapshots"][CASE_IDS[2]]["inventory"][0]["path"]
     assert claim["evidence_binding"] == "MATCH_RESULT_EVIDENCE_INDEX"
     assert claim["identity_binding"] == "MATCH_CONFIGURED_ALIAS_AND_ENDPOINT_PROVENANCE"
+
+
+def test_classifier_export_status_distinguishes_v2_contract_exclusion():
+    assert trial._injection_classifier_status(trial.trial_contract("v1")) == (
+        "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED"
+    )
+    assert trial._injection_classifier_status(trial.trial_contract("v2")) == "DISABLED_BY_V2_CONTRACT"
+
+
+def test_v2_export_reports_classifier_disabled_by_contract(prepared_inputs, monkeypatch):
+    prepared = prepare_trial(prepared_inputs["tmp_path"] / "prepared-v2", root=ROOT, version="v2")
+    plan_path = Path(prepared["plan_path"])
+    plan = json.loads(plan_path.read_bytes())
+    snapshots = {}
+    frozen = plan["frozen_inputs"]
+    profile = json.loads((plan_path.parent / frozen["profile_path"]).read_bytes())
+    limits = json.loads((plan_path.parent / frozen["limits_path"]).read_bytes())
+    for case_id in CASE_IDS:
+        case = frozen["cases"][case_id]
+        repo = plan_path.parent / case["repository_path"]
+        snapshots[case_id] = collect_snapshot(str(repo), case["base_sha"], case["head_sha"], profile, limits)
+    inputs = {**prepared_inputs, "plan_path": plan_path, "plan": plan}
+    calls = []
+    result = _run(
+        inputs,
+        monkeypatch,
+        _fake_invoker(plan, calls, snapshots=snapshots),
+        output_name="v2-trial-output",
+        version="v2",
+    )
+    assert result["status"] == "INCOMPLETE"
+    manifest = json.loads((prepared_inputs["tmp_path"] / "v2-trial-output" / "manifest.json").read_bytes())
+    assert manifest["injection_classifier"] == "DISABLED_BY_V2_CONTRACT"
+    assert manifest["jev_injection_classifier"] == {
+        "status": "DISABLED_BY_V2_CONTRACT",
+        "calls_max": 0,
+    }
 
 
 def test_second_prepared_descriptor_mismatch_stops_before_any_review(prepared_inputs, monkeypatch):
