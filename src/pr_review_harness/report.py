@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import html
-import json
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -17,6 +15,11 @@ def render_report(result: dict) -> str:
         for char in ("|", "<", ">", "`", "[", "]", "(", ")", "#", "*", "_", "!"):
             value = value.replace(char, "\\" + char)
         return value
+
+    def string_values(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, str) and item]
 
     def source_link(path: str, side: str, line: int | None) -> str:
         repository = result.get("repository_url") or result.get("snapshot", {}).get("repository_url")
@@ -162,10 +165,47 @@ def render_report(result: dict) -> str:
         lines.append(
             f"{unresolved_findings} unverified claims remain in the durable result and are not presented as recommendations."
         )
-    lines.extend(("", "<details>", f"<summary>Full coverage ledger ({len(coverage_rows)} obligations)</summary>", ""))
+    evidence_ids = sorted(
+        {
+            evidence_id
+            for row in coverage_rows
+            for evidence_id in string_values(row.get("evidence_refs"))
+        }
+    )
+    evidence_labels = {evidence_id: f"E{index:04d}" for index, evidence_id in enumerate(evidence_ids, start=1)}
+    lines.extend(
+        (
+            "",
+            "<details>",
+            f"<summary>Coverage ledger ({len(coverage_rows)} obligations)</summary>",
+            "",
+            "| Required | Obligation | Lens | Scope units | State | Reason | Tasks | Context gaps | Evidence refs |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        )
+    )
     for row in coverage_rows:
-        serialized = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        lines.extend(("<pre><code>", html.escape(serialized, quote=True), "</code></pre>"))
+        row_evidence_ids = string_values(row.get("evidence_refs"))
+        evidence_refs = ", ".join(
+            evidence_labels[evidence_id]
+            for evidence_id in row_evidence_ids
+            if evidence_id in evidence_labels
+        )
+        cells = (
+            safe(row.get("required", True)),
+            safe(row.get("obligation_id", "")),
+            safe(row.get("lens", "")),
+            safe(", ".join(string_values(row.get("scope_unit_ids")))),
+            safe(row.get("state", "")),
+            safe(row.get("reason_code", "")),
+            safe(", ".join(string_values(row.get("task_ids")))),
+            safe(", ".join(string_values(row.get("context_gap_ids")))),
+            safe(evidence_refs),
+        )
+        lines.append("| " + " | ".join(cells) + " |")
+    if evidence_labels:
+        lines.extend(("", "Evidence reference index:"))
+        for evidence_id in evidence_ids:
+            lines.append(f"- {evidence_labels[evidence_id]} = {safe(evidence_id)}")
     lines.extend(("", "</details>"))
     return "\n".join(lines).rstrip() + "\n"
 

@@ -316,11 +316,109 @@ def test_partial_report_keeps_canonical_blocker_and_full_coverage_ledger_visible
     assert r"PR review coverage-report-test: REQUEST\_CHANGES" in rendered
     assert "0 complete, 11 partial, 0 not started across 11 obligations." in rendered
     assert "3 more unresolved obligations are listed in the full coverage ledger below." in rendered
-    assert "<summary>Full coverage ledger (11 obligations)</summary>" in rendered
-    assert "obligation-&lt;script&gt;alert(1)&lt;/script&gt;" in rendered
+    assert "Coverage ledger (11 obligations)" in rendered
+    assert "<summary>Coverage ledger (11 obligations)</summary>" in rendered
+    assert r"obligation-\<script\>alert\(1\)\</script\>" in rendered
     assert "task-secret-looking-but-not-secret" in rendered
     assert "## Blockers" in rendered and "Reject invalid caller input" in rendered
     assert rendered.count("## ") == 4
+    assert "<pre><code>" not in rendered
+
+
+def test_compact_ledger_preserves_all_obligations_and_stable_evidence_mapping():
+    result = blocker_result()
+    result["coverage_ledger"] = []
+    states = ("COMPLETE", "PARTIAL", "NOT_STARTED")
+    lenses = ("correctness", "tests", "security", "project_specific")
+    for index in range(48):
+        refs = [f"ev-{(index + offset) % 53:03d}" for offset in range(4)]
+        result["coverage_ledger"].append(
+            {
+                "obligation_id": f"unit:unit-{index:03d}:lens:{lenses[index % len(lenses)]}",
+                "obligation_kind": "CHANGED_UNIT_LENS" if index % 3 else "REQUIRED_CONTEXT",
+                "required": index % 7 != 0,
+                "scope_unit_ids": [f"unit-{index:03d}"],
+                "lens": lenses[index % len(lenses)],
+                "task_ids": [f"task-{index:03d}:chunk-{index % 2 + 1}"],
+                "state": states[index % len(states)],
+                "reason_code": "PARTIAL_REVIEW_COVERAGE" if index % 3 else "café_context_gap_<review>",
+                "context_gap_ids": [f"gap-{index:03d}"] if index % 3 else [],
+                "evidence_refs": refs,
+            }
+        )
+
+    rendered = render_report(result)
+    evidence_ids = sorted(
+        {
+            evidence_id
+            for row in result["coverage_ledger"]
+            for evidence_id in row["evidence_refs"]
+        }
+    )
+    header = [
+        "Required",
+        "Obligation",
+        "Lens",
+        "Scope units",
+        "State",
+        "Reason",
+        "Tasks",
+        "Context gaps",
+        "Evidence refs",
+    ]
+    table_rows = {}
+    in_table = False
+    for line in rendered.splitlines():
+        if line.startswith("| Required | Obligation |"):
+            in_table = True
+            continue
+        if in_table and line.startswith("| --- |"):
+            continue
+        if in_table and line.startswith("| "):
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            table_rows[cells[1]] = dict(zip(header, cells, strict=True))
+            continue
+        if in_table:
+            break
+    evidence_index = {
+        alias: evidence_id
+        for line in rendered.splitlines()
+        if line.startswith("- E")
+        for alias, evidence_id in [line[2:].split(" = ", 1)]
+    }
+    assert evidence_index == {
+        f"E{position:04d}": evidence_id
+        for position, evidence_id in enumerate(evidence_ids, start=1)
+    }
+
+    def safe_cell(value):
+        value = str(value if value is not None else "").replace("\r", " ").replace("\n", " ")
+        for char in ("|", "<", ">", "`", "[", "]", "(", ")", "#", "*", "_", "!"):
+            value = value.replace(char, "\\" + char)
+        return value
+
+    assert len(rendered.encode("utf-8")) < 60_000
+    assert "Coverage ledger (48 obligations)" in rendered
+    assert "<summary>Coverage ledger (48 obligations)</summary>" in rendered
+    assert "<pre><code>" not in rendered
+    assert r"café\_context\_gap\_\<review\>" in rendered
+    assert "| Required | Obligation | Lens | Scope units | State | Reason | Tasks | Context gaps | Evidence refs |" in rendered
+    assert "## Blockers" in rendered and "Reject invalid caller input" in rendered
+    for row in result["coverage_ledger"]:
+        rendered_row = table_rows[safe_cell(row["obligation_id"])]
+        assert rendered_row["Required"] == safe_cell(row["required"])
+        assert rendered_row["Lens"] == safe_cell(row["lens"])
+        assert rendered_row["Scope units"] == safe_cell(", ".join(row["scope_unit_ids"]))
+        assert rendered_row["State"] == safe_cell(row["state"])
+        assert rendered_row["Reason"] == safe_cell(row["reason_code"])
+        assert rendered_row["Tasks"] == safe_cell(", ".join(row["task_ids"]))
+        assert rendered_row["Context gaps"] == safe_cell(", ".join(row["context_gap_ids"]))
+        rendered_refs = [
+            evidence_index[alias]
+            for alias in rendered_row["Evidence refs"].split(", ")
+            if alias
+        ]
+        assert rendered_refs == row["evidence_refs"]
 
 
 def test_report_rejects_malformed_coverage_ledger_instead_of_rendering_partial_inventory():
