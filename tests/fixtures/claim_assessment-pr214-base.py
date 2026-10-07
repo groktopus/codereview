@@ -20,7 +20,6 @@ from .contracts import MAX_REF_COUNT, ContractIssue, validate_adjudication
 
 CONTRACT_VERSION = "claim-assessment.1"
 PRIMARY_ASSESSMENT_CONTRACT_VERSION = "claim-assessment.2"
-PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION = "claim-assessment.3"
 _PRIMARY_ASSESSMENT_SOURCE_CONTRACT = "semantic-adjudication.v3"
 NATIVE_CONTRACT = "system-one-choice-v1"
 _DIMENSIONS = {
@@ -235,7 +234,7 @@ def _question_id(candidate_id: str, dimension: str, contract_version: str = CONT
 
 def _validate_identity(identity: Mapping[str, Any]) -> None:
     required = {"snapshot_id", "snapshot_hash", "profile_id", "profile_hash", "base_sha", "head_sha"}
-    if frozenset(identity) not in {frozenset(required), frozenset(required | {"change_base_sha"})}:
+    if set(identity) != required:
         raise ClaimAssessmentError("invalid_assessment_identity_fields")
     for key in ("snapshot_id", "profile_id"):
         if not _valid_text(identity[key], 256):
@@ -247,11 +246,6 @@ def _validate_identity(identity: Mapping[str, Any]) -> None:
         if not isinstance(identity[key], str) or not re.fullmatch(r"[0-9a-f]{40,64}", identity[key]):
             raise ClaimAssessmentError("invalid_revision_identity")
     if identity["base_sha"] == identity["head_sha"]:
-        raise ClaimAssessmentError("invalid_revision_identity")
-    if "change_base_sha" in identity and (
-        not isinstance(identity["change_base_sha"], str)
-        or not re.fullmatch(r"[0-9a-f]{40,64}", identity["change_base_sha"])
-    ):
         raise ClaimAssessmentError("invalid_revision_identity")
 
 
@@ -298,8 +292,6 @@ def _candidate_state(
 
     cited: list[dict[str, Any]] = []
     sides: set[str] = set()
-    cited_revisions: set[str] = set()
-    comparison_base = identity.get("change_base_sha", identity["base_sha"])
     for evidence_id in all_refs:
         item = by_id[evidence_id]
         if item.get("snapshot_id") is not None and item.get("snapshot_id") != identity["snapshot_id"]:
@@ -338,17 +330,12 @@ def _candidate_state(
         }:
             raise ClaimAssessmentError("invalid_evidence_source_kind")
         source_revision = item.get("source_revision")
-        base_revisions = {identity["base_sha"]}
-        if isinstance(identity.get("change_base_sha"), str):
-            base_revisions.add(identity["change_base_sha"])
-        if source_revision in base_revisions:
+        if source_revision == identity["base_sha"]:
             side = "BASE"
             sides.add(side)
-            cited_revisions.add(source_revision)
         elif source_revision == identity["head_sha"]:
             side = "HEAD"
             sides.add(side)
-            cited_revisions.add(source_revision)
         else:
             side = None
         cited.append(
@@ -370,7 +357,7 @@ def _candidate_state(
         },
         "cited_evidence": cited,
     }
-    return state, {comparison_base, identity["head_sha"]} <= cited_revisions, tuple(all_refs)
+    return state, sides == {"BASE", "HEAD"}, tuple(all_refs)
 
 
 def _validate_primary_assessment(assessment: Mapping[str, Any], allowed_evidence_refs: set[str]) -> dict[str, Any]:
@@ -478,7 +465,7 @@ def _questions(
             f"Return the best category for {dimension}. Do not infer facts absent from the evidence. "
             "This is an advisory evidence judgment; do not choose an action, disposition, workflow, or retrieval request."
         )
-        if contract_version in {PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION}:
+        if contract_version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
             instruction = (
                 f"For candidate {candidate_id!r}, independently assess only the supplied candidate and its exact cited "
                 f"source evidence. A separately labeled prior model assessment is context about another model's judgment, "
@@ -524,10 +511,6 @@ class ClaimAssessmentAdapter:
             "provider_id": "typesafe-claim-assessment",
             "configured_model_id": self.configured_model,
             "contract_version": PRIMARY_ASSESSMENT_CONTRACT_VERSION,
-            "supported_contract_versions": [
-                PRIMARY_ASSESSMENT_CONTRACT_VERSION,
-                PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION,
-            ],
             "native_contract": NATIVE_CONTRACT,
             "transport": transport_identity,
         }
@@ -536,9 +519,7 @@ class ClaimAssessmentAdapter:
         """Validate exact prepared bytes and their metadata without transport use."""
         if (
             not isinstance(prepared, PreparedClaimAssessment)
-            or prepared.contract_version not in {
-                CONTRACT_VERSION, PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION
-            }
+            or prepared.contract_version not in {CONTRACT_VERSION, PRIMARY_ASSESSMENT_CONTRACT_VERSION}
             or not isinstance(prepared.request_bytes, bytes)
             or len(prepared.request_bytes) > _MAX_REQUEST_BYTES
             or not isinstance(prepared.request_hash, str)
@@ -592,14 +573,8 @@ class ClaimAssessmentAdapter:
         ):
             raise ClaimAssessmentError("invalid_prepared_assessment")
         expected_state_fields = {"assessment_identity", "candidate", "cited_evidence"}
-        if prepared.contract_version == PRIMARY_ASSESSMENT_CONTRACT_VERSION or (
-            prepared.contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION
-            and isinstance(state, dict)
-            and "primary_assessment" in state
-        ):
+        if prepared.contract_version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
             expected_state_fields |= {"assessment_contract_version", "primary_assessment"}
-        elif prepared.contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION:
-            expected_state_fields.add("assessment_contract_version")
         if not isinstance(state, dict) or set(state) != expected_state_fields:
             raise ClaimAssessmentError("invalid_prepared_assessment")
         candidate_state = state.get("candidate")
@@ -619,14 +594,6 @@ class ClaimAssessmentAdapter:
             raise ClaimAssessmentError("invalid_prepared_assessment") from None
         if prepared.contract_version == CONTRACT_VERSION:
             if prepared.primary_assessment_hash is not None:
-                raise ClaimAssessmentError("invalid_prepared_assessment")
-        elif prepared.contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION and "primary_assessment" not in state:
-            if (
-                set(state) != {"assessment_identity", "candidate", "cited_evidence", "assessment_contract_version"}
-                or state.get("assessment_contract_version") != PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION
-                or "change_base_sha" not in identity_record
-                or prepared.primary_assessment_hash is not None
-            ):
                 raise ClaimAssessmentError("invalid_prepared_assessment")
         else:
             primary = state.get("primary_assessment")
@@ -648,7 +615,7 @@ class ClaimAssessmentAdapter:
                     "assessment_contract_version",
                     "primary_assessment",
                 }
-                or state.get("assessment_contract_version") != prepared.contract_version
+                or state.get("assessment_contract_version") != PRIMARY_ASSESSMENT_CONTRACT_VERSION
                 or set(candidate_state)
                 != {"candidate_id", "title", "observation", "consequence", "rule_or_contract", "evidence_refs"}
                 or not isinstance(primary, dict)
@@ -679,8 +646,6 @@ class ClaimAssessmentAdapter:
         ):
             raise ClaimAssessmentError("invalid_prepared_assessment")
         identity_fields = ("snapshot_id", "snapshot_hash", "profile_id", "profile_hash", "base_sha", "head_sha")
-        if isinstance(identity_record, dict) and "change_base_sha" in identity_record:
-            identity_fields = (*identity_fields, "change_base_sha")
         if not isinstance(identity_record, dict) or set(identity_record) != set(identity_fields):
             raise ClaimAssessmentError("invalid_prepared_assessment")
         identity_record = {key: identity_record[key] for key in identity_fields}
@@ -732,7 +697,7 @@ class ClaimAssessmentAdapter:
         """Quote the exact prepared request and separate wire response from IPC output bounds."""
         if (
             not isinstance(prepared, PreparedClaimAssessment)
-            or prepared.contract_version not in {PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION}
+            or prepared.contract_version != PRIMARY_ASSESSMENT_CONTRACT_VERSION
             or not isinstance(limits, Mapping)
         ):
             raise ClaimAssessmentError("invalid_prepared_assessment")
@@ -792,26 +757,21 @@ class ClaimAssessmentAdapter:
         input_cap, _output_cap, _deadline_seconds = _limits(limits)
         extra_refs = _primary_reference_ids(primary_assessment) if primary_assessment is not None else []
         state, has_revision_pair, cited_refs = _candidate_state(candidate, evidence, identity, extra_refs)
-        contract_version = PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION if "change_base_sha" in identity else CONTRACT_VERSION
+        contract_version = CONTRACT_VERSION
         primary_hash = None
         if primary_assessment is not None:
             normalized = _validate_primary_assessment(primary_assessment, set(cited_refs))
             primary_hash = _sha(_canonical(normalized))
-            state["assessment_contract_version"] = contract_version if contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION else PRIMARY_ASSESSMENT_CONTRACT_VERSION
+            state["assessment_contract_version"] = PRIMARY_ASSESSMENT_CONTRACT_VERSION
             state["candidate"]["evidence_refs"] = list(candidate["evidence_refs"])
             state["primary_assessment"] = normalized
-            contract_version = state["assessment_contract_version"]
-        elif contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION:
-            state["assessment_contract_version"] = contract_version
+            contract_version = PRIMARY_ASSESSMENT_CONTRACT_VERSION
         questions, dimension_ids = _questions(candidate["candidate_id"], has_revision_pair, contract_version)
         if len(questions) > _MAX_QUESTIONS:
             raise ClaimAssessmentError("question_limit_exceeded")
         identity_record = {
             key: identity[key]
-            for key in (
-                "snapshot_id", "snapshot_hash", "profile_id", "profile_hash", "base_sha", "head_sha",
-                *(('change_base_sha',) if "change_base_sha" in identity else ()),
-            )
+            for key in ("snapshot_id", "snapshot_hash", "profile_id", "profile_hash", "base_sha", "head_sha")
         }
         state["assessment_identity"] = identity_record
         request: dict[str, Any] = {"model": self.configured_model, "state": state, "questions": questions}
@@ -928,7 +888,7 @@ class ClaimAssessmentAdapter:
 
         actual_model = envelope.get("model")
         model_valid = isinstance(actual_model, str) and bool(actual_model.strip()) and len(actual_model) <= 256
-        if prepared.contract_version in {PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION}:
+        if prepared.contract_version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
             provenance.pop("provider_model_id", None)
             model_valid = bool(
                 model_valid

@@ -14,7 +14,6 @@ from urllib.request import Request
 
 from .claim_assessment import (
     CONTRACT_VERSION,
-    PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION,
     PRIMARY_ASSESSMENT_CONTRACT_VERSION,
     _questions,
     _validate_primary_assessment,
@@ -104,20 +103,14 @@ def _parse_request(raw: bytes) -> dict[str, Any]:
 def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> None:
     version = state.get("assessment_contract_version", CONTRACT_VERSION)
     expected_fields = {"assessment_identity", "candidate", "cited_evidence"}
-    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION or (
-        version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION and "primary_assessment" in state
-    ):
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
         expected_fields |= {"assessment_contract_version", "primary_assessment"}
-    elif version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION:
-        expected_fields.add("assessment_contract_version")
     elif version != CONTRACT_VERSION:
         raise ProviderError("unsupported_native_operation")
     if set(state) != expected_fields:
         raise ProviderError("unsupported_native_operation")
     identity = state["assessment_identity"]
     identity_fields = {"snapshot_id", "snapshot_hash", "profile_id", "profile_hash", "base_sha", "head_sha"}
-    if version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION:
-        identity_fields.add("change_base_sha")
     if not isinstance(identity, dict) or set(identity) != identity_fields:
         raise ProviderError("invalid_claim_identity")
     for key in ("snapshot_id", "profile_id"):
@@ -131,17 +124,10 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
             raise ProviderError("invalid_claim_identity")
     if identity["base_sha"] == identity["head_sha"]:
         raise ProviderError("invalid_claim_identity")
-    if version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION and (
-        not isinstance(identity.get("change_base_sha"), str)
-        or not re.fullmatch(r"[0-9a-f]{40,64}", identity["change_base_sha"])
-    ):
-        raise ProviderError("invalid_claim_identity")
 
     candidate = state["candidate"]
     candidate_fields = {"candidate_id", "title", "observation", "consequence", "rule_or_contract"}
-    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION or (
-        version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION and "primary_assessment" in state
-    ):
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
         candidate_fields.add("evidence_refs")
     if not isinstance(candidate, dict) or set(candidate) != candidate_fields:
         raise ProviderError("invalid_claim_candidate")
@@ -227,10 +213,9 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
         revision = item["source_revision"]
         if revision is not None and (not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40,64}", revision)):
             raise ProviderError("invalid_claim_evidence")
-        base_revisions = {identity["base_sha"]}
-        if isinstance(identity.get("change_base_sha"), str):
-            base_revisions.add(identity["change_base_sha"])
-        expected_side = "BASE" if revision in base_revisions else "HEAD" if revision == identity["head_sha"] else None
+        expected_side = (
+            "BASE" if revision == identity["base_sha"] else "HEAD" if revision == identity["head_sha"] else None
+        )
         if item["side"] != expected_side:
             raise ProviderError("invalid_claim_evidence")
         if expected_side:
@@ -249,14 +234,12 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
             raise ProviderError("invalid_claim_evidence")
     expected_questions, _ids = _questions(
         candidate_id,
-        {identity.get("change_base_sha", identity["base_sha"]), identity["head_sha"]} <= revisions,
+        revisions == {identity["base_sha"], identity["head_sha"]},
         version,
     )
     if questions != expected_questions:
         raise ProviderError("unsupported_native_operation")
-    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION or (
-        version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION and "primary_assessment" in state
-    ):
+    if version == PRIMARY_ASSESSMENT_CONTRACT_VERSION:
         try:
             primary = _validate_primary_assessment(state.get("primary_assessment"), set(evidence_ids))
         except Exception:

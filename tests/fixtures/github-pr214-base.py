@@ -195,38 +195,6 @@ class GitHubPRAdapter:
             "url": data.get("html_url"),
         }
 
-    def compare_revisions(self, repository: str, base_sha: str, head_sha: str) -> dict:
-        """Return bounded metadata from GitHub's BASE...HEAD comparison."""
-        if (
-            not isinstance(repository, str)
-            or not _REPOSITORY.fullmatch(repository)
-            or not isinstance(base_sha, str)
-            or not _SHA.fullmatch(base_sha)
-            or not isinstance(head_sha, str)
-            or not _SHA.fullmatch(head_sha)
-        ):
-            raise GitHubReadError("comparison identity is invalid")
-        data = self._api_json(f"repos/{repository}/compare/{base_sha}...{head_sha}?per_page=1")
-        returned_base = data.get("base_commit", {}).get("sha") if isinstance(data.get("base_commit"), dict) else None
-        merge_base = data.get("merge_base_commit", {}).get("sha") if isinstance(data.get("merge_base_commit"), dict) else None
-        ahead_by, behind_by = data.get("ahead_by"), data.get("behind_by")
-        if (
-            not isinstance(merge_base, str)
-            or not _SHA.fullmatch(merge_base)
-            or returned_base != base_sha
-            or isinstance(ahead_by, bool)
-            or not isinstance(ahead_by, int)
-            or ahead_by < 0
-            or isinstance(behind_by, bool)
-            or not isinstance(behind_by, int)
-            or behind_by < 0
-            or ahead_by > 9_999
-            or behind_by > 9_999
-            or ahead_by + behind_by > 19_998
-        ):
-            raise GitHubReadError("GitHub comparison metadata is invalid")
-        return {"merge_base_sha": merge_base, "ahead_by": ahead_by, "behind_by": behind_by}
-
     def check_runs(self, repository: str, head_sha: str) -> dict:
         if not isinstance(repository, str) or not _REPOSITORY.fullmatch(repository):
             raise GitHubReadError("repository identity is invalid")

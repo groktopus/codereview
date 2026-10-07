@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import subprocess
@@ -315,3 +316,39 @@ def test_shared_json_alias_is_allowed_but_cycles_are_rejected(frozen_policy):
     profile["cycle"] = cycle
     with pytest.raises(PolicyInventoryError, match="cyclic_input"):
         build_policy_inventory(snapshot, profile, obligations, {})
+
+
+def test_inventory_accepts_only_valid_event_wrapped_snapshot_identity(frozen_policy):
+    _bare, _base, _head, profile, snapshot, obligations, _policy_bytes = frozen_policy
+    wrapped = copy.deepcopy(snapshot)
+    event_identity = {
+        "base_snapshot_id": wrapped["snapshot_id"],
+        "repository": "owner/project",
+        "pull_request_number": 7,
+        "event_id": "github-pr:owner/project#7:head-sha",
+    }
+    wrapped["snapshot_id"] = "snap-" + hashlib.sha256(json.dumps(event_identity, sort_keys=True).encode()).hexdigest()[:24]
+    old_to_new = {}
+    for evidence_id, item in wrapped["evidence"].items():
+        new_id = "ev-" + hashlib.sha256(
+            json.dumps(
+                {"snapshot": wrapped["snapshot_id"], "old_evidence_id": evidence_id, "content_hash": item["content_hash"]},
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()[:24]
+        item["evidence_id"] = new_id
+        item["snapshot_id"] = wrapped["snapshot_id"]
+        old_to_new[evidence_id] = new_id
+    wrapped["evidence"] = {old_to_new[key]: value for key, value in wrapped["evidence"].items()}
+    from pr_review_harness.cli import _rebind_snapshot_evidence_references
+
+    _rebind_snapshot_evidence_references(wrapped, old_to_new)
+    wrapped.update({key: event_identity[key] for key in ("repository", "pull_request_number", "event_id")})
+    _reseal(wrapped)
+    assert build_policy_inventory(wrapped, profile, obligations, {"max_sources": 20})["policy_sources"]
+
+    forged = copy.deepcopy(wrapped)
+    forged["snapshot_id"] = "snap-" + "0" * 24
+    _reseal(forged)
+    with pytest.raises(PolicyInventoryError, match="snapshot_id_mismatch"):
+        build_policy_inventory(forged, profile, obligations, {"max_sources": 20})

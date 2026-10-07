@@ -203,20 +203,32 @@ jobs:
           if current['base_sha'] != base_sha or current['head_sha'] != head_sha:
               raise SystemExit('target_pull_request_revision_mismatch')
 
+          comparison = GitHubPRAdapter().compare_revisions(target, base_sha, head_sha)
+          merge_base_sha = comparison['merge_base_sha']
+          base_depth = max(1, comparison['behind_by'] + 1)
+          head_depth = max(1, comparison['ahead_by'] + 1)
+
           store = os.environ['OBJECT_STORE']
           git('git', 'init', '--bare', store)
           url = 'https://github.com/' + target + '.git'
-          git('git', '-C', store, 'fetch', '--no-tags', '--depth=1', url,
+          git('git', '-C', store, 'config', 'remote.origin.url', url)
+          git('git', '-C', store, 'config', 'remote.origin.promisor', 'true')
+          git('git', '-C', store, 'config', 'remote.origin.partialclonefilter', 'blob:none')
+          git('git', '-C', store, 'config', 'extensions.partialClone', 'origin')
+          git('git', '-C', store, 'fetch', '--no-tags', '--filter=blob:none', f'--depth={head_depth}', 'origin',
               f'+refs/pull/{number}/head:refs/pr/head', timeout=120)
           base_ref_full = 'refs/heads/' + base_ref
           if subprocess.run(['git', '-C', store, 'check-ref-format', base_ref_full], check=False, timeout=10).returncode:
               raise SystemExit('target_base_ref_invalid')
-          git('git', '-C', store, 'fetch', '--no-tags', '--depth=1', url,
+          git('git', '-C', store, 'fetch', '--no-tags', '--filter=blob:none', f'--depth={base_depth}', 'origin',
               f'+{base_sha}:refs/pr/base', timeout=120)
           if git('git', '-C', store, 'rev-parse', 'refs/pr/head') != head_sha:
               raise SystemExit('fetched_target_head_mismatch')
           if git('git', '-C', store, 'rev-parse', 'refs/pr/base') != base_sha:
               raise SystemExit('fetched_target_base_mismatch')
+          merge_bases = git('git', '-C', store, 'merge-base', '--all', base_sha, head_sha).splitlines()
+          if merge_bases != [merge_base_sha]:
+              raise SystemExit('fetched_target_merge_base_mismatch')
 
           event = {'number': number, 'pull_request': {'base': {'sha': base_sha}, 'head': {'sha': head_sha}}}
           Path(os.environ['EVENT_OUTPUT']).write_text(json.dumps(event), encoding='utf-8')

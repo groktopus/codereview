@@ -113,64 +113,9 @@ def _validate_identity(snapshot: Mapping[str, Any], profile: Mapping[str, Any], 
         raise PolicyInventoryError("base_revision_invalid")
     if not isinstance(head_sha, str) or not _OBJECT_ID.fullmatch(head_sha):
         raise PolicyInventoryError("head_revision_invalid")
-    comparison_mode = snapshot.get("comparison_mode")
-    if comparison_mode is None:
-        if "change_base_sha" in snapshot:
-            raise PolicyInventoryError("comparison_identity_invalid")
-        snapshot_identity = {"base": base_sha, "head": head_sha, "profile_hash": profile_hash}
-    elif comparison_mode == "PR_MERGE_BASE":
-        change_base_sha = snapshot.get("change_base_sha")
-        if not isinstance(change_base_sha, str) or not _OBJECT_ID.fullmatch(change_base_sha):
-            raise PolicyInventoryError("comparison_identity_invalid")
-        snapshot_identity = {
-            "base": base_sha,
-            "head": head_sha,
-            "profile_hash": profile_hash,
-            "comparison_mode": comparison_mode,
-            "change_base": change_base_sha,
-        }
-    else:
-        raise PolicyInventoryError("comparison_identity_invalid")
-    expected_snapshot = "snap-" + _sha256_json(snapshot_identity)[:24]
-    snapshot_id = snapshot.get("snapshot_id")
-    if snapshot_id != expected_snapshot:
-        repository = snapshot.get("repository")
-        pull_request_number = snapshot.get("pull_request_number")
-        event_id = snapshot.get("event_id")
-        if (
-            isinstance(repository, str)
-            and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
-            and isinstance(pull_request_number, int)
-            and not isinstance(pull_request_number, bool)
-            and pull_request_number > 0
-            and isinstance(event_id, str)
-            and event_id
-        ):
-            wrapped_identity = {
-                "base_snapshot_id": expected_snapshot,
-                "repository": repository,
-                "pull_request_number": pull_request_number,
-                "event_id": event_id,
-            }
-        elif (
-            isinstance(repository, str)
-            and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
-            and isinstance(pull_request_number, int)
-            and not isinstance(pull_request_number, bool)
-            and pull_request_number > 0
-        ):
-            wrapped_identity = {
-                "base_snapshot_id": expected_snapshot,
-                "repository": repository,
-                "pull_request_number": pull_request_number,
-                "head_sha": head_sha,
-                "base_sha": base_sha,
-            }
-        else:
-            raise PolicyInventoryError("snapshot_id_mismatch")
-        wrapped_snapshot_id = "snap-" + _sha256(json.dumps(wrapped_identity, sort_keys=True).encode())[:24]
-        if snapshot_id != wrapped_snapshot_id:
-            raise PolicyInventoryError("snapshot_id_mismatch")
+    expected_snapshot = "snap-" + _sha256_json({"base": base_sha, "head": head_sha, "profile_hash": profile_hash})[:24]
+    if snapshot.get("snapshot_id") != expected_snapshot:
+        raise PolicyInventoryError("snapshot_id_mismatch")
     version = profile.get("version") or profile.get("profile_version")
     if not isinstance(version, str) or snapshot.get("profile_version") != version:
         raise PolicyInventoryError("profile_version_mismatch")

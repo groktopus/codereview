@@ -774,6 +774,7 @@ def _run_with_native_claim_choices(
     limits: dict | None = None,
     claim_cap: int = 1,
     decision_provider=None,
+    pr_comparison: bool = False,
 ):
     snapshot = _snapshot()
     if include_revision_evidence:
@@ -792,6 +793,20 @@ def _run_with_native_claim_choices(
                 "trust": "repository_evidence",
             }
             snapshot["inventory"][0]["evidence_ids"].append(evidence_id)
+    if pr_comparison:
+        snapshot.update({"comparison_mode": "PR_MERGE_BASE", "change_base_sha": "c" * 40})
+        content = "def authorize(request): return False"
+        snapshot["evidence"]["merge-base:u0"] = {
+            "evidence_id": "merge-base:u0",
+            "snapshot_id": snapshot["snapshot_id"],
+            "path": "src/auth.py",
+            "source_revision": "c" * 40,
+            "content": content,
+            "content_hash": hashlib.sha256(content.encode()).hexdigest(),
+            "source_kind": "base_file",
+            "trust": "repository_evidence",
+        }
+        snapshot["inventory"][0]["evidence_ids"].append("merge-base:u0")
     server = ThreadingHTTPServer(("127.0.0.1", 0), ClaimChoiceHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     ClaimChoiceHandler.seen = []
@@ -870,6 +885,26 @@ def test_native_jev_agreement_is_bound_and_reaches_deterministic_reducer(tmp_pat
     assert len(native_rows) == 1
     assert native_rows[0]["candidate_id"] == finding["candidate_ids"][0]
     assert native_rows[0]["reconciliation_state"] == "AGREES"
+
+
+def test_pr_merge_base_contract_flows_through_engine_quote_and_fake_native_transport(tmp_path, monkeypatch):
+    result, requests = _run_with_native_claim_choices(
+        tmp_path,
+        monkeypatch,
+        choices=_supported_choices(),
+        primary=SupportedPrimaryProvider(),
+        pr_comparison=True,
+    )
+    assert len(requests) == 1, result.get("claim_assessments")
+    request = json.loads(requests[0])
+    assert request["state"]["assessment_contract_version"] == "claim-assessment.3"
+    assert request["state"]["assessment_identity"]["change_base_sha"] == "c" * 40
+    assert {item["source_revision"] for item in request["state"]["cited_evidence"]} >= {
+        "c" * 40,
+        BASE,
+        HEAD,
+    }
+    assert len(request["questions"]) == 6
 
 
 def test_native_jev_dissent_is_visible_partial_and_cannot_clear_accepted_blocker(tmp_path, monkeypatch):
