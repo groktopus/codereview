@@ -69,6 +69,38 @@ class _InertContextProvider:
         }
 
 
+class _EventSnapshotReuseProvider:
+    identity = {"kind": "test-event-reuse", "model": "no-network"}
+
+    def review(self, task, evidence, limits):
+        refs = [item["evidence_id"] for item in evidence]
+        notes = [
+            {
+                "unit_id": unit_id,
+                "state": "COVERED",
+                "reason_code": "offline_event_reuse_fixture",
+                "evidence_refs": refs,
+                "coverage_basis": "STATIC_REVIEW",
+            }
+            for unit_id in task["unit_ids"]
+        ]
+        if task.get("context_gap_followup_for"):
+            return {"finding_candidates": [], "context_gap_proposals": [], "coverage_notes": notes}
+        return {
+            "finding_candidates": [],
+            "context_gap_proposals": [
+                {
+                    "evidence_kind": "implementation",
+                    "target": {"target_unit_id": None, "target_path": "src/auth.py", "target_symbol": None},
+                    "rationale": "Check the captured implementation directly.",
+                    "related_evidence_ids": refs,
+                    "required_lens": task["lens"],
+                }
+            ],
+            "coverage_notes": notes,
+        }
+
+
 class _FakeFreshness:
     def __init__(self, head):
         self.head = head
@@ -1487,6 +1519,73 @@ def test_cli_identity_rebinding_preserves_selected_evidence_and_file_anchor(tmp_
     assert successful_tasks
     assert any(selected_ids.issubset(set(row["input_evidence_ids"])) for row in successful_tasks)
     assert result["coverage_state"] == "COMPLETE"
+
+
+def test_cli_event_rebound_full_head_file_reuses_snapshot_without_retrieval_ipc(tmp_path, monkeypatch, capsys):
+    from pr_review_harness import cli, github
+
+    repo, base, head, profile = context_selection_repo(tmp_path)
+    profile.update(
+        {
+            "retrieval_context_patterns": ["src/*.py"],
+            "retrieval_revisions": {"implementation": "head", "test": "head"},
+            "context_target_manifest": {
+                "version": "context-target-manifest.v1",
+                "max_entries": 16,
+                "max_bytes": 16_384,
+            },
+        }
+    )
+    limits = {
+        "deadline_seconds": 8,
+        "max_concurrent_scopes": 1,
+        "max_provider_calls": 8,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 64_000,
+        "max_input_bytes_per_task": 32_000,
+        "max_output_bytes_per_task": 8_000,
+        "max_output_bytes": 16_000,
+        "max_context_retrievals": 1,
+        "max_followup_tasks": 1,
+    }
+    event = {
+        "number": 7,
+        "pull_request": {"base": {"sha": base}, "head": {"sha": head}},
+    }
+    event_path = tmp_path / "github-event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    provider = _EventSnapshotReuseProvider()
+
+    class FakeGitHubAdapter:
+        def check_runs(self, _repository, _head_sha):
+            return {"runs": [], "complete": True}
+
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/project")
+    monkeypatch.setenv("GITHUB_RUN_ID", "offline-event-reuse-7")
+    monkeypatch.setattr(github, "GitHubPRAdapter", FakeGitHubAdapter)
+    monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
+    monkeypatch.setattr(cli, "_freshness", lambda _event, expected: _FakeFreshness(expected))
+
+    code = cli.main([
+        "review", "--repo", str(repo), "--profile", str(profile_path), "--event-file", str(event_path),
+        "--run-id", "event-reuse-7", "--output", str(tmp_path / "event-review"), "--json",
+    ])
+    assert code == 0
+    result = json.loads(capsys.readouterr().out)
+
+    assert len(result["task_results"]) == 2
+    gap = result["context_gaps"][0]
+    retrieved = result["ledger"]["retrieved_context"][gap["proposal_id"]]["evidence"][0]
+    assert retrieved["path"] == "src/auth.py"
+    assert retrieved["source_kind"] == "head_file"
+    assert retrieved["trust"] == "untrusted_pr_content"
+    assert retrieved["source_revision"] == head
+    assert retrieved["content_truncated"] is False
+    assert gap["retrieval_source"] == "SNAPSHOT_REUSE"
+    assert gap["retrieval_status"] == "RESOLVED"
+    assert result["budget"]["context_retrievals_reserved"] == 0
 
 
 def test_recovery_packet_rejects_boolean_pull_request_number():

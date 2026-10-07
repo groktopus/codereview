@@ -668,8 +668,9 @@ def _complete_snapshot_context_evidence(
         return None
     matches = [
         item
-        for item in evidence_map.values()
+        for indexed_evidence_id, item in evidence_map.items()
         if isinstance(item, dict)
+        and item.get("evidence_id") == indexed_evidence_id
         and item.get("path") == path
         and item.get("source_revision") == revision
         and item.get("source_object_id") == object_id
@@ -697,22 +698,6 @@ def _complete_snapshot_context_evidence(
     git_header = f"blob {len(raw)}\0".encode("ascii")
     object_hash = hashlib.new(object_format, git_header + raw).hexdigest()
     if object_hash != object_id or item.get("source_object_size_bytes") != len(raw):
-        return None
-    expected_id_payload = json.dumps(
-        {
-            "snapshot": snapshot.get("snapshot_id"),
-            "path": path,
-            "source": "head_file",
-            "sha": revision,
-            "hash": content_hash,
-            "start": line_start,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    ).encode()
-    expected_id = "ev-" + hashlib.sha256(expected_id_payload).hexdigest()[:24]
-    if evidence_id != expected_id:
         return None
     return item
 
