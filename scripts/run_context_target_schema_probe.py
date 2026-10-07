@@ -12,6 +12,7 @@ import copy
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import subprocess
@@ -19,6 +20,7 @@ import sys
 import tarfile
 import tempfile
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 from pr_review_harness import contracts
@@ -125,6 +127,53 @@ def _request_schema_pair(root: Path, provider: OpenAIProvider, task: dict, evide
     return system, user, legacy_schema, candidate_schema, legacy_body, candidate_body
 
 
+def _exchange_receipt(metadata: Any) -> dict[str, Any] | None:
+    if not isinstance(metadata, dict):
+        return None
+    exchange = metadata.get("local_http_exchange")
+    if isinstance(exchange, dict) and exchange.get("contract_version") == "local-http-exchange.v1":
+        return exchange
+    provenance = metadata.get("provenance")
+    exchange = provenance.get("local_http_exchange") if isinstance(provenance, dict) else None
+    return (
+        exchange
+        if isinstance(exchange, dict) and exchange.get("contract_version") == "local-http-exchange.v1"
+        else None
+    )
+
+
+def _safe_exchange_fields(exchange: dict[str, Any] | None) -> dict[str, Any]:
+    def nonnegative_int(key: str) -> int | None:
+        value = exchange.get(key) if exchange is not None else None
+        return value if type(value) is int and value >= 0 else None
+
+    def sha256(key: str) -> str | None:
+        value = exchange.get(key) if exchange is not None else None
+        return value if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) else None
+
+    elapsed = exchange.get("elapsed_ms") if exchange is not None else None
+    elapsed = elapsed if (
+        isinstance(elapsed, (int, float))
+        and not isinstance(elapsed, bool)
+        and math.isfinite(elapsed)
+        and elapsed >= 0
+    ) else None
+    status = exchange.get("http_status") if exchange is not None else None
+    status = status if type(status) is int and 100 <= status <= 599 else None
+    attempted = exchange.get("request_attempted") if exchange is not None else None
+    attempted = attempted if isinstance(attempted, bool) else None
+    return {
+        "receipt_state": "RECORDED" if exchange is not None else "UNKNOWN",
+        "http_status": status,
+        "request_attempted": attempted,
+        "request_bytes": nonnegative_int("request_bytes"),
+        "request_sha256": sha256("request_sha256"),
+        "response_bytes": nonnegative_int("response_bytes"),
+        "response_sha256": sha256("response_sha256"),
+        "elapsed_ms": elapsed,
+    }
+
+
 def _run_variant(provider, *, system, user, schema, limits, body) -> dict:
     try:
         _parsed, metadata = provider._call(
@@ -135,44 +184,23 @@ def _run_variant(provider, *, system, user, schema, limits, body) -> dict:
             contract_version=contracts.SPECIALIST_V4,
             serialized_request_bytes=body,
         )
-        exchange = metadata.get("local_http_exchange", {})
         return {
             "state": "HTTP_RESPONSE",
-            "http_status": exchange.get("http_status"),
-            "request_attempted": exchange.get("request_attempted") is True,
-            "request_bytes": exchange.get("request_bytes"),
-            "request_sha256": exchange.get("request_sha256"),
-            "response_bytes": exchange.get("response_bytes"),
-            "response_sha256": exchange.get("response_sha256"),
-            "elapsed_ms": exchange.get("elapsed_ms"),
+            **_safe_exchange_fields(_exchange_receipt(metadata)),
         }
     except ProviderError as exc:
-        exchange = exc.meta.get("local_http_exchange", {}) if isinstance(exc.meta, dict) else {}
         code = exc.code if isinstance(exc.code, str) and re.fullmatch(r"[a-z0-9_]{1,100}", exc.code) else "provider_error"
         return {
             "state": "PROVIDER_ERROR",
             "error_code": code,
-            "http_status": exchange.get("http_status"),
-            "request_attempted": exchange.get("request_attempted") is True,
-            "request_bytes": exchange.get("request_bytes"),
-            "request_sha256": exchange.get("request_sha256"),
-            "response_bytes": exchange.get("response_bytes"),
-            "response_sha256": exchange.get("response_sha256"),
-            "elapsed_ms": exchange.get("elapsed_ms"),
+            **_safe_exchange_fields(_exchange_receipt(exc.meta)),
         }
     except Exception as exc:
         metadata = getattr(exc, "meta", {})
-        exchange = metadata.get("local_http_exchange", {}) if isinstance(metadata, dict) else {}
         return {
             "state": "LOCAL_ERROR",
             "error_code": "unexpected_probe_error",
-            "http_status": exchange.get("http_status"),
-            "request_attempted": exchange.get("request_attempted") is True,
-            "request_bytes": exchange.get("request_bytes"),
-            "request_sha256": exchange.get("request_sha256"),
-            "response_bytes": exchange.get("response_bytes"),
-            "response_sha256": exchange.get("response_sha256"),
-            "elapsed_ms": exchange.get("elapsed_ms"),
+            **_safe_exchange_fields(_exchange_receipt(metadata)),
         }
 
 
