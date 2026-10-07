@@ -87,6 +87,50 @@ def test_retrieval_accepts_normalized_gap_and_binds_engine_proposal_identity(tmp
     assert result["evidence"]["path"] == "src/callers.py"
 
 
+def test_manifest_bound_retrieval_requires_exact_source_revision_and_blob(tmp_path):
+    repo, base, head = repository(tmp_path)
+    snapshot = {
+        "snapshot_id": "snap-test",
+        "base_sha": base,
+        "head_sha": head,
+        "inventory": [{"unit_id": "u1", "path": "src/callers.py"}],
+    }
+    base_blob = git(repo, "rev-parse", f"{base}:src/callers.py")
+    proposal = {
+        "evidence_kind": "caller",
+        "target_path": "src/callers.py",
+        "rationale": "Confirm base caller behavior",
+        "required_lens": "correctness",
+        "_context_target_binding": {
+            "choice_id": "a" * 24,
+            "target_kind": "path",
+            "target_value": "src/callers.py",
+            "evidence_kind": "caller",
+            "path": "src/callers.py",
+            "source_sha": base,
+            "source_object_id": base_blob,
+            "source_object_format": "sha1",
+            "snapshot_id": "snap-test",
+        },
+    }
+    profile = {"retrieval_context_patterns": ["src/*.py"]}
+    result = retrieve_context_gap(str(repo), snapshot, profile, proposal, {"max_context_bytes": 1000})
+    assert result["status"] == "RESOLVED"
+    assert result["evidence"]["source_revision"] == base
+    assert result["evidence"]["source_object_id"] == base_blob
+
+    mismatch = {
+        **proposal,
+        "_context_target_binding": {**proposal["_context_target_binding"], "source_object_id": "0" * 40},
+    }
+    rejected = retrieve_context_gap(str(repo), snapshot, profile, mismatch, {"max_context_bytes": 1000})
+    assert rejected == {
+        "status": "UNRESOLVED",
+        "reason": "context_target_source_identity_mismatch",
+        "evidence": None,
+    }
+
+
 def test_cli_retrieval_adapter_is_picklable_and_keeps_binding_out_of_identity():
     adapter = ContextRetriever("/private/local/object-store.git")
     restored = pickle.loads(pickle.dumps(adapter))

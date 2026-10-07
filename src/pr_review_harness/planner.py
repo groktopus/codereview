@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from .claim_reconciliation import validate_claim_reconciliation_policy
+from .context_targets import validate_context_target_manifest_profile
 from .dependency_context import DependencyContextError, valid_projection_evidence, validate_dependency_context
 
 _MODE_ORDER = {"LIGHT": 0, "FOCUSED": 1, "DEEP": 2}
@@ -464,6 +465,7 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
     validate_profile_lenses(profile)
     validate_claim_reconciliation_policy(profile)
     context_selection = validate_context_selection(profile)
+    validate_context_target_manifest_profile(profile)
     try:
         dependency_context = validate_dependency_context(profile)
     except DependencyContextError as exc:

@@ -243,6 +243,17 @@ def retrieve_context_gap(
     revision_policy = profile.get("retrieval_revisions", {})
     if isinstance(revision_policy, dict) and revision_policy.get(kind) == "head":
         revision = head_sha
+    target_binding = proposal.get("_context_target_binding")
+    if target_binding is not None:
+        if (
+            not isinstance(target_binding, dict)
+            or target_binding.get("snapshot_id") != snapshot_id
+            or target_binding.get("path") != requested_path
+            or target_binding.get("evidence_kind") != kind
+            or target_binding.get("source_sha") != revision
+            or not isinstance(target_binding.get("choice_id"), str)
+        ):
+            raise EvidenceError("context target manifest binding mismatch")
     max_bytes = limits.get("max_bytes", limits.get("max_context_bytes"))
     if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
         raise EvidenceError("context retrieval byte limit is invalid")
@@ -273,6 +284,8 @@ def retrieve_context_gap(
     )
     if not re.fullmatch(r"[0-9a-f]{40,64}", object_id):
         raise EvidenceError("immutable evidence object identity is invalid")
+    if target_binding is not None and target_binding.get("source_object_id") != object_id:
+        return {"status": "UNRESOLVED", "reason": "context_target_source_identity_mismatch", "evidence": None}
     raw, truncated = _git_blob_limited(repo, object_id, limit, deadline)
     if b"\0" in raw:
         return {"status": "UNRESOLVED", "reason": "binary_context_not_retrieved", "evidence": None}

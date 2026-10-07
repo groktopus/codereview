@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from . import contracts
+from .context_targets import validate_context_target_manifest
 
 INJECTION_CHOICE_CONTRACT = "prompt-injection-classifier.choice.v1"
 INJECTION_CHOICE_QUESTION = (
@@ -923,6 +924,16 @@ class OpenAIProvider:
         self.preflight("SPECIALIST_FINDINGS")
         input_v2 = _validate_specialist_input_metadata(task, evidence)
         context_followup = _validate_context_followup_input(task, evidence)
+        manifest = task.get("context_target_manifest")
+        target_pairs = None
+        if manifest is not None:
+            try:
+                choices = validate_context_target_manifest(manifest)
+            except ValueError as exc:
+                raise ProviderError("invalid_context_target_manifest") from exc
+            target_pairs = list(
+                { (choice["kind"], choice["value"]) for choice in choices }
+            )
         if context_followup is not None and not input_v2:
             raise ProviderError("context_followup_requires_specialist_input_v2")
         evidence_ids = sorted(
@@ -1047,9 +1058,35 @@ class OpenAIProvider:
                                     "type": "object",
                                     "additionalProperties": False,
                                     "required": ["kind", "value"],
+                                    **(
+                                        {
+                                            "enum": [
+                                                {"kind": kind, "value": value}
+                                                for kind, value in sorted(target_pairs)
+                                            ]
+                                        }
+                                        if target_pairs
+                                        else {}
+                                    ),
                                     "properties": {
-                                        "kind": {"type": "string", "enum": ["unit", "path", "symbol"]},
-                                        "value": {"type": "string", "minLength": 1, "maxLength": 2000},
+                                        "kind": {
+                                            "type": "string",
+                                            "enum": (
+                                                sorted({kind for kind, _ in target_pairs})
+                                                if target_pairs
+                                                else (["unit"] if manifest is not None else ["unit", "path", "symbol"])
+                                            ),
+                                        },
+                                        "value": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 2000,
+                                            **(
+                                                {"enum": sorted({value for _, value in target_pairs})}
+                                                if target_pairs
+                                                else ({"maxLength": 0} if manifest is not None else {})
+                                            ),
+                                        },
                                     },
                                 },
                                 "rationale": {"type": "string", "minLength": 1, "maxLength": 4000},
@@ -1172,6 +1209,18 @@ class OpenAIProvider:
                 "does not establish local ownership. Shared task evidence may also be cited. Every COVERED unit note "
                 "must cite at least one ID in that unit's binding, and all cited IDs must be supplied in the evidence list."
             )
+        if manifest is not None:
+            if target_pairs:
+                system += (
+                    " For context-gap targets, choose only one exact {kind,value} pair from the task's "
+                    "context_target_manifest. Do not emit symbols or invent paths or units. The manifest is "
+                    "a retrieval boundary; it does not authorize claims beyond supplied evidence."
+                )
+            else:
+                system += (
+                    " The task has no available context-gap targets. Do not propose a context gap target; "
+                    "report uncertainty in coverage notes instead."
+                )
         if context_followup is not None:
             system += (
                 " This is a bounded REQUIRED_CONTEXT follow-up. Use the task's context_followup object as the specific "
