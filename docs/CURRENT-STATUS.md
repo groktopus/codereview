@@ -1,6 +1,22 @@
-# Current evidence update — 2026-10-07 (source cutoff `6f67aea`; latest trial runtime `4fbc3b0`)
+# Current evidence update — 2026-10-07 (source cutoff `1d4903d`; latest trial runtime `0379e20`)
 
-## Current observation
+## Latest v16 PR305 observation
+
+Source PRs [#217](https://github.com/groktopus/codereview/pull/217) and [#218](https://github.com/groktopus/codereview/pull/218) are merged. The current caller is `1d4903dab34b0c51e8f3805803872c3b98e2a96c`; it pins the reusable runtime to `0379e2001eebc07981aa99553e832ea342d781a7`. Both PRs passed their enabled CI checks and their post-merge runs succeeded. The caller keeps `legacy-v14` as the default and offers an explicit closed `bounded-production-v16` option.
+
+The authorized v16 run [37655393958](https://github.com/groktopus/codereview/actions/runs/37655393958) reviewed SlopSearX PR #305 at base `00accc58a42eaa470e12831498b572cab2483981` and head `90165dd65be3595006171d7abef34a082c90a71d`. A live GitHub API comparison returned ahead 1 / behind 0, merge-base equal to the API base, and 12 changed files; the result freshness was `CURRENT`. Its profile binding selected `bounded-production-v16` (`699f93fd…`), limits-v3 (`ec191dc…`), and a four-candidate claim-assessment cap. The retained report and artifact hashes are recorded in [the dated PR305 evidence note](experiments/pr305-v16-2026-10-07.md).
+
+The workflow completed successfully, but the review result was `INCOMPLETE / PARTIAL`: 27 of 42 required rows were complete, 15 partial, and none not started. The partial rows were 11 changed-unit rows with `CONTEXT_GAP_UNRESOLVED`, two with `PARTIAL_REVIEW_COVERAGE`, and two portal check rows with `CHECK_RESULT_UNAVAILABLE`. The seven retrieval records comprise five truncated IPC envelopes, one retrieved `engines/__init__.py` whose follow-up failed `invalid_context_followup_obligation_binding`, and one symbol lookup rejected by `symbol_lookup_not_in_allowlist_contract`; these are observed alongside the row reasons, not assumed to map one-to-one. The 12 snapshot gaps were optional and are separate. The run emitted no findings or claim candidates, so LLM claim reconciliation and native TypeSafe Choice claim assessment were `NOT_EXERCISED`. One TypeSafe System 1 advisory summary was received with `UNRESOLVED`; it is not a claim assessment or truth signal. No prompt-injection diagnostic appeared (`NOT_EXERCISED`).
+
+Sixteen unique HTTP 200 receipts were retained: 15 primary OpenAI-compatible calls and one TypeSafe advisory call, each with one attempt. Usage was known for the 15 primary calls (285,570 prompt tokens and 8,386 completion tokens) and unknown for the advisory; billing and estimated cost remain `UNKNOWN`. The ledger reserved 16/32 provider calls and 1,250,619/2,500,000 aggregate input bytes: 1,116,935 provider-request bytes, 112,000 bytes for seven local context retrievals, and 21,684 bytes for two local checks. Aggregate output reservation was 288,000/512,000 bytes, comprising 256,000 provider-output bytes and 32,000 local-check output bytes. It made no target-code execution or publication; optional publication-intake artifact steps were skipped.
+
+A separate provider-free preview used this run's result with the private COMMENT-only publication policy. The protected consumer maps `INCOMPLETE` with `policy_valid=true` to a COMMENT event; this result's 62,777-byte rendered body exceeded the 60,000-byte hard cap, so preview stopped at the body-size check. Nothing was published. This is a concrete report-size boundary for this run, not evidence of semantic quality or a new acceptance threshold.
+
+The target activation packet remains private and unapplied. The installed target workflow/policy baseline is still `2abbf4924609c29f486d4a3550c26878e3d74dad`. A successful read-only GitHub secrets listing showed only `LLM_API_KEY` and `JEV_API_KEY` absent. No activation, target write, provider setting change, publication, or cutover is evidenced here.
+
+## Prior current observation retained (source cutoff `6f67aea`; trial runtime `4fbc3b0`)
+
+### Current observation at that cutoff
 
 PR #207 merged at `4fbc3b0a4e45596c3c73685edc8be575e2173e27` after 23 enabled checks passed, the disabled probe skipped, independent review cleared 112 tests, and root verification passed 124 tests. Reviewed and merged source files were identical. Post-merge run [37612949630](https://github.com/groktopus/codereview/actions/runs/37612949630) completed successfully. Source/package verification does not establish review quality.
 

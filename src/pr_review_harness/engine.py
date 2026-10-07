@@ -2645,13 +2645,16 @@ def run_review(
                 if retrieved and retrieved.get("status") == "RESOLVED" and record.get("retrieved_evidence_ids"):
                     followup_id = f"{task['task_id']}:followup:{index}"
                     followup_obligation_id = f"context:{record['proposal_id']}"
+                    followup_unit_ids = (
+                        [target_unit] if target_unit else list(task.get("unit_ids", task.get("scope_unit_ids", [])))
+                    )
                     followup_task = {
                         **task,
                         "task_id": followup_id,
                         "obligation_id": followup_obligation_id,
                         "obligation_ids": [followup_obligation_id],
-                        "unit_ids": [target_unit] if target_unit else list(task_units),
-                        "scope_unit_ids": [target_unit] if target_unit else list(task_units),
+                        "unit_ids": followup_unit_ids,
+                        "scope_unit_ids": followup_unit_ids,
                         "evidence_ids": list(
                             dict.fromkeys(list(task.get("evidence_ids", [])) + record["retrieved_evidence_ids"])
                         ),

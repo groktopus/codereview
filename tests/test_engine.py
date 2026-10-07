@@ -571,6 +571,30 @@ class ContextFollowupProvider(EmptyProvider):
         }
 
 
+class ExternalPathContextFollowupProvider(ContextFollowupProvider):
+    def review(self, task, evidence, limits):
+        if not task.get("context_gap_followup_for"):
+            result = super().review(task, evidence, limits)
+            result["context_gap_proposals"][0]["target"]["target_path"] = "engines/__init__.py"
+            return result
+
+        self.calls += 1
+        retrieved_id = next(item["evidence_id"] for item in evidence if item.get("path") == "engines/__init__.py")
+        notes = []
+        for unit_id in task["unit_ids"]:
+            binding = next(row for row in task["unit_evidence_bindings"] if row["unit_id"] == unit_id)
+            notes.append(
+                {
+                    "unit_id": unit_id,
+                    "state": "COVERED",
+                    "reason_code": "reviewed_with_external_context",
+                    "evidence_refs": [retrieved_id, *binding["evidence_ids"]],
+                    "coverage_basis": "STATIC_REVIEW",
+                }
+            )
+        return {"finding_candidates": [], "context_gap_proposals": [], "coverage_notes": notes}
+
+
 class RequiredContextClosureFixtureProvider(ContextFollowupProvider):
     """Exercise the real engine closure reducer with bounded synthetic notes."""
 
@@ -1932,6 +1956,37 @@ def test_retrieval_requires_bounded_followup_that_cites_retrieved_evidence(tmp_p
     assert context_coverage["closure_diagnostics"]["state"] == "OBSERVED"
     assert context_coverage["closure_diagnostics"]["coverage_note_result"] == "COVERED"
     assert context_coverage["closure_diagnostics"]["coverage_note_failure_counts"]["MATCH"] >= 1
+
+
+def test_external_path_followup_preserves_multi_unit_parent_scope_order(tmp_path):
+    snapshot = make_snapshot(units=2)
+    unit_by_id = {unit["unit_id"]: unit for unit in snapshot["inventory"]}
+    parent_order = list(unit_by_id)
+    assert len(set(parent_order)) == len(parent_order)
+    snapshot["inventory"] = [unit_by_id[unit_id] for unit_id in parent_order]
+    prof = {**profile(), "retrieval_context_patterns": ["engines/*.py"]}
+
+    result = run(
+        tmp_path,
+        snap=snapshot,
+        prof=prof,
+        provider=ExternalPathContextFollowupProvider(),
+        context_retriever=ResolvedContextRetriever(),
+    )
+
+    gap = result["context_gaps"][0]
+    assert gap["retrieval_status"] == "RESOLVED"
+    assert "followup_error" not in gap
+    assert gap["status"] == "RESOLVED_BY_FOLLOWUP"
+    followup = result["ledger"]["dynamic_tasks"][0]
+    assert followup["unit_ids"] == parent_order
+    metadata = followup["context_followup"]
+    obligation = next(
+        item for item in result["ledger"]["dynamic_obligations"] if item["obligation_id"] == metadata["followup_obligation_id"]
+    )
+    assert metadata["scope_unit_ids"] == parent_order
+    assert obligation["scope_unit_ids"] == parent_order
+    assert result["budget"]["followup_tasks_reserved"] == 1
 
 
 @pytest.mark.parametrize(
