@@ -49,7 +49,7 @@ def _policy(*, enabled: bool) -> dict[str, object]:
         "profile": {
             "version": "profile-v1",
             "sha256": "b" * 64,
-            "provider_configuration_identity": "provider-config-sha256:" + "c" * 64,
+            "provider_configuration_identity": "provider-identity-sha256:" + "c" * 64,
         },
         "publication": {
             "allowed_dispositions": ["COMMENT"],

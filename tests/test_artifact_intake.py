@@ -46,7 +46,7 @@ def identities():
         called_harness_sha=HARNESS_SHA,
         profile_version="repo-profile-v3",
         profile_sha256=PROFILE_HASH,
-        provider_configuration_identity="provider-config-sha256:" + "f" * 64,
+        provider_configuration_identity="provider-identity-sha256:" + "f" * 64,
         contract_versions=(("artifact_manifest", "1.0"), ("review_result", "1.0")),
     )
     attestation = AttestationIdentity(

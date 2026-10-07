@@ -30,7 +30,7 @@
   "profile": {
     "version": "REPLACE_WITH_REVIEW_PROFILE_VERSION",
     "sha256": "REPLACE_WITH_64_CHARACTER_PROFILE_SHA256",
-    "provider_configuration_identity": "provider-config-sha256:REPLACE_WITH_64_CHARACTER_CONFIG_SHA256"
+    "provider_configuration_identity": "provider-identity-sha256:REPLACE_WITH_64_CHARACTER_PROVIDER_IDENTITY_SHA256"
   },
   "publication": {
     "allowed_dispositions": ["COMMENT"],

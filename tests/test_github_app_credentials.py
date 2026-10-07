@@ -453,7 +453,7 @@ def make_adapter_policy():
         publisher_workflow_sha="f" * 40,
         profile_version="profile-v3",
         profile_sha256="1" * 64,
-        provider_configuration_identity="provider-config-sha256:" + "2" * 64,
+        provider_configuration_identity="provider-identity-sha256:" + "2" * 64,
         allowed_actor_login=BOT_LOGIN,
         artifact_trust_mode=ArtifactTrustMode.API_BOUND_SHA256,
     )

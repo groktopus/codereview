@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote, urlsplit
 
 import pytest
+import test_pr_analysis_publication_bundle as producer_fixture
 from test_actions_publication import BASE, HEAD, WRITER, bundle_for, make_policy, make_valid_result, response
 from test_github_app_canary import private_key_pem
 
@@ -16,6 +17,7 @@ from pr_review_harness.actions_publication import (
     HTTPResponse,
 )
 from pr_review_harness.publication_receipts import EffectSlot
+from pr_review_harness.report import render_report
 
 CALLED_SHA = "e" * 40
 DEFAULT_BRANCH_TIP = "f" * 40
@@ -125,6 +127,22 @@ def rebind_manifest_target(bundle, *, base_sha=None, head_sha=None, caller_workf
         manifest["head_sha"] = head_sha
     if caller_workflow_sha is not None:
         manifest["caller_workflow_sha"] = caller_workflow_sha
+    entries["provenance.json"] = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, content in entries.items():
+            archive.writestr(name, content)
+    return output.getvalue()
+
+
+def rebind_manifest_provider_identity(bundle, provider_identity):
+    source = io.BytesIO(bundle)
+    entries = {}
+    with zipfile.ZipFile(source) as archive:
+        for info in archive.infolist():
+            entries[info.filename] = archive.read(info.filename)
+    manifest = json.loads(entries["provenance.json"])
+    manifest["provider_configuration_identity"] = provider_identity
     entries["provenance.json"] = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -255,6 +273,16 @@ def test_actions_token_v2_policy_is_strict_and_keeps_standing_authorization_expl
     malformed["credential"]["app"] = {"id": 1}
     with pytest.raises(runtime.ProtectedRuntimeError, match="protected_policy_credential_invalid"):
         runtime.ProtectedPublicationPolicy.parse(malformed)
+
+    for provider_identity in (
+        "provider-config-sha256:" + "c" * 64,
+        "provider-identity-sha256:" + "g" * 64,
+        "provider-identity-sha256:" + "c" * 63,
+    ):
+        malformed_identity = actions_token_policy_document()
+        malformed_identity["profile"]["provider_configuration_identity"] = provider_identity
+        with pytest.raises(runtime.ProtectedRuntimeError, match="protected_policy_profile_invalid"):
+            runtime.ProtectedPublicationPolicy.parse(malformed_identity)
 
     missing_workflow_hash = actions_token_policy_document()
     missing_workflow_hash["publisher_workflow"].pop("sha256")
@@ -398,6 +426,8 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         bundle = rebind_manifest_target(bundle, head_sha="c" * 40)
     elif failure_mode == "caller_workflow_sha_mismatch":
         bundle = rebind_manifest_target(bundle, caller_workflow_sha="d" * 40)
+    elif failure_mode == "provider_identity_mismatch":
+        bundle = rebind_manifest_provider_identity(bundle, "provider-identity-sha256:" + "0" * 64)
     receipt_archives = {}
     events = []
     stored_reviews = []
@@ -590,7 +620,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
 
     if failure_mode == "success":
         assert outcome["schema"] == "pr-review-protected-publication.v1"
-        assert outcome["status"] == "CONFIRMED", (outcome, events)
+        assert outcome["status"] == "CONFIRMED", (outcome, events, admitted)
         assert outcome["reason"] is None
         if credential_route == "ACTIONS_TOKEN":
             assert outcome["effect_observation"] == {
@@ -625,6 +655,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             assert outcome["reason"] == "submit_response_ambiguous"
         expected_reason = {
             "caller_workflow_sha_mismatch": "source_artifact_manifest_policy_mismatch",
+            "provider_identity_mismatch": "source_artifact_manifest_policy_mismatch",
             "stale_default_tip_before_ack": "pre_receipt_head_unavailable",
             "stale_default_tip_after_ack": "post_receipt_head_unavailable",
         }.get(failure_mode)
@@ -638,6 +669,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             "stale_base",
             "stale_head",
             "caller_workflow_sha_mismatch",
+            "provider_identity_mismatch",
             "stale_default_tip_before_ack",
             "deadline",
         }
@@ -673,7 +705,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             assert events.count("review_post") == 0
         assert len(key_calls) == (0 if credential_route == "ACTIONS_TOKEN" else (
             0
-            if failure_mode in {"caller_workflow_sha_mismatch", "duplicate_source_artifact", "stale_base", "stale_head", "deadline"}
+            if failure_mode in {"caller_workflow_sha_mismatch", "provider_identity_mismatch", "duplicate_source_artifact", "stale_base", "stale_head", "deadline"}
             else 1
         ))
         assert events.count("write_token_mint") == (1 if failure_mode == "write_token_denied" else 0)
@@ -682,6 +714,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             "stale_base",
             "stale_head",
             "caller_workflow_sha_mismatch",
+            "provider_identity_mismatch",
             "stale_default_tip_before_ack",
             "deadline",
         }:
@@ -693,3 +726,137 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         assert events.count("write_token_mint") == 0
         assert all(call[2] == "test-actions-read-token" for call in transport.calls)
         assert all("/app" not in call[1] for call in transport.calls)
+
+
+def test_real_bundle_producer_integrates_with_protected_consumer(tmp_path):
+    provider_identity = producer_fixture.PROVIDER_IDENTITY
+    provider_hash = producer_fixture._canonical_hash(provider_identity)
+    profile_value = {"repository": "owner/repo", "version": "profile-v3"}
+    profile_raw = producer_fixture.canonical(profile_value)
+    profile_hash = hashlib.sha256(profile_raw).hexdigest()
+    original_make_policy = make_policy
+    counter = 0
+
+    def integrated_policy(**kwargs):
+        kwargs.setdefault("provider_configuration_identity", f"provider-identity-sha256:{provider_hash}")
+        kwargs.setdefault("profile_sha256", profile_hash)
+        kwargs.setdefault("called_harness_path", ".github/workflows/pr-analysis.yml")
+        return original_make_policy(**kwargs)
+
+    def real_producer_bundle(policy, result):
+        nonlocal counter
+        case_dir = tmp_path / f"producer-{counter}"
+        counter += 1
+        case_dir.mkdir()
+        result_value = dict(result)
+        result_value["run_id"] = f"pr-{policy.pull_request_number}-{policy.upstream_run_id}"
+        result_value["project_profile_version"] = policy.profile_version
+        result_value["provider_identity"] = provider_identity
+        result_value["rendered_review"] = render_report(result_value)
+        result_value["result_hash"] = producer_fixture._canonical_hash(
+            {key: value for key, value in result_value.items() if key != "result_hash"}
+        )
+        result_path = case_dir / "sealed-result.json"
+        result_path.write_bytes(producer_fixture.canonical(result_value) + b"\n")
+        profile_path = case_dir / "profile.json"
+        profile_path.write_bytes(profile_raw)
+        provider_path = case_dir / "provider.json"
+        provider_path.write_bytes(producer_fixture.canonical(producer_fixture.PROVIDER_CONFIG) + b"\n")
+        decision_path = case_dir / "decision.json"
+        decision_path.write_bytes(producer_fixture.canonical(producer_fixture.DECISION_CONFIG) + b"\n")
+        env = {
+            "GITHUB_REPOSITORY": policy.repository,
+            "TARGET_REPOSITORY": policy.repository,
+            "GITHUB_RUN_ID": str(policy.upstream_run_id),
+            "GITHUB_RUN_ATTEMPT": str(policy.upstream_run_attempt),
+            "GITHUB_SHA": DEFAULT_BRANCH_TIP,
+            "GITHUB_WORKFLOW_SHA": DEFAULT_BRANCH_TIP,
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_WORKFLOW_REF": f"{policy.repository}/{policy.caller_workflow_path}@refs/heads/main",
+            "GITHUB_EVENT_NAME": "pull_request_target",
+            "GITHUB_DEFAULT_BRANCH": "main",
+            "PR_NUMBER": str(policy.pull_request_number),
+            "BASE_SHA": BASE,
+            "HEAD_SHA": HEAD,
+            "HARNESS_REPOSITORY": policy.called_harness_repository,
+            "HARNESS_SHA": policy.called_harness_sha,
+            "CALLED_WORKFLOW_REPOSITORY": policy.called_harness_repository,
+            "CALLED_WORKFLOW_FILE_PATH": policy.called_harness_path,
+            "CALLED_WORKFLOW_SHA": policy.called_harness_sha,
+            "CALLED_WORKFLOW_REF": f"{policy.called_harness_repository}/{policy.called_harness_path}@{policy.called_harness_sha}",
+            "PROFILE_VERSION": policy.profile_version,
+            "PROFILE_SHA256": profile_hash,
+            "PROVIDER_CONFIG": str(provider_path),
+            "DECISION_CONFIG": str(decision_path),
+            "GH_TOKEN": "fixture-read-token",
+            "LLM_API_KEY": "fixture-primary-key",
+            "JEV_API_KEY": "fixture-decision-key",
+        }
+        output = case_dir / "publication"
+        run_document = producer_fixture.run_api(
+            id=policy.upstream_run_id,
+            run_attempt=policy.upstream_run_attempt,
+            workflow_id=policy.caller_workflow_id,
+            path=policy.caller_workflow_path,
+            head_sha=HEAD,
+            repository={"id": policy.repository_id, "full_name": policy.repository},
+        )
+        pull_document = {
+            "number": policy.pull_request_number,
+            "state": "open",
+            "draft": False,
+            "base": {
+                "ref": "main",
+                "sha": BASE,
+                "repo": {"id": policy.repository_id, "full_name": policy.repository, "default_branch": "main"},
+            },
+            "head": {"ref": "feature/update-dependency", "sha": HEAD},
+        }
+
+        class ProducerAPI:
+            def request(self, method, url, **kwargs):
+                assert method == "GET"
+                assert kwargs["timeout_seconds"] == 10
+                if url.endswith("/branches/main"):
+                    document = {"name": "main", "commit": {"sha": DEFAULT_BRANCH_TIP}}
+                elif url.endswith(f"/actions/runs/{policy.upstream_run_id}/attempts/{policy.upstream_run_attempt}"):
+                    document = run_document
+                elif url.endswith(f"/pulls/{policy.pull_request_number}"):
+                    document = pull_document
+                else:
+                    raise AssertionError(f"unexpected producer API URL: {url}")
+                return producer_fixture.HTTPResponse(200, {"content-type": "application/json"}, producer_fixture.canonical(document))
+
+        producer_fixture.create_publication_directory(
+            result_path=result_path,
+            profile_path=profile_path,
+            output_dir=output,
+            env=env,
+            transport=ProducerAPI(),
+            provider_config_path=provider_path,
+            decision_config_path=decision_path,
+        )
+        bundle, _digest = producer_fixture.make_intake_zip(output)
+        return bundle
+
+    test_cases = (
+        ("success", "Canonical producer identity is accepted and publishes once."),
+        ("provider_identity_mismatch", "A different identity is rejected before fake POST."),
+        ("duplicate_source_artifact", "Duplicate source artifacts produce no fake POST."),
+    )
+    import sys
+
+    module = sys.modules[__name__]
+    for index, (failure_mode, _description) in enumerate(test_cases):
+        case_path = tmp_path / f"consumer-{index}"
+        case_path.mkdir()
+        with pytest.MonkeyPatch.context() as patcher:
+            patcher.setattr(module, "make_policy", integrated_policy)
+            patcher.setattr(module, "bundle_for", real_producer_bundle)
+            test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_post(
+                case_path,
+                patcher,
+                failure_mode,
+                "empty",
+                "ACTIONS_TOKEN",
+            )
