@@ -1,0 +1,135 @@
+name: Codereview self-hosted read-only review pilot (inert)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Open Codereview pull request number to prepare for analysis
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: codereview-self-read-only-pilot-${{ inputs.pull_request_number }}
+  cancel-in-progress: true
+
+jobs:
+  resolve-target:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+    outputs:
+      base_ref: ${{ steps.resolve.outputs.base_ref }}
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+    steps:
+      - name: Resolve open Codereview PR identity using read-only GitHub API
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          def reject_duplicates(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError("duplicate_json_key")
+                  result[key] = value
+              return result
+
+          def main():
+              raw_number = os.environ.get("PR_NUMBER", "")
+              if not re.fullmatch(r"[1-9][0-9]{0,8}", raw_number):
+                  raise SystemExit("pull_request_number_invalid")
+              number = int(raw_number)
+              command = [
+                  "gh", "api", f"repos/groktopus/codereview/pulls/{number}", "--jq",
+                  "{number, state, draft, base: {ref: .base.ref, sha: .base.sha, repo: {full_name: .base.repo.full_name}}, head: {sha: .head.sha, repo: {full_name: .head.repo.full_name}}}",
+              ]
+              try:
+                  response = subprocess.run(
+                      command, check=False, capture_output=True, text=True, timeout=15,
+                  )
+              except (OSError, subprocess.TimeoutExpired):
+                  raise SystemExit("target_pull_request_read_failed") from None
+              if response.returncode or len(response.stdout.encode("utf-8")) > 16_384:
+                  raise SystemExit("target_pull_request_read_failed")
+              try:
+                  record = json.loads(response.stdout, object_pairs_hook=reject_duplicates)
+              except (TypeError, ValueError, json.JSONDecodeError, RecursionError):
+                  raise SystemExit("target_pull_request_response_invalid") from None
+              if not isinstance(record, dict):
+                  raise SystemExit("target_pull_request_response_invalid")
+              if isinstance(record.get("number"), bool) or record.get("number") != number:
+                  raise SystemExit("target_pull_request_identity_mismatch")
+              if record.get("state") != "open" or record.get("draft") is not False:
+                  raise SystemExit("target_pull_request_not_open_ready")
+              base = record.get("base")
+              head = record.get("head")
+              if (
+                  not isinstance(base, dict)
+                  or not isinstance(base.get("repo"), dict)
+                  or base["repo"].get("full_name") != "groktopus/codereview"
+                  or base.get("ref") != "main"
+                  or not isinstance(head, dict)
+                  or not isinstance(head.get("repo"), dict)
+                  or head["repo"].get("full_name") != "groktopus/codereview"
+              ):
+                  raise SystemExit("target_pull_request_repository_or_base_mismatch")
+              base_sha = base.get("sha")
+              head_sha = head.get("sha")
+              if not isinstance(base_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+                  raise SystemExit("target_base_sha_invalid")
+              if not isinstance(head_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+                  raise SystemExit("target_head_sha_invalid")
+              output_path = os.environ.get("GITHUB_OUTPUT")
+              if not output_path:
+                  raise SystemExit("workflow_output_unavailable")
+              with Path(output_path).open("a", encoding="utf-8") as stream:
+                  stream.write(f"base_ref=main\nbase_sha={base_sha}\nhead_sha={head_sha}\n")
+
+          if __name__ == "__main__":
+              main()
+          PY
+
+  analyze:
+    needs: resolve-target
+    if: false
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+      actions: read
+    uses: ./.github/workflows/pr-analysis.yml
+    with:
+      harness_repository: groktopus/codereview
+      harness_sha: ${{ github.sha }}
+      target_repository: groktopus/codereview
+      pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
+      base_ref: ${{ needs.resolve-target.outputs.base_ref }}
+      base_sha: ${{ needs.resolve-target.outputs.base_sha }}
+      head_sha: ${{ needs.resolve-target.outputs.head_sha }}
+      review_contract: codereview-native-v1
+    secrets:
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      JEV_BASE_URL: ${{ secrets.JEV_BASE_URL }}
+      JEV_MODEL: ${{ secrets.JEV_MODEL }}
+      JEV_API_KEY: ${{ secrets.JEV_API_KEY }}

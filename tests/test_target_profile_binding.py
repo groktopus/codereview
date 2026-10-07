@@ -11,6 +11,7 @@ from scripts.resolve_target_profile import ProfileBindingError, main, resolve_ta
 
 ROOT = Path(__file__).parents[1]
 TARGET = "magnus919/SlopSearX"
+CODEREVIEW_TARGET = "groktopus/codereview"
 
 
 def _write_map(root: Path, *, profile_path: str, profile_raw: bytes, version: str) -> None:
@@ -68,6 +69,18 @@ def test_resolved_slopsearx_profile_enforces_bounded_required_claim_policy():
     assert "default: legacy-v14" in workflow
     assert "PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}" in workflow
     assert "EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}" in workflow
+
+
+def test_codereview_target_is_bound_to_its_fixed_candidate_profile():
+    binding = resolve_target_profile(CODEREVIEW_TARGET)
+
+    assert binding == {
+        "target_repository": CODEREVIEW_TARGET,
+        "profile_path": "profiles/codereview-native-v1-candidate.json",
+        "profile_version": "codereview-native-v1-candidate",
+        "profile_sha256": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
+        "profile_map_sha256": hashlib.sha256((ROOT / "profiles/targets.json").read_bytes()).hexdigest(),
+    }
 
 
 def test_unknown_repository_fails_closed_without_generic_fallback():

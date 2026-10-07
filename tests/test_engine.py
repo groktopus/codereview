@@ -13,7 +13,7 @@ from pr_review_harness.engine import EnginePreflightError, prepare_plan_tasks, r
 from pr_review_harness.evidence import ContextRetriever
 from pr_review_harness.planner import plan_review
 from pr_review_harness.private_capture import CONTENT_TRANSFORM
-from pr_review_harness.providers import OpenAIProvider, _validate_specialist
+from pr_review_harness.providers import DecisionProvider, OpenAIProvider, _validate_specialist
 from pr_review_harness.snapshot import collect_snapshot
 
 
@@ -3016,6 +3016,46 @@ def test_advisory_decision_provider_is_budgeted_and_cannot_change_deterministic_
     assert result["advisory_assessment"]["status"] == "RECEIVED"
     assert result["disposition"] == "INCOMPLETE"
     assert result["budget"]["provider_calls_reserved"] == 1
+
+
+def test_system_one_advisory_exact_request_quote_blocks_aggregate_overrun_before_dispatch(tmp_path, monkeypatch):
+    decision = DecisionProvider(
+        {
+            "kind": "typesafe",
+            "endpoint": "http://127.0.0.1:1/v1/systemone",
+            "model": "jev-1.13.0",
+            "api_key_env": "UNSET_TEST_TYPESAFE_KEY",
+        }
+    )
+    dispatched = []
+
+    def fake_isolated_call(_target, method, args, **_kwargs):
+        dispatched.append((method, args))
+        return {
+            "payload": {"primitive": "Noul", "question_id": "review_claim", "recommendation": "UNRESOLVED"},
+            "usage": {"known": False, "tokens": None, "cost": None},
+            "provenance": {},
+        }
+
+    monkeypatch.setattr(engine_module, "isolated_call", fake_isolated_call)
+    first = run(tmp_path, decision_provider=decision, run_id="wire-quote-baseline")
+    assert first["advisory_assessment"]["status"] == "RECEIVED"
+    assert len(dispatched) == 1
+    method, args = dispatched[0]
+    assert method == "assess"
+    question, summary_text = args[0], args[1]
+    actual_request = decision._assessment_request_bytes(question, summary_text, args[2])
+    reservation = first["ledger"]["budget"]["reservations"]["system-one:advisory:0"]
+    assert reservation["input_bytes"] == len(actual_request)
+
+    just_over = {**LIMITS, "max_context_bytes": first["budget"]["context_bytes_reserved"] - 1}
+    monkeypatch.setattr(engine_module, "isolated_call", lambda *_args, **_kwargs: pytest.fail("dispatch occurred"))
+    second = run(tmp_path, decision_provider=decision, limits=just_over, run_id="wire-quote-over-cap")
+    assert second["advisory_assessment"] == {
+        "status": "NOT_RUN",
+        "reason": "CONTEXT_BYTE_BUDGET_EXHAUSTED",
+    }
+    assert second["budget"]["budget_breaches"] == []
 
 
 @pytest.mark.parametrize(

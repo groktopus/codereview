@@ -1613,7 +1613,7 @@ class DecisionProvider:
             "model_id": self.model,
             "model_identity_source": "operator_configured" if self.model else "not_reported_by_endpoint",
             "native_contract": "system-one-choice-score-noul-v1",
-            "adapter_version": "0.1",
+            "adapter_version": "0.2",
             "supported_primitives": [
                 {
                     "choice-risk": "SYSTEM_ONE_CHOICE_RISK_ADVISORY",
@@ -1644,28 +1644,26 @@ class DecisionProvider:
         assert self.endpoint is not None
         return self.endpoint
 
-    def assess(self, question: str, text: str, limits: dict[str, Any]) -> dict[str, Any]:
+    def _assessment_request(
+        self, question: str, text: str, limits: dict[str, Any], *, allow_empty: bool = False
+    ) -> tuple[bytes, str, str]:
+        """Build the exact native request and its normalized question identity."""
         primitive = {
             "choice-risk": "SYSTEM_ONE_CHOICE_RISK_ADVISORY",
             "choice-injection-v1": "SYSTEM_ONE_PROMPT_INJECTION_ADVISORY",
             "noul": "SYSTEM_ONE_Noul_ADVISORY",
         }[self.primitive]
         self.preflight(primitive)
-        if not _nonempty(question) or not _nonempty(text):
+        if not isinstance(question, str) or not isinstance(text, str):
+            raise ProviderError("question_and_text_required")
+        if not allow_empty and (not _nonempty(question) or not _nonempty(text)):
             raise ProviderError("question_and_text_required")
         _mapping(limits, "limits")
         input_cap = _limits_int(limits, "max_input_bytes_per_task", 45_000)
-        output_cap = min(
-            self.max_response_bytes, _limits_int(limits, "max_output_bytes_per_task", self.max_response_bytes)
-        )
-        timeout = min(
-            self.timeout_seconds, _finite_positive(limits.get("deadline_seconds"), self.timeout_seconds, "deadline")
-        )
         question_id = "prompt_injection" if self.primitive == "choice-injection-v1" else "review_claim"
-        question_spec: dict[str, Any]
         if self.primitive == "choice-injection-v1":
             question = INJECTION_CHOICE_QUESTION
-            question_spec = {
+            question_spec: dict[str, Any] = {
                 "type": "choice",
                 "instructions": question,
                 "criteria": INJECTION_CHOICE_CRITERIA,
@@ -1688,7 +1686,63 @@ class DecisionProvider:
         }
         if self.model is not None:
             payload["model"] = self.model
-        request_bytes = _json_bytes(payload, input_cap, "request")
+        return _json_bytes(payload, input_cap, "request"), question_id, question
+
+    def _assessment_request_bytes(
+        self, question: str, text: str, limits: dict[str, Any], *, allow_empty: bool = False
+    ) -> bytes:
+        """Serialize the exact native request without resolving endpoint credentials."""
+        return self._assessment_request(question, text, limits, allow_empty=allow_empty)[0]
+
+    def estimate_call(
+        self, task_kind: str, task: dict[str, Any], evidence: list[dict[str, Any]], limits: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Quote the exact serialized System One body before credential lookup or dispatch."""
+        if task_kind != "SYSTEM_ONE_ASSESSMENT":
+            raise ProviderError("unsupported_task_kind")
+        if not isinstance(task, dict) or not isinstance(evidence, list):
+            raise ProviderError("invalid_assessment_request")
+        if not task and not evidence:
+            request_bytes = self._assessment_request_bytes("", "", limits, allow_empty=True)
+            return {
+                "provider_calls": 0,
+                "input_bytes": len(request_bytes),
+                "max_output_bytes": 0,
+                "reservation_kind": "preflight_only",
+                "request_shape": "empty_preflight_minimum",
+                "deadline_seconds": min(
+                    self.timeout_seconds,
+                    _finite_positive(limits.get("deadline_seconds"), self.timeout_seconds, "deadline"),
+                ),
+            }
+        if len(evidence) != 1:
+            raise ProviderError("invalid_assessment_request")
+        item = evidence[0]
+        if not isinstance(item, dict) or not isinstance(item.get("content"), str):
+            raise ProviderError("invalid_assessment_request")
+        request_bytes = self._assessment_request_bytes(task.get("question"), item["content"], limits)
+        output_bytes = min(
+            self.max_response_bytes, _limits_int(limits, "max_output_bytes_per_task", self.max_response_bytes)
+        )
+        deadline = min(
+            self.timeout_seconds, _finite_positive(limits.get("deadline_seconds"), self.timeout_seconds, "deadline")
+        )
+        return {
+            "provider_calls": 1,
+            "input_bytes": len(request_bytes),
+            "max_output_bytes": output_bytes,
+            "reservation_kind": "unknown",
+            "deadline_seconds": deadline,
+        }
+
+    def assess(self, question: str, text: str, limits: dict[str, Any]) -> dict[str, Any]:
+        request_bytes, question_id, question = self._assessment_request(question, text, limits)
+        output_cap = min(
+            self.max_response_bytes, _limits_int(limits, "max_output_bytes_per_task", self.max_response_bytes)
+        )
+        timeout = min(
+            self.timeout_seconds, _finite_positive(limits.get("deadline_seconds"), self.timeout_seconds, "deadline")
+        )
         endpoint_hint = self.endpoint
         exchange = _local_http_exchange(
             endpoint=endpoint_hint,

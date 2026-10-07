@@ -486,6 +486,98 @@ class ProviderBoundaryTests(unittest.TestCase):
         self.assertNotIn("caller question", request["questions"]["prompt_injection"]["instructions"])
         self.assertNotIn(FakeHandler.expected_token, repr(result))
 
+    def test_system_one_quote_matches_choice_and_noul_http_bodies_without_credentials(self):
+        cases = (
+            (
+                "choice-risk",
+                "Classify this bounded review summary.",
+                {
+                    "answers": {
+                        "review_claim": {
+                            "type": "choice",
+                            "choice": "uncertain",
+                            "probabilities": {"low": 0.1, "security_sensitive": 0.1, "uncertain": 0.8},
+                            "confidence": 0.8,
+                        }
+                    }
+                },
+            ),
+            (
+                "noul",
+                "Summarize risk without deciding disposition.",
+                {"answers": {"review_claim": {"type": "noul", "noul": 0.65}}},
+            ),
+        )
+        for primitive, question, response in cases:
+            with self.subTest(primitive=primitive):
+                provider = DecisionProvider(
+                    {
+                        "kind": "typesafe",
+                        "endpoint": self.native_url,
+                        "model": "jev-1.13.0",
+                        "api_key_env": "TEST_TYPESAFE_KEY",
+                        "primitive": primitive,
+                    }
+                )
+                text = "A bounded, untrusted repository summary."
+                with patch.dict(os.environ, {}, clear=True):
+                    quote = provider.estimate_call(
+                        "SYSTEM_ONE_ASSESSMENT",
+                        {"question": question},
+                        [{"content": text}],
+                        self._limits(),
+                    )
+                expected = provider._assessment_request_bytes(question, text, self._limits())
+                self.assertEqual(quote["input_bytes"], len(expected))
+                self.assertEqual(quote["provider_calls"], 1)
+                self.assertEqual(quote["reservation_kind"], "unknown")
+                FakeHandler.response_body = json.dumps(response).encode()
+                seen_before = len(FakeHandler.seen)
+                with patch.dict(os.environ, {"TEST_TYPESAFE_KEY": FakeHandler.expected_token}, clear=True):
+                    provider.assess(question, text, self._limits())
+                actual_body = FakeHandler.seen[seen_before][2]
+                self.assertEqual(actual_body, expected)
+                self.assertEqual(len(actual_body), quote["input_bytes"])
+
+    def test_system_one_empty_preflight_quote_is_non_dispatchable_and_monetary_unknown(self):
+        provider = DecisionProvider({"kind": "typesafe", "endpoint": self.native_url})
+        with patch.dict(os.environ, {}, clear=True):
+            quote = provider.estimate_call("SYSTEM_ONE_ASSESSMENT", {}, [], self._limits())
+        self.assertEqual(quote["provider_calls"], 0)
+        self.assertEqual(quote["reservation_kind"], "preflight_only")
+        self.assertEqual(quote["request_shape"], "empty_preflight_minimum")
+        self.assertGreater(quote["input_bytes"], 0)
+        self.assertEqual(FakeHandler.seen, [])
+        with patch.dict(os.environ, {}, clear=True):
+            quote = provider.estimate_call(
+                "SYSTEM_ONE_ASSESSMENT",
+                {"question": "Assess this risk."},
+                [{"content": "A bounded review summary."}],
+                self._limits(),
+            )
+        self.assertEqual(quote["provider_calls"], 1)
+        self.assertEqual(quote["reservation_kind"], "unknown")
+        self.assertEqual(FakeHandler.seen, [])
+        with self.assertRaisesRegex(ProviderError, "invalid_assessment_request"):
+            provider.estimate_call("SYSTEM_ONE_ASSESSMENT", {"question": "missing text"}, [], self._limits())
+        with self.assertRaisesRegex(ProviderError, "unsupported_task_kind"):
+            provider.estimate_call("OTHER", {}, [], self._limits())
+
+    def test_system_one_quote_cap_rejects_before_http(self):
+        provider = DecisionProvider({"kind": "typesafe", "endpoint": self.native_url, "model": "jev-1.13.0"})
+        task = {"question": "Classify this summary."}
+        evidence = [{"content": "Bounded evidence."}]
+        quote = provider.estimate_call("SYSTEM_ONE_ASSESSMENT", task, evidence, self._limits())
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": FakeHandler.expected_token}, clear=True):
+            with self.assertRaisesRegex(ProviderError, "request_exceeds_limit"):
+                provider.estimate_call(
+                    "SYSTEM_ONE_ASSESSMENT",
+                    task,
+                    evidence,
+                    self._limits(max_input_bytes_per_task=quote["input_bytes"] - 1),
+                )
+        self.assertEqual(FakeHandler.seen, [])
+
     def test_injection_choice_rejects_risk_labels_and_other_provider_kind(self):
         with self.assertRaisesRegex(ProviderError, "unsupported_primitive"):
             DecisionProvider(

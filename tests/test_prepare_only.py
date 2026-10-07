@@ -174,6 +174,94 @@ def test_prepare_only_cli_returns_scope_and_exact_sizes_without_key_or_artifact(
     assert not output_dir.exists()
 
 
+def test_codereview_profile_prepare_only_uses_required_native_claim_cap_without_transport(
+    tmp_path, monkeypatch, capsys
+):
+    repo = tmp_path / "codereview-fixture"
+    subprocess.run(["git", "init", str(repo)], check=True, stdout=subprocess.DEVNULL)
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args], check=True, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10,
+        ).stdout.strip()
+
+    git("config", "user.email", "prepare@example.invalid")
+    git("config", "user.name", "Prepare Fixture")
+    files = {
+        "AGENTS.md": "Review trusted repository policy from the base revision.\n",
+        "README.md": "Codereview fixture.\n",
+        "pyproject.toml": "[project]\nname='codereview-fixture'\n",
+        ".github/workflows/test.yml": "name: tests\n",
+        "src/pr_review_harness/engine.py": "def decide(value):\n    return bool(value)\n",
+        "src/pr_review_harness/report.py": "def render(value):\n    return str(value)\n",
+        "src/pr_review_harness/contracts.py": "CONTRACT = 'v1'\n",
+        "src/pr_review_harness/planner.py": "def plan(value):\n    return [value]\n",
+        "tests/test_engine.py": "def test_decide():\n    assert decide(1)\n",
+        "tests/test_report.py": "def test_render():\n    assert render(1) == '1'\n",
+    }
+    for name, content in files.items():
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    git("add", ".")
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "base"],
+        check=True, capture_output=True, timeout=10,
+    )
+    base = git("rev-parse", "HEAD")
+    (repo / "src/pr_review_harness/engine.py").write_text(
+        "def decide(value):\n    return value is not None and bool(value)\n", encoding="utf-8"
+    )
+    (repo / "tests/test_engine.py").write_text(
+        "def test_decide():\n    assert decide(1)\n    assert not decide(None)\n", encoding="utf-8"
+    )
+    git("add", "src/pr_review_harness/engine.py", "tests/test_engine.py")
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "head"],
+        check=True, capture_output=True, timeout=10,
+    )
+    head = git("rev-parse", "HEAD")
+
+    root = Path(__file__).parents[1]
+    provider_config = tmp_path / "provider.json"
+    provider_config.write_text(json.dumps({
+        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
+        "model": "provider-free-prepare-placeholder", "api_key_env": "CODE_REVIEW_PREPARE_ABSENT_KEY",
+    }))
+    decision_config = tmp_path / "decision.json"
+    decision_config.write_text(json.dumps({
+        "kind": "typesafe", "endpoint": "https://decision-placeholder.example.invalid/v1/systemone",
+        "model": "jev-latest", "api_key_env": "CODE_REVIEW_JEV_ABSENT_KEY",
+    }))
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+    monkeypatch.delenv("CODE_REVIEW_PREPARE_ABSENT_KEY", raising=False)
+    monkeypatch.delenv("CODE_REVIEW_JEV_ABSENT_KEY", raising=False)
+
+    class NoTransport:
+        def open(self, *_args, **_kwargs):
+            raise AssertionError("Codereview prepare-only opened a provider transport")
+
+    monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", NoTransport())
+    monkeypatch.setattr("pr_review_harness.claim_transport._HTTP_OPENER", NoTransport())
+    code = cli.main([
+        "review", "--repo", str(repo), "--base", base, "--head", head,
+        "--profile", str(root / "profiles/codereview-native-v1-candidate.json"),
+        "--provider-config", str(provider_config), "--decision-config", str(decision_config),
+        "--limits", str(root / "profiles/ordinary-review-limits-v3.json"),
+        "--max-claim-assessments", "4", "--prepare-only", "--json",
+    ])
+    assert code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "PREPARED_ONLY"
+    assert result["no_provider_calls"] is True
+    assert result["no_target_code_execution"] is True
+    assert result["disposition"] is None
+    assert result["primary_requests"]
+    assert all(request["admitted"] for request in result["primary_requests"])
+    assert result["capacity"]["runtime_call_demand"] == "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION"
+
+
 def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windows(
     tmp_path, monkeypatch, capsys
 ):

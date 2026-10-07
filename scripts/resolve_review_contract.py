@@ -37,6 +37,24 @@ CONTRACTS = {
         "max_claim_assessments": 4,
     },
 }
+# Keep this Slop-only mapping stable for the separate central pilot admission
+# consumer. New target contracts are resolved through the target-scoped map.
+CODE_REVIEW_CONTRACTS = {
+    "codereview-native-v1": {
+        "profile_path": "profiles/codereview-native-v1-candidate.json",
+        "limits_path": "profiles/ordinary-review-limits-v3.json",
+        "profile_version": "codereview-native-v1-candidate",
+        "profile_sha256": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
+        "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+        "max_claim_assessments": 4,
+    },
+}
+ALL_CONTRACTS = {**CONTRACTS, **CODE_REVIEW_CONTRACTS}
+TARGET_CONTRACTS = {
+    "magnus919/SlopSearX": frozenset({"legacy-v14", "bounded-production-v16"}),
+    "groktopus/codereview": frozenset({"codereview-native-v1"}),
+}
+CODE_REVIEW_TARGET = "groktopus/codereview"
 V16_RISK_RULE = {
     "lenses": ["security", "correctness", "tests"],
     "min_mode": "FOCUSED",
@@ -84,17 +102,25 @@ def resolve_review_contract(
     *,
     root: Path = ROOT,
 ) -> dict[str, Any]:
-    """Resolve only the two repository-owned profile and limit pairs."""
-    selected = CONTRACTS.get(review_contract)
-    if selected is None:
+    """Resolve only a fixed profile/limit pair allowed for this target."""
+    if review_contract not in ALL_CONTRACTS:
         raise ProfileBindingError("review_contract_unsupported")
-    if target_repository != TARGET:
+    if target_repository not in TARGET_CONTRACTS:
         raise ProfileBindingError("target_repository_unsupported")
+    if review_contract not in TARGET_CONTRACTS[target_repository]:
+        raise ProfileBindingError("review_contract_target_mismatch")
+    registry = CONTRACTS if target_repository == TARGET else CODE_REVIEW_CONTRACTS
+    selected = registry[review_contract]
 
-    # Preserve the existing target-map digest gate for the legacy contract.
-    if review_contract == "legacy-v14":
+    # Both repository v1 mappings are verified by the target-profile resolver.
+    # Slop v16 remains pinned by its fixed registry entry and records the map
+    # digest without changing the historical v16 binding behavior.
+    if (target_repository == TARGET and review_contract == "legacy-v14") or target_repository == CODE_REVIEW_TARGET:
         profile_binding = resolve_target_profile(target_repository, root=root)
-        if profile_binding["profile_path"] != selected["profile_path"]:
+        if (
+            profile_binding["profile_path"] != selected["profile_path"]
+            or profile_binding["profile_version"] != selected["profile_version"]
+        ):
             raise ProfileBindingError("review_contract_profile_mismatch")
     else:
         map_raw = _read_regular_file(root / "profiles/targets.json", 64_000, "profile_map_unavailable")
@@ -121,14 +147,14 @@ def resolve_review_contract(
     if claim_policy != expected_claim_policy:
         raise ProfileBindingError("review_contract_claim_policy_mismatch")
 
-    if review_contract == "legacy-v14":
+    if target_repository == TARGET and review_contract == "legacy-v14":
         if limits != {
             "schema_version": "1.0",
             "max_context_bytes": 600_000,
             "max_input_bytes_per_task": 96_000,
         }:
             raise ProfileBindingError("review_contract_limits_mismatch")
-    else:
+    elif review_contract == "bounded-production-v16":
         selector = profile.get("context_selection")
         retrieval = profile.get("retrieval_revisions")
         if (
@@ -141,6 +167,23 @@ def resolve_review_contract(
             or limits != V16_LIMITS
         ):
             raise ProfileBindingError("review_contract_v16_contract_mismatch")
+    else:
+        selector = profile.get("context_selection")
+        required_checks = profile.get("required_checks")
+        if (
+            profile.get("profile_status") != "candidate_not_quality_validated"
+            or profile.get("trusted_policy_paths") != ["AGENTS.md"]
+            or profile.get("required_lenses") != ["correctness", "tests", "maintainability"]
+            or not isinstance(selector, dict)
+            or selector.get("version") != "context-selection.v3"
+            or selector.get("max_total_context_bytes") != 256_000
+            or not isinstance(selector.get("window"), dict)
+            or selector["window"].get("max_windows_per_unit") != 8
+            or not isinstance(required_checks, list)
+            or len(required_checks) != 7
+            or limits != V16_LIMITS
+        ):
+            raise ProfileBindingError("review_contract_codereview_contract_mismatch")
 
     binding: dict[str, Any] = {
         **profile_binding,
