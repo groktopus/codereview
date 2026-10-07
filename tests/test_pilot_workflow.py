@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 WORKFLOW = Path(__file__).parents[1] / ".github/workflows/slopsearx-pilot.yml"
-PIN = "9e2646d7c2ad7a443bcb3ef52ebb954090aab2ea"
+PIN = "dd01a24976631c957a34f3ecc80dcb097948e450"
 SECRETS = (
     "LLM_BASE_URL",
     "LLM_MODEL",
@@ -84,7 +84,7 @@ def test_pilot_dispatch_has_closed_contract_choice_and_runs_dispatcher_on_defaul
     assert "review_contract:" in dispatch
     assert "type: choice" in dispatch
     assert "default: legacy-v14" in dispatch
-    assert "          - legacy-v14\n          - bounded-production-v16" in dispatch
+    assert "          - legacy-v14\n          - bounded-production-v16\n          - bounded-production-v17" in dispatch
     assert "target_repository:" not in dispatch
     assert "harness_sha:" not in dispatch
     assert "LLM_BASE_URL:" not in dispatch

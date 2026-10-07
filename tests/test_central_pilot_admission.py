@@ -104,7 +104,7 @@ def _candidate(tmp_path, contract_name="legacy-v14"):
     return json.dumps(event).encode(), FakeTransport(responses)
 
 
-@pytest.mark.parametrize("contract_name", ["legacy-v14", "bounded-production-v16"])
+@pytest.mark.parametrize("contract_name", ["legacy-v14", "bounded-production-v16", "bounded-production-v17"])
 def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_path, contract_name):
     event, transport = _candidate(tmp_path, contract_name)
     receipt = admission.verify_candidate(event_bytes=event, pull_request_number=7, token="fake-read-token", transport=transport)
@@ -123,7 +123,7 @@ def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_
     assert len(transport.calls) == 5
 
 
-@pytest.mark.parametrize("contract_name", ["legacy-v14", "bounded-production-v16"])
+@pytest.mark.parametrize("contract_name", ["legacy-v14", "bounded-production-v16", "bounded-production-v17"])
 @pytest.mark.parametrize(
     ("field", "value"),
     [
