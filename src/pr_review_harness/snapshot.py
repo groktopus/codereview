@@ -799,6 +799,182 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
                 except SnapshotError:
                     source_bytes, scan_truncated = b"", True
                 lines = source_bytes.splitlines(keepends=True)
+                if context_selection["version"] == "context-selection.v3":
+                    # A bounded Git read can end in the middle of a line. Never
+                    # publish that partial line as exact source evidence.
+                    if scan_truncated and source_bytes and source_bytes[-1:] != b"\n":
+                        lines.pop()
+                    complete_line_count = len(lines)
+
+                    def changed_intersections(line_start: int, line_end: int) -> list[list[int]]:
+                        return [
+                            [max(line_start, changed_start), min(line_end, changed_end)]
+                            for changed_start, changed_end in changed_ranges
+                            if changed_start <= line_end and changed_end >= line_start
+                        ]
+
+                    def add_window_gap(reason: str, line_start: int, line_end: int) -> None:
+                        gap = {
+                            "path": source_path,
+                            "source_kind": "source_window",
+                            "reason": reason,
+                            "required": True,
+                            "unit_ids": [entry["unit_id"]],
+                            "side": side,
+                            "line_ranges": [[line_start, line_end]],
+                            "changed_line_ranges": changed_intersections(line_start, line_end),
+                        }
+                        if gaps:
+                            previous = gaps[-1]
+                            prior_ranges = previous.get("line_ranges")
+                            if (
+                                previous.get("path") == source_path
+                                and previous.get("source_kind") == "source_window"
+                                and previous.get("reason") == reason
+                                and previous.get("required") is True
+                                and previous.get("unit_ids") == [entry["unit_id"]]
+                                and previous.get("side") == side
+                                and isinstance(prior_ranges, list)
+                                and len(prior_ranges) == 1
+                                and prior_ranges[0][1] + 1 == line_start
+                            ):
+                                prior_ranges[0][1] = line_end
+                                previous["changed_line_ranges"] = changed_intersections(prior_ranges[0][0], line_end)
+                                return
+                        gaps.append(gap)
+
+                    def add_source_window(window_start: int, window_end: int, window_lines: list[bytes]) -> bool:
+                        nonlocal selection_bytes_remaining
+                        window_bytes = b"".join(window_lines)
+                        window_eid = add_evidence(
+                            source_path,
+                            window_bytes,
+                            "source_window",
+                            "untrusted_pr_content",
+                            oid,
+                            source_revision,
+                            line_start=window_start,
+                            required=True,
+                            total_size=len(window_bytes),
+                            object_id=oid,
+                            source_size_bytes=source_size,
+                        )
+                        if not window_eid:
+                            return False
+                        record = evidence[window_eid]
+                        record["source_side"] = side
+                        record["changed_line_ranges"] = changed_intersections(window_start, window_end)
+                        record["line_end"] = window_end
+                        record["source_url"] = _source_url(
+                            repository_url,
+                            source_revision,
+                            source_path,
+                            window_start,
+                            window_end,
+                        )
+                        entry["evidence_ids"].append(window_eid)
+                        entry["review_context_evidence_ids"].append(window_eid)
+                        selection_bytes_remaining -= len(window_bytes)
+                        return True
+
+                    for start, end, changed_start, changed_end in merged:
+                        if start > complete_line_count:
+                            reason = "window_scan_limit" if scan_truncated else "changed_line_unavailable"
+                            add_window_gap(reason, start, end)
+                            continue
+                        effective_end = min(end, complete_line_count)
+                        cursor = start
+                        while cursor <= effective_end:
+                            if windows_used >= window_cfg["max_windows_per_unit"]:
+                                add_window_gap("window_count_limit", cursor, effective_end)
+                                break
+                            available = min(
+                                window_cfg["max_bytes"],
+                                selection_bytes_remaining,
+                                remaining,
+                            )
+                            if available <= 0:
+                                add_window_gap("context_selection_budget_exhausted", cursor, effective_end)
+                                break
+
+                            piece_start = cursor
+                            piece_lines: list[bytes] = []
+                            piece_bytes = 0
+                            while cursor <= effective_end:
+                                line = lines[cursor - 1]
+                                line_bytes = len(line)
+                                try:
+                                    line.decode("utf-8", "strict")
+                                except UnicodeDecodeError:
+                                    if piece_lines:
+                                        if add_source_window(piece_start, cursor - 1, piece_lines):
+                                            windows_used += 1
+                                        piece_lines = []
+                                        piece_bytes = 0
+                                        if windows_used >= window_cfg["max_windows_per_unit"]:
+                                            add_window_gap("window_count_limit", cursor, effective_end)
+                                            cursor = effective_end + 1
+                                            break
+                                    add_window_gap("source_line_invalid_utf8", cursor, cursor)
+                                    cursor += 1
+                                    break
+                                if line_bytes > window_cfg["max_bytes"]:
+                                    if piece_lines:
+                                        if add_source_window(piece_start, cursor - 1, piece_lines):
+                                            windows_used += 1
+                                        piece_lines = []
+                                        piece_bytes = 0
+                                        if windows_used >= window_cfg["max_windows_per_unit"]:
+                                            add_window_gap("window_count_limit", cursor, effective_end)
+                                            cursor = effective_end + 1
+                                            break
+                                    add_window_gap("source_line_exceeds_window_limit", cursor, cursor)
+                                    cursor += 1
+                                    break
+                                available = min(
+                                    window_cfg["max_bytes"],
+                                    selection_bytes_remaining,
+                                    remaining,
+                                )
+                                if line_bytes > available:
+                                    if piece_lines:
+                                        if add_source_window(piece_start, cursor - 1, piece_lines):
+                                            windows_used += 1
+                                        piece_lines = []
+                                        piece_bytes = 0
+                                        if windows_used >= window_cfg["max_windows_per_unit"]:
+                                            add_window_gap("window_count_limit", cursor, effective_end)
+                                            cursor = effective_end + 1
+                                            break
+                                        continue
+                                    add_window_gap("context_selection_budget_exhausted", cursor, cursor)
+                                    cursor += 1
+                                    break
+                                if piece_bytes + line_bytes > available:
+                                    if add_source_window(piece_start, cursor - 1, piece_lines):
+                                        windows_used += 1
+                                    piece_lines = []
+                                    piece_bytes = 0
+                                    if windows_used >= window_cfg["max_windows_per_unit"]:
+                                        add_window_gap("window_count_limit", cursor, effective_end)
+                                        cursor = effective_end + 1
+                                        break
+                                    continue
+                                if not piece_lines:
+                                    piece_start = cursor
+                                piece_lines.append(line)
+                                piece_bytes += line_bytes
+                                cursor += 1
+                            if piece_lines:
+                                if add_source_window(piece_start, cursor - 1, piece_lines):
+                                    windows_used += 1
+                        if scan_truncated and end > complete_line_count:
+                            add_window_gap(
+                                "window_scan_limit",
+                                max(complete_line_count + 1, start),
+                                end,
+                            )
+                    continue
                 for start, end, changed_start, changed_end in merged:
                     if windows_used >= window_cfg["max_windows_per_unit"]:
                         gaps.append(
