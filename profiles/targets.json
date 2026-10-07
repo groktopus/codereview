@@ -5,6 +5,11 @@
       "profile_path": "profiles/slopsearx-v14-jev-reconciliation-candidate.json",
       "profile_sha256": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
       "profile_version": "slopsearx-production-v14-jev-reconciliation-candidate"
+    },
+    "groktopus/codereview": {
+      "profile_path": "profiles/codereview-native-v1-candidate.json",
+      "profile_sha256": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
+      "profile_version": "codereview-native-v1-candidate"
     }
   }
 }
