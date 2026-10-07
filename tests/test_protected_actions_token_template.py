@@ -33,7 +33,7 @@ def test_actions_token_templates_are_bounded_inert_and_match_policy():
             "ref": "owner/repo/.github/workflows/pr-analysis.yml@refs/heads/main",
         },
         called_harness={"repository": "harness/repo", "path": ".github/workflows/pr-analysis.yml", "sha": "a" * 40},
-        profile={"version": "v1", "sha256": "b" * 64, "provider_configuration_identity": "provider-config-sha256:" + "c" * 64},
+        profile={"version": "v1", "sha256": "b" * 64, "provider_configuration_identity": "provider-identity-sha256:" + "c" * 64},
         artifact_redirect_hosts=["downloads.example.test"],
     )
     assert not ProtectedPublicationPolicy.parse(policy).enabled

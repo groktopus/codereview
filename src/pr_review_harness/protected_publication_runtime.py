@@ -60,7 +60,7 @@ _ACTOR = re.compile(r"[A-Za-z0-9-]{1,39}(?:\[bot\])?\Z")
 _WORKFLOW_PATH = re.compile(r"\.github/workflows/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\.ya?ml\Z")
 _PROFILE_HASH = re.compile(r"[0-9a-f]{64}\Z")
 _WORKFLOW_HASH = re.compile(r"[0-9a-f]{64}\Z")
-_PROVIDER_IDENTITY = re.compile(r"provider-config-sha256:[0-9a-f]{64}\Z")
+_PROVIDER_IDENTITY = re.compile(r"provider-identity-sha256:[0-9a-f]{64}\Z")
 _CONFIG_KEYS = {
     "schema",
     "enabled",
