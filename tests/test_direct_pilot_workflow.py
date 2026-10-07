@@ -387,16 +387,21 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
         1,
     )
     reusable_command = reusable_command.replace(
+        '          test "$(sha256sum "$LIMITS" | cut -d\' \' -f1)" = "$EXPECTED_LIMITS_SHA256"\n',
+        "",
+        1,
+    )
+    reusable_command = reusable_command.replace(
         "            --capture-recovery-inputs artifacts/recovery-inputs.json \\\n",
         "",
         1,
     )
     # Keep the historical diagnostic's default limits and zero candidate cap;
-    # remove only the two explicit ordinary-path additions.
-    bounded_claim_cap = "            --max-claim-assessments 1 \\\n"
-    assert reusable_command.count(bounded_claim_cap) == 1
-    reusable_command = reusable_command.replace(bounded_claim_cap, "", 1)
-    review_limits = "            --limits profiles/ordinary-review-limits-v2.json \\\n"
+    # remove only the reusable workflow's selected-contract additions.
+    claim_cap = '            --max-claim-assessments "$MAX_CLAIM_ASSESSMENTS" \\\n'
+    assert reusable_command.count(claim_cap) == 1
+    reusable_command = reusable_command.replace(claim_cap, "", 1)
+    review_limits = '            --limits "$LIMITS" \\\n'
     assert reusable_command.count(review_limits) == 1
     reusable_command = reusable_command.replace(review_limits, "", 1)
     assert direct_command.rstrip() == reusable_command.rstrip()
@@ -408,6 +413,10 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
     assert 'env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review' in reusable_command
     assert '--event-file "$PR_EVENT_PATH"' in reusable_command
     assert "PROFILE: profiles/slopsearx.json" in direct_review
+    assert 'MAX_CLAIM_ASSESSMENTS: ${{ steps.resolve-profile.outputs.max_claim_assessments }}' in reusable_review
+    assert 'EXPECTED_LIMITS_SHA256: ${{ steps.resolve-profile.outputs.limits_sha256 }}' in reusable_review
+    assert "REVIEW_CONTRACT: ${{ inputs.review_contract }}" in reusable
+    assert "default: legacy-v14" in reusable
     assert "--mode AUTO" in direct_review
     assert "--json > artifacts/review-result.json" in direct_review
     assert "--limits" not in direct_review

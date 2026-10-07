@@ -486,7 +486,7 @@ def test_production_analysis_uses_fixed_bounded_claim_assessment_and_preserves_r
     manifest_step = _step(source, "Record recovery identity and artifact digests")
 
     claim_lines = [line.strip() for line in review_command.splitlines() if "--max-claim-assessments" in line]
-    assert claim_lines == ["--max-claim-assessments 1 \\"]
+    assert claim_lines == ['--max-claim-assessments "$MAX_CLAIM_ASSESSMENTS" \\']
     assert "inputs.max_claim_assessments" not in source
     assert '--decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json"' in review_command
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
@@ -522,8 +522,12 @@ def test_ordinary_context_budget_is_a_trusted_single_override_and_fixed_in_workf
     source = ANALYSIS_WORKFLOW.read_text(encoding="utf-8")
     review_step = _step(source, "Produce a bounded read-only report from the bare target object store")
     review_command = review_step.split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
-    assert "--limits profiles/ordinary-review-limits-v2.json \\" in review_command
+    assert '--limits "$LIMITS" \\' in review_command
     assert "inputs.limits" not in source
+    assert "review_contract:" in source
+    assert "default: legacy-v14" in source
+    assert "REVIEW_CONTRACT: ${{ inputs.review_contract }}" in source
+    assert "EXPECTED_LIMITS_SHA256: ${{ steps.resolve-profile.outputs.limits_sha256 }}" in source
     assert "--capture-recovery-inputs artifacts/recovery-inputs.json" in review_command
 
 
