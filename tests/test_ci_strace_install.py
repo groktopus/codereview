@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -10,18 +11,29 @@ INSTALLER = ROOT / "scripts/install_ci_strace.sh"
 
 def _fake_command(path: Path, name: str, body: str) -> None:
     executable = path / name
-    executable.write_text("#!/usr/bin/env bash\nset -euo pipefail\n" + body, encoding="utf-8")
+    executable.write_text("#!/bin/bash\nset -euo pipefail\n" + body, encoding="utf-8")
     executable.chmod(0o755)
 
 
 def _fixture(tmp_path: Path, *, fail_first_update: bool = False, always_fail: bool = False,
-             install_strace: bool = True, existing_strace: bool = False) -> tuple[Path, dict[str, str], Path]:
+             install_strace: bool = True, existing_strace: bool = False,
+             host_strace_canary: bool = False) -> tuple[Path, dict[str, str], Path]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
+    for name in ("bash", "cat", "chmod", "sleep"):
+        trusted_tool = shutil.which(name, path=os.defpath)
+        if trusted_tool is None:
+            raise RuntimeError(f"required test utility is unavailable: {name}")
+        (bin_dir / name).symlink_to(trusted_tool)
+    host_bin = tmp_path / "host-bin"
+    host_bin.mkdir()
+    if host_strace_canary:
+        _fake_command(host_bin, "strace", "printf 'host strace canary\\n'\n")
     log = tmp_path / "commands.log"
     env = {
         **os.environ,
-        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "PATH": str(bin_dir),
+        "HOST_STRACE_CANARY": str(host_bin / "strace"),
         "FAKE_BIN": str(bin_dir),
         "FAKE_LOG": str(log),
         "FAKE_FAIL_FIRST_UPDATE": "1" if fail_first_update else "0",
@@ -61,8 +73,11 @@ def _fixture(tmp_path: Path, *, fail_first_update: bool = False, always_fail: bo
 
 
 def _run(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    trusted_bash = shutil.which("bash", path=os.defpath)
+    if trusted_bash is None:
+        raise RuntimeError("required test utility is unavailable: bash")
     return subprocess.run(
-        ["bash", str(INSTALLER)], env=env, capture_output=True, text=True, timeout=10, check=False
+        [trusted_bash, str(INSTALLER)], env=env, capture_output=True, text=True, timeout=10, check=False
     )
 
 
@@ -77,7 +92,9 @@ def test_installer_uses_existing_strace_without_apt_or_sudo(tmp_path: Path):
 
 
 def test_installer_retries_once_with_bounded_apt_options_and_requires_strace(tmp_path: Path):
-    _, env, log = _fixture(tmp_path, fail_first_update=True)
+    _, env, log = _fixture(tmp_path, fail_first_update=True, host_strace_canary=True)
+    assert Path(env["HOST_STRACE_CANARY"]).is_file()
+    assert str(Path(env["HOST_STRACE_CANARY"]).parent) not in env["PATH"].split(os.pathsep)
 
     completed = _run(env)
 
