@@ -64,7 +64,8 @@ def test_resolved_slopsearx_profile_enforces_bounded_required_claim_policy():
     assert profile["profile_status"] == "context_selection_candidate_not_quality_validated"
 
     workflow = (ROOT / ".github/workflows/pr-analysis.yml").read_text(encoding="utf-8")
-    assert "--max-claim-assessments 1" in workflow
+    assert 'MAX_CLAIM_ASSESSMENTS: ${{ steps.resolve-profile.outputs.max_claim_assessments }}' in workflow
+    assert "default: legacy-v14" in workflow
     assert "PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}" in workflow
     assert "EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}" in workflow
 

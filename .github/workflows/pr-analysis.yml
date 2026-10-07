@@ -36,6 +36,11 @@ on:
         required: false
         type: boolean
         default: false
+      review_contract:
+        description: 'Trusted caller-selected closed review contract; this is never derived from pull request content'
+        required: false
+        type: string
+        default: legacy-v14
     secrets:
       LLM_BASE_URL:
         required: true
@@ -312,8 +317,9 @@ jobs:
         id: resolve-profile
         env:
           TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          REVIEW_CONTRACT: ${{ inputs.review_contract }}
         run: |
-          python scripts/resolve_target_profile.py \
+          python scripts/resolve_review_contract.py \
             --github-output "$GITHUB_OUTPUT" \
             --binding-artifact artifacts/profile-binding.json
       - name: Materialize private provider configuration from trusted secrets
@@ -338,9 +344,13 @@ jobs:
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
           PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}
           EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}
+          LIMITS: ${{ steps.resolve-profile.outputs.limits_path }}
+          EXPECTED_LIMITS_SHA256: ${{ steps.resolve-profile.outputs.limits_sha256 }}
+          MAX_CLAIM_ASSESSMENTS: ${{ steps.resolve-profile.outputs.max_claim_assessments }}
           OBJECT_STORE: ${{ runner.temp }}/target.git
         run: |
           test "$(sha256sum "$PROFILE" | cut -d' ' -f1)" = "$EXPECTED_PROFILE_SHA256"
+          test "$(sha256sum "$LIMITS" | cut -d' ' -f1)" = "$EXPECTED_LIMITS_SHA256"
           mkdir -p artifacts
           env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review \
             --repo "$OBJECT_STORE" \
@@ -348,8 +358,8 @@ jobs:
             --profile "$PROFILE" \
             --provider-config "$RUNNER_TEMP/pr-review-provider-config/provider.json" \
             --decision-config "$RUNNER_TEMP/pr-review-provider-config/decision.json" \
-            --limits profiles/ordinary-review-limits-v2.json \
-            --max-claim-assessments 1 \
+            --limits "$LIMITS" \
+            --max-claim-assessments "$MAX_CLAIM_ASSESSMENTS" \
             --output artifacts/review \
             --run-id "pr-${{ inputs.pull_request_number }}-${{ github.run_id }}" \
             --capture-recovery-inputs artifacts/recovery-inputs.json \
