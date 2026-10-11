@@ -53,7 +53,7 @@ from .publication_receipts import (
     ScanLimits,
     validate_credential_provenance,
 )
-from .publisher import _canonical_hash, _stateless_effect_key
+from .publisher import PublicationAdmissionUnavailable, _canonical_hash, _stateless_effect_key
 
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 _SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
@@ -1228,9 +1228,11 @@ class GitHubActionsPublicationAdapter:
             identity = self._identity
             if identity is None or identity.actor_login != self.policy.allowed_actor_login:
                 raise GitHubPublicationError("publisher_identity_unavailable")
-            body = result.get("rendered_review")
-            if not isinstance(body, str):
-                raise GitHubPublicationError("canonical_review_missing")
+            from .report import render_report
+
+            body = render_report(result)
+            if "rendered_review" in result and result["rendered_review"] != body:
+                raise GitHubPublicationError("canonical_review_mismatch")
             body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
             slot = EffectSlot(
                 self.policy.repository_id,
@@ -1284,11 +1286,10 @@ class GitHubActionsPublicationAdapter:
                 credential_provenance=self.policy.credential_provenance,
             )
         except GitHubPublicationError as exc:
-            raise RuntimeError(exc.code) from None
-        except Exception as exc:
-            # No third-party response or raw artifact text is exposed.
-            code = getattr(exc, "code", None)
-            raise RuntimeError(code if isinstance(code, str) else "publication_admission_unavailable") from None
+            raise PublicationAdmissionUnavailable(exc.code) from None
+        except Exception:
+            # Never forward arbitrary exception attributes or third-party text.
+            raise PublicationAdmissionUnavailable() from None
 
     def _review_pages(self, slot: EffectSlot, limits: ScanLimits) -> tuple[list[ReviewObservation], int, bool]:
         observations = []

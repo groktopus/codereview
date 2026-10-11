@@ -648,12 +648,16 @@ class Uploader:
         ("lost_post_history_unknown", "UNKNOWN"),
         ("admission_only", "CANDIDATE"),
         ("admission_only_repository", "CANDIDATE"),
+        ("admission_only_no_rendered_review", "CANDIDATE"),
     ],
 )
 def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_posts_once(failure, expected_status):
     repository_scope = failure == "admission_only_repository"
     policy = make_policy(concurrency_scope="repository" if repository_scope else "pull_request")
     result = make_valid_result()
+    if failure == "admission_only_no_rendered_review":
+        result.pop("rendered_review")
+        result["result_hash"] = _canonical_hash({key: value for key, value in result.items() if key != "result_hash"})
     bundle = bundle_for(policy, result)
     receipt_archives = {}
     post_bodies = []
@@ -818,7 +822,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         "allowed_actors": [WRITER],
         "max_review_body_bytes": 60_000,
     }
-    if failure in {"admission_only", "admission_only_repository"}:
+    if failure in {"admission_only", "admission_only_repository", "admission_only_no_rendered_review"}:
         admission = client.admit(
             result,
             config,
@@ -833,6 +837,8 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         assert admission.publisher_run.run_id == policy.publisher_run_id
         assert admission.publisher_run.run_attempt == policy.publisher_run_attempt
         assert admission.actor_login == WRITER
+        if failure == "admission_only_no_rendered_review":
+            assert admission.review_body_hash == hashlib.sha256(render_report(result).encode("utf-8")).hexdigest()
         expected_group = "pr-review-publish-8123" if repository_scope else "pr-review-publish-8123-44"
         assert admission.concurrency_scope == policy.concurrency_scope
         assert admission.concurrency_group == expected_group
