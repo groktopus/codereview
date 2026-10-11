@@ -651,7 +651,12 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
 
     class CapturingAdapter(real_adapter):
         def admit(self, result, config, limits):
+            expected_body_hash = None
+            if "rendered_review" not in result:
+                expected_body_hash = hashlib.sha256(render_report(result).encode("utf-8")).hexdigest()
             admission = super().admit(result, config, limits)
+            if expected_body_hash is not None:
+                assert admission.review_body_hash == expected_body_hash
             admitted.append(admission)
             return admission
 
@@ -700,6 +705,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         if failure_mode == "post_forbidden":
             assert outcome["reason"] == "submit_response_ambiguous"
         expected_reason = {
+            "mismatched_rendered_review": "canonical_review_mismatch",
             "caller_workflow_sha_mismatch": "source_artifact_manifest_policy_mismatch",
             "provider_identity_mismatch": "source_artifact_manifest_policy_mismatch",
             "stale_default_tip_before_ack": "pre_receipt_head_unavailable",
@@ -716,6 +722,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             "stale_head",
             "caller_workflow_sha_mismatch",
             "provider_identity_mismatch",
+            "mismatched_rendered_review",
             "stale_default_tip_before_ack",
             "deadline",
         }
@@ -795,10 +802,13 @@ def test_real_bundle_producer_integrates_with_protected_consumer(tmp_path):
         counter += 1
         case_dir.mkdir()
         result_value = dict(result)
+        result_value.pop("rendered_review", None)
         result_value["run_id"] = f"pr-{policy.pull_request_number}-{policy.upstream_run_id}"
         result_value["project_profile_version"] = policy.profile_version
         result_value["provider_identity"] = provider_identity
-        result_value["rendered_review"] = render_report(result_value)
+        assert "rendered_review" not in result_value
+        if active_failure_mode == "mismatched_rendered_review":
+            result_value["rendered_review"] = "tampered canonical review body"
         result_value["result_hash"] = producer_fixture._canonical_hash(
             {key: value for key, value in result_value.items() if key != "result_hash"}
         )
@@ -889,11 +899,14 @@ def test_real_bundle_producer_integrates_with_protected_consumer(tmp_path):
         ("success", "Canonical producer identity is accepted and publishes once."),
         ("provider_identity_mismatch", "A different identity is rejected before fake POST."),
         ("duplicate_source_artifact", "Duplicate source artifacts produce no fake POST."),
+        ("mismatched_rendered_review", "A supplied mismatched report is rejected before fake POST."),
     )
     import sys
 
     module = sys.modules[__name__]
+    active_failure_mode = None
     for index, (failure_mode, _description) in enumerate(test_cases):
+        active_failure_mode = failure_mode
         case_path = tmp_path / f"consumer-{index}"
         case_path.mkdir()
         with pytest.MonkeyPatch.context() as patcher:

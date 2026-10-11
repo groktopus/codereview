@@ -7,6 +7,7 @@ import pytest
 from pr_review_harness.engine import _hash, run_review
 from pr_review_harness.planner import plan_review
 from pr_review_harness.publisher import (
+    PublicationAdmissionUnavailable,
     PublicationRejected,
     SQLiteEffectStore,
     effect_idempotency_key,
@@ -616,6 +617,46 @@ def test_stateless_publication_requires_durable_receipt_before_single_post(monke
     assert sent_body.count("<!-- pr-review-harness:") == 1
     canonical_body = sent_body.rsplit("\n\n<!-- pr-review-harness:", 1)[0]
     assert hashlib.sha256(canonical_body.encode()).hexdigest() == writer.receipts[0].review_body_hash
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_reason"),
+    [
+        (PublicationAdmissionUnavailable("github_api_request_failed"), "github_api_request_failed"),
+        (PublicationAdmissionUnavailable("secret_key_aabbccddeeff00112233445566778899"), "publication_admission_unavailable"),
+        (PublicationAdmissionUnavailable("ghp_" + "a" * 32), "publication_admission_unavailable"),
+    ],
+)
+def test_typed_admission_failure_remains_unknown_with_only_allowlisted_reason(failure, expected_reason):
+    class FailingAdmission:
+        def admit(self, *_args):
+            raise failure
+
+    outcome, writer, history, calls, _provider = _publish_stateless(admission=FailingAdmission())
+    assert outcome["status"] == "UNKNOWN"
+    assert outcome["reason"] == expected_reason
+    assert writer.receipts == []
+    assert history.calls == 0
+    assert calls == []
+
+
+def test_unexpected_admission_error_code_is_not_exposed():
+    class UnexpectedFailure(Exception):
+        code = "github_api_request_failed"
+
+    class FailingAdmission:
+        def admit(self, *_args):
+            raise UnexpectedFailure("private provider response")
+
+    outcome, writer, history, calls, _provider = _publish_stateless(admission=FailingAdmission())
+    assert outcome == {
+        "status": "UNKNOWN",
+        "reason": "publication_admission_unavailable",
+        "request": preview(result(), _stateless_config()),
+    }
+    assert writer.receipts == []
+    assert history.calls == 0
+    assert calls == []
 
 
 def test_stateless_publication_refuses_prior_unknown_receipt_without_post():

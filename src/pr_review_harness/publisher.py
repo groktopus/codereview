@@ -16,6 +16,98 @@ class PublicationRejected(ValueError):
     """A review is not eligible for a publishing attempt."""
 
 
+_ADMISSION_REASON_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
+_GENERIC_ADMISSION_REASON = "publication_admission_unavailable"
+_SAFE_ADMISSION_REASON_CODES = frozenset(
+    {
+        "artifact_download_failed",
+        "artifact_download_location_untrusted",
+        "artifact_download_redirect_missing",
+        "artifact_metadata_invalid_or_expired",
+        "artifact_run_binding_invalid",
+        "artifact_size_limit_exceeded",
+        "artifact_transport_digest_mismatch",
+        "canonical_review_mismatch",
+        "deadline_exhausted",
+        "github_api_request_failed",
+        "github_endpoint_invalid",
+        "github_json_array_required",
+        "github_json_invalid",
+        "github_json_object_required",
+        "github_response_invalid",
+        "github_response_too_large",
+        "github_transport_deadline_exhausted",
+        "github_transport_failed",
+        "publisher_identity_unavailable",
+        "publisher_identity_changed",
+        "publisher_identity_invalid",
+        "publisher_identity_state_invalid",
+        "publisher_identity_evidence_invalid",
+        "publisher_credential_unavailable",
+        "publisher_credential_invalid",
+        "publisher_credential_provenance_missing",
+        "publisher_credential_provenance_unexpected",
+        "publisher_actor_policy_mismatch",
+        "publisher_run_state_invalid",
+        "publisher_run_identity_mismatch",
+        "publisher_run_record_invalid",
+        "publisher_run_repository_mismatch",
+        "pull_request_identity_invalid",
+        "publication_limits_invalid",
+        "review_result_invalid",
+        "review_result_target_stale_or_mismatched",
+        "result_artifact_content_mismatch",
+        "result_artifact_attestation_unavailable",
+        "result_artifact_head_binding_invalid",
+        "result_artifact_missing_or_ambiguous",
+        "result_artifact_run_binding_invalid",
+        "result_artifact_too_large",
+        "workflow_id_mismatch",
+        "workflow_path_or_ref_mismatch",
+        "workflow_sha_policy_invalid",
+        "workflow_run_identity_invalid",
+        "workflow_run_identity_mismatch",
+        "workflow_run_pr_binding_missing",
+        "workflow_run_not_successfully_bound",
+        "called_workflow_provenance_missing",
+        "called_workflow_provenance_mismatch",
+        "artifact_expiry_invalid",
+        "publisher_run_attempt_mismatch",
+        "publisher_run_conclusion_unknown",
+        "publisher_run_listing_invalid",
+        "publisher_run_still_in_progress",
+        "publisher_rerun_history_unavailable",
+        "artifact_listing_invalid",
+        "artifact_page_limit_exceeded",
+        "artifact_trust_mode_invalid",
+        "artifact_download_mode_invalid",
+        "publisher_receipt_missing_or_ambiguous",
+        "publisher_receipt_attempt_mismatch",
+        "publisher_receipt_expired",
+        "publisher_receipt_name_or_slot_mismatch",
+        "publisher_receipt_too_large",
+        "publisher_receipt_binding_mismatch",
+        "receipt_upstream_workflow_mismatch",
+        "receipt_upstream_pr_mismatch",
+        "receipt_upstream_run_unsuccessful",
+    }
+)
+
+
+class PublicationAdmissionUnavailable(RuntimeError):
+    """An opaque admission failure or a validated internal reason code."""
+
+    def __init__(self, reason_code: object = None):
+        if (
+            not isinstance(reason_code, str)
+            or not _ADMISSION_REASON_CODE.fullmatch(reason_code)
+            or reason_code not in _SAFE_ADMISSION_REASON_CODES
+        ):
+            reason_code = _GENERIC_ADMISSION_REASON
+        self.reason_code = reason_code
+        super().__init__(reason_code)
+
+
 class SQLiteEffectStore:
     """Durable local idempotency claims; callers must serialize remote runners."""
 
@@ -648,6 +740,8 @@ def publish_review_stateless(
         ):
             raise PublicationRejected("verified publication context does not match the review")
         request["idempotency_key"] = admission.effect_key
+    except PublicationAdmissionUnavailable as exc:
+        return {"status": "UNKNOWN", "reason": exc.reason_code, "request": locals().get("request")}
     except (PublicationRejected, ReceiptContractError, KeyError, TypeError, ValueError) as exc:
         reason = str(exc) if isinstance(exc, PublicationRejected) else "publication_admission_invalid"
         return {"status": "REJECTED", "reason": reason, "request": locals().get("request")}
