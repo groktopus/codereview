@@ -139,6 +139,8 @@ def test_history_incomplete_is_explicit_and_has_safe_reason_code():
         HistoryScan(HistoryStatus.UNAVAILABLE)
     with pytest.raises(ReceiptContractError, match="reason_code"):
         HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="response body contains token")
+    with pytest.raises(ReceiptContractError, match="review completeness"):
+        HistoryScan(HistoryStatus.INCOMPLETE, reason_code="pagination_limit", reviews_complete=1)
 
 
 def test_limits_reject_bool_and_unbounded_deadline():

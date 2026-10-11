@@ -50,7 +50,7 @@ from .github_app_canary import (
     verify_github_app_identity_canary,
 )
 from .github_app_credentials import GitHubAppCredentialPolicy, GitHubAppPublisherCredentialProvider
-from .publication_receipts import ScanLimits
+from .publication_receipts import NoEffectReceipt, ScanLimits
 from .publisher import _canonical_hash, publish_review_stateless
 
 _POLICY_PATH = Path(".github/pr-review-publisher-policy.json")
@@ -80,6 +80,11 @@ _CONFIG_KEYS = {
 }
 _V2_CONFIG_KEYS = (_CONFIG_KEYS - {"app"}) | {"credential", "authorization_mode"}
 _V3_CONFIG_KEYS = (_V2_CONFIG_KEYS - {"artifact_redirect_hosts"}) | {"artifact_download_mode"}
+_V4_CONFIG_KEYS = _V3_CONFIG_KEYS | {"history_reconciliation"}
+_HISTORICAL_NO_EFFECT_REASONS = {
+    "source_artifact_redirect_untrusted",
+    "publication_admission_unavailable",
+}
 
 
 class ProtectedRuntimeError(ValueError):
@@ -186,6 +191,20 @@ class ProtectedPublicationPolicy:
                     raise ProtectedRuntimeError("protected_policy_credential_invalid")
             else:
                 raise ProtectedRuntimeError("protected_policy_credential_invalid")
+        elif schema == "pr-review-protected-publication-policy.v4":
+            if set(value) != _V4_CONFIG_KEYS or value.get("authorization_mode") != "STANDING_BOUNDED":
+                raise ProtectedRuntimeError("protected_policy_schema_invalid")
+            credential = value.get("credential")
+            if not isinstance(credential, dict):
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            if credential.get("kind") == "APP_INSTALLATION":
+                if set(credential) != {"kind", "app"}:
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            elif credential.get("kind") == "ACTIONS_TOKEN":
+                if set(credential) != {"kind", "actor_login"} or credential.get("actor_login") != "github-actions[bot]":
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            else:
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
         else:
             raise ProtectedRuntimeError("protected_policy_schema_invalid")
         if not isinstance(value.get("enabled"), bool):
@@ -207,6 +226,7 @@ class ProtectedPublicationPolicy:
             if schema in {
                 "pr-review-protected-publication-policy.v2",
                 "pr-review-protected-publication-policy.v3",
+                "pr-review-protected-publication-policy.v4",
             } and key == "publisher_workflow":
                 expected_workflow_fields.add("sha256")
             if not isinstance(workflow, dict) or set(workflow) != expected_workflow_fields:
@@ -290,7 +310,7 @@ class ProtectedPublicationPolicy:
             raise ProtectedRuntimeError("protected_policy_limits_invalid")
         if value.get("artifact_trust_mode") != "API_BOUND_SHA256":
             raise ProtectedRuntimeError("protected_policy_artifact_trust_invalid")
-        if schema == "pr-review-protected-publication-policy.v3":
+        if schema in {"pr-review-protected-publication-policy.v3", "pr-review-protected-publication-policy.v4"}:
             if value.get("artifact_download_mode") != ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH.value:
                 raise ProtectedRuntimeError("protected_policy_artifact_download_mode_invalid")
         else:
@@ -303,6 +323,56 @@ class ProtectedPublicationPolicy:
                 or len(set(hosts)) != len(hosts)
             ):
                 raise ProtectedRuntimeError("protected_policy_artifact_hosts_invalid")
+        if schema == "pr-review-protected-publication-policy.v4":
+            history = value.get("history_reconciliation")
+            if (
+                not isinstance(history, dict)
+                or set(history) != {"schema", "max_historical_exceptions", "historical_exceptions"}
+                or history.get("schema") != "publisher-history-reconciliation.v1"
+                or history.get("max_historical_exceptions") != 4
+                or not isinstance(history.get("historical_exceptions"), list)
+                or len(history["historical_exceptions"]) > 4
+            ):
+                raise ProtectedRuntimeError("protected_policy_history_invalid")
+            seen_runs = set()
+            expected_exception_fields = {
+                "run_id", "attempt", "publisher_workflow_id", "publisher_run_head_sha",
+                "runtime_pin", "publisher_workflow_blob_sha", "analysis_workflow_blob_sha",
+                "publisher_job_id", "publisher_job_name", "runtime_step", "log_sha256",
+                "log_bytes", "outcome", "reason_code", "proof_kind",
+            }
+            for record in history["historical_exceptions"]:
+                if (
+                    not isinstance(record, dict)
+                    or set(record) != expected_exception_fields
+                    or not _positive_int(record.get("run_id"))
+                    or not _positive_int(record.get("attempt"))
+                    or record["attempt"] != 1
+                    or not _positive_int(record.get("publisher_workflow_id"))
+                    or record.get("publisher_workflow_id") != value["publisher_workflow"]["id"]
+                    or not isinstance(record.get("publisher_run_head_sha"), str)
+                    or not _SHA.fullmatch(record["publisher_run_head_sha"])
+                    or not isinstance(record.get("runtime_pin"), str)
+                    or not re.fullmatch(r"[0-9a-f]{40}", record["runtime_pin"])
+                    or not isinstance(record.get("publisher_workflow_blob_sha"), str)
+                    or not re.fullmatch(r"[0-9a-f]{40}", record["publisher_workflow_blob_sha"])
+                    or not isinstance(record.get("analysis_workflow_blob_sha"), str)
+                    or not re.fullmatch(r"[0-9a-f]{40}", record["analysis_workflow_blob_sha"])
+                    or not isinstance(record.get("log_sha256"), str)
+                    or not _PROFILE_HASH.fullmatch(record["log_sha256"])
+                    or not _positive_int(record.get("publisher_job_id"))
+                    or record.get("publisher_job_name") != "publisher"
+                    or isinstance(record.get("runtime_step"), bool)
+                    or record.get("runtime_step") != 8
+                    or not _positive_int(record.get("log_bytes"))
+                    or record.get("outcome") != "UNKNOWN"
+                    or not isinstance(record.get("reason_code"), str)
+                    or record["reason_code"] not in _HISTORICAL_NO_EFFECT_REASONS
+                    or record.get("proof_kind") != "TRUSTED_PRE_POST_RECONCILIATION"
+                    or record["run_id"] in seen_runs
+                ):
+                    raise ProtectedRuntimeError("protected_policy_history_invalid")
+                seen_runs.add(record["run_id"])
         return cls(raw=value)
 
     @property
@@ -389,6 +459,7 @@ def _policy_from_workspace(environ: Mapping[str, str]) -> ProtectedPublicationPo
     if policy.raw["schema"] in {
         "pr-review-protected-publication-policy.v2",
         "pr-review-protected-publication-policy.v3",
+        "pr-review-protected-publication-policy.v4",
     }:
         workflow = policy.raw["publisher_workflow"]
         workflow_path = root / workflow["path"]
@@ -594,15 +665,148 @@ def _publication_policy(
         artifact_trust_mode=ArtifactTrustMode.API_BOUND_SHA256,
         artifact_download_mode=(
             ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH
-            if protected.raw["schema"] == "pr-review-protected-publication-policy.v3"
+            if protected.raw["schema"] in {
+                "pr-review-protected-publication-policy.v3",
+                "pr-review-protected-publication-policy.v4",
+            }
             else ArtifactDownloadMode.STATIC_HOST_ALLOWLIST
         ),
         artifact_redirect_hosts=tuple(protected.raw.get("artifact_redirect_hosts", ())),
+        history_reconciliation=protected.raw.get("history_reconciliation"),
+        no_effect_policy_hash=(
+            _canonical_hash(protected.raw)
+            if protected.raw["schema"] == "pr-review-protected-publication-policy.v4"
+            else None
+        ),
     )
 
 
+def _early_no_effect_adapter(
+    environ: Mapping[str, str],
+    protected: ProtectedPublicationPolicy,
+    transport: GitHubHTTPTransport,
+    artifact_uploader,
+    deadline: float,
+    clock: Callable[[], float],
+) -> GitHubActionsPublicationAdapter | None:
+    """Verify current publisher identity before parsing any source artifact.
+
+    The returned adapter has no PR/upstream context and is usable only for a
+    run-bound NO_POST receipt. It uses the fixed read-scoped Actions token;
+    normal publication later builds a complete adapter from validated source
+    context and may use the configured credential kind.
+    """
+    if protected.raw["schema"] != "pr-review-protected-publication-policy.v4":
+        return None
+    publisher = protected.raw["publisher_workflow"]
+    source = protected.raw["source_workflow"]
+    harness = protected.raw["called_harness"]
+    repo = protected.raw["repository"]
+    profile = protected.raw["profile"]
+    try:
+        run_id = int(environ["GITHUB_RUN_ID"])
+        attempt = int(environ["GITHUB_RUN_ATTEMPT"])
+    except (KeyError, TypeError, ValueError):
+        raise ProtectedRuntimeError("publisher_run_identity_invalid") from None
+    run_sha = environ.get("GITHUB_SHA")
+    if (
+        not _positive_int(run_id)
+        or not _positive_int(attempt)
+        or not isinstance(run_sha, str)
+        or not _SHA.fullmatch(run_sha)
+        or environ.get("GITHUB_REPOSITORY") != repo["name"]
+        or environ.get("GITHUB_REF") != f"refs/heads/{protected.raw['default_branch']}"
+        or environ.get("GITHUB_WORKFLOW_REF") != publisher["ref"]
+    ):
+        raise ProtectedRuntimeError("publisher_run_identity_invalid")
+    credential_provenance = {
+        "schema": "publisher-credential-provenance.v1",
+        "credential_kind": "ACTIONS_TOKEN",
+        "identity_state": "PLATFORM_BOUND",
+        "permission_basis": "WORKFLOW_DECLARATION",
+        "write_capability": "NOT_TESTED",
+        "publisher_workflow_sha256": publisher["sha256"],
+        "declared_job_permissions": {"actions": "read", "contents": "read", "pull-requests": "write"},
+    }
+    policy = GitHubPublicationPolicy(
+        repository_id=repo["id"],
+        repository=repo["name"],
+        pull_request_number=None,
+        upstream_run_id=None,
+        upstream_run_attempt=None,
+        publisher_run_id=run_id,
+        publisher_run_attempt=attempt,
+        caller_workflow_id=source["id"],
+        caller_workflow_path=source["path"],
+        caller_workflow_ref=f"refs/heads/{protected.raw['default_branch']}",
+        caller_workflow_sha=run_sha,
+        called_harness_repository=harness["repository"],
+        called_harness_path=harness["path"],
+        called_harness_sha=harness["sha"],
+        publisher_workflow_id=publisher["id"],
+        publisher_workflow_path=publisher["path"],
+        publisher_workflow_ref=f"refs/heads/{protected.raw['default_branch']}",
+        publisher_workflow_sha=run_sha,
+        profile_version=profile["version"],
+        profile_sha256=profile["sha256"],
+        provider_configuration_identity=profile["provider_configuration_identity"],
+        allowed_actor_login="github-actions[bot]",
+        artifact_trust_mode=ArtifactTrustMode.API_BOUND_SHA256,
+        artifact_download_mode=ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH,
+        credential_provenance=credential_provenance,
+        history_reconciliation=protected.raw["history_reconciliation"],
+        no_effect_policy_hash=_canonical_hash(protected.raw),
+        no_effect_only=True,
+    )
+    identity_evidence = _canonical_hash(
+        {
+            "binding": "v4-read-only-publisher-run-for-no-effect",
+            "repository": repo,
+            "policy_sha256": policy.no_effect_policy_hash,
+            "publisher_run": {"id": run_id, "attempt": attempt, "sha": run_sha},
+        }
+    )
+    token_provider = GitHubActionsTokenCredentialProvider(
+        GitHubActionsTokenPolicy(
+            repository_id=repo["id"],
+            repository=repo["name"],
+            actor_login="github-actions[bot]",
+            permissions=(("actions", "read"), ("pull_requests", "write")),
+        ),
+        environ.get("GITHUB_TOKEN", ""),
+        identity=VerifiedPublisherIdentity(
+            state=IdentityState.PLATFORM_BOUND,
+            actor_login="github-actions[bot]",
+            credential_kind=CredentialKind.ACTIONS_TOKEN,
+            evidence_id=identity_evidence,
+        ),
+    )
+    adapter = GitHubActionsPublicationAdapter(
+        policy,
+        token_provider,
+        transport=transport,
+        artifact_uploader=artifact_uploader,
+        clock=clock,
+    )
+    run = adapter._run(run_id, attempt, min(10.0, _remaining(deadline, clock)))
+    if clock() >= deadline:
+        raise ProtectedRuntimeError("protected_publication_deadline_exhausted")
+    identity = adapter._run_identity(run, publisher=True)
+    if (
+        identity.workflow_sha != run_sha
+        or run.get("event") != "workflow_run"
+        or run.get("status") != "in_progress"
+    ):
+        raise ProtectedRuntimeError("publisher_run_binding_invalid")
+    adapter.no_effect_publisher_identity = identity
+    return adapter
+
+
 def _trusted_artifact_location(protected: ProtectedPublicationPolicy, location: object) -> bool:
-    if protected.raw["schema"] == "pr-review-protected-publication-policy.v3":
+    if protected.raw["schema"] in {
+        "pr-review-protected-publication-policy.v3",
+        "pr-review-protected-publication-policy.v4",
+    }:
         return validate_api_issued_artifact_location(location)
     if not isinstance(location, str):
         return False
@@ -841,8 +1045,6 @@ def _load_review_result(adapter: GitHubActionsPublicationAdapter, limits: ScanLi
     """Read the exact API-bound source artifact before any write-scoped token."""
     adapter._start_deadline(limits.deadline_seconds)
     policy = adapter.policy
-    pr = adapter._pull(adapter._deadline(limits.deadline_seconds))
-    upstream, _upstream_identity = adapter._validate_upstream_run(pr, adapter._deadline(limits.deadline_seconds))
     current = adapter._run(policy.publisher_run_id, policy.publisher_run_attempt, adapter._deadline(limits.deadline_seconds))
     current_identity = adapter._run_identity(current, publisher=True)
     if (
@@ -851,6 +1053,11 @@ def _load_review_result(adapter: GitHubActionsPublicationAdapter, limits: ScanLi
         or current.get("status") != "in_progress"
     ):
         raise ProtectedRuntimeError("publisher_run_binding_invalid")
+    # This API-verified identity is the minimum basis for a run-bound no-effect
+    # record if later bootstrap/admission steps fail before submission.
+    adapter.no_effect_publisher_identity = current_identity
+    pr = adapter._pull(adapter._deadline(limits.deadline_seconds))
+    upstream, _upstream_identity = adapter._validate_upstream_run(pr, adapter._deadline(limits.deadline_seconds))
     candidates = adapter._list_run_artifacts(
         policy.upstream_run_id,
         policy.result_artifact_name,
@@ -979,17 +1186,86 @@ def run_protected_publication(
     """
     env = os.environ if environ is None else environ
     deadline: float | None = None
+    protected = None
+    adapter = None
+    post_started = False
+    no_effect_attempted = False
+    target_claim = None
+    source_platform = None
+    no_effect_observation: dict[str, str] | None = None
+
+    def persist_no_effect() -> None:
+        nonlocal no_effect_observation, no_effect_attempted
+        if (
+            protected is None
+            or protected.raw["schema"] != "pr-review-protected-publication-policy.v4"
+            or post_started
+            or no_effect_attempted
+        ):
+            return
+        if adapter is None or not hasattr(adapter, "no_effect_publisher_identity"):
+            no_effect_observation = {"status": "UNKNOWN", "reason": "publisher_identity_unverified"}
+            return
+        identity = adapter.no_effect_publisher_identity
+        claim = target_claim if isinstance(target_claim, tuple) and len(target_claim) == 3 else (None, None, None)
+        source_id = getattr(source_platform, "source_run_id", None)
+        source_attempt = getattr(source_platform, "source_run_attempt", None)
+        try:
+            receipt = NoEffectReceipt(
+                publisher_run=identity,
+                policy_hash=adapter.policy.no_effect_policy_hash,
+                pull_request_number=claim[0],
+                base_sha=claim[1],
+                head_sha=claim[2],
+                upstream_run_id=source_id if isinstance(source_id, int) and not isinstance(source_id, bool) else None,
+                upstream_run_attempt=source_attempt if isinstance(source_attempt, int) and not isinstance(source_attempt, bool) else None,
+            )
+            remaining = _remaining(deadline, clock)
+            no_effect_attempted = True
+            persistence = adapter.persist_no_effect(receipt, _with_deadline(publication_limits, remaining))
+            if persistence.acknowledges(receipt):
+                no_effect_observation = {"status": "ACKNOWLEDGED", "reason": "readback_verified"}
+            else:
+                reason = persistence.reason_code
+                no_effect_observation = {
+                    "status": "UNKNOWN",
+                    "reason": reason if isinstance(reason, str) and re.fullmatch(r"[a-z0-9_]{1,64}", reason) else "no_effect_ack_missing",
+                }
+        except Exception:
+            no_effect_attempted = True
+            no_effect_observation = {"status": "UNKNOWN", "reason": "no_effect_ack_missing"}
+
+    def with_no_effect_observation(value: dict[str, object]) -> dict[str, object]:
+        nonlocal no_effect_observation
+        if (
+            protected is not None
+            and protected.raw.get("schema") == "pr-review-protected-publication-policy.v4"
+            and not post_started
+        ):
+            if no_effect_observation is None:
+                no_effect_observation = {"status": "UNKNOWN", "reason": "publisher_identity_unverified"}
+            value["no_effect_receipt"] = dict(no_effect_observation)
+        return value
     try:
         protected = _policy_from_workspace(env)
         if not protected.enabled:
             return {"schema": "pr-review-protected-publication.v1", "status": "DISABLED", "reason": "publication_disabled"}
         publication_limits = ScanLimits(**protected.raw["limits"])
         deadline = clock() + float(publication_limits.deadline_seconds)
+        client = transport or UrllibGitHubTransport()
+        uploader = None
+        if protected.raw["schema"] == "pr-review-protected-publication-policy.v4":
+            try:
+                uploader = artifact_uploader or OfficialActionsArtifactUploader(environ=_artifact_environment(env))
+                adapter = _early_no_effect_adapter(env, protected, client, uploader, deadline, clock)
+            except Exception:
+                # This independent proof attempt is diagnostic-only. The
+                # normal admission path still performs its own required checks.
+                adapter = None
         event_path = env.get("GITHUB_EVENT_PATH")
         if not isinstance(event_path, str) or not Path(event_path).is_absolute():
             raise ProtectedRuntimeError("workflow_event_unavailable")
         event_raw = _read_regular(Path(event_path), _EVENT_MAX_BYTES, "workflow_event_unavailable")
-        client = transport or UrllibGitHubTransport()
         target_claim, source_workflow_sha = _bootstrap_target_claim(env, event_raw, protected, client, deadline, clock)
         platform = _platform_context(env, event_raw, protected, target_claim, source_workflow_sha)
         github_policy = _publication_policy(protected, platform)
@@ -1061,15 +1337,15 @@ def run_protected_publication(
                 identity=identity,
             )
             remaining = _remaining(deadline, clock)
-        uploader = artifact_uploader or OfficialActionsArtifactUploader(environ=_artifact_environment(env))
         adapter = GitHubActionsPublicationAdapter(
             github_policy,
             provider,
             transport=client,
-            artifact_uploader=uploader,
+            artifact_uploader=uploader or artifact_uploader or OfficialActionsArtifactUploader(environ=_artifact_environment(env)),
             clock=clock,
         )
         publication_config = protected.publication_config()
+        source_platform = platform
         result = _load_review_result(adapter, _with_deadline(publication_limits, remaining))
         if not isinstance(result, dict):
             raise ProtectedRuntimeError("result_artifact_intake_unavailable")
@@ -1110,6 +1386,11 @@ def run_protected_publication(
             return pr["head_sha"]
 
         remaining = _remaining(deadline, clock)
+        def tracked_submit(payload, effect_key, timeout_seconds):
+            nonlocal post_started
+            post_started = True
+            return adapter.submit_review(payload, effect_key, timeout_seconds)
+
         outcome = publish_review_stateless(
             result,
             publication_config,
@@ -1118,18 +1399,51 @@ def run_protected_publication(
             history_reader=adapter,
             receipt_writer=adapter,
             fresh_head=fresh_head,
-            submit_review=adapter.submit_review,
+            submit_review=tracked_submit,
             limits=_with_deadline(publication_limits, remaining),
         )
-        return _safe_outcome(outcome)
+        persist_no_effect()
+        return with_no_effect_observation(_safe_outcome(outcome))
     except ProtectedRuntimeError as exc:
-        return {"schema": "pr-review-protected-publication.v1", "status": "UNKNOWN", "reason": exc.code}
+        try:
+            persist_no_effect()
+        except Exception:
+            pass
+        return with_no_effect_observation(
+            {"schema": "pr-review-protected-publication.v1", "status": "UNKNOWN", "reason": exc.code}
+        )
     except GitHubPublicationError as exc:
-        return {"schema": "pr-review-protected-publication.v1", "status": "UNKNOWN", "reason": exc.code}
+        try:
+            persist_no_effect()
+        except Exception:
+            pass
+        return with_no_effect_observation(
+            {"schema": "pr-review-protected-publication.v1", "status": "UNKNOWN", "reason": exc.code}
+        )
     except (OSError, ValueError, TypeError, KeyError):
-        return {"schema": "pr-review-protected-publication.v1", "status": "UNKNOWN", "reason": "protected_publication_input_invalid"}
+        try:
+            persist_no_effect()
+        except Exception:
+            pass
+        return with_no_effect_observation(
+            {
+                "schema": "pr-review-protected-publication.v1",
+                "status": "UNKNOWN",
+                "reason": "protected_publication_input_invalid",
+            }
+        )
     except Exception:
-        return {"schema": "pr-review-protected-publication.v1", "status": "UNKNOWN", "reason": "protected_publication_unavailable"}
+        try:
+            persist_no_effect()
+        except Exception:
+            pass
+        return with_no_effect_observation(
+            {
+                "schema": "pr-review-protected-publication.v1",
+                "status": "UNKNOWN",
+                "reason": "protected_publication_unavailable",
+            }
+        )
 
 
 def _remaining(deadline: float, clock: Callable[[], float]) -> float:

@@ -758,12 +758,19 @@ def publish_review_stateless(
             return None, "publication_history_unavailable"
         if not isinstance(scan, HistoryScan):
             return None, "publication_history_contract_invalid"
-        if scan.status is not HistoryStatus.COMPLETE:
+        review_only_reconciliation = (
+            scan.status is HistoryStatus.INCOMPLETE
+            and scan.reviews_complete
+            and 1 <= scan.scanned_pages <= stage_bounds.max_pages
+        )
+        if scan.status is not HistoryStatus.COMPLETE and not review_only_reconciliation:
             return None, scan.reason_code or "publication_history_incomplete"
         if scan.scanned_runs > stage_bounds.max_runs or scan.scanned_pages > stage_bounds.max_pages:
             return None, "publication_history_limit_exceeded"
         if len(scan.receipts) > stage_bounds.max_runs:
             return None, "publication_receipt_limit_exceeded"
+        if len(scan.no_effects) > stage_bounds.max_runs:
+            return None, "publication_no_effect_limit_exceeded"
         if len(scan.reviews) > stage_bounds.max_reviews:
             return None, "publication_review_limit_exceeded"
         return scan, None
@@ -772,7 +779,7 @@ def publish_review_stateless(
         prior_reviews = [entry for entry in scan.reviews if entry.slot.key == admission.slot.key]
         if prior_reviews:
             if len(prior_reviews) != 1:
-                return "CONFLICT", "multiple_reviews_for_slot"
+                return "CONFLICT", "multiple_reviews_for_slot", None
             review = prior_reviews[0]
             if (
                 review.effect_key == admission.effect_key
@@ -780,23 +787,53 @@ def publish_review_stateless(
                 and review.actor_login == admission.actor_login
                 and review.state is _expected_review_state(admission.review_event)
             ):
-                return "CONFIRMED", None
-            return "CONFLICT", "existing_review_conflicts_with_slot"
-        prior_receipts = [entry for entry in scan.receipts if entry.slot.key == admission.slot.key]
+                return "CONFIRMED", None, review
+            return "CONFLICT", "existing_review_conflicts_with_slot", None
+        no_post_runs = {
+            item.publisher_run.run_id
+            for item in scan.no_effects
+            if item.pull_request_number == admission.slot.pull_request_number
+            and item.base_sha == admission.base_sha
+            and item.head_sha == admission.slot.head_sha
+        }
+        prior_receipts = [
+            entry
+            for entry in scan.receipts
+            if entry.slot.key == admission.slot.key and entry.publisher_run.run_id not in no_post_runs
+        ]
         if prior_receipts:
             if len(prior_receipts) != 1:
-                return "UNKNOWN", "multiple_attempt_receipts_for_slot"
+                return "UNKNOWN", "multiple_attempt_receipts_for_slot", None
             receipt = prior_receipts[0]
             if receipt.effect_key != admission.effect_key:
-                return "CONFLICT", "different_result_already_claimed_slot"
-            return "UNKNOWN", "prior_attempt_has_no_confirmed_review"
-        return "READY", None
+                return "CONFLICT", "different_result_already_claimed_slot", None
+            return "UNKNOWN", "prior_attempt_has_no_confirmed_review", None
+        return "READY", None, None
+
+    def confirmed_review_outcome(reason, review):
+        outcome = {"status": "CONFIRMED", "reason": reason, "request": request}
+        if review is not None:
+            outcome["effect_observation"] = {
+                "actor_login": review.actor_login,
+                "review_state": review.state.value,
+                "review_id": review.review_id,
+                "write_capability": "OBSERVED_SUCCESS",
+            }
+        return outcome
 
     scan, reason = read_history()
     if scan is None:
         return {"status": "UNKNOWN", "reason": reason, "request": request}
-    state, reason = effect_state(scan)
+    state, reason, matched_review = effect_state(scan)
+    if scan.status is not HistoryStatus.COMPLETE:
+        if state == "CONFIRMED":
+            return confirmed_review_outcome("confirmed_from_complete_review_history", matched_review)
+        if state == "CONFLICT":
+            return {"status": state, "reason": reason, "request": request}
+        return {"status": "UNKNOWN", "reason": reason or "publication_history_incomplete", "request": request}
     if state != "READY":
+        if state == "CONFIRMED":
+            return confirmed_review_outcome(reason, matched_review)
         return {"status": state, "reason": reason, "request": request}
     try:
         stage_bounds = remaining_bounds()
@@ -858,9 +895,9 @@ def publish_review_stateless(
     except Exception:
         scan, reason = read_history()
         if scan is not None:
-            state, state_reason = effect_state(scan)
+            state, state_reason, matched_review = effect_state(scan)
             if state == "CONFIRMED":
-                return {"status": "CONFIRMED", "reason": "confirmed_after_ambiguous_response", "request": request}
+                return confirmed_review_outcome("confirmed_after_ambiguous_response", matched_review)
             if state == "CONFLICT":
                 return {"status": "CONFLICT", "reason": state_reason, "request": request}
         return {"status": "UNKNOWN", "reason": "submit_response_ambiguous", "request": request}
@@ -868,9 +905,9 @@ def publish_review_stateless(
     if not isinstance(submitted, ReviewObservation):
         scan, reason = read_history()
         if scan is not None:
-            state, state_reason = effect_state(scan)
+            state, state_reason, matched_review = effect_state(scan)
             if state == "CONFIRMED":
-                return {"status": "CONFIRMED", "reason": "confirmed_after_response_validation", "request": request}
+                return confirmed_review_outcome("confirmed_after_response_validation", matched_review)
             if state == "CONFLICT":
                 return {"status": "CONFLICT", "reason": state_reason, "request": request}
         return {"status": "UNKNOWN", "reason": "submit_response_invalid", "request": request}

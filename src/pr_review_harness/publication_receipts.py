@@ -252,6 +252,99 @@ class AttemptReceipt:
 
 
 @dataclass(frozen=True)
+class NoEffectReceipt:
+    """Run-bound proof that the protected wrapper never entered review submission.
+
+    Target fields are nullable because admission may fail before a PR slot or
+    upstream run is established. The proof concerns only this authenticated
+    publisher run and the exact protected policy; it does not claim that the
+    reviewed result was valid or that publication succeeded.
+    """
+
+    publisher_run: RunIdentity
+    policy_hash: str
+    pull_request_number: int | None = None
+    base_sha: str | None = None
+    head_sha: str | None = None
+    upstream_run_id: int | None = None
+    upstream_run_attempt: int | None = None
+    schema_version: str = "publisher-no-effect.v1"
+    state: str = "NO_POST"
+    post_started: bool = False
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "publisher-no-effect.v1" or self.state != "NO_POST":
+            raise ReceiptContractError("no-effect receipt schema is invalid")
+        if self.post_started is not False:
+            raise ReceiptContractError("no-effect receipt cannot follow submission start")
+        if not isinstance(self.publisher_run, RunIdentity):
+            raise ReceiptContractError("no-effect publisher run is invalid")
+        _validate_hash(self.policy_hash, "policy_hash")
+        if self.pull_request_number is not None and not _positive_int(self.pull_request_number):
+            raise ReceiptContractError("no-effect pull request is invalid")
+        for name in ("base_sha", "head_sha"):
+            value = getattr(self, name)
+            if value is not None:
+                _validate_sha(value, name)
+        if self.upstream_run_id is not None and not _positive_int(self.upstream_run_id):
+            raise ReceiptContractError("no-effect upstream run is invalid")
+        if self.upstream_run_attempt is not None and not _positive_int(self.upstream_run_attempt):
+            raise ReceiptContractError("no-effect upstream attempt is invalid")
+        if (self.upstream_run_id is None) != (self.upstream_run_attempt is None):
+            raise ReceiptContractError("no-effect upstream run binding is incomplete")
+        target_values = (self.pull_request_number, self.base_sha, self.head_sha)
+        if any(value is None for value in target_values) and any(value is not None for value in target_values):
+            raise ReceiptContractError("no-effect target binding is incomplete")
+
+    def to_dict(self) -> dict:
+        return {
+            "schema_version": self.schema_version,
+            "state": self.state,
+            "post_started": False,
+            "policy_hash": self.policy_hash,
+            "publisher_run": self.publisher_run.to_dict(),
+            "pull_request_number": self.pull_request_number,
+            "base_sha": self.base_sha,
+            "head_sha": self.head_sha,
+            "upstream_run_id": self.upstream_run_id,
+            "upstream_run_attempt": self.upstream_run_attempt,
+        }
+
+    def to_bytes(self) -> bytes:
+        encoded = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        if len(encoded) > MAX_RECEIPT_BYTES:
+            raise ReceiptContractError("no-effect receipt exceeds byte limit")
+        return encoded
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> NoEffectReceipt:
+        if not isinstance(raw, bytes) or len(raw) > MAX_RECEIPT_BYTES:
+            raise ReceiptContractError("no-effect receipt input exceeds byte limit")
+        try:
+            data = json.loads(raw.decode("utf-8", errors="strict"), object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            raise ReceiptContractError("no-effect receipt JSON is invalid") from None
+        keys = {
+            "schema_version", "state", "post_started", "policy_hash", "publisher_run",
+            "pull_request_number", "base_sha", "head_sha", "upstream_run_id", "upstream_run_attempt",
+        }
+        if not isinstance(data, dict) or set(data) != keys:
+            raise ReceiptContractError("no-effect receipt fields are invalid")
+        return cls(
+            publisher_run=_run_from_dict(data["publisher_run"]),
+            policy_hash=data["policy_hash"],
+            pull_request_number=data["pull_request_number"],
+            base_sha=data["base_sha"],
+            head_sha=data["head_sha"],
+            upstream_run_id=data["upstream_run_id"],
+            upstream_run_attempt=data["upstream_run_attempt"],
+            schema_version=data["schema_version"],
+            state=data["state"],
+            post_started=data["post_started"],
+        )
+
+
+@dataclass(frozen=True)
 class ReviewObservation:
     """One independently observed marker review, already bound by the API adapter."""
 
@@ -351,7 +444,12 @@ class PublicationAdmissionProvider(Protocol):
 
 @dataclass(frozen=True)
 class HistoryScan:
-    """Bounded history result; only COMPLETE scans may authorize a new attempt."""
+    """Bounded history result; only COMPLETE scans may authorize a new attempt.
+
+    ``reviews_complete`` separately records that review pagination completed.
+    It can support read-only reconciliation when receipt history is incomplete,
+    but it never authorizes a new publication attempt.
+    """
 
     status: HistoryStatus
     receipts: tuple[AttemptReceipt, ...] = ()
@@ -359,12 +457,16 @@ class HistoryScan:
     reason_code: str | None = None
     scanned_runs: int = 0
     scanned_pages: int = 0
+    reviews_complete: bool = False
+    no_effects: tuple[NoEffectReceipt, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, HistoryStatus):
             raise ReceiptContractError("history status is invalid")
         if any(not isinstance(item, AttemptReceipt) for item in self.receipts):
             raise ReceiptContractError("history receipts are invalid")
+        if any(not isinstance(item, NoEffectReceipt) for item in self.no_effects):
+            raise ReceiptContractError("history no-effect receipts are invalid")
         if any(not isinstance(item, ReviewObservation) for item in self.reviews):
             raise ReceiptContractError("history reviews are invalid")
         if any(
@@ -372,6 +474,8 @@ class HistoryScan:
             for value in (self.scanned_runs, self.scanned_pages)
         ):
             raise ReceiptContractError("history scan counts are invalid")
+        if not isinstance(self.reviews_complete, bool):
+            raise ReceiptContractError("history review completeness is invalid")
         if self.status is not HistoryStatus.COMPLETE and not self.reason_code:
             raise ReceiptContractError("incomplete history requires a reason")
         if self.reason_code is not None and (
@@ -427,7 +531,7 @@ class ReceiptPersistence:
         if self.reason_code is not None and not re.fullmatch(r"[a-z0-9_]{1,64}", self.reason_code):
             raise ReceiptContractError("receipt persistence reason is invalid")
 
-    def acknowledges(self, receipt: AttemptReceipt) -> bool:
+    def acknowledges(self, receipt: AttemptReceipt | NoEffectReceipt) -> bool:
         """Return true only when the digest and publisher run bind this receipt."""
         acknowledgement = self.acknowledgement
         if self.status is not ReceiptPersistenceStatus.ACKNOWLEDGED or acknowledgement is None:

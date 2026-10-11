@@ -284,6 +284,8 @@ def test_scan_reconciles_publisher_run_before_artifact_and_missing_receipt_is_un
     )
     assert result.status is HistoryStatus.INCOMPLETE
     assert result.reason_code == "receipt_history_incomplete"
+    assert result.reviews_complete is True
+    assert result.scanned_pages == 1
     paths = [urlsplit(call[1]).path for call in client.transport.calls]
     assert any("/actions/workflows/904/runs" in call[1] for call in client.transport.calls)
     assert "/repos/owner/repo/actions/runs/800/artifacts" in paths
@@ -325,6 +327,124 @@ def test_scan_skips_only_the_exact_current_run_and_reports_visible_empty_history
         ScanLimits(max_runs=10, max_pages=2, max_reviews=100, deadline_seconds=4),
     )
     assert result.status is HistoryStatus.COMPLETE
+
+
+def test_scan_marks_review_history_incomplete_when_page_bound_stops_before_terminal_page():
+    body = f"Existing review.\n\n<!-- pr-review-harness:{EFFECT} -->"
+    marked_review = {
+        "id": 1235,
+        "commit_id": HEAD,
+        "state": "COMMENTED",
+        "body": body,
+        "user": {"login": WRITER},
+    }
+
+    def responder(method, url, body):
+        path = urlsplit(url).path
+        if path.endswith("/pulls/44/reviews"):
+            return response([marked_review, *({"body": "ordinary unmarked review"} for _ in range(99))])
+        if "/actions/workflows/904/runs" in url:
+            return response({"total_count": 0, "workflow_runs": []})
+        raise AssertionError(f"unexpected GitHub request: {method} {url}")
+
+    result = adapter(responder).scan(
+        EffectSlot(8123, "owner/repo", 44, HEAD),
+        ScanLimits(max_runs=10, max_pages=1, max_reviews=100, deadline_seconds=4),
+    )
+    assert result.status is HistoryStatus.INCOMPLETE
+    assert result.reason_code == "review_history_limit"
+    assert result.reviews_complete is False
+    assert result.scanned_pages == 1
+
+
+def test_scan_short_circuits_receipt_history_for_marked_review_after_complete_pagination():
+    body = f"Existing review.\n\n<!-- pr-review-harness:{EFFECT} -->"
+    existing = {
+        "id": 1236,
+        "commit_id": HEAD,
+        "state": "COMMENTED",
+        "body": body,
+        "user": {"login": WRITER},
+    }
+    calls = []
+
+    def responder(method, url, payload):
+        calls.append((method, url))
+        if urlsplit(url).path.endswith("/pulls/44/reviews"):
+            return response([existing])
+        raise AssertionError(f"receipt history must not be queried after exact-head review proof: {url}")
+
+    client = adapter(responder)
+    result = client.scan(
+        EffectSlot(8123, "owner/repo", 44, HEAD),
+        ScanLimits(max_runs=1, max_pages=2, max_reviews=100, deadline_seconds=4),
+    )
+    assert result.status is HistoryStatus.INCOMPLETE
+    assert result.reason_code == "receipt_history_not_scanned"
+    assert result.reviews_complete is True
+    assert result.scanned_runs == 0
+    assert result.scanned_pages == 1
+    assert len(result.reviews) == 1
+    assert result.reviews[0].review_id == 1236
+    assert len(calls) == 1
+
+
+def test_scan_rejects_review_page_that_returns_after_shared_deadline():
+    body = f"Existing review.\n\n<!-- pr-review-harness:{EFFECT} -->"
+    existing = {
+        "id": 1238,
+        "commit_id": HEAD,
+        "state": "COMMENTED",
+        "body": body,
+        "user": {"login": WRITER},
+    }
+    now = {"value": 0.0}
+    calls = []
+
+    def responder(method, url, payload):
+        calls.append((method, url))
+        now["value"] = 5.0
+        return response([existing])
+
+    client = GitHubActionsPublicationAdapter(
+        make_policy(), Provider(), transport=FakeTransport(responder), clock=lambda: now["value"]
+    )
+    result = client.scan(
+        EffectSlot(8123, "owner/repo", 44, HEAD),
+        ScanLimits(max_runs=1, max_pages=2, max_reviews=100, deadline_seconds=4),
+    )
+    assert result.status is HistoryStatus.UNAVAILABLE
+    assert result.reason_code == "history_deadline_exhausted"
+    assert calls and len(calls) == 1
+
+
+def test_scan_does_not_short_circuit_on_marked_review_for_a_different_head():
+    foreign = {
+        "id": 1237,
+        "commit_id": "b" * 40,
+        "state": "COMMENTED",
+        "body": f"Existing review.\n\n<!-- pr-review-harness:{EFFECT} -->",
+        "user": {"login": WRITER},
+    }
+    workflow_calls = []
+
+    def responder(method, url, payload):
+        path = urlsplit(url).path
+        if path.endswith("/pulls/44/reviews"):
+            return response([foreign])
+        if "/actions/workflows/904/runs" in url:
+            workflow_calls.append(url)
+            return response({"total_count": 0, "workflow_runs": []})
+        raise AssertionError(f"unexpected GitHub request: {method} {url}")
+
+    result = adapter(responder).scan(
+        EffectSlot(8123, "owner/repo", 44, HEAD),
+        ScanLimits(max_runs=1, max_pages=2, max_reviews=100, deadline_seconds=4),
+    )
+    assert result.status is HistoryStatus.COMPLETE
+    assert result.reviews_complete is True
+    assert result.reviews == ()
+    assert len(workflow_calls) == 1
 
 
 def test_submit_review_makes_one_authenticated_post_and_checks_writer_identity():
@@ -1026,9 +1146,7 @@ def test_publisher_deduplicates_exact_marker_from_real_adapter_history():
         path = urlsplit(url).path
         if method == "GET" and path.endswith("/pulls/44/reviews"):
             return response([review])
-        if method == "GET" and path.endswith("/actions/workflows/904/runs"):
-            return response({"total_count": 0, "workflow_runs": []})
-        raise AssertionError(f"unexpected simulated GitHub request: {method} {url}")
+        raise AssertionError(f"receipt history must not be queried after complete marked-review pagination: {url}")
 
     client = GitHubActionsPublicationAdapter(current_policy, Provider(), transport=FakeTransport(api_response))
     writer = Writer()
@@ -1047,11 +1165,12 @@ def test_publisher_deduplicates_exact_marker_from_real_adapter_history():
     )
 
     assert outcome["status"] == "CONFIRMED"
-    assert outcome["reason"] is None
+    assert outcome["reason"] == "confirmed_from_complete_review_history"
     assert posted == []
     assert heads == []
     assert writer.calls == 0
-    assert any(urlsplit(call[1]).path.endswith("/pulls/44/reviews") for call in client.transport.calls)
+    assert len(client.transport.calls) == 1
+    assert urlsplit(client.transport.calls[0][1]).path.endswith("/pulls/44/reviews")
 
 
 @pytest.mark.parametrize(
