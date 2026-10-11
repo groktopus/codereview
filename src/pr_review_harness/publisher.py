@@ -167,7 +167,10 @@ def _canonical_hash(value: dict) -> str:
 
 
 def effect_idempotency_key(
-    result: dict, effect_type: str = "PULL_REQUEST_REVIEW", rendered_review: str | None = None
+    result: dict,
+    effect_type: str = "PULL_REQUEST_REVIEW",
+    rendered_review: str | None = None,
+    publication_mode: str = "DISPOSITION",
 ) -> str:
     if rendered_review is None:
         from .report import render_report
@@ -190,6 +193,8 @@ def effect_idempotency_key(
             "review_body_hash": body_hash,
         }
     )
+    if publication_mode not in {"DISPOSITION", "NON_BINDING_COMMENT"}:
+        raise PublicationRejected("publication_mode_invalid")
     identity = {
         "repository": result.get("repository"),
         "pull_request_number": result.get("pull_request_number"),
@@ -198,6 +203,8 @@ def effect_idempotency_key(
         "effect_type": effect_type,
         "result_hash": stable_result_hash,
     }
+    if publication_mode != "DISPOSITION":
+        identity["publication_mode"] = publication_mode
     return "effect-" + _canonical_hash(identity)
 
 
@@ -538,6 +545,28 @@ def prepare_publication(
     return preview_publication(result, config, rendered_review)
 
 
+def render_publication_body(result: dict, publication_mode: str = "DISPOSITION") -> str:
+    """Render the canonical report, adding only the trusted non-binding mode notice."""
+    if publication_mode not in {"DISPOSITION", "NON_BINDING_COMMENT"}:
+        raise PublicationRejected("publication_mode_invalid")
+    from .report import render_report
+
+    try:
+        canonical_body = render_report(result)
+    except (TypeError, ValueError):
+        raise PublicationRejected("canonical review report is invalid") from None
+    if publication_mode == "DISPOSITION":
+        return canonical_body
+    source_disposition = result.get("disposition")
+    return (
+        "## Non-binding review comment\n\n"
+        "This is a non-binding canary comment. It is not an approval, a request for changes, "
+        "or authorization to merge.\n\n"
+        f"**Underlying analysis disposition: `{source_disposition}`**\n\n---\n\n"
+        f"{canonical_body}"
+    )
+
+
 def preview_publication(result: dict, config: dict, rendered_review: str | None = None) -> dict:
     """Build a truthful, side-effect-free preview without granting authority."""
     _validate_result(result)
@@ -560,6 +589,9 @@ def preview_publication(result: dict, config: dict, rendered_review: str | None 
     if not isinstance(allowed_repositories, list) or repository not in allowed_repositories:
         raise PublicationRejected("repository is outside publisher authorization scope")
     allowed_dispositions = config.get("allowed_dispositions")
+    publication_mode = config.get("publication_mode", "DISPOSITION")
+    if publication_mode not in {"DISPOSITION", "NON_BINDING_COMMENT"}:
+        raise PublicationRejected("publication_mode_invalid")
     source_disposition = result.get("disposition")
     if source_disposition == "INCOMPLETE":
         if result.get("policy_valid") is not True:
@@ -569,17 +601,17 @@ def preview_publication(result: dict, config: dict, rendered_review: str | None 
         review_event = source_disposition
     else:
         raise PublicationRejected("review disposition cannot be published")
+    if publication_mode == "NON_BINDING_COMMENT":
+        review_event = "COMMENT"
     if not isinstance(allowed_dispositions, list) or review_event not in allowed_dispositions:
-        raise PublicationRejected("disposition is outside publisher authorization scope")
-    from .report import render_report
-
+        raise PublicationRejected("disposition_not_allowed")
     try:
-        canonical_body = render_report(result)
-    except (TypeError, ValueError):
-        raise PublicationRejected("canonical review report is invalid") from None
+        canonical_body = render_publication_body(result, "DISPOSITION")
+    except PublicationRejected:
+        raise
     if rendered_review is not None and rendered_review != canonical_body:
         raise PublicationRejected("review body differs from canonical result")
-    body = canonical_body
+    body = render_publication_body(result, publication_mode)
     max_body = config.get("max_review_body_bytes", 60000)
     marker_reserve = len(("\n\n<!-- pr-review-harness:effect-" + "0" * 64 + " -->").encode("utf-8"))
     if (
@@ -590,7 +622,7 @@ def preview_publication(result: dict, config: dict, rendered_review: str | None 
         or len(body.encode("utf-8")) + marker_reserve > min(max_body, 60000)
     ):
         raise PublicationRejected("review body is invalid or exceeds its bound")
-    return {
+    request = {
         "effect_type": "PULL_REQUEST_REVIEW",
         "repository": repository,
         "pull_request_number": number,
@@ -599,7 +631,9 @@ def preview_publication(result: dict, config: dict, rendered_review: str | None 
         "review_event": review_event,
         "result_hash": result["result_hash"],
         "review_body_hash": hashlib.sha256(body.encode("utf-8")).hexdigest(),
-        "idempotency_key": effect_idempotency_key(result, rendered_review=body),
+        "idempotency_key": effect_idempotency_key(
+            result, rendered_review=body, publication_mode=publication_mode
+        ),
         "merge": False,
         "review_payload": {
             "commit_id": head,
@@ -607,15 +641,26 @@ def preview_publication(result: dict, config: dict, rendered_review: str | None 
             "body": body,
         },
     }
+    if publication_mode != "DISPOSITION":
+        request["publication_mode"] = publication_mode
+    return request
 
 
-def _stateless_effect_key(slot, result_hash: str, review_body_hash: str, disposition: str) -> str:
+def _stateless_effect_key(
+    slot,
+    result_hash: str,
+    review_body_hash: str,
+    disposition: str,
+    publication_mode: str = "DISPOSITION",
+) -> str:
     identity = {
         "slot_key": slot.key,
         "result_hash": result_hash,
         "review_body_hash": review_body_hash,
         "disposition": disposition,
     }
+    if publication_mode != "DISPOSITION":
+        identity["publication_mode"] = publication_mode
     return "effect-" + _canonical_hash(identity)
 
 
@@ -732,10 +777,15 @@ def publish_review_stateless(
             or admission.review_body_hash != request["review_body_hash"]
             or admission.disposition != request["disposition"]
             or admission.review_event != request["review_event"]
+            or admission.publication_mode != request.get("publication_mode", "DISPOSITION")
             or admission.policy_hash != _canonical_hash(config)
             or admission.effect_key
             != _stateless_effect_key(
-                expected_slot, request["result_hash"], request["review_body_hash"], request["disposition"]
+                expected_slot,
+                request["result_hash"],
+                request["review_body_hash"],
+                request["disposition"],
+                request.get("publication_mode", "DISPOSITION"),
             )
         ):
             raise PublicationRejected("verified publication context does not match the review")
@@ -857,8 +907,13 @@ def publish_review_stateless(
         upstream_run=admission.upstream_run,
         publisher_run=admission.publisher_run,
         credential_provenance=admission.credential_provenance,
+        publication_mode=admission.publication_mode,
         protocol_version=(
-            "actions-receipt-v2" if admission.credential_provenance is not None else "actions-receipt-v1"
+            "actions-receipt-v3"
+            if admission.publication_mode != "DISPOSITION"
+            else "actions-receipt-v2"
+            if admission.credential_provenance is not None
+            else "actions-receipt-v1"
         ),
     )
     try:

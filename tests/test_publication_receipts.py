@@ -95,6 +95,47 @@ def test_actions_receipt_v2_binds_declared_workflow_provenance_without_claiming_
         AttemptReceipt.from_bytes(json.dumps(value).encode())
 
 
+def test_actions_receipt_v3_explicitly_binds_non_binding_comment_projection():
+    original = AttemptReceipt(
+        **{
+            key: value
+            for key, value in receipt().__dict__.items()
+            if key not in {
+                "protocol_version", "schema_version", "credential_provenance", "publication_mode", "review_event",
+                "disposition",
+            }
+        },
+        disposition="REQUEST_CHANGES",
+        review_event="COMMENT",
+        credential_provenance={
+            "schema": "publisher-credential-provenance.v1",
+            "credential_kind": "ACTIONS_TOKEN",
+            "identity_state": "PLATFORM_BOUND",
+            "permission_basis": "WORKFLOW_DECLARATION",
+            "write_capability": "NOT_TESTED",
+            "publisher_workflow_sha256": h("workflow"),
+            "declared_job_permissions": {"actions": "read", "contents": "read", "pull-requests": "write"},
+        },
+        protocol_version="actions-receipt-v3",
+        publication_mode="NON_BINDING_COMMENT",
+    )
+    encoded = original.to_bytes()
+    value = json.loads(encoded)
+    assert value["protocol_version"] == "actions-receipt-v3"
+    assert value["publication_mode"] == "NON_BINDING_COMMENT"
+    assert value["disposition"] == "REQUEST_CHANGES"
+    assert value["review_event"] == "COMMENT"
+    assert AttemptReceipt.from_bytes(encoded) == original
+
+    value["publication_mode"] = "DISPOSITION"
+    with pytest.raises(ReceiptContractError, match="inconsistent"):
+        AttemptReceipt.from_bytes(json.dumps(value).encode())
+    value = json.loads(encoded)
+    value["review_event"] = "REQUEST_CHANGES"
+    with pytest.raises(ReceiptContractError, match="inconsistent"):
+        AttemptReceipt.from_bytes(json.dumps(value).encode())
+
+
 def test_slot_key_is_stable_per_numeric_repository_pr_head_not_result():
     slot = receipt().slot
     assert slot.key == EffectSlot(1234, "owner/repo", 8, "a" * 40).key

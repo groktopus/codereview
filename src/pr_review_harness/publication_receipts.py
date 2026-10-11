@@ -185,24 +185,33 @@ class AttemptReceipt:
     protocol_version: str = "actions-receipt-v1"
     schema_version: str = _RECEIPT_VERSION
     credential_provenance: dict | None = None
+    publication_mode: str = "DISPOSITION"
 
     def __post_init__(self) -> None:
         if self.schema_version != _RECEIPT_VERSION:
             raise ReceiptContractError("receipt schema_version is unsupported")
+        if self.publication_mode not in {"DISPOSITION", "NON_BINDING_COMMENT"}:
+            raise ReceiptContractError("publication_mode is unsupported")
         if self.credential_provenance is None:
-            if self.protocol_version != "actions-receipt-v1":
+            if self.protocol_version not in {"actions-receipt-v1", "actions-receipt-v3"}:
                 raise ReceiptContractError("protocol_version is unsupported")
         else:
             validate_credential_provenance(self.credential_provenance)
-            if self.protocol_version != "actions-receipt-v2":
+            if self.protocol_version not in {"actions-receipt-v2", "actions-receipt-v3"}:
                 raise ReceiptContractError("protocol_version is unsupported")
+        if (self.publication_mode == "NON_BINDING_COMMENT") != (self.protocol_version == "actions-receipt-v3"):
+            raise ReceiptContractError("publication mode receipt version is inconsistent")
         if not isinstance(self.effect_key, str) or not _EFFECT.fullmatch(self.effect_key):
             raise ReceiptContractError("effect_key is invalid")
         for field_name in ("result_hash", "review_body_hash", "profile_hash"):
             _validate_hash(getattr(self, field_name), field_name)
         if self.disposition not in {"APPROVE", "REQUEST_CHANGES", "COMMENT", "INCOMPLETE"}:
             raise ReceiptContractError("disposition is invalid")
-        expected_event = "COMMENT" if self.disposition == "INCOMPLETE" else self.disposition
+        expected_event = (
+            "COMMENT"
+            if self.disposition == "INCOMPLETE" or self.publication_mode == "NON_BINDING_COMMENT"
+            else self.disposition
+        )
         if self.review_event != expected_event:
             raise ReceiptContractError("review_event is inconsistent with disposition")
         if not isinstance(self.actor_login, str) or not _ACTOR.fullmatch(self.actor_login):
@@ -231,6 +240,8 @@ class AttemptReceipt:
         }
         if self.credential_provenance is not None:
             value["credential_provenance"] = self.credential_provenance
+        if self.publication_mode != "DISPOSITION":
+            value["publication_mode"] = self.publication_mode
         return value
 
     def to_bytes(self) -> bytes:
@@ -396,6 +407,7 @@ class PublicationAdmission:
     verification_kind: str = "GITHUB_API_RUN_ARTIFACT_V1"
     concurrency_scope: str = "pull_request"
     credential_provenance: dict | None = None
+    publication_mode: str = "DISPOSITION"
 
     def __post_init__(self) -> None:
         _validate_sha(self.base_sha, "base_sha")
@@ -413,7 +425,13 @@ class PublicationAdmission:
             _validate_hash(getattr(self, field_name), field_name)
         if self.disposition not in {"APPROVE", "REQUEST_CHANGES", "COMMENT", "INCOMPLETE"}:
             raise ReceiptContractError("admission disposition is invalid")
-        expected_event = "COMMENT" if self.disposition == "INCOMPLETE" else self.disposition
+        if self.publication_mode not in {"DISPOSITION", "NON_BINDING_COMMENT"}:
+            raise ReceiptContractError("admission publication_mode is invalid")
+        expected_event = (
+            "COMMENT"
+            if self.disposition == "INCOMPLETE" or self.publication_mode == "NON_BINDING_COMMENT"
+            else self.disposition
+        )
         if self.review_event != expected_event:
             raise ReceiptContractError("admission review_event is inconsistent")
         if not isinstance(self.actor_login, str) or not _ACTOR.fullmatch(self.actor_login):
@@ -660,6 +678,10 @@ def _receipt_from_dict(data: object) -> AttemptReceipt:
     protocol_version = data.get("protocol_version")
     if protocol_version == "actions-receipt-v2":
         keys.add("credential_provenance")
+    elif protocol_version == "actions-receipt-v3":
+        keys.add("publication_mode")
+        if "credential_provenance" in data:
+            keys.add("credential_provenance")
     elif protocol_version != "actions-receipt-v1":
         raise ReceiptContractError("receipt protocol is unsupported")
     if set(data) != keys:
@@ -692,5 +714,6 @@ def _receipt_from_dict(data: object) -> AttemptReceipt:
         publisher_run=_run_from_dict(data["publisher_run"]),
         protocol_version=data["protocol_version"],
         credential_provenance=data.get("credential_provenance"),
+        publication_mode=data.get("publication_mode", "DISPOSITION"),
         schema_version=data["schema_version"],
     )
