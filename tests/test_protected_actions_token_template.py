@@ -55,3 +55,34 @@ def test_actions_token_templates_are_bounded_inert_and_match_policy():
     runtime_step = next(step for step in steps if step.get("name") == "Run the protected publication runtime")
     assert runtime_step["env"]["GITHUB_TOKEN"] == "${{ github.token }}"
     assert "PR_REVIEW_GITHUB_APP_PRIVATE_KEY" not in runtime_step["env"]
+
+
+def test_v3_template_selects_authenticated_api_location_mode_without_host_pool():
+    policy = json.loads((ROOT / "templates/protected-publisher-policy-v3.json").read_text(encoding="utf-8"))
+    assert policy["schema"] == "pr-review-protected-publication-policy.v3"
+    assert policy["enabled"] is False
+    assert policy["artifact_download_mode"] == "AUTHENTICATED_API_LOCATION_NO_AUTH"
+    assert "artifact_redirect_hosts" not in policy
+
+    policy.update(
+        repository={"name": "owner/repo", "id": 8123},
+        default_branch="main",
+        publisher_workflow={
+            "id": 1,
+            "path": ".github/workflows/pr-publish.yml",
+            "ref": "owner/repo/.github/workflows/pr-publish.yml@refs/heads/main",
+            "sha256": "d" * 64,
+        },
+        source_workflow={
+            "id": 2,
+            "path": ".github/workflows/pr-analysis.yml",
+            "ref": "owner/repo/.github/workflows/pr-analysis.yml@refs/heads/main",
+        },
+        called_harness={"repository": "harness/repo", "path": ".github/workflows/pr-analysis.yml", "sha": "a" * 40},
+        profile={
+            "version": "v1",
+            "sha256": "b" * 64,
+            "provider_configuration_identity": "provider-identity-sha256:" + "c" * 64,
+        },
+    )
+    assert not ProtectedPublicationPolicy.parse(policy).enabled

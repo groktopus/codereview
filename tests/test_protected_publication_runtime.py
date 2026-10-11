@@ -74,6 +74,14 @@ def actions_token_policy_document(*, enabled=False):
     return value
 
 
+def api_location_policy_document(*, enabled=False):
+    value = actions_token_policy_document(enabled=enabled)
+    value["schema"] = "pr-review-protected-publication-policy.v3"
+    value.pop("artifact_redirect_hosts")
+    value["artifact_download_mode"] = "AUTHENTICATED_API_LOCATION_NO_AUTH"
+    return value
+
+
 def protected_checkout(tmp_path, *, enabled=True, policy_value=None):
     workspace = tmp_path / "protected"
     (workspace / ".github/workflows").mkdir(parents=True)
@@ -295,6 +303,35 @@ def test_actions_token_v2_policy_is_strict_and_keeps_standing_authorization_expl
         runtime.ProtectedPublicationPolicy.parse(unspecified)
 
 
+def test_v3_policy_selects_closed_api_location_mode_and_preserves_v2_static_hosts():
+    v2 = runtime.ProtectedPublicationPolicy.parse(actions_token_policy_document())
+    v3_value = api_location_policy_document()
+    v3 = runtime.ProtectedPublicationPolicy.parse(v3_value)
+    assert v2.raw["artifact_redirect_hosts"] == ["downloads.example.test"]
+    assert v3.raw["artifact_download_mode"] == "AUTHENTICATED_API_LOCATION_NO_AUTH"
+    assert runtime._trusted_artifact_location(
+        v3, "https://productionresultssa99.blob.core.windows.net/file?sig=opaque"
+    )
+    assert runtime._trusted_artifact_location(v3, "https://unlisted.example.test/file?sig=opaque")
+    assert not runtime._trusted_artifact_location(v3, "https://127.1/file?sig=opaque")
+    assert runtime._trusted_artifact_location(
+        v2, "https://downloads.example.test/file?sig=opaque"
+    )
+    assert not runtime._trusted_artifact_location(
+        v2, "https://productionresultssa99.blob.core.windows.net/file?sig=opaque"
+    )
+
+    for invalid in ("STATIC_HOST_ALLOWLIST", "AUTHENTICATED_API_LOCATION_NO_AUTH_EXTRA", None):
+        malformed = api_location_policy_document()
+        malformed["artifact_download_mode"] = invalid
+        with pytest.raises(runtime.ProtectedRuntimeError, match="protected_policy_artifact_download_mode_invalid"):
+            runtime.ProtectedPublicationPolicy.parse(malformed)
+    with_hosts = api_location_policy_document()
+    with_hosts["artifact_redirect_hosts"] = ["downloads.example.test"]
+    with pytest.raises(runtime.ProtectedRuntimeError, match="protected_policy_schema_invalid"):
+        runtime.ProtectedPublicationPolicy.parse(with_hosts)
+
+
 @pytest.mark.parametrize("schema", ["v1", "v2"])
 @pytest.mark.parametrize("app_value", [None, "missing"])
 def test_app_routes_require_a_real_app_policy_object(schema, app_value):
@@ -405,14 +442,18 @@ def test_runtime_rejects_unprotected_source_event_before_app_key_or_api(tmp_path
         for association in ("empty", "omitted", "row-with-older-pr-base")
     ]
     + [("success", association, "ACTIONS_TOKEN") for association in ("empty", "omitted", "row-with-older-pr-base")]
+    + [("success", "empty", "ACTIONS_TOKEN_V3")]
     + [("post_forbidden", "empty", "ACTIONS_TOKEN")],
 )
 def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_post(
     tmp_path, monkeypatch, failure_mode, source_association, credential_route
 ):
+    actions_token_route = credential_route.startswith("ACTIONS_TOKEN")
     policy_value = (
-        actions_token_policy_document(enabled=True)
-        if credential_route == "ACTIONS_TOKEN"
+        api_location_policy_document(enabled=True)
+        if credential_route == "ACTIONS_TOKEN_V3"
+        else actions_token_policy_document(enabled=True)
+        if actions_token_route
         else policy_document(enabled=True)
     )
     workspace, revision, event_path = protected_checkout(tmp_path, policy_value=policy_value)
@@ -555,15 +596,20 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             return response({"total_count": 0, "workflow_runs": []})
         if path.endswith("/pulls/44/reviews") and method == "GET":
             return response(stored_reviews)
+        artifact_host = (
+            "productionresultssa99.blob.core.windows.net"
+            if credential_route == "ACTIONS_TOKEN_V3"
+            else "downloads.example.test"
+        )
         if path.endswith("/actions/artifacts/123/zip"):
-            return HTTPResponse(302, {"location": "https://downloads.example.test/result?signature=one-use"}, b"")
+            return HTTPResponse(302, {"location": f"https://{artifact_host}/result?signature=one-use"}, b"")
         if path.endswith("/actions/artifacts/991/zip"):
-            return HTTPResponse(302, {"location": "https://downloads.example.test/receipt?signature=one-use"}, b"")
+            return HTTPResponse(302, {"location": f"https://{artifact_host}/receipt?signature=one-use"}, b"")
         if path.endswith("/pulls/44/reviews") and method == "POST":
             post_bodies.append(body)
             if failure_mode == "post_forbidden":
                 return response({"message": "permission denied"}, status=403)
-            post_actor = "github-actions[bot]" if credential_route == "ACTIONS_TOKEN" else WRITER
+            post_actor = "github-actions[bot]" if actions_token_route else WRITER
             return response({"id": 777, "commit_id": HEAD, "state": "COMMENTED", "body": body["body"], "user": {"login": post_actor}})
         raise AssertionError(f"unexpected fake API request: {method} {url}")
 
@@ -622,7 +668,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         assert outcome["schema"] == "pr-review-protected-publication.v1"
         assert outcome["status"] == "CONFIRMED", (outcome, events, admitted)
         assert outcome["reason"] is None
-        if credential_route == "ACTIONS_TOKEN":
+        if actions_token_route:
             assert outcome["effect_observation"] == {
                 "actor_login": "github-actions[bot]",
                 "review_state": "COMMENTED",
@@ -693,7 +739,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         assert any("/actions/artifacts/991/zip" in call[1] for call in transport.calls)
         assert pull_reads >= 3
         assert all(actual_key not in repr(call) for call in transport.calls)
-        if credential_route == "ACTIONS_TOKEN":
+        if actions_token_route:
             assert all(call[2] == "test-actions-read-token" for call in transport.calls)
             assert all("/app" not in call[1] for call in transport.calls)
     else:
@@ -703,7 +749,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         else:
             assert post_bodies == []
             assert events.count("review_post") == 0
-        assert len(key_calls) == (0 if credential_route == "ACTIONS_TOKEN" else (
+        assert len(key_calls) == (0 if actions_token_route else (
             0
             if failure_mode in {"caller_workflow_sha_mismatch", "provider_identity_mismatch", "duplicate_source_artifact", "stale_base", "stale_head", "deadline"}
             else 1
@@ -721,7 +767,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             assert events.count("receipt_upload") == 0
         if failure_mode == "receipt_ack_missing":
             assert events.count("receipt_upload") == 1
-    if credential_route == "ACTIONS_TOKEN":
+    if actions_token_route:
         assert key_calls == []
         assert events.count("write_token_mint") == 0
         assert all(call[2] == "test-actions-read-token" for call in transport.calls)

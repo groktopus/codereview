@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import ipaddress
 import json
 import math
 import re
@@ -103,6 +104,60 @@ class WriteCapability(StrEnum):
 class ArtifactTrustMode(StrEnum):
     API_BOUND_SHA256 = "API_BOUND_SHA256"
     SIGNED_ATTESTATION = "SIGNED_ATTESTATION"
+
+
+class ArtifactDownloadMode(StrEnum):
+    """How a trusted GitHub artifact API redirect location is admitted."""
+
+    STATIC_HOST_ALLOWLIST = "STATIC_HOST_ALLOWLIST"
+    AUTHENTICATED_API_LOCATION_NO_AUTH = "AUTHENTICATED_API_LOCATION_NO_AUTH"
+
+
+def validate_api_issued_artifact_location(location: str) -> bool:
+    """Validate URL syntax for an ephemeral location already received from GitHub's artifact API."""
+    if not isinstance(location, str) or not location or len(location) > 16_384:
+        return False
+    try:
+        parsed = urllib.parse.urlsplit(location)
+        hostname = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        return False
+    if (
+        parsed.scheme.lower() != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+        or "#" in location
+        or not parsed.query
+        or port not in (None, 443)
+        or "\\" in location
+        or any(character.isspace() or ord(character) < 0x21 or ord(character) == 0x7F for character in location)
+    ):
+        return False
+    normalized_host = hostname.rstrip(".").lower()
+    if (
+        not normalized_host
+        or normalized_host == "localhost"
+        or normalized_host.endswith((".localhost", ".local", ".internal"))
+    ):
+        return False
+    try:
+        address = ipaddress.ip_address(normalized_host)
+    except ValueError:
+        labels = normalized_host.split(".")
+        if (
+            len(normalized_host) > 253
+            or len(labels) < 2
+            or all(re.fullmatch(r"(?:0x[0-9a-f]+|[0-9]+)", label) for label in labels)
+        ):
+            return False
+        return all(
+            re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) is not None
+            for label in labels
+        )
+    return address.is_global
 
 
 @dataclass(frozen=True)
@@ -367,6 +422,7 @@ class GitHubPublicationPolicy:
     provider_configuration_identity: str
     allowed_actor_login: str
     artifact_trust_mode: ArtifactTrustMode
+    artifact_download_mode: ArtifactDownloadMode = ArtifactDownloadMode.STATIC_HOST_ALLOWLIST
     result_artifact_name: str = "pr-review-result"
     receipt_artifact_prefix: str = "pr-review-attempt"
     api_base_url: str = "https://api.github.com"
@@ -426,6 +482,8 @@ class GitHubPublicationPolicy:
             raise GitHubPublicationError("publication_actor_policy_invalid")
         if not isinstance(self.artifact_trust_mode, ArtifactTrustMode):
             raise GitHubPublicationError("artifact_trust_mode_invalid")
+        if not isinstance(self.artifact_download_mode, ArtifactDownloadMode):
+            raise GitHubPublicationError("artifact_download_mode_invalid")
         if not isinstance(self.concurrency_scope, str) or self.concurrency_scope not in {"pull_request", "repository"}:
             raise GitHubPublicationError("publication_concurrency_scope_invalid")
         if self.credential_provenance is not None:
@@ -453,6 +511,14 @@ class GitHubPublicationPolicy:
             for host in self.artifact_redirect_hosts
         ):
             raise GitHubPublicationError("artifact_redirect_host_invalid")
+        if self.artifact_download_mode is ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH:
+            if (
+                parsed.hostname != "api.github.com"
+                or parsed.port not in (None, 443)
+                or parsed.path not in {"", "/"}
+                or self.artifact_redirect_hosts
+            ):
+                raise GitHubPublicationError("artifact_download_mode_invalid")
 
     def receipt_artifact_name(self, slot: EffectSlot) -> str:
         return f"{self.receipt_artifact_prefix}-{slot.pull_request_number}-{slot.head_sha}"
@@ -844,17 +910,21 @@ class GitHubActionsPublicationAdapter:
         if response.status != 302:
             raise GitHubPublicationError("artifact_download_redirect_missing")
         redirect = response.headers.get("location")
-        parsed = urllib.parse.urlsplit(redirect or "")
-        allowed = {host.lower() for host in self.policy.artifact_redirect_hosts}
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.hostname.lower() not in allowed
-            or parsed.username
-            or parsed.password
-            or not parsed.query
-            or parsed.fragment
-        ):
+        if self.policy.artifact_download_mode is ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH:
+            trusted_location = validate_api_issued_artifact_location(redirect)
+        else:
+            parsed = urllib.parse.urlsplit(redirect or "")
+            allowed = {host.lower() for host in self.policy.artifact_redirect_hosts}
+            trusted_location = (
+                parsed.scheme == "https"
+                and bool(parsed.hostname)
+                and parsed.hostname.lower() in allowed
+                and not parsed.username
+                and not parsed.password
+                and bool(parsed.query)
+                and not parsed.fragment
+            )
+        if not trusted_location:
             raise GitHubPublicationError("artifact_download_location_untrusted")
         remaining = self._deadline(timeout_seconds)
         if remaining <= 0:

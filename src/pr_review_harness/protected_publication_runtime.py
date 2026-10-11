@@ -22,6 +22,7 @@ from typing import Callable, Mapping
 from urllib.parse import quote, urlsplit
 
 from .actions_publication import (
+    ArtifactDownloadMode,
     ArtifactTrustMode,
     CredentialKind,
     GitHubActionsPublicationAdapter,
@@ -31,6 +32,7 @@ from .actions_publication import (
     IdentityState,
     UrllibGitHubTransport,
     VerifiedPublisherIdentity,
+    validate_api_issued_artifact_location,
 )
 from .actions_runtime import OfficialActionsArtifactUploader
 from .artifact_intake import (
@@ -77,6 +79,7 @@ _CONFIG_KEYS = {
     "artifact_redirect_hosts",
 }
 _V2_CONFIG_KEYS = (_CONFIG_KEYS - {"app"}) | {"credential", "authorization_mode"}
+_V3_CONFIG_KEYS = (_V2_CONFIG_KEYS - {"artifact_redirect_hosts"}) | {"artifact_download_mode"}
 
 
 class ProtectedRuntimeError(ValueError):
@@ -166,6 +169,23 @@ class ProtectedPublicationPolicy:
                     raise ProtectedRuntimeError("protected_policy_credential_invalid")
             else:
                 raise ProtectedRuntimeError("protected_policy_credential_invalid")
+        elif schema == "pr-review-protected-publication-policy.v3":
+            if set(value) != _V3_CONFIG_KEYS or value.get("authorization_mode") != "STANDING_BOUNDED":
+                raise ProtectedRuntimeError("protected_policy_schema_invalid")
+            credential = value.get("credential")
+            if not isinstance(credential, dict):
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            if credential.get("kind") == "APP_INSTALLATION":
+                if set(credential) != {"kind", "app"}:
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            elif credential.get("kind") == "ACTIONS_TOKEN":
+                if (
+                    set(credential) != {"kind", "actor_login"}
+                    or credential.get("actor_login") != "github-actions[bot]"
+                ):
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            else:
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
         else:
             raise ProtectedRuntimeError("protected_policy_schema_invalid")
         if not isinstance(value.get("enabled"), bool):
@@ -184,7 +204,10 @@ class ProtectedPublicationPolicy:
             workflow = value.get(key)
             expected_path = ".github/workflows/pr-publish.yml" if key == "publisher_workflow" else None
             expected_workflow_fields = {"id", "path", "ref"}
-            if schema == "pr-review-protected-publication-policy.v2" and key == "publisher_workflow":
+            if schema in {
+                "pr-review-protected-publication-policy.v2",
+                "pr-review-protected-publication-policy.v3",
+            } and key == "publisher_workflow":
                 expected_workflow_fields.add("sha256")
             if not isinstance(workflow, dict) or set(workflow) != expected_workflow_fields:
                 raise ProtectedRuntimeError("protected_policy_workflow_invalid")
@@ -267,15 +290,19 @@ class ProtectedPublicationPolicy:
             raise ProtectedRuntimeError("protected_policy_limits_invalid")
         if value.get("artifact_trust_mode") != "API_BOUND_SHA256":
             raise ProtectedRuntimeError("protected_policy_artifact_trust_invalid")
-        hosts = value.get("artifact_redirect_hosts")
-        if (
-            not isinstance(hosts, list)
-            or not hosts
-            or len(hosts) > 10
-            or any(not isinstance(host, str) or not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host) for host in hosts)
-            or len(set(hosts)) != len(hosts)
-        ):
-            raise ProtectedRuntimeError("protected_policy_artifact_hosts_invalid")
+        if schema == "pr-review-protected-publication-policy.v3":
+            if value.get("artifact_download_mode") != ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH.value:
+                raise ProtectedRuntimeError("protected_policy_artifact_download_mode_invalid")
+        else:
+            hosts = value.get("artifact_redirect_hosts")
+            if (
+                not isinstance(hosts, list)
+                or not hosts
+                or len(hosts) > 10
+                or any(not isinstance(host, str) or not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host) for host in hosts)
+                or len(set(hosts)) != len(hosts)
+            ):
+                raise ProtectedRuntimeError("protected_policy_artifact_hosts_invalid")
         return cls(raw=value)
 
     @property
@@ -359,7 +386,10 @@ def _policy_from_workspace(environ: Mapping[str, str]) -> ProtectedPublicationPo
     policy = ProtectedPublicationPolicy.parse(
         _json_object(raw, limit=_POLICY_MAX_BYTES, code="protected_policy_invalid")
     )
-    if policy.raw["schema"] == "pr-review-protected-publication-policy.v2":
+    if policy.raw["schema"] in {
+        "pr-review-protected-publication-policy.v2",
+        "pr-review-protected-publication-policy.v3",
+    }:
         workflow = policy.raw["publisher_workflow"]
         workflow_path = root / workflow["path"]
         try:
@@ -562,7 +592,30 @@ def _publication_policy(
         concurrency_scope="repository",
         credential_provenance=credential_provenance,
         artifact_trust_mode=ArtifactTrustMode.API_BOUND_SHA256,
-        artifact_redirect_hosts=tuple(protected.raw["artifact_redirect_hosts"]),
+        artifact_download_mode=(
+            ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH
+            if protected.raw["schema"] == "pr-review-protected-publication-policy.v3"
+            else ArtifactDownloadMode.STATIC_HOST_ALLOWLIST
+        ),
+        artifact_redirect_hosts=tuple(protected.raw.get("artifact_redirect_hosts", ())),
+    )
+
+
+def _trusted_artifact_location(protected: ProtectedPublicationPolicy, location: object) -> bool:
+    if protected.raw["schema"] == "pr-review-protected-publication-policy.v3":
+        return validate_api_issued_artifact_location(location)
+    if not isinstance(location, str):
+        return False
+    try:
+        parsed = urlsplit(location)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.hostname)
+        and parsed.hostname in protected.raw["artifact_redirect_hosts"]
+        and parsed.username is None
+        and parsed.password is None
     )
 
 
@@ -705,15 +758,7 @@ def _bootstrap_target_claim(
         raise ProtectedRuntimeError("source_artifact_metadata_invalid")
     redirect = request("GET", f"{root}/actions/artifacts/{artifact['id']}/zip", expected_status=302)
     location = redirect.headers.get("location") if isinstance(redirect.headers, dict) else None
-    parsed = urlsplit(location) if isinstance(location, str) else None
-    if (
-        parsed is None
-        or parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.hostname not in protected.raw["artifact_redirect_hosts"]
-        or parsed.username is not None
-        or parsed.password is not None
-    ):
+    if not _trusted_artifact_location(protected, location):
         raise ProtectedRuntimeError("source_artifact_redirect_untrusted")
     remaining = deadline - clock()
     if remaining <= 0:
