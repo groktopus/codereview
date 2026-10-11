@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from pr_review_harness.actions_publication import (
+    ArtifactDownloadMode,
     ArtifactTrustMode,
     ArtifactUploadResult,
     CredentialKind,
@@ -16,7 +17,9 @@ from pr_review_harness.actions_publication import (
     HTTPResponse,
     IdentityState,
     PublisherCredential,
+    UrllibGitHubTransport,
     VerifiedPublisherIdentity,
+    validate_api_issued_artifact_location,
 )
 from pr_review_harness.artifact_intake import MANIFEST_FILENAME, RESULT_FILENAME
 from pr_review_harness.github_actions_credentials import (
@@ -425,6 +428,126 @@ def test_artifact_redirect_uses_https_allowlist_and_download_never_receives_api_
     downloaded = client._download_artifact(artifact, 4, 1024)
     assert downloaded.archive == archive
     assert all(call[2] != "test-secret-token" for call in transport.download_calls)
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "http://productionresultssa99.blob.core.windows.net/file?sig=x",
+        "https://user:pass@storage.example.test/file?sig=x",
+        "https://storage.example.test/file",
+        "https://storage.example.test/file?sig=x#fragment",
+        "https://storage.example.test/file?sig=x#",
+        "https://storage.example.test:444/file?sig=x",
+        "https://localhost/file?sig=x",
+        "https://private.local/file?sig=x",
+        "https://127.0.0.1/file?sig=x",
+        "https://127.1/file?sig=x",
+        "https://2130706433/file?sig=x",
+        "https://0x7f000001/file?sig=x",
+        "https://[::1]/file?sig=x",
+        "https://storage.example.test/file?sig=x\n",
+    ],
+)
+def test_authenticated_api_location_validator_rejects_unsafe_redirects(location):
+    assert not validate_api_issued_artifact_location(location)
+
+
+def test_authenticated_api_location_validator_accepts_unlisted_public_signed_location():
+    assert validate_api_issued_artifact_location(
+        "https://productionresultssa99.blob.core.windows.net/container/file?sig=opaque"
+    )
+    assert not validate_api_issued_artifact_location("https://" + "x" * 16_385 + "?sig=x")
+
+
+@pytest.mark.parametrize(
+    ("download_response", "expected_error"),
+    [
+        (HTTPResponse(302, {"location": "https://second.example.test/file?sig=two"}, b""), "artifact_download_failed"),
+        (HTTPResponse(200, {}, b"wrong archive"), "artifact_transport_digest_mismatch"),
+    ],
+)
+def test_authenticated_api_location_mode_downloads_without_host_allowlist_or_redirect_following(
+    download_response, expected_error
+):
+    archive = b"archive bytes that pass minimum"
+    transport = FakeTransport(
+        lambda *_: HTTPResponse(
+            302,
+            {"location": "https://productionresultssa99.blob.core.windows.net/file?sig=one"},
+            b"",
+        )
+    )
+    def download(url, *, timeout_seconds, max_response_bytes):
+        transport.download_calls.append((url, timeout_seconds, max_response_bytes))
+        return download_response
+
+    transport.download = download
+    policy = make_policy(
+        artifact_download_mode=ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH,
+        artifact_redirect_hosts=(),
+    )
+    client = GitHubActionsPublicationAdapter(policy, Provider(), transport=transport)
+    artifact = {
+        "id": 456,
+        "name": "review-bundle",
+        "size_in_bytes": len(archive),
+        "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+        "expired": False,
+    }
+    with pytest.raises(GitHubPublicationError, match=expected_error):
+        client._download_artifact(artifact, 4, 1024)
+    assert len(transport.download_calls) == 1
+    assert transport.calls[0][2] == "test-secret-token"
+    assert len(transport.download_calls[0]) == 3
+
+
+def test_authenticated_api_location_mode_accepts_public_unlisted_host_and_keeps_download_tokenless():
+    archive = b"archive bytes that pass minimum"
+    transport = FakeTransport(
+        lambda *_: HTTPResponse(
+            302,
+            {"location": "https://productionresultssa99.blob.core.windows.net/file?sig=one"},
+            b"",
+        )
+    )
+    def download(url, *, timeout_seconds, max_response_bytes):
+        transport.download_calls.append((url, timeout_seconds, max_response_bytes))
+        return HTTPResponse(200, {}, archive)
+
+    transport.download = download
+    policy = make_policy(
+        artifact_download_mode=ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH,
+        artifact_redirect_hosts=(),
+    )
+    client = GitHubActionsPublicationAdapter(policy, Provider(), transport=transport)
+    artifact = {
+        "id": 456,
+        "name": "review-bundle",
+        "size_in_bytes": len(archive),
+        "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+        "expired": False,
+    }
+    assert client._download_artifact(artifact, 4, 1024).archive == archive
+    assert transport.download_calls[0][0].startswith("https://productionresultssa99.")
+
+
+def test_urllib_signed_artifact_download_request_has_no_bearer_header(monkeypatch):
+    transport = UrllibGitHubTransport()
+    captured = {}
+
+    def open_request(request, timeout_seconds, max_response_bytes):
+        captured.update({key.lower(): value for key, value in request.header_items()})
+        return HTTPResponse(200, {}, b"archive")
+
+    monkeypatch.setattr(transport, "_open", open_request)
+    result = transport.download(
+        "https://productionresultssa99.blob.core.windows.net/file?sig=opaque",
+        timeout_seconds=3,
+        max_response_bytes=1024,
+    )
+    assert result.status == 200
+    assert "authorization" not in captured
 
 
 def make_valid_result():
