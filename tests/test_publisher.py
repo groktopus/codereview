@@ -6,6 +6,7 @@ import pytest
 
 from pr_review_harness.engine import _hash, run_review
 from pr_review_harness.planner import plan_review
+from pr_review_harness.publication_receipts import HistoryScan, HistoryStatus
 from pr_review_harness.publisher import (
     PublicationAdmissionUnavailable,
     PublicationRejected,
@@ -764,6 +765,146 @@ def test_stateless_publication_treats_marker_match_as_confirmed_and_other_result
     )
     assert outcome["status"] == "CONFLICT"
     assert calls == []
+
+
+def test_incomplete_receipt_history_can_replay_only_exact_fully_scanned_review_without_post():
+    from pr_review_harness.publication_receipts import HistoryScan, HistoryStatus, ReviewObservation, ReviewState
+
+    policy = _stateless_config()
+    prepared = preview(result(), policy)
+    admission = FakeAdmissionProvider(policy, prepared)
+    match = ReviewObservation(
+        slot=admission.value.slot,
+        effect_key=admission.value.effect_key,
+        review_body_hash=admission.value.review_body_hash,
+        actor_login=admission.value.actor_login,
+        state=ReviewState.COMMENTED,
+        review_id=934,
+    )
+    scan = HistoryScan(
+        HistoryStatus.INCOMPLETE,
+        reviews=(match,),
+        reason_code="receipt_history_incomplete",
+        scanned_pages=1,
+        reviews_complete=True,
+    )
+    outcome, writer, history, calls, _ = _publish_stateless(
+        history=FakeReceiptHistory([scan]), admission=admission
+    )
+    assert outcome["status"] == "CONFIRMED"
+    assert outcome["reason"] == "confirmed_from_complete_review_history"
+    assert outcome["effect_observation"] == {
+        "actor_login": "review-bot[bot]",
+        "review_state": "COMMENTED",
+        "review_id": 934,
+        "write_capability": "OBSERVED_SUCCESS",
+    }
+    assert calls == []
+    assert writer.receipts == []
+    assert history.calls == 1
+
+
+@pytest.mark.parametrize(
+    ("scan_factory", "expected_status"),
+    [
+        (lambda match: HistoryScan(HistoryStatus.INCOMPLETE, reviews=(match,), reason_code="review_history_limit"), "UNKNOWN"),
+        (
+            lambda match: HistoryScan(
+                HistoryStatus.INCOMPLETE,
+                reviews=(match, match),
+                reason_code="receipt_history_incomplete",
+                scanned_pages=1,
+                reviews_complete=True,
+            ),
+            "CONFLICT",
+        ),
+        (
+            lambda match: HistoryScan(
+                HistoryStatus.INCOMPLETE,
+                reviews=(replace(match, effect_key="effect-" + "f" * 64),),
+                reason_code="receipt_history_incomplete",
+                scanned_pages=1,
+                reviews_complete=True,
+            ),
+            "CONFLICT",
+        ),
+        (
+            lambda match: HistoryScan(
+                HistoryStatus.INCOMPLETE,
+                reviews=(),
+                reason_code="receipt_history_incomplete",
+                scanned_pages=1,
+                reviews_complete=True,
+            ),
+            "UNKNOWN",
+        ),
+        (
+            lambda match: HistoryScan(
+                HistoryStatus.INCOMPLETE,
+                reviews=(match,),
+                reason_code="receipt_history_incomplete",
+                scanned_pages=11,
+                reviews_complete=True,
+            ),
+            "UNKNOWN",
+        ),
+    ],
+)
+def test_incomplete_review_reconciliation_never_posts_without_unique_bounded_match(scan_factory, expected_status):
+    from pr_review_harness.publication_receipts import ReviewObservation, ReviewState
+
+    policy = _stateless_config()
+    admission = FakeAdmissionProvider(policy, preview(result(), policy))
+    match = ReviewObservation(
+        slot=admission.value.slot,
+        effect_key=admission.value.effect_key,
+        review_body_hash=admission.value.review_body_hash,
+        actor_login=admission.value.actor_login,
+        state=ReviewState.COMMENTED,
+        review_id=935,
+    )
+    scan = scan_factory(match)
+    history = FakeReceiptHistory([scan])
+    outcome, writer, _, calls, _ = _publish_stateless(history=history, admission=admission)
+    assert outcome["status"] == expected_status
+    assert calls == []
+    assert writer.receipts == []
+    assert history.calls == 1
+
+
+def test_incomplete_receipt_for_slot_remains_unknown_even_with_complete_review_pagination():
+    from pr_review_harness.publication_receipts import AttemptReceipt, HistoryScan, HistoryStatus
+
+    policy = _stateless_config()
+    admission = FakeAdmissionProvider(policy, preview(result(), policy))
+    request = admission.value
+    prior = AttemptReceipt(
+        slot=request.slot,
+        effect_key=request.effect_key,
+        result_hash=request.result_hash,
+        review_body_hash=request.review_body_hash,
+        disposition=request.disposition,
+        review_event=request.review_event,
+        actor_login=request.actor_login,
+        profile_hash=request.profile_hash,
+        upstream_run=request.upstream_run,
+        publisher_run=request.publisher_run,
+    )
+    scan = HistoryScan(
+        HistoryStatus.INCOMPLETE,
+        receipts=(prior,),
+        reason_code="receipt_history_incomplete",
+        scanned_runs=1,
+        scanned_pages=1,
+        reviews_complete=True,
+    )
+    history = FakeReceiptHistory([scan])
+    outcome, writer, _, calls, _ = _publish_stateless(history=history, admission=admission)
+    assert outcome["status"] == "UNKNOWN"
+    assert outcome["reason"] == "prior_attempt_has_no_confirmed_review"
+    assert calls == []
+    assert writer.receipts == []
+    assert history.calls == 1
 
 
 def test_stateless_publication_rechecks_head_after_receipt_and_never_posts_stale_result(monkeypatch):

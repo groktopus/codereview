@@ -1291,20 +1291,22 @@ class GitHubActionsPublicationAdapter:
             # Never forward arbitrary exception attributes or third-party text.
             raise PublicationAdmissionUnavailable() from None
 
-    def _review_pages(self, slot: EffectSlot, limits: ScanLimits) -> tuple[list[ReviewObservation], int, bool]:
+    def _review_pages(self, slot: EffectSlot, limits: ScanLimits) -> tuple[list[ReviewObservation], int, int, bool]:
         observations = []
         scanned = 0
+        pages_scanned = 0
         for page in range(1, limits.max_pages + 1):
             query = urllib.parse.urlencode({"per_page": 100, "page": page})
             reviews = self._array(
                 self._repo_path(f"/pulls/{slot.pull_request_number}/reviews?{query}"),
                 limits.deadline_seconds,
             )
+            pages_scanned += 1
             if len(reviews) > 100:
                 raise GitHubPublicationError("review_page_limit_exceeded")
             scanned += len(reviews)
             if scanned > limits.max_reviews:
-                return observations, scanned, False
+                return observations, scanned, pages_scanned, False
             for value in reviews:
                 if not isinstance(value, dict):
                     raise GitHubPublicationError("review_record_invalid")
@@ -1347,8 +1349,8 @@ class GitHubActionsPublicationAdapter:
                     )
                 )
             if len(reviews) < 100:
-                return observations, scanned, True
-        return observations, scanned, False
+                return observations, scanned, pages_scanned, True
+        return observations, scanned, pages_scanned, False
 
     def _receipt_history(self, slot: EffectSlot, limits: ScanLimits) -> tuple[list[AttemptReceipt], int, bool]:
         runs, scanned, complete = self._publisher_runs(slot, limits)
@@ -1373,7 +1375,21 @@ class GitHubActionsPublicationAdapter:
             self._start_deadline(limits.deadline_seconds)
             if slot.repository_id != self.policy.repository_id or slot.repository != self.policy.repository:
                 return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="history_target_mismatch")
-            reviews, review_count, reviews_complete = self._review_pages(slot, limits)
+            reviews, review_count, review_pages, reviews_complete = self._review_pages(slot, limits)
+            if self._clock() >= self._deadline_at:
+                return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="history_deadline_exhausted")
+            if reviews_complete and any(review.slot.key == slot.key for review in reviews):
+                # A bounded, complete review listing can prove an existing
+                # marked effect without scanning unrelated publisher runs.
+                # Receipt history is still incomplete, so this scan may only
+                # support replay reconciliation, never a new POST.
+                return HistoryScan(
+                    HistoryStatus.INCOMPLETE,
+                    reviews=tuple(reviews),
+                    reason_code="receipt_history_not_scanned",
+                    scanned_pages=review_pages,
+                    reviews_complete=True,
+                )
             receipts, artifact_count, receipts_complete = self._receipt_history(slot, limits)
             if self._clock() >= self._deadline_at:
                 return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="history_deadline_exhausted")
@@ -1383,7 +1399,8 @@ class GitHubActionsPublicationAdapter:
                     tuple(receipts),
                     tuple(reviews),
                     "review_history_limit",
-                    scanned_pages=min(limits.max_pages, math.ceil(review_count / 100)),
+                    scanned_pages=review_pages,
+                    reviews_complete=False,
                 )
             if not receipts_complete:
                 return HistoryScan(
@@ -1392,13 +1409,16 @@ class GitHubActionsPublicationAdapter:
                     tuple(reviews),
                     "receipt_history_incomplete",
                     scanned_runs=artifact_count,
+                    scanned_pages=review_pages,
+                    reviews_complete=True,
                 )
             return HistoryScan(
                 HistoryStatus.COMPLETE,
                 tuple(receipts),
                 tuple(reviews),
                 scanned_runs=artifact_count,
-                scanned_pages=min(limits.max_pages, math.ceil(review_count / 100)),
+                scanned_pages=review_pages,
+                reviews_complete=True,
             )
         except GitHubPublicationError:
             return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="github_history_unavailable")

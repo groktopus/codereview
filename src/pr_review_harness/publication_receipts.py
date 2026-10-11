@@ -351,7 +351,12 @@ class PublicationAdmissionProvider(Protocol):
 
 @dataclass(frozen=True)
 class HistoryScan:
-    """Bounded history result; only COMPLETE scans may authorize a new attempt."""
+    """Bounded history result; only COMPLETE scans may authorize a new attempt.
+
+    ``reviews_complete`` separately records that review pagination completed.
+    It can support read-only reconciliation when receipt history is incomplete,
+    but it never authorizes a new publication attempt.
+    """
 
     status: HistoryStatus
     receipts: tuple[AttemptReceipt, ...] = ()
@@ -359,6 +364,7 @@ class HistoryScan:
     reason_code: str | None = None
     scanned_runs: int = 0
     scanned_pages: int = 0
+    reviews_complete: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, HistoryStatus):
@@ -372,6 +378,8 @@ class HistoryScan:
             for value in (self.scanned_runs, self.scanned_pages)
         ):
             raise ReceiptContractError("history scan counts are invalid")
+        if not isinstance(self.reviews_complete, bool):
+            raise ReceiptContractError("history review completeness is invalid")
         if self.status is not HistoryStatus.COMPLETE and not self.reason_code:
             raise ReceiptContractError("incomplete history requires a reason")
         if self.reason_code is not None and (
