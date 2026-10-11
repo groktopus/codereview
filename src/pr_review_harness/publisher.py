@@ -769,6 +769,8 @@ def publish_review_stateless(
             return None, "publication_history_limit_exceeded"
         if len(scan.receipts) > stage_bounds.max_runs:
             return None, "publication_receipt_limit_exceeded"
+        if len(scan.no_effects) > stage_bounds.max_runs:
+            return None, "publication_no_effect_limit_exceeded"
         if len(scan.reviews) > stage_bounds.max_reviews:
             return None, "publication_review_limit_exceeded"
         return scan, None
@@ -787,7 +789,18 @@ def publish_review_stateless(
             ):
                 return "CONFIRMED", None, review
             return "CONFLICT", "existing_review_conflicts_with_slot", None
-        prior_receipts = [entry for entry in scan.receipts if entry.slot.key == admission.slot.key]
+        no_post_runs = {
+            item.publisher_run.run_id
+            for item in scan.no_effects
+            if item.pull_request_number == admission.slot.pull_request_number
+            and item.base_sha == admission.base_sha
+            and item.head_sha == admission.slot.head_sha
+        }
+        prior_receipts = [
+            entry
+            for entry in scan.receipts
+            if entry.slot.key == admission.slot.key and entry.publisher_run.run_id not in no_post_runs
+        ]
         if prior_receipts:
             if len(prior_receipts) != 1:
                 return "UNKNOWN", "multiple_attempt_receipts_for_slot", None

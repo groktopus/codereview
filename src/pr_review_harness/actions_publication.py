@@ -14,6 +14,7 @@ documented Actions artifact REST API.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import ipaddress
@@ -43,6 +44,7 @@ from .publication_receipts import (
     EffectSlot,
     HistoryScan,
     HistoryStatus,
+    NoEffectReceipt,
     PublicationAdmission,
     ReceiptAcknowledgement,
     ReceiptPersistence,
@@ -401,9 +403,9 @@ class GitHubPublicationPolicy:
 
     repository_id: int
     repository: str
-    pull_request_number: int
-    upstream_run_id: int
-    upstream_run_attempt: int
+    pull_request_number: int | None
+    upstream_run_id: int | None
+    upstream_run_attempt: int | None
     publisher_run_id: int
     publisher_run_attempt: int
     caller_workflow_id: int
@@ -436,13 +438,14 @@ class GitHubPublicationPolicy:
     max_receipt_archive_bytes: int = _MAX_RECEIPT_ARCHIVE_BYTES
     concurrency_scope: str = "pull_request"
     credential_provenance: dict | None = None
+    history_reconciliation: dict | None = None
+    no_effect_policy_hash: str | None = None
+    no_effect_only: bool = False
 
     def __post_init__(self) -> None:
+        history_mode = self.history_reconciliation is not None
         integer_fields = (
             "repository_id",
-            "pull_request_number",
-            "upstream_run_id",
-            "upstream_run_attempt",
             "publisher_run_id",
             "publisher_run_attempt",
             "caller_workflow_id",
@@ -453,6 +456,13 @@ class GitHubPublicationPolicy:
         )
         if any(not _positive_int(getattr(self, key)) for key in integer_fields):
             raise GitHubPublicationError("publication_policy_integer_invalid")
+        contextual_fields = (self.pull_request_number, self.upstream_run_id, self.upstream_run_attempt)
+        if (
+            not isinstance(self.no_effect_only, bool)
+            or (self.no_effect_only and (not history_mode or any(value is not None for value in contextual_fields)))
+            or (not self.no_effect_only and any(not _positive_int(value) for value in contextual_fields))
+        ):
+            raise GitHubPublicationError("publication_policy_context_invalid")
         if not _REPOSITORY.fullmatch(self.repository) or not _REPOSITORY.fullmatch(self.called_harness_repository):
             raise GitHubPublicationError("publication_policy_repository_invalid")
         for key in (
@@ -491,6 +501,21 @@ class GitHubPublicationPolicy:
                 validate_credential_provenance(self.credential_provenance)
             except Exception:
                 raise GitHubPublicationError("publication_credential_provenance_invalid") from None
+        if self.history_reconciliation is not None:
+            if not isinstance(self.history_reconciliation, dict) or set(self.history_reconciliation) != {
+                "schema", "max_historical_exceptions", "historical_exceptions"
+            }:
+                raise GitHubPublicationError("publication_history_policy_invalid")
+            if not isinstance(self.no_effect_policy_hash, str) or not _HASH.fullmatch(self.no_effect_policy_hash):
+                raise GitHubPublicationError("publication_history_policy_hash_invalid")
+            exceptions = self.history_reconciliation.get("historical_exceptions")
+            if (
+                self.history_reconciliation.get("schema") != "publisher-history-reconciliation.v1"
+                or self.history_reconciliation.get("max_historical_exceptions") != 4
+                or not isinstance(exceptions, list)
+                or len(exceptions) > 4
+            ):
+                raise GitHubPublicationError("publication_history_policy_invalid")
         parsed = urllib.parse.urlsplit(self.api_base_url)
         if (
             parsed.scheme != "https"
@@ -522,6 +547,9 @@ class GitHubPublicationPolicy:
 
     def receipt_artifact_name(self, slot: EffectSlot) -> str:
         return f"{self.receipt_artifact_prefix}-{slot.pull_request_number}-{slot.head_sha}"
+
+    def no_effect_artifact_name(self, run_id: int, attempt: int) -> str:
+        return f"pr-review-no-effect-{run_id}-{attempt}"
 
 
 @dataclass(frozen=True)
@@ -668,6 +696,8 @@ class GitHubActionsPublicationAdapter:
         payload: Mapping[str, object] | None = None,
         allow_redirect: bool = False,
     ) -> HTTPResponse:
+        if self.policy.no_effect_only and method != "GET":
+            raise GitHubPublicationError("no_effect_adapter_read_only")
         remaining = self._deadline(timeout_seconds)
         if remaining <= 0:
             raise GitHubPublicationError("deadline_exhausted")
@@ -733,7 +763,7 @@ class GitHubActionsPublicationAdapter:
             or value.get("state") != "open"
         ):
             raise GitHubPublicationError("pull_request_identity_invalid")
-        return {
+        result = {
             "repository_id": self.policy.repository_id,
             "repository": self.policy.repository,
             "pull_request_number": self.policy.pull_request_number,
@@ -741,6 +771,9 @@ class GitHubActionsPublicationAdapter:
             "head_sha": head["sha"],
             "state": value["state"],
         }
+        if self.policy.history_reconciliation is not None:
+            result["created_at"] = value.get("created_at")
+        return result
 
     def _run(self, run_id: int, attempt: int, timeout_seconds: float) -> dict:
         if not _positive_int(run_id) or not _positive_int(attempt):
@@ -766,6 +799,18 @@ class GitHubActionsPublicationAdapter:
         ):
             raise GitHubPublicationError("workflow_run_identity_mismatch")
         return value
+
+    def _latest_run_attempt(self, run_id: int, timeout_seconds: float) -> int | None:
+        value = self._json("GET", self._repo_path(f"/actions/runs/{run_id}"), timeout_seconds)
+        repository = value.get("repository") if isinstance(value.get("repository"), dict) else {}
+        if (
+            value.get("id") != run_id
+            or value.get("workflow_id") != self.policy.publisher_workflow_id
+            or repository.get("id") != self.policy.repository_id
+        ):
+            return None
+        attempt = value.get("run_attempt")
+        return attempt if _positive_int(attempt) else None
 
     def _run_identity(self, run: dict, *, publisher: bool) -> RunIdentity:
         expected_id = self.policy.publisher_workflow_id if publisher else self.policy.caller_workflow_id
@@ -993,8 +1038,19 @@ class GitHubActionsPublicationAdapter:
         the supplied cap is incomplete, never an apparently empty history.
         """
         runs: list[dict] = []
+        reconciliation = self.policy.history_reconciliation
+        created_floor = None
+        if reconciliation is not None:
+            created_floor = _parse_utc(
+                self._pull(self._deadline(limits.deadline_seconds)).get("created_at"),
+                "pull_request_created_at_invalid",
+            )
         total_count: int | None = None
         query_base = {"event": "workflow_run", "per_page": 100}
+        if created_floor is not None:
+            precision = "microseconds" if created_floor.microsecond else "seconds"
+            created_text = created_floor.astimezone(timezone.utc).isoformat(timespec=precision).replace("+00:00", "Z")
+            query_base["created"] = ">=" + created_text
         for page in range(1, limits.max_pages + 1):
             query = urllib.parse.urlencode({**query_base, "page": page})
             value = self._json(
@@ -1038,6 +1094,10 @@ class GitHubActionsPublicationAdapter:
                     or repository.get("id") != slot.repository_id
                 ):
                     raise GitHubPublicationError("publisher_run_repository_mismatch")
+                if created_floor is not None:
+                    created_at = _parse_utc(item.get("created_at"), "publisher_run_created_at_invalid")
+                    if created_at < created_floor:
+                        raise GitHubPublicationError("publisher_run_before_authenticated_floor")
                 runs.append(item)
                 if len(runs) > limits.max_runs:
                     return runs[: limits.max_runs], len(runs), False
@@ -1052,7 +1112,7 @@ class GitHubActionsPublicationAdapter:
         slot: EffectSlot,
         run_record: dict,
         timeout_seconds: float,
-    ) -> AttemptReceipt | None:
+    ) -> AttemptReceipt | NoEffectReceipt | None:
         run_id = run_record["id"]
         attempt = run_record["run_attempt"]
         is_current = run_id == self.policy.publisher_run_id and attempt == self.policy.publisher_run_attempt
@@ -1090,10 +1150,22 @@ class GitHubActionsPublicationAdapter:
         artifacts = self._list_run_artifacts(run_id, None, self._deadline(timeout_seconds))
         prefix = re.escape(self.policy.receipt_artifact_prefix)
         receipt_name = re.compile(rf"{prefix}-([1-9][0-9]*)-([0-9a-f]{{40}}|[0-9a-f]{{64}})\Z")
-        candidates = [
-            item for item in artifacts if isinstance(item, dict) and receipt_name.fullmatch(item.get("name", ""))
-        ]
-        if is_current and not candidates:
+        no_effect_name = self.policy.no_effect_artifact_name(run_id, attempt)
+        receipt_candidates = [item for item in artifacts if isinstance(item, dict) and receipt_name.fullmatch(item.get("name", ""))]
+        no_effect_candidates = (
+            [item for item in artifacts if isinstance(item, dict) and item.get("name") == no_effect_name]
+            if self.policy.history_reconciliation is not None
+            else []
+        )
+        candidates = receipt_candidates + no_effect_candidates
+        known_no_effect_run = (
+            self.policy.history_reconciliation is not None
+            and (
+                run_id in {item["run_id"] for item in self.policy.history_reconciliation["historical_exceptions"]}
+                or run_record.get("conclusion") == "skipped"
+            )
+        )
+        if (is_current or known_no_effect_run) and not candidates:
             return None
         if len(candidates) != 1:
             raise GitHubPublicationError("publisher_receipt_missing_or_ambiguous")
@@ -1101,7 +1173,17 @@ class GitHubActionsPublicationAdapter:
         artifacts = candidates
         metadata = self._artifact_metadata(artifacts[0], expected_name=artifact_name, run_id=run_id)
         workflow_run = metadata.get("workflow_run")
-        if not isinstance(workflow_run, dict) or workflow_run.get("run_attempt", 1) != attempt:
+        recorded_attempt = workflow_run.get("run_attempt") if isinstance(workflow_run, dict) else None
+        if artifact_name == no_effect_name:
+            if not isinstance(workflow_run, dict) or workflow_run.get("id") != run_id:
+                raise GitHubPublicationError("publisher_no_effect_run_mismatch")
+            if recorded_attempt is not None and recorded_attempt != attempt:
+                raise GitHubPublicationError("publisher_no_effect_attempt_mismatch")
+            if recorded_attempt is None and (
+                attempt != 1 or self._latest_run_attempt(run_id, self._deadline(timeout_seconds)) != 1
+            ):
+                raise GitHubPublicationError("publisher_no_effect_attempt_unproven")
+        elif not isinstance(workflow_run, dict) or workflow_run.get("run_attempt", 1) != attempt:
             raise GitHubPublicationError("publisher_receipt_attempt_mismatch")
         if not _utc_future(metadata.get("expires_at")):
             raise GitHubPublicationError("publisher_receipt_expired")
@@ -1110,7 +1192,26 @@ class GitHubActionsPublicationAdapter:
         downloaded = self._download_artifact(
             metadata, self._deadline(timeout_seconds), self.policy.max_receipt_archive_bytes
         )
-        receipt = AttemptReceipt.from_bytes(_read_receipt_archive(downloaded.archive))
+        content = (
+            _read_receipt_archive(
+                downloaded.archive,
+                expected_filename="no-effect-receipt.json",
+                expected_type=NoEffectReceipt,
+            )
+            if artifact_name == no_effect_name
+            else _read_receipt_archive(downloaded.archive)
+        )
+        if artifact_name == no_effect_name:
+            receipt = NoEffectReceipt.from_bytes(content)
+            historical_policy_hash = self._historical_policy_hash(identity, self._deadline(timeout_seconds))
+            if receipt.publisher_run != identity or receipt.policy_hash != historical_policy_hash:
+                raise GitHubPublicationError("publisher_no_effect_binding_mismatch")
+            if recorded_attempt is None and self._latest_run_attempt(
+                run_id, self._deadline(timeout_seconds)
+            ) != 1:
+                raise GitHubPublicationError("publisher_no_effect_attempt_changed")
+            return receipt
+        receipt = AttemptReceipt.from_bytes(content)
         if receipt.publisher_run != identity:
             raise GitHubPublicationError("publisher_receipt_binding_mismatch")
         expected_name = self.policy.receipt_artifact_name(receipt.slot)
@@ -1119,9 +1220,199 @@ class GitHubActionsPublicationAdapter:
         self._verify_receipt_upstream(receipt, self._deadline(timeout_seconds))
         return receipt
 
+    def _verify_historical_no_effect(self, run_record: dict, timeout_seconds: float) -> bool:
+        """Match one target-policy exception and revalidate its API job boundary."""
+        reconciliation = self.policy.history_reconciliation
+        if reconciliation is None:
+            return False
+        exception = next(
+            (item for item in reconciliation["historical_exceptions"] if item["run_id"] == run_record.get("id")),
+            None,
+        )
+        if exception is None:
+            return False
+        if (
+            run_record.get("run_attempt") != exception["attempt"]
+            or run_record.get("workflow_id") != exception["publisher_workflow_id"]
+            or run_record.get("head_sha") != exception["publisher_run_head_sha"]
+            or run_record.get("event") != "workflow_run"
+            or run_record.get("status") != "completed"
+            or run_record.get("conclusion") != "success"
+        ):
+            raise GitHubPublicationError("historical_no_effect_run_mismatch")
+        publisher_bytes = self._historical_workflow_blob(
+            self.policy.publisher_workflow_path,
+            exception["publisher_run_head_sha"],
+            exception["publisher_workflow_blob_sha"],
+            timeout_seconds,
+        )
+        self._historical_workflow_blob(
+            self.policy.caller_workflow_path,
+            exception["publisher_run_head_sha"],
+            exception["analysis_workflow_blob_sha"],
+            timeout_seconds,
+        )
+        historic_policy_raw, _policy_blob_sha = self._historical_content_blob(
+            ".github/pr-review-publisher-policy.json",
+            exception["publisher_run_head_sha"],
+            timeout_seconds,
+            64 * 1024,
+        )
+        try:
+            historic_policy = _parse_api_json(historic_policy_raw)
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            raise GitHubPublicationError("historical_policy_unavailable") from None
+        historic_harness = historic_policy.get("called_harness") if isinstance(historic_policy, dict) else None
+        if not isinstance(historic_harness, dict) or historic_harness.get("sha") != exception["runtime_pin"]:
+            raise GitHubPublicationError("historical_runtime_pin_mismatch")
+        if not publisher_bytes:
+            raise GitHubPublicationError("historical_publisher_workflow_empty")
+        jobs = self._json(
+            "GET",
+            self._repo_path(f"/actions/runs/{exception['run_id']}/jobs?per_page=100&page=1"),
+            self._deadline(timeout_seconds),
+        )
+        rows = jobs.get("jobs")
+        if (
+            not isinstance(rows, list)
+            or not isinstance(jobs.get("total_count"), int)
+            or isinstance(jobs.get("total_count"), bool)
+            or jobs.get("total_count") != len(rows)
+            or len(rows) != 1
+            or not isinstance(rows[0], dict)
+        ):
+            raise GitHubPublicationError("historical_no_effect_jobs_invalid")
+        job = rows[0]
+        steps = job.get("steps")
+        if (
+            job.get("id") != exception["publisher_job_id"]
+            or job.get("name") != exception["publisher_job_name"]
+            or job.get("run_id") != exception["run_id"]
+            or job.get("run_attempt") != exception["attempt"]
+            or job.get("status") != "completed"
+            or not isinstance(steps, list)
+            or len(steps) < exception["runtime_step"]
+            or not isinstance(steps[exception["runtime_step"] - 1], dict)
+            or steps[exception["runtime_step"] - 1].get("number") != exception["runtime_step"]
+            or steps[exception["runtime_step"] - 1].get("conclusion") != "success"
+            or job.get("conclusion") != "success"
+        ):
+            raise GitHubPublicationError("historical_no_effect_job_binding_invalid")
+        return True
+
+    def _historical_workflow_blob(
+        self, path: str, revision: str, expected_blob_sha: str, timeout_seconds: float
+    ) -> bytes:
+        content, blob_sha = self._historical_content_blob(path, revision, timeout_seconds, 1024 * 1024)
+        if blob_sha != expected_blob_sha:
+            raise GitHubPublicationError("historical_workflow_blob_mismatch")
+        return content
+
+    def _historical_content_blob(
+        self, path: str, revision: str, timeout_seconds: float, max_bytes: int
+    ) -> tuple[bytes, str]:
+        value = self._json(
+            "GET",
+            self._repo_path(
+                "/contents/" + urllib.parse.quote(path, safe="/") + "?ref=" + urllib.parse.quote(revision, safe="")
+            ),
+            self._deadline(timeout_seconds),
+        )
+        api_blob_sha = value.get("sha")
+        if not isinstance(api_blob_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", api_blob_sha):
+            raise GitHubPublicationError("historical_content_blob_invalid")
+        if value.get("encoding") != "base64":
+            raise GitHubPublicationError("historical_content_blob_invalid")
+        try:
+            encoded = value.get("content")
+            if not isinstance(encoded, str):
+                raise ValueError("missing content")
+            content = base64.b64decode(encoded.replace("\n", "").replace("\r", ""), validate=True)
+        except (ValueError, TypeError):
+            raise GitHubPublicationError("historical_content_blob_invalid") from None
+        git_blob_sha = hashlib.sha1(b"blob " + str(len(content)).encode("ascii") + b"\0" + content).hexdigest()
+        if not content or len(content) > max_bytes or git_blob_sha != api_blob_sha:
+            raise GitHubPublicationError("historical_content_blob_invalid")
+        return content, git_blob_sha
+
+    def _historical_policy_hash(self, identity: RunIdentity, timeout_seconds: float) -> str:
+        policy_path = ".github/pr-review-publisher-policy.json"
+        policy_bytes, _blob_sha = self._historical_content_blob(
+            policy_path, identity.workflow_sha, timeout_seconds, 64 * 1024
+        )
+        try:
+            raw = _parse_api_json(policy_bytes)
+            if not isinstance(raw, dict):
+                raise ValueError("policy root invalid")
+            # Use the protected runtime's closed schema validator so historic
+            # policy bytes receive the same validation as current policy bytes.
+            from .protected_publication_runtime import ProtectedPublicationPolicy
+
+            historical = ProtectedPublicationPolicy.parse(raw)
+            if historical.raw["schema"] != "pr-review-protected-publication-policy.v4" or not historical.enabled:
+                raise ValueError("policy is not an enabled v4 policy")
+            repository = historical.raw["repository"]
+            publisher = historical.raw["publisher_workflow"]
+            if (
+                repository["id"] != identity.repository_id
+                or repository["name"] != self.policy.repository
+                or publisher["id"] != identity.workflow_id
+                or publisher["path"] != identity.workflow_path
+                or publisher["ref"] != f"{repository['name']}/{publisher['path']}@{identity.workflow_ref}"
+            ):
+                raise ValueError("policy publisher identity mismatch")
+            workflow_bytes, _workflow_blob_sha = self._historical_content_blob(
+                publisher["path"], identity.workflow_sha, timeout_seconds, 1024 * 1024
+            )
+            if hashlib.sha256(workflow_bytes).hexdigest() != publisher["sha256"]:
+                raise ValueError("publisher workflow digest mismatch")
+            return _canonical_hash(historical.raw)
+        except GitHubPublicationError:
+            raise
+        except Exception:
+            raise GitHubPublicationError("historical_policy_invalid") from None
+
+    def _verify_skipped_publisher_run(self, run_record: dict, timeout_seconds: float) -> bool:
+        if run_record.get("conclusion") != "skipped":
+            return False
+        jobs = self._json(
+            "GET",
+            self._repo_path(f"/actions/runs/{run_record['id']}/jobs?per_page=100&page=1"),
+            self._deadline(timeout_seconds),
+        )
+        rows = jobs.get("jobs")
+        if (
+            not isinstance(rows, list)
+            or not isinstance(jobs.get("total_count"), int)
+            or isinstance(jobs.get("total_count"), bool)
+            or jobs.get("total_count") != len(rows)
+            or len(rows) != 1
+            or not isinstance(rows[0], dict)
+        ):
+            raise GitHubPublicationError("skipped_publisher_jobs_invalid")
+        job = rows[0]
+        if (
+            job.get("run_id") != run_record["id"]
+            or job.get("run_attempt") != run_record["run_attempt"]
+            or job.get("name") not in {"publisher-disabled", "publisher"}
+            or job.get("status") != "completed"
+            or job.get("conclusion") != "skipped"
+            or job.get("steps") != []
+        ):
+            raise GitHubPublicationError("skipped_publisher_job_not_proven")
+        return True
+
     def admit(self, result: dict, config: dict, limits: ScanLimits) -> PublicationAdmission:
         """Build a publication capability from current PR, protected runs and exact artifact bytes."""
         try:
+            if self.policy.no_effect_only:
+                raise GitHubPublicationError("no_effect_adapter_read_only")
+            if (
+                self.policy.pull_request_number is None
+                or self.policy.upstream_run_id is None
+                or self.policy.upstream_run_attempt is None
+            ):
+                raise GitHubPublicationError("publication_policy_context_invalid")
             if not self._limits_within_adapter_caps(limits):
                 raise GitHubPublicationError("publication_limits_invalid")
             self._start_deadline(limits.deadline_seconds)
@@ -1352,24 +1643,43 @@ class GitHubActionsPublicationAdapter:
                 return observations, scanned, pages_scanned, True
         return observations, scanned, pages_scanned, False
 
-    def _receipt_history(self, slot: EffectSlot, limits: ScanLimits) -> tuple[list[AttemptReceipt], int, bool]:
+    def _receipt_history(
+        self, slot: EffectSlot, limits: ScanLimits
+    ) -> tuple[list[AttemptReceipt], list[NoEffectReceipt], int, bool]:
         runs, scanned, complete = self._publisher_runs(slot, limits)
         if not complete:
-            return [], scanned, False
+            return [], [], scanned, False
         receipts = []
+        no_effects = []
         for run in runs:
             try:
                 receipt = self._receipt_for_publisher_run(slot, run, limits.deadline_seconds)
-                if receipt is not None and receipt.slot == slot:
+                if isinstance(receipt, AttemptReceipt) and receipt.slot == slot:
                     receipts.append(receipt)
+                elif isinstance(receipt, NoEffectReceipt):
+                    no_effects.append(receipt)
+                elif receipt is None and self.policy.history_reconciliation is None:
+                    # Preserve the legacy v1-v3 interpretation exactly; only
+                    # the opt-in v4 contract classifies old missing receipts.
+                    continue
+                elif receipt is None and self._verify_historical_no_effect(run, limits.deadline_seconds):
+                    continue
+                elif receipt is None and self._verify_skipped_publisher_run(run, limits.deadline_seconds):
+                    continue
+                elif receipt is None and run.get("id") == self.policy.publisher_run_id:
+                    continue
+                elif receipt is None:
+                    raise GitHubPublicationError("publisher_receipt_missing")
             except Exception:
                 # Missing/expired/deleted artifact evidence and incomplete
                 # attempt history are unknown; they never prove no prior POST.
-                return receipts, scanned, False
-        return receipts, scanned, True
+                return receipts, no_effects, scanned, False
+        return receipts, no_effects, scanned, True
 
     def scan(self, slot: EffectSlot, limits: ScanLimits) -> HistoryScan:
         try:
+            if self.policy.no_effect_only:
+                return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="no_effect_adapter_read_only")
             if not self._limits_within_adapter_caps(limits):
                 return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="history_limits_invalid")
             self._start_deadline(limits.deadline_seconds)
@@ -1390,7 +1700,7 @@ class GitHubActionsPublicationAdapter:
                     scanned_pages=review_pages,
                     reviews_complete=True,
                 )
-            receipts, artifact_count, receipts_complete = self._receipt_history(slot, limits)
+            receipts, no_effects, artifact_count, receipts_complete = self._receipt_history(slot, limits)
             if self._clock() >= self._deadline_at:
                 return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="history_deadline_exhausted")
             if not reviews_complete:
@@ -1411,6 +1721,7 @@ class GitHubActionsPublicationAdapter:
                     scanned_runs=artifact_count,
                     scanned_pages=review_pages,
                     reviews_complete=True,
+                    no_effects=tuple(no_effects),
                 )
             return HistoryScan(
                 HistoryStatus.COMPLETE,
@@ -1419,6 +1730,7 @@ class GitHubActionsPublicationAdapter:
                 scanned_runs=artifact_count,
                 scanned_pages=review_pages,
                 reviews_complete=True,
+                no_effects=tuple(no_effects),
             )
         except GitHubPublicationError:
             return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="github_history_unavailable")
@@ -1426,6 +1738,8 @@ class GitHubActionsPublicationAdapter:
             return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="github_history_invalid")
 
     def persist(self, receipt: AttemptReceipt, limits: ScanLimits) -> ReceiptPersistence:
+        if self.policy.no_effect_only:
+            return ReceiptPersistence(ReceiptPersistenceStatus.REJECTED, reason_code="no_effect_adapter_read_only")
         if not self._limits_within_adapter_caps(limits):
             return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="receipt_limits_invalid")
         try:
@@ -1509,11 +1823,116 @@ class GitHubActionsPublicationAdapter:
         except Exception:
             return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="artifact_persistence_unknown")
 
+    def persist_no_effect(self, receipt: NoEffectReceipt, limits: ScanLimits) -> ReceiptPersistence:
+        """Persist an independently run-bound no-POST receipt with readback ACK."""
+        if not self.policy.history_reconciliation or not self._limits_within_adapter_caps(limits):
+            return ReceiptPersistence(ReceiptPersistenceStatus.REJECTED, reason_code="no_effect_policy_unavailable")
+        if self.artifact_uploader is None:
+            return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="artifact_uploader_unavailable")
+        try:
+            self._start_deadline(limits.deadline_seconds)
+            self._credential(limits.deadline_seconds, {"actions": "read", "pull_requests": "read"})
+            if receipt.publisher_run.run_id != self.policy.publisher_run_id or receipt.publisher_run.run_attempt != self.policy.publisher_run_attempt:
+                return ReceiptPersistence(ReceiptPersistenceStatus.REJECTED, reason_code="publisher_run_mismatch")
+            run = self._run(self.policy.publisher_run_id, self.policy.publisher_run_attempt, self._deadline(limits.deadline_seconds))
+            identity = self._run_identity(run, publisher=True)
+            if (
+                identity != receipt.publisher_run
+                or run.get("event") != "workflow_run"
+                or run.get("status") != "in_progress"
+                or run.get("head_sha") != self.policy.publisher_workflow_sha
+                or receipt.policy_hash != self.policy.no_effect_policy_hash
+            ):
+                return ReceiptPersistence(ReceiptPersistenceStatus.REJECTED, reason_code="publisher_identity_mismatch")
+            name = self.policy.no_effect_artifact_name(identity.run_id, identity.run_attempt)
+            content = receipt.to_bytes()
+            existing = self._list_run_artifacts(identity.run_id, None, self._deadline(limits.deadline_seconds))
+            if any(item.get("name") == name for item in existing):
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_artifact_already_exists")
+            if receipt.pull_request_number is not None:
+                slot = EffectSlot(
+                    self.policy.repository_id,
+                    self.policy.repository,
+                    receipt.pull_request_number,
+                    receipt.head_sha,
+                )
+            if receipt.pull_request_number is not None:
+                prior = [item for item in existing if item.get("name") == self.policy.receipt_artifact_name(slot)]
+                if len(prior) > 1:
+                    return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="attempt_receipt_ambiguous")
+                if prior:
+                    artifact = self._artifact_metadata(
+                        prior[0], expected_name=self.policy.receipt_artifact_name(slot), run_id=identity.run_id
+                    )
+                    artifact_run = artifact.get("workflow_run")
+                    if not isinstance(artifact_run, dict) or artifact_run.get("id") != identity.run_id:
+                        return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="attempt_receipt_run_binding_unknown")
+                    downloaded_prior = self._download_artifact(
+                        artifact, self._deadline(limits.deadline_seconds), self.policy.max_receipt_archive_bytes
+                    )
+                    prior_receipt = AttemptReceipt.from_bytes(_read_receipt_archive(downloaded_prior.archive))
+                    if prior_receipt.publisher_run != identity or prior_receipt.slot != slot:
+                        return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="attempt_receipt_binding_mismatch")
+            if self._latest_run_attempt(identity.run_id, self._deadline(limits.deadline_seconds)) != identity.run_attempt:
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_attempt_not_proven")
+            upload = self.artifact_uploader.upload(
+                run_id=identity.run_id,
+                artifact_name=name,
+                filename="no-effect-receipt.json",
+                content=content,
+                timeout_seconds=self._deadline(limits.deadline_seconds),
+            )
+            if not isinstance(upload, ArtifactUploadResult) or upload.status != "UPLOADED":
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_upload_unconfirmed")
+            artifacts = self._list_run_artifacts(identity.run_id, name, self._deadline(limits.deadline_seconds))
+            matches = [item for item in artifacts if item.get("id") == upload.artifact_id]
+            if len(matches) != 1:
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_artifact_ack_missing")
+            metadata = self._artifact_metadata(matches[0], expected_name=name, run_id=identity.run_id)
+            artifact_run = metadata.get("workflow_run")
+            if not isinstance(artifact_run, dict):
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_attempt_binding_missing")
+            explicit_attempt = artifact_run.get("run_attempt")
+            if explicit_attempt is not None and explicit_attempt != identity.run_attempt:
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_attempt_binding_mismatch")
+            if explicit_attempt is None and identity.run_attempt != 1:
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_attempt_not_proven")
+            if self._latest_run_attempt(identity.run_id, self._deadline(limits.deadline_seconds)) != identity.run_attempt:
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_attempt_not_proven")
+            downloaded = self._download_artifact(metadata, self._deadline(limits.deadline_seconds), self.policy.max_receipt_archive_bytes)
+            verified = _read_receipt_archive(
+                downloaded.archive,
+                expected_filename="no-effect-receipt.json",
+                expected_type=NoEffectReceipt,
+            )
+            if verified != content or not _utc_future(metadata.get("expires_at")):
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_artifact_content_mismatch")
+            after = self._run(identity.run_id, identity.run_attempt, self._deadline(limits.deadline_seconds))
+            if (
+                self._run_identity(after, publisher=True) != identity
+                or self._latest_run_attempt(identity.run_id, self._deadline(limits.deadline_seconds)) != identity.run_attempt
+            ):
+                return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="publisher_identity_changed")
+            acknowledgement = ReceiptAcknowledgement(
+                artifact_id=metadata["id"],
+                publisher_run=identity,
+                archive_sha256=downloaded.archive_sha256,
+                receipt_sha256=hashlib.sha256(verified).hexdigest(),
+                expires_at=metadata["expires_at"],
+            )
+            return ReceiptPersistence(ReceiptPersistenceStatus.ACKNOWLEDGED, acknowledgement=acknowledgement)
+        except Exception:
+            return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_persistence_unknown")
+
     def fresh_head(self, timeout_seconds: float) -> str:
+        if self.policy.no_effect_only:
+            raise GitHubPublicationError("no_effect_adapter_read_only")
         self._start_deadline(timeout_seconds)
         return self._pull(timeout_seconds)["head_sha"]
 
     def submit_review(self, payload: dict, effect_key: str, timeout_seconds: float) -> ReviewObservation:
+        if self.policy.no_effect_only:
+            raise GitHubPublicationError("no_effect_adapter_read_only")
         self._start_deadline(timeout_seconds)
         if not isinstance(payload, dict) or payload.get("event") not in {"APPROVE", "REQUEST_CHANGES", "COMMENT"}:
             raise GitHubPublicationError("review_payload_invalid")
@@ -1578,7 +1997,17 @@ class GitHubActionsPublicationAdapter:
         return credential.identity
 
 
-def _read_receipt_archive(archive_bytes: bytes) -> bytes:
+def _read_receipt_archive(
+    archive_bytes: bytes,
+    *,
+    expected_filename: str = "attempt-receipt.json",
+    expected_type=AttemptReceipt,
+) -> bytes:
+    if (expected_filename, expected_type) not in {
+        ("attempt-receipt.json", AttemptReceipt),
+        ("no-effect-receipt.json", NoEffectReceipt),
+    }:
+        raise GitHubPublicationError("receipt_archive_member_invalid")
     if not isinstance(archive_bytes, bytes) or not 22 <= len(archive_bytes) <= _MAX_RECEIPT_ARCHIVE_BYTES:
         raise GitHubPublicationError("receipt_archive_invalid")
     try:
@@ -1592,7 +2021,7 @@ def _read_receipt_archive(archive_bytes: bytes) -> bytes:
         member = members[0]
         mode = (member.external_attr >> 16) & 0xFFFF
         if (
-            member.filename != "attempt-receipt.json"
+            member.filename != expected_filename
             or member.is_dir()
             or member.file_size < 1
             or member.file_size > _MAX_RECEIPT_BYTES
@@ -1607,7 +2036,7 @@ def _read_receipt_archive(archive_bytes: bytes) -> bytes:
             raise GitHubPublicationError("receipt_archive_read_failed") from None
         if len(content) != member.file_size:
             raise GitHubPublicationError("receipt_archive_length_invalid")
-        AttemptReceipt.from_bytes(content)
+        expected_type.from_bytes(content)
         return content
 
 
