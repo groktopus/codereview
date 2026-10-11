@@ -441,9 +441,14 @@ class GitHubPublicationPolicy:
     history_reconciliation: dict | None = None
     no_effect_policy_hash: str | None = None
     no_effect_only: bool = False
+    publication_mode: str = "DISPOSITION"
 
     def __post_init__(self) -> None:
         history_mode = self.history_reconciliation is not None
+        if self.publication_mode not in {"DISPOSITION", "NON_BINDING_COMMENT"}:
+            raise GitHubPublicationError("publication_policy_mode_invalid")
+        if self.publication_mode == "NON_BINDING_COMMENT" and not history_mode:
+            raise GitHubPublicationError("publication_policy_mode_invalid")
         integer_fields = (
             "repository_id",
             "publisher_run_id",
@@ -1349,8 +1354,11 @@ class GitHubActionsPublicationAdapter:
             from .protected_publication_runtime import ProtectedPublicationPolicy
 
             historical = ProtectedPublicationPolicy.parse(raw)
-            if historical.raw["schema"] != "pr-review-protected-publication-policy.v4" or not historical.enabled:
-                raise ValueError("policy is not an enabled v4 policy")
+            if historical.raw["schema"] not in {
+                "pr-review-protected-publication-policy.v4",
+                "pr-review-protected-publication-policy.v5",
+            } or not historical.enabled:
+                raise ValueError("policy is not an enabled history policy")
             repository = historical.raw["repository"]
             publisher = historical.raw["publisher_workflow"]
             if (
@@ -1519,11 +1527,15 @@ class GitHubActionsPublicationAdapter:
             identity = self._identity
             if identity is None or identity.actor_login != self.policy.allowed_actor_login:
                 raise GitHubPublicationError("publisher_identity_unavailable")
+            from .publisher import render_publication_body
             from .report import render_report
 
-            body = render_report(result)
-            if "rendered_review" in result and result["rendered_review"] != body:
+            if config.get("publication_mode", "DISPOSITION") != self.policy.publication_mode:
+                raise GitHubPublicationError("publication_mode_mismatch")
+            canonical_body = render_report(result)
+            if "rendered_review" in result and result["rendered_review"] != canonical_body:
                 raise GitHubPublicationError("canonical_review_mismatch")
+            body = render_publication_body(result, self.policy.publication_mode)
             body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
             slot = EffectSlot(
                 self.policy.repository_id,
@@ -1532,7 +1544,10 @@ class GitHubActionsPublicationAdapter:
                 pr["head_sha"],
             )
             disposition = result.get("disposition")
-            effect_key = _stateless_effect_key(slot, result["result_hash"], body_hash, disposition)
+            publication_mode = self.policy.publication_mode
+            effect_key = _stateless_effect_key(
+                slot, result["result_hash"], body_hash, disposition, publication_mode
+            )
             concurrency_group = (
                 f"pr-review-publish-{self.policy.repository_id}-{self.policy.pull_request_number}"
                 if self.policy.concurrency_scope == "pull_request"
@@ -1545,7 +1560,11 @@ class GitHubActionsPublicationAdapter:
                 result_hash=result["result_hash"],
                 review_body_hash=body_hash,
                 disposition=disposition,
-                review_event="COMMENT" if disposition == "INCOMPLETE" else disposition,
+                review_event=(
+                    "COMMENT"
+                    if disposition == "INCOMPLETE" or publication_mode == "NON_BINDING_COMMENT"
+                    else disposition
+                ),
                 actor_login=identity.actor_login,
                 profile_hash=self.policy.profile_sha256,
                 policy_hash=_canonical_hash(config),
@@ -1575,6 +1594,7 @@ class GitHubActionsPublicationAdapter:
                 ),
                 concurrency_scope=self.policy.concurrency_scope,
                 credential_provenance=self.policy.credential_provenance,
+                publication_mode=publication_mode,
             )
         except GitHubPublicationError as exc:
             raise PublicationAdmissionUnavailable(exc.code) from None

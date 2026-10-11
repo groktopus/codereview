@@ -109,6 +109,8 @@ def test_built_source_archive_contains_authored_source_test_support_without_poll
             "scripts/actions-artifact-uploader/upload.mjs",
             "scripts/actions-artifact-uploader/package.json",
             "scripts/actions-artifact-uploader/package-lock.json",
+            "scripts/protected-publication-action/action.yml",
+            "scripts/protected-publication-action/main.mjs",
             "examples/injection/fixture-suite.v1.json",
             "examples/injection/fixture-suite.v2.json",
             "examples/evaluation/corpus.json",
@@ -151,6 +153,15 @@ def test_built_source_archive_contains_authored_source_test_support_without_poll
             "scripts/actions-artifact-uploader/package-lock.json",
         }
         for relative_path in bridge_files:
+            archived_file = archive.extractfile(members[f"{root_prefix}/{relative_path}"])
+            assert archived_file is not None
+            assert archived_file.read() == (ROOT / relative_path).read_bytes()
+
+        protected_action_files = {
+            "scripts/protected-publication-action/action.yml",
+            "scripts/protected-publication-action/main.mjs",
+        }
+        for relative_path in protected_action_files:
             archived_file = archive.extractfile(members[f"{root_prefix}/{relative_path}"])
             assert archived_file is not None
             assert archived_file.read() == (ROOT / relative_path).read_bytes()

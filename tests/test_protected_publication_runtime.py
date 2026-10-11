@@ -17,6 +17,7 @@ from pr_review_harness.actions_publication import (
     HTTPResponse,
 )
 from pr_review_harness.publication_receipts import EffectSlot
+from pr_review_harness.publisher import _canonical_hash
 from pr_review_harness.report import render_report
 
 CALLED_SHA = "e" * 40
@@ -79,6 +80,19 @@ def api_location_policy_document(*, enabled=False):
     value["schema"] = "pr-review-protected-publication-policy.v3"
     value.pop("artifact_redirect_hosts")
     value["artifact_download_mode"] = "AUTHENTICATED_API_LOCATION_NO_AUTH"
+    return value
+
+
+def nonbinding_comment_policy_document(*, enabled=False):
+    value = api_location_policy_document(enabled=enabled)
+    value["schema"] = "pr-review-protected-publication-policy.v5"
+    value["publication_mode"] = "NON_BINDING_COMMENT"
+    value["publication"]["allowed_dispositions"] = ["COMMENT"]
+    value["history_reconciliation"] = {
+        "schema": "publisher-history-reconciliation.v1",
+        "max_historical_exceptions": 4,
+        "historical_exceptions": [],
+    }
     return value
 
 
@@ -443,6 +457,7 @@ def test_runtime_rejects_unprotected_source_event_before_app_key_or_api(tmp_path
     ]
     + [("success", association, "ACTIONS_TOKEN") for association in ("empty", "omitted", "row-with-older-pr-base")]
     + [("success", "empty", "ACTIONS_TOKEN_V3")]
+    + [("success", "empty", "ACTIONS_TOKEN_V5")]
     + [("post_forbidden", "empty", "ACTIONS_TOKEN")],
 )
 def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_post(
@@ -450,6 +465,9 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
 ):
     actions_token_route = credential_route.startswith("ACTIONS_TOKEN")
     policy_value = (
+        nonbinding_comment_policy_document(enabled=True)
+        if credential_route == "ACTIONS_TOKEN_V5"
+        else
         api_location_policy_document(enabled=True)
         if credential_route == "ACTIONS_TOKEN_V3"
         else actions_token_policy_document(enabled=True)
@@ -460,6 +478,12 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
     event_path.write_text(json.dumps(event_payload(include_pr=False)), encoding="utf-8")
     policy = make_policy(publisher_workflow_sha=revision, caller_workflow_sha=DEFAULT_BRANCH_TIP)
     result = make_valid_result()
+    if credential_route == "ACTIONS_TOKEN_V5":
+        result["disposition"] = "APPROVE"
+        result["allow_empty_approve"] = True
+        result["rendered_review"] = render_report(result)
+        result.pop("result_hash")
+        result["result_hash"] = _canonical_hash(result)
     bundle = bundle_for(policy, result)
     if failure_mode == "stale_base":
         bundle = rebind_manifest_target(bundle, base_sha="c" * 40)
@@ -565,7 +589,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             return response({"id": 88, "login": WRITER, "type": "Bot"})
         if path.endswith("/pulls/44"):
             pull_reads += 1
-            return response({"number": 44, "state": "open", "draft": False, "base": {"sha": BASE, "ref": "main", "repo": {"id": policy.repository_id}}, "head": {"sha": HEAD, "ref": "feature/review-target"}})
+            return response({"number": 44, "state": "open", "draft": False, "created_at": "2026-09-26T16:00:00Z", "base": {"sha": BASE, "ref": "main", "repo": {"id": policy.repository_id}}, "head": {"sha": HEAD, "ref": "feature/review-target"}})
         if path.endswith(f"/actions/runs/{policy.upstream_run_id}/attempts/1"):
             return response(upstream_detail)
         if path.endswith(f"/actions/runs/{policy.upstream_run_id}"):
@@ -598,7 +622,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             return response(stored_reviews)
         artifact_host = (
             "productionresultssa99.blob.core.windows.net"
-            if credential_route == "ACTIONS_TOKEN_V3"
+            if credential_route in {"ACTIONS_TOKEN_V3", "ACTIONS_TOKEN_V5"}
             else "downloads.example.test"
         )
         if path.endswith("/actions/artifacts/123/zip"):
@@ -684,7 +708,12 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
                 "attempt-receipt.json"
             )
             receipt_value = json.loads(receipt_bytes)
-            assert receipt_value["protocol_version"] == "actions-receipt-v2"
+            expected_protocol = "actions-receipt-v3" if credential_route == "ACTIONS_TOKEN_V5" else "actions-receipt-v2"
+            assert receipt_value["protocol_version"] == expected_protocol
+            if credential_route == "ACTIONS_TOKEN_V5":
+                assert receipt_value["publication_mode"] == "NON_BINDING_COMMENT"
+                assert receipt_value["disposition"] == "APPROVE"
+                assert receipt_value["review_event"] == "COMMENT"
             assert receipt_value["credential_provenance"]["write_capability"] == "NOT_TESTED"
             assert receipt_value["credential_provenance"]["permission_basis"] == "WORKFLOW_DECLARATION"
             assert receipt_value["credential_provenance"]["declared_job_permissions"] == {
@@ -741,6 +770,10 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             assert events.index("receipt_artifact_download") < events.index("write_token_mint") < events.index("review_post")
         assert post_bodies[0]["commit_id"] == HEAD
         assert post_bodies[0]["event"] == "COMMENT"
+        if credential_route == "ACTIONS_TOKEN_V5":
+            assert post_bodies[0]["body"].startswith("## Non-binding review comment")
+            assert "not an approval" in post_bodies[0]["body"]
+            assert "Underlying analysis disposition: `APPROVE`" in post_bodies[0]["body"]
         assert post_bodies[0]["body"].endswith(" -->")
         assert any("/actions/artifacts/123/zip" in call[1] for call in transport.calls)
         assert any("/actions/artifacts/991/zip" in call[1] for call in transport.calls)

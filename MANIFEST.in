@@ -7,6 +7,8 @@ include scripts/actions-artifact-uploader/canary.mjs
 include scripts/actions-artifact-uploader/upload.mjs
 include scripts/actions-artifact-uploader/package.json
 include scripts/actions-artifact-uploader/package-lock.json
+include scripts/protected-publication-action/action.yml
+include scripts/protected-publication-action/main.mjs
 recursive-include examples *.json
 recursive-include profiles *.json
 recursive-include .github/workflows *.yml

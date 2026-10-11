@@ -13,6 +13,7 @@ from pr_review_harness.publisher import (
     SQLiteEffectStore,
     effect_idempotency_key,
     prepare_publication,
+    preview_publication,
     publish_review,
 )
 from pr_review_harness.report import render_report
@@ -178,6 +179,68 @@ def test_publication_request_hash_binds_review_and_never_merges():
     assert prepared["idempotency_key"] == effect_idempotency_key(result())
     assert prepared["merge"] is False
     assert "merge" not in prepared["review_payload"]
+
+
+@pytest.mark.parametrize("source_disposition", ["APPROVE", "REQUEST_CHANGES"])
+def test_non_binding_comment_mode_preserves_analysis_but_projects_only_comment(source_disposition):
+    reviewed = result()
+    if source_disposition == "APPROVE":
+        reviewed["allow_empty_approve"] = True
+        reviewed["disposition"] = "APPROVE"
+    else:
+        reviewed = accepted_blocker(reviewed)
+    reviewed["rendered_review"] = render_report(reviewed)
+    reviewed.pop("result_hash")
+    reviewed["result_hash"] = seal(reviewed)
+
+    prepared = preview_publication(
+        reviewed,
+        config(publication_mode="NON_BINDING_COMMENT"),
+        rendered_review=reviewed["rendered_review"],
+    )
+
+    assert prepared["disposition"] == source_disposition
+    assert prepared["review_event"] == "COMMENT"
+    assert prepared["review_payload"]["event"] == "COMMENT"
+    assert prepared["review_payload"]["body"].startswith(
+        "## Non-binding review comment\n\nThis is a non-binding canary comment."
+    )
+    assert f"Underlying analysis disposition: `{source_disposition}`" in prepared["review_payload"]["body"]
+    assert reviewed["rendered_review"] in prepared["review_payload"]["body"]
+    assert prepared["result_hash"] == reviewed["result_hash"]
+    assert prepared["merge"] is False
+
+
+def test_disposition_mode_does_not_silently_coerce_approval_and_invalid_result_stays_rejected():
+    approved = result()
+    approved["allow_empty_approve"] = True
+    approved["disposition"] = "APPROVE"
+    approved["rendered_review"] = render_report(approved)
+    approved.pop("result_hash")
+    approved["result_hash"] = seal(approved)
+    with pytest.raises(PublicationRejected, match="disposition_not_allowed"):
+        preview_publication(approved, config(), rendered_review=approved["rendered_review"])
+
+    invalid = copy.deepcopy(result())
+    invalid["result_hash"] = "0" * 64
+    with pytest.raises(PublicationRejected, match="review result hash is invalid"):
+        preview_publication(
+            invalid,
+            config(publication_mode="NON_BINDING_COMMENT"),
+            rendered_review=invalid["rendered_review"],
+        )
+
+    stale = copy.deepcopy(result())
+    stale["freshness"] = "STALE"
+    stale["rendered_review"] = render_report(stale)
+    stale.pop("result_hash")
+    stale["result_hash"] = seal(stale)
+    with pytest.raises(PublicationRejected):
+        preview_publication(
+            stale,
+            config(publication_mode="NON_BINDING_COMMENT"),
+            rendered_review=stale["rendered_review"],
+        )
 
 
 def test_publication_rejects_noncanonical_body_that_could_omit_blockers():

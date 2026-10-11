@@ -81,6 +81,7 @@ _CONFIG_KEYS = {
 _V2_CONFIG_KEYS = (_CONFIG_KEYS - {"app"}) | {"credential", "authorization_mode"}
 _V3_CONFIG_KEYS = (_V2_CONFIG_KEYS - {"artifact_redirect_hosts"}) | {"artifact_download_mode"}
 _V4_CONFIG_KEYS = _V3_CONFIG_KEYS | {"history_reconciliation"}
+_V5_CONFIG_KEYS = _V4_CONFIG_KEYS | {"publication_mode"}
 _HISTORICAL_NO_EFFECT_REASONS = {
     "source_artifact_redirect_untrusted",
     "publication_admission_unavailable",
@@ -205,6 +206,20 @@ class ProtectedPublicationPolicy:
                     raise ProtectedRuntimeError("protected_policy_credential_invalid")
             else:
                 raise ProtectedRuntimeError("protected_policy_credential_invalid")
+        elif schema == "pr-review-protected-publication-policy.v5":
+            if set(value) != _V5_CONFIG_KEYS or value.get("authorization_mode") != "STANDING_BOUNDED":
+                raise ProtectedRuntimeError("protected_policy_schema_invalid")
+            credential = value.get("credential")
+            if not isinstance(credential, dict):
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            if credential.get("kind") == "APP_INSTALLATION":
+                if set(credential) != {"kind", "app"}:
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            elif credential.get("kind") == "ACTIONS_TOKEN":
+                if set(credential) != {"kind", "actor_login"} or credential.get("actor_login") != "github-actions[bot]":
+                    raise ProtectedRuntimeError("protected_policy_credential_invalid")
+            else:
+                raise ProtectedRuntimeError("protected_policy_credential_invalid")
         else:
             raise ProtectedRuntimeError("protected_policy_schema_invalid")
         if not isinstance(value.get("enabled"), bool):
@@ -227,6 +242,7 @@ class ProtectedPublicationPolicy:
                 "pr-review-protected-publication-policy.v2",
                 "pr-review-protected-publication-policy.v3",
                 "pr-review-protected-publication-policy.v4",
+                "pr-review-protected-publication-policy.v5",
             } and key == "publisher_workflow":
                 expected_workflow_fields.add("sha256")
             if not isinstance(workflow, dict) or set(workflow) != expected_workflow_fields:
@@ -310,7 +326,11 @@ class ProtectedPublicationPolicy:
             raise ProtectedRuntimeError("protected_policy_limits_invalid")
         if value.get("artifact_trust_mode") != "API_BOUND_SHA256":
             raise ProtectedRuntimeError("protected_policy_artifact_trust_invalid")
-        if schema in {"pr-review-protected-publication-policy.v3", "pr-review-protected-publication-policy.v4"}:
+        if schema in {
+            "pr-review-protected-publication-policy.v3",
+            "pr-review-protected-publication-policy.v4",
+            "pr-review-protected-publication-policy.v5",
+        }:
             if value.get("artifact_download_mode") != ArtifactDownloadMode.AUTHENTICATED_API_LOCATION_NO_AUTH.value:
                 raise ProtectedRuntimeError("protected_policy_artifact_download_mode_invalid")
         else:
@@ -323,7 +343,7 @@ class ProtectedPublicationPolicy:
                 or len(set(hosts)) != len(hosts)
             ):
                 raise ProtectedRuntimeError("protected_policy_artifact_hosts_invalid")
-        if schema == "pr-review-protected-publication-policy.v4":
+        if schema in {"pr-review-protected-publication-policy.v4", "pr-review-protected-publication-policy.v5"}:
             history = value.get("history_reconciliation")
             if (
                 not isinstance(history, dict)
@@ -373,6 +393,12 @@ class ProtectedPublicationPolicy:
                 ):
                     raise ProtectedRuntimeError("protected_policy_history_invalid")
                 seen_runs.add(record["run_id"])
+        if schema == "pr-review-protected-publication-policy.v5":
+            mode = value.get("publication_mode")
+            if mode not in {"DISPOSITION", "NON_BINDING_COMMENT"}:
+                raise ProtectedRuntimeError("protected_policy_publication_mode_invalid")
+            if mode == "NON_BINDING_COMMENT" and publication.get("allowed_dispositions") != ["COMMENT"]:
+                raise ProtectedRuntimeError("protected_policy_publication_mode_invalid")
         return cls(raw=value)
 
     @property
@@ -420,7 +446,7 @@ class ProtectedPublicationPolicy:
         )
 
     def publication_config(self) -> dict[str, object]:
-        return {
+        config = {
             "schema_version": "1.0",
             "enabled": self.enabled,
             "allowed_repositories": [self.raw["repository"]["name"]],
@@ -429,6 +455,9 @@ class ProtectedPublicationPolicy:
             "allowed_actors": [self.actor_login],
             "max_review_body_bytes": self.raw["publication"]["max_review_body_bytes"],
         }
+        if self.raw["schema"] == "pr-review-protected-publication-policy.v5":
+            config["publication_mode"] = self.raw["publication_mode"]
+        return config
 
 
 def _policy_from_workspace(environ: Mapping[str, str]) -> ProtectedPublicationPolicy:
@@ -460,6 +489,7 @@ def _policy_from_workspace(environ: Mapping[str, str]) -> ProtectedPublicationPo
         "pr-review-protected-publication-policy.v2",
         "pr-review-protected-publication-policy.v3",
         "pr-review-protected-publication-policy.v4",
+        "pr-review-protected-publication-policy.v5",
     }:
         workflow = policy.raw["publisher_workflow"]
         workflow_path = root / workflow["path"]
@@ -668,6 +698,7 @@ def _publication_policy(
             if protected.raw["schema"] in {
                 "pr-review-protected-publication-policy.v3",
                 "pr-review-protected-publication-policy.v4",
+                "pr-review-protected-publication-policy.v5",
             }
             else ArtifactDownloadMode.STATIC_HOST_ALLOWLIST
         ),
@@ -675,9 +706,13 @@ def _publication_policy(
         history_reconciliation=protected.raw.get("history_reconciliation"),
         no_effect_policy_hash=(
             _canonical_hash(protected.raw)
-            if protected.raw["schema"] == "pr-review-protected-publication-policy.v4"
+            if protected.raw["schema"] in {
+                "pr-review-protected-publication-policy.v4",
+                "pr-review-protected-publication-policy.v5",
+            }
             else None
         ),
+        publication_mode=protected.raw.get("publication_mode", "DISPOSITION"),
     )
 
 
@@ -696,7 +731,10 @@ def _early_no_effect_adapter(
     normal publication later builds a complete adapter from validated source
     context and may use the configured credential kind.
     """
-    if protected.raw["schema"] != "pr-review-protected-publication-policy.v4":
+    if protected.raw["schema"] not in {
+        "pr-review-protected-publication-policy.v4",
+        "pr-review-protected-publication-policy.v5",
+    }:
         return None
     publisher = protected.raw["publisher_workflow"]
     source = protected.raw["source_workflow"]
@@ -757,6 +795,7 @@ def _early_no_effect_adapter(
         history_reconciliation=protected.raw["history_reconciliation"],
         no_effect_policy_hash=_canonical_hash(protected.raw),
         no_effect_only=True,
+        publication_mode=protected.raw.get("publication_mode", "DISPOSITION"),
     )
     identity_evidence = _canonical_hash(
         {
@@ -806,6 +845,7 @@ def _trusted_artifact_location(protected: ProtectedPublicationPolicy, location: 
     if protected.raw["schema"] in {
         "pr-review-protected-publication-policy.v3",
         "pr-review-protected-publication-policy.v4",
+        "pr-review-protected-publication-policy.v5",
     }:
         return validate_api_issued_artifact_location(location)
     if not isinstance(location, str):
@@ -1198,7 +1238,10 @@ def run_protected_publication(
         nonlocal no_effect_observation, no_effect_attempted
         if (
             protected is None
-            or protected.raw["schema"] != "pr-review-protected-publication-policy.v4"
+            or protected.raw["schema"] not in {
+                "pr-review-protected-publication-policy.v4",
+                "pr-review-protected-publication-policy.v5",
+            }
             or post_started
             or no_effect_attempted
         ):
@@ -1239,7 +1282,10 @@ def run_protected_publication(
         nonlocal no_effect_observation
         if (
             protected is not None
-            and protected.raw.get("schema") == "pr-review-protected-publication-policy.v4"
+            and protected.raw.get("schema") in {
+                "pr-review-protected-publication-policy.v4",
+                "pr-review-protected-publication-policy.v5",
+            }
             and not post_started
         ):
             if no_effect_observation is None:
@@ -1254,7 +1300,10 @@ def run_protected_publication(
         deadline = clock() + float(publication_limits.deadline_seconds)
         client = transport or UrllibGitHubTransport()
         uploader = None
-        if protected.raw["schema"] == "pr-review-protected-publication-policy.v4":
+        if protected.raw["schema"] in {
+            "pr-review-protected-publication-policy.v4",
+            "pr-review-protected-publication-policy.v5",
+        }:
             try:
                 uploader = artifact_uploader or OfficialActionsArtifactUploader(environ=_artifact_environment(env))
                 adapter = _early_no_effect_adapter(env, protected, client, uploader, deadline, clock)

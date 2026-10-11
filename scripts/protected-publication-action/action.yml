@@ -1,0 +1,5 @@
+name: Protected PR review publication runtime
+description: Run the fixed protected publication module with GitHub Actions runtime credentials.
+runs:
+  using: node24
+  main: main.mjs
