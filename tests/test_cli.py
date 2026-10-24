@@ -874,7 +874,9 @@ def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, mo
         )
         == 2
     )
-    output = capsys.readouterr().out
+    captured = capsys.readouterr()
+    output = captured.out
+    assert captured.err == output
     assert json.loads(output) == {
         "error": "explicit base and head revisions are required without a PR/event input",
         "exit_code": 2,
@@ -1053,7 +1055,10 @@ def test_runtime_failure_without_a_regular_result_has_no_diagnostic_path(tmp_pat
         engine, "run_review", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("secret detail"))
     )
     assert cli.main(argv) == 1
-    payload = json.loads(capsys.readouterr().out)
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert captured.err == captured.out
+    assert "secret detail" not in captured.err
     assert payload == {"error": "review_runtime_failed", "exit_code": 1}
     assert not output_dir.exists()
 
@@ -1068,7 +1073,9 @@ def test_engine_typed_preflight_rejection_stays_exit_two_without_artifact_path(t
         lambda *_args, **_kwargs: (_ for _ in ()).throw(engine.EnginePreflightError("resume_state_invalid")),
     )
     assert cli.main(argv) == 2
-    payload = json.loads(capsys.readouterr().out)
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert captured.err == captured.out
     assert payload == {"error": "resume_state_invalid", "exit_code": 2}
     assert not output_dir.exists()
 
