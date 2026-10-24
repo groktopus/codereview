@@ -119,7 +119,8 @@ def test_run_cli_rejects_mismatched_process_exit_even_with_preflight_json(tmp_pa
     cli.write_text(
         "#!/usr/bin/env python3\n"
         "import json, sys\n"
-        "print(json.dumps({'error':'resume_state_invalid','exit_code':2}))\n"
+        "payload = json.dumps({'error':'resume_state_invalid','exit_code':2}) + '\\n'\n"
+        "sys.stdout.write(payload); sys.stderr.write(payload)\n"
         "sys.exit(1)\n",
         encoding="utf-8",
     )
@@ -133,6 +134,90 @@ def test_run_cli_rejects_mismatched_process_exit_even_with_preflight_json(tmp_pa
             expected_exit=2,
             deadline_at=__import__("time").monotonic() + 2,
         )
+
+
+@pytest.mark.parametrize("error_code", ["preflight_rejected", "resume_state_invalid"])
+def test_run_cli_accepts_only_exact_preflight_error_mirror_and_keeps_drift_guards(tmp_path, error_code):
+    payload = json.dumps({"error": error_code, "exit_code": 2}, sort_keys=True, separators=(",", ":")) + "\n"
+    cli = tmp_path / "preflight-error"
+    cli.write_text(
+        f"#!{sys.executable}\nimport sys\n"
+        f"sys.stdout.write({payload!r}); sys.stderr.write({payload!r})\n"
+        "sys.exit(2)\n",
+        encoding="utf-8",
+    )
+    cli.chmod(0o700)
+    result = rehearsal._run_cli(
+        cli,
+        [],
+        cwd=tmp_path,
+        env={"PATH": os.environ.get("PATH", "")},
+        expected_exit=2,
+        deadline_at=__import__("time").monotonic() + 2,
+    )
+    assert result == {"error": error_code, "exit_code": 2}
+    checkpoint = tmp_path / "checkpoint.json"
+    checkpoint.write_bytes(b'{"disposition":"INCOMPLETE"}\n')
+    digest = rehearsal._hash_file(checkpoint)
+    assert rehearsal._validate_profile_drift_rejection(
+        result,
+        checkpoint_path=checkpoint,
+        checkpoint_sha256=digest,
+        calls_before=2,
+        calls_after=2,
+    ) == error_code
+    assert rehearsal._hash_file(checkpoint) == digest
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "expected_exit"),
+    [
+        pytest.param('{"status":"ok"}\n', '{"status":"ok"}\n', 0, id="success-still-rejects-stderr"),
+        pytest.param('{"error":"resume_state_invalid","exit_code":2}\n', "MUST_NOT_LEAK_SECRET\n", 2,
+                     id="arbitrary-secret-stderr"),
+        pytest.param('{"error":"resume_state_invalid","exit_code":2}\n',
+                     '{"error":"preflight_rejected","exit_code":2}\n', 2, id="mismatched-error"),
+        pytest.param('{"error":"resume_state_invalid","exit_code":2}\n',
+                     '{"error":"resume_state_invalid","exit_code":2}\nextra\n', 2, id="extra-stderr"),
+        *[
+            pytest.param(payload, payload, 2, id=case)
+            for case, payload in [
+                ("extra-field", '{"error":"resume_state_invalid","exit_code":2,"extra":true}\n'),
+                ("secret-diagnostic", '{"diagnostic_artifact_path":"MUST_NOT_LEAK_SECRET",'
+                                      '"error":"resume_state_invalid","exit_code":2}\n'),
+                ("wrong-exit-code", '{"error":"resume_state_invalid","exit_code":1}\n'),
+                ("bool-exit-code", '{"error":"resume_state_invalid","exit_code":true}\n'),
+                ("float-exit-code", '{"error":"resume_state_invalid","exit_code":2.0}\n'),
+                ("nonstring-error", '{"error":["resume_state_invalid"],"exit_code":2}\n'),
+                ("unsafe-error", '{"error":"MUST_NOT_LEAK_SECRET text","exit_code":2}\n'),
+                ("multiline-json", '{\n"error":"resume_state_invalid",\n"exit_code":2\n}\n'),
+                ("extra-json-line", '{"error":"resume_state_invalid","exit_code":2}\n{}\n'),
+                ("duplicate-key", '{"error":"preflight_rejected","error":"resume_state_invalid",'
+                                  '"exit_code":2}\n'),
+                ("no-final-newline", '{"error":"resume_state_invalid","exit_code":2}'),
+            ]
+        ],
+    ],
+)
+def test_run_cli_rejects_stderr_outside_exact_preflight_mirror(tmp_path, stdout, stderr, expected_exit):
+    cli = tmp_path / "invalid-stderr"
+    cli.write_text(
+        f"#!{sys.executable}\nimport sys\n"
+        f"sys.stdout.write({stdout!r}); sys.stderr.write({stderr!r})\n"
+        f"sys.exit({expected_exit})\n",
+        encoding="utf-8",
+    )
+    cli.chmod(0o700)
+    with pytest.raises(rehearsal.RehearsalError, match=r"^cli_(stderr_not_empty|json_output_invalid)$") as caught:
+        rehearsal._run_cli(
+            cli,
+            [],
+            cwd=tmp_path,
+            env={"PATH": os.environ.get("PATH", "")},
+            expected_exit=expected_exit,
+            deadline_at=__import__("time").monotonic() + 2,
+        )
+    assert "MUST_NOT_LEAK_SECRET" not in str(caught.value)
 
 
 @pytest.mark.parametrize("error_code", ["preflight_rejected", "resume_state_invalid"])

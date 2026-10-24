@@ -613,7 +613,7 @@ def _run_cli(
         raise RehearsalError("cli_output_invalid_utf8") from None
     if returncode != expected_exit:
         raise RehearsalError("cli_exit_mismatch")
-    if stderr_text:
+    if stderr_text and (expected_exit != 2 or stderr != stdout):
         raise RehearsalError("cli_stderr_not_empty")
     try:
         value = json.loads(stdout_text)
@@ -621,6 +621,15 @@ def _run_cli(
         raise RehearsalError("cli_json_output_invalid") from None
     if not isinstance(value, dict):
         raise RehearsalError("cli_json_output_invalid")
+    if stderr_text and (
+        set(value) != {"error", "exit_code"}
+        or type(value.get("exit_code")) is not int
+        or value["exit_code"] != expected_exit
+        or not isinstance(value.get("error"), str)
+        or not _FAILURE_CODE.fullmatch(value["error"])
+        or stdout_text != json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+    ):
+        raise RehearsalError("cli_stderr_not_empty")
     return value
 
 
