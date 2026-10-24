@@ -1833,7 +1833,9 @@ def _emit_error(args, code: int, message: str, *, diagnostic_artifact_path: str 
     if code == 1 and diagnostic_artifact_path:
         payload["diagnostic_artifact_path"] = diagnostic_artifact_path
     if getattr(args, "json", False):
-        print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        print(encoded)
+        print(encoded, file=sys.stderr)
     else:
         suffix = (
             f"; diagnostic artifact (not a completed report): {diagnostic_artifact_path}"
