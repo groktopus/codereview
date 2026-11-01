@@ -348,12 +348,12 @@ def build_run_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     return summary
 
 
-def summary_is_well_formed(summary: Any) -> bool:
-    """Cheap structural check used before trusting an embedded record.
+def summary_is_well_formed(summary: Any, result: Mapping[str, Any] | None = None) -> bool:
+    """Structural check used before trusting an embedded record.
 
-    This is not a substitute for the published JSON Schema.  It guards the
-    aggregation path so a truncated or foreign object is rebuilt from the
-    result instead of contributing arbitrary values.
+    This is not a substitute for the published JSON Schema, but it rejects
+    truncated/foreign records so aggregation rebuilds from the result instead
+    of contributing arbitrary or zero-valued fields.
     """
 
     if not isinstance(summary, Mapping) or summary.get("schema") != RUN_SUMMARY_SCHEMA:
@@ -364,9 +364,12 @@ def summary_is_well_formed(summary: Any) -> bool:
     tokens = summary.get("tokens")
     latency = summary.get("latency")
     cost = summary.get("cost")
-    return (
+    if not (
         isinstance(identity, Mapping)
+        and isinstance(identity.get("run_id"), str)
+        and identity["run_id"]
         and isinstance(run, Mapping)
+        and isinstance(run.get("terminal_state"), str)
         and isinstance(obligations, Mapping)
         and isinstance(tokens, Mapping)
         and isinstance(tokens.get("fields"), Mapping)
@@ -374,8 +377,44 @@ def summary_is_well_formed(summary: Any) -> bool:
         and isinstance(cost, Mapping)
         and isinstance(cost.get("estimate"), Mapping)
         and isinstance(cost.get("billing"), Mapping)
-    )
+    ):
+        return False
+    for key in (
+        "required_total",
+        "complete",
+        "partial",
+        "not_started",
+        "unknown_state",
+        "not_applicable",
+        "incomplete_total",
+    ):
+        value = obligations.get(key)
+        if not isinstance(value, int) or value < 0:
+            return False
+    if result is not None:
+        if result.get("run_id") and identity["run_id"] != result.get("run_id"):
+            return False
+        ledger = result.get("coverage_ledger")
+        if isinstance(ledger, list):
+            required = sum(
+                1 for row in ledger if isinstance(row, Mapping) and row.get("required", True) is not False
+            )
+            if obligations["required_total"] != required:
+                return False
+    return True
 
+
+def summary_from_result(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the embedded summary when valid, else derive a fresh one.
+
+    Results that still carry a coverage ledger are always rebuilt so a stale or
+    foreign embedded record (for example after resume) cannot be reused.
+    """
+
+    embedded = result.get("run_summary") if isinstance(result, Mapping) else None
+    if not isinstance(result.get("coverage_ledger"), list) and summary_is_well_formed(embedded, result):
+        return dict(embedded)
+    return build_run_summary(result)
 
 def summary_from_result(result: Mapping[str, Any]) -> dict[str, Any]:
     """Return the embedded summary when well formed, else derive a fresh one."""
@@ -417,8 +456,11 @@ def summarize_results(results: Sequence[Mapping[str, Any]]) -> tuple[list[dict[s
     embedded = 0
     derived = 0
     for result in results:
-        if summary_is_well_formed(result.get("run_summary")):
-            summaries.append(dict(result["run_summary"]))
+        embedded_summary = result.get("run_summary")
+        if not isinstance(result.get("coverage_ledger"), list) and summary_is_well_formed(
+            embedded_summary, result
+        ):
+            summaries.append(dict(embedded_summary))
             embedded += 1
         else:
             summaries.append(build_run_summary(result))

@@ -232,7 +232,7 @@ def test_unknown_values_stay_null_in_summary_and_aggregate():
     assert single["latency"]["run_elapsed_ms"]["n"] == 0
 
 
-def test_embedded_summary_is_reused_and_counted(tmp_path, capsys):
+def test_ledger_results_rebuild_embedded_summaries(tmp_path, capsys):
     result = json.loads((FIXTURES / "run-1-complete.json").read_text(encoding="utf-8"))
     result["run_summary"] = build_run_summary(result)
     (tmp_path / "embedded.json").write_text(json.dumps(result), encoding="utf-8")
@@ -240,9 +240,82 @@ def test_embedded_summary_is_reused_and_counted(tmp_path, capsys):
     assert cli.main(["stats", "--results-dir", str(tmp_path), "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["runs"]["included"] == 1
+    assert payload["runs"]["summary_records_embedded"] == 0
+    assert payload["runs"]["summary_records_derived"] == 1
+    assert payload["completion"]["complete_obligations"] == 2
+
+
+def test_summary_only_input_is_reused(tmp_path, capsys):
+    result = json.loads((FIXTURES / "run-1-complete.json").read_text(encoding="utf-8"))
+    (tmp_path / "summary-only.json").write_text(
+        json.dumps({"run_summary": build_run_summary(result)}), encoding="utf-8"
+    )
+    assert cli.main(["stats", "--results-dir", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
     assert payload["runs"]["summary_records_embedded"] == 1
     assert payload["runs"]["summary_records_derived"] == 0
-    assert payload["completion"]["complete_obligations"] == 2
+
+
+def test_malformed_embedded_summary_is_rebuilt_from_the_ledger():
+    result = json.loads((FIXTURES / "run-1-complete.json").read_text(encoding="utf-8"))
+    result["run_summary"] = {
+        "schema": "review-run-summary.v1",
+        "identity": {},
+        "run": {},
+        "obligations": {},
+        "tokens": {"fields": {}},
+        "latency": {},
+        "cost": {"estimate": {}, "billing": {}},
+    }
+    summaries, sources = summarize_results([result])
+    assert sources == {"embedded": 0, "derived": 1}
+    assert summaries[0]["obligations"]["required_total"] == 2
+
+
+def test_resume_rebuilds_the_run_summary():
+    from pr_review_harness.review_stages import _reseal_resumed_result
+
+    result = json.loads((FIXTURES / "run-1-complete.json").read_text(encoding="utf-8"))
+    result["run_summary"] = build_run_summary(result)
+    result["freshness"] = "UNKNOWN"
+    result["disposition"] = "INCOMPLETE"
+    _reseal_resumed_result(result)
+    assert result["run_summary"]["run"]["freshness"]["state"] == "UNKNOWN"
+    assert result["run_summary"]["run"]["terminal_state"] == "INCOMPLETE"
+
+
+def test_duplicate_input_paths_are_one_run(tmp_path, capsys):
+    source = FIXTURES / "run-1-complete.json"
+    assert cli.main(
+        [
+            "stats",
+            "--result",
+            str(source),
+            "--results-dir",
+            str(FIXTURES),
+            "--json",
+        ]
+    ) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["runs"]["input"] == 4
+    assert payload["runs"]["included"] == 4
+
+
+def test_jsonl_cannot_overwrite_an_input(tmp_path, capsys):
+    source = tmp_path / "a.json"
+    source.write_text((FIXTURES / "run-1-complete.json").read_text(), encoding="utf-8")
+    before = source.read_text()
+    assert cli.main(["stats", "--results-dir", str(tmp_path), "--jsonl", str(source), "--json"]) == 2
+    assert source.read_text() == before
+    assert "must not overwrite" in capsys.readouterr().err
+
+
+def test_duplicate_run_ids_fail_closed(tmp_path, capsys):
+    data = json.loads((FIXTURES / "run-1-complete.json").read_text(encoding="utf-8"))
+    for name in ("a.json", "b.json"):
+        (tmp_path / name).write_text(json.dumps(data), encoding="utf-8")
+    assert cli.main(["stats", "--results-dir", str(tmp_path), "--json"]) == 2
+    assert "duplicate run_id" in capsys.readouterr().err
 
 
 def test_stats_cli_json_and_jsonl_export(tmp_path, capsys):

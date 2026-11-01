@@ -1587,8 +1587,16 @@ def _stats_paths(args) -> list[str]:
         paths.extend(sorted(str(path) for path in default.glob("*.json")))
     if not paths:
         raise ValueError("no result inputs matched")
-    # A path supplied twice is one artifact, not two runs.
-    return list(dict.fromkeys(paths))
+    # A path supplied twice (relative vs absolute, directory vs manifest) is
+    # one artifact, not two runs.
+    canonical: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        resolved = str(Path(path).expanduser().resolve())
+        if resolved not in seen:
+            seen.add(resolved)
+            canonical.append(resolved)
+    return canonical
 
 
 def _stats(args) -> int:
@@ -1602,7 +1610,13 @@ def _stats(args) -> int:
     )
 
     try:
-        results = read_results(_stats_paths(args))
+        input_paths = _stats_paths(args)
+        if args.jsonl and str(Path(args.jsonl).expanduser().resolve()) in set(input_paths):
+            raise ValueError("jsonl output must not overwrite an input result")
+        results = read_results(input_paths)
+        run_ids = [result.get("run_id") for result in results if isinstance(result.get("run_id"), str)]
+        if len(run_ids) != len(set(run_ids)):
+            raise ValueError("duplicate run_id across result inputs")
         summaries, sources = summarize_results(results)
         selected, excluded = filter_run_summaries(summaries, since=args.since, until=args.until)
         stats = aggregate_run_summaries(

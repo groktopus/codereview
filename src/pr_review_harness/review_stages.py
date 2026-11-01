@@ -860,6 +860,17 @@ dispatch or result file creation.  No reservation is made here."""
 
 
 
+def _reseal_resumed_result(saved: dict) -> None:
+    """Refresh a resumed result's summary before sealing the new hash."""
+
+    from .engine import _hash
+    from .metrics import build_run_summary
+
+    if saved.get("run_summary") is not None:
+        saved["run_summary"] = build_run_summary(saved)
+    saved["result_hash"] = _hash({key: value for key, value in saved.items() if key != "result_hash"})
+
+
 def resume_completed_review(state: RunState) -> dict | None:
     """Build request identity, open the ledger, and load a prior result.
 
@@ -970,7 +981,7 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
                         state.saved.get("policy_valid", False),
                     )
                     state.saved["completed_at"] = _now()
-                    state.saved["result_hash"] = _hash({k: v for k, v in state.saved.items() if k != "result_hash"})
+                    _reseal_resumed_result(state.saved)
                     _atomic_write(state.output_path, _canonical(state.saved) + b"\n")
                 except (IsolatedCallError, OSError, TimeoutError, ValueError, KeyError) as exc:
                     if isinstance(exc, IsolatedCallError) and is_defect(exc):
@@ -989,7 +1000,7 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
                         state.saved.get("policy_valid", False),
                     )
                     state.saved["completed_at"] = _now()
-                    state.saved["result_hash"] = _hash({k: v for k, v in state.saved.items() if k != "result_hash"})
+                    _reseal_resumed_result(state.saved)
                     _atomic_write(state.output_path, _canonical(state.saved) + b"\n")
             elif state.snapshot.get("freshness_basis") != "HISTORICAL_SNAPSHOT":
                 state.saved["freshness"] = "UNKNOWN"
@@ -1003,7 +1014,7 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
                     state.saved.get("policy_valid", False),
                 )
                 state.saved["completed_at"] = _now()
-                state.saved["result_hash"] = _hash({k: v for k, v in state.saved.items() if k != "result_hash"})
+                _reseal_resumed_result(state.saved)
                 _atomic_write(state.output_path, _canonical(state.saved) + b"\n")
             return state.saved
     else:
