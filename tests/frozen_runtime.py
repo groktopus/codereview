@@ -45,10 +45,6 @@ FROZEN_EVIDENCE = Path(__file__).resolve().parent / "fixtures" / "evidence-pr223
 EXPECTED_MODULE_COUNT = 35
 PIN_MANIFEST = PINNED_RELOCATED / "pins.json"
 HISTORICAL_REVISION = "7d550b61825defec8a8a0625511c914ba8efd5cb"
-REFRESH_COMMAND = (
-    "python scripts/refresh_compatibility_pin.py --module <fixture.py> "
-    "--reason '<why this historical pin changes>' --source-revision <full-git-sha>"
-)
 
 
 def _load_pins() -> dict[str, str]:
@@ -71,8 +67,7 @@ def assert_frozen_runtime_pin(name: str, path: Path) -> None:
     if expected != actual:
         raise AssertionError(
             f"historical compatibility mismatch: module {path.name!r} at revision {HISTORICAL_REVISION}; "
-            f"expected {expected!r}, got {actual}. Preserve prior evidence before refreshing. "
-            f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', name)}"
+            f"expected {expected!r}, got {actual}. Historical pins are immutable; preserve prior evidence and use a reviewed migration rather than editing a fixture."
         )
 _MODULE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\.py\Z")
 
@@ -142,7 +137,7 @@ def _frozen_runtime_root_and_hashes(tmp_path: Path, *, verify: bool = True) -> t
                 raise AssertionError(
                     f"historical compatibility manifest path mismatch: module {name!r} at revision "
                     f"{HISTORICAL_REVISION}; expected fixture {expected_path!r}, got {source}. "
-                    f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', name)}"
+                    "Historical pins are immutable; preserve prior evidence and use a reviewed migration."
                 )
     for name in module_names:
         pinned = PINNED_RELOCATED / name
@@ -167,7 +162,7 @@ def _frozen_runtime_root_and_hashes(tmp_path: Path, *, verify: bool = True) -> t
             raise AssertionError(
                 f"historical compatibility manifest path mismatch: module {fixture.name!r} at revision "
                 f"{HISTORICAL_REVISION}; expected fixture {expected_path!r}, got {fixture}. "
-                f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', pin_name)}"
+                "Historical pins are immutable; preserve prior evidence and use a reviewed migration."
             )
         (module_dir / name).write_bytes(fixture.read_bytes())
 
@@ -198,7 +193,7 @@ def _frozen_runtime_root_and_hashes(tmp_path: Path, *, verify: bool = True) -> t
                 f"historical compatibility mismatch: module inventory at revision {HISTORICAL_REVISION}; "
                 f"expected model tree {pins.get('pr170-tree-model')!r}, got {model_tree}; "
                 f"expected synthesis tree {pins.get('pr170-tree-synthesis')!r}, got {synth_digest.hexdigest()}. "
-                f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', 'pr170-tree-model')}"
+                "Historical pins are immutable; preserve prior evidence and use a reviewed migration."
             )
     return runtime_root, {"model": model_tree, "synthesis": synth_digest.hexdigest()}
 

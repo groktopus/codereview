@@ -67,7 +67,7 @@ def test_modified_archived_module_is_rejected(tmp_path: Path, monkeypatch: pytes
         frozen_runtime.assert_frozen_runtime_pin("selected_model_trial-pr170-base.py", tampered)
 
 
-def test_historical_pin_failure_names_module_revision_and_refresh_command(tmp_path: Path):
+def test_historical_pin_failure_names_module_revision_and_migration(tmp_path: Path):
     changed = tmp_path / "modified.py"
     changed.write_bytes(b"not the historical blob")
     with pytest.raises(AssertionError) as error:
@@ -75,8 +75,8 @@ def test_historical_pin_failure_names_module_revision_and_refresh_command(tmp_pa
     message = str(error.value)
     assert "modified.py" in message
     assert frozen_runtime.HISTORICAL_REVISION in message
-    assert "scripts/refresh_compatibility_pin.py" in message
-    assert "--reason" in message and "--source-revision" in message
+    assert "reviewed migration" in message
+
 
 
 def test_unlisted_new_module_is_excluded_from_historical_runtime(tmp_path: Path):
