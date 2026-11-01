@@ -2598,11 +2598,15 @@ def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatche
     snapshot = make_snapshot()
     snapshot["base_sha"] = snapshot["head_sha"] = revision
     provider = GapProvider()
+    # An explicit retrieval ceiling keeps this regression focused on IPC
+    # envelope fitting: the provider output cap no longer sizes retrieval.
+    retrieval_ceiling = 16_000
     result = run(
         tmp_path / "run",
         snap=snapshot,
         prof={**profile(), "retrieval_context_patterns": ["src/*.py"]},
         provider=provider,
+        limits={**LIMITS, "max_retrieval_result_bytes": retrieval_ceiling},
         context_retriever=ContextRetriever(str(repo)),
     )
 
@@ -2614,8 +2618,8 @@ def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatche
     assert gap["retrieval_status"] == "PARTIAL"
     assert gap["retrieval_reason"] == "ipc_envelope_truncated"
     assert gap["retrieved_bytes"] == len(content_bytes)
-    assert gap["retrieval_envelope_bytes"] <= LIMITS["max_output_bytes_per_task"]
-    assert gap["retrieved_bytes"] <= LIMITS["max_output_bytes_per_task"]
+    assert gap["retrieval_envelope_bytes"] <= retrieval_ceiling
+    assert gap["retrieved_bytes"] <= retrieval_ceiling
     assert hashlib.sha256(content_bytes).hexdigest() == item["content_hash"]
     settlement = result["ledger"]["budget"]["settlements"][f"{gap['proposal_id']}:context-retrieval"]
     assert settlement["actual_output_bytes"] == len(content_bytes)
@@ -2624,6 +2628,49 @@ def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatche
     assert result["budget"]["followup_tasks_reserved"] == 0
     assert len(result["task_results"]) == 1
     assert result["disposition"] == "INCOMPLETE"
+
+
+def test_retrieval_uses_input_ceiling_so_symbol_at_end_of_large_file_is_retained(tmp_path):
+    repo = tmp_path / "evidence-repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", str(repo)], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "fixture@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Fixture"], check=True)
+    (repo / "src").mkdir()
+    symbol = "def context_symbol_at_end():\n    return 42\n"
+    payload = "trusted context line\n" * 2000 + symbol
+    assert len(payload.encode("utf-8")) > 40_000
+    (repo / "src" / "m0.py").write_text(payload, encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "src/m0.py"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "commit", "-m", "fixture"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    revision = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, text=True, stdout=subprocess.PIPE
+    ).stdout.strip()
+    snapshot = make_snapshot()
+    snapshot["base_sha"] = snapshot["head_sha"] = revision
+    result = run(
+        tmp_path / "run",
+        snap=snapshot,
+        prof={**profile(), "retrieval_context_patterns": ["src/*.py"]},
+        provider=GapProvider(),
+        context_retriever=ContextRetriever(str(repo)),
+    )
+
+    gap = result["context_gaps"][0]
+    item = result["ledger"]["retrieved_context"][gap["proposal_id"]]["evidence"][0]
+    assert gap["retrieval_status"] == "RESOLVED", gap.get("retrieval_reason")
+    assert gap["retrieval_reason"] is None
+    assert item["truncated"] is False
+    assert "context_symbol_at_end" in item["content"]
+    assert item["content"].endswith(symbol)
+    # The result deliberately exceeds the provider output cap (16_000) yet fits
+    # the per-task input ceiling used as the retrieval default.
+    assert gap["retrieval_envelope_bytes"] > LIMITS["max_output_bytes_per_task"]
+    assert gap["retrieval_envelope_bytes"] <= LIMITS["max_input_bytes_per_task"]
 
 
 def test_manifest_bound_reuses_exact_complete_snapshot_head_file_without_retrieval_ipc(tmp_path):
@@ -2823,6 +2870,7 @@ def test_oversized_untrusted_retriever_is_rejected_by_ipc_without_metadata_leak(
         tmp_path,
         prof={**profile(), "retrieval_context_patterns": ["docs/*.md"]},
         provider=GapProvider(),
+        limits={**LIMITS, "max_retrieval_result_bytes": LIMITS["max_output_bytes_per_task"]},
         context_retriever=OversizedContextRetriever(),
     )
     gap = result["context_gaps"][0]
@@ -3403,6 +3451,20 @@ def test_invalid_optional_snapshot_budget_rejected_before_provider_dispatch(tmp_
         )
     assert provider.calls == 0
     assert not (tmp_path / "r1.json").exists()
+
+
+@pytest.mark.parametrize("value", [True, 0, -1, 1.5, "100", None])
+def test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispatch(tmp_path, value):
+    provider = EmptyProvider()
+    with pytest.raises(ValueError, match="max_retrieval_result_bytes"):
+        run(tmp_path, provider=provider, limits={**LIMITS, "max_retrieval_result_bytes": value})
+    assert provider.calls == 0
+    assert not (tmp_path / "r1.json").exists()
+
+
+def test_optional_retrieval_result_budget_accepts_absent_or_positive_integer():
+    engine_module.validate_limits(LIMITS)
+    engine_module.validate_limits({**LIMITS, "max_retrieval_result_bytes": 96_000})
 
 
 def test_unsupported_monetary_cap_rejected_before_provider_dispatch(tmp_path):

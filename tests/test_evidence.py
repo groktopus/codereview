@@ -277,14 +277,14 @@ def test_retrieval_fits_complete_ipc_envelope_and_rebinds_multibyte_content(tmp_
         snapshot,
         {"context_paths": ["AGENTS.md"]},
         proposal,
-        {**limits, "max_result_bytes": len(ipc_canonical(unbounded))},
+        {**limits, "max_retrieval_result_bytes": len(ipc_canonical(unbounded))},
     )
     cap = len(ipc_canonical(unbounded)) - 73
     first = retrieve_context_gap(
-        str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, {**limits, "max_result_bytes": cap}
+        str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, {**limits, "max_retrieval_result_bytes": cap}
     )
     second = retrieve_context_gap(
-        str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, {**limits, "max_result_bytes": cap}
+        str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, {**limits, "max_retrieval_result_bytes": cap}
     )
 
     assert first == second
@@ -328,7 +328,7 @@ def test_retrieval_metadata_that_cannot_fit_fails_closed_without_trimming_fields
         snapshot,
         {"context_paths": ["AGENTS.md"]},
         proposal,
-        {"max_bytes": 1000, "max_result_bytes": 512},
+        {"max_bytes": 1000, "max_retrieval_result_bytes": 512},
     )
     assert result == {
         "status": "UNRESOLVED",

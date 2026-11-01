@@ -504,6 +504,7 @@ def _read_limits(args) -> dict:
             - {
                 "max_cost_microunits",
                 "max_snapshot_context_bytes",
+                "max_retrieval_result_bytes",
                 "schema_version",
             }
         )
