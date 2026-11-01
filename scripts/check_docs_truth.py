@@ -20,15 +20,32 @@ from check_relative_links import LINK_RE, REFERENCE_RE  # noqa: E402
 TRUTH_SCHEMA = "documentation-evidence.v1"
 SHA_SCHEMA = "documentation-sha-references.v1"
 CONTRACT_SCHEMA = "documentation-contract-ids.v1"
-INLINE_SHA_RE = re.compile(r"`([0-9a-fA-F]{7,40})`")
+INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+SHA_TOKEN_RE = re.compile(r"[0-9a-fA-F]{7,40}\Z")
+HEX_TOKEN_RE = re.compile(r"[0-9a-fA-F]+\Z")
 FENCE_RE = re.compile(r"^\s*(```+|~~~+)")
 CLAIM_PATTERNS = (
     ("PRODUCTION_READY", re.compile(r"\bproduction[ -]ready\b", re.IGNORECASE)),
-    ("REPLACES_REVIEWER", re.compile(r"\b(?:the\s+)?(?:harness|tool|system|product)\s+(?:fully\s+)?replaces?\b", re.IGNORECASE)),
-    ("ACCURACY_ASSERTION", re.compile(r"\b(?:is|are|was|were|remains?)\s+accurate\b", re.IGNORECASE)),
+    (
+        "REPLACES_REVIEWER",
+        re.compile(
+            r"\b(?:the\s+)?(?:harness|tool|system|product)\s+"
+            r"(?:(?P<negative>does\s+not|doesn't|never)\s+)?(?:fully\s+)?replaces?\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "ACCURACY_ASSERTION",
+        re.compile(r"\b(?:is|are|was|were|remains?)\s+(?:(?P<negative>not|never)\s+)?accurate\b", re.IGNORECASE),
+    ),
 )
-QUALIFIERS = re.compile(
-    r"\b(?:not|never|no evidence|unknown|unmeasured|not established|not accepted|cannot|does not|do not|doesn't|isn't|aren't)\b",
+DIRECT_NEGATION = re.compile(
+    r"(?:\bnot\s+(?:(?:yet|currently|established|accepted|considered)\s+)?|"
+    r"\bnever\s+|\bisn't\s+|\baren't\s+|\bdoesn't\s+|\bdoes\s+not\s+)$",
+    re.IGNORECASE,
+)
+EVIDENCE_LABEL = re.compile(
+    r"\b(?:evidence|test(?:s)?|run|artifact|benchmark|result|verification|report|receipt|check|evaluation|measurement|trace|source|commit|workflow)\b",
     re.IGNORECASE,
 )
 
@@ -79,71 +96,79 @@ def current_documents(root: Path, index_path: Path | None = None) -> list[Path]:
     return sorted({p.resolve() for p in [root / "README.md", index_path, *linked] if p.is_file()})
 
 
-def _sentence_split(text: str) -> list[str]:
-    text = re.sub(r"\s*\n\s*", " ", text.strip())
-    if text.startswith("|"):
-        return [text]
-    return re.split(r"(?<=[.!?])\s+(?=[A-Z`*_])", text)
+def _row_has_evidence_for_claim(row: str, claim_start: int, claim_end: int) -> bool:
+    """Accept only an evidence link adjacent to the claim with a relevant label."""
+
+    for match in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", row):
+        label, target = match.group(1).strip(), match.group(2).strip()
+        if not target or target.startswith(("#", "mailto:", "tel:")):
+            continue
+        # A link after the claim is considered evidence only when its link text
+        # declares an evidence-bearing artifact. An unrelated navigation link
+        # elsewhere in the same sentence or table row cannot waive the claim.
+        if match.start() >= claim_end and match.start() - claim_end <= 48 and EVIDENCE_LABEL.search(label):
+            return True
+        # A link immediately before a claim may also be cited evidence (e.g.
+        # [test output](result.json) shows the harness is accurate).
+        if match.end() <= claim_start and claim_start - match.end() <= 48 and EVIDENCE_LABEL.search(label):
+            return True
+    return False
+
+
+def _is_directly_qualified(text: str, start: int) -> bool:
+    prefix = text[max(0, start - 48) : start]
+    return DIRECT_NEGATION.search(prefix) is not None
 
 
 def check_claims(root: Path, paths: list[Path] | None = None) -> list[Finding]:
+    """Check each claim occurrence independently, including Markdown table rows."""
+
     findings: list[Finding] = []
     for path in paths if paths is not None else current_documents(root):
-        paragraphs: list[tuple[int, str]] = []
         fenced = False
-
-        def inspect(rows: list[tuple[int, str]]) -> None:
-            if not rows:
-                return
-            text = "\n".join(row for _, row in rows)
-            clean = re.sub(r"`[^`]*`", "", text)
-            for sentence in _sentence_split(clean):
-                match_pair = next(((code, pattern.search(sentence)) for code, pattern in CLAIM_PATTERNS if pattern.search(sentence)), None)
-                if not match_pair:
-                    continue
-                code, match = match_pair
-                if match is None or QUALIFIERS.search(sentence) or re.search(r"\[[^\]]+\]\([^)]+\)", sentence):
-                    continue
-                offset = clean.find(sentence) + match.start()
-                consumed = 0
-                location = rows[0][0]
-                for number, row in rows:
-                    if offset <= consumed + len(row):
-                        location = number
-                        break
-                    consumed += len(row) + 1
-                findings.append(Finding(code, path.relative_to(root).as_posix(), location, f"unqualified phrase {match.group(0)!r}; add a same-sentence evidence link or qualify the claim"))
-
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if FENCE_RE.match(line):
-                inspect(paragraphs)
-                paragraphs = []
+        for number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if FENCE_RE.match(raw_line):
                 fenced = not fenced
-            elif fenced or not line.strip() or line.startswith("#"):
-                inspect(paragraphs)
-                paragraphs = []
-            else:
-                paragraphs.append((number, line))
-        inspect(paragraphs)
+                continue
+            if fenced or not raw_line.strip() or raw_line.lstrip().startswith("#"):
+                continue
+            # Treat each physical line/table row as an independent claim unit;
+            # multi-line paragraphs are intentionally not merged for waivers.
+            text = re.sub(r"`([^`]*)`", r"\1", raw_line)
+            for code, pattern in CLAIM_PATTERNS:
+                for match in pattern.finditer(text):
+                    if match.groupdict().get("negative") or _is_directly_qualified(text, match.start()):
+                        continue
+                    if _row_has_evidence_for_claim(raw_line, match.start(), match.end()):
+                        continue
+                    findings.append(
+                        Finding(
+                            code,
+                            path.relative_to(root).as_posix(),
+                            number,
+                            f"unqualified phrase {match.group(0)!r}; add a nearby same-claim evidence link (for example [test evidence](path)) or directly negate/qualify this occurrence",
+                        )
+                    )
     return findings
 
 
 def referenced_shas(root: Path, paths: list[Path] | None = None) -> list[tuple[Path, int, str]]:
-    """Enumerate explicitly code-formatted commit candidates in living docs."""
+    """Enumerate full inline-code hex tokens, preserving complete contents."""
 
     result: list[tuple[Path, int, str]] = []
     for path in paths if paths is not None else current_documents(root):
         fenced = False
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for number, line in enumerate(lines, 1):
             if FENCE_RE.match(line):
                 fenced = not fenced
                 continue
             if fenced:
                 continue
-            for match in INLINE_SHA_RE.finditer(line):
-                sha = match.group(1)
-                if re.search(r"[a-fA-F]", sha):
-                    result.append((path, number, sha.lower()))
+            for match in INLINE_CODE_RE.finditer(line):
+                token = match.group(1)
+                if HEX_TOKEN_RE.fullmatch(token) and len(token) >= 7:
+                    result.append((path, number, token.lower()))
     return result
 
 
@@ -169,20 +194,71 @@ def _sha_reference_records(manifest_path: Path) -> dict[str, dict[str, str]]:
         raise ValueError(f"SHA reference manifest must use schema_version {SHA_SCHEMA!r} and a references array")
     records: dict[str, dict[str, str]] = {}
     for index, row in enumerate(data["references"]):
-        if not isinstance(row, dict) or not isinstance(row.get("sha"), str) or not re.fullmatch(r"[0-9a-fA-F]{7,40}", row["sha"]):
-            raise ValueError(f"references[{index}] must include a 7-40 digit hexadecimal sha")
+        if not isinstance(row, dict) or not isinstance(row.get("value"), str):
+            raise ValueError(f"references[{index}] must include a string value")
+        kind = row.get("kind")
+        value = row["value"]
+        if kind == "commit":
+            if not SHA_TOKEN_RE.fullmatch(value):
+                raise ValueError(f"references[{index}] commit value must be a full-match 7-40 hexadecimal token")
+            key = f"commit:{value.lower()}"
+        elif kind == "run-id":
+            if not re.fullmatch(r"[0-9]{7,12}", value):
+                raise ValueError(f"references[{index}] run-id value must contain 7-12 decimal digits")
+            key = f"run-id:{value}"
+        elif kind == "artifact-digest":
+            if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
+                raise ValueError(f"references[{index}] artifact-digest value must contain exactly 64 hexadecimal characters")
+            key = f"artifact-digest:{value.lower()}"
+        else:
+            raise ValueError(f"references[{index}].kind must be commit, run-id, or artifact-digest")
         repository, scope, evidence = row.get("repository"), row.get("scope"), row.get("evidence")
         if repository not in {"groktopus/codereview", "magnus919/SlopSearX", "unknown"}:
             raise ValueError(f"references[{index}].repository must be groktopus/codereview, magnus919/SlopSearX, or unknown")
-        if scope not in {"local", "foreign-target", "historical-local", "historical-not-retained", "unknown"}:
+        if scope not in {"local", "foreign-target", "historical-local", "historical-not-retained", "unknown", "external-artifact"}:
             raise ValueError(f"references[{index}].scope is invalid")
         if not isinstance(evidence, str) or not evidence.strip():
             raise ValueError(f"references[{index}].evidence must explain source attribution")
-        sha = row["sha"].lower()
-        if sha in records and records[sha] != row:
-            raise ValueError(f"conflicting provenance for SHA {sha}")
-        records[sha] = {"repository": repository, "scope": scope, "evidence": evidence}
+        record = {"kind": kind, "repository": repository, "scope": scope, "evidence": evidence}
+        if key in records and records[key] != record:
+            raise ValueError(f"conflicting provenance for {key}")
+        records[key] = record
     return records
+
+
+def _reference_context(line: str, start: int, end: int) -> str:
+    return line[max(0, start - 120) : min(len(line), end + 120)]
+
+
+def _sha256_context(lines: list[str], line_index: int, start: int, end: int) -> bool:
+    """Require an explicit SHA-256/digest label near this exact token."""
+
+    line = lines[line_index]
+    adjacent = line[max(0, start - 70) : min(len(line), end + 70)]
+    if re.search(r"\b(?:sha[- ]?256|sha256|digest|hash)\b", adjacent, re.IGNORECASE):
+        return True
+    # Longer proximity is accepted only when the label has an explicit
+    # artifact-kind noun and a SHA-256 marker, not a generic word like hash.
+    nearby = line[max(0, start - 150) : min(len(line), end + 150)]
+    labeled_digest = re.search(r"\b(?:sha[- ]?256|sha256|digest)\b", nearby, re.IGNORECASE)
+    artifact_kind = re.search(r"\b(?:JSON|Markdown|report|profile|recovery|archive|wheel|sdist|source|output|summary|request|receipt|evidence)\b", nearby, re.IGNORECASE)
+    return bool(labeled_digest and artifact_kind)
+
+
+def _reference_kind_and_value(line: str, start: int, end: int, token: str) -> tuple[str, str, str | None]:
+    """Classify only explicit artifact digests and run IDs; otherwise SHA syntax."""
+
+    context = _reference_context(line, start, end)
+    if len(token) == 64 and (
+        _sha256_context([line], 0, start, end)
+        or re.search(r"artifact-digest|SHA-256|digest|hash", line[max(0, start - 160) : start], re.IGNORECASE)
+    ):
+        return "artifact-digest", token.lower(), None
+    if token.isdigit() and 7 <= len(token) <= 12 and re.search(r"\b(?:run|job|check|artifact|review)\s+(?:id\s+)?`?" + re.escape(token) + r"`?", context, re.IGNORECASE):
+        return "run-id", token, None
+    if len(token) > 40:
+        return "malformed", token.lower(), f"hexadecimal token has {len(token)} characters, exceeding Git commit SHA length"
+    return "commit", token.lower(), None
 
 
 def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path | None = None) -> list[Finding]:
@@ -190,22 +266,76 @@ def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path 
         raise ValueError("SHA checking requires an explicit provenance manifest")
     records = _sha_reference_records(manifest_path)
     findings = []
-    for path, line, sha in referenced_shas(root, paths):
-        record = records.get(sha)
-        if record is None or record["repository"] == "unknown" or record["scope"] == "unknown":
-            findings.append(Finding("UNSCOPED_SHA", path.relative_to(root).as_posix(), line, f"revision `{sha}` has no provenance; add it to {manifest_path.relative_to(root)} with repository, scope, and attribution"))
-        elif record["repository"] == "groktopus/codereview" and record["scope"] in {"local", "historical-local"} and not _git_exists(root, sha):
-            findings.append(Finding("SHA_NOT_IN_REPOSITORY", path.relative_to(root).as_posix(), line, f"local revision `{sha}` is not a commit in this repository; verify it or correct the manifest attribution"))
-        elif record["scope"] == "historical-not-retained":
-            continue
-        elif record["repository"] == "groktopus/codereview" and record["scope"] == "foreign-target":
-            findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line, f"local repository revision `{sha}` cannot use foreign-target scope"))
-        elif record["repository"] != "groktopus/codereview" and record["scope"] != "foreign-target":
-            findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line, f"revision `{sha}` names repository {record['repository']!r} but scope {record['scope']!r}; reconcile attribution"))
-    for sha, record in records.items():
-        if record["repository"] == "groktopus/codereview" and record["scope"] in {"local", "historical-local"} and not _git_exists(root, sha):
-            if not any(f.code == "SHA_NOT_IN_REPOSITORY" and sha in f.message for f in findings):
-                findings.append(Finding("SHA_NOT_IN_REPOSITORY", "<manifest>", 1, f"manifest local revision `{sha}` is not a commit in this repository"))
+    for path in paths if paths is not None else current_documents(root):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        fenced = False
+        for line_number, line in enumerate(lines, 1):
+            if FENCE_RE.match(line):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
+            for match in INLINE_CODE_RE.finditer(line):
+                token = match.group(1)
+                if not HEX_TOKEN_RE.fullmatch(token) or len(token) < 7:
+                    continue
+                kind, value, malformed = _reference_kind_and_value(line, match.start(), match.end(), token)
+                # A typed manifest record is the explicit classification for
+                # ambiguous non-commit IDs and fixed-width digests.
+                if f"artifact-digest:{token.lower()}" in records:
+                    kind, value, malformed = "artifact-digest", token.lower(), None
+                elif f"run-id:{token}" in records:
+                    kind, value, malformed = "run-id", token, None
+                if malformed and f"artifact-digest:{token.lower()}" in records:
+                    kind, value, malformed = "artifact-digest", token.lower(), None
+                if malformed:
+                    findings.append(Finding("MALFORMED_SHA", path.relative_to(root).as_posix(), line_number, f"{malformed}: `{token}`; use a valid full commit SHA or identify a non-commit artifact explicitly"))
+                    continue
+                key = f"{kind}:{value}"
+                record = records.get(key)
+                if record is None or record["repository"] == "unknown" or record["scope"] == "unknown":
+                    findings.append(Finding("UNSCOPED_SHA", path.relative_to(root).as_posix(), line_number, f"{kind} `{value}` has no provenance; add it to {manifest_path.relative_to(root)} with kind, repository, scope, and attribution"))
+                    continue
+                if kind == "commit":
+                    sha = value
+                    if record["repository"] == "groktopus/codereview" and record["scope"] in {"local", "historical-local"} and not _git_exists(root, sha):
+                        findings.append(Finding("SHA_NOT_IN_REPOSITORY", path.relative_to(root).as_posix(), line_number, f"local revision `{sha}` is not a commit in this repository; verify it or correct the manifest attribution"))
+                    elif record["scope"] == "historical-not-retained":
+                        continue
+                    elif record["repository"] == "groktopus/codereview" and record["scope"] == "foreign-target":
+                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"local repository revision `{sha}` cannot use foreign-target scope"))
+                    elif record["repository"] != "groktopus/codereview" and record["scope"] != "foreign-target":
+                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"revision `{sha}` names repository {record['repository']!r} but scope {record['scope']!r}; reconcile attribution"))
+                elif kind == "run-id" and not re.fullmatch(r"[0-9]{7,12}", value):
+                    findings.append(Finding("MALFORMED_RUN_ID", path.relative_to(root).as_posix(), line_number, f"run identifier `{value}` must contain 7-12 decimal digits"))
+    present_keys: set[str] = set()
+    for path in paths if paths is not None else current_documents(root):
+        fenced = False
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if FENCE_RE.match(line):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
+            for match in INLINE_CODE_RE.finditer(line):
+                token = match.group(1)
+                if not HEX_TOKEN_RE.fullmatch(token) or len(token) < 7:
+                    continue
+                kind, value, malformed = _reference_kind_and_value(line, match.start(), match.end(), token)
+                key = f"{kind}:{value}"
+                if malformed and f"artifact-digest:{token.lower()}" in records:
+                    key = f"artifact-digest:{token.lower()}"
+                elif malformed:
+                    continue
+                if key in records:
+                    present_keys.add(key)
+    for key in sorted(set(records) - present_keys):
+        findings.append(Finding("SHA_MANIFEST_UNUSED", "<manifest>", 1, f"manifest entry {key!r} has no matching token in the living documentation set; remove it or correct the reference"))
+    for key, record in records.items():
+        kind, value = key.split(":", 1)
+        if kind == "commit" and record["repository"] == "groktopus/codereview" and record["scope"] in {"local", "historical-local"} and not _git_exists(root, value):
+            if not any(f.code == "SHA_NOT_IN_REPOSITORY" and value in f.message for f in findings):
+                findings.append(Finding("SHA_NOT_IN_REPOSITORY", "<manifest>", 1, f"manifest local revision `{value}` is not a commit in this repository"))
     return findings
 
 
@@ -335,8 +465,17 @@ def _read_contract_ids(path: Path) -> set[str]:
     return set(ids)
 
 
-def run_checks(root: Path, sha_manifest: Path, contract_ids_path: Path, freshness_manifest: Path | None = None) -> dict[str, Any]:
-    paths = current_documents(root)
+def run_checks(
+    root: Path,
+    sha_manifest: Path,
+    contract_ids_path: Path,
+    freshness_manifest: Path | None = None,
+    document_paths: list[Path] | None = None,
+) -> dict[str, Any]:
+    paths = [path.resolve() for path in document_paths] if document_paths is not None else current_documents(root)
+    for path in paths:
+        if not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
+            raise ValueError(f"document path must be an existing repository file: {path}")
     findings = check_claims(root, paths)
     findings += check_shas(root, paths, sha_manifest)
     findings += check_superseded_contracts(root, paths, contract_ids=_read_contract_ids(contract_ids_path))
@@ -351,14 +490,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sha-manifest", type=Path, required=True, help="required provenance manifest for commit references")
     parser.add_argument("--contract-ids", type=Path, required=True, help="versioned deprecated contract identifier set")
     parser.add_argument("--freshness-manifest", type=Path, help="optional OE-3-compatible document evidence records")
+    parser.add_argument("--document", action="append", type=Path, help="additional repository Markdown file to lint (repeatable; default: indexed living set)")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     root = args.root.resolve()
     paths = (args.sha_manifest, args.contract_ids, args.freshness_manifest)
     resolved = [root / item if item is not None and not item.is_absolute() else item for item in paths]
     sha_manifest, contract_ids, freshness = resolved
+    documents = [root / item if not item.is_absolute() else item for item in (args.document or [])]
     try:
-        result = run_checks(root, sha_manifest, contract_ids, freshness)
+        result = run_checks(root, sha_manifest, contract_ids, freshness, documents or None)
     except (OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2

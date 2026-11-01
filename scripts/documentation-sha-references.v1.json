@@ -2,694 +2,1397 @@
   "schema_version": "documentation-sha-references.v1",
   "references": [
     {
-      "sha": "00accc58a42eaa470e12831498b572cab2483981",
+      "kind": "artifact-digest",
+      "value": "021ac7d9041180e732242df7e49f80467c81ac6cc0d758a94d923204886138a0",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:11; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "07b5af602efd581d313327fc61ed809533bb329a63a1c2a6537efd74160503d6",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:20; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "0aa8daaceb59d5fcfac04d93628e002c81ab278b6bbb295303a3476713c29cfd",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:35; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "0c4883d6253d72216359e6f65bbf5c925d1e285cb88bbbd708f2123fd3ae4782",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:72; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "0e3387373ea40f791917fbba81d386cb4f53218a29ffebd55ae7e686d62e54ad",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/PRODUCTION-DELIVERY.md:92; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "15b76956ea70b868339928874c12a5e720a0357b2c209ff79990127d30b71367",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:72; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "18f6a3ce1d0959af6b4af78e146743b260c5ce210b146acbd7afbce8825bfe9e",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:201; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:16; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "299e7221abd865fc3fbe3aedcba38968f541259c2e222621fcbeedb62937ebad",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:70; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "2b48e22be4a583eac5d6099b86aba4e8ee57f318a8d42f35b84665800de362df",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/PRODUCTION-DELIVERY.md:124; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "2d429f893304f070cd03e890ee974afc8d08be787ea3374e7d1e99c6f213435e",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:195; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "37fc11c4b2a0673b0a56b902eb75fc36e325d61483354b061060eb7cc19cfaa0",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Recovery-input digest in documented PR 676 artifact identity; artifact hash, not a Git commit."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "3e4d5f613947c317ecba3fb11a8e32b65773009366f87946298343fccb934bcc",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:43; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "3efc4bdd55479285284d1453119e3ed68b22291fc346e68bb8694111b9527889",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Direct wheel SHA-256 in a historical package verification record; artifact digest, not a Git commit."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "4b478a1447e3684492c1498b576c3bdedc5dce97f5385190169a347a114a6e3d",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Profile binding digest in documented PR 676 artifact identity; SHA-256-like artifact hash, not a Git commit."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "4c5e2eb8cd73f0162d8f9ec3cbed57fe9b42fc3229544587a44f4314ff36b802",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/PRODUCTION-DELIVERY.md:124; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "5256e7dacd6e60d861717d64fdf9685a2ded0677aecc5b2e62f6c09c6750790d",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Review Markdown digest in documented PR 676 artifact identity; artifact hash, not a Git commit."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "52b1394a14a83007b6c413effc9212dc4e22895f5ebd79bbd763181855fac1b4",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Three-case live summary SHA-256 in a historical checkpoint; artifact digest, not a Git commit."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "5725d4871f322f0e6baa93e0ec06eee7338491af104ae52d88ef7c33b6469c80",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:68; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "59264ca4721e4467daeb22cb7cc74c42506e09f621fe265717372f03afe8a3a2",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit report/artifact/profile/wheel digest reference in living docs; not a Git commit (occurrence context lists the result artifact)."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "5afcbf3cf5af235a97b59487303c28cb5c5f0942dc51cccc1ff84178617853d3",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:156; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "5be612a1180ea4d67ece6c15e8c275f45ca77dcb05ffe1950bc8e12e8bd94eec",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:37; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:54; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "648f7de109d5468ea78b89ee0222aefd3d8f81df6cc68c2d656eb13507bf3a10",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:81; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "68a4aeebdebf793debb4d96588ed73aad5a706fd62a2ddb99ac1b669e911dd32",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:56; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "699f93fd7bc78d310de2455cad7402a1c3c8cf5ad61c3d4cbb77bb38da1189ed",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:27; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "6cd223339d02dd72e1ff4301fa43a56df25ce8d2af8a7d4f589c118d639b8f38",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Review JSON digest in documented PR 676 artifact identity; artifact hash, not a Git commit."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "706d5a55d4a77bffc3928192d73b35b2140c53ab07271ea86a881e3cba533bd6",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:66; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "72550bbddc999189ab4566c67acbb5feade6ffd596b9a2f386f8fb0fbd79d53e",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:43; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "731a01155e016395f9768214291fb6c3b3a112fc193bca287dd8ce304ca124cc",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:71; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "76529f72f8cbc140b1f18a37bb1a121a10c08655128d24e6a625606cadf452ba",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit report/artifact/profile/wheel digest reference in living docs; not a Git commit (occurrence context lists the result artifact)."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "78230255305b3490a618a078d0d96e9e4e83426d8261f6ba4ab64a51de8ea02f",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/PRODUCTION-DELIVERY.md:124; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "793b5fc4550a00757d72d7de0762e20e23543399607bfe2f4d8295e33eaa546f",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:70; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "7e4c8abb9a852d9b4c3de2bc6bddb5390ab0670c2a657c968394a30152e4863e",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:72; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "7ff9c8b781772eeee148145f036b34f8237268ce8810a9ba4c4dc9cee3938144",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:67; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "85c82d361654c58c124551528e5a699bbc72f8101ba09044be13155ddbb122fe",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:56; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "87218be0e1368792c98d0e26babcc575936b0e0ac87b35c5ad4e346f37cd9806",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:65; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "92cbdfbaa479db8a7ee2e65660012700b60d37a78a386ed4505c13a77796d08c",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:95; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "93a6240862673a839ffc7f515e095f0d188c22e36ce71911db80f9c4e536fad5",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:37; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "9895a3d4da666b8a9489ea6877cfa4406ae3e28c3ce54a7f61ec697497bb7e67",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Wheel-from-sdist SHA-256 in a historical package verification record; artifact digest, not a Git commit."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "9c9180e3b189a1e803042c40ad9a242f2474ff40756fe35763442573a9224fec",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:43; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "9cb22a7820f0100aa26a78b62822940b4db135528d9969904613d2fada0e1ffa",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:20; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "9e2c2326fdc9e9a939fe392672eb852ac2f2f169bf71e02b31e0ac0f7bec10d0",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:43; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "a153eac2b478fe12b01302ee08fe6fa77aae36bbd304316f66009d4b16345fd1",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:70; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "a1bd41cc068ac5b3c4c4acd64e4262d5798f61658773cc139dcdb89c87f5002a",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:43; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "b0866eb83766d1395b67d590c0ca5a322483668b12845f1865ca9cbd9909db7c",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:199; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "b36ef8b40d75115269ef7c51737f3bee08301824845f3112b8ec8e15bf97413c",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:72; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "bfe22ba3e83894b96fa4fb7eb6818452736d636336b2f16b8cb9202799c4f777",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:37; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "c420ac4fdaf3ffff56f28d869900fdb16708a6c2e6cbcbb8ec65546b4ef328d6",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:66; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "c87999815e0c8d35d486803558939375130c79a332ed6d421bbfb7171d4a63b6",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:16; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "e271a232d7a16cb19ed6b7eadcb474d7ee0701a408d37a96947afdea3fe40699",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/PRODUCTION-DELIVERY.md:92; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "e2b1d9bbdafd6d054462b9abac48ce88fdc71400abcb7655902fcf3677c4d446",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-EXECUTION-PLAN.md:99; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "eb3e4435af347110e1791ff9ffff608d12d94d5f6089c72046ea019f66ef7df1",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:66; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:27; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "ef69d4fa53594825d35731acf0a017702715428dfa3e91f26cc6940ad8eb5fe9",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/PRODUCTION-DELIVERY.md:124; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "f05ce771ace4bfcb23d4e05b41fb2ee5125c3f70e6cdcb6f0bb68b21c685ef8b",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:199; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "f548dc269d1a5d1e93472b490d9673ad3e33a9cc492e8513ca94a9dcb8410413",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-DELIVERY-TRACE.md:70; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "f66ce45294b4e0e82a1d5af380b178dd7784285a1e0b339016f8f0ce748dde6f",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:81; digest, not commit ID."
+    },
+    {
+      "kind": "artifact-digest",
+      "value": "f8b9e4c1aef9787f9d4417958230f8a2c9570a24a5bba3411bd48821a786ba1a",
+      "repository": "groktopus/codereview",
+      "scope": "external-artifact",
+      "evidence": "Explicit artifact SHA-256/digest at docs/CURRENT-STATUS.md:195; digest, not commit ID."
+    },
+    {
+      "kind": "commit",
+      "value": "00accc58a42eaa470e12831498b572cab2483981",
       "repository": "groktopus/codereview",
       "scope": "historical-not-retained",
       "evidence": "Historical checkpoint/run source cited at docs/CURRENT-DELIVERY-TRACE.md:18, docs/CURRENT-DELIVERY-TRACE.md:27, docs/CURRENT-EXECUTION-PLAN.md:14, docs/CURRENT-EXECUTION-PLAN.md:18. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
     },
     {
-      "sha": "02f5d94",
+      "kind": "commit",
+      "value": "02f5d94",
       "repository": "groktopus/codereview",
       "scope": "historical-not-retained",
       "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:106. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
     },
     {
-      "sha": "0379e20",
+      "kind": "commit",
+      "value": "0379e20",
       "repository": "groktopus/codereview",
       "scope": "local",
       "evidence": "Resolved as a commit in the current repository object database."
     },
     {
-      "sha": "0379e2001eebc07981aa99553e832ea342d781a7",
+      "kind": "commit",
+      "value": "0379e2001eebc07981aa99553e832ea342d781a7",
       "repository": "groktopus/codereview",
       "scope": "local",
       "evidence": "Resolved as a commit in the current repository object database."
     },
     {
-      "sha": "083058f",
+      "kind": "commit",
+      "value": "083058f",
       "repository": "groktopus/codereview",
       "scope": "historical-not-retained",
       "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:106. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
     },
     {
-      "sha": "0b2eb78",
+      "kind": "commit",
+      "value": "0841794",
       "repository": "groktopus/codereview",
       "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "0e486ff95ff086906f309d1c1077a0a5ec2ba94c",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Source line identifies target PR #772 and its merge. Foreign target source revision; not checked against this repository object database."
-    },
-    {
-      "sha": "0fa1344",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "109a3bcba09362c5c808c86d029be0c6d0b521fa",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "14b9d11",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-DELIVERY-TRACE.md:74, docs/PRODUCTION-DELIVERY.md:22. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "162664076d60d2cb5de70482833c7e6a6f7b5f47",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "18d1d72",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "19b802a",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "19b802af2474edfb92b0c79c58a1943657dfdaca",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "1d4903d",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "1d4903dab34b0c51e8f3805803872c3b98e2a96c",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "24998b9",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "24998b9f051f217df3cc600767e323310269bfa1",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "2728c71",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "2728c71f7d68ca3f258d848b8b64dd49becf0977",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "27fcb1a",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "4119d41f9df043e6b8a9a7c7a652dab9ca4d8557",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-STATUS.md:180, docs/CURRENT-STATUS.md:199. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "411c53d",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "41aeb4cd917de211d59fc97ebcf73661765e1811",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "41eeea962f0ade1a77280ff7521ebdb616d0e6ca",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "425f16b",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "425f16b273451e34cf3c8476b293cc0e72493eb4",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "461839f",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:92. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "4fbc3b0",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "4fbc3b0a4e45596c3c73685edc8be575e2173e27",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-STATUS.md:185. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "54936ae739577df2a18cc3d47e877ad6cff95272",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Source line identifies target PR #772 reviewed head. Foreign target source revision; not checked against this repository object database."
-    },
-    {
-      "sha": "5873c3f",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "595f143607961d21d162efe76518d86e416d2548",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-STATUS.md:185. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "5970a21174fd618a2f7ecf24",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:112. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "5d846ee",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116, docs/PRODUCTION-DELIVERY.md:118. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "5e4b751",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "5e4b751abe159ff698fc68d20f49e235ab0c2f23",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "63e3ecd2f09d79c34e3594a3be74f017a1c5a12c",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-STATUS.md:156. Not checked against this repository object database."
-    },
-    {
-      "sha": "69a848b651faf6deddd777ed1b83187b7b8adfbf",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "6c5aec216be8b28adc9eee7d7394dde453d28a8a",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "6f67aea",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "6f67aeabb812e6992bd868280698cf1031a75e46",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "7294d35",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "7294d355de8d594b25653298111ee71384bdcbd4",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "77abf7b",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "782bcbd",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "782bcbdaccf9a2ae11e63b85a92d87752dda8599",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "78434b7",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "78434b77948e531fbfb7d1f1690ef8d6c95cdb1e",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "7bce9dd246f141eb961c52ae96061203a98f083b",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-EXECUTION-PLAN.md:99, docs/CURRENT-STATUS.md:156. Not checked against this repository object database."
-    },
-    {
-      "sha": "7eaddf7c549c8060045578bc1702e394a35dfa2d",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "8052da9",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "8052da90c269815ef6235a4fa7517c67b4ee6a65",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "816c348",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "816c3487b8ed5aaf608051400f08d48ca80e871a",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "8223fd7",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "86b7325",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "87783e0a4d60e3329a035c952346690683506c39",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "88b5b2a",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "89689f1",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "8e6ef508df6fff36ac681ea96b2cc01f749b67d8",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "90165dd65be3595006171d7abef34a082c90a71d",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:18, docs/CURRENT-DELIVERY-TRACE.md:27, docs/CURRENT-EXECUTION-PLAN.md:14, docs/CURRENT-EXECUTION-PLAN.md:18, docs/CURRENT-STATUS.md:16, docs/CURRENT-STATUS.md:30. Not checked against this repository object database."
-    },
-    {
-      "sha": "9035bb33852874f2989a5f6a7ababd946d84e269",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:120. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "906959c",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "906959c3a21b06f1212efe170be4b7072b440a8b",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "914da311028faa3c7704e5963ccebfe2f040ac3c",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "9beaa99",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "9beaa99bf02faee248f399a21df6cacaa9962086",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "9e2646d",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "9e2646d7c2ad7a443bcb3ef52ebb954090aab2ea",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a0988f2",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a0988f2f029252c9b0553ca21a61f5b9c96356c7",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a3395b664ccc739688bf67e183f809ff92779a76",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:54, docs/CURRENT-STATUS.md:53. Not checked against this repository object database."
-    },
-    {
-      "sha": "a451acc",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a451acc2796ace9e3535a56c07684cc0be213c03",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a6257dc",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a6257dcaf2ff4c4576d5d8dccef93107f8d34ee0",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a7247e5",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "a7247e559e6ea641ac546438a233e83ba6c7c298",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "ac4f53e",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "b3aa5498d97856468f664b4846f30463cba7027e",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:124. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "be589a0d1aea68df833591b8b60b2e089a4ed386",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "bf1fb5a",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "bf7fc297",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "c09321f",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "c09321f2e963098c3ce665f3db144e22d37dd382",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "c28fa214589ad8fc7f14f665788d660507fce7fd",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "c355830512fa5bffc167926a6a167bace93d96c6",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:52, docs/CURRENT-DELIVERY-TRACE.md:66. Not checked against this repository object database."
-    },
-    {
-      "sha": "c8496b74d8e1da05a2ed654772fc4b1b1fcff56b",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:52, docs/CURRENT-DELIVERY-TRACE.md:66, docs/CURRENT-DELIVERY-TRACE.md:70, docs/CURRENT-DELIVERY-TRACE.md:142, docs/PRODUCTION-DELIVERY.md:131. Not checked against this repository object database."
-    },
-    {
-      "sha": "d578d6eac473c6ddd95682b240e034f4f50e7495",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "d663eae",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:86. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "d7c6b7bf4def4ae2e0ea71a246ab1e1b41a09513",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-DELIVERY-TRACE.md:67. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "dd2ffe6",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "dd2ffe68f4650f6023de4dd77aac972777269a8c",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "df8d945f023696c8cbcb1486e63696642a5005d9",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "dfcb164abdf8eef711ce6a447ef78c42ec696021",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/STATUS.md:15. Not checked against this repository object database."
-    },
-    {
-      "sha": "e011f264bc4a16dfab535b4dfd492c014ce0519f",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/STATUS.md:15. Not checked against this repository object database."
-    },
-    {
-      "sha": "e22a085",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:106, docs/PRODUCTION-DELIVERY.md:108. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "e41bd6c",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "e41bd6c5a159cf017dc943fb3bd1b9f75a3e212c",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "e4c4a60906485d97a85826ef0c474fe13acc6bdf",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-STATUS.md:57. Not checked against this repository object database."
+      "evidence": "Resolved as local commit reference at docs/PRODUCTION-DELIVERY.md:129."
     },
     {
-      "sha": "e83c4a9",
+      "kind": "commit",
+      "value": "0b2eb78",
       "repository": "groktopus/codereview",
       "scope": "local",
       "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "ed7aa8b",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "ef78738c4a651a6483853ba0e8df1cb0ee12cc69",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Resolved as a commit in the current repository object database."
-    },
-    {
-      "sha": "f2ba3513a3a13be40f1c9231d09bd3082ca9e02f",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:120. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "fc7566f",
-      "repository": "groktopus/codereview",
-      "scope": "historical-not-retained",
-      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
-    },
-    {
-      "sha": "afe5117c2e6c80de6ef84ca3577a5e8b536d36cc",
-      "repository": "groktopus/codereview",
-      "scope": "local",
-      "evidence": "Source PR #236 in groktopus/codereview. Local source commit verified in this object database."
-    },
-    {
-      "sha": "112c0e15d84c61da01a045f9ca2c630842328633",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "PR #676 target base in SlopSearX, as named adjacent to target PR #676 review evidence."
-    },
-    {
-      "sha": "a01a5741f80b22b2289a327d8f04ff2fcc1a51d4",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "PR #484 source head in SlopSearX, explicitly named beside magnus919/SlopSearX."
-    },
-    {
-      "sha": "2abbf4924609c29f486d4a3550c26878e3d74dad",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Target installed-workflow/policy baseline in SlopSearX, explicitly named in CURRENT-STATUS."
-    },
-    {
-      "sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "PR #464 target head in SlopSearX, named with PR #464 evidence in CURRENT-STATUS."
     },
     {
-      "sha": "0e486ff",
+      "kind": "commit",
+      "value": "0e486ff",
       "repository": "magnus919/SlopSearX",
       "scope": "foreign-target",
       "evidence": "Short form of target PR #772 merge in STATUS.md; same exact SHA is listed with explicit target attribution."
     },
     {
-      "sha": "afe5117",
+      "kind": "commit",
+      "value": "0e486ff95ff086906f309d1c1077a0a5ec2ba94c",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Source line identifies target PR #772 and its merge. Foreign target source revision; not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "0fa1344",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "109a3bcba09362c5c808c86d029be0c6d0b521fa",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "112c0e15d84c61da01a045f9ca2c630842328633",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "PR #676 target base in SlopSearX, as named adjacent to target PR #676 review evidence."
+    },
+    {
+      "kind": "commit",
+      "value": "14b9d11",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-DELIVERY-TRACE.md:74, docs/PRODUCTION-DELIVERY.md:22. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "1626640",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as local commit reference at docs/CURRENT-STATUS.md:115."
+    },
+    {
+      "kind": "commit",
+      "value": "162664076d60d2cb5de70482833c7e6a6f7b5f47",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "18d1d72",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "19b802a",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "19b802af2474edfb92b0c79c58a1943657dfdaca",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "1d4903d",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "1d4903dab34b0c51e8f3805803872c3b98e2a96c",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "24998b9",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "24998b9f051f217df3cc600767e323310269bfa1",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "2728c71",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "2728c71f7d68ca3f258d848b8b64dd49becf0977",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "27fcb1a",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "2abbf4924609c29f486d4a3550c26878e3d74dad",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Target installed-workflow/policy baseline in SlopSearX, explicitly named in CURRENT-STATUS."
+    },
+    {
+      "kind": "commit",
+      "value": "36943177033",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical source reference absent from local objects at docs/CURRENT-EXECUTION-PLAN.md:73; not locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "36944248422",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit target-side source reference at docs/CURRENT-EXECUTION-PLAN.md:80."
+    },
+    {
+      "kind": "commit",
+      "value": "36945104586",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit target-side source reference at docs/CURRENT-EXECUTION-PLAN.md:80."
+    },
+    {
+      "kind": "commit",
+      "value": "36957634344",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical source reference absent from local objects at docs/CURRENT-EXECUTION-PLAN.md:59; not locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "36960365530",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical source reference absent from local objects at docs/CURRENT-EXECUTION-PLAN.md:59; not locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "38109625164",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit target-side source reference at docs/STATUS.md:58."
+    },
+    {
+      "kind": "commit",
+      "value": "38111321188",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit target-side source reference at docs/STATUS.md:58."
+    },
+    {
+      "kind": "commit",
+      "value": "4119d41f9df043e6b8a9a7c7a652dab9ca4d8557",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-STATUS.md:180, docs/CURRENT-STATUS.md:199. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "411c53d",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "41aeb4cd917de211d59fc97ebcf73661765e1811",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "41eeea962f0ade1a77280ff7521ebdb616d0e6ca",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "425f16b",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "425f16b273451e34cf3c8476b293cc0e72493eb4",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "461839f",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:92. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "4fbc3b0",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "4fbc3b0a4e45596c3c73685edc8be575e2173e27",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "53dbafd9207eed175228c594058af85ed8e9bd0e",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-STATUS.md:185. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "54936ae739577df2a18cc3d47e877ad6cff95272",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Source line identifies target PR #772 reviewed head. Foreign target source revision; not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "5873c3f",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "595f143607961d21d162efe76518d86e416d2548",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-STATUS.md:185. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "5970a21174fd618a2f7ecf24",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:112. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "5d846ee",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116, docs/PRODUCTION-DELIVERY.md:118. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "5e4b751",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "5e4b751abe159ff698fc68d20f49e235ab0c2f23",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "63e3ecd2f09d79c34e3594a3be74f017a1c5a12c",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-STATUS.md:156. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "69a848b651faf6deddd777ed1b83187b7b8adfbf",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "6c5aec216be8b28adc9eee7d7394dde453d28a8a",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "6f67aea",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "6f67aeabb812e6992bd868280698cf1031a75e46",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "7294d35",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "7294d355de8d594b25653298111ee71384bdcbd4",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "77abf7b",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "782bcbd",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "782bcbdaccf9a2ae11e63b85a92d87752dda8599",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "78434b7",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "78434b77948e531fbfb7d1f1690ef8d6c95cdb1e",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "7bce9dd246f141eb961c52ae96061203a98f083b",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-EXECUTION-PLAN.md:99, docs/CURRENT-STATUS.md:156. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "7eaddf7c549c8060045578bc1702e394a35dfa2d",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "8052da9",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "8052da90c269815ef6235a4fa7517c67b4ee6a65",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "816c348",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "816c3487b8ed5aaf608051400f08d48ca80e871a",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "8223fd7",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "86b7325",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "87783e0a4d60e3329a035c952346690683506c39",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "88b5b2a",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "89689f1",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "8e6ef508df6fff36ac681ea96b2cc01f749b67d8",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "90165dd65be3595006171d7abef34a082c90a71d",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:18, docs/CURRENT-DELIVERY-TRACE.md:27, docs/CURRENT-EXECUTION-PLAN.md:14, docs/CURRENT-EXECUTION-PLAN.md:18, docs/CURRENT-STATUS.md:16, docs/CURRENT-STATUS.md:30. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "9035bb33852874f2989a5f6a7ababd946d84e269",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:120. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "906959c",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "906959c3a21b06f1212efe170be4b7072b440a8b",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "914da311028faa3c7704e5963ccebfe2f040ac3c",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "9beaa99",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "9beaa99bf02faee248f399a21df6cacaa9962086",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "9e2646d",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "9e2646d7c2ad7a443bcb3ef52ebb954090aab2ea",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a01a5741f80b22b2289a327d8f04ff2fcc1a51d4",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "PR #484 source head in SlopSearX, explicitly named beside magnus919/SlopSearX."
+    },
+    {
+      "kind": "commit",
+      "value": "a0988f2",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a0988f2f029252c9b0553ca21a61f5b9c96356c7",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a3395b664ccc739688bf67e183f809ff92779a76",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:54, docs/CURRENT-STATUS.md:53. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a451acc",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a451acc2796ace9e3535a56c07684cc0be213c03",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a6257dc",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a6257dcaf2ff4c4576d5d8dccef93107f8d34ee0",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a7247e5",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "a7247e559e6ea641ac546438a233e83ba6c7c298",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "ac4f53e",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "afe5117",
       "repository": "groktopus/codereview",
       "scope": "local",
       "evidence": "Short form of source PR #236 commit in STATUS.md; exact SHA is verified locally and listed with explicit source repository attribution."
     },
     {
-      "sha": "c05ab8f",
+      "kind": "commit",
+      "value": "afe5117c2e6c80de6ef84ca3577a5e8b536d36cc",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Source PR #236 in groktopus/codereview. Local source commit verified in this object database."
+    },
+    {
+      "kind": "commit",
+      "value": "b3aa5498d97856468f664b4846f30463cba7027e",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:124. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "be589a0d1aea68df833591b8b60b2e089a4ed386",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "bf1fb5a",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "bf7fc297",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "PR #464 target head in SlopSearX, named with PR #464 evidence in CURRENT-STATUS."
+    },
+    {
+      "kind": "commit",
+      "value": "c05ab8f",
       "repository": "groktopus/codereview",
       "scope": "historical-not-retained",
       "evidence": "Prior target runner checkpoint cited by the dated publication readiness section; absent locally, retained as explicitly external historical evidence."
+    },
+    {
+      "kind": "commit",
+      "value": "c09321f",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "c09321f2e963098c3ce665f3db144e22d37dd382",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "c28fa214589ad8fc7f14f665788d660507fce7fd",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "c355830512fa5bffc167926a6a167bace93d96c6",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:52, docs/CURRENT-DELIVERY-TRACE.md:66. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "c8496b74d8e1da05a2ed654772fc4b1b1fcff56b",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-DELIVERY-TRACE.md:52, docs/CURRENT-DELIVERY-TRACE.md:66, docs/CURRENT-DELIVERY-TRACE.md:70, docs/CURRENT-DELIVERY-TRACE.md:142, docs/PRODUCTION-DELIVERY.md:131. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "d578d6eac473c6ddd95682b240e034f4f50e7495",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "d663eae",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:86. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "d7c6b7bf4def4ae2e0ea71a246ab1e1b41a09513",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/CURRENT-DELIVERY-TRACE.md:67. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "dd2ffe6",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "dd2ffe68f4650f6023de4dd77aac972777269a8c",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "df8d945f023696c8cbcb1486e63696642a5005d9",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "dfcb164abdf8eef711ce6a447ef78c42ec696021",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/STATUS.md:15. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "e011f264bc4a16dfab535b4dfd492c014ce0519f",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/STATUS.md:15. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "e22a085",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:106, docs/PRODUCTION-DELIVERY.md:108. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "e41bd6c",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "e41bd6c5a159cf017dc943fb3bd1b9f75a3e212c",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "e4c4a60906485d97a85826ef0c474fe13acc6bdf",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicitly target-side/SlopSearX evidence reference at docs/CURRENT-STATUS.md:57. Not checked against this repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "e83c4a9",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "ed7aa8b",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "ef78738c4a651a6483853ba0e8df1cb0ee12cc69",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Resolved as a commit in the current repository object database."
+    },
+    {
+      "kind": "commit",
+      "value": "f2ba3513a3a13be40f1c9231d09bd3082ca9e02f",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:120. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "commit",
+      "value": "fc7566f",
+      "repository": "groktopus/codereview",
+      "scope": "historical-not-retained",
+      "evidence": "Historical checkpoint/run source cited at docs/PRODUCTION-DELIVERY.md:116. This object is not present in the current repository object database; provenance is explicitly historical and is not represented as locally verified."
+    },
+    {
+      "kind": "run-id",
+      "value": "108543386780",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:68; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "10923546986",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:70; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36933733892",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:97; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36933751553",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:99; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36935074525",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:105; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36937174118",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:93; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36940468965",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:75; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36943163156",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:73; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36960270385",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:57; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "38109593299",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:7; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "38109625164",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:7; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "38111321168",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:9; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "38111321174",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:9; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "38111321178",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:9; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "38111321188",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:9; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "5481780874",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Run/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:7; not a commit SHA."
     }
   ]
 }

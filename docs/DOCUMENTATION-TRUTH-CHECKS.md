@@ -31,21 +31,35 @@ claimed as a local commit.
 - **Claims:** only the DT-3 seed vocabulary (`production ready`, tool/system
   `replaces`, and an unqualified `is/are/was/were/remains accurate`) in files
   linked by the `Current` section of `docs/README.md`, plus root `README.md`.
-  A same-sentence Markdown evidence link or an explicit qualifier such as
-  `not`, `unknown`, or `unmeasured` satisfies this narrow lint. It intentionally
-  does not attempt general semantic review. A new phrase needs a focused test
-  before being added; do not expand this to historical issue/evidence files.
+  Each claim occurrence is evaluated independently. Direct negatives
+  (`is not accurate`, `does not replace`, `not production ready`) are allowed;
+  later contrast clauses, another table row, or another sentence cannot qualify
+  the claim. A nearby link waives only its same-row claim when its label
+  identifies evidence (`test evidence`, `run`, or `artifact`); unrelated
+  navigation links do not. This is a narrow syntactic lint, not general semantic
+  review. Add phrases only with focused positive and adversarial tests. Historical
+  issue/evidence documents remain outside the claim-lint target.
 - **Commit references:** code-formatted 7–40 character hexadecimal strings
   outside fenced code in the same living set are checked against
-  `scripts/documentation-sha-references.v1.json`. Each entry identifies the
-  exact SHA, `repository`, `scope`, and attribution evidence. Local scopes
-  (`local`, `historical-local`) must resolve to commit objects in this checkout.
-  Target-side refs (`magnus919/SlopSearX`, `foreign-target`) are not checked
-  against this object database; their attribution is explicit. Historical local
-  refs absent from this checkout are explicitly `historical-not-retained` and
-  are not locally verified. An absent/unknown record fails as
-  `UNSCOPED_SHA`; a bad local object fails as `SHA_NOT_IN_REPOSITORY`.
-  The manifest is a seed inventory rather than generated data; review it when document revisions are added, changed, or removed, and keep provenance statements backed by named source context.
+  `scripts/documentation-sha-references.v1.json`. Each entry identifies a
+  `kind` (`commit`, `run-id`, or `artifact-digest`), exact `value`, `repository`,
+  `scope`, and attribution evidence.
+  Backtick contents are parsed as whole tokens, never as matching prefixes:
+  7–40 hexadecimal characters (including digits only) are commit candidates;
+  41–63 hex characters fail as `MALFORMED_SHA`. A 64-character token is an
+  `artifact-digest` only when nearby wording explicitly says SHA-256/digest/hash;
+  other overlong tokens fail. Decimal run/job/check/artifact/review IDs are
+  `run-id` only when nearby wording explicitly names one, and must be 7–12
+  digits. Everything else remains a commit candidate, so an unknown numeric
+  token is not ignored. Local commit scopes (`local`, `historical-local`) must
+  resolve to commit objects in this checkout. Target-side commits
+  (`magnus919/SlopSearX`, `foreign-target`) and run IDs/artifact digests are
+  explicitly attributed but not checked as local commits. Historical local refs
+  absent from this checkout use `historical-not-retained` and are not locally
+  verified. An absent/unknown record fails as `UNSCOPED_SHA`; bad local objects
+  fail as `SHA_NOT_IN_REPOSITORY`. The manifest is a seed inventory rather than
+  generated data; review it when references change and keep provenance statements
+  backed by named source context.
 - **Superseded contracts:** the checker compares living doc references to the
   registry's `deprecated` set, limited by the versioned
   `documentation-contract-ids.v1.json` selection. Mark a reference `deprecated`

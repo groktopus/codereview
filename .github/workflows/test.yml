@@ -133,6 +133,34 @@ jobs:
           codes = {item["code"] for item in result["findings"]}
           assert "STATUS_STALE" in codes, result
           PY
+      - name: Prove CLI rejects combined seeded link, claim, SHA, and contract violations
+        run: |
+          set -euo pipefail
+          set +e
+          python scripts/check_docs_truth.py \
+            --sha-manifest tests/fixtures/docs_truth/seeded-sha-manifest.json \
+            --contract-ids scripts/documentation-contract-ids.v1.json \
+            --document tests/fixtures/docs_truth/seeded-status.md \
+            --json > docs-truth-seeded.json
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected seeded documentation truth violations to exit 1, got $status"
+            cat docs-truth-seeded.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          result = json.load(open("docs-truth-seeded.json", encoding="utf-8"))
+          codes = {item["code"] for item in result["findings"]}
+          expected = {"PRODUCTION_READY", "SHA_NOT_IN_REPOSITORY", "SUPERSEDED_CONTRACT_UNMARKED"}
+          assert expected <= codes, result
+          PY
+          set +e
+          python scripts/check_relative_links.py README.md tests/fixtures/docs_truth/seeded-bad-link.md
+          link_status=$?
+          set -e
+          test "$link_status" -eq 1
       - name: Run seeded docs truth regression tests
         run: python -m pytest -q tests/test_docs_truth.py tests/test_docs_tooling.py
 
