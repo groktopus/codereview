@@ -140,7 +140,7 @@ python scripts/check_completeness.py \
 
 The gate recomputes the summary from `coverage_ledger` rather than trusting an
 embedded summary. If an embedded `completeness_summary` disagrees with the
-ledger, the gate fails with `SUMMARY_INCONSISTENT`.
+ledger, the gate fails with `SUMMARY_INCONSISTENT` (counts, ratios, zero-obligation flag, and totals).
 
 A result fails the gate when any of these hold:
 
@@ -193,3 +193,6 @@ quality.
   obligations, reason mapping and unknown fallback, report section presence,
   comparison pass/fail, stale-summary rejection, CLI exit codes, and
   disposition preservation.
+
+
+Gate outcomes also include `PARTIAL_OBLIGATION_REGRESSION` when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN`. Baselines whose schema or taxonomy version is not current are rejected before comparison. Case identity prefers `case_id`, then `run_id`, then `snapshot.snapshot_id`; corpus runs that need repeatable gating must set a stable `case_id`.

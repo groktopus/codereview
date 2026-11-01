@@ -290,7 +290,48 @@ def classify_reason(reason_code: Any) -> str:
         for legacy, canonical in _LEGACY_TO_CANONICAL.items()
         if legacy.casefold() == folded
     }
-    return matches.pop() if len(matches) == 1 else "UNCLASSIFIED_REASON"
+    if len(matches) == 1:
+        return matches.pop()
+    return _classify_family(reason_code)
+
+
+def _classify_family(reason_code: str) -> str:
+    """Classify known provider/claim/budget code families that predate the map.
+
+    Provider adapters emit many bounded error codes directly into the coverage
+    ledger.  They are grouped by documented family so a routine provider failure
+    does not become taxonomy drift; exact legacy mappings above take precedence.
+    """
+
+    code = reason_code.casefold()
+    if "deadline" in code:
+        return "DEADLINE_EXHAUSTED"
+    if code.startswith("claim_"):
+        return "CLAIM_RECONCILIATION_INCOMPLETE"
+    if "exceeds" in code or code.startswith("budget_") or code.startswith("monetary_"):
+        return "BUDGET_EXHAUSTED"
+    if "unavailable" in code or "call_failed" in code or "transport" in code:
+        return "PROVIDER_UNAVAILABLE"
+    if code.startswith((
+        "provider_",
+        "malformed_",
+        "model_output_",
+        "invalid_",
+        "response_",
+        "output_",
+        "request_",
+        "capture_",
+        "endpoint_",
+        "unsupported_",
+        "model_identity",
+        "literal_credentials",
+        "remote_http",
+        "question_and_text",
+        "assessment_references",
+        "context_followup_requires",
+    )):
+        return "TASK_FAILED"
+    return "UNCLASSIFIED_REASON"
 
 
 def _coverage_state(row: Mapping[str, Any]) -> str:
@@ -433,6 +474,11 @@ def summary_is_consistent(result: Mapping[str, Any], summary: Mapping[str, Any])
         "incomplete_total",
         "reason_distribution_denominator",
         "unclassified_obligations",
+        "complete_ratio",
+        "resolved_ratio",
+        "zero_obligations",
+        "ledger_total",
+        "non_required",
     )
     if not all(stored.get(key) == summary.get(key) for key in keys):
         return False
@@ -455,6 +501,11 @@ def summary_is_consistent(result: Mapping[str, Any], summary: Mapping[str, Any])
 def _case_id(result: Mapping[str, Any], fallback: str | None = None) -> str:
     for key in ("case_id", "run_id"):
         value = result.get(key)
+        if isinstance(value, str) and value:
+            return value
+    snapshot = result.get("snapshot")
+    if isinstance(snapshot, Mapping):
+        value = snapshot.get("snapshot_id")
         if isinstance(value, str) and value:
             return value
     return fallback or "unnamed-result"
@@ -552,6 +603,11 @@ def compare_to_baseline(
     * an increase in unclassified reasons beyond the owner-set threshold.
     """
 
+    if baseline.get("schema") != "review-completeness-baseline.v1":
+        raise ValueError("baseline schema is not review-completeness-baseline.v1")
+    if baseline.get("taxonomy_version") != TAXONOMY_VERSION:
+        raise ValueError("baseline taxonomy version is not the current taxonomy")
+
     current = summary_from_result(result)
     resolved_case_id = case_id or _case_id(result)
     cases = baseline.get("cases")
@@ -584,6 +640,25 @@ def compare_to_baseline(
                 "message": "embedded completeness_summary disagrees with the coverage ledger",
             }
         )
+
+    current_states = {
+        row.get("obligation_id"): row.get("state")
+        for row in result.get("coverage_ledger", [])
+        if isinstance(row, Mapping)
+    }
+    baseline_obligations = baseline_case.get("obligations")
+    if isinstance(baseline_obligations, Mapping):
+        for obligation, prior in baseline_obligations.items():
+            if prior == "PARTIAL" and current_states.get(obligation) in {"NOT_STARTED", "UNKNOWN"}:
+                findings.append(
+                    {
+                        "code": "PARTIAL_OBLIGATION_REGRESSION",
+                        "message": (
+                            f"obligation {obligation!r} regressed from PARTIAL to "
+                            f"{current_states.get(obligation)!r}"
+                        ),
+                    }
+                )
 
     baseline_ratio = baseline_case.get("complete_ratio")
     current_ratio = current["complete_ratio"]
