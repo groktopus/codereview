@@ -2,7 +2,7 @@ include README.md
 include pyproject.toml
 recursive-include docs *.md
 include docs/public-surface.json
-recursive-include experiments *.py *.md
+recursive-include experiments *.py *.md *.json
 recursive-include scripts *.py
 include scripts/actions-artifact-uploader/action.yml
 include scripts/actions-artifact-uploader/canary.mjs

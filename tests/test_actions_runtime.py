@@ -88,7 +88,9 @@ def test_runtime_source_identity_binds_loaded_module_and_clean_package_tree_to_r
     assert identity["state"] == "VERIFIED"
     assert identity["reason_code"] is None
     assert identity["source_revision"] == revision
-    assert identity["module_count"] == len(list((repository / "src/pr_review_harness").rglob("*.py")))
+    assert identity["module_count"] == len(
+        list((repository / "src/pr_review_harness").rglob("*.py"))
+    ) + 1
     assert re.fullmatch(r"[0-9a-f]{64}", identity["module_tree_sha256"])
 
 

@@ -112,7 +112,9 @@ def test_experiment_modules_are_archived_outside_the_installed_package(module: s
 
 
 def test_relocated_modules_keep_their_pinned_historical_bytes():
-    inventory = set(json.loads(FROZEN_INVENTORY.read_text(encoding="utf-8")))
+    inventory = {
+        name.removesuffix(".py") for name in json.loads(FROZEN_INVENTORY.read_text(encoding="utf-8"))
+    }
     relocated = {row["module"] for row in _manifest()["relocated_experiment_modules"]}
     expected = sorted(relocated & inventory)
     fixtures = ROOT / "tests" / "fixtures"

@@ -262,3 +262,11 @@ class OfficialActionsArtifactUploader:
                 process.wait(timeout=1)
             except (OSError, ProcessLookupError, subprocess.TimeoutExpired):
                 pass
+
+
+if __name__ == "__main__":
+    import json
+
+    from experiments.harness.actions_canary import run_actions_canary
+
+    print(json.dumps(run_actions_canary(), sort_keys=True, separators=(",", ":")))

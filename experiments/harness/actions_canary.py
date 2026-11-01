@@ -266,18 +266,30 @@ def _runtime_source_identity(
         if actual_revision != expected_revision:
             return unavailable("runtime_source_revision_mismatch")
 
-        clean = git("diff", "--quiet", "--exit-code", actual_revision, "--", "src/pr_review_harness")
+        clean = git(
+            "diff",
+            "--quiet",
+            "--exit-code",
+            actual_revision,
+            "--",
+            "src/pr_review_harness",
+            "experiments/harness/actions_canary.py",
+        )
         if clean.returncode == 1:
             return unavailable("runtime_source_tree_dirty")
         if clean.returncode != 0:
             return unavailable("runtime_source_tree_unavailable")
 
         tracked = git("ls-tree", "-r", "-z", "--name-only", actual_revision, "--", "src/pr_review_harness")
-        if tracked.returncode != 0:
+        tracked_canary = git(
+            "ls-tree", "-r", "-z", "--name-only", actual_revision, "--", "experiments/harness/actions_canary.py"
+        )
+        if tracked.returncode != 0 or tracked_canary.returncode != 0:
             return unavailable("runtime_source_tree_unavailable")
         tracked_modules = {
             item.decode("utf-8", errors="strict")
-            for item in tracked.stdout.split(b"\0")
+            for output in (tracked.stdout, tracked_canary.stdout)
+            for item in output.split(b"\0")
             if item.endswith(b".py")
         }
 
@@ -292,6 +304,7 @@ def _runtime_source_identity(
                     if path.is_symlink() or not path.is_file():
                         return unavailable("runtime_source_tree_mismatch")
                     source_files[path.relative_to(workspace).as_posix()] = path
+        source_files[loaded_module.relative_to(workspace).as_posix()] = loaded_module
         if set(source_files) != tracked_modules:
             return unavailable("runtime_source_tree_mismatch")
         if not source_files or len(source_files) > _MAX_RUNTIME_MODULES:
