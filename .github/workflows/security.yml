@@ -1,0 +1,110 @@
+name: Security scanning
+
+# Read-only supply-chain scanning for the harness source. No job checks out a
+# target repository, runs target code, dispatches a provider call, or holds a
+# write credential for any reviewed repository. CodeQL uploads SARIF to GitHub
+# code scanning (this repository only); dependency review and the secret scan
+# only read and fail the job.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly CodeQL scan, independent of pull-request activity. The secret
+    # scan is restricted to pull_request/push events because its action maps
+    # schedule/dispatch to empty base/head ranges.
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # Required to upload SARIF to code scanning for this repository.
+      security-events: write
+    steps:
+      - name: Check out this repository at the triggering revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:python
+
+  dependency-review:
+    name: Dependency review
+    # Requires the repository dependency graph (Settings -> Code security and
+    # analysis). Set the repository variable DEPENDENCY_GRAPH_ENABLED=true after
+    # enabling it; otherwise this job skips instead of failing every PR.
+    if: ${{ github.event_name == 'pull_request' && vars.DEPENDENCY_GRAPH_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out this repository at the triggering revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Fail the pull request on high or critical known vulnerabilities.
+          fail-on-severity: high
+          # Never post a comment; this keeps the job at contents: read and
+          # avoids any write path to the pull request.
+          comment-summary-in-pr: never
+
+  secret-scan:
+    name: Secret scan (TruffleHog)
+    # The pinned action derives --since-commit/--branch from the event. Those
+    # are empty on schedule/dispatch, so run this job only for PR/push events.
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out full history so pull-request and push ranges resolve
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Reject credential-bearing URLs outside test fixtures
+        # Compensating check for the excluded URI detector: the source and docs
+        # must not contain basic-auth-in-URL credentials. Test fixtures are
+        # excluded because they deliberately contain synthetic examples.
+        run: |
+          set -euo pipefail
+          if git grep -nE '://[^/[:space:]:@]+:[^/[:space:]@]+@' -- . ':!tests/**' ':!*.pyc'; then
+            echo "credential-bearing URL found outside tests" >&2
+            exit 1
+          fi
+
+      - name: Scan for leaked credentials
+        uses: trufflesecurity/trufflehog@31ce31ee1abbcc7dc8eee5764c17121c3044c8b2 # v3.99.7
+        with:
+          # Pin the scanner image instead of the action's mutable "latest".
+          version: '3.99.7'
+          # --no-verification keeps every discovered credential local: no
+          # outbound request is made to a secret's issuer. URI is excluded
+          # because this repository's tests deliberately contain synthetic
+          # credential-bearing URLs (basic auth in the userinfo component);
+          # the step above compensates outside tests, and every other detector
+          # remains enabled with a match failing the job.
+          extra_args: --no-verification --exclude-detectors=URI
