@@ -570,12 +570,12 @@ def _diagnostic_artifact_path(output_dir: str | Path, run_id: str) -> str | None
 
 def _emit(args, value: Any) -> None:
     if args.json:
-        print(json.dumps(value, sort_keys=True, separators=(",", ":")))  # lgtm[py/clear-text-logging-sensitive-data]
+        sys.stdout.write(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n")
     else:
         if isinstance(value, dict) and "summary" in value:
-            print(value["summary"])
+            sys.stdout.write(str(value["summary"]) + "\n")
         else:
-            print(json.dumps(value, indent=2, sort_keys=True))  # lgtm[py/clear-text-logging-sensitive-data]
+            sys.stdout.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
 def _event(args, base: str | None, head: str | None) -> dict | None:
