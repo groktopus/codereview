@@ -24,7 +24,6 @@ PROPERTY_SEEDS = {
     "budget_ceiling": 25203,
     "ledger_replay": 25204,
     "blocker_reducer": 25205,
-    "stale_unknown_reducer": 25206,
 }
 
 

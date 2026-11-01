@@ -329,7 +329,10 @@ def test_run_elapsed_includes_final_advisory_stage(tmp_path, monkeypatch):
     assert marker.read_text(encoding="utf-8").splitlines()[-1] == "advisory"
     assert stamp.read_text(encoding="utf-8")
     assert isinstance(result["run_elapsed_ms"], float)
-    assert result["run_elapsed_ms"] >= 0
+    # The advisory provider sleeps 150 ms; elapsed is finalized after that
+    # stage. A small tolerance handles clock resolution without allowing a
+    # pre-advisory sample to pass.
+    assert result["run_elapsed_ms"] >= 140.0
     assert "run elapsed" in engine_module.render_report(result)
 
 

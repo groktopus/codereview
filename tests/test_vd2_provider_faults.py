@@ -15,25 +15,18 @@ from pr_review_harness.budget import BudgetLedger
 from pr_review_harness.providers import OpenAIProvider, ProviderError
 
 FAULT_CASES = (
-    ("VD2-PROVIDER-TIMEOUT", "timeout", 200, b"{}", "provider_deadline_exceeded", "TIMED_OUT"),
-    ("VD2-PROVIDER-4XX", "normal", 429, b'{"error":"rate limited"}', "http_status_429", "FAILED"),
-    ("VD2-PROVIDER-5XX", "normal", 503, b'{"error":"unavailable"}', "http_status_503", "FAILED"),
-    ("VD2-PROVIDER-MALFORMED", "normal", 200, b"{not-json", "malformed_provider_response", "FAILED"),
-    ("VD2-PROVIDER-TRUNCATED", "truncated", 200, b'{"choices":[]}', "malformed_provider_response", "FAILED"),
-    (
-        "VD2-PROVIDER-DUPLICATE",
-        "normal",
-        200,
-        json.dumps({"choices": [{}, {}]}).encode(),
-        "malformed_provider_response",
-        "FAILED",
-    ),
+    ("VD2-PROVIDER-TIMEOUT", "timeout", 200, b"{}", "provider_deadline_exceeded"),
+    ("VD2-PROVIDER-4XX", "normal", 429, b'{"error":"rate limited"}', "http_status_429"),
+    ("VD2-PROVIDER-5XX", "normal", 503, b'{"error":"unavailable"}', "http_status_503"),
+    ("VD2-PROVIDER-MALFORMED", "normal", 200, b"{not-json", "malformed_provider_response"),
+    ("VD2-PROVIDER-TRUNCATED", "truncated", 200, b'{"choices":[]}', "malformed_provider_response"),
+    ("VD2-PROVIDER-DUPLICATE", "normal", 200, json.dumps({"choices": [{}, {}]}).encode(), "malformed_provider_response"),
 )
 
 
-@pytest.mark.parametrize("case_id,mode,status,body,error_code,terminal", FAULT_CASES, ids=[row[0] for row in FAULT_CASES])
-def test_provider_transport_fault_matrix_is_terminal_and_has_no_forbidden_effects(
-    case_id, mode, status, body, error_code, terminal
+@pytest.mark.parametrize("case_id,mode,status,body,error_code", FAULT_CASES, ids=[row[0] for row in FAULT_CASES])
+def test_provider_transport_fault_matrix_is_typed_and_makes_one_request(
+    case_id, mode, status, body, error_code
 ):
     seen = []
 
@@ -79,34 +72,12 @@ def test_provider_transport_fault_matrix_is_terminal_and_has_no_forbidden_effect
             with pytest.raises(ProviderError, match=error_code) as caught:
                 provider.review({}, [], limits)
 
-        # A reserved attempt always ends terminally; failures cannot materialize
-        # review output, a publication attempt, or any other side effect.
-        budget_state = {}
-        budget = BudgetLedger(
-            {
-                "deadline_seconds": 30,
-                "max_provider_calls": 1,
-                "max_context_bytes": 100,
-                "max_input_bytes_per_task": 100,
-                "max_output_bytes_per_task": 100,
-                "max_output_bytes": 100,
-                "max_context_retrievals": 0,
-                "max_followup_tasks": 0,
-                "max_cost_microunits": None,
-            },
-            budget_state,
-            deadline_epoch=time.time() + 30,
-        )
-        key = case_id.lower()
-        budget.reserve(key, {"provider_calls": 1, "input_bytes": 10, "max_output_bytes": 50})
-        observed_terminal = "TIMED_OUT" if error_code == "provider_deadline_exceeded" else "FAILED"
-        assert observed_terminal == terminal
-        budget.settle(key, output_bytes=None, usage={}, status=observed_terminal)
-        assert budget_state["settlements"][key]["status"] == terminal
-        assert budget_state.get("outputs", {}) == {}
-        assert budget_state.get("publication_attempts", []) == []
+        # The provider boundary raises one typed error and never returns a
+        # result payload. This test does not claim an engine terminal mapping;
+        # engine-level settlement/terminal behavior is covered separately.
         assert len(seen) == 1
         assert caught.value.code == error_code
+
     finally:
         server.shutdown()
         server.server_close()

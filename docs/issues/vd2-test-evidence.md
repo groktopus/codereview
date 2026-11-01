@@ -15,23 +15,23 @@ The generated tests in `tests/test_vd2_invariants.py` use fixed `random.Random` 
 | Successful reservations stay within provider-call/context/output/cost ceilings | 25203 | 800 |
 | Reservation and settlement replay idempotence | 25204 | 80 |
 | Accepted blocker survives reducer and finding consolidation | 25205 | 100 |
-| Stale/unknown/missing/unrecognized freshness or incomplete coverage never approves | 25206 | 20 parameter combinations |
+| Stale/unknown/missing/unrecognized freshness or incomplete coverage never approves | parameterized (no RNG) | 20 combinations |
 
 Total generated examples: 1,124 (1,104 explicit generated loops plus 20 parameterized reducer combinations). The families are bounded deterministic exploration, not probabilistic confidence evidence.
 
 ## Fault matrix
 
-| Test ID | Injected fault | Expected terminal / reason | Forbidden effects asserted |
-|---|---|---|---|
-| VD2-PROVIDER-TIMEOUT | Local HTTP timeout | TIMED_OUT / `provider_deadline_exceeded` | No result payload or publication attempt |
-| VD2-PROVIDER-4XX | HTTP 429 | FAILED / `http_status_429` | No result payload or publication attempt |
-| VD2-PROVIDER-5XX | HTTP 503 | FAILED / `http_status_503` | No result payload or publication attempt |
-| VD2-PROVIDER-MALFORMED | Invalid JSON body | FAILED / `malformed_provider_response` | No result payload or publication attempt |
-| VD2-PROVIDER-TRUNCATED | Content-Length exceeds transmitted body | FAILED / `malformed_provider_response` | No result payload or publication attempt |
-| VD2-PROVIDER-DUPLICATE | Two choices instead of the single accepted response | FAILED / `malformed_provider_response` | No result payload or publication attempt |
-| VD2-BUDGET-DUPLICATE-REPLAY | Conflicting replay after failure settlement | Existing FAILED preserved; conflicting replay rejected | No result payload |
+| Test ID | Injected fault | Asserted typed boundary |
+|---|---|---|
+| VD2-PROVIDER-TIMEOUT | Local HTTP timeout | `ProviderError` `provider_deadline_exceeded`; exactly one request |
+| VD2-PROVIDER-4XX | HTTP 429 | `ProviderError` `http_status_429`; exactly one request |
+| VD2-PROVIDER-5XX | HTTP 503 | `ProviderError` `http_status_503`; exactly one request |
+| VD2-PROVIDER-MALFORMED | Invalid JSON body | `ProviderError` `malformed_provider_response`; exactly one request |
+| VD2-PROVIDER-TRUNCATED | Content-Length exceeds transmitted body | `ProviderError` `malformed_provider_response`; exactly one request |
+| VD2-PROVIDER-DUPLICATE | Two choices instead of the single accepted response | `ProviderError` `malformed_provider_response`; exactly one request |
+| VD2-BUDGET-DUPLICATE-REPLAY | Conflicting replay after failure settlement | Existing FAILED settlement preserved; conflicting replay rejected |
 
-Cases are offline local fixtures; they do not qualify any live provider. GitHub and artifact/publication cases are intentionally left to SE-4's matrix.
+Cases are offline local fixtures; they do not qualify any live provider, and they assert provider-boundary errors rather than an engine terminal-state mapping. Engine terminal/settlement behavior is covered by existing engine and budget suites. GitHub and artifact/publication cases are intentionally left to SE-4's matrix.
 
 ## Verification
 
