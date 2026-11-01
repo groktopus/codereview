@@ -1,6 +1,8 @@
 # Hosted recovery drill evidence — 2026-09-28
 
-This record supplements [the hosted rehearsal protocol](HOSTED-RECOVERY-REHEARSAL.md) with the observed two-run result. The rehearsal used source commit `3279a72cf7568a99fc094f90f785d6a40c72edce` on `refs/heads/main`. It records an operational recovery test using a synthetic fixture and loopback fake provider; it does not establish production readiness, review quality, or adoption.
+**Historical checkpoint — retained evidence.** This is a dated checkpoint or evidence note. It is not current guidance, and its statements are scoped to the date and revision it names. Nothing here has been deleted: the [archive policy](../README.md#archive-policy) explains why. Start with the current [status page](../../STATUS.md) and the [documentation index](../../README.md).
+
+This record supplements [the hosted rehearsal protocol](../../HOSTED-RECOVERY-REHEARSAL.md) with the observed two-run result. The rehearsal used source commit `3279a72cf7568a99fc094f90f785d6a40c72edce` on `refs/heads/main`. It records an operational recovery test using a synthetic fixture and loopback fake provider; it does not establish production readiness, review quality, or adoption.
 
 ## Run A: cancellation and retained evidence
 
@@ -18,7 +20,7 @@ The recorded disposition is `INCOMPLETE`; outcomes are `FAILED` and `SUCCEEDED`;
 
 ## Bounds and limitations
 
-The protocol in [the rehearsal document](HOSTED-RECOVERY-REHEARSAL.md) limits the drill to two runs and one cancellation, with no retries. It requires polling the exact Run A at intervals of at least 10 seconds and allows at most 240 seconds from first observing `in_progress` for readiness. Readiness retrieval is capped at 64 KiB and 60 seconds; its archive must contain exactly one `readiness.json` of at most 2 KiB. Run A's helper budget is 480 seconds, allows up to 180 seconds for the in-flight checkpoint, holds to an absolute 450-second deadline, and bounds readiness upload to 45 seconds within the shared budget. Each job has a 15-minute timeout.
+The protocol in [the rehearsal document](../../HOSTED-RECOVERY-REHEARSAL.md) limits the drill to two runs and one cancellation, with no retries. It requires polling the exact Run A at intervals of at least 10 seconds and allows at most 240 seconds from first observing `in_progress` for readiness. Readiness retrieval is capped at 64 KiB and 60 seconds; its archive must contain exactly one `readiness.json` of at most 2 KiB. Run A's helper budget is 480 seconds, allows up to 180 seconds for the in-flight checkpoint, holds to an absolute 450-second deadline, and bounds readiness upload to 45 seconds within the shared budget. Each job has a 15-minute timeout.
 
 Run B has a shared 540-second deadline and a 12-second CLI-resume bound. Metadata retrieval is capped at 256 KiB/30 seconds. Final archive retrieval is capped at 7,900,000 bytes/150 seconds; extraction allows at most eight regular files, each no larger than 6 MB. The fake provider binds to loopback port 18765, returns one synthetic response, and holds the second request until cancellation. Setup/build can use GitHub Actions and package registries; the rehearsal did not call an inference provider or run target PR code.
 

@@ -1,6 +1,8 @@
 # PR Review Harness architecture
 
-Status: proposed target architecture for specification and implementation planning. No decision authority has accepted these proposals. The only confirmed delivery choice is a CLI with GitHub Actions integration, piloted against magnus919/SlopSearX. Repository-specific conventions, GitHub configuration, credentials, model endpoints, and operating limits remain subject to read-only discovery and verification.
+> **Historical/proposed design — not a description of the shipped system.** This document was written before implementation as a proposal, and no decision authority accepted it. It still describes a durable per-run ledger and SQLite-era durable state; the current delivery direction is ephemeral stateless CLI/Actions execution with GitHub-backed review reconciliation. See [PRODUCTION-DELIVERY.md](../PRODUCTION-DELIVERY.md), section "Architecture correction: stateless publication". Other proposals here (isolation, publication shape, budgets, resume) may also be unimplemented or superseded. Current architecture and status: [STATUS.md](../STATUS.md), [PRODUCTION-DELIVERY.md](../PRODUCTION-DELIVERY.md), [CORE-PRODUCTION.md](../CORE-PRODUCTION.md), [CURRENT-EXECUTION-PLAN.md](../CURRENT-EXECUTION-PLAN.md), and [CONTRACT-REGISTRY.md](../CONTRACT-REGISTRY.md). Documentation index: [docs/README.md](../README.md).
+
+Historical status: proposed target architecture for specification and implementation planning. No decision authority has accepted these proposals. The only confirmed delivery choice is a CLI with GitHub Actions integration, piloted against magnus919/SlopSearX. Repository-specific conventions, GitHub configuration, credentials, model endpoints, and operating limits remain subject to read-only discovery and verification.
 
 ## Drivers and evidence
 

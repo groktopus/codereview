@@ -1,5 +1,7 @@
 # Context selection v2 implementation plan
 
+**Superseded design — retained for provenance.** This design, plan, or proposal was written before or alongside implementation. It is not a description of the shipped system and it is not maintained. Some proposals here (durable per-run ledger or SQLite-era state, publication shape, isolation plan) may differ from the current stateless implementation. See [PRODUCTION-DELIVERY.md](../../PRODUCTION-DELIVERY.md) and [STATUS.md](../../STATUS.md) for the current position. The [archive policy](../README.md#archive-policy) explains retention. Index: [docs/README.md](../../README.md).
+
 **Status:** planning artifact only. No selector implementation, profile
 migration, provider request, or production budget change is authorized or
 implied by this plan. The current profile and v1 behavior remain the baseline.
@@ -61,9 +63,10 @@ bytes, that preflight fails all three ceilings. A narrower binding sensitivity
 run omitted applicable `CONTRIBUTING.md` obligations and was rejected; it is
 not a valid savings baseline. These are local preflight measurements, not live
 provider usage, quality evidence, or production budget recommendations. See
-[`CONTEXT-SELECTION.md`](CONTEXT-SELECTION.md),
-[`CONTEXT-SELECTION-V2-DESIGN.md`](CONTEXT-SELECTION-V2-DESIGN.md), and
-[`PILOT-RESULTS.md`](PILOT-RESULTS.md).
+[`CONTEXT-SELECTION.md`](../../CONTEXT-SELECTION.md) and
+[`PILOT-RESULTS.md`](../../PILOT-RESULTS.md). The referenced
+`CONTEXT-SELECTION-V2-DESIGN.md` was never committed to this repository;
+this plan is retained as historical evidence rather than a broken link.
 
 ## Policy inventory without shrinking scope
 
@@ -74,7 +77,7 @@ manually transcribe policy. Each extracted span receives a revision-bound
 identity and hash. If a parser cannot safely segment a source, retain the
 whole source as one span or report an extraction gap; never omit unparsed
 content to create a smaller inventory. The empty structure in
-[`examples/context-selection-v2/policy-inventory.template.json`](../examples/context-selection-v2/policy-inventory.template.json)
+[`examples/context-selection-v2/policy-inventory.template.json`](../../../examples/context-selection-v2/policy-inventory.template.json)
 is a schema aid, not a SlopSearX policy inventory.
 
 Applicability is a separate deterministic operation. A trace row is emitted

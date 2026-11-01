@@ -1,5 +1,7 @@
 # Bounded v16 review capacity candidate
 
+**Superseded design — retained for provenance.** This design, plan, or proposal was written before or alongside implementation. It is not a description of the shipped system and it is not maintained. Some proposals here (durable per-run ledger or SQLite-era state, publication shape, isolation plan) may differ from the current stateless implementation. See [PRODUCTION-DELIVERY.md](../../PRODUCTION-DELIVERY.md) and [STATUS.md](../../STATUS.md) for the current position. The [archive policy](../README.md#archive-policy) explains retention. Index: [docs/README.md](../../README.md).
+
 The v16 profile is a separately selected capacity candidate for the v3 source-window splitter. It keeps the v14 review criteria, checks, lenses, and trusted-policy paths, and adds one general security rule for `engines/*.py`. Network clients cross credential, upstream-input, and remote-service trust boundaries, so engine adapters receive security, correctness, and tests review from FOCUSED mode. The profile also bounds source capture, permits HEAD retrieval for implementation and test evidence, and caps native Choice assessments at four candidates. The workflow selector must opt into this exact profile and limits pair; v14 and the fixed-budget trial profiles remain unchanged.
 
 ## Capacity contract
