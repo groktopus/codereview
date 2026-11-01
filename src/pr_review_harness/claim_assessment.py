@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import MAX_REF_COUNT, ContractIssue, validate_adjudication
+from .errors import BoundaryValueError
 
 CONTRACT_VERSION = "claim-assessment.1"
 PRIMARY_ASSESSMENT_CONTRACT_VERSION = "claim-assessment.2"
@@ -89,7 +90,7 @@ _CAUSAL_ROLE_NAMES = {"behavior", "consumer", "impact"}
 _CAUSAL_SUPPORT = {"SUPPORTED", "NOT_ESTABLISHED", "CONTRADICTED"}
 
 
-class ClaimAssessmentError(ValueError):
+class ClaimAssessmentError(BoundaryValueError):
     """A local input or finite-limit contract was violated."""
 
     def __init__(self, code: str):

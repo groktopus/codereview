@@ -16,6 +16,7 @@ from .claim_assessment import (
     CONTRACT_VERSION,
     PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION,
     PRIMARY_ASSESSMENT_CONTRACT_VERSION,
+    ClaimAssessmentError,
     _questions,
     _validate_primary_assessment,
 )
@@ -260,7 +261,9 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
     ):
         try:
             primary = _validate_primary_assessment(state.get("primary_assessment"), set(evidence_ids))
-        except Exception:
+        except (ClaimAssessmentError, KeyError):
+            # Expected untrusted-payload rejection; a TypeError or other
+            # harness defect must propagate instead of becoming a provider code.
             raise ProviderError("invalid_primary_assessment") from None
         if primary != state.get("primary_assessment"):
             raise ProviderError("invalid_primary_assessment")

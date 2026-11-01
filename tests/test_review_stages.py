@@ -235,7 +235,7 @@ def test_stage_module_import_graph_is_acyclic():
 
     for name in sorted(graph):
         visit(name)
-    assert graph["review_stages"] == {"contract_registry", "review_state"}
+    assert graph["review_stages"] == {"contract_registry", "errors", "review_state"}
     assert graph["contract_registry"] == set()
     assert "review_stages" in graph["engine"]
 

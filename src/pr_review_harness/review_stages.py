@@ -18,6 +18,7 @@ import functools
 from typing import Any
 
 from .contract_registry import ContractRegistryError, effective_contract_set, load_registry
+from .errors import defect_name, is_defect
 from .review_state import RunState
 
 _CONTRACT_REJECTION_DETAILS = {
@@ -272,6 +273,7 @@ def start_attempt_stage(state: RunState, task: dict, attempt_index: int) -> dict
     from .engine import (
         BudgetExhausted,
         EnginePreflightError,
+        IsolatedCallError,
         IsolatedInvocation,
         _canonical,
         _hash,
@@ -398,7 +400,9 @@ def start_attempt_stage(state: RunState, task: dict, attempt_index: int) -> dict
             ),
             output_limit=int(reservation["max_output_bytes"]),
         )
-    except Exception as exc:
+    except (IsolatedCallError, OSError, ValueError) as exc:
+        # Expected spawn/argument boundary; a TypeError here is a harness
+        # defect and propagates instead of becoming WORKER_START_FAILED.
         if capture_spec is not None:
             state.private_capture.finalize_pending(capture_spec["call_id"], "failed")
         try:
@@ -445,7 +449,16 @@ def start_attempt_stage(state: RunState, task: dict, attempt_index: int) -> dict
 
 
 def finish_attempt_stage(state: RunState, prepared: dict) -> dict:
-    from .engine import _canonical, _hash, _now, _settlement_observation, _unwrap, time
+    from .engine import (
+        BudgetExhausted,
+        IsolatedCallError,
+        _canonical,
+        _hash,
+        _now,
+        _settlement_observation,
+        _unwrap,
+        time,
+    )
     task = prepared["task"]
     task_id = prepared["task_id"]
     evidence = prepared["evidence"]
@@ -560,7 +573,9 @@ def finish_attempt_stage(state: RunState, prepared: dict) -> dict:
             "started_at": prepared["started_at"],
             "finished_at": _now(),
         }
-    except Exception as exc:
+    except (BudgetExhausted, IsolatedCallError, OSError, ValueError, KeyError) as exc:
+        # Expected invocation/validation boundary. Defect types (TypeError,
+        # AttributeError, ...) are deliberately absent and propagate.
         if prepared.get("capture_spec") is not None:
             try:
                 if state.private_capture.reconcile(prepared["capture_spec"]) is None:
@@ -853,6 +868,7 @@ a non-resume collision raises ``run_id_already_exists``.  Returns the
 saved result (refreshed for freshness) or ``None`` to start a new run."""
     from .engine import (
         EnginePreflightError,
+        IsolatedCallError,
         Path,
         _atomic_write,
         _bounded_freshness,
@@ -956,7 +972,11 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
                     state.saved["completed_at"] = _now()
                     state.saved["result_hash"] = _hash({k: v for k, v in state.saved.items() if k != "result_hash"})
                     _atomic_write(state.output_path, _canonical(state.saved) + b"\n")
-                except Exception:
+                except (IsolatedCallError, OSError, TimeoutError, ValueError, KeyError) as exc:
+                    if isinstance(exc, IsolatedCallError) and is_defect(exc):
+                        raise
+                    # Expected freshness/write boundary: the prior result is
+                    # rewritten as UNKNOWN freshness, which cannot approve.
                     state.saved["freshness"] = "UNKNOWN"
                     state.saved["freshness_details"] = {
                         "expected_head_sha": state.snapshot.get("head_sha"),
@@ -1498,6 +1518,7 @@ def run_followups(state: RunState) -> None:
         _ADJUDICATION_V3,
         _CAUSAL_ROLES,
         BudgetExhausted,
+        IsolatedCallError,
         IsolatedInvocation,
         _bind_specialist_input,
         _canonical,
@@ -1827,7 +1848,10 @@ def run_followups(state: RunState) -> None:
                             raise ValueError("evidence_identity_conflict")
                         state.evidence_map.setdefault(state.item["evidence_id"], state.item)
                     state.checkpoint()
-                except Exception as exc:
+                except (BudgetExhausted, IsolatedCallError, OSError, ValueError, KeyError) as exc:
+                    # Expected retrieval/validation boundary: the gap stays
+                    # UNRESOLVED and the reason is a bounded safe code; a
+                    # harness defect propagates instead of being recorded.
                     state.record["retrieval_status"] = "UNRESOLVED"
                     state.record["retrieval_reason"] = str(exc)[:120]
                     try:
@@ -2162,7 +2186,13 @@ def run_followups(state: RunState) -> None:
                             ),
                         )
                 except Exception as exc:
-                    if isinstance(exc, BudgetExhausted):
+                    # Separate a programming defect from an expected boundary
+                    # failure. The defect is recorded explicitly; it still
+                    # yields an unresolved assessment and can never approve.
+                    defect_kind = defect_name(exc)
+                    if defect_kind is not None:
+                        state.safe_error_code = "HARNESS_DEFECT"
+                    elif isinstance(exc, BudgetExhausted):
                         state.budget_code = str(exc)
                         state.safe_error_code = (
                             state.budget_code
@@ -2188,9 +2218,13 @@ def run_followups(state: RunState) -> None:
                         state.safe_error_code = type(exc).__name__
                     state.assessment = {
                         "outcome": "UNCERTAIN",
-                        "reason": type(exc).__name__,
+                        "reason": defect_kind or type(exc).__name__,
                         "error_code": state.safe_error_code,
                     }
+                    if defect_kind is not None:
+                        state.assessment["defect"] = True
+                        state.assessment["defect_type"] = defect_kind
+                        state.candidate_record["adjudication_defect"] = defect_kind
                     if state.safe_error_code in {
                         "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED",
                         "REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED",
@@ -2315,6 +2349,8 @@ unknown or failed adjudication never becomes a clean approval."""
         _ADJUDICATION_V3,
         _CAUSAL_ROLES,
         BudgetExhausted,
+        ClaimAssessmentError,
+        IsolatedCallError,
         _canonical,
         _claim_adapter_hash,
         _hash,
@@ -2769,7 +2805,19 @@ unknown or failed adjudication never becomes a clean approval."""
                 if state.reservation is not None:
                     state.attempts_used += 1
                 state.checkpoint()
-            except Exception as exc:
+            except (
+                ClaimAssessmentError,
+                IsolatedCallError,
+                OSError,
+                ValueError,
+                KeyError,
+            ) as exc:
+                # Expected advisory/dispatch boundary. Local defect types are
+                # absent here and propagate; a defect raised inside the spawned
+                # assessor arrives as IsolatedCallError.remote_type and is
+                # recorded explicitly below instead of looking like a normal
+                # shadow miss.
+                state.defect_kind = defect_name(exc)
                 state.meta = getattr(exc, "meta", {})
                 state.meta = state.meta if isinstance(state.meta, dict) else {}
                 state.remote_type = getattr(exc, "remote_type", None)
@@ -2805,13 +2853,17 @@ unknown or failed adjudication never becomes a clean approval."""
                 state.claim_rows[state.candidate_id].update(
                     {
                         "status": "INTERRUPTED_UNKNOWN" if state.uncertain else "FAILED",
-                        "reason_code": "SHADOW_DISPATCH_UNCERTAIN"
+                        "reason_code": "SHADOW_ASSESSOR_DEFECT"
+                        if state.defect_kind is not None
+                        else "SHADOW_DISPATCH_UNCERTAIN"
                         if state.uncertain
                         else "IPC_OUTPUT_LIMIT_EXCEEDED"
                         if state.actual_output is not None and state.actual_output > state.ipc_cap
                         else type(exc).__name__,
                         "error_type": type(exc).__name__,
                         "error_code": _safe_claim_error_code(exc),
+                        "defect": state.defect_kind is not None,
+                        "defect_type": state.defect_kind,
                         "actual_output_bytes_observed": state.actual_output,
                         "observed_output_limit_violation": (
                             {"actual_bytes": state.actual_output, "reserved_bytes": state.ipc_cap}
@@ -2832,6 +2884,7 @@ Contract: blocker preservation - a known supported blocker survives
 partial coverage; model agreement is never treated as truth."""
     from .engine import (
         _REQUIRED_CONTEXT_NOTE_CODES,
+        IsolatedCallError,
         _bounded_freshness,
         _coverage_note_observation,
         _hash,
@@ -3174,7 +3227,11 @@ partial coverage; model agreement is never treated as truth."""
             if isinstance(state.check, dict) and state.check.get("freshness") in {"CURRENT", "STALE", "UNKNOWN"}:
                 state.freshness = state.check["freshness"]
                 state.freshness_details.update({k: v for k, v in state.check.items() if k != "freshness"})
-        except Exception:
+        except (IsolatedCallError, OSError, TimeoutError, ValueError, KeyError) as exc:
+            if isinstance(exc, IsolatedCallError) and is_defect(exc):
+                raise
+            # Expected freshness boundary: UNKNOWN freshness is conservative
+            # and can never approve; defect types propagate.
             state.freshness = "UNKNOWN"
     elif state.snapshot.get("freshness_basis") == "HISTORICAL_SNAPSHOT" and state.snapshot.get("snapshot_hash"):
         state.freshness = "CURRENT"
@@ -3428,6 +3485,9 @@ reduced deterministically from preserved findings and coverage."""
                     pass
             state.advisory_assessment = {"status": "NOT_RUN", "reason": str(exc)}
         except Exception as exc:
+            # Intentional fail-closed advisory boundary: this runs after the
+            # deterministic disposition and can never change it. A defect is
+            # still labelled explicitly rather than reported as a normal miss.
             state.meta = getattr(exc, "meta", {})
             state.usage = state.meta.get("usage", {}) if isinstance(state.meta, dict) else {}
             try:
@@ -3449,7 +3509,8 @@ reduced deterministically from preserved findings and coverage."""
                 pass
             state.advisory_assessment = {
                 "status": "FAILED",
-                "error_code": type(exc).__name__,
+                "error_code": "HARNESS_DEFECT" if is_defect(exc) else type(exc).__name__,
+                "defect_type": defect_name(exc),
                 "provider_error_meta": state.meta if isinstance(state.meta, dict) else {},
                 "usage": state.usage,
             }
