@@ -74,7 +74,11 @@ def test_generator_writes_private_reference_only_configs(tmp_path):
         ({"JEV_MODEL": "\nsecret"}, "jev_model_invalid"),
         ({"LLM_BASE_URL": "https://user:password@llm.example.invalid/v1"}, "llm_base_url_invalid"),
         ({"LLM_BASE_URL": "https://llm.example.invalid/v1?token=hidden"}, "llm_base_url_invalid"),
+        ({"LLM_BASE_URL": "https://llm.example.invalid/v1#fragment"}, "llm_base_url_invalid"),
         ({"LLM_BASE_URL": "http://llm.example.invalid/v1"}, "llm_base_url_remote_http_forbidden"),
+        ({"JEV_BASE_URL": "http://decision.example.invalid/v1"}, "jev_base_url_remote_http_forbidden"),
+        ({"JEV_BASE_URL": "https://user:password@decision.example.invalid/v1"}, "jev_base_url_invalid"),
+        ({"JEV_BASE_URL": "https://decision.example.invalid/v1?token=hidden"}, "jev_base_url_invalid"),
         ({"LLM_BASE_URL": "https://llm.example.invalid/v1/chat/completions"}, "llm_base_url_must_be_api_root"),
         ({"JEV_BASE_URL": "https://decision.example.invalid/v1/systemone"}, "jev_base_url_must_be_api_root"),
     ],
@@ -103,6 +107,22 @@ def test_loopback_http_is_available_for_local_provider_adapters(tmp_path):
     decision = json.loads(Path(paths["decision_config"]).read_text())
     assert provider["base_url"] == "http://127.0.0.1:8000/v1"
     assert decision["endpoint"] == "http://localhost:8001/v1/systemone"
+
+
+def test_ipv6_loopback_http_is_available_for_local_provider_adapters(tmp_path):
+    result = _run(
+        tmp_path,
+        _environment(
+            LLM_BASE_URL="http://[::1]:8000/v1",
+            JEV_BASE_URL="http://[::1]:8001/v1",
+        ),
+    )
+    assert result.returncode == 0, result.stderr
+    paths = json.loads(result.stdout)
+    provider = json.loads(Path(paths["provider_config"]).read_text())
+    decision = json.loads(Path(paths["decision_config"]).read_text())
+    assert provider["base_url"] == "http://[::1]:8000/v1"
+    assert decision["endpoint"] == "http://[::1]:8001/v1/systemone"
 
 
 def test_custom_provider_api_root_paths_are_preserved_without_scheme_guessing(tmp_path):

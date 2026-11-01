@@ -910,6 +910,69 @@ class ProviderBoundaryTests(unittest.TestCase):
             make_provider({"kind": "openai", "base_url": self.base_url, "model": "m", "api_key": "not-a-real-secret"})
 
 
+class ProviderTransportPolicyTests(unittest.TestCase):
+    """The same URL policy is enforced when either provider family is built."""
+
+    def _openai(self, endpoint):
+        return OpenAIProvider(
+            {
+                "kind": "openai_compatible",
+                "base_url": endpoint,
+                "model": "test-model",
+                "api_key_env": "POLICY_TEST_KEY",
+            }
+        )
+
+    def _decision(self, endpoint):
+        return DecisionProvider(
+            {
+                "kind": "typesafe",
+                "endpoint": endpoint,
+                "model": "jev-latest",
+                "api_key_env": "POLICY_TEST_KEY",
+            }
+        )
+
+    def test_remote_http_is_rejected_for_both_provider_families(self):
+        for factory in (self._openai, self._decision):
+            with self.subTest(factory=factory.__name__):
+                with self.assertRaisesRegex(ProviderError, "remote_http_forbidden"):
+                    factory("http://provider.example.invalid/v1")
+                with self.assertRaisesRegex(ProviderError, "remote_http_forbidden"):
+                    factory("http://localhost.provider.example.invalid/v1")
+
+    def test_remote_https_is_accepted_for_both_provider_families(self):
+        self.assertEqual(self._openai("https://provider.example.invalid/v1").base_url, "https://provider.example.invalid/v1")
+        self.assertEqual(
+            self._decision("https://decision.example.invalid/v1/systemone").endpoint,
+            "https://decision.example.invalid/v1/systemone",
+        )
+
+    def test_loopback_http_is_accepted_for_both_provider_families(self):
+        for endpoint in ("http://127.0.0.1:8123/v1", "http://[::1]:8123/v1", "http://localhost:8123/v1"):
+            with self.subTest(endpoint=endpoint):
+                self.assertEqual(self._openai(endpoint).base_url, endpoint)
+                self.assertEqual(self._decision(endpoint).endpoint, endpoint)
+
+    def test_credentials_query_and_fragment_are_rejected_for_both_provider_families(self):
+        cases = (
+            "https://user:password@provider.example.invalid/v1",
+            "https://provider.example.invalid/v1?token=hidden",
+            "https://provider.example.invalid/v1#fragment",
+        )
+        for factory in (self._openai, self._decision):
+            for endpoint in cases:
+                with self.subTest(factory=factory.__name__, endpoint=endpoint):
+                    with self.assertRaisesRegex(
+                        ProviderError, "endpoint_must_not_contain_credentials_or_query"
+                    ):
+                        factory(endpoint)
+
+    def test_malformed_port_is_rejected(self):
+        with self.assertRaisesRegex(ProviderError, "invalid_endpoint"):
+            self._openai("https://provider.example.invalid:bad/v1")
+
+
 class InMemoryNativeResponse:
     def __init__(self, body: bytes):
         from io import BytesIO

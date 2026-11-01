@@ -21,6 +21,7 @@ from .claim_assessment import (
 )
 from .providers import (
     _HTTP_OPENER,
+    LOOPBACK_HTTP_HOSTS,
     ProviderError,
     _bounded_response,
     _env_credential,
@@ -266,7 +267,19 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
 
 
 def _endpoint(value: Any, *, operator_root: bool = False) -> str:
-    endpoint = _safe_url(value)
+    if isinstance(value, str):
+        try:
+            _ = urlsplit(value).port
+        except ValueError:
+            raise ProviderError("unsupported_native_endpoint") from None
+    try:
+        endpoint = _safe_url(value)
+    except ProviderError as exc:
+        # Preserve the transport's historical error code for rejected
+        # non-loopback plaintext routes; the shared policy still decides.
+        if exc.code == "remote_http_forbidden":
+            raise ProviderError("unsupported_native_endpoint") from None
+        raise
     try:
         parsed = urlsplit(endpoint)
         port = parsed.port
@@ -277,7 +290,7 @@ def _endpoint(value: Any, *, operator_root: bool = False) -> str:
     if parsed.scheme == "https" and parsed.path == "/v1/systemone" and endpoint == _OFFICIAL_ENDPOINT:
         return endpoint
     host = parsed.hostname.lower() if parsed.hostname else ""
-    loopback = host in {"localhost", "127.0.0.1", "::1"}
+    loopback = host in LOOPBACK_HTTP_HOSTS
     if (
         loopback
         and parsed.scheme in {"http", "https"}

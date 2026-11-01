@@ -194,15 +194,41 @@ def _reject_literal_credentials(config: dict[str, Any]) -> None:
         raise ProviderError("literal_credentials_forbidden")
 
 
-def _safe_url(value: Any) -> str:
+# HTTP is permitted only for these exact hostnames. This is deliberately an
+# explicit allowlist rather than a private-address or name-resolution check:
+# remote plaintext endpoints would send the bearer token in cleartext.
+LOOPBACK_HTTP_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def validate_provider_url(value: Any) -> str:
+    """Apply the single provider transport policy and normalize the endpoint.
+
+    Remote endpoints require HTTPS. Plain HTTP is accepted only when the URL
+    hostname appears verbatim in ``LOOPBACK_HTTP_HOSTS``. User information,
+    query strings, fragments, malformed ports, and non-HTTP(S) schemes are
+    rejected. Trailing slashes are removed from the returned value.
+    """
     if not _nonempty(value):
         raise ProviderError("invalid_endpoint")
-    parsed = urlsplit(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        # Accessing .port validates malformed port syntax.
+        _ = parsed.port
+    except ValueError:
+        raise ProviderError("invalid_endpoint") from None
+    if parsed.scheme not in {"http", "https"} or not hostname:
         raise ProviderError("invalid_endpoint")
-    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+    if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
         raise ProviderError("endpoint_must_not_contain_credentials_or_query")
+    if parsed.scheme == "http" and hostname.casefold() not in LOOPBACK_HTTP_HOSTS:
+        raise ProviderError("remote_http_forbidden")
     return value.rstrip("/")
+
+
+def _safe_url(value: Any) -> str:
+    """Internal alias for the shared transport policy."""
+    return validate_provider_url(value)
 
 
 def _finite_positive(value: Any, default: float, label: str) -> float:
