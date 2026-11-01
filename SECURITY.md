@@ -76,8 +76,10 @@ Good-faith research that stays within this policy will not be pursued by the mai
 [`.github/workflows/security.yml`](.github/workflows/security.yml) runs:
 
 - **CodeQL** for Python on pull requests, pushes to `main`, and a weekly schedule;
-- **dependency review** on pull requests, failing on high or critical known vulnerabilities;
+- **dependency review** on pull requests when the repository dependency graph is enabled, failing on high or critical known vulnerabilities;
 - a **secret scan** with a SHA-pinned TruffleHog action on pull requests, pushes to `main`, and a weekly schedule.
+
+The dependency-review job is gated on the repository variable `DEPENDENCY_GRAPH_ENABLED=true` and requires the dependency graph under *Settings → Code security and analysis*. Until that is enabled, the job skips rather than failing every pull request.
 
 The workflow is read-only (`contents: read`; `security-events: write` only for the CodeQL SARIF upload), holds no repository secrets, and never checks out or executes a reviewed target repository. A green scan means those detectors found nothing on that revision. It is **not** a security certification and does not establish review quality.
 

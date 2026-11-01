@@ -47,6 +47,10 @@ jobs:
 
   dependency-review:
     name: Dependency review
+    # Requires the repository dependency graph (Settings -> Code security and
+    # analysis). Set the repository variable DEPENDENCY_GRAPH_ENABLED=true after
+    # enabling it; otherwise this job skips instead of failing every PR.
+    if: ${{ vars.DEPENDENCY_GRAPH_ENABLED == 'true' }}
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
