@@ -1615,7 +1615,7 @@ def _stats(args) -> int:
         )
         if args.jsonl:
             records = write_run_summaries_jsonl(selected, args.jsonl)
-            stats["jsonl_export"] = {"path": str(Path(args.jsonl).expanduser().resolve()), "records": records}
+            stats["jsonl_export"] = {"records": records}
         stats["summary"] = render_stats_text(stats)
     except (OSError, ValueError) as exc:
         detail = str(exc).replace("\r", " ").replace("\n", " ")[:300]
