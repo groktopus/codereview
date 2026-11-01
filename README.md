@@ -79,6 +79,8 @@ python -m venv /tmp/pr-review-wheel
 
 No target code, hooks, tests, or builds execute during review. The current CLI has no live publication path, and the central publisher is hard-disabled; see [status](docs/STATUS.md) for the separately installed target-local route. Merging and repairs are unsupported. Missing, failed, or untrusted required-check evidence stays incomplete. GitHub Actions uses trusted harness/profile files from the base revision and acquires pull-request objects into a bare repository; it never checks out the pull-request head. Context retrieval is limited to immutable Git objects and explicitly allowlisted paths. It does not establish calibrated model quality, complete spec coverage, or production suitability.
 
+Security policy, threat model, and read-only scans: [SECURITY.md](SECURITY.md).
+
 The reusable Actions analysis is inactive until a trusted target-repository workflow calls it at a reviewed full commit SHA. It takes trusted harness/profile source separately from the target PR and fetches target objects to a bare store. It uses a configured inference provider and sends selected repository evidence to that provider. The workflow uses a read-only token and uploads a short-lived report artifact; it does not publish a review or change the PR. Historical free-model comparisons are manual, bounded, and tied to frozen commit pairs. See [Operations](docs/OPERATIONS.md) before enabling repository secrets or relying on artifacts.
 
 ```sh
