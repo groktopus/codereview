@@ -49,6 +49,7 @@ implementation.
 
 | Document | What it records |
 |---|---|
+| [Typed boundaries](TYPED-BOUNDARIES.md) | Stable record contracts, typed stage interfaces, and the strict-check scope and migration limits. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |
 | [Current package architecture](ARCHITECTURE.md) | Production module boundaries, package surface, and the experiments split. |
