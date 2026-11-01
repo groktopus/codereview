@@ -42,6 +42,7 @@ scoped to the revision and date it names.
 | Document | What it records |
 |---|---|
 | [Documentation truth checks](DOCUMENTATION-TRUTH-CHECKS.md) | DT-3 source-only link, claim, revision, contract-label, and OE-3 freshness-check contract. |
+| [Status evidence (generated)](STATUS-EVIDENCE.md) | Derived revision, run, contract, publication, and owner-review staleness evidence generated from checked-in artifacts; not an owner review. |
 
 Contracts, schemas, policies, and operating references that current work relies
 on. A "proposed" label is meaningful: it is not acceptance or evidence of

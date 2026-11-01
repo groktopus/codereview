@@ -1,0 +1,86 @@
+{
+  "schema_version": "status-evidence-inputs.v1",
+  "observation": {
+    "revision": "431b3ecc7950a4e7063e966b16ce6d01a6d61450"
+  },
+  "contract_registry": "src/pr_review_harness/contract_registry.json",
+  "last_verified_run": {
+    "state": "NOT_RECORDED",
+    "summary_schema": "review-run-summary.v1",
+    "reason": "no retained review-run-summary.v1 artifact is checked in; CI test execution is not a review run"
+  },
+  "publication_decisions": [
+    {
+      "route": "harness CLI (`pr-review publish`)",
+      "state": "UNAVAILABLE \u2014 preview only",
+      "decision": "NO-GO",
+      "evidence_class": "REPORTED",
+      "decision_date": "2026-09-29",
+      "evidence_links": [
+        "docs/PUBLICATION-READINESS.md",
+        "docs/STATUS.md",
+        "src/pr_review_harness/cli.py"
+      ]
+    },
+    {
+      "route": "central `groktopus/codereview` Actions route",
+      "state": "HARD-DISABLED",
+      "decision": "NO-GO",
+      "evidence_class": "REPORTED",
+      "decision_date": "2026-09-29",
+      "evidence_links": [
+        "docs/PUBLICATION-READINESS.md",
+        ".github/workflows/pr-publish.yml"
+      ]
+    },
+    {
+      "route": "target-local `magnus919/SlopSearX` route",
+      "state": "REPORTED ENABLED (DISPOSITION)",
+      "decision": "2026-10-11 cutover record",
+      "evidence_class": "REPORTED",
+      "decision_date": "2026-10-11",
+      "evidence_links": [
+        "docs/CURRENT-STATUS.md",
+        "docs/STATUS.md"
+      ]
+    }
+  ],
+  "owner_review_manifest": "scripts/documentation-truth-evidence.v1.json",
+  "historical_snapshots": [
+    {
+      "label": "2026-09-26 specification-gap snapshot",
+      "path": "docs/VERIFICATION.md"
+    },
+    {
+      "label": "2026-09-29 delivery reset checkpoint",
+      "path": "docs/history/checkpoints/DELIVERY-RESET-2026-09-29.md"
+    },
+    {
+      "label": "2026-09-29 PR-464 shadow-run checkpoint",
+      "path": "docs/history/checkpoints/pr464-shadow-run-2026-09-29.md"
+    },
+    {
+      "label": "Context-selection candidate failure evidence",
+      "path": "docs/history/evidence/CONTEXT-CANDIDATE-FAILURE.md"
+    }
+  ],
+  "freshness_source_paths": [
+    "src/pr_review_harness/contract_registry.json",
+    "src/pr_review_harness/cli.py",
+    ".github/workflows/pr-publish.yml",
+    ".github/workflows/codereview-self-pilot.yml",
+    "docs/PUBLICATION-READINESS.md",
+    "docs/CURRENT-STATUS.md",
+    "docs/STATUS.md",
+    "scripts/documentation-truth-evidence.v1.json"
+  ],
+  "evidence_links": [
+    "scripts/generate_status_evidence.py",
+    "tests/test_status_evidence.py",
+    "scripts/check_docs_truth.py",
+    "scripts/documentation-truth-evidence.v1.json",
+    ".github/workflows/test.yml",
+    "src/pr_review_harness/contract_registry.json",
+    "docs/STATUS.md"
+  ]
+}

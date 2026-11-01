@@ -1,0 +1,29 @@
+{
+  "schema_version": "documentation-evidence.v1",
+  "documents": [
+    {
+      "document": "docs/STATUS-EVIDENCE.md",
+      "evidence_revision": "431b3ecc7950a4e7063e966b16ce6d01a6d61450",
+      "evidence_date": "2026-11-01",
+      "source_paths": [
+        "src/pr_review_harness/contract_registry.json",
+        "src/pr_review_harness/cli.py",
+        ".github/workflows/pr-publish.yml",
+        ".github/workflows/codereview-self-pilot.yml",
+        "docs/PUBLICATION-READINESS.md",
+        "docs/CURRENT-STATUS.md",
+        "docs/STATUS.md",
+        "scripts/documentation-truth-evidence.v1.json"
+      ],
+      "evidence_links": [
+        "../scripts/generate_status_evidence.py",
+        "../tests/test_status_evidence.py",
+        "../scripts/check_docs_truth.py",
+        "../scripts/documentation-truth-evidence.v1.json",
+        "../.github/workflows/test.yml",
+        "../src/pr_review_harness/contract_registry.json",
+        "STATUS.md"
+      ]
+    }
+  ]
+}
