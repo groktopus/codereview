@@ -37,7 +37,7 @@
   - Keep release notes free of quality or replacement claims.
 - **Exit criteria:** At least one tagged release exists with artifacts and notes; every subsequent merge is classified for changelog impact; the version policy is documented and enforced.
 - **Verification:** `git tag`, GitHub release assets, changelog entries, version-policy test.
-- **Depends on:** RS-1, RS-3.
+- **Depends on:** RS-1.
 - **Non-goals:** promising stability before the contract registry (CA-3) exists.
 
 ---

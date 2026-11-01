@@ -2,7 +2,7 @@
 
 **Scorecard dimension:** Test depth (current: B−)
 **Target:** coverage ≥85% overall and ≥90% on `github`, `publisher`, `checks`, and `actions_publication`; strict typing on core; mutation score ≥70% on reducer/validators; property tests for budget and state invariants; a compatibility suite separate from ordinary tests.
-**Why:** the suite is large (2,663 tests, 81% coverage) but proves plumbing more than behavior under variation. The weakest modules are the ones that touch credentials, publication, and external checks.
+**Why:** the suite is large (2,663 passing tests with packaging ignored, 81.4% coverage) but proves plumbing more than behavior under variation. The lowest coverage is on the modules that touch credentials, publication, and external checks.
 
 ---
 
@@ -10,7 +10,7 @@
 
 - **Priority:** P1
 - **Dimensions:** Test depth; Operational readiness
-- **Problem:** Coverage is 81% overall but uneven: `github.py` 61.9%, `publisher.py` 71.0%, `checks.py` 74.3%, `cli.py` 76.2%. These are the credential, publication, and check-binding paths. Nothing in CI reports or enforces coverage, so it can drift.
+- **Problem:** Coverage is 81.4% overall but uneven: `github.py` 61.9%, `publisher.py` 71.0%, `checks.py` 74.3%, `cli.py` 76.2%. These are the credential, publication, and check-binding paths. Nothing in CI reports or enforces coverage, so it can drift.
 - **Scope:**
   - Publish coverage in CI for every run (JSON + summary) and retain the artifact.
   - Set an overall floor and per-module floors for the critical set; grandfather no module silently.
@@ -52,7 +52,7 @@
   - Replace scattered magic hashes with named fixtures and a single manifest.
   - Make failures actionable: name the module, the historical revision, and the exact remediation command.
   - Document the process in CONTRIBUTING.
-- **Exit criteria:** Compatibility tests are identifiable and run separately in CI; the refresh tool exists and is tested; a source change produces an actionable failure; the number of ad-hoc hash literals decreases materially.
+- **Exit criteria:** Compatibility tests are identifiable and run separately in CI; the refresh tool exists and is tested; a source change produces an actionable failure; no ad-hoc SHA-256 literals remain outside the compatibility manifest, and the manifest is the only place pins are recorded.
 - **Verification:** `pytest -m compatibility`; a dry-run of the refresh tool; a failure-message snapshot test.
 - **Depends on:** CA-2 (surface consolidation reduces the pinned set).
 - **Non-goals:** deleting historical evidence or silently updating pins.

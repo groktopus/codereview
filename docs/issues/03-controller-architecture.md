@@ -2,7 +2,7 @@
 
 **Scorecard dimension:** Architecture and modularity (current: D+); Deterministic control plane (current: B+)
 **Target:** `run_review` ≤300 lines; one run path; one supported review contract/profile/limits set; ≥25% reduction in `src` lines; no import cycles; typed interfaces between stages.
-**Why:** the controller is the product's brain. Today the entire lifecycle lives in one 3,175-line function with 16 nested closures and 640 branch nodes. Every improvement in this backlog passes through it, so its shape is a rate limiter on everything else.
+**Why:** the controller is the product's brain. Today the entire lifecycle lives in one 3,175-line function with 15 nested functions and 607 branch nodes in its own body. Every improvement in this backlog passes through it, so its shape is a rate limiter on everything else.
 
 ---
 
@@ -10,7 +10,7 @@
 
 - **Priority:** P0
 - **Dimensions:** Architecture; Control plane; Test depth
-- **Problem:** `engine.run_review` (`engine.py:1370`) is 3,175 lines with 16 nested functions (`checkpoint`, `call_estimate`, `reserve_provider_call`, `start_attempt`, `finish_attempt`, `record_task_outcome`, `run_followup`, …) sharing mutable closure state. Budget arithmetic, retries, follow-up scheduling, reconciliation, and reduction are interleaved. It is hard to test in isolation and expensive to change safely.
+- **Problem:** `engine.run_review` (`engine.py:1370`) is 3,175 lines with 15 nested functions (`checkpoint`, `call_estimate`, `reserve_provider_call`, `start_attempt`, `finish_attempt`, `record_task_outcome`, `run_followup`, …) sharing mutable closure state. Budget arithmetic, retries, follow-up scheduling, reconciliation, and reduction are interleaved. It is hard to test in isolation and expensive to change safely.
 - **Scope:**
   - Introduce an explicit `RunState` (run identity, snapshot, plan, ledger, reservations, coverage, deadlines) passed between stages.
   - Extract stages with narrow interfaces: preflight, snapshot binding, planning, dispatch/settlement, reconciliation, reduction, rendering.
@@ -46,7 +46,7 @@
 
 - **Priority:** P1
 - **Dimensions:** Architecture; Governance
-- **Problem:** The repository carries nine SlopSearX profile generations (v9–v17), three limits revisions, three claim-assessment contract versions (`.1`–`.3`), review contracts (`legacy-v14`, `bounded-production-v16/v17`), and canary receipt `v1`/`v2`. There is no single place that states which are supported, what changed, or when one may be removed. Operators cannot tell which combination is current.
+- **Problem:** The repository carries eight SlopSearX profile generations (v9–v17, with v15 absent), three limits revisions, three claim-assessment contract versions (`.1`–`.3`), review contracts (`legacy-v14`, `bounded-production-v16/v17`), and canary receipt `v1`/`v2`. There is no single place that states which are supported, what changed, or when one may be removed. Operators cannot tell which combination is current.
 - **Scope:**
   - Add one machine-readable registry: contract name, version, status (`supported`, `deprecated`, `archived`), owner, replaced-by, and invariants.
   - Reduce the supported matrix to one review contract, one profile, and one limits set; archive the rest as immutable files with a note.

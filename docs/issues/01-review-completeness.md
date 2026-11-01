@@ -16,7 +16,7 @@
   - Thread it through `engine.run_review`, `evidence`, and the isolated invocation limits without changing provider response caps.
   - Fail closed with a typed reason when the retrieval *metadata* exceeds the envelope, rather than silently returning a prefix.
   - Add a regression fixture with a 40 KB file whose relevant symbol sits at the end; assert the symbol is present in the retrieved evidence.
-- **Exit criteria:** A dedicated retrieval limit exists and is used; the 40 KB symbol-at-end fixture passes; re-running the frozen PR305 case shows no `ipc_envelope_truncated` for files under the new cap, or an explicit documented reason.
+- **Exit criteria:** A dedicated retrieval limit exists and is used; the 40 KB symbol-at-end fixture passes; re-running the frozen PR305 case shows zero `ipc_envelope_truncated` results for files under the new cap; larger files must use chunked retrieval or be rejected with a typed reason.
 - **Verification:** new test in `tests/test_engine.py` or `tests/test_evidence.py`; a frozen-case run receipt showing retrieval statuses; `rg "max_result_bytes"` shows the retrieval key, not the output key.
 - **Depends on:** none.
 - **Non-goals:** raising provider output limits, changing budgets, or adding a retry.
@@ -54,5 +54,5 @@
   - Keep zero-candidate and zero-obligation cases visible in denominators.
 - **Exit criteria:** Every review emits the summary; the reason taxonomy is documented and versioned; the frozen-corpus baseline is recorded; the CI gate is active and demonstrably fails on a seeded regression.
 - **Verification:** `pr-review stats` (or equivalent) on a stored result; a CI job artifact; a deliberate regression probe showing the gate fails; taxonomy doc linked from the report.
-- **Depends on:** none (baseline measurement can start immediately; full gate after QM-1).
+- **Depends on:** none. The taxonomy and baseline can start immediately; the regression gate is finalized alongside the corpus work.
 - **Non-goals:** averaging safety invariants into a score, or treating a single clean case as a quality result.

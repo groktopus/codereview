@@ -9,7 +9,7 @@
 
 ## Scope and confidence
 
-Included: `src/pr_review_harness` (44 modules, 37,880 lines), `tests` (135 files, 81,072 lines), 67 scripts, 25 Actions workflows, 88 docs (4,862 lines), 15 profile/limits files, packaging and release state.
+Included: `src/pr_review_harness` (44 modules, 37,880 lines), `tests` (135 files, 81,072 lines), 71 script/helper files (62 Python), 25 Actions workflows, 88 top-level docs (4,862 lines) plus `docs/design/` and other subdirectories, 15 profile/limits files, packaging and release state.
 
 Excluded: live provider behavior, target repository state (`magnus919/SlopSearX`), hosted runs, billing. Those are reported from project documents, not re-observed.
 
@@ -19,13 +19,13 @@ Evidence classes used below: **observed** (I measured it), **reported** (project
 
 ## Executive assessment
 
-This is an unusually disciplined five-week-old project. The safety and evidence machinery — deny-by-default effects, exact-byte request pinning, bounded budgets, fail-closed freshness, historical evidence preserved rather than rewritten — is better than most production review bots. The deterministic control plane is real, tested, and honest about its own uncertainty.
+This is an unusually disciplined five-week-old project. The safety and evidence machinery — deny-by-default effects, exact-byte request pinning, bounded budgets, fail-closed freshness, historical evidence preserved rather than rewritten — is unusually rigorous for a project this young. The deterministic control plane is real, tested, and honest about its own uncertainty.
 
 But judged against its stated goal — a production-ready replacement for Droid's code-review function — the project is **not close**, and the gap is not primarily engineering polish. It is three things:
 
 1. **The review engine does not yet complete a review.** The best natural run in the project's own record completed 27 of 42 required rows (64%); the common pattern is 16–23 of 42–44. A harness that usually says `INCOMPLETE` cannot replace a reviewer.
 2. **Quality is unmeasured.** There are no human labels, no frozen labeled corpus, and no baseline comparison. Every semantic claim is correctly hedged, which is admirable, but it means the central product question is unanswered.
-3. **Effort has drifted toward delivery plumbing.** The review core has been frozen since 2026-10-07 while three weeks of work went into publication, canaries, and target cutover — publishing reviews whose completeness and accuracy are still unknown.
+3. **Effort has drifted toward delivery plumbing.** The review core has been frozen since 2026-10-07 while subsequent work went into publication, canaries, and target cutover — publishing reviews whose completeness and accuracy are still unknown.
 
 The strongest property is **evidence integrity**. The highest-risk property is **review completeness/quality**. The most urgent architectural risk is the 3,175-line `run_review` function, which makes the one thing that must improve hardest to change.
 
@@ -36,7 +36,7 @@ The strongest property is **evidence integrity**. The highest-risk property is *
 | Evidence discipline and claim honesty | **A** | Explicit unknowns, immutable pins, no model-as-truth, historical artifacts preserved (observed) |
 | Effect safety and read-only boundaries | **A−** | Deny-by-default publication, fixed-arg git, budget ledgers; one HTTP-policy gap (below) |
 | Deterministic control plane | **B+** | Real reducer/ledger/state tests; control logic concentrated in one unmaintainable function |
-| Test depth | **B−** | 81% coverage, 2,663 tests; weak on GitHub/publisher error paths, no types/property/mutation |
+| Test depth | **B−** | 81.4% coverage, ~2.66k passing tests; weak on GitHub/publisher error paths, no types/property/mutation |
 | Review completeness | **D** | Most observed reviews 36–64% of required rows complete; retrieval truncation systemic |
 | Review quality evidence | **F** | Zero human labels, zero labeled corpus, no Droid baseline |
 | Architecture maintainability | **D+** | Monolithic engine, duplicated orchestrators, contract/version sprawl |
@@ -50,22 +50,22 @@ The strongest property is **evidence integrity**. The highest-risk property is *
 
 | ID | Claim | Class | Evidence | Confidence |
 |---|---|---|---|---|
-| E-001 | 2,663 tests pass; overall line coverage 81.0% (19,691 statements) | observed | local `pytest --cov` run on `13e29d8` | high |
-| E-002 | `engine.run_review` is 3,175 lines with 16 nested functions and 640 branch nodes | observed | AST analysis, `engine.py:1370` | high |
+| E-001 | With `--ignore=tests/test_packaging.py`: 2,663 passed, 13 skipped; full local run adds 2 environment/order-dependent failures (missing `build`; one trial test that passes standalone). Line coverage 81.4% (19,691 statements) | observed | local `pytest --cov` on `13e29d8` | high |
+| E-002 | `engine.run_review` is 3,175 lines with 15 nested functions and 607 branch nodes in its own body | observed | AST analysis, `engine.py:1370` | high |
 | E-003 | 45 functions exceed 150 lines | observed | AST scan | high |
-| E-004 | 107 `except Exception` sites; concentrated in trial/publisher modules (22 and 17) | observed | grep | high |
+| E-004 | 107 `except Exception` sites in `src` (218 repository-wide); concentrated in trial/publisher modules (22 and 17) | observed | grep | high |
 | E-005 | 187 of 267 Python files would be reformatted; CI runs `ruff check` only (E4/E7/E9/F/I) | observed | `ruff format --check`, `pyproject.toml`, `test.yml` | high |
 | E-006 | 61 hard-coded SHA-256 values; 26 fixtures (1.1 MB) including frozen copies of `engine`, `providers`, `cli`, `selected_model_trial` | observed | grep, `tests/fixtures`, `frozen_runtime.py` | high |
 | E-007 | Local retrieval results are capped at `max_output_bytes_per_task` (16 KB default) | observed | `engine.py:2771`; `profiles/ordinary-review-limits-v3.json` | high |
 | E-008 | 8/8 context retrievals in the v17 PR305 run returned `ipc_envelope_truncated` | reported | `docs/CURRENT-STATUS.md` | medium-high |
 | E-009 | Most natural reviews are INCOMPLETE/PARTIAL: 16/42, 19/43, 23/44, 27/42 required rows | reported | `CURRENT-STATUS.md`, `COMPLETE-REQUIREMENT-AUDIT-2026-10-01.md` | medium-high |
-| E-010 | 25 workflows, 15 profile/limits files including nine SlopSearX generations (v9–v17) and three limits revisions, nine `run_*` entry points, 3 claim-assessment contract versions | observed | tree + grep | high |
+| E-010 | 25 workflows, 15 profile/limits files including eight SlopSearX generations (v9–v17, v15 absent) and three limits revisions, nine `run_*` entry points, 3 claim-assessment contract versions | observed | tree + grep | high |
 | E-011 | README, `VERIFICATION.md` and `PUBLICATION-READINESS.md` contradict `CURRENT-STATUS.md` on publication and completion state | observed | document text | high |
 | E-012 | 88 docs, 4,862 lines, no index, 1 broken relative link; core last changed 2026-10-07 | observed | link scan, git log | high |
 | E-013 | 238 PRs, one contributor, 0 issues, 0/20 most recent merged PRs have GitHub review records, public repo with no LICENSE | observed | `gh` API | high |
 | E-014 | OpenAI-compatible provider accepts `http://` to any host; only the env helper rejects remote HTTP | observed | `providers.py:_safe_url`, `scripts/provider_config_from_env.py` | high |
 | E-015 | `schemas/*.json` are not loaded by code or CI | observed | repository grep | high |
-| E-016 | Weakest coverage: `github.py` 61.9%, `publisher.py` 71.0%, `checks.py` 74.3%, `cli.py` 76.2% | observed | coverage JSON | high |
+| E-016 | Lowest critical-path coverage: `github.py` 61.9%, `publisher.py` 71.0%, `checks.py` 74.3%, `cli.py` 76.2% (experiment modules are lower but outside the product surface) | observed | coverage JSON | high |
 | E-017 | Evaluation toolkit is sophisticated but the bundled corpus has 1 case and 0 label packets | observed | `examples/evaluation/*` | high |
 | E-018 | `pickle.dumps` is used purely as a size proxy for the claim assessor | observed | `engine.py:560` | high |
 | E-019 | No tags, releases, changelog, SBOM, lockfile, SECURITY.md, CONTRIBUTING, CODEOWNERS, dependabot | observed | git + tree + GitHub API | high |
@@ -101,7 +101,7 @@ The weak seam is not deployment shape; it is that **one function owns nearly the
 |---|---|---|---|---|
 | Change the review flow | Modifiability | Any stage change edits a 3.2k-line function with shared closure state | E-002, E-003 | High: regressions, fear of change |
 | Add a provider | Extensibility | Adapter classes OK, but orchestration duplicated across trial runners | E-010 | Medium |
-| Run a review | Observability | Per-run JSON is excellent; cross-run aggregation absent | E-001, docs | Medium: no trend, no cost curve |
+| Run a review | Observability | Per-run JSON is rich and integrity-checked; cross-run aggregation absent | E-001, docs | Medium: no trend, no cost curve |
 | Head moves mid-run | Freshness safety | Fail-closed STALE/UNKNOWN | tests/docs | Low |
 | Provider timeout | Failure handling | Bounded, single-attempt by default, explicit incomplete | `limits-v3` (`max_retries_per_task: 0`) | Low, but no retry/backoff policy for transient 5xx |
 | Change a pinned module | Maintainability | Historical fixtures must be added by hand; 10+ tests fail otherwise | E-006 (experienced with #138) | Medium-high: friction discourages refactoring |
@@ -145,19 +145,19 @@ A file larger than 16 KB is truncated to a **prefix** (line 1..N), so the specia
 
 ### P0 — Quality is unmeasured and the evaluation corpus is empty
 
-**Observed:** `examples/evaluation` has 1 case and 0 labels (E-017). The evaluation toolkit is excellent (bounds, denominators, teacher/human separation) but unused. No Droid baseline exists.
+**Observed:** `examples/evaluation` has 1 case and 0 labels (E-017). The evaluation toolkit is well specified (bounds, denominators, teacher/human separation) but unused. No Droid baseline exists.
 
 Without labels you cannot choose a threshold, compare models, or justify cutover. "No human labels available" is treated as a permanent condition; it should be treated as a **blocking program risk** with an owner and a plan (even 30–50 maintainer-adjudicated cases are enough to start).
 
 ### P1 — The controller is a monolith
 
-**Observed:** 3,175 lines, 16 nested functions, 640 branch nodes, 45 functions >150 lines (E-002, E-003). The review lifecycle, budget arithmetic, retries, follow-up scheduling, and reduction all live in one closure-heavy function. This is why changes are expensive and why trial runners were forked instead of extended.
+**Observed:** 3,175 lines, 15 nested functions, 607 branch nodes in its own body, 45 functions >150 lines (E-002, E-003). The review lifecycle, budget arithmetic, retries, follow-up scheduling, and reduction all live in one closure-heavy function. This is why changes are expensive and why trial runners were forked instead of extended.
 
-**Ambitious but correct move:** extract a `RunState` dataclass and seven stage objects (preflight, snapshot, plan, dispatch, settle, reconcile, reduce/render) with byte-identical golden outputs. This is a 2–3 week refactor, best done now while the output contract is stable.
+**Ambitious but correct move:** extract a `RunState` dataclass and seven stage objects (preflight, snapshot, plan, dispatch, settle, reconcile, reduce/render) with byte-identical golden outputs. This is a behavior-preserving refactor, best done now while the output contract is stable.
 
 ### P1 — Experiment/production surface is blurred
 
-**Observed:** nine `run_*` entry points, nine SlopSearX generations, 3 claim-assessment contracts, 25 workflows (E-010). Superseded trials remain importable and CI-tested. This multiplies maintenance and makes "the current behavior" ambiguous.
+**Observed:** nine `run_*` entry points, eight SlopSearX generations, 3 claim-assessment contracts, 25 workflows (E-010). Superseded trials remain importable and CI-tested. This multiplies maintenance and makes "the current behavior" ambiguous.
 
 **Move:** freeze one review contract; move trials to `experiments/` outside the installable package or delete them; keep one supported profile and one limits set, plus archived read-only copies.
 
@@ -173,11 +173,11 @@ Without labels you cannot choose a threshold, compare models, or justify cutover
 
 ### P1 — Release/governance hygiene
 
-**Observed:** no LICENSE on a public repo, no tags/releases/changelog/SBOM/lockfile, no SECURITY.md, no dependabot, no recorded reviews on 0/20 recent merges (E-013, E-019). The CI is excellent (SHA-pinned actions, 4 Python versions, wheel/sdist, installed smoke) but there is no release artifact to consume.
+**Observed:** no LICENSE on a public repo, no tags/releases/changelog/SBOM/lockfile, no SECURITY.md, no dependabot, no recorded reviews on 0/20 recent merges (E-013, E-019). The CI is thorough (SHA-pinned actions, 4 Python versions, wheel/sdist, installed smoke) but there is no release artifact to consume.
 
 ### P2 — Test strategy bets too heavily on goldens
 
-**Observed:** 61 hard-coded hashes and frozen copies of four large modules (E-006). Coverage is 81% but `github.py` (62%) and `publisher.py` (71%) are the weakest (E-016). No type checking, no property tests, no mutation testing. The suite proves plumbing, not behavior under variation.
+**Observed:** 61 hard-coded hashes and frozen copies of four large modules (E-006). Coverage is 81.4%, but `github.py` (61.9%) and `publisher.py` (71.0%) are the weakest critical paths (E-016). No type checking, no property tests, no mutation testing. The suite proves plumbing, not behavior under variation.
 
 **Move:** keep a small, explicit compatibility suite for historical pins (with a documented refresh tool); add property tests for budgets/limits/state transitions; add mutation testing on reducer/validators; raise coverage on the error paths that matter.
 
@@ -187,11 +187,11 @@ Per-run artifacts are rich, but there is no cross-run view of completion rate, f
 
 ---
 
-## Ambitious improvement program (90 days)
+## Ambitious improvement program (dependency-ordered)
 
-The thesis: **stop expanding delivery; make one review excellent, prove it with labels, then deliver it.**
+The thesis: **stop expanding delivery; make one review genuinely usable, prove it with labels, then deliver it.**
 
-### Phase 1 (weeks 1–3): stop the bleeding
+### Phase 1 (foundation): stop the bleeding
 
 | Work | Acceptance |
 |---|---|
@@ -201,17 +201,17 @@ The thesis: **stop expanding delivery; make one review excellent, prove it with 
 | Security: HTTPS-or-loopback at provider construction; drop `pickle`; add LICENSE/ SECURITY/CHANGELOG | Tests for `http://remote` rejection on both config paths |
 | CI: `ruff format --check`, bandit/CodeQL, link check, coverage report | All green on `main` |
 
-### Phase 2 (weeks 4–8): make the engine evolvable and measurable
+### Phase 2 (evolvability and measurement)
 
 | Work | Acceptance |
 |---|---|
 | Extract pipeline stages behind `RunState`; behavior-preserving | Golden outputs byte-identical; `run_review` <300 lines |
 | Consolidate trial runners; delete superseded code | ≥25% reduction in `src` lines; one run path |
-| Evaluation corpus v1: 30–50 frozen PRs, 2 repos, human-adjudicated severity labels, held-out split | `evaluate_reviews.py` runs in CI nightly; precision/recall lower/upper bounds published |
-| Metrics: completion rate, reason distribution, latency, tokens, estimated cost | `pr-review stats` + nightly dashboard |
+| Evaluation corpus v1: 30–50 frozen PRs, 2 repos, human-adjudicated severity labels, held-out split | `evaluate_reviews.py` runs in CI on change and on a fixed schedule; precision/recall lower/upper bounds published |
+| Metrics: completion rate, reason distribution, latency, tokens, estimated cost | `pr-review stats` + a scheduled dashboard refresh |
 | Typing: mypy/pyright on core stages | Strict on `engine` stages, `planner`, `contracts`, `reconcile` |
 
-### Phase 3 (weeks 9–13): close the quality loop
+### Phase 3 (quality loop)
 
 | Work | Acceptance |
 |---|---|
@@ -282,7 +282,7 @@ Owner must set the numbers; these are proposed starting points, not evidence:
 
 | Metric | Proposed gate |
 |---|---|
-| Required-obligation completion on frozen natural corpus | ≥85% |
+| Required-obligation completion on frozen natural corpus | ≥90% |
 | Blocker recall (human-adjudicated, lower bound) | ≥0.80 |
 | False-blocker rate (material, accepted) | ≤0.20 |
 | Reviews returning `INCOMPLETE` | ≤15% |
@@ -299,7 +299,7 @@ The important discipline: **hard safety invariants are vetoes, never averaged**;
 
 ## What to stop doing
 
-1. **Stop adding trial workflows and profile generations.** Twenty-five workflows and nine profile generations is research thrift turning into maintenance debt.
+1. **Stop adding trial workflows and profile generations.** Twenty-five workflows and eight profile generations is research thrift turning into maintenance debt.
 2. **Stop expanding publication before review completeness is fixed.** Publishing a 40% incomplete review is not progress toward replacement.
 3. **Stop treating "no human labels" as a permanent constraint.** Fund a small labeling program; it is the cheapest path to every quality decision.
 4. **Stop maintaining 88 living documents.** Keep ~10 current, archive the rest, and generate status from evidence.

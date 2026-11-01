@@ -47,85 +47,118 @@ These are proposed gates. The owner ratifies or changes the numbers; the method 
 
 ## Coverage map
 
-Every scored dimension is covered by at least one P0 or P1 issue.
+Every scored dimension is covered by at least one P0 or P1 issue. Generated from each issue's `Dimensions` field; Security and Observability are tracked separately from the assessment's Effect-safety and Operational-readiness rows.
 
 | Dimension | RC | QM | CA | VD | SE | RS | OE | DT | GA |
-|---|---|---|---|---|---|---|---|---|---|
-| Evidence discipline | | | | | ● | | ● | ● | ● |
-| Effect safety | | | | | ● | | | | ● |
-| Control plane | ● | | ● | ● | | | | | |
-| Test depth | | | ● | ● | ● | | | | |
-| Review completeness | ● | ● | | | | | ● | | |
-| Quality evidence | ● | ● | | | | | | | |
-| Architecture | | | ● | | | | | | |
-| Operational/release | | | | | | ● | ● | | |
-| Documentation | | | | | | | | ● | |
-| Governance | | ● | | | | ● | | ● | ● |
+|---|---|---|---|---|---|---|---|---|
+| Evidence discipline | ● |  |  |  |  |  | ● | ● | ● |
+| Effect safety |  |  |  | ● | ● |  |  |  |  |
+| Control plane | ● |  | ● | ● |  |  |  |  |  |
+| Test depth |  |  | ● | ● | ● |  |  |  |  |
+| Review completeness | ● | ● |  |  |  |  | ● |  |  |
+| Quality evidence |  | ● |  |  |  |  |  |  |  |
+| Architecture | ● |  | ● | ● | ● |  |  |  |  |
+| Operational readiness |  |  |  | ● | ● | ● | ● |  | ● |
+| Observability |  | ● |  |  |  |  | ● |  |  |
+| Documentation |  |  |  |  |  |  | ● | ● | ● |
+| Governance |  | ● | ● |  | ● | ● | ● | ● | ● |
+| Security |  | ● |  |  | ● | ● |  |  |  |
 
 ---
 
 ## Dependency order
 
-Waves are ordering aids, not schedules. An issue can start when its dependencies are satisfied.
+Edges are generated from each issue's `Depends on` field; the graph is acyclic. It is an ordering aid, not a schedule.
 
 ```mermaid
-flowchart TB
-  subgraph Wave0[Truth and containment]
-    DT1[DT-1 status truth]
-    SE1[SE-1 transport policy]
-    GA1[GA-1 recorded review]
-    RS1[RS-1 license/governance files]
+flowchart LR
+  subgraph RC[Review completeness]
+    RC1[RC-1]
+    RC2[RC-2]
+    RC3[RC-3]
   end
-  subgraph Wave1[Measurement]
-    RC1[RC-1 retrieval envelope]
-    RC3[RC-3 completeness telemetry]
-    QM1[QM-1 corpus]
-    QM2[QM-2 labels]
-    OE1[OE-1 metrics store]
+  subgraph QM[Quality measurement]
+    QM1[QM-1]
+    QM2[QM-2]
+    QM3[QM-3]
+    QM4[QM-4]
+    QM5[QM-5]
   end
-  subgraph Wave2[Capability and structure]
-    RC2[RC-2 retrieval compiler]
-    CA1[CA-1 stage extraction]
-    CA2[CA-2 surface consolidation]
-    CA3[CA-3 contract registry]
-    CA4[CA-4 typed boundaries]
-    QM3[QM-3 eval CI]
-    QM4[QM-4 baseline]
-    QM5[QM-5 adversarial eval]
-    VD1[VD-1 coverage gates]
-    VD2[VD-2 property/mutation]
-    VD3[VD-3 compatibility suite]
-    VD4[VD-4 static analysis]
+  subgraph CA[Controller architecture]
+    CA1[CA-1]
+    CA2[CA-2]
+    CA3[CA-3]
+    CA4[CA-4]
   end
-  subgraph Wave3[Hardening and release]
-    SE2[SE-2 SAST/threat model]
-    SE3[SE-3 pickle/exception audit]
-    SE4[SE-4 effect fault matrix]
-    RS2[RS-2 release pipeline]
-    RS3[RS-3 SBOM/provenance]
-    RS4[RS-4 dependencies/API]
-    OE2[OE-2 cost model]
-    OE3[OE-3 freshness automation]
-    DT2[DT-2 docs index/archive]
-    DT3[DT-3 doc checks]
-    GA2[GA-2 decision records]
-    GA3[GA-3 ownership]
+  subgraph VD[Verification depth]
+    VD1[VD-1]
+    VD2[VD-2]
+    VD3[VD-3]
+    VD4[VD-4]
   end
-  DT1 --> GA1
-  RC1 --> RC2
-  RC1 --> RC3
-  RC3 --> QM3
-  QM1 --> QM2 --> QM3 --> QM4
-  QM2 --> QM5
+  subgraph SE[Security and effect boundaries]
+    SE1[SE-1]
+    SE2[SE-2]
+    SE3[SE-3]
+    SE4[SE-4]
+  end
+  subgraph RS[Release and supply chain]
+    RS1[RS-1]
+    RS2[RS-2]
+    RS3[RS-3]
+    RS4[RS-4]
+  end
+  subgraph OE[Observability and economics]
+    OE1[OE-1]
+    OE2[OE-2]
+    OE3[OE-3]
+  end
+  subgraph DT[Documentation truth]
+    DT1[DT-1]
+    DT2[DT-2]
+    DT3[DT-3]
+  end
+  subgraph GA[Governance and accountability]
+    GA1[GA-1]
+    GA2[GA-2]
+    GA3[GA-3]
+  end
   CA1 --> CA2
   CA1 --> CA3
   CA1 --> CA4
+  CA1 --> SE3
+  CA1 --> SE4
+  CA1 --> VD1
   CA1 --> VD2
   CA2 --> VD3
-  RC2 --> QM3
-  OE1 --> OE2
+  CA4 --> VD4
+  DT1 --> DT2
+  DT1 --> DT3
+  DT1 --> GA1
+  DT1 --> GA2
+  DT1 --> OE3
+  DT2 --> DT3
+  DT2 --> GA3
   GA1 --> GA2
-  RS1 --> RS2 --> RS3
+  GA1 --> GA3
+  OE1 --> OE2
+  OE1 --> OE3
+  QM1 --> QM2
+  QM1 --> QM3
+  QM1 --> QM4
+  QM1 --> QM5
+  QM1 --> RC2
+  QM2 --> QM3
+  QM2 --> QM4
+  QM2 --> QM5
+  RC1 --> RC2
+  RC3 --> OE1
+  RC3 --> QM3
+  RS1 --> RS2
+  RS1 --> RS4
+  RS2 --> RS3
+  SE2 --> SE4
+  VD1 --> VD2
 ```
 
 ---

@@ -24,7 +24,7 @@
   - Record unresolved contradictions rather than hiding them.
 - **Exit criteria:** `STATUS.md` exists and is the only place a reader needs to start; each surface has one decision and one evidence link; no top-level document contradicts another without an explicit scope qualifier.
 - **Verification:** a contradiction checklist over the five documents; link check; a reviewer walking only `STATUS.md` can state the current decision per surface.
-- **Depends on:** OE-3 for automation; content reconciliation can start immediately.
+- **Depends on:** none. Content reconciliation starts immediately; freshness automation is tracked as a separate issue.
 - **Non-goals:** deleting historical evidence or rewriting past decisions.
 
 ---

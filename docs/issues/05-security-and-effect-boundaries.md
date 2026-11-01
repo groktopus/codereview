@@ -37,7 +37,7 @@
   - Keep scans read-only and never send repository content to a new third party without authorization.
 - **Exit criteria:** Threat model exists and is linked from SECURITY.md; all scans run on PRs and main; a seeded secret or vulnerability fails the build; accepted risks are recorded.
 - **Verification:** workflow runs; a seeded violation; threat-model review record.
-- **Depends on:** none (can run in parallel with SE-1).
+- **Depends on:** none. It runs alongside the transport-policy fix.
 - **Non-goals:** claiming security certification from green scans.
 
 ---
@@ -52,7 +52,7 @@
   - Introduce a typed error taxonomy for expected failures.
   - Audit every broad except in security- and effect-relevant paths; narrow or re-raise where the error is not an expected boundary condition.
   - Add a test that a programming error in the assessor is not silently converted to a benign result.
-- **Exit criteria:** No `pickle` in the engine; the audit is recorded with a rationale per remaining broad except; security paths distinguish expected failure from defect.
+- **Exit criteria:** No `pickle` in the engine; every remaining broad except in a security or effect path has a recorded rationale and a test showing that a programming error propagates instead of becoming a benign result.
 - **Verification:** `rg "pickle"`; an exception-audit table; tests for programming-error propagation.
 - **Depends on:** CA-1.
 - **Non-goals:** removing intentional fail-closed handlers.

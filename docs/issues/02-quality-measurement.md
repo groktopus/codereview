@@ -2,7 +2,7 @@
 
 **Scorecard dimension:** Review quality evidence (current: F)
 **Target:** ≥40 labeled cases across two repositories with a held-out split, human-adjudicated severity and introducedness; precision/recall bounds published with denominators; an incumbent baseline on identical snapshots; every model or prompt change gated by a paired corpus comparison.
-**Why:** the project's evidence discipline is excellent about what it *cannot* claim. That is necessary but not sufficient. Without labels, no threshold, model choice, prompt change, or cutover can be justified.
+**Why:** the project's evidence discipline is unusually rigorous about what it *cannot* claim. That is necessary but not sufficient. Without labels, no threshold, model choice, prompt change, or cutover can be justified.
 
 ---
 
