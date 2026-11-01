@@ -82,7 +82,7 @@ Selection defaults:
 | model output | `semantic-adjudication.v1`–`.v2` | `semantic-adjudication.v3` | 2026-11-01 → 2027-02-01 |
 | context | `context-selection.v1`–`.v2` | `context-selection.v3` | 2026-11-01 → 2027-02-01 |
 
-A deprecated contract is never the registry default. The SlopSearX caller keeps its
+A deprecated contract is never the default for new selection. The SlopSearX caller keeps its
 explicit historical default (`legacy-v14`) so the existing read-only pilot does not
 change behavior mid-window; that caller default is tracked as an owner migration item,
 not as a supported default.
@@ -100,7 +100,11 @@ not as a supported default.
 
 Archived entries are immutable evidence. Their files are **not** rewritten, because
 trial manifests bind their SHA-256. See [`profiles/ARCHIVE.md`](../profiles/ARCHIVE.md).
-No production surface may reference an archived contract; this is enforced by
+No production **selection or preflight** surface may reference an archived contract,
+and preflight rejects an archived profile/limits combination by default. The historical
+functional-review runner is the sole evidence exception: it reproduces v10–v13 and must
+pass the explicit `--allow-archived-contracts` opt-in, which records the archived status
+instead of rejecting or silently promoting it. This is enforced by
 `tests/test_contract_registry.py`.
 
 ## Deprecation policy
@@ -114,9 +118,13 @@ No production surface may reference an archived contract; this is enforced by
    path or a terminal marker fails validation.
 3. **Compatibility window.** A deprecated contract stays selectable and executable for
    at least one minor release and 90 days after the replacement is designated. It is
-   never a default. Every binding and run artifact records `status=deprecated` and the
-   replacement, so an operator can migrate without reading code. The window is
-   enforcement metadata; the engine records the status and does not silently upgrade.
+   never the default for **new selection**, but an existing target's pinned default is
+   frozen until its owner migrates it: the SlopSearX caller default remains
+   `legacy-v14` with `status=deprecated` recorded in every binding and artifact. The
+   registry-level default is the supported combination. Every binding and run artifact
+   records `status=deprecated` and the replacement, so an operator can migrate without
+   reading code. The window is enforcement metadata; the engine records the status and
+   does not silently upgrade.
 4. **Removal evidence.** Before a contract becomes `archived` or is deleted, the
    registry must record: a successful run artifact that names the replacement; no
    production reference; the retained, unchanged source file and its provenance; and
@@ -132,7 +140,12 @@ write. For a registered profile it enforces:
 - the profile's repository/version resolves to exactly one registered review contract;
 - the supplied limits match the registered limits values (keys other than
   `schema_version`, which the CLI strips);
-- no component of the combination is `archived`;
+- `max_claim_assessments` equals the registered combination cap;
+- the profile satisfies the registry's non-limits contract `checks` (profile status,
+  trusted policy paths, lenses, context-selection version/budget/window, required-check
+  count, and any version-specific manifest invariant);
+- no component of the combination is `archived` (unless the explicit historical
+  `--allow-archived-contracts` opt-in is used);
 - the claim-assessment, claim-reconciliation, context-selection, and
   context-target-manifest versions named by the profile or snapshot are registered and
   not archived.
@@ -148,6 +161,23 @@ library caller's inline profile) is recorded as `unregistered` rather than rejec
 The resolver is the production admission gate; preflight enforces every profile that
 can be identified as registered. This keeps the engine usable as a library without
 weakening hosted selection.
+
+## Manual CLI path
+
+`pr-review review` requires the **pair**: a registry-registered `--profile` must be
+accompanied by its registered `--limits` file and its registered `--max-claim-assessments`
+value. Omitting `--limits` leaves the CLI defaults in effect and preflight rejects the
+combination with `contract limits do not match the registered combination`; that is
+intentional, not a fallback. Use:
+
+```bash
+pr-review review --repo REPO --base SHA --head SHA \
+  --profile profiles/codereview-native-v1-candidate.json \
+  --limits profiles/ordinary-review-limits-v3.json \
+  --max-claim-assessments 4 ...
+```
+
+The historical runner is the only path that may add `--allow-archived-contracts`.
 
 ## Run artifact contract identity
 
@@ -197,7 +227,8 @@ deprecation dates. They are reversible via the registry:
 - The single supported combination is the harness's own production target,
   `groktopus/codereview` + `codereview-native-v1` + limits v3. The SlopSearX contracts
   remain deprecated (not archived) during the window so the existing pilot keeps
-  working.
+  working; the pilot's pinned `legacy-v14` default is therefore an explicit
+  owner-frozen exception to "deprecated is never a default".
 - Deprecation announcements use the issue/assessment date 2026-11-01 and a 90-day
   minimum window ending 2027-02-01. The owner may ratify different dates.
 - `bounded-production-v17` and its profile are terminal: retiring the SlopSearX target

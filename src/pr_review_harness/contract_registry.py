@@ -532,6 +532,34 @@ def _verify_component_status(entry: dict[str, Any], *, allow_deprecated: bool) -
         raise ContractRegistryError("contract_deprecated")
 
 
+def limits_entry_for(registry: dict[str, Any], limits: dict[str, Any]) -> dict[str, Any] | None:
+    """Find the most specific registered limits entry satisfied by ``limits``.
+
+    The CLI strips ``schema_version``, so the comparison ignores it.  The most
+    specific entry wins, which distinguishes the v1 override from v2/v3.
+    """
+    best: dict[str, Any] | None = None
+    best_keys = -1
+    for entry in registry["contracts"]:
+        if entry["kind"] != "review-limits":
+            continue
+        values = {key: value for key, value in entry["values"].items() if key != "schema_version"}
+        if all(limits.get(key) == value for key, value in values.items()) and len(values) > best_keys:
+            best, best_keys = entry, len(values)
+    return best
+
+
+def validate_profile_checks(profile: dict[str, Any], contract_entry: dict[str, Any]) -> None:
+    """Enforce non-limits contract checks at preflight.
+
+    Limits are enforced separately against the registered limits entry because
+    the engine receives limits without ``schema_version``.
+    """
+    checks = [clause for clause in contract_entry.get("checks", []) if clause["path"] != "limits"]
+    if checks:
+        validate_contract_checks(profile, {}, {"checks": checks})
+
+
 def effective_contract_set(
     registry: dict[str, Any],
     profile: dict[str, Any],
@@ -539,79 +567,74 @@ def effective_contract_set(
     *,
     comparison_mode: str | None = None,
     claim_assessment_version: str | None = None,
+    max_claim_assessments: int | None = None,
     allow_deprecated: bool = True,
+    allow_archived: bool = False,
 ) -> dict[str, Any]:
     """Return the audited contract set for one run.
 
-    A profile that is not registered at all is recorded as ``unregistered`` so
-    library-level callers and synthetic fixtures remain testable.  A profile
-    that *is* registered is held to its exact combination: mismatched limits,
-    an archived component, or an unknown claim/context contract fails closed.
+    Registered profiles are held to their exact combination: limits, claim cap,
+    and profile invariants all fail closed.  Archived profiles/limits are
+    rejected unless ``allow_archived`` is explicitly set by a historical
+    reproduction path; their recorded status is ``archived``, never
+    ``unregistered``.  A genuinely unregistered synthetic fixture is recorded
+    as ``unregistered`` so the engine remains usable as a library.
     """
-    contract = review_contract_for_profile(registry, profile)
     registry_component = _component(get_entry(registry, "registry", REGISTRY_VERSION))
     registry_component["sha256"] = registry_digest(registry)
 
     claim_entry = _claim_assessment_entry(registry, claim_assessment_version, comparison_mode)
     _verify_component_status(claim_entry, allow_deprecated=allow_deprecated)
 
-    if contract is None:
+    profile_entry = review_profile_entry(registry, profile)
+    limits_entry = limits_entry_for(registry, limits)
+    archived_components = [
+        entry for entry in (profile_entry, limits_entry) if entry is not None and entry["status"] == "archived"
+    ]
+    if archived_components and not allow_archived:
+        raise ContractRegistryError("contract_archived")
+
+    contract: dict[str, Any] | None = None
+    if profile_entry is not None and profile_entry["status"] != "archived":
+        contract = next(
+            (
+                entry
+                for entry in registry["contracts"]
+                if entry["kind"] == "review-contract"
+                and entry["combination"]["profile"] == profile_entry["name"]
+            ),
+            None,
+        )
+
+    if contract is not None:
+        combination = contract["combination"]
+        for entry in (contract, profile_entry, limits_entry):
+            if entry is None:
+                raise ContractRegistryError("contract_limits_mismatch")
+            _verify_component_status(entry, allow_deprecated=allow_deprecated)
+        if limits_entry is None or limits_entry["name"] != combination["limits"]:
+            raise ContractRegistryError("contract_limits_mismatch")
+        for key, expected in limits_entry["values"].items():
+            if key == "schema_version":
+                continue
+            if limits.get(key) != expected:
+                raise ContractRegistryError("contract_limits_mismatch")
+        if max_claim_assessments is not None and max_claim_assessments != combination["max_claim_assessments"]:
+            raise ContractRegistryError("contract_claim_cap_mismatch")
+        validate_profile_checks(profile, contract)
+        registration = "registered"
+    elif profile_entry is not None and profile_entry["status"] == "archived":
+        registration = "archived"
+    else:
         # A profile that presents a registry identity (repository + status) on a
         # known target must resolve to a registered version.  Synthetic fixtures
-        # without that identity remain usable as library inputs and are recorded
-        # as unregistered instead of being silently promoted.
+        # without that identity remain usable as library inputs.
         identity_claims_registry = (
             isinstance(profile.get("repository"), str) and isinstance(profile.get("profile_status"), str)
         )
-        if identity_claims_registry and profile["repository"] in registry["targets"] and review_profile_entry(
-            registry, profile
-        ) is None:
+        if identity_claims_registry and profile["repository"] in registry["targets"] and profile_entry is None:
             raise ContractRegistryError("contract_unregistered_profile")
-        claim_reconciliation = profile.get("claim_reconciliation")
-        reconciliation_version = (
-            claim_reconciliation.get("version") if isinstance(claim_reconciliation, dict) else None
-        )
-        context_selection = profile.get("context_selection")
-        context_version = context_selection.get("version") if isinstance(context_selection, dict) else None
-        return {
-            "registration": "unregistered",
-            "registry": registry_component,
-            "review_contract": _component(None),
-            "profile": {
-                "name": profile.get("version", profile.get("profile_version")),
-                "version": profile.get("version", profile.get("profile_version")),
-                "status": "unregistered",
-                "owner": None,
-                "replaced_by": None,
-                "source_path": None,
-                "source_sha256": None,
-            },
-            "limits": {"name": None, "version": None, "status": "unregistered", "owner": None, "replaced_by": None},
-            "claim_assessment": _component(claim_entry),
-            "claim_reconciliation": _artifact_component(
-                registry, "policy", reconciliation_version, allowed_statuses=("supported", "deprecated")
-            ),
-            "specialist_findings": _component(get_entry(registry, "model-output", "specialist-findings.v4")),
-            "adjudication": _component(get_entry(registry, "model-output", "semantic-adjudication.v3")),
-            "specialist_input": _component(get_entry(registry, "model-input", "specialist-input.v2")),
-            "context_selection": _artifact_component(
-                registry, "context", context_version, allowed_statuses=("supported", "deprecated")
-            ),
-            "context_followup": _component(get_entry(registry, "model-input", "context-followup.v1")),
-            "target_profile_bindings": _component(get_entry(registry, "policy", "target-profile-bindings.v1")),
-            "run_artifact": _component(get_entry(registry, "artifact", "review-result.v0.1")),
-        }
-
-    profile_entry = get_entry(registry, "review-profile", contract["combination"]["profile"])
-    limits_entry = get_entry(registry, "review-limits", contract["combination"]["limits"])
-    for entry in (contract, profile_entry, limits_entry):
-        _verify_component_status(entry, allow_deprecated=allow_deprecated)
-    expected_limits = limits_entry["values"]
-    for key, expected in expected_limits.items():
-        if key == "schema_version":
-            continue
-        if limits.get(key) != expected:
-            raise ContractRegistryError("contract_limits_mismatch")
+        registration = "unregistered"
 
     claim_reconciliation = profile.get("claim_reconciliation")
     reconciliation_version = claim_reconciliation.get("version") if isinstance(claim_reconciliation, dict) else None
@@ -621,12 +644,20 @@ def effective_contract_set(
     manifest_version = (
         context_target_manifest.get("version") if isinstance(context_target_manifest, dict) else None
     )
-
+    component = _component(profile_entry) if profile_entry is not None else {
+        "name": profile.get("version", profile.get("profile_version")),
+        "version": profile.get("version", profile.get("profile_version")),
+        "status": registration if registration == "unregistered" else "unregistered",
+        "owner": None,
+        "replaced_by": None,
+        "source_path": None,
+        "source_sha256": None,
+    }
     return {
-        "registration": "registered",
+        "registration": registration,
         "registry": registry_component,
         "review_contract": _component(contract),
-        "profile": _component(profile_entry),
+        "profile": component,
         "limits": _component(limits_entry),
         "claim_assessment": _component(claim_entry),
         "claim_reconciliation": _artifact_component(

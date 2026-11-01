@@ -26,7 +26,7 @@
   "deprecation_policy": {
     "announcement": "Every deprecation is announced in a dated documentation entry that names the contract, its replacement, the compatibility window, and the removal evidence required before deletion. The registry entry is the authoritative announcement record.",
     "replacement_path": "Each deprecated contract names a replaced_by successor of the same kind, or is marked terminal when no same-target successor exists. The successor must exist in this registry before the deprecation is recorded.",
-    "compatibility_window": "A deprecated contract remains selectable and executable for at least one minor release and 90 days after the replacement is designated. It is never a default selection and every run artifact records its deprecated status.",
+    "compatibility_window": "A deprecated contract remains selectable and executable for at least one minor release and 90 days after the replacement is designated. It is never the default for new selection, but an existing target pinned default is frozen until its owner migrates it; every binding and run artifact records the deprecated status.",
     "removal_evidence": [
       "The replacement contract has produced at least one successful run artifact that records the replacement as the effective contract.",
       "No production surface (src package, active workflow, resolver script, targets map) references the deprecated contract.",
@@ -507,7 +507,7 @@
       "replaced_by": null,
       "source_path": "src/pr_review_harness/publication_receipts.py",
       "source_sha256": null,
-      "source_symbol": "ReviewReceipt.protocol_version",
+      "source_symbol": "AttemptReceipt.protocol_version",
       "invariants": {"requires_credential_provenance": true, "publication_mode": "DISPOSITION"}
     },
     {
@@ -519,7 +519,7 @@
       "replaced_by": null,
       "source_path": "src/pr_review_harness/publication_receipts.py",
       "source_sha256": null,
-      "source_symbol": "ReviewReceipt.protocol_version",
+      "source_symbol": "AttemptReceipt.protocol_version",
       "invariants": {"publication_mode": "NON_BINDING_COMMENT", "requires_credential_provenance": true}
     },
     {
@@ -531,7 +531,7 @@
       "replaced_by": "actions-receipt-v2",
       "source_path": "src/pr_review_harness/publication_receipts.py",
       "source_sha256": null,
-      "source_symbol": "ReviewReceipt.protocol_version",
+      "source_symbol": "AttemptReceipt.protocol_version",
       "invariants": {"requires_credential_provenance": false, "publication_mode": "DISPOSITION"},
       "deprecation": {
         "announced_on": "2026-11-01",

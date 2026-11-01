@@ -6,12 +6,12 @@ import copy
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import jsonschema
 import pytest
 from test_engine import EmptyProvider, make_snapshot
-from test_engine import run as run_engine
 from test_review_stages import make_profile, make_state
 
 import pr_review_harness.review_stages as stages
@@ -25,7 +25,7 @@ from pr_review_harness.contract_registry import (
     supported_combination,
     validate_registry,
 )
-from pr_review_harness.engine import EnginePreflightError
+from pr_review_harness.engine import EnginePreflightError, run_review
 from pr_review_harness.planner import plan_review
 from scripts.resolve_review_contract import (
     CONTRACT_STATUS,
@@ -36,6 +36,9 @@ from scripts.resolve_review_contract import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import central_pilot_admission as admission  # noqa: E402
+
 REGISTRY_PATH = ROOT / "src/pr_review_harness/contract_registry.json"
 SCHEMA_PATH = ROOT / "schemas/contract-registry.v1.schema.json"
 SLOP = "magnus919/SlopSearX"
@@ -50,12 +53,47 @@ V14_PROFILE = json.loads((ROOT / "profiles/slopsearx-v14-jev-reconciliation-cand
 V14_LIMITS = json.loads((ROOT / "profiles/ordinary-review-limits-v2.json").read_text())
 
 
-def _registered_profile() -> dict:
-    """A synthetic plan-safe profile carrying the supported registry identity."""
-    profile = make_profile()
-    profile["repository"] = CODEREVIEW
-    profile["version"] = "codereview-native-v1-candidate"
-    return profile
+V13_PROFILE = json.loads((ROOT / "profiles/slopsearx-v13-static-assessment-candidate.json").read_text())
+V5_LIMITS = {
+    key: value
+    for key, value in json.loads(
+        (ROOT / "docs/historical-functional-review-pr466-v5/limits.json").read_text()
+    ).items()
+    if key != "schema_version"
+}
+
+
+class DummyClaimAssessor:
+    """Minimal preflight-valid adapter; no claim dispatch occurs in these tests."""
+
+    identity = {
+        "contract_version": "claim-assessment.2",
+        "supported_contract_versions": ["claim-assessment.2", "claim-assessment.3"],
+    }
+
+    def prepare(self):  # pragma: no cover - interface probe only
+        raise AssertionError("no claim preparation occurs in registry tests")
+
+    def estimate_prepared(self):  # pragma: no cover - interface probe only
+        raise AssertionError("no claim estimation occurs in registry tests")
+
+    def assess_prepared(self):  # pragma: no cover - interface probe only
+        raise AssertionError("no claim assessment occurs in registry tests")
+
+
+def _registered_state(tmp_path: Path, *, profile: dict | None = None, limits: dict | None = None, **overrides):
+    profile = profile or copy.deepcopy(CODEREVIEW_PROFILE)
+    snapshot = make_snapshot()
+    values = {
+        "snapshot": snapshot,
+        "profile": profile,
+        "plan": plan_review(snapshot, profile),
+        "limits": dict(limits or V3_LIMITS),
+        "max_claim_assessments": 4,
+        "claim_assessor": DummyClaimAssessor(),
+    }
+    values.update(overrides)
+    return make_state(tmp_path, **values)
 
 
 def _entries(registry: dict) -> list[dict]:
@@ -250,26 +288,29 @@ def test_deprecated_combination_is_recorded_and_can_be_rejected_strictly():
 
 
 def test_preflight_accepts_the_supported_combination_and_records_it(tmp_path: Path):
-    profile = _registered_profile()
-    snapshot = make_snapshot()
-    state = make_state(
-        tmp_path,
-        snapshot=snapshot,
-        profile=profile,
-        plan=plan_review(snapshot, profile),
-        limits=dict(V3_LIMITS),
-    )
+    state = _registered_state(tmp_path)
     stages.preflight_review(state)
     assert state.contracts["registration"] == "registered"
     assert state.contracts["review_contract"]["name"] == SUPPORTED_CONTRACT
     assert state.contracts["limits"]["name"] == "ordinary-review-limits-v3"
 
 
-def test_preflight_rejects_limits_that_do_not_match_the_registered_combination(tmp_path: Path,):
-    profile = _registered_profile()
-    snapshot = make_snapshot()
-    bad_limits = {**V3_LIMITS, "max_provider_calls": 999}
-    state = make_state(tmp_path, snapshot=snapshot, profile=profile, limits=bad_limits)
+def test_effective_contract_set_enforces_the_registered_claim_cap():
+    registry = load_registry(REGISTRY_PATH)
+    with pytest.raises(ContractRegistryError, match="contract_claim_cap_mismatch"):
+        effective_contract_set(registry, CODEREVIEW_PROFILE, V3_LIMITS, max_claim_assessments=3)
+
+
+def test_preflight_enforces_registered_profile_contract_checks(tmp_path: Path):
+    profile = copy.deepcopy(CODEREVIEW_PROFILE)
+    profile["profile_status"] = "tampered_status"
+    state = _registered_state(tmp_path, profile=profile)
+    with pytest.raises(EnginePreflightError, match="contract invariants do not match the registry"):
+        stages.preflight_review(state)
+
+
+def test_preflight_rejects_limits_that_do_not_match_the_registered_combination(tmp_path: Path):
+    state = _registered_state(tmp_path, limits={**V3_LIMITS, "max_provider_calls": 999})
     with pytest.raises(EnginePreflightError, match="contract limits do not match the registered combination"):
         stages.preflight_review(state)
 
@@ -287,14 +328,13 @@ def test_preflight_rejects_an_archived_combination_fail_closed(tmp_path: Path, m
             }
             break
     monkeypatch.setattr(stages, "load_registry", lambda *args, **kwargs: registry)
-    profile = _registered_profile()
-    state = make_state(tmp_path, snapshot=make_snapshot(), profile=profile, limits=dict(V3_LIMITS))
+    state = _registered_state(tmp_path)
     with pytest.raises(EnginePreflightError, match="archived contract combination rejected"):
         stages.preflight_review(state)
 
 
 def test_preflight_rejects_an_unregistered_contract_version(tmp_path: Path):
-    profile = _registered_profile()
+    profile = make_profile()
     profile["context_selection"] = {"version": "context-selection.v99"}
     state = make_state(
         tmp_path,
@@ -308,8 +348,7 @@ def test_preflight_rejects_an_unregistered_contract_version(tmp_path: Path):
 
 
 def test_preflight_rejects_an_unknown_version_of_a_real_profile_identity(tmp_path: Path):
-    profile = _registered_profile()
-    profile["profile_status"] = "candidate_not_quality_validated"
+    profile = copy.deepcopy(CODEREVIEW_PROFILE)
     profile["version"] = "codereview-native-v99-tampered"
     state = make_state(
         tmp_path,
@@ -317,6 +356,8 @@ def test_preflight_rejects_an_unknown_version_of_a_real_profile_identity(tmp_pat
         profile=profile,
         plan={"tasks": [], "coverage_obligations": []},
         limits=dict(V3_LIMITS),
+        max_claim_assessments=4,
+        claim_assessor=DummyClaimAssessor(),
     )
     with pytest.raises(EnginePreflightError, match="profile is not registered for a review contract"):
         stages.preflight_review(state)
@@ -335,14 +376,19 @@ def test_unregistered_synthetic_profile_is_recorded_not_silently_promoted():
 
 
 def test_run_artifact_records_the_effective_contract_set(tmp_path: Path):
-    profile = _registered_profile()
-    result = run_engine(
-        tmp_path,
-        snap=make_snapshot(),
-        prof=profile,
-        provider=EmptyProvider(),
-        limits=dict(V3_LIMITS),
-        run_id="ca-3-artifact",
+    profile = copy.deepcopy(CODEREVIEW_PROFILE)
+    snapshot = make_snapshot()
+    result = run_review(
+        snapshot,
+        plan_review(snapshot, profile),
+        profile,
+        EmptyProvider(),
+        None,
+        dict(V3_LIMITS),
+        str(tmp_path),
+        "ca-3-artifact",
+        max_claim_assessments=4,
+        claim_assessor=DummyClaimAssessor(),
     )
     contracts = result["effective_contracts"]
     assert contracts["registration"] == "registered"
@@ -383,7 +429,7 @@ def test_archived_files_are_byte_identical_to_the_committed_generation():
             assert (ROOT / evidence_path).exists()
 
 
-def test_archived_versions_are_not_referenced_by_production_surfaces():
+def test_archived_versions_are_not_referenced_by_production_selection_surfaces():
     registry = load_registry(REGISTRY_PATH)
     forbidden = _archived_tokens(registry)
     production_paths = [
@@ -398,3 +444,104 @@ def test_archived_versions_are_not_referenced_by_production_surfaces():
         text = path.read_text(encoding="utf-8")
         for token in forbidden:
             assert token not in text, f"archived contract token {token!r} referenced by {path}"
+
+    # The historical functional-review runner is the sole evidence exception:
+    # it legitimately reproduces v10-v13 and must opt in explicitly.
+    historical = (ROOT / "scripts/run_historical_functional_review.py").read_text(encoding="utf-8")
+    assert "--allow-archived-contracts" in historical
+    cli = (ROOT / "src/pr_review_harness/cli.py").read_text(encoding="utf-8")
+    assert '"--allow-archived-contracts"' in cli
+
+
+# ---------------------------------------------------------------------------
+# Central-pilot admission compatibility (B1)
+
+
+def test_resolver_binding_passes_central_pilot_admission():
+    for contract in ("legacy-v14", "bounded-production-v16", "bounded-production-v17"):
+        binding = resolve_review_contract(SLOP, contract)
+        raw = (json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+        identity = {"profile_sha256": binding["profile_sha256"], "profile_version": binding["profile_version"]}
+        accepted = admission._validate_review_contract_binding(raw, identity)
+        assert accepted["review_contract"] == contract
+        assert accepted["max_claim_assessments"] == (1 if contract == "legacy-v14" else 4)
+
+
+def test_central_pilot_admission_accepts_the_historical_nine_key_binding_and_rejects_tampering():
+    binding = resolve_review_contract(SLOP, "legacy-v14")
+    identity = {"profile_sha256": binding["profile_sha256"], "profile_version": binding["profile_version"]}
+    historical_shape = {
+        key: value
+        for key, value in binding.items()
+        if key not in {"contract_status", "contract_replaced_by", "contract_deprecation"}
+    }
+    accepted = admission._validate_review_contract_binding(
+        (json.dumps(historical_shape) + "\n").encode("utf-8"), identity
+    )
+    assert accepted["review_contract"] == "legacy-v14"
+
+    with pytest.raises(admission.AdmissionError, match="review_contract_binding_invalid"):
+        admission._validate_review_contract_binding(
+            (json.dumps({**binding, "unexpected_authority": True}) + "\n").encode("utf-8"), identity
+        )
+    with pytest.raises(admission.AdmissionError, match="review_contract_binding_invalid"):
+        admission._validate_review_contract_binding(
+            (json.dumps({**binding, "contract_status": "supported"}) + "\n").encode("utf-8"), identity
+        )
+    with pytest.raises(admission.AdmissionError, match="review_contract_binding_invalid"):
+        admission._validate_review_contract_binding(
+            (json.dumps({**binding, "contract_replaced_by": "forged"}) + "\n").encode("utf-8"), identity
+        )
+
+
+# ---------------------------------------------------------------------------
+# Archived fail-closed behavior and explicit historical opt-in (B2)
+
+
+def test_preflight_rejects_an_archived_profile_with_supported_limits(tmp_path: Path):
+    snapshot = make_snapshot()
+    state = make_state(
+        tmp_path,
+        snapshot=snapshot,
+        profile=V13_PROFILE,
+        plan=plan_review(snapshot, V13_PROFILE),
+        limits=dict(V3_LIMITS),
+    )
+    with pytest.raises(EnginePreflightError, match="archived contract combination rejected"):
+        stages.preflight_review(state)
+
+
+def test_preflight_rejects_an_archived_limits_entry(tmp_path: Path):
+    from pr_review_harness.cli import _limits as cli_limits
+
+    limits = {**cli_limits(), "max_context_bytes": 600000}
+    state = make_state(tmp_path, snapshot=make_snapshot(), profile=make_profile(), limits=limits)
+    with pytest.raises(EnginePreflightError, match="archived contract combination rejected"):
+        stages.preflight_review(state)
+
+
+def test_archived_combination_is_recorded_and_allowed_only_with_explicit_opt_in(tmp_path: Path):
+    snapshot = make_snapshot()
+    rejected = make_state(
+        tmp_path,
+        snapshot=snapshot,
+        profile=V13_PROFILE,
+        plan=plan_review(snapshot, V13_PROFILE),
+        limits=dict(V5_LIMITS),
+    )
+    with pytest.raises(EnginePreflightError, match="archived contract combination rejected"):
+        stages.preflight_review(rejected)
+
+    allowed = make_state(
+        tmp_path / "historic",
+        snapshot=snapshot,
+        profile=V13_PROFILE,
+        plan=plan_review(snapshot, V13_PROFILE),
+        limits=dict(V5_LIMITS),
+        allow_archived_contracts=True,
+    )
+    stages.preflight_review(allowed)
+    assert allowed.contracts["registration"] == "archived"
+    assert allowed.contracts["profile"]["status"] == "archived"
+    assert allowed.contracts["profile"]["name"] == "slopsearx-v13-static-assessment-candidate"
+    assert allowed.contracts["review_contract"]["status"] == "unregistered"

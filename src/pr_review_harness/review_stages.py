@@ -34,6 +34,7 @@ _CONTRACT_REJECTION_DETAILS = {
     "contract_unknown_component": "contract version is not registered",
     "contract_unregistered_profile": "profile is not registered for a review contract",
     "contract_invariant_mismatch": "contract invariants do not match the registry",
+    "contract_claim_cap_mismatch": "claim assessment cap does not match the registered combination",
 }
 
 
@@ -803,6 +804,8 @@ dispatch or result file creation.  No reservation is made here."""
             state.limits,
             comparison_mode=state.snapshot.get("comparison_mode"),
             claim_assessment_version=state.expected_claim_contract,
+            max_claim_assessments=state.max_claim_assessments,
+            allow_archived=getattr(state, "allow_archived_contracts", False),
         )
     except ContractRegistryError as exc:
         raise EnginePreflightError(

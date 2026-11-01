@@ -94,6 +94,11 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--mode", choices=["AUTO", "LIGHT", "FOCUSED", "DEEP"], default="AUTO")
     review.add_argument("--run-id")
     review.add_argument("--resume", action="store_true")
+    review.add_argument(
+        "--allow-archived-contracts",
+        action="store_true",
+        help="historical reproduction only: permit a registry-archived profile/limits combination",
+    )
     review.add_argument("--event-file", help="GitHub Actions pull_request event JSON (read only)")
     review.add_argument(
         "--capture-recovery-inputs",
@@ -1363,6 +1368,7 @@ def _run_one(
                 if capture_snapshot_pin is not None
                 else 64_000
             ),
+            allow_archived_contracts=getattr(args, "allow_archived_contracts", False),
             **review_kwargs,
         )
     except EnginePreflightError:
