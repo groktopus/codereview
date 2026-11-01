@@ -107,8 +107,8 @@ measured with `find src -name '*.py' -exec wc -l {} + | tail -1`.
 | Revision | `src` Python files | `src` Python lines |
 |---|---|---|
 | Base `7d550b6` (before) | 48 | 40,686 |
-| Consolidated (after) | 37 | 28,507 |
-| Delta | −11 | −12,179 (−29.93%) |
+| Consolidated on CA-2 + OE-1 + SE-3 | 39 | 30,030 |
+| Delta | −9 | −10,656 (−26.19%) |
 
 The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
 orchestrator, two are internal stages of it, and one is the guarded publication
