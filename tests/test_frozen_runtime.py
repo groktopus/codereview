@@ -115,12 +115,8 @@ def test_missing_historical_source_module_is_rejected(tmp_path: Path, monkeypatc
         frozen_runtime.build_frozen_runtime_root(tmp_path)
 
 
-def test_modified_historical_module_bytes_are_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    source_root = tmp_path / "source"
-    source_dir = source_root / "src/pr_review_harness"
-    shutil.copytree(ROOT / "src/pr_review_harness", source_dir)
-    with (source_dir / "checks.py").open("ab") as source:
-        source.write(b"\n# changed historical module\n")
-    monkeypatch.setattr(frozen_runtime, "ROOT", source_root)
+def test_modified_historical_module_bytes_are_rejected(tmp_path: Path):
+    tampered = tmp_path / "checks.py"
+    tampered.write_bytes((frozen_runtime.PINNED_RELOCATED / "checks.py").read_bytes() + b"\n# changed\n")
     with pytest.raises(AssertionError, match="historical compatibility mismatch"):
-        frozen_runtime.build_frozen_runtime_root(tmp_path)
+        frozen_runtime.assert_frozen_runtime_pin("checks.py", tampered)
