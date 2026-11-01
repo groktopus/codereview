@@ -229,7 +229,16 @@ def _validate_review_contract_binding(raw: bytes, identity: dict[str, Any]) -> d
         "limits_sha256",
         "max_claim_assessments",
     }
-    if set(binding) != required_fields or binding.get("target_repository") != TARGET:
+    # CA-3 adds registry status metadata.  Accept both the historical nine-key
+    # shape and the annotated shape, but reject any unknown key or inconsistent
+    # status so a forged binding cannot smuggle extra authority.
+    optional_fields = {"contract_status", "contract_replaced_by", "contract_deprecation"}
+    keys = set(binding)
+    if (
+        not required_fields <= keys
+        or keys - required_fields - optional_fields
+        or binding.get("target_repository") != TARGET
+    ):
         raise AdmissionError("review_contract_binding_invalid")
     if not isinstance(binding.get("profile_map_sha256"), str) or not SHA256.fullmatch(binding["profile_map_sha256"]):
         raise AdmissionError("review_contract_binding_invalid")
@@ -237,6 +246,21 @@ def _validate_review_contract_binding(raw: bytes, identity: dict[str, Any]) -> d
     contract = review_contracts.CONTRACTS.get(contract_name) if isinstance(contract_name, str) else None
     if contract is None:
         raise AdmissionError("review_contract_unsupported")
+    if "contract_status" in keys:
+        expected_status = review_contracts.CONTRACT_STATUS.get(contract_name)
+        if (
+            binding["contract_status"] not in {"supported", "deprecated"}
+            or binding["contract_status"] != expected_status
+            or binding.get("contract_replaced_by") != review_contracts.CONTRACT_REPLACED_BY.get(contract_name)
+        ):
+            raise AdmissionError("review_contract_binding_invalid")
+        if binding["contract_status"] == "deprecated":
+            if binding.get("contract_deprecation") != review_contracts.CONTRACT_DEPRECATION.get(contract_name):
+                raise AdmissionError("review_contract_binding_invalid")
+        elif "contract_deprecation" in keys:
+            raise AdmissionError("review_contract_binding_invalid")
+    elif "contract_replaced_by" in keys or "contract_deprecation" in keys:
+        raise AdmissionError("review_contract_binding_invalid")
     expected = {
         "profile_path": contract["profile_path"],
         "profile_version": contract["profile_version"],

@@ -126,6 +126,20 @@ class EnginePreflightError(ValueError):
         "claim assessor contract identity is required",
         "claim assessor identity or adapter is not serializable",
         "claim assessor configuration exceeds its finite preflight bound",
+        "contract registry is unavailable",
+        "contract registry is invalid",
+        "contract registry has an invalid status",
+        "contract registry has a duplicate entry",
+        "contract registry references an unknown contract",
+        "contract registry source digest does not match",
+        "contract registry supported matrix is invalid",
+        "archived contract combination rejected",
+        "deprecated contract combination rejected",
+        "contract limits do not match the registered combination",
+        "contract version is not registered",
+        "profile is not registered for a review contract",
+        "contract invariants do not match the registry",
+        "claim assessment cap does not match the registered combination",
     }
     _LIMIT_NAMES = {
         "deadline_seconds", "max_concurrent_scopes", "max_provider_calls", "max_retries_per_task",
@@ -475,6 +489,8 @@ def _core_contract_hash() -> str:
         "reconcile.py",
         "budget.py",
         "claim_reconciliation.py",
+        "contract_registry.py",
+        "contract_registry.json",
     )
     return _hash({name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in names})
 
@@ -1424,6 +1440,7 @@ def run_review(
     private_capture_request_pins: dict[str, dict] | None = None,
     private_capture_snapshot_pin: dict[str, Any] | None = None,
     private_capture_source_audit_max_bytes: int = 64_000,
+    allow_archived_contracts: bool = False,
 ) -> dict:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1451,6 +1468,7 @@ def run_review(
         private_capture_request_pins=private_capture_request_pins,
         private_capture_snapshot_pin=private_capture_snapshot_pin,
         private_capture_source_audit_max_bytes=private_capture_source_audit_max_bytes,
+        allow_archived_contracts=allow_archived_contracts,
     )
     # Deterministic stage order; the coordinator makes no review decisions and
     # never dispatches on model output.  Invariants that hold across the whole

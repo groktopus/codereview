@@ -113,6 +113,8 @@ class RunState:
     claim_identity: dict
     claim_not_run: Any
     claim_reconciliation_rows: Any
+    contracts: dict
+    allow_archived_contracts: bool
     claim_row: Any
     claim_rows: Any
     claim_supported: Any
@@ -409,6 +411,7 @@ class RunState:
         private_capture_request_pins: dict[str, dict] | None,
         private_capture_snapshot_pin: dict[str, Any] | None,
         private_capture_source_audit_max_bytes: int,
+        allow_archived_contracts: bool = False,
     ) -> None:
         self.snapshot = snapshot
         self.plan = plan
@@ -429,3 +432,5 @@ class RunState:
         self.private_capture_request_pins = private_capture_request_pins
         self.private_capture_snapshot_pin = private_capture_snapshot_pin
         self.private_capture_source_audit_max_bytes = private_capture_source_audit_max_bytes
+        self.contracts = {}
+        self.allow_archived_contracts = allow_archived_contracts

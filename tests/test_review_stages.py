@@ -183,7 +183,9 @@ def test_run_review_is_a_thin_coordinator_without_nested_functions():
     assert [node.func.id for node in sorted(calls, key=lambda node: node.lineno)] == list(STAGE_NAMES)
 
 
-@pytest.mark.parametrize("name", ["review_stages.py", "review_state.py"])
+@pytest.mark.parametrize(
+    "name", ["review_stages.py", "review_state.py", "contract_registry.py", "contract_registry.json"]
+)
 def test_core_contract_hash_covers_stage_sources(monkeypatch, name):
     baseline = engine_module._core_contract_hash()
     original = Path.read_bytes
@@ -233,7 +235,8 @@ def test_stage_module_import_graph_is_acyclic():
 
     for name in sorted(graph):
         visit(name)
-    assert graph["review_stages"] == {"review_state"}
+    assert graph["review_stages"] == {"contract_registry", "review_state"}
+    assert graph["contract_registry"] == set()
     assert "review_stages" in graph["engine"]
 
 

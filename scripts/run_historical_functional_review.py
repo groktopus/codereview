@@ -886,6 +886,7 @@ def _cli(
         str(output),
         "--max-claim-assessments",
         "1",
+        "--allow-archived-contracts",
         "--json",
     ]
     if prepare:

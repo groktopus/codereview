@@ -1,0 +1,1261 @@
+{
+  "registry_version": "contract-registry.v1",
+  "owner": "groktopus/codereview maintainers",
+  "supported_combination": {
+    "review_contract": "codereview-native-v1",
+    "profile": "codereview-native-v1-candidate",
+    "limits": "ordinary-review-limits-v3",
+    "target_repository": "groktopus/codereview"
+  },
+  "targets": {
+    "groktopus/codereview": {
+      "default_review_contract": "codereview-native-v1",
+      "review_contracts": [
+        "codereview-native-v1"
+      ]
+    },
+    "magnus919/SlopSearX": {
+      "default_review_contract": "legacy-v14",
+      "review_contracts": [
+        "legacy-v14",
+        "bounded-production-v16",
+        "bounded-production-v17"
+      ]
+    }
+  },
+  "deprecation_policy": {
+    "announcement": "Every deprecation is announced in a dated documentation entry that names the contract, its replacement, the compatibility window, and the removal evidence required before deletion. The registry entry is the authoritative announcement record.",
+    "replacement_path": "Each deprecated contract names a replaced_by successor of the same kind, or is marked terminal when no same-target successor exists. The successor must exist in this registry before the deprecation is recorded.",
+    "compatibility_window": "A deprecated contract remains selectable and executable for at least one minor release and 90 days after the replacement is designated. It is never the default for new selection, but an existing target pinned default is frozen until its owner migrates it; every binding and run artifact records the deprecated status.",
+    "removal_evidence": [
+      "The replacement contract has produced at least one successful run artifact that records the replacement as the effective contract.",
+      "No production surface (src package, active workflow, resolver script, targets map) references the deprecated contract.",
+      "The contract source file and its provenance are retained unchanged in the archive; deletion requires a separate owner decision.",
+      "The registry entry status is changed to archived with an archival note and evidence paths."
+    ]
+  },
+  "contracts": [
+    {
+      "kind": "review-contract",
+      "name": "codereview-native-v1",
+      "version": "codereview-native-v1",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "scripts/resolve_review_contract.py",
+      "source_sha256": null,
+      "source_symbol": "CONTRACTS",
+      "combination": {
+        "target_repository": "groktopus/codereview",
+        "profile": "codereview-native-v1-candidate",
+        "limits": "ordinary-review-limits-v3",
+        "max_claim_assessments": 4
+      },
+      "mismatch_error": "review_contract_codereview_contract_mismatch",
+      "checks": [
+        {
+          "path": "profile_status",
+          "equals": "candidate_not_quality_validated"
+        },
+        {
+          "path": "trusted_policy_paths",
+          "equals": [
+            "AGENTS.md"
+          ]
+        },
+        {
+          "path": "required_lenses",
+          "equals": [
+            "correctness",
+            "tests",
+            "maintainability"
+          ]
+        },
+        {
+          "path": "context_selection.version",
+          "equals": "context-selection.v3"
+        },
+        {
+          "path": "context_selection.max_total_context_bytes",
+          "equals": 256000
+        },
+        {
+          "path": "context_selection.window.max_windows_per_unit",
+          "equals": 8
+        },
+        {
+          "path": "required_checks",
+          "length_equals": 7
+        },
+        {
+          "path": "limits",
+          "equals_exact": {
+            "schema_version": "1.0",
+            "deadline_seconds": 300,
+            "max_concurrent_scopes": 3,
+            "max_provider_calls": 32,
+            "max_retries_per_task": 0,
+            "max_context_bytes": 2500000,
+            "max_input_bytes_per_task": 96000,
+            "max_output_bytes_per_task": 16000,
+            "max_output_bytes": 512000,
+            "max_output_tokens": 1800,
+            "max_context_retrievals": 8,
+            "max_followup_tasks": 8,
+            "max_snapshot_context_bytes": 600000
+          }
+        }
+      ],
+      "invariants": {
+        "target_repository": "groktopus/codereview",
+        "claim_assessment_versions": [
+          "claim-assessment.2",
+          "claim-assessment.3"
+        ],
+        "review_profile": "codereview-native-v1-candidate",
+        "review_limits": "ordinary-review-limits-v3"
+      }
+    },
+    {
+      "kind": "review-contract",
+      "name": "legacy-v14",
+      "version": "legacy-v14",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "bounded-production-v16",
+      "source_path": "scripts/resolve_review_contract.py",
+      "source_sha256": null,
+      "source_symbol": "CONTRACTS",
+      "combination": {
+        "target_repository": "magnus919/SlopSearX",
+        "profile": "slopsearx-v14-jev-reconciliation-candidate",
+        "limits": "ordinary-review-limits-v2",
+        "max_claim_assessments": 1
+      },
+      "mismatch_error": "review_contract_limits_mismatch",
+      "checks": [
+        {
+          "path": "limits",
+          "equals_exact": {
+            "schema_version": "1.0",
+            "max_context_bytes": 600000,
+            "max_input_bytes_per_task": 96000
+          }
+        }
+      ],
+      "invariants": {
+        "target_repository": "magnus919/SlopSearX",
+        "claim_assessment_versions": [
+          "claim-assessment.2",
+          "claim-assessment.3"
+        ],
+        "review_profile": "slopsearx-v14-jev-reconciliation-candidate",
+        "review_limits": "ordinary-review-limits-v2"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "bounded-production-v16 for magnus919/SlopSearX; the harness-wide supported contract is codereview-native-v1 for groktopus/codereview.",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "bounded-production-v16 or its successor has produced a successful run artifact",
+          "no production surface selects legacy-v14"
+        ]
+      }
+    },
+    {
+      "kind": "review-contract",
+      "name": "bounded-production-v16",
+      "version": "bounded-production-v16",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "bounded-production-v17",
+      "source_path": "scripts/resolve_review_contract.py",
+      "source_sha256": null,
+      "source_symbol": "CONTRACTS",
+      "combination": {
+        "target_repository": "magnus919/SlopSearX",
+        "profile": "slopsearx-v16-bounded-production-candidate",
+        "limits": "ordinary-review-limits-v3",
+        "max_claim_assessments": 4
+      },
+      "mismatch_error": "review_contract_v16_contract_mismatch",
+      "checks": [
+        {
+          "path": "profile_status",
+          "equals": "bounded_production_capacity_candidate_not_quality_validated"
+        },
+        {
+          "path": "context_selection.version",
+          "equals": "context-selection.v3"
+        },
+        {
+          "path": "context_selection.max_total_context_bytes",
+          "equals": 128000
+        },
+        {
+          "path": "retrieval_revisions",
+          "equals": {
+            "implementation": "head",
+            "test": "head"
+          }
+        },
+        {
+          "path": "risk_rules",
+          "contains": {
+            "lenses": [
+              "security",
+              "correctness",
+              "tests"
+            ],
+            "min_mode": "FOCUSED",
+            "patterns": [
+              "engines/*.py"
+            ],
+            "reason": "Network-client adapters cross credential, upstream-input, and remote-service trust boundaries and need explicit security, correctness, and test review."
+          }
+        },
+        {
+          "path": "context_target_manifest",
+          "absent": true
+        },
+        {
+          "path": "limits",
+          "equals_exact": {
+            "schema_version": "1.0",
+            "deadline_seconds": 300,
+            "max_concurrent_scopes": 3,
+            "max_provider_calls": 32,
+            "max_retries_per_task": 0,
+            "max_context_bytes": 2500000,
+            "max_input_bytes_per_task": 96000,
+            "max_output_bytes_per_task": 16000,
+            "max_output_bytes": 512000,
+            "max_output_tokens": 1800,
+            "max_context_retrievals": 8,
+            "max_followup_tasks": 8,
+            "max_snapshot_context_bytes": 600000
+          }
+        }
+      ],
+      "invariants": {
+        "target_repository": "magnus919/SlopSearX",
+        "claim_assessment_versions": [
+          "claim-assessment.2",
+          "claim-assessment.3"
+        ],
+        "review_profile": "slopsearx-v16-bounded-production-candidate",
+        "review_limits": "ordinary-review-limits-v3"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "bounded-production-v17 for magnus919/SlopSearX.",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "bounded-production-v17 has produced a successful run artifact",
+          "no production surface selects bounded-production-v16"
+        ]
+      }
+    },
+    {
+      "kind": "review-contract",
+      "name": "bounded-production-v17",
+      "version": "bounded-production-v17",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "scripts/resolve_review_contract.py",
+      "source_sha256": null,
+      "source_symbol": "CONTRACTS",
+      "combination": {
+        "target_repository": "magnus919/SlopSearX",
+        "profile": "slopsearx-v17-context-target-manifest-candidate",
+        "limits": "ordinary-review-limits-v3",
+        "max_claim_assessments": 4
+      },
+      "mismatch_error": "review_contract_v17_contract_mismatch",
+      "checks": [
+        {
+          "path": "profile_status",
+          "equals": "bounded_production_capacity_and_context_target_candidate_not_quality_validated"
+        },
+        {
+          "path": "context_selection.version",
+          "equals": "context-selection.v3"
+        },
+        {
+          "path": "context_selection.max_total_context_bytes",
+          "equals": 128000
+        },
+        {
+          "path": "retrieval_revisions",
+          "equals": {
+            "implementation": "head",
+            "test": "head"
+          }
+        },
+        {
+          "path": "risk_rules",
+          "contains": {
+            "lenses": [
+              "security",
+              "correctness",
+              "tests"
+            ],
+            "min_mode": "FOCUSED",
+            "patterns": [
+              "engines/*.py"
+            ],
+            "reason": "Network-client adapters cross credential, upstream-input, and remote-service trust boundaries and need explicit security, correctness, and test review."
+          }
+        },
+        {
+          "path": "context_target_manifest",
+          "equals": {
+            "version": "context-target-manifest.v1",
+            "max_entries": 256,
+            "max_bytes": 16384
+          }
+        },
+        {
+          "path": "limits",
+          "equals_exact": {
+            "schema_version": "1.0",
+            "deadline_seconds": 300,
+            "max_concurrent_scopes": 3,
+            "max_provider_calls": 32,
+            "max_retries_per_task": 0,
+            "max_context_bytes": 2500000,
+            "max_input_bytes_per_task": 96000,
+            "max_output_bytes_per_task": 16000,
+            "max_output_bytes": 512000,
+            "max_output_tokens": 1800,
+            "max_context_retrievals": 8,
+            "max_followup_tasks": 8,
+            "max_snapshot_context_bytes": 600000
+          }
+        }
+      ],
+      "invariants": {
+        "target_repository": "magnus919/SlopSearX",
+        "claim_assessment_versions": [
+          "claim-assessment.2",
+          "claim-assessment.3"
+        ],
+        "review_profile": "slopsearx-v17-context-target-manifest-candidate",
+        "review_limits": "ordinary-review-limits-v3"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "Terminal SlopSearX contract. No same-target successor exists; the harness-wide supported contract is codereview-native-v1 for groktopus/codereview, and retiring this target binding is an owner decision.",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "the owner retires the magnus919/SlopSearX target binding",
+          "the retained v17 evidence remains immutable"
+        ],
+        "terminal": true
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "codereview-native-v1-candidate",
+      "version": "codereview-native-v1-candidate",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "repository": "groktopus/codereview",
+      "source_path": "profiles/codereview-native-v1-candidate.json",
+      "source_sha256": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "groktopus/codereview",
+        "profile_status": "candidate_not_quality_validated",
+        "context_selection": "context-selection.v3",
+        "claim_reconciliation": "claim-reconciliation.v1"
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v14-jev-reconciliation-candidate",
+      "version": "slopsearx-production-v14-jev-reconciliation-candidate",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v16-bounded-production-candidate",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v14-jev-reconciliation-candidate.json",
+      "source_sha256": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "profile_status": "context_selection_candidate_not_quality_validated",
+        "context_selection": "context-selection.v2",
+        "claim_reconciliation": "claim-reconciliation.v1"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "slopsearx-v16-bounded-production-candidate",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "the file remains hash-bound to its recorded evidence",
+          "no production surface selects it"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v16-bounded-production-candidate",
+      "version": "slopsearx-production-v16-bounded-production-candidate",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v17-context-target-manifest-candidate",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v16-bounded-production-candidate.json",
+      "source_sha256": "699f93fd7bc78d310de2455cad7402a1c3c8cf5ad61c3d4cbb77bb38da1189ed",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "profile_status": "bounded_production_capacity_candidate_not_quality_validated",
+        "context_selection": "context-selection.v3",
+        "claim_reconciliation": "claim-reconciliation.v1"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "slopsearx-v17-context-target-manifest-candidate",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "the file remains hash-bound to its recorded evidence",
+          "no production surface selects it"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v17-context-target-manifest-candidate",
+      "version": "slopsearx-production-v17-context-target-manifest-candidate",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v17-context-target-manifest-candidate.json",
+      "source_sha256": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "profile_status": "bounded_production_capacity_and_context_target_candidate_not_quality_validated",
+        "context_selection": "context-selection.v3",
+        "claim_reconciliation": "claim-reconciliation.v1"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "Terminal SlopSearX profile; the owner retires the target binding instead of selecting a same-target successor.",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "the file remains hash-bound to its recorded evidence",
+          "the owner retires the magnus919/SlopSearX target binding"
+        ],
+        "terminal": true
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v13-static-assessment-candidate",
+      "version": "slopsearx-production-v13-static-assessment-candidate",
+      "status": "archived",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v14-jev-reconciliation-candidate",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v13-static-assessment-candidate.json",
+      "source_sha256": "f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200ee3156",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "context_selection": "context-selection.v2"
+      },
+      "archived": {
+        "archived_on": "2026-11-01",
+        "archival_note": "Historical evidence only. The immutable file is retained unchanged because trial manifests bind its SHA-256.",
+        "evidence_paths": [
+          "docs/historical-functional-review-pr466-v5/manifest.json"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v12-dependency-context-candidate",
+      "version": "slopsearx-production-v12-head-dependency-context-candidate",
+      "status": "archived",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v13-static-assessment-candidate",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v12-dependency-context-candidate.json",
+      "source_sha256": "e2b1d9bbdafd6d054462b9abac48ce88fdc71400abcb7655902fcf3677c4d446",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "context_selection": "context-selection.v2"
+      },
+      "archived": {
+        "archived_on": "2026-11-01",
+        "archival_note": "Historical evidence only. The immutable file is retained unchanged because trial manifests bind its SHA-256.",
+        "evidence_paths": [
+          "docs/historical-functional-review-pr466-v4/manifest.json"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v11-related-implementation-context-candidate",
+      "version": "slopsearx-production-v11-related-implementation-context-candidate",
+      "status": "archived",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v12-dependency-context-candidate",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v11-related-implementation-context-candidate.json",
+      "source_sha256": "5afcbf3cf5af235a97b59487303c28cb5c5f0942dc51cccc1ff84178617853d3",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "context_selection": "context-selection.v2"
+      },
+      "archived": {
+        "archived_on": "2026-11-01",
+        "archival_note": "Historical evidence only. The immutable file is retained unchanged because trial manifests bind its SHA-256.",
+        "evidence_paths": [
+          "docs/historical-functional-review-pr466-v3/manifest.json"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v10-bounded-head-context-trial",
+      "version": "slopsearx-production-v10-bounded-head-context-trial",
+      "status": "archived",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v11-related-implementation-context-candidate",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v10-bounded-head-context-trial.json",
+      "source_sha256": "c2fefca40483bed31207f88fc1ae21f8c058098a207aca9ca987a54ff7abb34b",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "context_selection": "context-selection.v2"
+      },
+      "archived": {
+        "archived_on": "2026-11-01",
+        "archival_note": "Historical evidence only. The immutable file is retained unchanged because trial manifests bind its SHA-256.",
+        "evidence_paths": [
+          "docs/historical-functional-review-pr466-v2/manifest.json"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v9-context-candidate",
+      "version": "slopsearx-production-v9-exact-context-candidate",
+      "status": "archived",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v10-bounded-head-context-trial",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx-v9-context-candidate.json",
+      "source_sha256": "1ca31f71254640fec7cd60c491bcd3b6ea1e00c8d0e5d76e815f763a045ae0c9",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "context_selection": "context-selection.v2"
+      },
+      "archived": {
+        "archived_on": "2026-11-01",
+        "archival_note": "Historical evidence only. The immutable file is retained unchanged because the v9 context trial evidence binds its SHA-256.",
+        "evidence_paths": [
+          "docs/CONTEXT-SELECTION.md",
+          "docs/historical-functional-review-pr466-v1/manifest.json"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-v8-static-review-boundaries",
+      "version": "slopsearx-production-v8-static-review-boundaries",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "slopsearx-v14-jev-reconciliation-candidate",
+      "repository": "magnus919/SlopSearX",
+      "source_path": "profiles/slopsearx.json",
+      "source_sha256": "cc9c4631882662c27be5fb8534e65abbd352489afefa78e9dd3d3160fe0b1c65",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "context_selection": "context-selection.v1"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "slopsearx-v14-jev-reconciliation-candidate for production selection; the file remains the documented manual-testing profile.",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "no production surface selects it",
+          "the historical evidence retains its recorded digest"
+        ]
+      }
+    },
+    {
+      "kind": "review-profile-template",
+      "name": "generic-production-v2",
+      "version": "generic-production-v2",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "repository": null,
+      "source_path": "profiles/generic.json",
+      "source_sha256": "01ce4703c9e6b995b1b6eb4c15458cf56d30a8267bfac6180eb7639c76ac1c51",
+      "source_symbol": null,
+      "invariants": {
+        "usage": "operator template; not a review-contract profile",
+        "effect_policy": "READ_ONLY"
+      }
+    },
+    {
+      "kind": "review-limits",
+      "name": "ordinary-review-limits-v3",
+      "version": "ordinary-review-limits-v3",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "profiles/ordinary-review-limits-v3.json",
+      "source_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+      "source_symbol": null,
+      "values": {
+        "schema_version": "1.0",
+        "deadline_seconds": 300,
+        "max_concurrent_scopes": 3,
+        "max_provider_calls": 32,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 2500000,
+        "max_input_bytes_per_task": 96000,
+        "max_output_bytes_per_task": 16000,
+        "max_output_bytes": 512000,
+        "max_output_tokens": 1800,
+        "max_context_retrievals": 8,
+        "max_followup_tasks": 8,
+        "max_snapshot_context_bytes": 600000
+      },
+      "invariants": {
+        "retries": 0,
+        "followups": 8,
+        "claim_cap": 4
+      }
+    },
+    {
+      "kind": "review-limits",
+      "name": "ordinary-review-limits-v2",
+      "version": "ordinary-review-limits-v2",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "ordinary-review-limits-v3",
+      "source_path": "profiles/ordinary-review-limits-v2.json",
+      "source_sha256": "39abcf19666c9f322364961577f08f8cff8a3c539e68d894693b6cb0fb5a75e9",
+      "source_symbol": null,
+      "values": {
+        "schema_version": "1.0",
+        "max_context_bytes": 600000,
+        "max_input_bytes_per_task": 96000
+      },
+      "invariants": {
+        "aggregate_context_bytes": 600000,
+        "per_task_input_bytes": 96000
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "ordinary-review-limits-v3",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "legacy-v14 is removed or migrated",
+          "no production surface selects ordinary-review-limits-v2"
+        ]
+      }
+    },
+    {
+      "kind": "review-limits",
+      "name": "ordinary-review-limits-v1",
+      "version": "ordinary-review-limits-v1",
+      "status": "archived",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "ordinary-review-limits-v2",
+      "source_path": "profiles/ordinary-review-limits-v1.json",
+      "source_sha256": "fb1856f9bda4ad04f13b464348c2b0996a24c690e6b142fdebf2b88bba3d23eb",
+      "source_symbol": null,
+      "values": {
+        "schema_version": "1.0",
+        "max_context_bytes": 600000
+      },
+      "invariants": {
+        "aggregate_context_bytes": 600000
+      },
+      "archived": {
+        "archived_on": "2026-11-01",
+        "archival_note": "Historical limits revision. Retained unchanged for the deployment-configuration evidence that records the v1 to v2 change.",
+        "evidence_paths": [
+          "docs/DEPLOYMENT-CONFIGURATION.md"
+        ]
+      }
+    },
+    {
+      "kind": "claim-assessment",
+      "name": "claim-assessment.3",
+      "version": "claim-assessment.3",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/claim_assessment.py",
+      "source_sha256": null,
+      "source_symbol": "PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION",
+      "applies_to": "PR_MERGE_BASE",
+      "invariants": {
+        "requires_primary_assessment": true,
+        "emits_assessment_contract_version": true
+      }
+    },
+    {
+      "kind": "claim-assessment",
+      "name": "claim-assessment.2",
+      "version": "claim-assessment.2",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/claim_assessment.py",
+      "source_sha256": null,
+      "source_symbol": "PRIMARY_ASSESSMENT_CONTRACT_VERSION",
+      "applies_to": "default",
+      "invariants": {
+        "requires_primary_assessment": true,
+        "emits_assessment_contract_version": true
+      }
+    },
+    {
+      "kind": "claim-assessment",
+      "name": "claim-assessment.1",
+      "version": "claim-assessment.1",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "claim-assessment.2",
+      "source_path": "src/pr_review_harness/claim_assessment.py",
+      "source_sha256": null,
+      "source_symbol": "CONTRACT_VERSION",
+      "applies_to": "legacy",
+      "invariants": {
+        "adapter_default": true,
+        "accepted_for_compatibility": true
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "claim-assessment.2 (default) or claim-assessment.3 (PR_MERGE_BASE)",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "no adapter prepares claim-assessment.1",
+          "the compatibility path stays covered by tests"
+        ]
+      }
+    },
+    {
+      "kind": "canary-receipt",
+      "name": "actions-receipt-v2",
+      "version": "actions-receipt-v2",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/publication_receipts.py",
+      "source_sha256": null,
+      "source_symbol": "AttemptReceipt.protocol_version",
+      "invariants": {
+        "requires_credential_provenance": true,
+        "publication_mode": "DISPOSITION"
+      }
+    },
+    {
+      "kind": "canary-receipt",
+      "name": "actions-receipt-v3",
+      "version": "actions-receipt-v3",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/publication_receipts.py",
+      "source_sha256": null,
+      "source_symbol": "AttemptReceipt.protocol_version",
+      "invariants": {
+        "publication_mode": "NON_BINDING_COMMENT",
+        "requires_credential_provenance": true
+      }
+    },
+    {
+      "kind": "canary-receipt",
+      "name": "actions-receipt-v1",
+      "version": "actions-receipt-v1",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "actions-receipt-v2",
+      "source_path": "src/pr_review_harness/publication_receipts.py",
+      "source_sha256": null,
+      "source_symbol": "AttemptReceipt.protocol_version",
+      "invariants": {
+        "requires_credential_provenance": false,
+        "publication_mode": "DISPOSITION"
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "actions-receipt-v2 (credential provenance) or actions-receipt-v3 (non-binding comment)",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "no publisher emits actions-receipt-v1",
+          "retained canary receipts remain readable"
+        ]
+      }
+    },
+    {
+      "kind": "model-output",
+      "name": "specialist-findings.v4",
+      "version": "specialist-findings.v4",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "SPECIALIST_V4",
+      "invariants": {
+        "emits": "specialist-findings.engine-v2",
+        "accepts_strengths_and_guidance": true
+      }
+    },
+    {
+      "kind": "model-output",
+      "name": "specialist-findings.v3",
+      "version": "specialist-findings.v3",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "specialist-findings.v4",
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "SPECIALIST_V3",
+      "invariants": {
+        "accepted_for_migration": true
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "specialist-findings.v4",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "retained historical provider payloads remain readable",
+          "no new provider request asks for v3"
+        ]
+      }
+    },
+    {
+      "kind": "model-output",
+      "name": "specialist-findings.v2",
+      "version": "specialist-findings.v2",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "specialist-findings.v4",
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "SPECIALIST_V2",
+      "invariants": {
+        "accepted_for_migration": true
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "specialist-findings.v4",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "retained historical provider payloads remain readable",
+          "no new provider request asks for v2"
+        ]
+      }
+    },
+    {
+      "kind": "model-output",
+      "name": "specialist-findings.v1",
+      "version": "specialist-findings.v1",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "specialist-findings.v4",
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "SPECIALIST_V1",
+      "invariants": {
+        "accepted_for_migration": true
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "specialist-findings.v4",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "retained historical provider payloads remain readable",
+          "no new provider request asks for v1"
+        ]
+      }
+    },
+    {
+      "kind": "model-output",
+      "name": "semantic-adjudication.v3",
+      "version": "semantic-adjudication.v3",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "ADJUDICATION_V3",
+      "invariants": {
+        "causal_roles": [
+          "behavior",
+          "consumer",
+          "impact"
+        ],
+        "rubric": "causal-roles.behavior-consumer-impact.v1"
+      }
+    },
+    {
+      "kind": "model-output",
+      "name": "semantic-adjudication.v2",
+      "version": "semantic-adjudication.v2",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "semantic-adjudication.v3",
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "ADJUDICATION_V2",
+      "invariants": {
+        "accepted_for_migration": true
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "semantic-adjudication.v3",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "retained adjudication payloads remain readable",
+          "no new provider request asks for v2"
+        ]
+      }
+    },
+    {
+      "kind": "model-output",
+      "name": "semantic-adjudication.v1",
+      "version": "semantic-adjudication.v1",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "semantic-adjudication.v3",
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "ADJUDICATION_V1",
+      "invariants": {
+        "accepted_for_migration": true
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "semantic-adjudication.v3",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "retained adjudication payloads remain readable",
+          "no new provider request asks for v1"
+        ]
+      }
+    },
+    {
+      "kind": "model-input",
+      "name": "specialist-input.v2",
+      "version": "specialist-input.v2",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "SPECIALIST_INPUT_V2",
+      "invariants": {
+        "binds_snapshot_and_plan": true
+      }
+    },
+    {
+      "kind": "model-input",
+      "name": "context-followup.v1",
+      "version": "context-followup.v1",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/contracts.py",
+      "source_sha256": null,
+      "source_symbol": "CONTEXT_FOLLOWUP_V1",
+      "invariants": {
+        "bounded_retrieval_envelope": true
+      }
+    },
+    {
+      "kind": "context",
+      "name": "context-selection.v3",
+      "version": "context-selection.v3",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/planner.py",
+      "source_sha256": null,
+      "source_symbol": "validate_context_selection",
+      "invariants": {
+        "profiles": [
+          "codereview-native-v1-candidate",
+          "slopsearx-v16-bounded-production-candidate",
+          "slopsearx-v17-context-target-manifest-candidate"
+        ]
+      }
+    },
+    {
+      "kind": "context",
+      "name": "context-selection.v2",
+      "version": "context-selection.v2",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "context-selection.v3",
+      "source_path": "src/pr_review_harness/planner.py",
+      "source_sha256": null,
+      "source_symbol": "validate_context_selection",
+      "invariants": {
+        "profiles": [
+          "slopsearx-v9-context-candidate",
+          "slopsearx-v10-bounded-head-context-trial",
+          "slopsearx-v11-related-implementation-context-candidate",
+          "slopsearx-v12-dependency-context-candidate",
+          "slopsearx-v13-static-assessment-candidate",
+          "slopsearx-v14-jev-reconciliation-candidate"
+        ]
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "context-selection.v3",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "no retained profile selects v2 in production",
+          "historical profile bytes remain unchanged"
+        ]
+      }
+    },
+    {
+      "kind": "context",
+      "name": "context-selection.v1",
+      "version": "context-selection.v1",
+      "status": "deprecated",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": "context-selection.v3",
+      "source_path": "src/pr_review_harness/planner.py",
+      "source_sha256": null,
+      "source_symbol": "validate_context_selection",
+      "invariants": {
+        "profiles": [
+          "slopsearx-v8-static-review-boundaries"
+        ]
+      },
+      "deprecation": {
+        "announced_on": "2026-11-01",
+        "announcement_ref": "docs/CONTRACT-REGISTRY.md#deprecated-contracts and issue #249",
+        "replacement_path": "context-selection.v3",
+        "compatibility_window": {
+          "starts": "2026-11-01",
+          "ends": "2027-02-01"
+        },
+        "removal_evidence": [
+          "slopsearx-v8 is no longer selected",
+          "manual test documentation names v3"
+        ]
+      }
+    },
+    {
+      "kind": "context",
+      "name": "context-target-manifest.v1",
+      "version": "context-target-manifest.v1",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/context_targets.py",
+      "source_sha256": null,
+      "source_symbol": "build_context_target_manifest",
+      "invariants": {
+        "max_entries": 256,
+        "max_bytes": 16384
+      }
+    },
+    {
+      "kind": "policy",
+      "name": "claim-reconciliation.v1",
+      "version": "claim-reconciliation.v1",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/claim_reconciliation.py",
+      "source_sha256": null,
+      "source_symbol": "validate_claim_reconciliation_policy",
+      "invariants": {
+        "required": true,
+        "max_assessments": [
+          1,
+          4
+        ]
+      }
+    },
+    {
+      "kind": "policy",
+      "name": "target-profile-bindings.v1",
+      "version": "target-profile-bindings.v1",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "profiles/targets.json",
+      "source_sha256": "eb8e91c8510bc7f246fb8f21f9659654695263fb4b81ec8c2099a029b86fe121",
+      "source_symbol": null,
+      "invariants": {
+        "digest_pinned": true,
+        "closed_target_map": true
+      }
+    },
+    {
+      "kind": "artifact",
+      "name": "review-result.v0.1",
+      "version": "review-result.v0.1",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/review_stages.py",
+      "source_sha256": null,
+      "source_symbol": "build_and_persist_result",
+      "invariants": {
+        "records_effective_contracts": true,
+        "records_request_hash": true,
+        "records_result_hash": true
+      }
+    },
+    {
+      "kind": "registry",
+      "name": "contract-registry.v1",
+      "version": "contract-registry.v1",
+      "status": "supported",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "source_path": "src/pr_review_harness/contract_registry.json",
+      "source_sha256": null,
+      "source_symbol": null,
+      "invariants": {
+        "statuses": [
+          "supported",
+          "deprecated",
+          "archived"
+        ],
+        "single_supported_combination": true
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
+      "version": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
+      "status": "experimental",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "repository": "magnus919/SlopSearX",
+      "source_path": "docs/real-case-trial-v1/profiles/PR-457.json",
+      "source_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "profile_status": "local_real_case_evaluation_candidate_not_quality_validated"
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-realcase-eval-v2-pr463-context240-window16k",
+      "version": "slopsearx-realcase-eval-v2-pr463-context240-window16k",
+      "status": "experimental",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "repository": "magnus919/SlopSearX",
+      "source_path": "docs/real-case-trial-v1/profiles/PR-463.json",
+      "source_sha256": "939f782b2539bc308364ebe10735005353924c1e86096e1f57a2f877e9b6a2f4",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "profile_status": "local_real_case_evaluation_candidate_not_quality_validated"
+      }
+    },
+    {
+      "kind": "review-profile",
+      "name": "slopsearx-realcase-eval-v2-pr464-context240-window16k",
+      "version": "slopsearx-realcase-eval-v2-pr464-context240-window16k",
+      "status": "experimental",
+      "owner": "groktopus/codereview maintainers",
+      "replaced_by": null,
+      "repository": "magnus919/SlopSearX",
+      "source_path": "docs/real-case-trial-v1/profiles/PR-464.json",
+      "source_sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8",
+      "source_symbol": null,
+      "invariants": {
+        "repository": "magnus919/SlopSearX",
+        "profile_status": "local_real_case_evaluation_candidate_not_quality_validated"
+      }
+    }
+  ]
+}
