@@ -38,7 +38,8 @@ class SnapshotEvidence(TypedDict, total=False):
     content_truncated: bool
     source_side: str
     source_object_id: str
-    source_object_sha: str
+    source_object_format: str
+    source_object_size_bytes: int
 
 
 class SnapshotUnit(TypedDict, total=False):
@@ -46,6 +47,8 @@ class SnapshotUnit(TypedDict, total=False):
     path: str
     old_path: str | None
     kind: str
+    change: str
+    diff: str
     change_type: str
     changed_lines: list[list[int]]
     old_line_ranges: list[list[int]]
@@ -65,6 +68,8 @@ class SnapshotRecord(TypedDict, total=False):
     freshness_basis: str
     profile_version: str
     project_profile_version: str
+    event_id: str
+    external_check_evidence_hash: str
     inventory: list[SnapshotUnit]
     evidence: dict[str, SnapshotEvidence]
     trusted_context_refs: list[str | dict[str, str]]
@@ -91,20 +96,19 @@ class TaskRecord(TypedDict, total=False):
     unit_evidence_bindings: list[dict[str, object]]
     context_followup: dict[str, object]
     context_target_manifest: dict[str, object]
-    review_criteria: list[dict[str, object]]
-    project_rules: list[dict[str, object]]
+    review_criteria: str
+    project_rules: list[str]
     base_context_ids: list[str]
     required_context_ids: list[str]
     obligation_ids: list[str]
-    _group: str
-    _context_group: str
+    _group: tuple[str, ...]
+    _context_group: tuple[str, ...] | None
 
 
 class CoverageRow(TypedDict, total=False):
     coverage_id: str
     run_id: str
     snapshot_id: str
-    task_id: str
     obligation_id: str
     obligation_kind: str
     required: bool
@@ -121,7 +125,7 @@ class CoverageRow(TypedDict, total=False):
 
 class PlanRecord(TypedDict, total=False):
     plan_version: str
-    snapshot_id: str
+    snapshot_id: str | None
     profile_version: str | None
     requested_mode: str
     mode: str
@@ -255,13 +259,19 @@ class FindingRecord(TypedDict, total=False):
 class ReviewResult(TypedDict, total=False):
     contract_version: str
     run_id: str
-    run_elapsed_ms: int
+    run_elapsed_ms: float
     snapshot_id: str | None
     snapshot: SnapshotRecord
     plan: PlanRecord
     findings: list[FindingRecord]
     coverage_ledger: list[CoverageRow]
     ledger: LedgerEntry
+    claim_assessments: list[dict[str, object]]
+    advisory_assessment: dict[str, object]
+    run_summary: dict[str, object]
+    completeness_summary: dict[str, object]
+    request_hash: str
+    result_hash: str
     disposition: str
     report_sections: dict[str, object]
     repository_url: str | None

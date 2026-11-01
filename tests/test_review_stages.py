@@ -442,3 +442,15 @@ def test_dispatch_stage_skips_an_unavailable_provider_without_reserving(tmp_path
     assert all(result["error_code"] == "PROVIDER_UNAVAILABLE" for result in results)
     assert state.budget.state["reservations"] == {}
     assert state.budget.state["settlements"] == {}
+
+
+def test_plan_and_task_keys_are_declared_in_typed_contracts(tmp_path):
+    from pr_review_harness.planner import plan_review
+    from pr_review_harness.review_state import PlanRecord, SnapshotRecord, TaskRecord
+
+    snapshot = make_snapshot()
+    plan = plan_review(snapshot, make_profile())
+    assert set(plan) <= set(PlanRecord.__annotations__)
+    assert set(snapshot) <= set(SnapshotRecord.__annotations__)
+    for task in plan["tasks"]:
+        assert set(task) <= set(TaskRecord.__annotations__)
