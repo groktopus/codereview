@@ -36,3 +36,5 @@ commit, including in dry-run mode. Do not manually edit the manifest to bypass
 those checks. Other source, run, snapshot, and protocol hashes intentionally
 remain in their owning records until their distinct semantics and provenance
 have been audited; this tool must not be used to rewrite them.
+
+The pin manifest records `pin_files`, `pin_revisions`, optional `source_paths`, and aggregate tree pins. File pins are verified against the fixture path at the recorded revision. After file-pin refreshes, recompute aggregate trees with `--module pr170-tree-model --reason '<why>' --source-revision <HEAD>`; this updates both tree pins and records provenance. Ordinary CI excludes `compatibility` tests; the compatibility job runs them separately.

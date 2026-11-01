@@ -89,7 +89,7 @@ def refresh_pin(
     source_paths = manifest.get("source_paths", {})
     source_path = source_paths.get(module, pin_files[module]) if isinstance(source_paths, dict) else pin_files[module]
     try:
-        fixture_path.relative_to(allowed_root.resolve())
+        relative_fixture = fixture_path.relative_to(allowed_root.resolve())
     except ValueError:
         raise PinRefreshError("pin file path escapes repository root") from None
     try:
@@ -105,7 +105,7 @@ def refresh_pin(
         fixture_path.relative_to(allowed_root.resolve())
     except ValueError:
         raise PinRefreshError("pin file path escapes repository root") from None
-    _verify_revision_blob(revision, Path(source_path), new_hash, repo_root=allowed_root)
+    _verify_revision_blob(revision, relative_fixture, new_hash, repo_root=allowed_root)
     record = {
         "module": module,
         "old_blob_sha256": old_hash,
@@ -146,7 +146,7 @@ def refresh_tree_pins(
         raise PinRefreshError("refusing tree refresh: --source-revision is required")
     revision = _source_revision(source_revision)
     clean = subprocess.run(
-        ["git", "-C", str(allowed_root), "diff", "--quiet", revision, "--", "tests/fixtures/frozen-runtime-7d550b6"],
+        ["git", "-C", str(allowed_root), "diff", "--quiet", revision, "--", "tests/fixtures/frozen-runtime-7d550b6/*.py"],
         check=False,
     )
     if clean.returncode != 0:

@@ -44,7 +44,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install '.[dev]'
-      - run: python -m pytest -q
+      - run: python -m pytest -q -m "not compatibility"
       - run: ruff check .
 
   compatibility:
@@ -82,7 +82,7 @@ jobs:
           # The wall-clock assertion below is covered by the plain tests job;
           # coverage tracing makes its 1.6s deadline contention-sensitive
           # (VD-2 tracks making it tolerant). Deselect it only for measurement.
-          python -m pytest -q \
+          python -m pytest -q -m "not compatibility" \
             --deselect tests/test_engine.py::test_timeout_becomes_partial_and_does_not_wait_past_deadline \
             --cov=pr_review_harness \
             --cov-report=json:coverage.json \
