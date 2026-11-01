@@ -20,6 +20,13 @@ class SnapshotEvidence(TypedDict, total=False):
     revision: str
     status: str
     conclusion: str
+    line_start: int
+    line_end: int
+    source_revision: str
+    content_truncated: bool
+    source_side: str
+    source_object_id: str
+    source_object_sha: str
 
 
 class SnapshotUnit(TypedDict, total=False):
@@ -35,9 +42,15 @@ class SnapshotUnit(TypedDict, total=False):
 
 class SnapshotRecord(TypedDict, total=False):
     snapshot_id: str
-    repository_url: str
+    snapshot_hash: str
+    repository: str | None
+    repository_url: str | None
+    pull_request_number: int | None
     head_sha: str
     base_sha: str
+    change_base_sha: str
+    comparison_mode: str
+    freshness_basis: str
     profile_version: str
     project_profile_version: str
     inventory: list[SnapshotUnit]
@@ -66,17 +79,32 @@ class TaskRecord(TypedDict, total=False):
     unit_evidence_bindings: list[dict[str, object]]
     context_followup: dict[str, object]
     context_target_manifest: dict[str, object]
+    review_criteria: list[dict[str, object]]
+    project_rules: list[dict[str, object]]
+    base_context_ids: list[str]
+    required_context_ids: list[str]
+    obligation_ids: list[str]
+    _group: str
+    _context_group: str
 
 
 class CoverageRow(TypedDict, total=False):
+    coverage_id: str
+    run_id: str
+    snapshot_id: str
     task_id: str
     obligation_id: str
     obligation_kind: str
-    state: str
     required: bool
+    scope_unit_ids: list[str]
+    lens: str
+    state: str
+    reason_code: str
+    context_gap_ids: list[str]
+    task_ids: list[str]
     evidence_refs: list[str]
-    reason: str
-    details: dict[str, object]
+    updated_at: str
+    closure_diagnostics: dict[str, object]
 
 
 class PlanRecord(TypedDict, total=False):
@@ -220,16 +248,13 @@ class ReviewResult(TypedDict, total=False):
     snapshot: SnapshotRecord
     plan: PlanRecord
     findings: list[FindingRecord]
-    coverage: list[CoverageRow]
     coverage_ledger: list[CoverageRow]
     ledger: LedgerEntry
-    status: str
     disposition: str
-    report: str
     report_sections: dict[str, object]
     repository_url: str | None
-    repository: str
-    pull_request_number: int
+    repository: str | None
+    pull_request_number: int | None
     base_sha: str | None
     head_sha: str | None
     change_base_sha: str
@@ -253,14 +278,6 @@ class ReviewResult(TypedDict, total=False):
     not_applicable: list[dict[str, object]]
     evidence_index: dict[str, dict[str, object]]
     context_omissions: list[dict[str, str]]
-    claim_assessments: list[dict[str, object]]
-    advisory_assessment: dict[str, object]
-    run_summary: dict[str, object]
-    completeness_summary: dict[str, object]
-    result_hash: str
-    request_hash: str
-
-# Stage call protocols are kept alongside their record types to avoid a new public module.
 
 
 class PlannerBoundary(Protocol):

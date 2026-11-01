@@ -870,7 +870,7 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
         reasons.append("trusted_profile_version_missing_or_invalid")
     result: PlanRecord = {
         "plan_version": "0.1",
-        "snapshot_id": str(snapshot.get("snapshot_id", "")),
+        "snapshot_id": snapshot.get("snapshot_id"),
         "profile_version": profile.get(
             "version",
             profile.get("profile_version", snapshot.get("profile_version", snapshot.get("project_profile_version"))),

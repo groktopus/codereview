@@ -68,7 +68,7 @@ from .review_stages import (
     resume_completed_review,
     run_followups,
 )
-from .review_state import LedgerEntry, PlanRecord, ReviewResult, RunState, SnapshotRecord, TaskRecord
+from .review_state import PlanRecord, ReviewResult, RunState, SnapshotRecord, TaskRecord
 from .source_audit import serialize_source_audit_request  # noqa: F401
 
 _SYSTEM_ONE_ADVISORY_QUESTION = (
@@ -1185,7 +1185,7 @@ def prepare_plan_tasks(
     profile: dict[str, Any],
     limits: dict[str, Any],
     provider: Any,
-) -> tuple[list[TaskRecord], LedgerEntry]:
+) -> tuple[list[TaskRecord], dict[str, dict[str, object]]]:
     """Apply the same deterministic specialist chunking used by the runner.
 
     This is shared with provider-free prepare mode so admission and serialized

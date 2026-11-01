@@ -19,3 +19,7 @@ New or changed cross-module internal records should use these TypedDicts after e
 - Stage implementations still pass mutable mapping-shaped state internally and carry dynamically populated `RunState` attributes; schemas are not yet wired through all consumers.
 - Profile and provider extension points remain runtime-validated and intentionally dynamic.
 - The strict set is deliberately small; gradual expansion must add explicit modules and tests rather than broad `ignore_errors`.
+
+## Contract duplication
+
+Runtime annotations use the declarations in `review_state.py`; `typed_contracts.pyi` mirrors them for the strict gate. The two copies are currently duplicated and must be kept in sync. Mypy checks the stub copy, so adding/removing optional TypedDict keys is not caught automatically; a future single-source generation step is required.
