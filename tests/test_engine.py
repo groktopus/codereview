@@ -3464,7 +3464,17 @@ def test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispa
 
 def test_optional_retrieval_result_budget_accepts_absent_or_positive_integer():
     engine_module.validate_limits(LIMITS)
-    engine_module.validate_limits({**LIMITS, "max_retrieval_result_bytes": 96_000})
+    engine_module.validate_limits(
+        {**LIMITS, "max_retrieval_result_bytes": LIMITS["max_input_bytes_per_task"]}
+    )
+
+
+def test_retrieval_result_budget_cannot_exceed_task_input_budget():
+    engine_module.validate_limits(LIMITS)
+    with pytest.raises(ValueError, match="max_retrieval_result_bytes"):
+        engine_module.validate_limits(
+            {**LIMITS, "max_retrieval_result_bytes": LIMITS["max_input_bytes_per_task"] + 1}
+        )
 
 
 def test_unsupported_monetary_cap_rejected_before_provider_dispatch(tmp_path):

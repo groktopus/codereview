@@ -509,6 +509,10 @@ def validate_limits(limits: dict) -> None:
             value = limits[key]
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError(f"invalid limit: {key}")
+    if (
+        limits.get("max_retrieval_result_bytes", 0) > limits["max_input_bytes_per_task"]
+    ):
+        raise ValueError("invalid limit: max_retrieval_result_bytes")
     if limits.get("max_cost_microunits") is not None:
         if (
             isinstance(limits["max_cost_microunits"], bool)
