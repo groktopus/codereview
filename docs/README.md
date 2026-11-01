@@ -43,6 +43,7 @@ implementation.
 | Document | What it records |
 |---|---|
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
+| [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |
 | [PR Review Harness contracts](design/CONTRACTS.md) | Proposed canonical records and envelopes used by the design package. Field names are canonical; runtime support varies. |
 | [PR Review Harness — specification](design/SPEC.md) | Proposed behavior and independently testable acceptance criteria (the 39-AC/12-NFR baseline). |
 | [PR Review Harness — traceability](design/TRACEABILITY.md) | Requirement-to-acceptance mapping and unresolved interpretations. |
