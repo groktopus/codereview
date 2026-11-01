@@ -22,6 +22,7 @@ from .contracts import (
     SPECIALIST_V3,
     SPECIALIST_V4,
 )
+from .errors import BoundaryRuntimeError
 
 _PROVIDER_CONTRACT_VERSIONS = frozenset(
     {
@@ -195,7 +196,7 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
 
 
-class BudgetExhausted(RuntimeError):
+class BudgetExhausted(BoundaryRuntimeError):
     """A reservation could not be made without exceeding a configured limit."""
 
 
@@ -702,7 +703,7 @@ def _nonnegative_int(value: Any, name: str) -> int:
     return value
 
 
-class IsolatedCallError(RuntimeError):
+class IsolatedCallError(BoundaryRuntimeError):
     def __init__(self, remote_type: str, message: str, meta: dict | None = None) -> None:
         super().__init__(message)
         self.remote_type = remote_type

@@ -1,4 +1,13 @@
-"""Guarded GitHub review publishing primitives, disabled by default."""
+"""Guarded GitHub review publishing primitives, disabled by default.
+
+Exception audit (SE-3): every remaining broad ``except Exception`` in this
+module is an intentional effect-boundary fail-closed handler. Injected
+freshness, history, receipt, and submission capabilities can fail in
+provider-specific ways; the only safe outcome is an explicit ``UNKNOWN``,
+``STALE``, or ``REJECTED`` result. No broad handler here can produce
+``CONFIRMED`` without a positive observation, and none swallows an exception
+without recording that boundary outcome. See ``docs/EXCEPTION-AUDIT.md``.
+"""
 
 from __future__ import annotations
 
@@ -11,8 +20,10 @@ import time
 from contextlib import closing
 from typing import Callable
 
+from .errors import BoundaryRuntimeError, BoundaryValueError
 
-class PublicationRejected(ValueError):
+
+class PublicationRejected(BoundaryValueError):
     """A review is not eligible for a publishing attempt."""
 
 
@@ -94,7 +105,7 @@ _SAFE_ADMISSION_REASON_CODES = frozenset(
 )
 
 
-class PublicationAdmissionUnavailable(RuntimeError):
+class PublicationAdmissionUnavailable(BoundaryRuntimeError):
     """An opaque admission failure or a validated internal reason code."""
 
     def __init__(self, reason_code: object = None):
@@ -146,6 +157,8 @@ class SQLiteEffectStore:
                 connection.commit()
                 return "acquired"
             except Exception:
+                # Roll back the transaction and re-raise unchanged; this is not
+                # a fail-closed conversion and no effect state is reported.
                 connection.rollback()
                 raise
 
@@ -796,6 +809,7 @@ def publish_review_stateless(
         reason = str(exc) if isinstance(exc, PublicationRejected) else "publication_admission_invalid"
         return {"status": "REJECTED", "reason": reason, "request": locals().get("request")}
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "publication_admission_unavailable", "request": locals().get("request")}
 
     def read_history():
@@ -805,6 +819,7 @@ def publish_review_stateless(
         try:
             scan = history_reader.scan(admission.slot, stage_bounds)
         except Exception:
+            # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
             return None, "publication_history_unavailable"
         if not isinstance(scan, HistoryScan):
             return None, "publication_history_contract_invalid"
@@ -891,6 +906,7 @@ def publish_review_stateless(
             return {"status": "UNKNOWN", "reason": "publication_deadline_exhausted", "request": request}
         observed = fresh_head(stage_bounds.deadline_seconds)
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "pre_receipt_head_unavailable", "request": request}
     if observed != admission.slot.head_sha:
         return {"status": "STALE", "reason": "head_sha_changed_before_receipt", "request": request}
@@ -922,6 +938,7 @@ def publish_review_stateless(
             return {"status": "UNKNOWN", "reason": "publication_deadline_exhausted", "request": request}
         persistence = receipt_writer.persist(receipt, stage_bounds)
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "receipt_persistence_unknown", "request": request}
     if not isinstance(persistence, ReceiptPersistence):
         return {"status": "UNKNOWN", "reason": "receipt_persistence_contract_invalid", "request": request}
@@ -937,6 +954,7 @@ def publish_review_stateless(
             return {"status": "UNKNOWN", "reason": "publication_deadline_exhausted", "request": request}
         observed = fresh_head(stage_bounds.deadline_seconds)
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "post_receipt_head_unavailable", "request": request}
     if observed != admission.slot.head_sha:
         return {"status": "STALE", "reason": "head_sha_changed_after_receipt", "request": request}
@@ -948,6 +966,7 @@ def publish_review_stateless(
             return {"status": "UNKNOWN", "reason": "publication_deadline_exhausted", "request": request}
         submitted = submit_review(wire_payload, admission.effect_key, stage_bounds.deadline_seconds)
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         scan, reason = read_history()
         if scan is not None:
             state, state_reason, matched_review = effect_state(scan)
@@ -1014,12 +1033,14 @@ def publish_review(
     try:
         observed = fresh_head()
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "fresh_head_unavailable", "request": request}
     if observed != request["head_sha"]:
         return {"status": "REJECTED", "reason": "head_sha_changed", "request": request, "observed_head_sha": observed}
     try:
         prior = lookup_effect(request["idempotency_key"])
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "existing_effect_state_unavailable", "request": request}
     if prior == "confirmed":
         return {"status": "CONFIRMED", "reason": "idempotent_effect_already_exists", "request": request}
@@ -1030,6 +1051,7 @@ def publish_review(
     try:
         observed = fresh_head()
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "final_fresh_head_unavailable", "request": request}
     if observed != request["head_sha"]:
         return {
@@ -1041,6 +1063,7 @@ def publish_review(
     try:
         claim = claim_effect(request["idempotency_key"])
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         return {"status": "UNKNOWN", "reason": "effect_claim_unavailable", "request": request}
     if claim == "confirmed":
         return {"status": "CONFIRMED", "reason": "idempotent_effect_already_exists", "request": request}
@@ -1049,6 +1072,7 @@ def publish_review(
     try:
         observed = fresh_head()
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         if callable(release_effect):
             release_effect(request["idempotency_key"])
         return {"status": "UNKNOWN", "reason": "final_fresh_head_unavailable", "request": request}
@@ -1069,20 +1093,24 @@ def publish_review(
         try:
             after = lookup_effect(request["idempotency_key"])
         except Exception:
+            # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
             after = "unknown"
         if after == "confirmed":
             try:
                 confirm_effect(request["idempotency_key"], "confirmed_after_ambiguous_response")
             except Exception:
+                # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
                 pass
             return {"status": "CONFIRMED", "reason": "confirmed_after_ambiguous_response", "request": request}
         return {"status": "UNKNOWN", "reason": "submit_response_ambiguous", "request": request}
     try:
         confirm_effect(request["idempotency_key"], str(submitted)[:500])
     except Exception:
+        # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
         try:
             after = lookup_effect(request["idempotency_key"])
         except Exception:
+            # fail-closed effect boundary: explicit UNKNOWN/REJECTED, never CONFIRMED.
             after = "unknown"
         if after != "confirmed":
             return {"status": "UNKNOWN", "reason": "effect_recording_failed", "request": request}

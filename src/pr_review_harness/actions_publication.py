@@ -39,6 +39,7 @@ from .artifact_intake import (
     TrustedAttestationVerifier,
     intake_artifact_bundle,
 )
+from .errors import BoundaryValueError
 from .publication_receipts import (
     AttemptReceipt,
     EffectSlot,
@@ -75,7 +76,7 @@ _MAX_HISTORY_PAGES = 10
 _MAX_REVIEW_HISTORY = 1000
 
 
-class GitHubPublicationError(ValueError):
+class GitHubPublicationError(BoundaryValueError):
     """A safe error code for a bounded GitHub publication operation."""
 
     def __init__(self, code: str):
@@ -504,7 +505,8 @@ class GitHubPublicationPolicy:
         if self.credential_provenance is not None:
             try:
                 validate_credential_provenance(self.credential_provenance)
-            except Exception:
+            except (ValueError, KeyError):
+                # Expected receipt-contract rejection of a declared value.
                 raise GitHubPublicationError("publication_credential_provenance_invalid") from None
         if self.history_reconciliation is not None:
             if not isinstance(self.history_reconciliation, dict) or set(self.history_reconciliation) != {
@@ -668,6 +670,9 @@ class GitHubActionsPublicationAdapter:
         try:
             credential = self.credential_provider.credential_for(self.policy.repository_id, required, remaining)
         except Exception:
+            # Intentional fail-closed boundary: the injected credential provider
+            # may fail in provider-specific ways, and no detail is safe to
+            # forward. Availability is never inferred from a failed lookup.
             raise GitHubPublicationError("publisher_identity_unavailable") from None
         if not isinstance(credential, PublisherCredential) or not credential.valid_for(
             self.policy.repository_id, required
@@ -1377,7 +1382,9 @@ class GitHubActionsPublicationAdapter:
             return _canonical_hash(historical.raw)
         except GitHubPublicationError:
             raise
-        except Exception:
+        except (ValueError, KeyError, TypeError, AttributeError):
+            # Expected shape/validation failure from untrusted historical policy
+            # bytes; no arbitrary text is forwarded.
             raise GitHubPublicationError("historical_policy_invalid") from None
 
     def _verify_skipped_publisher_run(self, run_record: dict, timeout_seconds: float) -> bool:
@@ -1599,7 +1606,8 @@ class GitHubActionsPublicationAdapter:
         except GitHubPublicationError as exc:
             raise PublicationAdmissionUnavailable(exc.code) from None
         except Exception:
-            # Never forward arbitrary exception attributes or third-party text.
+            # Intentional fail-closed admission boundary: never forward
+            # arbitrary exception attributes or third-party text.
             raise PublicationAdmissionUnavailable() from None
 
     def _review_pages(self, slot: EffectSlot, limits: ScanLimits) -> tuple[list[ReviewObservation], int, int, bool]:
@@ -1691,8 +1699,10 @@ class GitHubActionsPublicationAdapter:
                 elif receipt is None:
                     raise GitHubPublicationError("publisher_receipt_missing")
             except Exception:
-                # Missing/expired/deleted artifact evidence and incomplete
-                # attempt history are unknown; they never prove no prior POST.
+                # Intentional fail-closed verification boundary: missing,
+                # expired, deleted, or malformed artifact evidence and
+                # incomplete attempt history are unknown; they never prove no
+                # prior POST.
                 return receipts, no_effects, scanned, False
         return receipts, no_effects, scanned, True
 
@@ -1755,6 +1765,8 @@ class GitHubActionsPublicationAdapter:
         except GitHubPublicationError:
             return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="github_history_unavailable")
         except Exception:
+            # Intentional fail-closed history boundary: an unparsable or
+            # unexpected scan is UNAVAILABLE, never evidence of no prior POST.
             return HistoryScan(HistoryStatus.UNAVAILABLE, reason_code="github_history_invalid")
 
     def persist(self, receipt: AttemptReceipt, limits: ScanLimits) -> ReceiptPersistence:
@@ -1841,6 +1853,8 @@ class GitHubActionsPublicationAdapter:
             )
             return ReceiptPersistence(ReceiptPersistenceStatus.ACKNOWLEDGED, acknowledgement=acknowledgement)
         except Exception:
+            # Intentional fail-closed persistence boundary: any failure after
+            # upload means the receipt acknowledgement is UNKNOWN, not ACKed.
             return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="artifact_persistence_unknown")
 
     def persist_no_effect(self, receipt: NoEffectReceipt, limits: ScanLimits) -> ReceiptPersistence:
@@ -1942,6 +1956,8 @@ class GitHubActionsPublicationAdapter:
             )
             return ReceiptPersistence(ReceiptPersistenceStatus.ACKNOWLEDGED, acknowledgement=acknowledgement)
         except Exception:
+            # Intentional fail-closed persistence boundary: acknowledgement is
+            # UNKNOWN, never a confirmed no-effect receipt.
             return ReceiptPersistence(ReceiptPersistenceStatus.UNKNOWN, reason_code="no_effect_persistence_unknown")
 
     def fresh_head(self, timeout_seconds: float) -> str:

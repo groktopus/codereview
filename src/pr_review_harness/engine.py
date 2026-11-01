@@ -11,7 +11,6 @@ import hashlib
 import json
 import math
 import os
-import pickle
 import re
 import tempfile
 import threading  # noqa: F401
@@ -35,6 +34,7 @@ from .claim_reconciliation import (  # noqa: F401
     validate_claim_reconciliation_policy,
 )
 from .context_targets import build_context_target_manifest, validate_context_target_choice  # noqa: F401
+from .errors import BoundaryValueError
 from .planner import allow_empty_approve as allow_empty_approve  # noqa: F401
 from .private_capture import (  # noqa: F401
     MAX_CAPTURE_CALLS,
@@ -77,7 +77,7 @@ _SYSTEM_ONE_ADVISORY_QUESTION = (
 )
 
 
-class EnginePreflightError(ValueError):
+class EnginePreflightError(BoundaryValueError):
     """A closed, deterministic rejection found before provider dispatch or writes."""
 
     _PUBLIC_REASONS = {"invalid_review_request", "run_id_already_exists", "resume_state_invalid"}
@@ -586,9 +586,36 @@ def _provider_identity(provider: Any, decision_provider: Any) -> Any:
     return {"provider": identity(provider), "decision_provider": identity(decision_provider)}
 
 
+_ASSESSOR_INTERFACE = ("prepare", "estimate_prepared", "assess_prepared")
+_MAX_ASSESSOR_IDENTITY_BYTES = 16_384
+_MAX_ASSESSOR_CONFIGURATION_BYTES = 65_536
+
+
+def _declared_assessor_configuration(assessor: Any, identity: dict) -> dict:
+    """Return a canonical, JSON-serializable declaration of the adapter.
+
+    The historical object-serialization size proxy measured an arbitrary
+    object graph. This replacement serializes only the declared identity, the
+    optional adapter-declared ``configuration`` value, and a deterministic
+    type/interface descriptor. It never serializes the adapter object, so the
+    preflight bound is reproducible across Python versions.
+    """
+    configuration = getattr(assessor, "configuration", None)
+    if callable(configuration):
+        configuration = configuration()
+    return {
+        "identity": identity,
+        "configuration": configuration if configuration is not None else {},
+        "adapter": {
+            "type": f"{type(assessor).__module__}.{type(assessor).__qualname__}",
+            "interface": list(_ASSESSOR_INTERFACE),
+        },
+    }
+
+
 def _claim_assessor_binding(assessor: Any, expected_contract_version: str) -> tuple[str, str, str]:
     """Validate the opt-in shadow adapter and return a stable non-secret identity binding."""
-    for name in ("prepare", "estimate_prepared", "assess_prepared"):
+    for name in _ASSESSOR_INTERFACE:
         if not callable(getattr(assessor, name, None)):
             raise ValueError("claim assessor does not implement the prepared-assessment interface")
     identity = getattr(assessor, "identity", None)
@@ -610,10 +637,13 @@ def _claim_assessor_binding(assessor: Any, expected_contract_version: str) -> tu
         raise ValueError("claim assessor does not support the required contract version")
     try:
         encoded_identity = _canonical(identity)
-        serialized_assessor = pickle.dumps(assessor, protocol=pickle.HIGHEST_PROTOCOL)
-    except Exception as exc:
+        encoded_configuration = _canonical(_declared_assessor_configuration(assessor, identity))
+    except (TypeError, ValueError, RecursionError) as exc:
         raise ValueError("claim assessor identity or adapter is not serializable") from exc
-    if len(encoded_identity) > 16_384 or len(serialized_assessor) > 65_536:
+    if (
+        len(encoded_identity) > _MAX_ASSESSOR_IDENTITY_BYTES
+        or len(encoded_configuration) > _MAX_ASSESSOR_CONFIGURATION_BYTES
+    ):
         raise ValueError("claim assessor configuration exceeds its finite preflight bound")
     root = Path(__file__).resolve().parent
     implementation_hash = _hash(

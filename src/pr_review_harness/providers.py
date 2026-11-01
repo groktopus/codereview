@@ -21,6 +21,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from . import contracts
 from .context_targets import validate_context_target_manifest
+from .errors import BoundaryRuntimeError, is_defect
 
 INJECTION_CHOICE_CONTRACT = "prompt-injection-classifier.choice.v1"
 INJECTION_CHOICE_QUESTION = (
@@ -53,7 +54,7 @@ class _NoRedirectHandler(HTTPRedirectHandler):
 _HTTP_OPENER = build_opener(_NoRedirectHandler)
 
 
-class ProviderError(RuntimeError):
+class ProviderError(BoundaryRuntimeError):
     """A provider failure with a safe, non-secret diagnostic code."""
 
     def __init__(self, code: str, *, meta: dict[str, Any] | None = None):
@@ -403,7 +404,8 @@ def _http_error_response_observation(exc: HTTPError, cap: int, deadline: float) 
     try:
         raw = _bounded_response(exc, cap, deadline)
         return {"response_hash": hashlib.sha256(raw).hexdigest(), "response_bytes": len(raw), "output_truncated": False}
-    except Exception as error:
+    except (ProviderError, OSError, ValueError) as error:
+        # Expected response-read failure; fall back to bounded metadata only.
         metadata = getattr(error, "meta", {})
         if not isinstance(metadata, dict):
             metadata = {}
@@ -827,6 +829,9 @@ class OpenAIProvider:
                 },
             ) from None
         except Exception as exc:
+            # Intentional fail-closed enrichment: attach bounded UNKNOWN
+            # exchange metadata and re-raise unchanged. No exception is
+            # swallowed or converted into a provider result here.
             mark_http_attempt()
             exchange = _local_http_exchange(
                 endpoint=endpoint,
@@ -1361,7 +1366,11 @@ class OpenAIProvider:
                     ),
                     "openai-chat-completions.message-content.utf8.v1",
                 )
-            except Exception:
+            except Exception as exc:
+                if is_defect(exc):
+                    # A sink TypeError/AttributeError is a harness defect, not
+                    # an expected capture boundary; fail loudly.
+                    raise
                 raise ProviderError("capture_sink_failed") from None
             fields = {
                 "call_id", "request_sha256", "request_artifact_id", "response_sha256",
@@ -1449,6 +1458,11 @@ class OpenAIProvider:
                 exc.meta["capture_receipt"] = seal()
             raise
         except Exception as exc:
+            if is_defect(exc):
+                # Do not relabel a harness programming error as a provider
+                # failure; only expected capture/transport boundaries are
+                # downgraded to a bounded provider code.
+                raise
             if not sink_called:
                 meta = getattr(exc, "meta", {})
                 local_exchange = meta.get("local_http_exchange") if isinstance(meta, dict) else None
@@ -1940,6 +1954,8 @@ class DecisionProvider:
             _attach_exchange(exc, exchange)
             raise
         except Exception as exc:
+            # Intentional fail-closed enrichment: record bounded UNKNOWN
+            # exchange metadata and re-raise unchanged.
             exchange = _local_http_exchange(
                 endpoint=endpoint,
                 provider_id=self.identity["provider_id"],

@@ -460,6 +460,20 @@ class DerivedClaimAssessmentError(ClaimAssessmentError):
     pass
 
 
+class DispatchDefectClaimAssessor(FakeClaimAssessor):
+    """Raises a programming error inside the spawned assessor worker."""
+
+    def assess_prepared(self, prepared: Prepared, limits: dict) -> dict:
+        raise TypeError("assessor implementation defect")
+
+
+class LocalPreparationDefectClaimAssessor(FakeClaimAssessor):
+    """Raises a programming error before dispatch, in controller-owned code."""
+
+    def prepare(self, *args, **kwargs):
+        raise TypeError("assessor preparation defect")
+
+
 class Freshness:
     def __init__(
         self,
@@ -1702,3 +1716,20 @@ def test_final_callable_freshness_runs_after_timed_out_shadow_and_stale_still_ga
     assert stale["claim_assessments"][0]["status"] == "COMPLETE"
     assert stale["freshness"] == "STALE"
     assert stale["disposition"] == "INCOMPLETE"
+
+
+def test_assessor_type_error_is_classified_as_defect_not_a_benign_miss(tmp_path):
+    result = _run(tmp_path / "defect", assessor=DispatchDefectClaimAssessor(), cap=1)
+    row = result["claim_assessments"][0]
+
+    assert row["status"] == "FAILED"
+    assert row["defect"] is True
+    assert row["defect_type"] == "TypeError"
+    assert row["reason_code"] == "SHADOW_ASSESSOR_DEFECT"
+    # The defect is explicit, and it still cannot be mistaken for a clean run.
+    assert result["disposition"] != "APPROVE"
+
+
+def test_local_assessor_type_error_propagates_instead_of_becoming_unknown(tmp_path):
+    with pytest.raises(TypeError, match="assessor preparation defect"):
+        _run(tmp_path, assessor=LocalPreparationDefectClaimAssessor(), cap=1)

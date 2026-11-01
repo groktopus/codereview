@@ -11,8 +11,10 @@ import time
 from typing import Callable
 from urllib.parse import urlsplit, urlunsplit
 
+from .errors import BoundaryValueError
 
-class GitHubReadError(ValueError):
+
+class GitHubReadError(BoundaryValueError):
     """GitHub metadata could not be read or did not match the request."""
 
 
@@ -285,7 +287,8 @@ class GitHubFreshnessCheck:
                 .pull_request(self.repository, self.pull_request_number)
                 .get("head_sha")
             )
-        except Exception:
+        except (GitHubReadError, OSError):
+            # Expected read/transport failure: freshness is UNKNOWN, never CURRENT.
             return {
                 "freshness": "UNKNOWN",
                 "freshness_basis": "GITHUB_API",
