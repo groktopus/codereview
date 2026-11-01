@@ -165,6 +165,27 @@ def _parser() -> argparse.ArgumentParser:
         help="request live publication (currently unavailable without verified GitHub receipt adapters)",
     )
     publish.add_argument("--json", action="store_true", help="emit one JSON value on stdout")
+    stats = sub.add_parser(
+        "stats",
+        help="aggregate stored review results into cross-run metrics",
+        epilog=(
+            "Examples:\n"
+            "  pr-review stats --results-dir artifacts --since 2026-10-01 --json\n"
+            "  pr-review stats --results-dir artifacts --jsonl metrics.jsonl"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    stats.add_argument("--result", action="append", help="stored review result JSON (repeatable)")
+    stats.add_argument("--results-dir", help="directory of stored review result JSON files (default: artifacts)")
+    stats.add_argument("--results-manifest", help="JSON object with a relative 'results' path array")
+    stats.add_argument("--since", help="inclusive ISO-8601 lower bound on result created_at")
+    stats.add_argument("--until", help="inclusive ISO-8601 upper bound on result created_at")
+    stats.add_argument(
+        "--jsonl",
+        metavar="PATH",
+        help="also write one review-run-summary.v1 record per line for external dashboards",
+    )
+    stats.add_argument("--json", action="store_true", help="emit one JSON value on stdout")
     return p
 
 
@@ -549,12 +570,12 @@ def _diagnostic_artifact_path(output_dir: str | Path, run_id: str) -> str | None
 
 def _emit(args, value: Any) -> None:
     if args.json:
-        print(json.dumps(value, sort_keys=True, separators=(",", ":")))
+        sys.stdout.write(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n")
     else:
         if isinstance(value, dict) and "summary" in value:
-            print(value["summary"])
+            sys.stdout.write(str(value["summary"]) + "\n")
         else:
-            print(json.dumps(value, indent=2, sort_keys=True))
+            sys.stdout.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
 def _event(args, base: str | None, head: str | None) -> dict | None:
@@ -1543,6 +1564,81 @@ def _public_error(exc: Exception) -> str:
     return "review_runtime_failed"
 
 
+def _stats_paths(args) -> list[str]:
+    """Resolve the explicit result inputs for ``stats`` without network access."""
+
+    paths: list[str] = list(args.result or [])
+    if args.results_dir:
+        directory = Path(args.results_dir).expanduser()
+        if not directory.is_dir():
+            raise ValueError(f"results directory does not exist: {directory}")
+        paths.extend(sorted(str(path) for path in directory.glob("*.json")))
+    if args.results_manifest:
+        manifest = _load_json(args.results_manifest, "results manifest")
+        entries = manifest.get("results")
+        if not isinstance(entries, list) or any(not isinstance(item, str) for item in entries):
+            raise ValueError("results manifest must contain a results array of paths")
+        base = Path(args.results_manifest).expanduser().resolve().parent
+        paths.extend(str((base / item).resolve()) if not Path(item).is_absolute() else item for item in entries)
+    if not paths and not args.result and not args.results_dir and not args.results_manifest:
+        default = Path("artifacts")
+        if not default.is_dir():
+            raise ValueError("no result inputs; pass --result or --results-dir")
+        paths.extend(sorted(str(path) for path in default.glob("*.json")))
+    if not paths:
+        raise ValueError("no result inputs matched")
+    # A path supplied twice (relative vs absolute, directory vs manifest) is
+    # one artifact, not two runs.
+    canonical: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        resolved = str(Path(path).expanduser().resolve())
+        if resolved not in seen:
+            seen.add(resolved)
+            canonical.append(resolved)
+    return canonical
+
+
+def _stats(args) -> int:
+    from .metrics import (
+        aggregate_run_summaries,
+        filter_run_summaries,
+        read_results,
+        render_stats_text,
+        summarize_results,
+        write_run_summaries_jsonl,
+    )
+
+    try:
+        input_paths = _stats_paths(args)
+        if args.jsonl and str(Path(args.jsonl).expanduser().resolve()) in set(input_paths):
+            raise ValueError("jsonl output must not overwrite an input result")
+        results = read_results(input_paths)
+        run_ids = [result.get("run_id") for result in results if isinstance(result.get("run_id"), str)]
+        if len(run_ids) != len(set(run_ids)):
+            raise ValueError("duplicate run_id across result inputs")
+        summaries, sources = summarize_results(results)
+        selected, excluded = filter_run_summaries(summaries, since=args.since, until=args.until)
+        stats = aggregate_run_summaries(
+            selected,
+            since=args.since,
+            until=args.until,
+            excluded=excluded,
+            input_total=len(results),
+            summary_sources=sources,
+        )
+        if args.jsonl:
+            records = write_run_summaries_jsonl(selected, args.jsonl)
+            stats["jsonl_export"] = {"records": records}
+        stats["summary"] = render_stats_text(stats)
+    except (OSError, ValueError) as exc:
+        detail = str(exc).replace("\r", " ").replace("\n", " ")[:300]
+        _emit_error(args, 2, f"stats_input_invalid: {detail}")
+        return 2
+    _emit(args, stats)
+    return 0
+
+
 def main(argv=None) -> int:
     parser = _parser()
     try:
@@ -1555,6 +1651,8 @@ def main(argv=None) -> int:
             print("pr-review: invalid arguments", file=sys.stderr)
         return 2
     try:
+        if args.command == "stats":
+            return _stats(args)
         if args.command == "publish":
             code, result = _publish(args)
             _emit(args, result)

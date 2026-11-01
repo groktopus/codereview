@@ -1,0 +1,51 @@
+{
+  "contract_version": "0.1",
+  "run_id": "metrics-run-3",
+  "created_at": "2026-10-03T10:00:00Z",
+  "completed_at": "2026-10-03T10:00:00Z",
+  "snapshot_id": "snap-metrics-3",
+  "base_sha": "5555555555555555555555555555555555555555",
+  "head_sha": "6666666666666666666666666666666666666666",
+  "repository": "fixture/metrics",
+  "pull_request_number": 3,
+  "project_profile_version": "metrics-profile-v2",
+  "effective_contracts": {
+    "registration": "unregistered",
+    "review_contract": {"name": "review-core", "version": "review-core.v1", "status": "supported"},
+    "profile": {"name": "metrics-profile", "version": "metrics-profile-v2", "status": "unregistered"},
+    "limits": {"name": "metrics-limits", "version": "metrics-limits-v1", "status": "unregistered"}
+  },
+  "coverage_state": "NOT_STARTED",
+  "freshness": "STALE",
+  "freshness_details": {},
+  "disposition": "INCOMPLETE",
+  "coverage_ledger": [
+    {
+      "obligation_id": "unit:u1:lens:correctness",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "required": true,
+      "scope_unit_ids": ["u1"],
+      "task_ids": ["task-u1"],
+      "state": "NOT_STARTED",
+      "reason_code": "PROVIDER_UNAVAILABLE"
+    }
+  ],
+  "budget": {
+    "provider_calls_reserved": 0,
+    "provider_calls_limit": 8,
+    "cost_reserved_microunits": 0,
+    "cost_limit_microunits": 1000,
+    "cost_billed_microunits": 0,
+    "cost_billing_known": false,
+    "cost_estimated_microunits": 0,
+    "cost_estimate_known": false
+  },
+  "task_results": {},
+  "findings": [],
+  "report_sections": {
+    "blockers": [],
+    "suggested_improvements": [],
+    "specific_strengths": [],
+    "future_guidance": []
+  }
+}

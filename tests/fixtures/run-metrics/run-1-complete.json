@@ -1,0 +1,121 @@
+{
+  "contract_version": "0.1",
+  "run_id": "metrics-run-1",
+  "created_at": "2026-10-01T10:00:00Z",
+  "completed_at": "2026-10-01T10:00:01Z",
+  "run_elapsed_ms": 1000.0,
+  "snapshot_id": "snap-metrics-1",
+  "base_sha": "1111111111111111111111111111111111111111",
+  "head_sha": "2222222222222222222222222222222222222222",
+  "repository": "fixture/metrics",
+  "pull_request_number": 1,
+  "project_profile_version": "metrics-profile-v1",
+  "effective_contracts": {
+    "registration": "unregistered",
+    "registry": {
+      "name": "contract-registry",
+      "version": "contract-registry.v1",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "review_contract": {"name": "review-core", "version": "review-core.v1", "status": "supported"},
+    "profile": {"name": "metrics-profile", "version": "metrics-profile-v1", "status": "unregistered"},
+    "limits": {"name": "metrics-limits", "version": "metrics-limits-v1", "status": "unregistered"}
+  },
+  "coverage_state": "COMPLETE",
+  "freshness": "CURRENT",
+  "freshness_details": {"freshness_basis": "GITHUB_API"},
+  "disposition": "APPROVE",
+  "coverage_ledger": [
+    {
+      "obligation_id": "unit:u1:lens:correctness",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "required": true,
+      "scope_unit_ids": ["u1"],
+      "task_ids": ["task-u1"],
+      "state": "COMPLETE",
+      "reason_code": "VALID_RESULT"
+    },
+    {
+      "obligation_id": "unit:u2:lens:correctness",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "required": true,
+      "scope_unit_ids": ["u2"],
+      "task_ids": ["task-u2"],
+      "state": "COMPLETE",
+      "reason_code": "VALID_RESULT"
+    }
+  ],
+  "completeness_summary": {
+    "schema": "review-completeness-summary.v1",
+    "taxonomy_version": "review-completeness-taxonomy.v1",
+    "taxonomy_document": "docs/REVIEW-COMPLETENESS.md",
+    "ledger_total": 2,
+    "required_total": 2,
+    "complete": 2,
+    "partial": 0,
+    "not_started": 0,
+    "unknown_state": 0,
+    "not_applicable": 0,
+    "non_required": 0,
+    "incomplete_total": 0,
+    "zero_obligations": false,
+    "complete_ratio": 1.0,
+    "resolved_ratio": 1.0,
+    "reason_distribution": [],
+    "reason_distribution_denominator": 0,
+    "unclassified_obligations": 0
+  },
+  "budget": {
+    "provider_calls_reserved": 2,
+    "provider_calls_limit": 8,
+    "cost_reserved_microunits": 0,
+    "cost_limit_microunits": 1000,
+    "cost_billed_microunits": 0,
+    "cost_billing_known": false,
+    "cost_estimated_microunits": 120,
+    "cost_estimate_known": true,
+    "provider_observability": {
+      "provider_calls_reserved": 2,
+      "tool_calls_reserved": 0,
+      "retry_calls": 0,
+      "stages": {
+        "primary": {
+          "provider_calls_reserved": 2,
+          "tool_calls_reserved": 0,
+          "retry_calls": 0,
+          "settled_calls": 2,
+          "settled_reservations": 2,
+          "request_attempted": 2,
+          "request_not_attempted": 0,
+          "request_attempt_unknown": 0,
+          "call_elapsed_ms_sum": 900.0,
+          "call_elapsed_known": 2,
+          "http_elapsed_ms_sum": 800.0,
+          "http_elapsed_known": 2,
+          "usage_known": 2,
+          "usage_partial": 0,
+          "usage_unknown": 0,
+          "billed_cost_known": 0,
+          "billed_cost_microunits": 0,
+          "estimated_cost_known": 2,
+          "estimated_cost_microunits": 120,
+          "usage_fields": {
+            "prompt_tokens": {"reported_count": 2, "reported_sum": 1000},
+            "completion_tokens": {"reported_count": 2, "reported_sum": 200},
+            "input_tokens": {"reported_count": 0, "reported_sum": 0},
+            "output_tokens": {"reported_count": 0, "reported_sum": 0},
+            "total_tokens": {"reported_count": 2, "reported_sum": 1200}
+          }
+        }
+      }
+    }
+  },
+  "task_results": {},
+  "findings": [],
+  "report_sections": {
+    "blockers": [],
+    "suggested_improvements": [],
+    "specific_strengths": [],
+    "future_guidance": []
+  }
+}

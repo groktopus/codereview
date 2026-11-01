@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/groktopus/codereview/schemas/review-run-summary.v1.schema.json",
+  "title": "PR review run summary v1",
+  "description": "Compact, content-free per-run metrics record emitted with every completed review result. Unknown observations are null, never zero.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "identity",
+    "contract",
+    "profile",
+    "run",
+    "obligations",
+    "completion",
+    "reason_codes",
+    "providers",
+    "tokens",
+    "latency",
+    "cost"
+  ],
+  "properties": {
+    "schema": { "const": "review-run-summary.v1" },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "repository", "pull_request_number", "snapshot_id", "base_sha", "head_sha"],
+      "properties": {
+        "run_id": { "type": ["string", "null"], "maxLength": 128 },
+        "repository": { "type": ["string", "null"] },
+        "pull_request_number": { "type": ["integer", "null"], "minimum": 1 },
+        "snapshot_id": { "type": ["string", "null"] },
+        "base_sha": { "type": ["string", "null"] },
+        "head_sha": { "type": ["string", "null"] }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_version",
+        "registration",
+        "registry_name",
+        "registry_version",
+        "registry_sha256",
+        "review_contract_name",
+        "review_contract_version",
+        "profile_name",
+        "profile_version",
+        "limits_name",
+        "limits_version"
+      ],
+      "properties": {
+        "result_version": { "type": ["string", "null"] },
+        "registration": { "type": ["string", "null"] },
+        "registry_name": { "type": ["string", "null"] },
+        "registry_version": { "type": ["string", "null"] },
+        "registry_sha256": { "type": ["string", "null"] },
+        "review_contract_name": { "type": ["string", "null"] },
+        "review_contract_version": { "type": ["string", "null"] },
+        "profile_name": { "type": ["string", "null"] },
+        "profile_version": { "type": ["string", "null"] },
+        "limits_name": { "type": ["string", "null"] },
+        "limits_version": { "type": ["string", "null"] }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_profile_version"],
+      "properties": {
+        "project_profile_version": { "type": ["string", "null"] }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["created_at", "completed_at", "terminal_state", "coverage_state", "freshness"],
+      "properties": {
+        "created_at": { "type": ["string", "null"] },
+        "completed_at": { "type": ["string", "null"] },
+        "terminal_state": { "type": ["string", "null"] },
+        "coverage_state": { "type": ["string", "null"] },
+        "freshness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "basis"],
+          "properties": {
+            "state": { "type": "string" },
+            "basis": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "obligations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_total",
+        "complete",
+        "partial",
+        "not_started",
+        "unknown_state",
+        "incomplete_total",
+        "not_applicable",
+        "non_required",
+        "ledger_total",
+        "zero_obligations"
+      ],
+      "properties": {
+        "required_total": { "$ref": "#/$defs/count" },
+        "complete": { "$ref": "#/$defs/count" },
+        "partial": { "$ref": "#/$defs/count" },
+        "not_started": { "$ref": "#/$defs/count" },
+        "unknown_state": { "$ref": "#/$defs/count" },
+        "incomplete_total": { "$ref": "#/$defs/count" },
+        "not_applicable": { "$ref": "#/$defs/count" },
+        "non_required": { "$ref": "#/$defs/count" },
+        "ledger_total": { "$ref": "#/$defs/count" },
+        "zero_obligations": { "type": "boolean" }
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completeness_schema",
+        "taxonomy_version",
+        "complete_ratio",
+        "resolved_ratio",
+        "reason_distribution_denominator",
+        "unclassified_obligations"
+      ],
+      "properties": {
+        "completeness_schema": { "const": "review-completeness-summary.v1" },
+        "taxonomy_version": { "type": "string" },
+        "complete_ratio": { "$ref": "#/$defs/ratio" },
+        "resolved_ratio": { "$ref": "#/$defs/ratio" },
+        "reason_distribution_denominator": { "$ref": "#/$defs/count" },
+        "unclassified_obligations": { "$ref": "#/$defs/count" }
+      }
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["canonical_code", "obligations", "share_of_incomplete", "share_of_required", "states"],
+        "properties": {
+          "canonical_code": { "type": "string", "minLength": 1 },
+          "obligations": { "$ref": "#/$defs/count" },
+          "share_of_incomplete": { "$ref": "#/$defs/ratio" },
+          "share_of_required": { "$ref": "#/$defs/ratio" },
+          "states": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["COMPLETE", "PARTIAL", "NOT_STARTED", "UNKNOWN"],
+            "properties": {
+              "COMPLETE": { "$ref": "#/$defs/count" },
+              "PARTIAL": { "$ref": "#/$defs/count" },
+              "NOT_STARTED": { "$ref": "#/$defs/count" },
+              "UNKNOWN": { "$ref": "#/$defs/count" }
+            }
+          }
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls_reserved",
+        "calls_settled",
+        "retries",
+        "tool_calls_reserved",
+        "request_attempted",
+        "request_not_attempted",
+        "request_attempt_unknown"
+      ],
+      "properties": {
+        "calls_reserved": { "$ref": "#/$defs/optionalCount" },
+        "calls_settled": { "$ref": "#/$defs/optionalCount" },
+        "retries": { "$ref": "#/$defs/optionalCount" },
+        "tool_calls_reserved": { "$ref": "#/$defs/optionalCount" },
+        "request_attempted": { "$ref": "#/$defs/optionalCount" },
+        "request_not_attempted": { "$ref": "#/$defs/optionalCount" },
+        "request_attempt_unknown": { "$ref": "#/$defs/optionalCount" }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["denominator_calls", "usage_states", "fields"],
+      "properties": {
+        "denominator_calls": { "$ref": "#/$defs/optionalCount" },
+        "usage_states": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["known_calls", "partial_calls", "unknown_calls"],
+          "properties": {
+            "known_calls": { "$ref": "#/$defs/count" },
+            "partial_calls": { "$ref": "#/$defs/count" },
+            "unknown_calls": { "$ref": "#/$defs/optionalCount" }
+          }
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["prompt_tokens", "completion_tokens", "input_tokens", "output_tokens", "total_tokens"],
+          "properties": {
+            "prompt_tokens": { "$ref": "#/$defs/tokenField" },
+            "completion_tokens": { "$ref": "#/$defs/tokenField" },
+            "input_tokens": { "$ref": "#/$defs/tokenField" },
+            "output_tokens": { "$ref": "#/$defs/tokenField" },
+            "total_tokens": { "$ref": "#/$defs/tokenField" }
+          }
+        }
+      }
+    },
+    "latency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_elapsed_ms", "by_stage"],
+      "properties": {
+        "run_elapsed_ms": { "type": ["number", "null"], "minimum": 0 },
+        "by_stage": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "calls",
+                "call_elapsed_ms_sum",
+                "call_elapsed_known",
+                "http_elapsed_ms_sum",
+                "http_elapsed_known",
+                "retries"
+              ],
+              "properties": {
+                "calls": { "$ref": "#/$defs/count" },
+                "call_elapsed_ms_sum": { "type": ["number", "null"], "minimum": 0 },
+                "call_elapsed_known": { "$ref": "#/$defs/count" },
+                "http_elapsed_ms_sum": { "type": ["number", "null"], "minimum": 0 },
+                "http_elapsed_known": { "$ref": "#/$defs/count" },
+                "retries": { "$ref": "#/$defs/optionalCount" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "reserved_microunits", "limit_microunits", "estimate", "billing"],
+      "properties": {
+        "currency": { "type": ["string", "null"] },
+        "reserved_microunits": { "$ref": "#/$defs/optionalCount" },
+        "limit_microunits": { "$ref": "#/$defs/optionalCount" },
+        "estimate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["microunits", "known", "basis"],
+          "properties": {
+            "microunits": { "$ref": "#/$defs/optionalCount" },
+            "known": { "type": "boolean" },
+            "basis": { "enum": ["PROVIDER_REPORTED_ESTIMATE", "UNKNOWN"] }
+          }
+        },
+        "billing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["microunits", "known", "basis"],
+          "properties": {
+            "microunits": { "$ref": "#/$defs/optionalCount" },
+            "known": { "type": "boolean" },
+            "basis": { "enum": ["PROVIDER_REPORTED_BILLED", "UNKNOWN"] }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "optionalCount": { "type": ["integer", "null"], "minimum": 0 },
+    "ratio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "tokenField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reported_sum", "reported_count", "unknown_count", "denominator_calls"],
+      "properties": {
+        "reported_sum": { "$ref": "#/$defs/optionalCount" },
+        "reported_count": { "$ref": "#/$defs/count" },
+        "unknown_count": { "$ref": "#/$defs/optionalCount" },
+        "denominator_calls": { "$ref": "#/$defs/optionalCount" }
+      }
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "contract_version": "0.1",
+  "run_id": "metrics-run-4",
+  "completed_at": "2026-10-04T10:00:00Z",
+  "run_elapsed_ms": 500.0,
+  "snapshot_id": "snap-metrics-4",
+  "base_sha": "7777777777777777777777777777777777777777",
+  "head_sha": "8888888888888888888888888888888888888888",
+  "repository": "fixture/metrics",
+  "pull_request_number": 4,
+  "project_profile_version": "metrics-profile-v1",
+  "coverage_state": "PARTIAL",
+  "freshness": "UNKNOWN",
+  "disposition": "INCOMPLETE",
+  "coverage_ledger": [
+    {
+      "obligation_id": "unit:u1:lens:correctness",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "required": true,
+      "scope_unit_ids": ["u1"],
+      "task_ids": ["task-u1"],
+      "state": "PARTIAL",
+      "reason_code": "TASK_FAILED"
+    }
+  ],
+  "budget": {
+    "provider_calls_reserved": 1,
+    "provider_calls_limit": 8,
+    "cost_reserved_microunits": 0,
+    "cost_limit_microunits": 1000,
+    "cost_billed_microunits": 0,
+    "cost_billing_known": false,
+    "cost_estimated_microunits": 0,
+    "cost_estimate_known": false,
+    "provider_observability": {
+      "provider_calls_reserved": 1,
+      "tool_calls_reserved": 0,
+      "retry_calls": 0,
+      "stages": {
+        "primary": {
+          "provider_calls_reserved": 1,
+          "tool_calls_reserved": 0,
+          "retry_calls": 0,
+          "settled_calls": 1,
+          "settled_reservations": 1,
+          "request_attempted": 0,
+          "request_not_attempted": 0,
+          "request_attempt_unknown": 1,
+          "call_elapsed_ms_sum": 0.0,
+          "call_elapsed_known": 0,
+          "http_elapsed_ms_sum": 0.0,
+          "http_elapsed_known": 0,
+          "usage_known": 0,
+          "usage_partial": 0,
+          "usage_unknown": 1,
+          "billed_cost_known": 0,
+          "billed_cost_microunits": 0,
+          "estimated_cost_known": 0,
+          "estimated_cost_microunits": 0,
+          "usage_fields": {
+            "prompt_tokens": {"reported_count": 0, "reported_sum": 0},
+            "completion_tokens": {"reported_count": 0, "reported_sum": 0},
+            "input_tokens": {"reported_count": 0, "reported_sum": 0},
+            "output_tokens": {"reported_count": 0, "reported_sum": 0},
+            "total_tokens": {"reported_count": 0, "reported_sum": 0}
+          }
+        }
+      }
+    }
+  },
+  "task_results": {},
+  "findings": [],
+  "report_sections": {
+    "blockers": [],
+    "suggested_improvements": [],
+    "specific_strengths": [],
+    "future_guidance": []
+  }
+}

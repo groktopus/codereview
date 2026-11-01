@@ -1,0 +1,131 @@
+{
+  "contract_version": "0.1",
+  "run_id": "metrics-run-2",
+  "created_at": "2026-10-02T10:00:00Z",
+  "completed_at": "2026-10-02T10:00:03Z",
+  "run_elapsed_ms": 3000.0,
+  "snapshot_id": "snap-metrics-2",
+  "base_sha": "3333333333333333333333333333333333333333",
+  "head_sha": "4444444444444444444444444444444444444444",
+  "repository": "fixture/metrics",
+  "pull_request_number": 2,
+  "project_profile_version": "metrics-profile-v1",
+  "effective_contracts": {
+    "registration": "unregistered",
+    "registry": {
+      "name": "contract-registry",
+      "version": "contract-registry.v1",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "review_contract": {"name": "review-core", "version": "review-core.v1", "status": "supported"},
+    "profile": {"name": "metrics-profile", "version": "metrics-profile-v1", "status": "unregistered"},
+    "limits": {"name": "metrics-limits", "version": "metrics-limits-v1", "status": "unregistered"}
+  },
+  "coverage_state": "PARTIAL",
+  "freshness": "UNKNOWN",
+  "freshness_details": {},
+  "disposition": "INCOMPLETE",
+  "coverage_ledger": [
+    {
+      "obligation_id": "unit:u1:lens:correctness",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "required": true,
+      "scope_unit_ids": ["u1"],
+      "task_ids": ["task-u1"],
+      "state": "COMPLETE",
+      "reason_code": "VALID_RESULT"
+    },
+    {
+      "obligation_id": "context:u2:required",
+      "obligation_kind": "REQUIRED_CONTEXT",
+      "required": true,
+      "scope_unit_ids": ["u2"],
+      "task_ids": ["task-u2"],
+      "state": "PARTIAL",
+      "reason_code": "CONTEXT_GAP_UNRESOLVED"
+    }
+  ],
+  "completeness_summary": {
+    "schema": "review-completeness-summary.v1",
+    "taxonomy_version": "review-completeness-taxonomy.v1",
+    "taxonomy_document": "docs/REVIEW-COMPLETENESS.md",
+    "ledger_total": 2,
+    "required_total": 2,
+    "complete": 1,
+    "partial": 1,
+    "not_started": 0,
+    "unknown_state": 0,
+    "not_applicable": 0,
+    "non_required": 0,
+    "incomplete_total": 1,
+    "zero_obligations": false,
+    "complete_ratio": 0.5,
+    "resolved_ratio": 1.0,
+    "reason_distribution": [
+      {
+        "canonical_code": "CONTEXT_GAP_UNRESOLVED",
+        "description": "A required evidence or follow-up gap linked to the obligation remained unresolved.",
+        "obligations": 1,
+        "share_of_incomplete": 1.0,
+        "share_of_required": 0.5,
+        "states": {"COMPLETE": 0, "PARTIAL": 1, "NOT_STARTED": 0, "UNKNOWN": 0},
+        "legacy_codes": [{"code": "CONTEXT_GAP_UNRESOLVED", "obligations": 1}]
+      }
+    ],
+    "reason_distribution_denominator": 1,
+    "unclassified_obligations": 0
+  },
+  "budget": {
+    "provider_calls_reserved": 3,
+    "provider_calls_limit": 8,
+    "cost_reserved_microunits": 0,
+    "cost_limit_microunits": 1000,
+    "cost_billed_microunits": 0,
+    "cost_billing_known": false,
+    "cost_estimated_microunits": 0,
+    "cost_estimate_known": false,
+    "provider_observability": {
+      "provider_calls_reserved": 3,
+      "tool_calls_reserved": 0,
+      "retry_calls": 1,
+      "stages": {
+        "primary": {
+          "provider_calls_reserved": 3,
+          "tool_calls_reserved": 0,
+          "retry_calls": 1,
+          "settled_calls": 3,
+          "settled_reservations": 3,
+          "request_attempted": 3,
+          "request_not_attempted": 0,
+          "request_attempt_unknown": 0,
+          "call_elapsed_ms_sum": 2100.0,
+          "call_elapsed_known": 3,
+          "http_elapsed_ms_sum": 2000.0,
+          "http_elapsed_known": 3,
+          "usage_known": 1,
+          "usage_partial": 2,
+          "usage_unknown": 0,
+          "billed_cost_known": 0,
+          "billed_cost_microunits": 0,
+          "estimated_cost_known": 0,
+          "estimated_cost_microunits": 0,
+          "usage_fields": {
+            "prompt_tokens": {"reported_count": 1, "reported_sum": 300},
+            "completion_tokens": {"reported_count": 1, "reported_sum": 100},
+            "input_tokens": {"reported_count": 0, "reported_sum": 0},
+            "output_tokens": {"reported_count": 0, "reported_sum": 0},
+            "total_tokens": {"reported_count": 1, "reported_sum": 400}
+          }
+        }
+      }
+    }
+  },
+  "task_results": {},
+  "findings": [],
+  "report_sections": {
+    "blockers": [],
+    "suggested_improvements": [],
+    "specific_strengths": [],
+    "future_guidance": []
+  }
+}
