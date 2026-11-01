@@ -416,14 +416,6 @@ def summary_from_result(result: Mapping[str, Any]) -> dict[str, Any]:
         return dict(embedded)
     return build_run_summary(result)
 
-def summary_from_result(result: Mapping[str, Any]) -> dict[str, Any]:
-    """Return the embedded summary when well formed, else derive a fresh one."""
-
-    embedded = result.get("run_summary") if isinstance(result, Mapping) else None
-    if summary_is_well_formed(embedded):
-        return dict(embedded)
-    return build_run_summary(result)
-
 
 # ---------------------------------------------------------------------------
 # Input collection and windowing
