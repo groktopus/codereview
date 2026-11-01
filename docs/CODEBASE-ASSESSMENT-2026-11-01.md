@@ -41,7 +41,7 @@ The strongest property is **evidence integrity**. The highest-risk property is *
 | Review quality evidence | **F** | Zero human labels, zero labeled corpus, no Droid baseline |
 | Architecture maintainability | **D+** | Monolithic engine, duplicated orchestrators, contract/version sprawl |
 | Operational/release readiness | **C−** | Strong CI mechanics; no releases, tags, license, changelog, or aggregated metrics |
-| Documentation | **C** | Very rich, but contradictory and unindexed; 88 docs, stale living documents |
+| Documentation | **C** | Very rich, but contradictory and unindexed; 88 top-level docs, stale living documents |
 | Governance | **D** | Single contributor, 0/20 recent merges with recorded review, no issue backlog, public repo without LICENSE |
 
 ---
@@ -61,7 +61,7 @@ The strongest property is **evidence integrity**. The highest-risk property is *
 | E-009 | Most natural reviews are INCOMPLETE/PARTIAL: 16/42, 19/43, 23/44, 27/42 required rows | reported | `CURRENT-STATUS.md`, `COMPLETE-REQUIREMENT-AUDIT-2026-10-01.md` | medium-high |
 | E-010 | 25 workflows, 15 profile/limits files including eight SlopSearX generations (v9–v17, v15 absent) and three limits revisions, nine `run_*` entry points, 3 claim-assessment contract versions | observed | tree + grep | high |
 | E-011 | README, `VERIFICATION.md` and `PUBLICATION-READINESS.md` contradict `CURRENT-STATUS.md` on publication and completion state | observed | document text | high |
-| E-012 | 88 docs, 4,862 lines, no index, 1 broken relative link; core last changed 2026-10-07 | observed | link scan, git log | high |
+| E-012 | 88 top-level docs, 4,862 lines, no index, 1 broken relative link; core last changed 2026-10-07 | observed | link scan, git log | high |
 | E-013 | 238 PRs, one contributor, 0 issues, 0/20 most recent merged PRs have GitHub review records, public repo with no LICENSE | observed | `gh` API | high |
 | E-014 | OpenAI-compatible provider accepts `http://` to any host; only the env helper rejects remote HTTP | observed | `providers.py:_safe_url`, `scripts/provider_config_from_env.py` | high |
 | E-015 | `schemas/*.json` are not loaded by code or CI | observed | repository grep | high |
@@ -302,7 +302,7 @@ The important discipline: **hard safety invariants are vetoes, never averaged**;
 1. **Stop adding trial workflows and profile generations.** Twenty-five workflows and eight profile generations is research thrift turning into maintenance debt.
 2. **Stop expanding publication before review completeness is fixed.** Publishing a 40% incomplete review is not progress toward replacement.
 3. **Stop treating "no human labels" as a permanent constraint.** Fund a small labeling program; it is the cheapest path to every quality decision.
-4. **Stop maintaining 88 living documents.** Keep ~10 current, archive the rest, and generate status from evidence.
+4. **Stop maintaining 88 top-level living documents.** Keep ~10 current, archive the rest, and generate status from evidence.
 5. **Stop merging without durable review records.** The project's own standard ("independent review clear") leaves no artifact on the PR.
 
 ---

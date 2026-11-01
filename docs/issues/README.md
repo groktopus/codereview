@@ -47,7 +47,7 @@ These are proposed gates. The owner ratifies or changes the numbers; the method 
 
 ## Coverage map
 
-Every scored dimension is covered by at least one P0 or P1 issue. Generated from each issue's `Dimensions` field; Security and Observability are tracked separately from the assessment's Effect-safety and Operational-readiness rows.
+Every scored dimension is covered by at least one P0 or P1 issue. Generated from each issue's `Dimensions` field; Security and Observability are tracked separately from the assessment's Effect safety and read-only boundaries and Operational/release readiness rows.
 
 | Dimension | RC | QM | CA | VD | SE | RS | OE | DT | GA |
 |---|---|---|---|---|---|---|---|---|
@@ -181,7 +181,7 @@ flowchart LR
 - **Problem** must cite a revision, file/line, document, or measured result.
 - **Exit criteria** must be observable: a metric, a test, a CI job, an artifact, or an external record. "Better" and "cleaner" are not criteria.
 - **Verification** names the command or artifact that proves the exit criterion.
-- **Depends on** lists only hard blockers. Soft ordering belongs in the wave graph.
+- **Depends on** lists only hard blockers. Soft ordering belongs in the dependency graph above.
 - No issue may claim quality from model agreement, confidence, or a green transport test.
 
 ## Filing
