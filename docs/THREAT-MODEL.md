@@ -145,13 +145,13 @@ Tests cover remote HTTP rejection for both families, HTTPS acceptance, loopback 
 
 ## 7. Automated security scanning added by this change
 
-[`security.yml`](../.github/workflows/security.yml) is `ADDED` by this change. It runs on pull requests, pushes to `main`, a weekly schedule, and manual dispatch. It uses only `contents: read`, except the CodeQL job's `security-events: write` for SARIF upload. No job checks out a reviewed target repository, calls a provider, or holds a repository-write credential.
+[`security.yml`](../.github/workflows/security.yml) is `ADDED` by this change. CodeQL runs on pull requests, pushes to `main`, a weekly schedule, and manual dispatch; the other jobs are restricted as shown below. It uses only `contents: read`, except the CodeQL job's `security-events: write` for SARIF upload. No job checks out a reviewed target repository, calls a provider, or holds a repository-write credential.
 
 | Job | Tool | Trigger | Failure semantics | Data flow |
 |---|---|---|---|---|
 | `codeql` | CodeQL for Python, `security-and-quality` queries | PR, main, schedule | SARIF is uploaded; alerts are reported by code scanning. CodeQL does not itself fail the build on an alert. | Repository source is analyzed on the runner; SARIF goes to this repository's code scanning. |
-| `dependency-review` | `actions/dependency-review-action` | PR only | Fails on high or critical known vulnerabilities in changed dependencies. | Dependency diff is evaluated through GitHub's dependency review API. |
-| `secret-scan` | TruffleHog `3.99.7` | PR, main, schedule | Fails on any non-excluded detector match. | Scanner runs locally on the runner; `--no-verification` prevents sending a found credential to its issuer. |
+| `dependency-review` | `actions/dependency-review-action` | PR only, and only when the dependency graph is enabled and `DEPENDENCY_GRAPH_ENABLED=true`; otherwise skipped (**AR-7**) | Fails on high or critical known vulnerabilities when it runs; currently skipped until the graph is enabled. | Dependency diff is evaluated through GitHub's dependency review API. |
+| `secret-scan` | TruffleHog `3.99.7` | PR and push to `main`; skipped on schedule/dispatch (empty base/head) | Fails on any non-excluded detector match, plus the credential-URL grep outside `tests/`. | Scanner runs locally on the runner; `--no-verification` prevents sending a found credential to its issuer. |
 
 ### 7.1 Action pins
 
@@ -195,7 +195,7 @@ Accepted risks are recorded so they can be re-evaluated rather than forgotten. E
 
 | ID | Accepted risk | Why accepted | Owner | Expiry | Review trigger |
 |---|---|---|---|---|---|
-| **AR-1** | TruffleHog's `URI` detector is excluded, so basic-auth-in-URL credentials inside test fixtures are not reported; a compensating `git grep` rejects that class outside `tests/`, but the fixture files themselves remain unscanned by this detector. | The tests intentionally contain synthetic credential-bearing example URLs; the detector produced 9 matches on a clean revision. | Repository maintainer | 2027-05-01 | Any new URI-like fixture, a scanner major-version change, or a decision to path-exclude fixtures instead. |
+| **AR-1** | TruffleHog's `URI` detector is excluded, so basic-auth-in-URL credentials inside test fixtures are not reported; a compensating `git grep` rejects that class outside `tests/` on the checked-out revision only, but the fixture files themselves remain unscanned by this detector. | The tests intentionally contain synthetic credential-bearing example URLs; the detector produced 9 matches on a clean revision. | Repository maintainer | 2027-05-01 | Any new URI-like fixture, a scanner major-version change, or a decision to path-exclude fixtures instead. |
 | **AR-2** | A third-party scanning action and container image execute in CI, and the image is pinned by tag (`3.99.7`), not digest. | No license-free pinned alternative was available; the action SHA is immutable but the image tag is not. | Repository maintainer | 2027-05-01 | Any scanner update, or availability of a digest-pinned option. |
 | **AR-3** | Development dependencies are installed from PyPI without hash locking and several ranges are open-ended (`pytest`, `ruff`, `setuptools`). | The project deliberately has no runtime dependencies; CI resolves dev tooling at run time and pins the interpreter matrix. | Repository maintainer | 2027-05-01 | Introduction of a runtime dependency or a lock file. |
 | **AR-4** | Artifact intake has no production attestation verifier and no verified live GitHub artifact-digest contract. | Implementing a verifier requires a separate reviewed capability and a live canary. Until then intake returns `UNAVAILABLE` and cannot authorize production publication. | Repository maintainer | 2027-01-31 | Any attempt to enable publication. |
