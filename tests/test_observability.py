@@ -301,26 +301,28 @@ def test_engine_observations_do_not_change_request_identity_or_reducer(tmp_path,
 
 def test_run_elapsed_includes_final_advisory_stage(tmp_path, monkeypatch):
     monkeypatch.setenv("OBSERVABILITY_TEST_MARKER", str(tmp_path / "delayed-calls.log"))
-    snapshot = make_snapshot()
-    project_profile = profile()
-    plan = plan_review(snapshot, project_profile, "AUTO")
-    started = time.monotonic()
-    result = run_review(
-        snapshot,
-        plan,
-        project_profile,
-        _ObservedProvider(receipt=False),
-        _ObservedDecisionProvider(receipt=False, delay_seconds=0.15),
-        _limits(),
-        str(tmp_path / "delayed"),
-        "delayed-advisory",
-    )
-    wall_elapsed_ms = (time.monotonic() - started) * 1000
-    # The advisory stage sleeps for 150 ms. Assert that delay is included without
-    # coupling to render/write time, which is not part of run_elapsed_ms.
-    assert result["run_elapsed_ms"] >= 140
-    assert result["run_elapsed_ms"] <= wall_elapsed_ms + 50
-    assert "run elapsed" in engine_module.render_report(result)
+
+    def measured(delay_seconds: float, name: str) -> dict:
+        snapshot = make_snapshot()
+        project_profile = profile()
+        plan = plan_review(snapshot, project_profile, "AUTO")
+        return run_review(
+            snapshot,
+            plan,
+            project_profile,
+            _ObservedProvider(receipt=False),
+            _ObservedDecisionProvider(receipt=False, delay_seconds=delay_seconds),
+            _limits(),
+            str(tmp_path / name),
+            name,
+        )
+
+    # Compare against the same case without the advisory delay so the assertion
+    # isolates stage inclusion from baseline engine cost on slow runners.
+    baseline = measured(0, "baseline-advisory")
+    delayed = measured(0.15, "delayed-advisory")
+    assert delayed["run_elapsed_ms"] - baseline["run_elapsed_ms"] >= 100
+    assert "run elapsed" in engine_module.render_report(delayed)
 
 
 def test_legacy_completed_checkpoint_without_observations_resumes_without_dispatch(tmp_path, monkeypatch):
