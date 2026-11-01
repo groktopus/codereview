@@ -370,6 +370,30 @@ PROVIDER_CODE_MAP: dict[str, str] = {
     "unsupported_task_kind": "TASK_FAILED",
 }
 
+PROVIDER_CODE_MAP.update(
+    {
+        "invalid_candidate_fields": "TASK_FAILED",
+        "invalid_context_followup": "TASK_FAILED",
+        "invalid_coverage_note_fields": "TASK_FAILED",
+        "invalid_report_note_fields": "TASK_FAILED",
+        "invalid_context_gap_related_candidate_ids": "TASK_FAILED",
+        "invalid_context_gap_related_evidence_ids": "TASK_FAILED",
+        "invalid_provider_config": "TASK_FAILED",
+        "invalid_timeout": "TASK_FAILED",
+        "invalid_deadline": "TASK_FAILED",
+        "invalid_request": "TASK_FAILED",
+        "invalid_criteria": "TASK_FAILED",
+        "invalid_max_response_bytes": "TASK_FAILED",
+        "invalid_max_request_bytes": "TASK_FAILED",
+        "invalid_max_output_tokens": "TASK_FAILED",
+        "invalid_max_output_items": "TASK_FAILED",
+        "invalid_max_item_text_bytes": "TASK_FAILED",
+        "invalid_max_output_bytes_per_task": "TASK_FAILED",
+        "invalid_max_input_bytes_per_task": "TASK_FAILED",
+    }
+)
+PROVIDER_CODE_MAP.pop("request_exceeds_limit", None)
+
 _PROVIDER_DYNAMIC_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^http_status_[0-9]{3}$"), "PROVIDER_UNAVAILABLE"),
     (re.compile(r"^[a-z0-9_]+_exceeds_limit$"), "BUDGET_EXHAUSTED"),

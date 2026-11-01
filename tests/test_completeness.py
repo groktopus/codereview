@@ -461,3 +461,37 @@ def test_every_provider_and_contract_error_code_is_classified():
     assert classify_reason("http_status_500") == "PROVIDER_UNAVAILABLE"
     assert classify_reason("cache_unavailable") == "UNCLASSIFIED_REASON"
     assert classify_reason("invalid_future_semantics") == "UNCLASSIFIED_REASON"
+
+
+def test_embedded_summary_ratios_must_match_the_ledger():
+    from pr_review_harness.completeness import summary_is_consistent
+
+    result = _fixture("good-result.json")
+    summary = summary_from_result(result)
+    summary["complete_ratio"] = 1.0
+    result["completeness_summary"] = summary
+    assert summary_is_consistent(result, summary_from_result(result)) is False
+
+
+def test_baseline_schema_or_taxonomy_version_is_rejected():
+    baseline = _baseline()
+    baseline["schema"] = "not-a-baseline"
+    with pytest.raises(ValueError, match="baseline schema"):
+        compare_to_baseline(_fixture("good-result.json"), baseline)
+    baseline = _baseline()
+    baseline["taxonomy_version"] = "review-completeness-taxonomy.v99"
+    with pytest.raises(ValueError, match="taxonomy version"):
+        compare_to_baseline(_fixture("good-result.json"), baseline)
+
+
+def test_partial_obligation_regressing_to_not_started_fails_the_gate():
+    result = copy.deepcopy(_fixture("good-result.json"))
+    for row in result["coverage_ledger"]:
+        if row.get("state") == "PARTIAL":
+            row["state"] = "NOT_STARTED"
+            row["reason_code"] = "DEADLINE_EXHAUSTED"
+            break
+    verdict = compare_to_baseline(result, _baseline())
+    assert verdict["status"] == "FAIL"
+    codes = {finding["code"] for finding in verdict["findings"]}
+    assert "PARTIAL_OBLIGATION_REGRESSION" in codes

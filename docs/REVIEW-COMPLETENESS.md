@@ -46,7 +46,7 @@ not part of the incomplete distribution.
 An unknown string never disappears: it is preserved as
 `reported_reason_code`/`legacy_codes` and counted as `UNCLASSIFIED_REASON`. That
 is deliberate. Taxonomy drift is visible and gated instead of being normalized
-away. Adding a new reason string requires either adding it to the table above or
+away. Provider and contract codes have an explicit, versioned map (`PROVIDER_CODE_MAP`) plus two documented dynamic rules exposed by `taxonomy_document()`: `http_status_<3 digits>` maps to `PROVIDER_UNAVAILABLE`, and `*_exceeds_limit` maps to `BUDGET_EXHAUSTED`. No other prefix or substring heuristics apply; unmatched codes stay `UNCLASSIFIED_REASON`. Adding a new reason string requires either adding it to the table above or
 accepting an explicit unclassified count in the baseline.
 
 ## 2. Machine-readable summary
@@ -194,8 +194,6 @@ quality.
   comparison pass/fail, stale-summary rejection, CLI exit codes, and
   disposition preservation.
 
-
-Gate outcomes also include `PARTIAL_OBLIGATION_REGRESSION` when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN`. Baselines whose schema or taxonomy version is not current are rejected before comparison. Case identity prefers `case_id`, then `run_id`, then `snapshot.snapshot_id`; corpus runs that need repeatable gating must set a stable `case_id`.
 
 
 Gate finding `PARTIAL_OBLIGATION_REGRESSION` fires when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN` (normalized state). Case identity is `case_id`, then top-level `snapshot_id`, then `run_id`; corpus runs should set a stable `case_id`. Baseline schema/taxonomy version must match the current constants.
