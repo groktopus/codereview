@@ -1,5 +1,7 @@
 # Verification and implementation status
 
+> **Scope and historical status.** This page is a **2026-09-26** snapshot of acceptance-criteria and spec-gap accounting at that revision. It is retained as a historical spec-gap record, not as current implementation status. Read [STATUS.md](STATUS.md) first. In particular, AC-037's "publication rejected" is scoped to the harness CLI and the central `groktopus/codereview` workflow; a separately installed target-local route is reported active in the 2026-10-11 record ([CURRENT-STATUS.md](CURRENT-STATUS.md)). The statements that automatic bounded retrieval and expanded follow-up scheduling were deferred were true at this snapshot; later evidence records bounded retrieval and follow-ups being exercised, but the current status of each deferred item is not established here. No past decision is rewritten.
+
 This is an initial read-only pilot implementation. The original draft specification in `design/SPEC.md` remains the target, not a statement of completion. Controlled fixtures prove specific controller properties; real inference runs prove transport and normal-path operation. Neither establishes model accuracy or parity with Droid.
 
 ## Acceptance accounting
