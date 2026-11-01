@@ -33,6 +33,7 @@
   - Mutation testing on `reconcile`, reducer/validators, and budget arithmetic; triage surviving mutants.
   - Fault-injection matrix: provider timeout, 4xx/5xx, malformed JSON, truncated stream, duplicate response, GitHub rate limit/redirect/5xx, artifact tamper, publication timeout/ambiguous submit/history pagination.
   - Assert both the terminal state and the absence of forbidden effects.
+  - Remove or make tolerant wall-clock assertions that fail under runner contention (for example the elapsed-time assertion in `tests/test_observability.py`); assert ordering and invariants, or use a documented tolerance with a retry-free rationale.
 - **Exit criteria:** Property tests run in CI; mutation score ≥70% on the named modules; the fault matrix is parameterized and green; each fault asserts a stable reason code.
 - **Verification:** a mutation report artifact; property-test seeds; a fault-matrix table generated from test IDs.
 - **Depends on:** CA-1, VD-1.
