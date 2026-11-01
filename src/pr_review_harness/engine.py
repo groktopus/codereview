@@ -467,6 +467,8 @@ def _core_contract_hash() -> str:
     root = Path(__file__).resolve().parent
     names = (
         "engine.py",
+        "review_stages.py",
+        "review_state.py",
         "planner.py",
         "providers.py",
         "contracts.py",

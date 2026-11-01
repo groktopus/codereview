@@ -175,12 +175,36 @@ def test_run_review_is_a_thin_coordinator_without_nested_functions():
     assert run_review.end_lineno - run_review.lineno + 1 <= 300
     nested = [node for node in ast.walk(run_review) if isinstance(node, ast.FunctionDef) and node is not run_review]
     assert nested == []
-    called = {
-        node.func.id
+    calls = [
+        node
         for node in ast.walk(run_review)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
-    assert set(STAGE_NAMES) <= called
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in STAGE_NAMES
+    ]
+    assert [node.func.id for node in sorted(calls, key=lambda node: node.lineno)] == list(STAGE_NAMES)
+
+
+@pytest.mark.parametrize("name", ["review_stages.py", "review_state.py"])
+def test_core_contract_hash_covers_stage_sources(monkeypatch, name):
+    baseline = engine_module._core_contract_hash()
+    original = Path.read_bytes
+
+    def mutated(self):
+        data = original(self)
+        return data + b"\n# mutation\n" if self.name == name else data
+
+    monkeypatch.setattr(Path, "read_bytes", mutated)
+    assert engine_module._core_contract_hash() != baseline
+
+
+def test_every_stage_engine_import_resolves():
+    tree = ast.parse((Path(engine_module.__file__).parent / "review_stages.py").read_text(encoding="utf-8"))
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "engine" and node.level == 1:
+            names.update(alias.name for alias in node.names)
+    assert names
+    missing = sorted(name for name in names if not hasattr(engine_module, name))
+    assert missing == []
 
 
 def test_stage_module_import_graph_is_acyclic():
