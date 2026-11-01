@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -240,6 +241,140 @@ for _entry in REASON_TAXONOMY:
             raise RuntimeError(f"duplicate taxonomy mapping for {_legacy!r}")
         _LEGACY_TO_CANONICAL[_legacy] = _entry["code"]
 
+PROVIDER_CODE_MAP: dict[str, str] = {
+    # PROVIDER_UNAVAILABLE
+    "credential_unavailable": "PROVIDER_UNAVAILABLE",
+    "provider_call_failed": "PROVIDER_UNAVAILABLE",
+    "provider_config_invalid_json": "PROVIDER_UNAVAILABLE",
+    "provider_config_unavailable": "PROVIDER_UNAVAILABLE",
+    # BUDGET_EXHAUSTED
+    "candidate_text_exceeds_limit": "BUDGET_EXHAUSTED",
+    "invalid_item_limit": "BUDGET_EXHAUSTED",
+    "invalid_limits": "BUDGET_EXHAUSTED",
+    "invalid_max_cost_microunits_per_call": "BUDGET_EXHAUSTED",
+    "invalid_price_configuration": "BUDGET_EXHAUSTED",
+    "invalid_transport_limit": "BUDGET_EXHAUSTED",
+    "output_item_limit_exceeded": "BUDGET_EXHAUSTED",
+    "provider_config_exceeds_limit": "BUDGET_EXHAUSTED",
+    "report_note_limit_exceeded": "BUDGET_EXHAUSTED",
+    "request_exceeds_limit": "BUDGET_EXHAUSTED",
+    "response_exceeds_limit": "BUDGET_EXHAUSTED",
+    # DEADLINE_EXHAUSTED
+    "provider_deadline_exceeded": "DEADLINE_EXHAUSTED",
+    # TASK_FAILED
+    "assessment_references_unknown_evidence": "TASK_FAILED",
+    "candidate_references_unknown_evidence": "TASK_FAILED",
+    "candidate_references_unknown_scope": "TASK_FAILED",
+    "capture_receipt_invalid": "TASK_FAILED",
+    "capture_sink_failed": "TASK_FAILED",
+    "capture_sink_required": "TASK_FAILED",
+    "configured_model_mismatch": "TASK_FAILED",
+    "context_followup_requires_specialist_input_v2": "TASK_FAILED",
+    "context_gap_references_unknown_evidence": "TASK_FAILED",
+    "coverage_note_evidence_required": "TASK_FAILED",
+    "coverage_references_unknown_evidence": "TASK_FAILED",
+    "coverage_references_unknown_scope": "TASK_FAILED",
+    "endpoint_must_not_contain_credentials_or_query": "TASK_FAILED",
+    "endpoint_required": "TASK_FAILED",
+    "invalid_assessment": "TASK_FAILED",
+    "invalid_assessment_array": "TASK_FAILED",
+    "invalid_assessment_fields": "TASK_FAILED",
+    "invalid_assessment_outcome": "TASK_FAILED",
+    "invalid_assessment_request": "TASK_FAILED",
+    "invalid_assessment_semantics": "TASK_FAILED",
+    "invalid_assessment_summary": "TASK_FAILED",
+    "invalid_assessment_support": "TASK_FAILED",
+    "invalid_candidate_evidence_refs": "TASK_FAILED",
+    "invalid_candidate_introducedness": "TASK_FAILED",
+    "invalid_candidate_line": "TASK_FAILED",
+    "invalid_candidate_location": "TASK_FAILED",
+    "invalid_candidate_reasoning_kind": "TASK_FAILED",
+    "invalid_candidate_severity": "TASK_FAILED",
+    "invalid_candidate_text": "TASK_FAILED",
+    "invalid_candidate_unit_id": "TASK_FAILED",
+    "invalid_causal_role_assessment": "TASK_FAILED",
+    "invalid_causal_role_evidence_refs": "TASK_FAILED",
+    "invalid_causal_role_fields": "TASK_FAILED",
+    "invalid_causal_role_support": "TASK_FAILED",
+    "invalid_causal_roles": "TASK_FAILED",
+    "invalid_claim_candidate": "TASK_FAILED",
+    "invalid_claim_evidence": "TASK_FAILED",
+    "invalid_claim_identity": "TASK_FAILED",
+    "invalid_claim_transport_config": "TASK_FAILED",
+    "invalid_context_followup_binding": "TASK_FAILED",
+    "invalid_context_followup_evidence_binding": "TASK_FAILED",
+    "invalid_context_followup_identity": "TASK_FAILED",
+    "invalid_context_followup_rationale": "TASK_FAILED",
+    "invalid_context_followup_references": "TASK_FAILED",
+    "invalid_context_followup_scope": "TASK_FAILED",
+    "invalid_context_followup_target": "TASK_FAILED",
+    "invalid_context_followup_version": "TASK_FAILED",
+    "invalid_context_gap_fields": "TASK_FAILED",
+    "invalid_context_gap_kind": "TASK_FAILED",
+    "invalid_context_gap_lens": "TASK_FAILED",
+    "invalid_context_gap_target": "TASK_FAILED",
+    "invalid_context_gap_text": "TASK_FAILED",
+    "invalid_context_target_manifest": "TASK_FAILED",
+    "invalid_coverage_basis": "TASK_FAILED",
+    "invalid_coverage_note_evidence_refs": "TASK_FAILED",
+    "invalid_coverage_note_reason_code": "TASK_FAILED",
+    "invalid_coverage_note_state": "TASK_FAILED",
+    "invalid_coverage_note_unit_id": "TASK_FAILED",
+    "invalid_credential_reference": "TASK_FAILED",
+    "invalid_decision_config": "TASK_FAILED",
+    "invalid_endpoint": "TASK_FAILED",
+    "invalid_endpoint_path": "TASK_FAILED",
+    "invalid_endpoint_reference": "TASK_FAILED",
+    "invalid_model": "TASK_FAILED",
+    "invalid_native_request": "TASK_FAILED",
+    "invalid_primary_assessment": "TASK_FAILED",
+    "invalid_reasoning_effort": "TASK_FAILED",
+    "invalid_report_note_evidence_refs": "TASK_FAILED",
+    "invalid_report_note_kind": "TASK_FAILED",
+    "invalid_report_note_text": "TASK_FAILED",
+    "invalid_report_note_unit_id": "TASK_FAILED",
+    "invalid_request_input_contract": "TASK_FAILED",
+    "invalid_response_format": "TASK_FAILED",
+    "invalid_specialist_array": "TASK_FAILED",
+    "invalid_specialist_fields": "TASK_FAILED",
+    "invalid_specialist_input": "TASK_FAILED",
+    "invalid_specialist_report": "TASK_FAILED",
+    "invalid_token_limit_parameter": "TASK_FAILED",
+    "invalid_unit_evidence_bindings": "TASK_FAILED",
+    "literal_credentials_forbidden": "TASK_FAILED",
+    "malformed_native_response": "TASK_FAILED",
+    "malformed_provider_response": "TASK_FAILED",
+    "model_identity_mismatch": "TASK_FAILED",
+    "model_identity_missing": "TASK_FAILED",
+    "model_output_incomplete": "TASK_FAILED",
+    "provider_response_contains_credential": "TASK_FAILED",
+    "question_and_text_required": "TASK_FAILED",
+    "remote_http_forbidden": "TASK_FAILED",
+    "report_note_references_unknown_evidence": "TASK_FAILED",
+    "report_note_references_unknown_scope": "TASK_FAILED",
+    "request_pin_invalid": "TASK_FAILED",
+    "request_pin_mismatch": "TASK_FAILED",
+    "request_serialization_invalid": "TASK_FAILED",
+    "request_task_binding_mismatch": "TASK_FAILED",
+    "request_task_binding_missing": "TASK_FAILED",
+    "response_read_failed": "TASK_FAILED",
+    "supported_claim_requires_evidence": "TASK_FAILED",
+    "unsupported_assessment_contract": "TASK_FAILED",
+    "unsupported_claim_transport_config": "TASK_FAILED",
+    "unsupported_decision_provider": "TASK_FAILED",
+    "unsupported_native_endpoint": "TASK_FAILED",
+    "unsupported_native_operation": "TASK_FAILED",
+    "unsupported_primitive": "TASK_FAILED",
+    "unsupported_provider_kind": "TASK_FAILED",
+    "unsupported_specialist_contract": "TASK_FAILED",
+    "unsupported_task_kind": "TASK_FAILED",
+}
+
+_PROVIDER_DYNAMIC_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"^http_status_[0-9]{3}$"), "PROVIDER_UNAVAILABLE"),
+    (re.compile(r"^[a-z0-9_]+_exceeds_limit$"), "BUDGET_EXHAUSTED"),
+)
+
 _CANONICAL_CODES = frozenset(_DEFINITION_BY_CODE)
 
 
@@ -250,6 +385,11 @@ def taxonomy_document() -> dict[str, Any]:
         "version": TAXONOMY_VERSION,
         "documentation": TAXONOMY_DOC,
         "complete_reason_codes": sorted(COMPLETE_REASON_CODES),
+        "provider_codes": dict(sorted(PROVIDER_CODE_MAP.items())),
+        "provider_dynamic_rules": [
+            {"pattern": pattern.pattern, "canonical_code": canonical}
+            for pattern, canonical in _PROVIDER_DYNAMIC_RULES
+        ],
         "reasons": [
             {
                 "code": entry["code"],
@@ -296,43 +436,19 @@ def classify_reason(reason_code: Any) -> str:
 
 
 def _classify_family(reason_code: str) -> str:
-    """Classify known provider/claim/budget code families that predate the map.
+    """Classify a provider/contract code from the versioned exact map.
 
-    Provider adapters emit many bounded error codes directly into the coverage
-    ledger.  They are grouped by documented family so a routine provider failure
-    does not become taxonomy drift; exact legacy mappings above take precedence.
+    Codes that are not in the map or the two documented dynamic families stay
+    ``UNCLASSIFIED_REASON`` so new strings remain visible as taxonomy drift.
     """
 
-    code = reason_code.casefold()
-    if "deadline" in code:
-        return "DEADLINE_EXHAUSTED"
-    if code.startswith("claim_"):
-        return "CLAIM_RECONCILIATION_INCOMPLETE"
-    if "exceeds" in code or code.startswith("budget_") or code.startswith("monetary_"):
-        return "BUDGET_EXHAUSTED"
-    if "unavailable" in code or "call_failed" in code or "transport" in code:
-        return "PROVIDER_UNAVAILABLE"
-    if code.startswith((
-        "provider_",
-        "malformed_",
-        "model_output_",
-        "invalid_",
-        "response_",
-        "output_",
-        "request_",
-        "capture_",
-        "endpoint_",
-        "unsupported_",
-        "model_identity",
-        "literal_credentials",
-        "remote_http",
-        "question_and_text",
-        "assessment_references",
-        "context_followup_requires",
-    )):
-        return "TASK_FAILED"
+    mapped = PROVIDER_CODE_MAP.get(reason_code)
+    if mapped is not None:
+        return mapped
+    for pattern, canonical in _PROVIDER_DYNAMIC_RULES:
+        if pattern.fullmatch(reason_code):
+            return canonical
     return "UNCLASSIFIED_REASON"
-
 
 def _coverage_state(row: Mapping[str, Any]) -> str:
     state = row.get("state")
@@ -499,7 +615,7 @@ def summary_is_consistent(result: Mapping[str, Any], summary: Mapping[str, Any])
 
 
 def _case_id(result: Mapping[str, Any], fallback: str | None = None) -> str:
-    for key in ("case_id", "run_id"):
+    for key in ("case_id", "snapshot_id", "run_id"):
         value = result.get(key)
         if isinstance(value, str) and value:
             return value
@@ -603,7 +719,7 @@ def compare_to_baseline(
     * an increase in unclassified reasons beyond the owner-set threshold.
     """
 
-    if baseline.get("schema") != "review-completeness-baseline.v1":
+    if baseline.get("schema") != BASELINE_SCHEMA:
         raise ValueError("baseline schema is not review-completeness-baseline.v1")
     if baseline.get("taxonomy_version") != TAXONOMY_VERSION:
         raise ValueError("baseline taxonomy version is not the current taxonomy")
@@ -642,7 +758,7 @@ def compare_to_baseline(
         )
 
     current_states = {
-        row.get("obligation_id"): row.get("state")
+        row.get("obligation_id"): _coverage_state(row)
         for row in result.get("coverage_ledger", [])
         if isinstance(row, Mapping)
     }

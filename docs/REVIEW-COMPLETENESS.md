@@ -196,3 +196,6 @@ quality.
 
 
 Gate outcomes also include `PARTIAL_OBLIGATION_REGRESSION` when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN`. Baselines whose schema or taxonomy version is not current are rejected before comparison. Case identity prefers `case_id`, then `run_id`, then `snapshot.snapshot_id`; corpus runs that need repeatable gating must set a stable `case_id`.
+
+
+Gate finding `PARTIAL_OBLIGATION_REGRESSION` fires when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN` (normalized state). Case identity is `case_id`, then top-level `snapshot_id`, then `run_id`; corpus runs should set a stable `case_id`. Baseline schema/taxonomy version must match the current constants.

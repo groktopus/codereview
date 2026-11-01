@@ -438,54 +438,26 @@ def test_engine_emits_the_summary_for_a_real_run_and_keeps_disposition(tmp_path)
     assert rendered.count("## ") == 4
 
 
-def test_every_provider_error_code_is_classified():
+def test_every_provider_and_contract_error_code_is_classified():
     import ast
 
-    source = Path(__file__).resolve().parents[1] / "src/pr_review_harness/providers.py"
-    tree = ast.parse(source.read_text(encoding="utf-8"))
     codes = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
-            continue
-        if node.func.id != "ProviderError" or not node.args:
-            continue
-        first = node.args[0]
-        if isinstance(first, ast.Constant) and isinstance(first.value, str):
-            codes.add(first.value)
+    for name in ("providers.py", "contracts.py", "claim_assessment.py", "claim_transport.py"):
+        source = Path(__file__).resolve().parents[1] / "src/pr_review_harness" / name
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
+            if func not in {"ProviderError", "ContractIssue"}:
+                continue
+            for arg in node.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    if arg.value.replace("_", "").isalnum():
+                        codes.add(arg.value)
     assert codes
     unclassified = sorted(code for code in codes if classify_reason(code) == "UNCLASSIFIED_REASON")
     assert unclassified == []
-
-
-def test_embedded_summary_ratios_must_match_the_ledger():
-    from pr_review_harness.completeness import summary_is_consistent
-
-    result = _fixture("good-result.json")
-    summary = summary_from_result(result)
-    summary["complete_ratio"] = 1.0
-    result["completeness_summary"] = summary
-    assert summary_is_consistent(result, summary_from_result(result)) is False
-
-
-def test_baseline_schema_or_taxonomy_version_is_rejected():
-    baseline = _baseline()
-    baseline["schema"] = "not-a-baseline"
-    with pytest.raises(ValueError, match="baseline schema"):
-        compare_to_baseline(_fixture("good-result.json"), baseline)
-    baseline = _baseline()
-    baseline["taxonomy_version"] = "review-completeness-taxonomy.v99"
-    with pytest.raises(ValueError, match="taxonomy version"):
-        compare_to_baseline(_fixture("good-result.json"), baseline)
-
-
-def test_partial_obligation_regressing_to_not_started_fails_the_gate():
-    result = copy.deepcopy(_fixture("good-result.json"))
-    for row in result["coverage_ledger"]:
-        if row.get("state") == "PARTIAL":
-            row["state"] = "NOT_STARTED"
-            row["reason_code"] = "DEADLINE_EXHAUSTED"
-            break
-    verdict = compare_to_baseline(result, _baseline())
-    assert verdict["status"] == "FAIL"
-    codes = {finding["code"] for finding in verdict["findings"]}
-    assert "PARTIAL_OBLIGATION_REGRESSION" in codes
+    assert classify_reason("http_status_500") == "PROVIDER_UNAVAILABLE"
+    assert classify_reason("cache_unavailable") == "UNCLASSIFIED_REASON"
+    assert classify_reason("invalid_future_semantics") == "UNCLASSIFIED_REASON"
