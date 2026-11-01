@@ -11,6 +11,51 @@ from .completeness import (
     build_completeness_summary,
     render_summary_text,
 )
+from .metrics import RUN_SUMMARY_SCHEMA
+
+
+def _render_run_metrics(summary: Any, safe: Any) -> str | None:
+    """Render the compact run-summary line when the embedded record is valid."""
+
+    if not isinstance(summary, dict) or summary.get("schema") != RUN_SUMMARY_SCHEMA:
+        return None
+    obligations = summary.get("obligations") if isinstance(summary.get("obligations"), dict) else {}
+    run = summary.get("run") if isinstance(summary.get("run"), dict) else {}
+    providers = summary.get("providers") if isinstance(summary.get("providers"), dict) else {}
+    tokens = summary.get("tokens") if isinstance(summary.get("tokens"), dict) else {}
+    token_fields = tokens.get("fields") if isinstance(tokens.get("fields"), dict) else {}
+    latency = summary.get("latency") if isinstance(summary.get("latency"), dict) else {}
+    cost = summary.get("cost") if isinstance(summary.get("cost"), dict) else {}
+
+    def token_text(name: str) -> str:
+        row = token_fields.get(name) if isinstance(token_fields.get(name), dict) else {}
+        if row.get("reported_sum") is None:
+            return f"{name} UNKNOWN"
+        return (
+            f"{name} {row['reported_sum']} "
+            f"({row.get('reported_count', 0)}/{row.get('denominator_calls')} calls reported)"
+        )
+
+    def total(name: str) -> str:
+        value = providers.get(name)
+        return "UNKNOWN" if value is None else str(value)
+
+    estimate = cost.get("estimate") if isinstance(cost.get("estimate"), dict) else {}
+    billing = cost.get("billing") if isinstance(cost.get("billing"), dict) else {}
+    estimate_text = f"{estimate.get('microunits')} microunits" if estimate.get("known") else "UNKNOWN"
+    billing_text = f"{billing.get('microunits')} microunits" if billing.get("known") else "UNKNOWN"
+    elapsed = latency.get("run_elapsed_ms")
+    elapsed_text = f"{elapsed} ms" if isinstance(elapsed, (int, float)) and not isinstance(elapsed, bool) else "UNKNOWN"
+    freshness = run.get("freshness") if isinstance(run.get("freshness"), dict) else {}
+    return (
+        f"Run metrics ({RUN_SUMMARY_SCHEMA}): "
+        f"{obligations.get('complete', 0)}/{obligations.get('required_total', 0)} required obligations complete; "
+        f"terminal {safe(run.get('terminal_state', 'UNKNOWN'))}; freshness {safe(freshness.get('state', 'UNKNOWN'))}; "
+        f"calls {total('calls_reserved')} reserved/{total('calls_settled')} settled, {total('retries')} retries; "
+        f"tokens {token_text('prompt_tokens')}, {token_text('completion_tokens')}, {token_text('total_tokens')}; "
+        f"run latency {elapsed_text}; cost estimate {estimate_text} (basis: {safe(estimate.get('basis', 'UNKNOWN'))}), "
+        f"billing {billing_text}."
+    )
 
 
 def render_report(result: dict) -> str:
@@ -128,6 +173,11 @@ def render_report(result: dict) -> str:
             lines.append(
                 f"- {safe(stage)}: {call_counts}; retries {stage_retries}; dispatch attempted/not attempted/unknown {row.get('request_attempted', 0)}/{row.get('request_not_attempted', 0)}/{row.get('request_attempt_unknown', 0)}; token records known/partial/unknown {row.get('usage_known', 0)}/{row.get('usage_partial', 0)}/{row.get('usage_unknown', 0)}; token sums {token_totals}; summed call latency {safe(row.get('call_elapsed_ms_sum', 0))} ms across {row.get('call_elapsed_known', 0)}/{reserved} calls; HTTP latency {safe(row.get('http_elapsed_ms_sum', 0))} ms across {row.get('http_elapsed_known', 0)}/{reserved} calls; billed cost {row.get('billed_cost_microunits', 0)} microunits known {billed_known}/{reserved}, estimated cost {row.get('estimated_cost_microunits', 0)} microunits known {estimated_known}/{reserved}."
             )
+    run_summary = result.get("run_summary")
+    if isinstance(run_summary, dict):
+        metrics_line = _render_run_metrics(run_summary, safe)
+        if metrics_line:
+            lines.append(metrics_line)
     if freshness_basis == "HISTORICAL_SNAPSHOT":
         lines.append("Historical snapshot freshness compares the fixed revisions only; it does not check the pull request's current state.")
     names = (

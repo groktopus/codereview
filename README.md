@@ -49,6 +49,8 @@ For an immutable historical pair, `review --prepare-only` snapshots and plans th
 
 `pr-review publish` validates a sealed result against repository/disposition policy and prints the exact review body without GitHub reads or a local effect store. Live publication is unavailable from this CLI; `--authorize-publish` fails closed. The central `pr-publish.yml` job is also hard-disabled. A separately installed target-local route is reported enabled in `magnus919/SlopSearX`; see [status](docs/STATUS.md) for that route's scope. See the [publication preview migration](docs/CLI-PUBLISH-PREVIEW-MIGRATION.md). No production write has been verified by this repository's CLI or central workflow.
 
+Every completed run stores a compact `review-run-summary.v1` record in its result JSON. `pr-review stats --since 2026-10-01 --json` aggregates stored results with explicit denominators and missing-data counts, and `--jsonl PATH` exports one summary per line for external dashboards. Unknown token, latency, and cost values stay `UNKNOWN`, never zero. The surface is local and read-only; there is no hosted telemetry service. See [run metrics](docs/RUN-METRICS.md) for the record schema, percentile semantics, and current gaps.
+
 For reproducible packaging checks, build a wheel and run the installed entry point from outside the checkout:
 
 ```sh

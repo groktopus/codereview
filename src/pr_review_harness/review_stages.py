@@ -3520,6 +3520,11 @@ reduced deterministically from preserved findings and coverage."""
     state.result["run_elapsed_ms"] = _run_elapsed_ms(state.ledger)
     state.result["completed_at"] = _now()
     state.result["budget"] = state.budget.summary()
+    # Emit the compact cross-run record after the final elapsed and budget
+    # values exist.  This is additive: every existing result field is unchanged.
+    from .metrics import build_run_summary
+
+    state.result["run_summary"] = build_run_summary(state.result)
     state.ledger["outputs"] = state.task_results
     state.ledger["findings"] = state.findings
     state.ledger["context_gaps"] = state.context_gaps
