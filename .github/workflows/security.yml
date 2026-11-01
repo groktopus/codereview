@@ -10,7 +10,9 @@ on:
   push:
     branches: [main]
   schedule:
-    # Weekly full-history scan, independent of pull-request activity.
+    # Weekly CodeQL scan, independent of pull-request activity. The secret
+    # scan is restricted to pull_request/push events because its action maps
+    # schedule/dispatch to empty base/head ranges.
     - cron: '23 5 * * 1'
   workflow_dispatch:
 
@@ -50,8 +52,7 @@ jobs:
     # Requires the repository dependency graph (Settings -> Code security and
     # analysis). Set the repository variable DEPENDENCY_GRAPH_ENABLED=true after
     # enabling it; otherwise this job skips instead of failing every PR.
-    if: ${{ vars.DEPENDENCY_GRAPH_ENABLED == 'true' }}
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event_name == 'pull_request' && vars.DEPENDENCY_GRAPH_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -71,6 +72,9 @@ jobs:
 
   secret-scan:
     name: Secret scan (TruffleHog)
+    # The pinned action derives --since-commit/--branch from the event. Those
+    # are empty on schedule/dispatch, so run this job only for PR/push events.
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -81,6 +85,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Reject credential-bearing URLs outside test fixtures
+        # Compensating check for the excluded URI detector: the source and docs
+        # must not contain basic-auth-in-URL credentials. Test fixtures are
+        # excluded because they deliberately contain synthetic examples.
+        run: |
+          set -euo pipefail
+          if git grep -nE '://[^/[:space:]:@]+:[^/[:space:]@]+@' -- . ':!tests/**' ':!*.pyc'; then
+            echo "credential-bearing URL found outside tests" >&2
+            exit 1
+          fi
+
       - name: Scan for leaked credentials
         uses: trufflesecurity/trufflehog@31ce31ee1abbcc7dc8eee5764c17121c3044c8b2 # v3.99.7
         with:
@@ -88,7 +103,8 @@ jobs:
           version: '3.99.7'
           # --no-verification keeps every discovered credential local: no
           # outbound request is made to a secret's issuer. URI is excluded
-          # because this repository's tests deliberately contain loopback
-          # endpoint literals; every other detector remains enabled and a
-          # match fails the job.
+          # because this repository's tests deliberately contain synthetic
+          # credential-bearing URLs (basic auth in the userinfo component);
+          # the step above compensates outside tests, and every other detector
+          # remains enabled with a match failing the job.
           extra_args: --no-verification --exclude-detectors=URI

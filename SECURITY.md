@@ -77,7 +77,7 @@ Good-faith research that stays within this policy will not be pursued by the mai
 
 - **CodeQL** for Python on pull requests, pushes to `main`, and a weekly schedule;
 - **dependency review** on pull requests when the repository dependency graph is enabled, failing on high or critical known vulnerabilities;
-- a **secret scan** with a SHA-pinned TruffleHog action on pull requests, pushes to `main`, and a weekly schedule.
+- a **secret scan** with a SHA-pinned TruffleHog action on pull requests and pushes to `main` (not on schedule/dispatch, where the action would receive empty ranges), plus a `git grep` compensating check for credential-bearing URLs outside tests.
 
 The dependency-review job is gated on the repository variable `DEPENDENCY_GRAPH_ENABLED=true` and requires the dependency graph under *Settings → Code security and analysis*. Until that is enabled, the job skips rather than failing every pull request.
 
