@@ -1,6 +1,8 @@
 # Hosted recovery drill evidence — 2026-09-27
 
-This record supplements [the hosted rehearsal protocol](HOSTED-RECOVERY-REHEARSAL.md) with the observed two-run result. It records a bounded synthetic rehearsal on source commit `d0be88c273c7fff32ed5676d3439b26f2918d680`; it does not establish production readiness, review quality, or adoption.
+**Historical checkpoint — retained evidence.** This is a dated checkpoint or evidence note. It is not current guidance, and its statements are scoped to the date and revision it names. Nothing here has been deleted: the [archive policy](../README.md#archive-policy) explains why. Start with the current [status page](../../STATUS.md) and the [documentation index](../../README.md).
+
+This record supplements [the hosted rehearsal protocol](../../HOSTED-RECOVERY-REHEARSAL.md) with the observed two-run result. It records a bounded synthetic rehearsal on source commit `d0be88c273c7fff32ed5676d3439b26f2918d680`; it does not establish production readiness, review quality, or adoption.
 
 ## Run A: cancellation and retained evidence
 

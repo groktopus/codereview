@@ -1,5 +1,7 @@
 # Installed stateless CLI verification
 
+**Historical evidence — retained for provenance.** This dated evidence note records what was observed for a named revision or run. It is not a current claim, an acceptance result, or a quality measurement. Nothing here has been deleted: see the [archive policy](../README.md#archive-policy). Current entry point: [STATUS.md](../../STATUS.md); index: [docs/README.md](../../README.md).
+
 Source: `0fa1344`. Python: 3.13.6. Wheel SHA-256: `8c5396ea93a690b8ffefbd83fe23dae51a256f1ee9b3f745ddd34f6663206d0d`.
 
 The wheel was built without dependency downloads, checked byte-for-byte against all 19 reviewed Python modules, and installed noneditably into a fresh environment. The process ran outside the checkout with no PYTHONPATH source fallback. The standard package smoke passed, including a provider-free terminal INCOMPLETE report and the read-only effect gate.

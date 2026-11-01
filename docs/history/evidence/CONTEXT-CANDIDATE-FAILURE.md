@@ -1,5 +1,7 @@
 # Context-selection candidate failure: PR 464 offline comparison
 
+**Historical evidence — retained for provenance.** This dated evidence note records what was observed for a named revision or run. It is not a current claim, an acceptance result, or a quality measurement. Nothing here has been deleted: see the [archive policy](../README.md#archive-policy). Current entry point: [STATUS.md](../../STATUS.md); index: [docs/README.md](../../README.md).
+
 **Disposition:** reject this candidate as an efficiency result. The initial rerun found a request-assembly defect; the later actual-CLI comparison confirmed that evidence rebinding now reaches requests but mandatory policy context still does not fit alongside some selected windows. Both comparisons ended `INCOMPLETE`. This is an offline serializer/grouping measurement with an inert provider, not a semantic review, provider experiment, cost measurement, or quality comparison. The failed candidate has not been enabled as a shipped profile.
 
 **Measurement date:** 2026-09-26.

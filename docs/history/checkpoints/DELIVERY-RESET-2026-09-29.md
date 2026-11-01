@@ -1,6 +1,8 @@
 # Delivery reset — 2026-09-29
 
-**Current status: experimental, read-only candidate; not a usable Droid replacement.** The user-facing outcome is a normal pull request producing a timely, complete, evidence-linked review that a maintainer can act on, with safe failure, recovery, and a reversible way to return to Droid. The current evidence does not show that outcome end to end. Review publication is disabled; no cutover is authorized. This reset reorders work toward that outcome while retaining the six milestones and 39 acceptance criteria / 12 nonfunctional requirements in the [specification](design/SPEC.md) and [acceptance trace](CURRENT-ACCEPTANCE-TRACE.md).
+**Historical checkpoint — retained evidence.** This is a dated checkpoint or evidence note. It is not current guidance, and its statements are scoped to the date and revision it names. Nothing here has been deleted: the [archive policy](../README.md#archive-policy) explains why. Start with the current [status page](../../STATUS.md) and the [documentation index](../../README.md).
+
+**Current status: experimental, read-only candidate; not a usable Droid replacement.** The user-facing outcome is a normal pull request producing a timely, complete, evidence-linked review that a maintainer can act on, with safe failure, recovery, and a reversible way to return to Droid. The current evidence does not show that outcome end to end. Review publication is disabled; no cutover is authorized. This reset reorders work toward that outcome while retaining the six milestones and 39 acceptance criteria / 12 nonfunctional requirements in the [specification](../../design/SPEC.md) and [acceptance trace](../../CURRENT-ACCEPTANCE-TRACE.md).
 
 ## What the current evidence supports
 

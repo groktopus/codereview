@@ -1,5 +1,7 @@
 # Implementation plan — initial read-only pilot
 
+**Superseded design — retained for provenance.** This design, plan, or proposal was written before or alongside implementation. It is not a description of the shipped system and it is not maintained. Some proposals here (durable per-run ledger or SQLite-era state, publication shape, isolation plan) may differ from the current stateless implementation. See [PRODUCTION-DELIVERY.md](../../PRODUCTION-DELIVERY.md) and [STATUS.md](../../STATUS.md) for the current position. The [archive policy](../README.md#archive-policy) explains retention. Index: [docs/README.md](../../README.md).
+
 Approval source: Magnus, 2026-09-26: “Let’s build and test against recent commits”; project name accepted as provisional. Design SPEC v0.1.0, independent Gate1 CONDITIONS. The instruction authorizes implementation and bounded inference tests; it does not authorize PR publication, deployment, auto-merge, or declaring a calibrated quality gate.
 
 ## Tasks and ownership
