@@ -135,6 +135,7 @@ jobs:
           name: pr-review-completeness-${{ github.run_id }}
           path: completeness-*-verdict.json
           if-no-files-found: error
+          retention-days: 7
 
   frozen-pr464-prepare:
     name: Frozen PR-464 provider-free prepare integration

@@ -11,3 +11,4 @@ decision.local.json
 .ruff_cache/
 build/
 dist/
+.coverage
