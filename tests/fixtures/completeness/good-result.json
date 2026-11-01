@@ -1,0 +1,142 @@
+{
+  "base_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "budget": {},
+  "case_id": "completeness-fixture-good",
+  "contract_version": "0.1",
+  "coverage_ledger": [
+    {
+      "context_gap_ids": [],
+      "coverage_id": "cov-good-1",
+      "evidence_refs": [
+        "diff:u1"
+      ],
+      "lens": "correctness",
+      "obligation_id": "unit:u1:lens:correctness",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "reason_code": "VALID_RESULT",
+      "required": true,
+      "scope_unit_ids": [
+        "u1"
+      ],
+      "state": "COMPLETE",
+      "task_ids": [
+        "task-u1-correctness"
+      ]
+    },
+    {
+      "context_gap_ids": [],
+      "coverage_id": "cov-good-2",
+      "evidence_refs": [
+        "diff:u1",
+        "test-source:u1"
+      ],
+      "lens": "tests",
+      "obligation_id": "unit:u1:lens:tests",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "reason_code": "VALID_RESULT",
+      "required": true,
+      "scope_unit_ids": [
+        "u1"
+      ],
+      "state": "COMPLETE",
+      "task_ids": [
+        "task-u1-tests"
+      ]
+    },
+    {
+      "context_gap_ids": [
+        "gap-u2"
+      ],
+      "coverage_id": "cov-good-3",
+      "evidence_refs": [
+        "diff:u2"
+      ],
+      "obligation_id": "context:u2:required",
+      "obligation_kind": "REQUIRED_CONTEXT",
+      "reason_code": "CONTEXT_GAP_UNRESOLVED",
+      "required": true,
+      "scope_unit_ids": [
+        "u2"
+      ],
+      "state": "PARTIAL",
+      "task_ids": [
+        "task-u2-context"
+      ]
+    },
+    {
+      "context_gap_ids": [],
+      "coverage_id": "cov-good-4",
+      "evidence_refs": [],
+      "obligation_id": "check:unit-tests",
+      "obligation_kind": "PROJECT_CHECK",
+      "reason_code": "CHECK_RESULT_UNAVAILABLE",
+      "required": true,
+      "scope_unit_ids": [
+        "u1"
+      ],
+      "state": "NOT_STARTED",
+      "task_ids": [
+        "task-check-unit-tests"
+      ]
+    },
+    {
+      "context_gap_ids": [],
+      "coverage_id": "cov-good-5",
+      "evidence_refs": [
+        "diff:u4"
+      ],
+      "lens": "correctness",
+      "obligation_id": "unit:u4:lens:correctness",
+      "obligation_kind": "CHANGED_UNIT_LENS",
+      "reason_code": "PARTIAL_REVIEW_COVERAGE",
+      "required": false,
+      "scope_unit_ids": [
+        "u4"
+      ],
+      "state": "PARTIAL",
+      "task_ids": [
+        "task-u4-correctness"
+      ]
+    }
+  ],
+  "coverage_state": "PARTIAL",
+  "disposition": "INCOMPLETE",
+  "evidence_index": {
+    "diff:u1": {
+      "path": "src/u1.py",
+      "source_kind": "diff"
+    },
+    "diff:u2": {
+      "path": "src/u2.py",
+      "source_kind": "diff"
+    },
+    "diff:u4": {
+      "path": "src/u4.py",
+      "source_kind": "diff"
+    },
+    "test-source:u1": {
+      "path": "tests/test_u1.py",
+      "source_kind": "profile_context"
+    }
+  },
+  "findings": [],
+  "freshness": "CURRENT",
+  "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "merge_eligibility": "NOT_EVALUATED",
+  "not_applicable": [
+    {
+      "obligation_id": "unit:u5:lens:security",
+      "profile_rationale": "no configured security path matched the changed unit",
+      "reason": "configured_path_patterns_did_not_match"
+    }
+  ],
+  "project_profile_version": "completeness-fixture-v1",
+  "report_sections": {
+    "blockers": [],
+    "future_guidance": [],
+    "specific_strengths": [],
+    "suggested_improvements": []
+  },
+  "run_id": "completeness-fixture-good",
+  "task_results": {}
+}

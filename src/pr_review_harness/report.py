@@ -5,6 +5,13 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote, urlparse
 
+from .completeness import (
+    TAXONOMY_DOC,
+    TAXONOMY_VERSION,
+    build_completeness_summary,
+    render_summary_text,
+)
+
 
 def render_report(result: dict) -> str:
     if not isinstance(result, dict):
@@ -185,6 +192,10 @@ def render_report(result: dict) -> str:
     lines.append(
         f"{counts['COMPLETE']} complete, {counts['PARTIAL']} partial, {counts['NOT_STARTED']} not started across {len(coverage_rows)} obligations."
     )
+    # Recompute from the coverage ledger so a stale or edited embedded summary
+    # cannot make the rendered report disagree with the obligations it lists.
+    summary = build_completeness_summary(coverage_rows, result.get("not_applicable", []))
+    lines.append(f"{render_summary_text(summary)} Taxonomy: {TAXONOMY_VERSION}; see {TAXONOMY_DOC}.")
     if unresolved:
         ordered_unresolved = sorted(
             unresolved,

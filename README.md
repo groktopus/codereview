@@ -73,6 +73,7 @@ python -m venv /tmp/pr-review-wheel
 | `docs/OPERATIONS.md` | Safe local and GitHub Actions operation, evidence handling, and recovery |
 | `docs/EXTERNAL-EFFECT-OBSERVER.md` | Linux observer v2 event-sample, aggregate, and coverage contract |
 | `docs/PACKAGING-VERIFICATION.md` | Wheel, source distribution, matrix, and installed-entry-point checks |
+| `docs/REVIEW-COMPLETENESS.md` | Canonical incomplete-reason taxonomy, per-run completeness summary, and the fixture baseline regression gate |
 | `.github/workflows/` | Python support matrix, wheel verification, and read-only review artifacts |
 
 ## Boundaries

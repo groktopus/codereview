@@ -3194,6 +3194,7 @@ def build_and_persist_result(state: RunState) -> None:
 
 Contract: result hash and ledger are written atomically; disposition is
 reduced deterministically from preserved findings and coverage."""
+    from .completeness import build_completeness_summary
     from .engine import (
         _SYSTEM_ONE_ADVISORY_QUESTION,
         BudgetExhausted,
@@ -3276,6 +3277,10 @@ reduced deterministically from preserved findings and coverage."""
         "merge_eligibility": "NOT_EVALUATED",
         "findings": state.findings,
         "coverage_ledger": state.coverage,
+        "completeness_summary": build_completeness_summary(
+            state.coverage,
+            state.plan.get("not_applicable", []),
+        ),
         "report_sections": state.report_sections,
         "created_at": state.ledger.get("created_at", _now()),
         "completed_at": _now(),
