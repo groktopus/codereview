@@ -18,6 +18,21 @@ from test_cli import publisher_config, sealed_review
 from pr_review_harness import cli
 
 BASE = "a" * 40
+
+
+@pytest.fixture(autouse=True)
+def _local_cli_environment(monkeypatch):
+    """These branch tests exercise local CLI behavior, not GitHub Actions."""
+    for name in (
+        "GITHUB_ACTIONS",
+        "GITHUB_EVENT_PATH",
+        "GITHUB_REPOSITORY",
+        "GITHUB_SHA",
+        "GITHUB_RUN_ID",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_REF",
+    ):
+        monkeypatch.delenv(name, raising=False)
 HEAD = "b" * 40
 
 
