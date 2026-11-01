@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pr_review_harness.context_selector import ContextSelectionError, select_policy_section
+from experiments.harness.context_selector import ContextSelectionError, select_policy_section
 from pr_review_harness.snapshot import collect_snapshot
 
 

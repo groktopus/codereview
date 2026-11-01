@@ -1,0 +1,162 @@
+{
+  "schema": "pr-review-public-surface.v1",
+  "consolidation": {
+    "issue": 248,
+    "contract": "CA-2",
+    "base_revision": "7d550b61825defec8a8a0625511c914ba8efd5cb",
+    "base_src_lines": 40686,
+    "required_reduction": 0.25,
+    "measured_src_lines": 30030,
+    "measured_reduction": 0.2619082731160596,
+    "measurement": "python byte counts of committed .py files in src/pr_review_harness at issue base and current head",
+    "base_module_count": 48,
+    "measured_module_count": 39,
+    "module_delta": -9,
+    "line_delta": -10656
+  },
+  "review_orchestrator": {
+    "module": "pr_review_harness.engine",
+    "function": "run_review"
+  },
+  "internal_stage_functions": [
+    "pr_review_harness.review_stages:run_followup_stage",
+    "pr_review_harness.review_stages:run_followups"
+  ],
+  "guarded_effect_entrypoints": [
+    {
+      "module": "pr_review_harness.protected_publication_runtime",
+      "function": "run_protected_publication",
+      "effect": "PUBLICATION",
+      "default_enabled": false,
+      "reason": "distributed hard-disabled publisher template invokes this installed module; it is an effect surface for an admitted publication decision, not a review path"
+    }
+  ],
+  "production_modules": [
+    "__init__.py",
+    "__main__.py",
+    "actions_publication.py",
+    "actions_runtime.py",
+    "artifact_intake.py",
+    "budget.py",
+    "checks.py",
+    "claim_assessment.py",
+    "claim_reconciliation.py",
+    "claim_transport.py",
+    "cli.py",
+    "completeness.py",
+    "context_targets.py",
+    "contract_registry.py",
+    "contracts.py",
+    "current_source_capture.py",
+    "dependency_context.py",
+    "engine.py",
+    "errors.py",
+    "evidence.py",
+    "external_effect_observer.py",
+    "github.py",
+    "github_actions_credentials.py",
+    "github_app_canary.py",
+    "github_app_credentials.py",
+    "metrics.py",
+    "planner.py",
+    "private_capture.py",
+    "protected_publication_runtime.py",
+    "providers.py",
+    "publication_receipts.py",
+    "publisher.py",
+    "reconcile.py",
+    "recovery_inputs.py",
+    "report.py",
+    "review_stages.py",
+    "review_state.py",
+    "snapshot.py",
+    "source_audit.py"
+  ],
+  "relocated_experiment_modules": [
+    {
+      "module": "selected_model_trial",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "contained run_provider_trial and run_current_provider_trial"
+    },
+    {
+      "module": "injection_trials",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "contained run_trials"
+    },
+    {
+      "module": "configured_jev_injection_trial",
+      "classification": "obsolete",
+      "disposition": "relocated_superseded",
+      "note": "superseded by selected_model_trial; retained for archived evidence"
+    },
+    {
+      "module": "shadow_audit",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "contained run_shadow_audit; production serializer promoted to source_audit"
+    },
+    {
+      "module": "actions_canary",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "split out of actions_runtime; contained run_actions_canary"
+    },
+    {
+      "module": "cross_model",
+      "classification": "obsolete",
+      "disposition": "relocated_superseded",
+      "note": "v1 comparison contract superseded by cross_model_v2; retained for archived evidence"
+    },
+    {
+      "module": "cross_model_v2",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "offline evaluation comparison"
+    },
+    {
+      "module": "cross_model_package",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "offline evidence package builder"
+    },
+    {
+      "module": "evaluation",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "evaluation toolkit corpus and prediction validation"
+    },
+    {
+      "module": "claim_triage",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "experimental claim-screen boundary"
+    },
+    {
+      "module": "context_selector",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "context-selection v2 experiment"
+    },
+    {
+      "module": "policy_inventory",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "support for context_selector"
+    },
+    {
+      "module": "shadow_preflight",
+      "classification": "reusable",
+      "disposition": "relocated",
+      "note": "bounded audit dispatch guard"
+    }
+  ],
+  "replaced_modules": {
+    "pr_review_harness.shadow_audit": {
+      "replacement": "pr_review_harness.source_audit",
+      "scope": "prediction-blind source-audit request serialization only"
+    }
+  },
+  "experiment_package": "experiments.harness"
+}

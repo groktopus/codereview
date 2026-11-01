@@ -1,0 +1,6 @@
+name: CodeQL configuration
+# Byte-for-byte historical source snapshots are retained only as test evidence;
+# they are not imported into the installed package or executed as application
+# code. Keep the live source tree and experiment harness fully analyzed.
+paths-ignore:
+  - tests/fixtures/frozen-runtime-7d550b6/**

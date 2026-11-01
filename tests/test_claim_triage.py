@@ -7,7 +7,7 @@ from dataclasses import replace
 
 import pytest
 
-from pr_review_harness.claim_triage import ClaimTriageError, ClaimTriagePolicy, triage_claim
+from experiments.harness.claim_triage import ClaimTriageError, ClaimTriagePolicy, triage_claim
 
 _REQUIRED = {
     "observation_support": "SUPPORTED",

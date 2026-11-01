@@ -18,8 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from . import injection_trials, selected_model_trial
-from .providers import (
+from pr_review_harness.providers import (
     INJECTION_CHOICE_CONTRACT,
     INJECTION_CHOICE_CRITERIA,
     INJECTION_CHOICE_QUESTION,
@@ -29,6 +28,8 @@ from .providers import (
     _json_bytes,
     make_decision_provider,
 )
+
+from . import injection_trials, selected_model_trial
 
 TRIAL_VERSION = "configured-jev-injection-classifier-trial.v1"
 PREPARATION_VERSION = "configured-jev-injection-classifier-preparation.v1"
@@ -203,8 +204,8 @@ def prepared_request(text: str, model: str | None) -> bytes:
 
 def _trial_source_identity(root: Path) -> dict[str, Any]:
     paths = (
-        "src/pr_review_harness/configured_jev_injection_trial.py",
-        "src/pr_review_harness/injection_trials.py",
+        "experiments/harness/configured_jev_injection_trial.py",
+        "experiments/harness/injection_trials.py",
         "src/pr_review_harness/providers.py",
         "scripts/run_configured_jev_injection_trial.py",
         SUITE_RELATIVE,

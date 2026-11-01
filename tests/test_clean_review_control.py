@@ -8,10 +8,10 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+from experiments.harness import selected_model_trial as trial
+from experiments.harness.injection_trials import prepare_suite
 from pr_review_harness import cli, providers
-from pr_review_harness import selected_model_trial as trial
 from pr_review_harness.claim_transport import ClaimTransport
-from pr_review_harness.injection_trials import prepare_suite
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = ROOT / "examples/evaluation/clean-review-control-v1"

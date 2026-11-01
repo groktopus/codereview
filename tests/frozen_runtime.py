@@ -23,6 +23,17 @@ FROZEN_CONTRACTS = Path(__file__).resolve().parent / "fixtures" / "contracts-a09
 FROZEN_PUBLICATION_RECEIPTS = Path(__file__).resolve().parent / "fixtures" / "publication_receipts-pr170-base.py"
 FROZEN_PUBLISHER = Path(__file__).resolve().parent / "fixtures" / "publisher-pr-actions-token-base.py"
 MODULE_INVENTORY = Path(__file__).resolve().parent / "fixtures" / "pr170-module-inventory.json"
+# Exact source bytes for inventory modules that the consolidation moved out of
+# ``src`` into ``experiments/harness``.  The historical runtime is reconstructed
+# from these pinned bytes, so relocating or later editing an experiment module
+# cannot drift the archived evidence tree.
+PINNED_RELOCATED = Path(__file__).resolve().parent / "fixtures" / "frozen-runtime-7d550b6"
+# Relocated inventory modules that already have a dedicated historical overlay
+# fixture. Their pre-consolidation bytes are already pinned by that overlay, so
+# the copy step can use it instead of keeping a second identical copy.
+RELOCATED_WITH_OVERLAY = frozenset(
+    {"selected_model_trial.py", "actions_runtime.py", "policy_inventory.py", "shadow_audit.py"}
+)
 FROZEN_SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "snapshot-pr170-base.py"
 FROZEN_SHADOW_AUDIT = Path(__file__).resolve().parent / "fixtures" / "shadow_audit-pr201-base.py"
 FROZEN_CLI = Path(__file__).resolve().parent / "fixtures" / "cli-pr170-base.py"
@@ -56,22 +67,12 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
     """Return a temp source root matching the original PR-170 plan inventory.
 
     Only the pinned original modules are copied, then modules changed after the
-    historical runtime pins are restored from exact main-base blobs. Both
-    verifier hash encodings are recomputed so unrelated source drift invalidates
-    the fixture.
+    historical runtime pins are restored from exact main-base blobs. Modules the
+    CA-2 consolidation relocated outside ``src`` are read from their pinned
+    historical bytes instead. Both verifier hash encodings are recomputed so
+    unrelated source drift invalidates the fixture.
     """
-    runtime_root = tmp_path / "frozen-runtime"
-    module_dir = runtime_root / "src" / "pr_review_harness"
-    module_dir.parent.mkdir(parents=True)
-    module_dir.mkdir()
-    source_dir = ROOT / "src" / "pr_review_harness"
-    module_names = _load_module_inventory()
-    for name in module_names:
-        source = source_dir / name
-        if not source.is_file() or source.is_symlink():
-            raise AssertionError("historical module inventory source is missing or unsafe")
-        shutil.copyfile(source, module_dir / name)
-    for name, fixture in (
+    overlays = (
         ("engine.py", FROZEN_ENGINE),
         ("budget.py", FROZEN_BUDGET),
         ("planner.py", FROZEN_PLANNER),
@@ -93,7 +94,30 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
         ("policy_inventory.py", FROZEN_POLICY_INVENTORY),
         ("shadow_audit.py", FROZEN_SHADOW_AUDIT),
         ("evidence.py", FROZEN_EVIDENCE),
-    ):
+    )
+    runtime_root = tmp_path / "frozen-runtime"
+    module_dir = runtime_root / "src" / "pr_review_harness"
+    module_dir.parent.mkdir(parents=True)
+    module_dir.mkdir()
+    source_dir = ROOT / "src" / "pr_review_harness"
+    module_names = _load_module_inventory()
+    overlay_sources = dict(overlays)
+    for name in module_names:
+        pinned = PINNED_RELOCATED / name
+        if pinned.is_file():
+            source = pinned
+        elif (source_dir / name).is_file():
+            source = source_dir / name
+        elif name in RELOCATED_WITH_OVERLAY and name in overlay_sources:
+            # The overlay below writes this module's pinned historical bytes;
+            # this copy only satisfies the inventory completeness check.
+            source = overlay_sources[name]
+        else:
+            source = source_dir / name
+        if not source.is_file() or source.is_symlink():
+            raise AssertionError("historical module inventory source is missing or unsafe")
+        shutil.copyfile(source, module_dir / name)
+    for name, fixture in overlays:
         (module_dir / name).write_bytes(fixture.read_bytes())
 
     files = sorted(module_dir.glob("*.py"), key=lambda path: path.name)

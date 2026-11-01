@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from pr_review_harness.evaluation import (
+from experiments.harness.evaluation import (
     EvaluationError,
     evaluate,
     parse_bounded_json,

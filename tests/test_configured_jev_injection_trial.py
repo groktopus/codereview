@@ -13,7 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from pr_review_harness import configured_jev_injection_trial as trial  # noqa: E402
+from experiments.harness import configured_jev_injection_trial as trial  # noqa: E402
 from pr_review_harness.providers import _endpoint_identity_hash  # noqa: E402
 
 

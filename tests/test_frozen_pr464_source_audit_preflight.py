@@ -15,9 +15,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import run_model_only_shadow_audit as audit_runner  # noqa: E402
 from frozen_pr464_provider_prompt import install_historical_review_parts  # noqa: E402
 
+from experiments.harness.shadow_preflight import AuditDispatchGuard, AuditPreflightError  # noqa: E402
 from pr_review_harness import cli  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
-from pr_review_harness.shadow_preflight import AuditDispatchGuard, AuditPreflightError  # noqa: E402
 
 
 class NoDispatchProvider(OpenAIProvider):

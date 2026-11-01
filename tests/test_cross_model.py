@@ -10,14 +10,14 @@ from pathlib import Path
 
 import pytest
 
-import pr_review_harness.cross_model as cross_model
-from pr_review_harness.cross_model import (
+import experiments.harness.cross_model as cross_model
+from experiments.harness.cross_model import (
     CROSS_MODEL_VERSION,
     compare_cross_model,
     parse_cross_model_json,
     validate_cross_model_comparison,
 )
-from pr_review_harness.evaluation import EvaluationError, validate_corpus
+from experiments.harness.evaluation import EvaluationError, validate_corpus
 
 ROOT = Path(__file__).resolve().parents[1]
 HASH_A = "a" * 64

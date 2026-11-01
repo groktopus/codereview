@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 import pr_review_harness.engine as engine_module
-from pr_review_harness import selected_model_trial
+from experiments.harness import selected_model_trial
 from pr_review_harness.budget import BudgetExhausted, IsolatedCallError
 from pr_review_harness.claim_assessment import (
     CLAIM_ASSESSMENT_ERROR_CODES,

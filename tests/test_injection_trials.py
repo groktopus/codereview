@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from pr_review_harness.injection_trials import (
+from experiments.harness.injection_trials import (
     MAX_DETECTOR_SECONDS,
     OUTPUT_EXPERIMENT_ID,
     V3_CAUSAL_ROLE_EXPERIMENT_ID,
@@ -202,7 +202,7 @@ class InjectionTrialTests(unittest.TestCase):
             prepare_suite(self.root / "no-support-assets", repo_support_root=self.root)
 
     def test_matrix_tool_cache_must_match_explicit_repository_root(self):
-        import pr_review_harness.injection_trials as trials
+        import experiments.harness.injection_trials as trials
 
         wrong_module = SimpleNamespace(__file__=str(self.root / "unrelated" / "run_test_matrix.py"))
         with patch.dict(sys.modules, {"run_test_matrix": wrong_module}):
@@ -568,7 +568,7 @@ class InjectionTrialTests(unittest.TestCase):
         self.assertEqual(_paired_anchor_comparisons(self.root)[0]["state"], "UNKNOWN_INELIGIBLE_PAIR")
 
     def test_fake_cli_trial_export_keeps_control_detector_not_run_and_recovers_offline(self):
-        import pr_review_harness.injection_trials as trials
+        import experiments.harness.injection_trials as trials
 
         output = self.root / "fake-screen"
         cli = self.root / "bin" / "pr-review"
@@ -735,7 +735,7 @@ class InjectionTrialTests(unittest.TestCase):
             )
 
     def test_experiment_profile_materializes_hashed_provider_caps_without_live_calls(self):
-        import pr_review_harness.injection_trials as trials
+        import experiments.harness.injection_trials as trials
 
         output = self.root / "budget-profile-screen"
         cli = self.root / "bin" / "pr-review"
@@ -847,7 +847,7 @@ class InjectionTrialTests(unittest.TestCase):
         self.assertEqual(manifest["detector"].split(";")[0], "NOT_RUN")
 
     def test_v3_profile_materializes_actual_cli_limits_and_provider_timeout_without_network(self):
-        import pr_review_harness.injection_trials as trials
+        import experiments.harness.injection_trials as trials
 
         output = self.root / "v3-causal-role-profile-screen"
         cli = self.root / "bin" / "pr-review"

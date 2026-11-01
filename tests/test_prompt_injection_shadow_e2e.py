@@ -13,15 +13,15 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from experiments.harness.cross_model_package import build_cross_model_package  # noqa: E402
+from experiments.harness.shadow_audit import run_shadow_audit  # noqa: E402
 from pr_review_harness import github as github_module  # noqa: E402
 from pr_review_harness import publisher as publisher_module  # noqa: E402
 from pr_review_harness import snapshot as snapshot_module  # noqa: E402
 from pr_review_harness.claim_assessment import ClaimAssessmentAdapter  # noqa: E402
 from pr_review_harness.contracts import SPECIALIST_V4, validate_candidate  # noqa: E402
-from pr_review_harness.cross_model_package import build_cross_model_package  # noqa: E402
 from pr_review_harness.private_capture import PrivateShadowCapture, write_provider_exchange  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
-from pr_review_harness.shadow_audit import run_shadow_audit  # noqa: E402
 
 CHALLENGE = json.loads((ROOT / "examples/injection/shadow-challenge-v1.json").read_text())
 SUITE = json.loads((ROOT / "examples/injection/fixture-suite.v2.json").read_text())

@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from experiments.harness import selected_model_trial as trial
 from pr_review_harness import external_effect_observer
-from pr_review_harness import selected_model_trial as trial
 
 
 @pytest.mark.parametrize(
@@ -740,9 +740,9 @@ def test_trusted_environment_uses_explicit_support_root(tmp_path):
 def test_prepare_only_stops_before_next_case_when_nonselected_source_changes(tmp_path, monkeypatch):
     root = tmp_path / "support"
     for relative in (
-        "src/pr_review_harness/selected_model_trial.py",
+        "experiments/harness/selected_model_trial.py",
         "src/pr_review_harness/external_effect_observer.py",
-        "src/pr_review_harness/injection_trials.py",
+        "experiments/harness/injection_trials.py",
         "src/pr_review_harness/nonselected_module.py",
         "scripts/run_selected_model_trial.py",
         "scripts/provider_config_from_env.py",

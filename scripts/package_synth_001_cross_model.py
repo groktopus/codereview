@@ -17,15 +17,17 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
 from materialize_seeded_writer_synth_001 import MaterializeError  # noqa: E402
 from verify_synth_001_preflight import VerifyError, _document, _read, verify  # noqa: E402
 
+from experiments.harness.cross_model_package import build_cross_model_package  # noqa: E402
+from experiments.harness.evaluation import EvaluationError  # noqa: E402
 from pr_review_harness.contracts import MAX_ITEMS, MAX_TEXT_BYTES  # noqa: E402
-from pr_review_harness.cross_model_package import build_cross_model_package  # noqa: E402
-from pr_review_harness.evaluation import EvaluationError  # noqa: E402
 
 IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v3.json"
 IDENTITY_SHA256 = "6a25df3d3fb7c4bd3ce5ae0b928956ac0e6539708742904892c5ce1ec9ac2631"
@@ -204,7 +206,7 @@ def _check_capture_and_packet(
     capture_root: Path, packet_path: Path, verification: dict[str, Any],
     prepared: dict[str, Any], contract: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    from pr_review_harness.cross_model_package import _json
+    from experiments.harness.cross_model_package import _json
 
     capture, _ = _json(capture_root / "manifest.json", 4_000_000)
     packet, _ = _json(packet_path, 4_000_000)

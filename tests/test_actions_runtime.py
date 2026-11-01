@@ -10,16 +10,16 @@ from urllib.parse import urlsplit
 
 import pytest
 
-import pr_review_harness.actions_runtime as actions_runtime
-from pr_review_harness.actions_publication import ArtifactUploadResult, HTTPResponse
-from pr_review_harness.actions_runtime import (
+from experiments.harness import actions_canary
+from experiments.harness.actions_canary import (
     ActionsRuntimeError,
     CanaryExpectation,
-    OfficialActionsArtifactUploader,
     canary_expectation_from_environment,
     run_actions_canary,
     verify_read_only_actions_context,
 )
+from pr_review_harness.actions_publication import ArtifactUploadResult, HTTPResponse
+from pr_review_harness.actions_runtime import OfficialActionsArtifactUploader
 
 PUBLISH_SHA = "a" * 40
 BASE = "b" * 40
@@ -54,15 +54,19 @@ def expectation(**overrides):
 def _runtime_checkout(tmp_path):
     repository = tmp_path / "runtime-checkout"
     package = repository / "src" / "pr_review_harness"
-    source = Path(__file__).resolve().parents[1] / "src" / "pr_review_harness"
+    root = Path(__file__).resolve().parents[1]
     package.parent.mkdir(parents=True)
-    shutil.copytree(source, package)
+    shutil.copytree(root / "src" / "pr_review_harness", package)
+    canary_package = repository / "experiments" / "harness"
+    canary_package.parent.mkdir(parents=True)
+    shutil.copytree(root / "experiments" / "harness", canary_package)
     subprocess.run(["git", "init", str(repository)], check=True, capture_output=True)
     subprocess.run(["git", "-C", str(repository), "config", "user.name", "Runtime identity test"], check=True)
     subprocess.run(
         ["git", "-C", str(repository), "config", "user.email", "runtime-identity@example.invalid"], check=True
     )
     subprocess.run(["git", "-C", str(repository), "add", "src/pr_review_harness"], check=True)
+    subprocess.run(["git", "-C", str(repository), "add", "experiments/harness"], check=True)
     subprocess.run(
         ["git", "-C", str(repository), "-c", "core.hooksPath=/dev/null", "commit", "-m", "runtime fixture"],
         check=True,
@@ -71,20 +75,22 @@ def _runtime_checkout(tmp_path):
     revision = subprocess.run(
         ["git", "-C", str(repository), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
     ).stdout.strip()
-    return repository, revision, package / "actions_runtime.py"
+    return repository, revision, repository / "experiments" / "harness" / "actions_canary.py"
 
 
 def test_runtime_source_identity_binds_loaded_module_and_clean_package_tree_to_runner_sha(tmp_path):
     repository, revision, module_file = _runtime_checkout(tmp_path)
 
-    identity = actions_runtime._runtime_source_identity(
+    identity = actions_canary._runtime_source_identity(
         {"GITHUB_WORKSPACE": str(repository), "GITHUB_SHA": revision}, module_file=module_file
     )
 
     assert identity["state"] == "VERIFIED"
     assert identity["reason_code"] is None
     assert identity["source_revision"] == revision
-    assert identity["module_count"] == len(list((repository / "src/pr_review_harness").rglob("*.py")))
+    assert identity["module_count"] == len(
+        list((repository / "src/pr_review_harness").rglob("*.py"))
+    ) + 1
     assert re.fullmatch(r"[0-9a-f]{64}", identity["module_tree_sha256"])
 
 
@@ -103,13 +109,14 @@ def test_runtime_source_identity_rejects_revision_tree_and_import_origin_drift(t
     if failure == "revision":
         environ["GITHUB_SHA"] = "f" * 40
     elif failure == "dirty":
-        module_file.write_text(module_file.read_text() + "\n# changed after checkout\n")
+        engine = module_file.parents[2] / "src" / "pr_review_harness" / "engine.py"
+        engine.write_text(engine.read_text() + "\n# changed after checkout\n")
     elif failure == "untracked":
-        (module_file.parent / "unexpected.py").write_text("VALUE = 1\n")
+        (module_file.parents[2] / "src" / "pr_review_harness" / "unexpected.py").write_text("VALUE = 1\n")
     elif failure == "origin":
         module_file = Path(__file__).resolve()
 
-    identity = actions_runtime._runtime_source_identity(environ, module_file=module_file)
+    identity = actions_canary._runtime_source_identity(environ, module_file=module_file)
 
     assert identity["state"] == "UNAVAILABLE"
     assert identity["reason_code"] == reason
@@ -118,9 +125,9 @@ def test_runtime_source_identity_rejects_revision_tree_and_import_origin_drift(t
 
 def test_runtime_source_identity_rejects_loaded_package_module_outside_checkout(tmp_path, monkeypatch):
     repository, revision, module_file = _runtime_checkout(tmp_path)
-    monkeypatch.setattr(actions_runtime, "__file__", str(module_file))
+    monkeypatch.setattr(actions_canary, "__file__", str(module_file))
 
-    identity = actions_runtime._runtime_source_identity(
+    identity = actions_canary._runtime_source_identity(
         {"GITHUB_WORKSPACE": str(repository), "GITHUB_SHA": revision}
     )
 
@@ -141,7 +148,7 @@ def test_runtime_source_identity_ignores_ambient_git_routing_variables(tmp_path,
     monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
     monkeypatch.setenv("GIT_WORK_TREE", str(decoy))
 
-    identity = actions_runtime._runtime_source_identity(
+    identity = actions_canary._runtime_source_identity(
         {"GITHUB_WORKSPACE": str(repository), "GITHUB_SHA": revision}, module_file=module_file
     )
 
@@ -360,7 +367,7 @@ def test_canary_input_uses_platform_event_and_repository_policy_not_actor_contex
         "module_count": 7,
         "module_tree_sha256": "e" * 64,
     }
-    monkeypatch.setattr(actions_runtime, "_runtime_source_identity", lambda _environ: runtime_identity)
+    monkeypatch.setattr(actions_canary, "_runtime_source_identity", lambda _environ: runtime_identity)
     result = run_actions_canary(environ, transport=FakeReadTransport(), uploader=FakeUploader())
     assert result["api_actor_login"] == "review-agent[bot]"
     assert result["api_actor_login"] != environ["GITHUB_ACTOR"]
@@ -382,7 +389,7 @@ def test_canary_skips_api_reads_when_runtime_identity_is_unavailable(tmp_path, m
         "module_count": 0,
         "module_tree_sha256": None,
     }
-    monkeypatch.setattr(actions_runtime, "_runtime_source_identity", lambda _environ: identity)
+    monkeypatch.setattr(actions_canary, "_runtime_source_identity", lambda _environ: identity)
     transport = FakeReadTransport()
 
     class FakeUploader:
@@ -432,7 +439,7 @@ def test_untrusted_or_missing_runtime_policy_only_produces_unknown_artifact(tmp_
     event_path.write_text('{"repository":{"id":8123},"workflow_run":{"pull_requests":[]}}')
     environ = {"GITHUB_EVENT_PATH": str(event_path), "GITHUB_RUN_ID": "900001"}
     monkeypatch.setattr(
-        actions_runtime,
+        actions_canary,
         "_runtime_source_identity",
         lambda _environ: {
             "state": "VERIFIED",

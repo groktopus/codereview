@@ -7,17 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from pr_review_harness.claim_assessment import _DIMENSIONS as JEV_CHOICES
-from pr_review_harness.claim_assessment import CONTRACT_VERSION as JEV_VERSION
-from pr_review_harness.claim_assessment import _question_id
-from pr_review_harness.contracts import SPECIALIST_V4, validate_candidate
-from pr_review_harness.cross_model_package import (
+from experiments.harness.cross_model_package import (
     _validate_capture_packet_inventory,
     build_cross_model_package,
     validate_model_teacher_packet_identity,
 )
-from pr_review_harness.cross_model_v2 import calls_manifest_sha256
-from pr_review_harness.evaluation import EvaluationError
+from experiments.harness.cross_model_v2 import calls_manifest_sha256
+from experiments.harness.evaluation import EvaluationError
+from pr_review_harness.claim_assessment import _DIMENSIONS as JEV_CHOICES
+from pr_review_harness.claim_assessment import CONTRACT_VERSION as JEV_VERSION
+from pr_review_harness.claim_assessment import _question_id
+from pr_review_harness.contracts import SPECIALIST_V4, validate_candidate
 from pr_review_harness.private_capture import CONTENT_TRANSFORM, PrivateShadowCapture, write_provider_exchange
 
 ROOT = Path(__file__).resolve().parents[1]

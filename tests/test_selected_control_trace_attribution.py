@@ -7,12 +7,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from experiments.harness.selected_model_trial import _limits, canonical_json
 from pr_review_harness.claim_assessment import (
     CONTRACT_VERSION,
     PRIMARY_ASSESSMENT_CONTRACT_VERSION,
     _questions,
 )
-from pr_review_harness.selected_model_trial import _limits, canonical_json
 from scripts import selected_control_trace_attribution as diagnostic
 
 

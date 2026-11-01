@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 try:
-    from pr_review_harness.evaluation import (
+    from experiments.harness.evaluation import (
         MAX_INPUT_BYTES,
         EvaluationError,
         evaluate,
@@ -17,8 +17,8 @@ try:
     )
 except ModuleNotFoundError:
     # Permit running from a source checkout without installing the package.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-    from pr_review_harness.evaluation import MAX_INPUT_BYTES, EvaluationError, evaluate, parse_bounded_json
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from experiments.harness.evaluation import MAX_INPUT_BYTES, EvaluationError, evaluate, parse_bounded_json
 
 
 def _parser() -> argparse.ArgumentParser:

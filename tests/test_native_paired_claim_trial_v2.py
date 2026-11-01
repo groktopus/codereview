@@ -11,8 +11,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from prepare_selected_pair_clean_control_trial import prepare_trial  # noqa: E402
 
-from pr_review_harness import selected_model_trial as trial  # noqa: E402
-from pr_review_harness.selected_model_trial import (  # noqa: E402
+from experiments.harness import selected_model_trial as trial  # noqa: E402
+from experiments.harness.selected_model_trial import (  # noqa: E402
     MAX_CLAIM_ASSESSMENTS_PER_RUN,
     MAX_PROVIDER_CALLS_PER_RUN,
     NATIVE_PAIR_MAX_CLAIM_ASSESSMENTS_PER_RUN,

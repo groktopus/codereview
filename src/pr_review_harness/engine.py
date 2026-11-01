@@ -69,7 +69,7 @@ from .review_stages import (
     run_followups,
 )
 from .review_state import RunState
-from .shadow_audit import serialize_source_audit_request  # noqa: F401
+from .source_audit import serialize_source_audit_request  # noqa: F401
 
 _SYSTEM_ONE_ADVISORY_QUESTION = (
     "Provide an advisory risk/context assessment of this bounded deterministic review summary. "

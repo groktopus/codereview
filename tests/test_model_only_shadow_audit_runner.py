@@ -9,11 +9,11 @@ from urllib.error import URLError
 
 import pytest
 
+from experiments.harness.shadow_audit import _CapturingNativeCall
+from experiments.harness.shadow_preflight import AuditPreflightError
 from pr_review_harness import claim_transport, providers
 from pr_review_harness.claim_transport import ClaimTransport
 from pr_review_harness.providers import OpenAIProvider, ProviderError
-from pr_review_harness.shadow_audit import _CapturingNativeCall
-from pr_review_harness.shadow_preflight import AuditPreflightError
 
 SPEC = importlib.util.spec_from_file_location(
     "model_only_shadow_runner", Path(__file__).resolve().parents[1] / "scripts/run_model_only_shadow_audit.py"

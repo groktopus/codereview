@@ -68,7 +68,8 @@ python -m venv /tmp/pr-review-wheel
 | `src/pr_review_harness/` | Snapshot collector, planner, scheduler, provider adapters, reducer, report renderer, CLI |
 | `profiles/` | Candidate SlopSearX and generic project policies; see the [contract registry](docs/CONTRACT-REGISTRY.md) for supported, deprecated, and archived status |
 | `examples/` | Environment-only provider configuration examples |
-| `tests/` | Git, HTTP boundary, scheduler, reducer, and CLI regressions |
+| `tests/` | Git, HTTP boundary, scheduler, reducer, CLI, and archived-evidence regressions |
+| `experiments/` | Repository-only trial, evaluation, and canary harnesses; not installed in the wheel |
 | `docs/design/` | Discovery, architecture, contracts, spec, research, evaluation design |
 | `docs/VERIFICATION.md` | Implemented behavior and explicit spec gaps |
 | `docs/PILOT-RESULTS.md` | Actual recent-commit experiment and its limitations |
@@ -77,6 +78,19 @@ python -m venv /tmp/pr-review-wheel
 | `docs/PACKAGING-VERIFICATION.md` | Wheel, source distribution, matrix, and installed-entry-point checks |
 | `docs/REVIEW-COMPLETENESS.md` | Canonical incomplete-reason taxonomy, per-run completeness summary, and the fixture baseline regression gate |
 | `.github/workflows/` | Python support matrix, wheel verification, and read-only review artifacts |
+
+## Package surface
+
+The installed package exposes exactly one review path:
+`pr_review_harness.engine.run_review`, reached through the `pr-review` console
+entry point. Experiment harnesses (provider trials, injection trials, shadow
+audit, cross-model evaluation, claim screen, context selection, Actions canary)
+were moved to the repository-only [`experiments/harness/`](experiments/README.md)
+package during CA-2, so they are not installed and cannot fork the core budget,
+settlement, or disposition logic. The guarded protected-publication runtime
+remains installed because the hard-disabled publisher template invokes it; it
+never starts a review. See [Architecture](docs/ARCHITECTURE.md) for the module
+classification, the measured source reduction, and the verification commands.
 
 ## Boundaries
 
