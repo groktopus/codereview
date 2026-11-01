@@ -972,7 +972,9 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
                     state.saved["completed_at"] = _now()
                     state.saved["result_hash"] = _hash({k: v for k, v in state.saved.items() if k != "result_hash"})
                     _atomic_write(state.output_path, _canonical(state.saved) + b"\n")
-                except (IsolatedCallError, OSError, TimeoutError, ValueError, KeyError):
+                except (IsolatedCallError, OSError, TimeoutError, ValueError, KeyError) as exc:
+                    if isinstance(exc, IsolatedCallError) and is_defect(exc):
+                        raise
                     # Expected freshness/write boundary: the prior result is
                     # rewritten as UNKNOWN freshness, which cannot approve.
                     state.saved["freshness"] = "UNKNOWN"
@@ -3226,7 +3228,9 @@ partial coverage; model agreement is never treated as truth."""
             if isinstance(state.check, dict) and state.check.get("freshness") in {"CURRENT", "STALE", "UNKNOWN"}:
                 state.freshness = state.check["freshness"]
                 state.freshness_details.update({k: v for k, v in state.check.items() if k != "freshness"})
-        except (IsolatedCallError, OSError, TimeoutError, ValueError, KeyError):
+        except (IsolatedCallError, OSError, TimeoutError, ValueError, KeyError) as exc:
+            if isinstance(exc, IsolatedCallError) and is_defect(exc):
+                raise
             # Expected freshness boundary: UNKNOWN freshness is conservative
             # and can never approve; defect types propagate.
             state.freshness = "UNKNOWN"

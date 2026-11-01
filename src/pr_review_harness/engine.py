@@ -574,7 +574,26 @@ _MAX_ASSESSOR_CONFIGURATION_BYTES = 65_536
 
 
 def _declared_assessor_configuration(assessor: Any, identity: dict) -> dict:
-    """Return a canonical, JSON-serializable declaration of the adapter.
+    """R
+    from .review_stages import (
+        assess_claims,
+        bind_run_state,
+        build_and_persist_result,
+        dispatch_tasks,
+        install_attempt_lifecycle,
+        install_budget_helpers,
+        install_followup_runner,
+        install_report_notes,
+        install_review_input_size,
+        preflight_review,
+        prepare_dispatch,
+        prepare_followups,
+        quote_monetary_budget,
+        reduce_coverage,
+        resume_completed_review,
+        run_followups,
+    )
+eturn a canonical, JSON-serializable declaration of the adapter.
 
     The historical object-serialization size proxy measured an arbitrary
     object graph. This replacement serializes only the declared identity, the
@@ -1454,24 +1473,6 @@ def run_review(
     private_capture_source_audit_max_bytes: int = 64_000,
     allow_archived_contracts: bool = False,
 ) -> dict:
-    from .review_stages import (
-        assess_claims,
-        bind_run_state,
-        build_and_persist_result,
-        dispatch_tasks,
-        install_attempt_lifecycle,
-        install_budget_helpers,
-        install_followup_runner,
-        install_report_notes,
-        install_review_input_size,
-        preflight_review,
-        prepare_dispatch,
-        prepare_followups,
-        quote_monetary_budget,
-        reduce_coverage,
-        resume_completed_review,
-        run_followups,
-    )
 
     """Run bounded provider tasks and persist an integrity-checked review result.
 
