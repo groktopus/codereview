@@ -652,7 +652,7 @@ def _claim_assessor_binding(assessor: Any, expected_contract_version: str) -> tu
             for name in ("claim_assessment.py", "claim_transport.py")
         }
     )
-    return _hash(identity), expected_contract_version, implementation_hash
+    return hashlib.sha256(encoded_configuration).hexdigest(), expected_contract_version, implementation_hash
 
 
 def _evidence_for(task: dict, snapshot: dict, limit: int) -> list[dict]:

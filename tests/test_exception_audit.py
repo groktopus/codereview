@@ -33,6 +33,10 @@ class _ConfiguredAssessor:
         return {}
 
 
+class _DifferentConfigurationAssessor(_ConfiguredAssessor):
+    configuration = {"threshold": 0.75, "dimensions": ["observation_support"], "nested": {"enabled": True}}
+
+
 class _OversizedConfigurationAssessor(_ConfiguredAssessor):
     configuration = {"padding": "x" * 70_000}
 
@@ -51,9 +55,26 @@ def test_assessor_binding_is_deterministic_and_uses_declared_configuration():
     second = engine_module._claim_assessor_binding(_ConfiguredAssessor(), "claim-assessment.2")
 
     assert first == second
-    assert first[0] == engine_module._hash(_ConfiguredAssessor.identity)
+    declared = engine_module._declared_assessor_configuration(_ConfiguredAssessor(), _ConfiguredAssessor.identity)
+    assert first[0] == engine_module.hashlib.sha256(engine_module._canonical(declared)).hexdigest()
+    assert first[0] != engine_module._hash(_ConfiguredAssessor.identity)
     assert first[1] == "claim-assessment.2"
     assert len(first[2]) == 64
+
+
+def test_assessor_binding_changes_when_declared_configuration_changes():
+    first_assessor = _ConfiguredAssessor()
+    changed_assessor = _ConfiguredAssessor()
+    changed_assessor.configuration = {
+        "threshold": 0.75,
+        "dimensions": ["observation_support"],
+        "nested": {"enabled": True},
+    }
+    base = engine_module._claim_assessor_binding(first_assessor, "claim-assessment.2")
+    changed = engine_module._claim_assessor_binding(changed_assessor, "claim-assessment.2")
+
+    assert base[0] != changed[0]
+    assert base[1:] == changed[1:]
 
 
 def test_assessor_binding_keeps_legacy_non_serializable_message():
