@@ -107,11 +107,9 @@ def _row_has_evidence_for_claim(row: str, claim_start: int, claim_end: int) -> b
         # declares an evidence-bearing artifact. An unrelated navigation link
         # elsewhere in the same sentence or table row cannot waive the claim.
         if match.start() >= claim_end and match.start() - claim_end <= 48 and EVIDENCE_LABEL.search(label):
-            return True
-        # A link immediately before a claim may also be cited evidence (e.g.
-        # [test output](result.json) shows the harness is accurate).
-        if match.end() <= claim_start and claim_start - match.end() <= 48 and EVIDENCE_LABEL.search(label):
-            return True
+            intervening = row[claim_end : match.start()]
+            if re.fullmatch(r"[\s\[\]\(\)]*", intervening):
+                return True
     return False
 
 
@@ -152,23 +150,42 @@ def check_claims(root: Path, paths: list[Path] | None = None) -> list[Finding]:
     return findings
 
 
+def _reference_candidates(line: str) -> list[tuple[str, int, int, bool]]:
+    """Return full code tokens and context-labeled decimal run IDs."""
+
+    candidates: list[tuple[str, int, int, bool]] = []
+    for match in INLINE_CODE_RE.finditer(line):
+        token = match.group(1)
+        if HEX_TOKEN_RE.fullmatch(token) and len(token) >= 7:
+            candidates.append((token, match.start(), match.end(), True))
+    run_patterns = (
+        re.compile(r"\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number))?\s*#\s*([0-9]{7,12})\b", re.IGNORECASE),
+        re.compile(r"\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number))?\s+([0-9]{7,12})\b", re.IGNORECASE),
+        re.compile(r"\b(?:actions\s+)?(?:run|job|check|artifact|review)\s+(?:A|B|\d+)\s+`?([0-9]{7,12})`?\b", re.IGNORECASE),
+    )
+    known = {token for token, _, _, _ in candidates}
+    for pattern in run_patterns:
+        for match in pattern.finditer(line):
+            token = match.group(1)
+            if token not in known:
+                candidates.append((token, match.start(1), match.end(1), False))
+                known.add(token)
+    return candidates
+
+
 def referenced_shas(root: Path, paths: list[Path] | None = None) -> list[tuple[Path, int, str]]:
-    """Enumerate full inline-code hex tokens, preserving complete contents."""
+    """Enumerate full inline hex tokens and context-labeled run identifiers."""
 
     result: list[tuple[Path, int, str]] = []
     for path in paths if paths is not None else current_documents(root):
         fenced = False
-        lines = path.read_text(encoding="utf-8").splitlines()
-        for number, line in enumerate(lines, 1):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if FENCE_RE.match(line):
                 fenced = not fenced
                 continue
             if fenced:
                 continue
-            for match in INLINE_CODE_RE.finditer(line):
-                token = match.group(1)
-                if HEX_TOKEN_RE.fullmatch(token) and len(token) >= 7:
-                    result.append((path, number, token.lower()))
+            result.extend((path, number, token.lower()) for token, _, _, _ in _reference_candidates(line))
     return result
 
 
@@ -217,6 +234,20 @@ def _sha_reference_records(manifest_path: Path) -> dict[str, dict[str, str]]:
             raise ValueError(f"references[{index}].repository must be groktopus/codereview, magnus919/SlopSearX, or unknown")
         if scope not in {"local", "foreign-target", "historical-local", "historical-not-retained", "unknown", "external-artifact"}:
             raise ValueError(f"references[{index}].scope is invalid")
+        if kind == "commit":
+            allowed = {
+                "groktopus/codereview": {"local", "historical-local", "historical-not-retained"},
+                "magnus919/SlopSearX": {"foreign-target"},
+                "unknown": {"unknown"},
+            }
+            if scope not in allowed[repository]:
+                raise ValueError(f"references[{index}] has invalid commit repository/scope pairing")
+        elif kind == "run-id":
+            allowed = {"groktopus/codereview": {"local"}, "magnus919/SlopSearX": {"foreign-target"}, "unknown": {"unknown"}}
+            if scope not in allowed[repository]:
+                raise ValueError(f"references[{index}] has invalid run-id repository/scope pairing")
+        elif repository != "unknown" and scope != "external-artifact":
+            raise ValueError(f"references[{index}] artifact-digest scope must be external-artifact")
         if not isinstance(evidence, str) or not evidence.strip():
             raise ValueError(f"references[{index}].evidence must explain source attribution")
         record = {"kind": kind, "repository": repository, "scope": scope, "evidence": evidence}
@@ -254,7 +285,12 @@ def _reference_kind_and_value(line: str, start: int, end: int, token: str) -> tu
         or re.search(r"artifact-digest|SHA-256|digest|hash", line[max(0, start - 160) : start], re.IGNORECASE)
     ):
         return "artifact-digest", token.lower(), None
-    if token.isdigit() and 7 <= len(token) <= 12 and re.search(r"\b(?:run|job|check|artifact|review)\s+(?:id\s+)?`?" + re.escape(token) + r"`?", context, re.IGNORECASE):
+    if token.isdigit() and 7 <= len(token) <= 12 and re.search(
+        r"(?:\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number|#|A|B|\d+))?\s*(?:#\s*)?`?" + re.escape(token) + r"`?(?!\d)|"
+        r"\b(?:actions\s+)?(?:run|job|check|artifact|review)\s+(?:A|B|\d+)\s+`?" + re.escape(token) + r"`?(?!\d))",
+        context,
+        re.IGNORECASE,
+    ):
         return "run-id", token, None
     if len(token) > 40:
         return "malformed", token.lower(), f"hexadecimal token has {len(token)} characters, exceeding Git commit SHA length"
@@ -275,11 +311,10 @@ def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path 
                 continue
             if fenced:
                 continue
-            for match in INLINE_CODE_RE.finditer(line):
-                token = match.group(1)
+            for token, start, end, inline in _reference_candidates(line):
                 if not HEX_TOKEN_RE.fullmatch(token) or len(token) < 7:
                     continue
-                kind, value, malformed = _reference_kind_and_value(line, match.start(), match.end(), token)
+                kind, value, malformed = _reference_kind_and_value(line, start, end, token)
                 # A typed manifest record is the explicit classification for
                 # ambiguous non-commit IDs and fixed-width digests.
                 if f"artifact-digest:{token.lower()}" in records:
@@ -304,9 +339,19 @@ def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path 
                         continue
                     elif record["repository"] == "groktopus/codereview" and record["scope"] == "foreign-target":
                         findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"local repository revision `{sha}` cannot use foreign-target scope"))
+                    elif record["repository"] == "groktopus/codereview" and record["scope"] not in {"local", "historical-local", "historical-not-retained"}:
+                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"commit `{sha}` has invalid local scope {record['scope']!r}"))
                     elif record["repository"] != "groktopus/codereview" and record["scope"] != "foreign-target":
                         findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"revision `{sha}` names repository {record['repository']!r} but scope {record['scope']!r}; reconcile attribution"))
-                elif kind == "run-id" and not re.fullmatch(r"[0-9]{7,12}", value):
+                elif kind == "run-id":
+                    allowed_scopes = {"groktopus/codereview": "local", "magnus919/SlopSearX": "foreign-target"}
+                    expected = allowed_scopes.get(record["repository"])
+                    if record["repository"] != "unknown" and record["scope"] != expected:
+                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"run ID `{value}` has invalid repository/scope pairing"))
+                    if not re.fullmatch(r"[0-9]{7,12}", value):
+                        findings.append(Finding("MALFORMED_RUN_ID", path.relative_to(root).as_posix(), line_number, f"run identifier `{value}` must contain 7-12 decimal digits"))
+                elif kind == "artifact-digest" and record["scope"] != "external-artifact":
+                    findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"artifact digest `{value}` must use external-artifact scope"))
                     findings.append(Finding("MALFORMED_RUN_ID", path.relative_to(root).as_posix(), line_number, f"run identifier `{value}` must contain 7-12 decimal digits"))
     present_keys: set[str] = set()
     for path in paths if paths is not None else current_documents(root):
@@ -317,11 +362,14 @@ def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path 
                 continue
             if fenced:
                 continue
-            for match in INLINE_CODE_RE.finditer(line):
-                token = match.group(1)
+            for token, start, end, inline in _reference_candidates(line):
                 if not HEX_TOKEN_RE.fullmatch(token) or len(token) < 7:
                     continue
-                kind, value, malformed = _reference_kind_and_value(line, match.start(), match.end(), token)
+                kind, value, malformed = _reference_kind_and_value(line, start, end, token)
+                if not inline and token.isdigit():
+                    kind, value, malformed = "run-id", token, None
+                if not inline and token.isdigit():
+                    kind, value, malformed = "run-id", token, None
                 key = f"{kind}:{value}"
                 if malformed and f"artifact-digest:{token.lower()}" in records:
                     key = f"artifact-digest:{token.lower()}"
@@ -329,6 +377,12 @@ def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path 
                     continue
                 if key in records:
                     present_keys.add(key)
+                elif not malformed and token.isdigit() and 7 <= len(token) <= 12 and f"run-id:{token}" in records:
+                    present_keys.add(f"run-id:{token}")
+                elif not malformed and f"commit:{token.lower()}" in records:
+                    present_keys.add(f"commit:{token.lower()}")
+                elif not malformed and len(token) == 64 and f"artifact-digest:{token.lower()}" in records:
+                    present_keys.add(f"artifact-digest:{token.lower()}")
     for key in sorted(set(records) - present_keys):
         findings.append(Finding("SHA_MANIFEST_UNUSED", "<manifest>", 1, f"manifest entry {key!r} has no matching token in the living documentation set; remove it or correct the reference"))
     for key, record in records.items():

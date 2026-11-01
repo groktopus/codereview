@@ -605,20 +605,6 @@
     },
     {
       "kind": "commit",
-      "value": "36944248422",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicit target-side source reference at docs/CURRENT-EXECUTION-PLAN.md:80."
-    },
-    {
-      "kind": "commit",
-      "value": "36945104586",
-      "repository": "magnus919/SlopSearX",
-      "scope": "foreign-target",
-      "evidence": "Explicit target-side source reference at docs/CURRENT-EXECUTION-PLAN.md:80."
-    },
-    {
-      "kind": "commit",
       "value": "36957634344",
       "repository": "groktopus/codereview",
       "scope": "historical-not-retained",
@@ -1298,6 +1284,118 @@
     },
     {
       "kind": "run-id",
+      "value": "36287529518",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/PRODUCTION-DELIVERY.md:143; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36288986603",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/PRODUCTION-DELIVERY.md:131; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36291165204",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:66; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36291874133",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:67; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36294682123",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:70; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36300274410",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:11; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36313083348",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/OPERATIONS.md:141; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36313501818",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/OPERATIONS.md:141; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36329816767",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:226; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36331358418",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:186; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36344740887",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/README.md:167; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36347277922",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/README.md:186; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36360197573",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/README.md:168; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36517763840",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/README.md:176; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36543218060",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/README.md:177; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36925966131",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:156; not a Git commit."
+    },
+    {
+      "kind": "run-id",
       "value": "36933733892",
       "repository": "groktopus/codereview",
       "scope": "local",
@@ -1319,10 +1417,24 @@
     },
     {
       "kind": "run-id",
+      "value": "36937157500",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:142; not a Git commit."
+    },
+    {
+      "kind": "run-id",
       "value": "36937174118",
       "repository": "groktopus/codereview",
       "scope": "local",
       "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:93; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36938919590",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:146; not a Git commit."
     },
     {
       "kind": "run-id",
@@ -1340,10 +1452,150 @@
     },
     {
       "kind": "run-id",
+      "value": "36944248422",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in living documentation at docs/CURRENT-STATUS.md:128; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36945104586",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in living documentation at docs/CURRENT-STATUS.md:128; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36957634344",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:107; not a Git commit."
+    },
+    {
+      "kind": "run-id",
       "value": "36960270385",
       "repository": "groktopus/codereview",
       "scope": "local",
       "evidence": "Run/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:57; not a commit SHA."
+    },
+    {
+      "kind": "run-id",
+      "value": "36960365530",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:105; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36966631559",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:87; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36966858627",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:89; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36967710716",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:87; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36969281322",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:93; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36969454191",
+      "repository": "magnus919/SlopSearX",
+      "scope": "foreign-target",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:47; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36971814268",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:77; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36971851543",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:33; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "36977553576",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:52; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37614931774",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:58; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37615254908",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:54; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37620606381",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-STATUS.md:68; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37659616938",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:25; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37665263299",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:25; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37686452986",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:14; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37686481212",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-DELIVERY-TRACE.md:16; not a Git commit."
+    },
+    {
+      "kind": "run-id",
+      "value": "37695747602",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Explicit run/job/check/review identifier in context at docs/CURRENT-EXECUTION-PLAN.md:7; not a Git commit."
     },
     {
       "kind": "run-id",

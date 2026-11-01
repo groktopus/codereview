@@ -84,10 +84,20 @@ def test_claim_lint_rejects_unrelated_link_but_accepts_adjacent_evidence_link(tm
     doc = write(
         tmp_path / "README.md",
         "The harness is production ready; see [the user guide](guide.md).\n"
-        "The harness is production ready ([test evidence](tests/test_review.py)).\n",
+        "The harness is production ready ([test evidence](tests/test_review.py)).\n"
+        "The harness is production ready; see [test evidence](artifact.json) for parser coverage.\n"
+        "The harness is production ready, see [test evidence](artifact.json).\n"
+        "The harness is production ready but [test evidence](artifact.json) is available.\n"
+        "[test evidence](artifact.json) supports that the harness is production ready.\n",
     )
     findings = truth.check_claims(tmp_path, [doc])
-    assert [(finding.code, finding.line) for finding in findings] == [("PRODUCTION_READY", 1)]
+    assert [(finding.code, finding.line) for finding in findings] == [
+        ("PRODUCTION_READY", 1),
+        ("PRODUCTION_READY", 3),
+        ("PRODUCTION_READY", 4),
+        ("PRODUCTION_READY", 5),
+        ("PRODUCTION_READY", 6),
+    ]
 
 
 def _sha_manifest(tmp_path: Path, rows: list[dict[str, str]]) -> Path:
@@ -149,6 +159,21 @@ def test_sha_tokens_require_full_hex_token_and_reject_41_character_value(tmp_pat
     assert [finding.code for finding in unlabeled_findings] == ["MALFORMED_SHA"]
 
 
+def test_commit_manifest_rejects_invalid_repository_scope_pairings(tmp_path: Path) -> None:
+    cases = [
+        ("groktopus/codereview", "external-artifact"),
+        ("groktopus/codereview", "foreign-target"),
+        ("magnus919/SlopSearX", "local"),
+    ]
+    for repository, scope in cases:
+        manifest = write(
+            tmp_path / f"invalid-{repository.split('/')[-1]}-{scope}.json",
+            json.dumps({"schema_version": truth.SHA_SCHEMA, "references": [commit_ref("deadbee", "seed invalid pairing", repository, scope)]}),
+        )
+        with pytest.raises(ValueError, match="invalid commit repository/scope pairing"):
+            truth._sha_reference_records(manifest)
+
+
 def test_sha_manifest_rejects_invalid_kind_or_malformed_typed_value(tmp_path: Path) -> None:
     invalid_kind = write(
         tmp_path / "invalid-kind.json",
@@ -162,6 +187,24 @@ def test_sha_manifest_rejects_invalid_kind_or_malformed_typed_value(tmp_path: Pa
     )
     with pytest.raises(ValueError, match="7-12 decimal digits"):
         truth._sha_reference_records(invalid_run)
+
+
+def test_run_id_classification_supports_run_a_run_id_and_actions_run_hash_context(tmp_path: Path) -> None:
+    tokens = ["36300000001", "36300000002", "36300000003"]
+    doc = write(
+        tmp_path / "README.md",
+        f"Run A `{tokens[0]}` completed.\n"
+        f"Run ID `{tokens[1]}` retained.\n"
+        f"Actions run #{tokens[2]} completed.\n",
+    )
+    manifest = _sha_manifest(
+        tmp_path,
+        [
+            {"kind": "run-id", "value": token, "repository": "groktopus/codereview", "scope": "local", "evidence": "seed run ID"}
+            for token in tokens
+        ],
+    )
+    assert truth.check_shas(tmp_path, [doc], manifest) == []
 
 
 def test_status_freshness_rejects_stale_evidence_revision(tmp_path: Path) -> None:
