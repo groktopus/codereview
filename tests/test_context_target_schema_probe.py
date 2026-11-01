@@ -131,7 +131,7 @@ def test_probe_reads_real_provider_success_and_error_receipt_shapes_without_leak
     provider = OpenAIProvider(
         {
             "kind": "openai_compatible",
-            "base_url": "http://provider.invalid/v1",
+            "base_url": "https://provider.invalid/v1",
             "model": "fixture-model",
             "api_key_env": "TEST_SCHEMA_PROBE_KEY",
             "max_response_bytes": 4096,

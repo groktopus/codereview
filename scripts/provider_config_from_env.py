@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import json
 import os
 import re
@@ -51,33 +50,23 @@ def _bounded_text(env: dict[str, str], name: str, limit: int) -> str:
 def _validate_endpoint(value: str, name: str, *, disallow_suffix: str | None = None) -> str:
     if len(value.encode("utf-8")) > MAX_ENDPOINT_BYTES:
         raise ConfigError(f"{name.lower()}_invalid")
+
+    # Import lazily so --help works without the installed distribution.
+    from pr_review_harness.providers import ProviderError, validate_provider_url
+
     try:
-        parsed = urlsplit(value)
-        hostname = parsed.hostname
-        # Accessing .port validates malformed port syntax.
-        _ = parsed.port
+        normalized = validate_provider_url(value)
+    except ProviderError as exc:
+        if exc.code == "remote_http_forbidden":
+            raise ConfigError(f"{name.lower()}_remote_http_forbidden") from None
+        raise ConfigError(f"{name.lower()}_invalid") from None
+    try:
+        parsed = urlsplit(normalized)
     except ValueError:
         raise ConfigError(f"{name.lower()}_invalid") from None
     if disallow_suffix and parsed.path.rstrip("/").endswith(disallow_suffix):
         raise ConfigError(f"{name.lower()}_must_be_api_root")
-    if (
-        parsed.scheme not in {"https", "http"}
-        or not hostname
-        or parsed.username
-        or parsed.password
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise ConfigError(f"{name.lower()}_invalid")
-    if parsed.scheme == "http":
-        host = hostname.casefold()
-        try:
-            local = ipaddress.ip_address(host).is_loopback
-        except ValueError:
-            local = host == "localhost"
-        if not local:
-            raise ConfigError(f"{name.lower()}_remote_http_forbidden")
-    return value.rstrip("/")
+    return normalized
 
 
 def configurations_from_environment(env: dict[str, str]) -> tuple[dict[str, object], dict[str, object]]:

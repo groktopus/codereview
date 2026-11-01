@@ -246,6 +246,25 @@ def test_operator_decision_config_accepts_explicit_loopback_http_for_tests():
     assert transport.endpoint == "http://127.0.0.1:8123/custom/systemone"
 
 
+def test_operator_decision_config_accepts_ipv6_loopback_http_for_tests():
+    transport = ClaimTransport.from_decision_config(
+        {
+            "kind": "typesafe",
+            "endpoint": "http://[::1]:8123/custom/systemone",
+            "model": "jev-latest",
+            "api_key_env": "JEV_API_KEY",
+        }
+    )
+    assert transport.endpoint == "http://[::1]:8123/custom/systemone"
+
+
+def test_direct_transport_rejects_remote_http_under_shared_policy():
+    with pytest.raises(ProviderError, match="unsupported_native_endpoint"):
+        _transport("http://provider.example.invalid/v1/systemone")
+    with pytest.raises(ProviderError, match="endpoint_must_not_contain_credentials_or_query"):
+        _transport("https://user:password@gateway.example/v1/systemone")
+
+
 def test_operator_decision_config_requires_exact_materializer_schema():
     with pytest.raises(ProviderError, match="invalid_decision_config"):
         ClaimTransport.from_decision_config(
