@@ -1,0 +1,12 @@
+{
+  "schema_version": "documentation-evidence.v1",
+  "documents": [
+    {
+      "document": "docs/STATUS.md",
+      "evidence_revision": "8223fd77e3e146fca7afb2ac705dd2b60e891f61",
+      "evidence_date": "2026-11-01",
+      "source_paths": ["src/pr_review_harness/cli.py"],
+      "evidence_links": ["../src/pr_review_harness/cli.py"]
+    }
+  ]
+}

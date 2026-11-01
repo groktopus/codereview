@@ -1,0 +1,12 @@
+{
+  "schema_version": "documentation-sha-references.v1",
+  "references": [
+    {
+      "kind": "commit",
+      "value": "deadbeef",
+      "repository": "groktopus/codereview",
+      "scope": "local",
+      "evidence": "Seeded missing local commit for the end-to-end CLI regression."
+    }
+  ]
+}

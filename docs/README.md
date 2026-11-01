@@ -14,7 +14,10 @@ archive policy is in `docs/history/README.md`.
 `scripts/check_docs_index.py` fails when a document is unindexed, listed in more
 than one section, linked to a missing file, or when the Current section exceeds
 ten documents. `scripts/check_relative_links.py` checks relative links in this
-index, the root README, and `docs/`.
+index, the root README, and `docs/` (including `docs/issues/`). `scripts/check_docs_truth.py`
+checks claims and explicit revision provenance only in this Current set, plus the
+root README. Historical issue records and run evidence are not natural-language
+lint targets.
 
 ## Current
 
@@ -35,6 +38,10 @@ scoped to the revision and date it names.
 | [CLI publication preview migration](CLI-PUBLISH-PREVIEW-MIGRATION.md) | Preview-only `publish` surface; documents the deliberate absence of live publication. |
 
 ## Reference contracts
+
+| Document | What it records |
+|---|---|
+| [Documentation truth checks](DOCUMENTATION-TRUTH-CHECKS.md) | DT-3 source-only link, claim, revision, contract-label, and OE-3 freshness-check contract. |
 
 Contracts, schemas, policies, and operating references that current work relies
 on. A "proposed" label is meaningful: it is not acceptance or evidence of

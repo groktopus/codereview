@@ -64,7 +64,7 @@ Selection defaults:
   record their status in the binding; archived names are rejected with
   `review_contract_archived` and never reach file reads.
 
-### Deprecated contracts
+### Deprecated contracts (entries below are deprecated by registry status)
 
 | Kind | Name | Replaced by | Window |
 |---|---|---|---|
@@ -83,7 +83,7 @@ Selection defaults:
 | context | `context-selection.v1`–`.v2` | `context-selection.v3` | 2026-11-01 → 2027-02-01 |
 
 A deprecated contract is never the default for new selection. The SlopSearX caller keeps its
-explicit historical default (`legacy-v14`) so the existing read-only pilot does not
+explicit historical deprecated default (`legacy-v14`) so the existing read-only pilot does not
 change behavior mid-window; that caller default is tracked as an owner migration item,
 not as a supported default.
 
@@ -235,9 +235,9 @@ deprecation dates. They are reversible via the registry:
 - The single supported combination is the harness's own production target,
   `groktopus/codereview` + `codereview-native-v1` + limits v3. The SlopSearX contracts
   remain deprecated (not archived) during the window so the existing pilot keeps
-  working; the pilot's pinned `legacy-v14` default is therefore an explicit
+  working; the pilot's pinned deprecated `legacy-v14` default is therefore an explicit
   owner-frozen exception to "deprecated is never a default".
 - Deprecation announcements use the issue/assessment date 2026-11-01 and a 90-day
   minimum window ending 2027-02-01. The owner may ratify different dates.
-- `bounded-production-v17` and its profile are terminal: retiring the SlopSearX target
+- deprecated `bounded-production-v17` and its profile are terminal: retiring the SlopSearX target
   binding is an owner decision, not an automatic replacement.
