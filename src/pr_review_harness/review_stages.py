@@ -17,7 +17,24 @@ from __future__ import annotations
 import functools
 from typing import Any
 
+from .contract_registry import ContractRegistryError, effective_contract_set, load_registry
 from .review_state import RunState
+
+_CONTRACT_REJECTION_DETAILS = {
+    "registry_unavailable": "contract registry is unavailable",
+    "registry_invalid": "contract registry is invalid",
+    "registry_invalid_status": "contract registry has an invalid status",
+    "registry_duplicate_entry": "contract registry has a duplicate entry",
+    "registry_unknown_reference": "contract registry references an unknown contract",
+    "registry_source_mismatch": "contract registry source digest does not match",
+    "registry_supported_matrix": "contract registry supported matrix is invalid",
+    "contract_archived": "archived contract combination rejected",
+    "contract_deprecated": "deprecated contract combination rejected",
+    "contract_limits_mismatch": "contract limits do not match the registered combination",
+    "contract_unknown_component": "contract version is not registered",
+    "contract_unregistered_profile": "profile is not registered for a review contract",
+    "contract_invariant_mismatch": "contract invariants do not match the registry",
+}
 
 
 def checkpoint_stage(state: RunState, terminal: bool = False) -> None:
@@ -780,6 +797,18 @@ dispatch or result file creation.  No reservation is made here."""
     ):
         raise EnginePreflightError("invalid_review_request")
     try:
+        state.contracts = effective_contract_set(
+            load_registry(),
+            state.profile,
+            state.limits,
+            comparison_mode=state.snapshot.get("comparison_mode"),
+            claim_assessment_version=state.expected_claim_contract,
+        )
+    except ContractRegistryError as exc:
+        raise EnginePreflightError(
+            "invalid_review_request", _CONTRACT_REJECTION_DETAILS.get(exc.code, "contract registry validation failed")
+        ) from None
+    try:
         state.approval_authority = allow_empty_approve(state.profile)
     except (TypeError, ValueError):
         raise EnginePreflightError("invalid_review_request") from None
@@ -876,6 +905,7 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
             "primary_task_inputs_hash": _hash(state.primary_task_inputs),
             "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
             "core_contract_hash": _core_contract_hash(),
+            "effective_contracts": state.contracts,
         },
     }
     if state.max_claim_assessments > 0:
@@ -3231,6 +3261,7 @@ reduced deterministically from preserved findings and coverage."""
             if state.snapshot.get("comparison_mode") == "PR_MERGE_BASE"
             else {}
         ),
+        "effective_contracts": state.contracts,
         "project_profile_version": state.profile.get(
             "version",
             state.profile.get("profile_version", state.snapshot.get("profile_version", state.snapshot.get("project_profile_version"))),

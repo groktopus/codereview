@@ -64,7 +64,7 @@ python -m venv /tmp/pr-review-wheel
 | Path | Purpose |
 |---|---|
 | `src/pr_review_harness/` | Snapshot collector, planner, scheduler, provider adapters, reducer, report renderer, CLI |
-| `profiles/` | Candidate SlopSearX and generic project policies |
+| `profiles/` | Candidate SlopSearX and generic project policies; see the [contract registry](docs/CONTRACT-REGISTRY.md) for supported, deprecated, and archived status |
 | `examples/` | Environment-only provider configuration examples |
 | `tests/` | Git, HTTP boundary, scheduler, reducer, and CLI regressions |
 | `docs/design/` | Discovery, architecture, contracts, spec, research, evaluation design |

@@ -113,6 +113,7 @@ class RunState:
     claim_identity: dict
     claim_not_run: Any
     claim_reconciliation_rows: Any
+    contracts: dict
     claim_row: Any
     claim_rows: Any
     claim_supported: Any
@@ -429,3 +430,4 @@ class RunState:
         self.private_capture_request_pins = private_capture_request_pins
         self.private_capture_snapshot_pin = private_capture_snapshot_pin
         self.private_capture_source_audit_max_bytes = private_capture_source_audit_max_bytes
+        self.contracts = {}

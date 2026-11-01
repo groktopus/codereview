@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Resolve one closed, caller-selected hosted review contract."""
+"""Resolve one closed, caller-selected hosted review contract.
+
+The authoritative contract/profile/limits matrix comes from the packaged
+machine-readable registry (``contract_registry.json``).  This module only turns
+one registry entry into a digest-pinned binding; it never relaxes the registry.
+"""
 
 from __future__ import annotations
 
@@ -11,78 +16,71 @@ import sys
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+_SOURCE_PACKAGE = ROOT / "src"
+if _SOURCE_PACKAGE.is_dir() and str(_SOURCE_PACKAGE) not in sys.path:
+    sys.path.insert(0, str(_SOURCE_PACKAGE))
+
 try:
     from .resolve_target_profile import ProfileBindingError, _parse_json, _read_regular_file, resolve_target_profile
 except ImportError:  # Direct script execution places scripts/, not the repository root, on sys.path.
     from resolve_target_profile import ProfileBindingError, _parse_json, _read_regular_file, resolve_target_profile
 
-ROOT = Path(__file__).resolve().parents[1]
+from pr_review_harness.contract_registry import (  # noqa: E402
+    ContractRegistryError,
+    default_contract_for_target,
+    load_registry,
+    supported_combination,
+    validate_contract_checks,
+)
+
 TARGET = "magnus919/SlopSearX"
+CODE_REVIEW_TARGET = "groktopus/codereview"
 MAX_JSON_BYTES = 256_000
+_REGISTRY = load_registry(ROOT / "src/pr_review_harness/contract_registry.json")
+SUPPORTED_CONTRACT = supported_combination(_REGISTRY)["review_contract"]
+SUPPORTED_TARGET = supported_combination(_REGISTRY)["target_repository"]
+_ENTRIES: dict[str, dict[str, dict[str, Any]]] = {}
+for _entry in _REGISTRY["contracts"]:
+    _ENTRIES.setdefault(_entry["kind"], {})[_entry["name"]] = _entry
+
+
+def _selected(entry: dict[str, Any]) -> dict[str, Any]:
+    combination = entry["combination"]
+    profile = _ENTRIES["review-profile"][combination["profile"]]
+    limits = _ENTRIES["review-limits"][combination["limits"]]
+    return {
+        "profile_path": profile["source_path"],
+        "limits_path": limits["source_path"],
+        "profile_version": profile["version"],
+        "profile_sha256": profile["source_sha256"],
+        "limits_sha256": limits["source_sha256"],
+        "max_claim_assessments": combination["max_claim_assessments"],
+    }
+
+
+_REGISTRY_ENTRIES = _ENTRIES["review-contract"]
 CONTRACTS = {
-    "legacy-v14": {
-        "profile_path": "profiles/slopsearx-v14-jev-reconciliation-candidate.json",
-        "limits_path": "profiles/ordinary-review-limits-v2.json",
-        "profile_version": "slopsearx-production-v14-jev-reconciliation-candidate",
-        "profile_sha256": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
-        "limits_sha256": "39abcf19666c9f322364961577f08f8cff8a3c539e68d894693b6cb0fb5a75e9",
-        "max_claim_assessments": 1,
-    },
-    "bounded-production-v16": {
-        "profile_path": "profiles/slopsearx-v16-bounded-production-candidate.json",
-        "limits_path": "profiles/ordinary-review-limits-v3.json",
-        "profile_version": "slopsearx-production-v16-bounded-production-candidate",
-        "profile_sha256": "699f93fd7bc78d310de2455cad7402a1c3c8cf5ad61c3d4cbb77bb38da1189ed",
-        "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
-        "max_claim_assessments": 4,
-    },
-    "bounded-production-v17": {
-        "profile_path": "profiles/slopsearx-v17-context-target-manifest-candidate.json",
-        "limits_path": "profiles/ordinary-review-limits-v3.json",
-        "profile_version": "slopsearx-production-v17-context-target-manifest-candidate",
-        "profile_sha256": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
-        "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
-        "max_claim_assessments": 4,
-    },
+    name: _selected(entry)
+    for name, entry in _REGISTRY_ENTRIES.items()
+    if entry["combination"]["target_repository"] == TARGET
 }
 # Keep this Slop-only mapping stable for the separate central pilot admission
 # consumer. New target contracts are resolved through the target-scoped map.
 CODE_REVIEW_CONTRACTS = {
-    "codereview-native-v1": {
-        "profile_path": "profiles/codereview-native-v1-candidate.json",
-        "limits_path": "profiles/ordinary-review-limits-v3.json",
-        "profile_version": "codereview-native-v1-candidate",
-        "profile_sha256": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
-        "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
-        "max_claim_assessments": 4,
-    },
+    name: _selected(entry)
+    for name, entry in _REGISTRY_ENTRIES.items()
+    if entry["combination"]["target_repository"] == CODE_REVIEW_TARGET
 }
 ALL_CONTRACTS = {**CONTRACTS, **CODE_REVIEW_CONTRACTS}
 TARGET_CONTRACTS = {
-    "magnus919/SlopSearX": frozenset({"legacy-v14", "bounded-production-v16", "bounded-production-v17"}),
-    "groktopus/codereview": frozenset({"codereview-native-v1"}),
+    repository: frozenset(target["review_contracts"])
+    for repository, target in _REGISTRY["targets"].items()
 }
-CODE_REVIEW_TARGET = "groktopus/codereview"
-V16_RISK_RULE = {
-    "lenses": ["security", "correctness", "tests"],
-    "min_mode": "FOCUSED",
-    "patterns": ["engines/*.py"],
-    "reason": "Network-client adapters cross credential, upstream-input, and remote-service trust boundaries and need explicit security, correctness, and test review.",
-}
-V16_LIMITS = {
-    "schema_version": "1.0",
-    "deadline_seconds": 300,
-    "max_concurrent_scopes": 3,
-    "max_provider_calls": 32,
-    "max_retries_per_task": 0,
-    "max_context_bytes": 2_500_000,
-    "max_input_bytes_per_task": 96_000,
-    "max_output_bytes_per_task": 16_000,
-    "max_output_bytes": 512_000,
-    "max_output_tokens": 1800,
-    "max_context_retrievals": 8,
-    "max_followup_tasks": 8,
-    "max_snapshot_context_bytes": 600_000,
+CONTRACT_STATUS = {name: entry["status"] for name, entry in _REGISTRY_ENTRIES.items()}
+CONTRACT_REPLACED_BY = {name: entry["replaced_by"] for name, entry in _REGISTRY_ENTRIES.items()}
+CONTRACT_DEPRECATION = {
+    name: entry["deprecation"] for name, entry in _REGISTRY_ENTRIES.items() if entry["status"] == "deprecated"
 }
 
 
@@ -104,6 +102,19 @@ def _write_binding(path: Path, binding: dict[str, Any]) -> None:
         raise ProfileBindingError("review_contract_binding_write_failed") from None
 
 
+def _select_contract(target_repository: str, review_contract: str) -> str:
+    if review_contract == "supported":
+        if target_repository != SUPPORTED_TARGET:
+            raise ProfileBindingError("review_contract_target_mismatch")
+        return SUPPORTED_CONTRACT
+    if review_contract in {"", "default"}:
+        default = default_contract_for_target(_REGISTRY, target_repository)
+        if default is None:
+            raise ProfileBindingError("target_repository_unsupported")
+        return default
+    return review_contract
+
+
 def resolve_review_contract(
     target_repository: str,
     review_contract: str,
@@ -111,18 +122,23 @@ def resolve_review_contract(
     root: Path = ROOT,
 ) -> dict[str, Any]:
     """Resolve only a fixed profile/limit pair allowed for this target."""
+    review_contract = _select_contract(target_repository, review_contract)
     if review_contract not in ALL_CONTRACTS:
         raise ProfileBindingError("review_contract_unsupported")
     if target_repository not in TARGET_CONTRACTS:
         raise ProfileBindingError("target_repository_unsupported")
     if review_contract not in TARGET_CONTRACTS[target_repository]:
         raise ProfileBindingError("review_contract_target_mismatch")
+    status = CONTRACT_STATUS[review_contract]
+    if status == "archived":
+        raise ProfileBindingError("review_contract_archived")
     registry = CONTRACTS if target_repository == TARGET else CODE_REVIEW_CONTRACTS
     selected = registry[review_contract]
+    entry = _REGISTRY_ENTRIES[review_contract]
 
     # Both repository v1 mappings are verified by the target-profile resolver.
-    # Slop v16 remains pinned by its fixed registry entry and records the map
-    # digest without changing the historical v16 binding behavior.
+    # Slop v16/v17 remain pinned by their fixed registry entries and record the
+    # map digest without changing the historical binding behavior.
     if (target_repository == TARGET and review_contract == "legacy-v14") or target_repository == CODE_REVIEW_TARGET:
         profile_binding = resolve_target_profile(target_repository, root=root)
         if (
@@ -155,59 +171,16 @@ def resolve_review_contract(
     if claim_policy != expected_claim_policy:
         raise ProfileBindingError("review_contract_claim_policy_mismatch")
 
-    if target_repository == TARGET and review_contract == "legacy-v14":
-        if limits != {
-            "schema_version": "1.0",
-            "max_context_bytes": 600_000,
-            "max_input_bytes_per_task": 96_000,
-        }:
-            raise ProfileBindingError("review_contract_limits_mismatch")
-    elif review_contract in {"bounded-production-v16", "bounded-production-v17"}:
-        selector = profile.get("context_selection")
-        retrieval = profile.get("retrieval_revisions")
-        expected_status = (
-            "bounded_production_capacity_candidate_not_quality_validated"
-            if review_contract == "bounded-production-v16"
-            else "bounded_production_capacity_and_context_target_candidate_not_quality_validated"
-        )
-        expected_manifest = (
-            None
-            if review_contract == "bounded-production-v16"
-            else {"version": "context-target-manifest.v1", "max_entries": 256, "max_bytes": 16384}
-        )
-        if (
-            profile.get("profile_status") != expected_status
-            or not isinstance(selector, dict)
-            or selector.get("version") != "context-selection.v3"
-            or selector.get("max_total_context_bytes") != 128_000
-            or retrieval != {"implementation": "head", "test": "head"}
-            or V16_RISK_RULE not in profile.get("risk_rules", [])
-            or profile.get("context_target_manifest") != expected_manifest
-            or limits != V16_LIMITS
-        ):
-            mismatch = "v16" if review_contract == "bounded-production-v16" else "v17"
-            raise ProfileBindingError(f"review_contract_{mismatch}_contract_mismatch")
-    else:
-        selector = profile.get("context_selection")
-        required_checks = profile.get("required_checks")
-        if (
-            profile.get("profile_status") != "candidate_not_quality_validated"
-            or profile.get("trusted_policy_paths") != ["AGENTS.md"]
-            or profile.get("required_lenses") != ["correctness", "tests", "maintainability"]
-            or not isinstance(selector, dict)
-            or selector.get("version") != "context-selection.v3"
-            or selector.get("max_total_context_bytes") != 256_000
-            or not isinstance(selector.get("window"), dict)
-            or selector["window"].get("max_windows_per_unit") != 8
-            or not isinstance(required_checks, list)
-            or len(required_checks) != 7
-            or limits != V16_LIMITS
-        ):
-            raise ProfileBindingError("review_contract_codereview_contract_mismatch")
+    try:
+        validate_contract_checks(profile, limits, entry)
+    except ContractRegistryError:
+        raise ProfileBindingError(entry["mismatch_error"]) from None
 
     binding: dict[str, Any] = {
         **profile_binding,
         "review_contract": review_contract,
+        "contract_status": status,
+        "contract_replaced_by": CONTRACT_REPLACED_BY.get(review_contract),
         "profile_path": selected["profile_path"],
         "profile_version": selected["profile_version"],
         "profile_sha256": profile_digest,
@@ -215,6 +188,8 @@ def resolve_review_contract(
         "limits_sha256": limits_digest,
         "max_claim_assessments": str(selected["max_claim_assessments"]),
     }
+    if review_contract in CONTRACT_DEPRECATION:
+        binding["contract_deprecation"] = CONTRACT_DEPRECATION[review_contract]
     return binding
 
 
@@ -223,6 +198,7 @@ def _write_outputs(path: Path, binding: dict[str, Any]) -> None:
         with path.open("a", encoding="utf-8") as stream:
             for key in (
                 "review_contract",
+                "contract_status",
                 "profile_path",
                 "profile_version",
                 "profile_sha256",

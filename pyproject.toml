@@ -22,6 +22,9 @@ pr-review = "pr_review_harness.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+pr_review_harness = ["contract_registry.json"]
+
 [project.optional-dependencies]
 github-app = ["PyJWT[crypto]>=2.10,<3"]
 dev = ["build>=1.2,<2", "pytest>=8", "ruff>=0.9", "setuptools>=68", "PyJWT[crypto]>=2.10,<3", "PyYAML>=6,<7", "jsonschema>=4.18,<5"]

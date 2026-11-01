@@ -11,5 +11,7 @@ include scripts/protected-publication-action/action.yml
 include scripts/protected-publication-action/main.mjs
 recursive-include examples *.json
 recursive-include profiles *.json
+include src/pr_review_harness/contract_registry.json
+recursive-include schemas *.json
 recursive-include .github/workflows *.yml
 include tests/fixtures/pr464-check-evidence.json
