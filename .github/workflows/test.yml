@@ -87,6 +87,132 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  completeness-gate:
+    name: Review completeness gate (fixture baseline + seeded regression)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Gate the deterministic fixture baseline and retain the verdict
+        run: |
+          set -euo pipefail
+          python scripts/check_completeness.py \
+            --baseline tests/fixtures/completeness/baseline.v1.json \
+            --result tests/fixtures/completeness/good-result.json \
+            --json | tee completeness-good-verdict.json
+      - name: Prove the gate rejects a seeded completeness regression
+        run: |
+          set -euo pipefail
+          set +e
+          python scripts/check_completeness.py \
+            --baseline tests/fixtures/completeness/baseline.v1.json \
+            --result tests/fixtures/completeness/seeded-regression-result.json \
+            --json > completeness-seeded-regression-verdict.json
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected seeded regression to exit 1, got $status"
+            cat completeness-seeded-regression-verdict.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          verdict = json.load(open("completeness-seeded-regression-verdict.json"))
+          assert verdict["status"] == "FAIL", verdict
+          codes = {finding["code"] for item in verdict["verdicts"] for finding in item["findings"]}
+          assert "KNOWN_COMPLETE_REGRESSION" in codes, codes
+          assert "COMPLETION_RATIO_REGRESSION" in codes, codes
+          PY
+      - name: Upload completeness verdicts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-review-completeness-${{ github.run_id }}
+          path: completeness-*-verdict.json
+          if-no-files-found: error
+          retention-days: 7
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+<<<<<<< HEAD
+          python-version: '3.14'
+      - run: python -m pip install '.[dev]'
+      - name: Run the suite with line coverage
+        run: |
+          set -euo pipefail
+          # The wall-clock assertion below is covered by the plain tests job;
+          # coverage tracing makes its 1.6s deadline contention-sensitive
+          # (VD-2 tracks making it tolerant). Deselect it only for measurement.
+          python -m pytest -q \
+            --deselect tests/test_engine.py::test_timeout_becomes_partial_and_does_not_wait_past_deadline \
+            --cov=pr_review_harness \
+            --cov-report=json:coverage.json \
+            --cov-report=term
+      - name: Enforce coverage floors and publish the job summary
+        run: |
+          set -euo pipefail
+          python scripts/coverage_gate.py \
+            --coverage-json coverage.json \
+            --summary coverage-summary.md
+      - name: Retain the coverage report for this run
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-review-coverage-${{ github.run_id }}
+          path: |
+            coverage.json
+            coverage-summary.md
+          if-no-files-found: warn
+=======
+          python-version: '3.13'
+      - name: Gate the deterministic fixture baseline and retain the verdict
+        run: |
+          set -euo pipefail
+          python scripts/check_completeness.py \
+            --baseline tests/fixtures/completeness/baseline.v1.json \
+            --result tests/fixtures/completeness/good-result.json \
+            --json | tee completeness-good-verdict.json
+      - name: Prove the gate rejects a seeded completeness regression
+        run: |
+          set -euo pipefail
+          set +e
+          python scripts/check_completeness.py \
+            --baseline tests/fixtures/completeness/baseline.v1.json \
+            --result tests/fixtures/completeness/seeded-regression-result.json \
+            --json > completeness-seeded-regression-verdict.json
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected seeded regression to exit 1, got $status"
+            cat completeness-seeded-regression-verdict.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          verdict = json.load(open("completeness-seeded-regression-verdict.json"))
+          assert verdict["status"] == "FAIL", verdict
+          codes = {finding["code"] for item in verdict["verdicts"] for finding in item["findings"]}
+          assert "KNOWN_COMPLETE_REGRESSION" in codes, codes
+          assert "COMPLETION_RATIO_REGRESSION" in codes, codes
+          PY
+      - name: Upload completeness verdicts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-review-completeness-${{ github.run_id }}
+          path: completeness-*-verdict.json
+          if-no-files-found: error
+>>>>>>> e3cc5c2 (feat: emit and gate review completeness telemetry (RC-3, #241))
+          retention-days: 7
+
   frozen-pr464-prepare:
     name: Frozen PR-464 provider-free prepare integration
     runs-on: ubuntu-latest

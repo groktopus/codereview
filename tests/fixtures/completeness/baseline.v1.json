@@ -1,0 +1,45 @@
+{
+  "cases": {
+    "completeness-fixture-good": {
+      "complete": 2,
+      "complete_ratio": 0.5,
+      "incomplete_total": 2,
+      "not_applicable": 1,
+      "not_started": 1,
+      "obligations": {
+        "check:unit-tests": "NOT_STARTED",
+        "context:u2:required": "PARTIAL",
+        "unit:u1:lens:correctness": "COMPLETE",
+        "unit:u1:lens:tests": "COMPLETE"
+      },
+      "partial": 1,
+      "reason_distribution": [
+        {
+          "canonical_code": "CHECK_EVIDENCE_UNAVAILABLE",
+          "obligations": 1
+        },
+        {
+          "canonical_code": "CONTEXT_GAP_UNRESOLVED",
+          "obligations": 1
+        }
+      ],
+      "required_total": 4,
+      "unclassified_obligations": 0,
+      "unknown_state": 0,
+      "zero_obligations": false
+    }
+  },
+  "corpus": {
+    "name": "deterministic-completeness-fixture",
+    "provenance": "Synthetic deterministic fixture result; provider-free. Replace with frozen natural-corpus receipts when the corpus baseline is available."
+  },
+  "schema": "review-completeness-baseline.v1",
+  "summary_schema": "review-completeness-summary.v1",
+  "taxonomy_document": "docs/REVIEW-COMPLETENESS.md",
+  "taxonomy_version": "review-completeness-taxonomy.v1",
+  "thresholds": {
+    "max_completion_drop": 0.0,
+    "max_unclassified_increase": 0,
+    "min_completion_ratio": 0.5
+  }
+}
