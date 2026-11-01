@@ -50,6 +50,24 @@ from .reconcile import (  # noqa: F401
     validate_location,
 )
 from .report import render_report as _render_report
+from .review_stages import (
+    assess_claims,
+    bind_run_state,
+    build_and_persist_result,
+    dispatch_tasks,
+    install_attempt_lifecycle,
+    install_budget_helpers,
+    install_followup_runner,
+    install_report_notes,
+    install_review_input_size,
+    preflight_review,
+    prepare_dispatch,
+    prepare_followups,
+    quote_monetary_budget,
+    reduce_coverage,
+    resume_completed_review,
+    run_followups,
+)
 from .review_state import RunState
 from .shadow_audit import serialize_source_audit_request  # noqa: F401
 
@@ -1460,24 +1478,6 @@ def run_review(
     This controller never executes reviewed code. A lack of provider capability
     yields explicit NOT_STARTED coverage; it cannot be interpreted as no findings.
     """
-    from .review_stages import (
-        assess_claims,
-        bind_run_state,
-        build_and_persist_result,
-        dispatch_tasks,
-        install_attempt_lifecycle,
-        install_budget_helpers,
-        install_followup_runner,
-        install_report_notes,
-        install_review_input_size,
-        preflight_review,
-        prepare_dispatch,
-        prepare_followups,
-        quote_monetary_budget,
-        reduce_coverage,
-        resume_completed_review,
-        run_followups,
-    )
 
 
     state = RunState(

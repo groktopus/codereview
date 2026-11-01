@@ -237,9 +237,7 @@ def test_stage_module_import_graph_is_acyclic():
         visit(name)
     assert graph["review_stages"] == {"contract_registry", "errors", "review_state"}
     assert graph["contract_registry"] == set()
-    # The production orchestrator imports the stage module lazily inside
-    # run_review so the module graph stays acyclic for static analysis.
-    assert "review_stages" not in graph["engine"]
+    assert "review_stages" in graph["engine"]
 
 
 def test_every_stage_is_importable_and_takes_explicit_state():

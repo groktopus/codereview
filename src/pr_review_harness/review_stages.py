@@ -2806,7 +2806,6 @@ unknown or failed adjudication never becomes a clean approval."""
                     state.attempts_used += 1
                 state.checkpoint()
             except (
-                BudgetExhausted,
                 ClaimAssessmentError,
                 IsolatedCallError,
                 OSError,
