@@ -6,11 +6,12 @@ import fnmatch
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 from .claim_reconciliation import validate_claim_reconciliation_policy
 from .context_targets import validate_context_target_manifest_profile
 from .dependency_context import DependencyContextError, valid_projection_evidence, validate_dependency_context
+from .review_state import PlanRecord, SnapshotRecord, TaskRecord
 
 _MODE_ORDER = {"LIGHT": 0, "FOCUSED": 1, "DEEP": 2}
 _ALL_LENSES = ("correctness", "tests", "design", "security", "performance", "maintainability", "project_specific")
@@ -453,7 +454,7 @@ def _verified_prose_document(snapshot: dict, unit: dict) -> bool:
     return not any(_POSSIBLE_CODE_EXAMPLE.search(content) for content in contents)
 
 
-def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
+def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "AUTO") -> PlanRecord:
     """Freeze required unit/lens/check obligations before any provider work.
 
     The profile is trusted input. Unknown unit type/context raises the floor to
@@ -867,9 +868,9 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
         selected_mode = floor
     if not profile_valid:
         reasons.append("trusted_profile_version_missing_or_invalid")
-    return {
+    result: PlanRecord = {
         "plan_version": "0.1",
-        "snapshot_id": snapshot.get("snapshot_id"),
+        "snapshot_id": str(snapshot.get("snapshot_id", "")),
         "profile_version": profile.get(
             "version",
             profile.get("profile_version", snapshot.get("profile_version", snapshot.get("project_profile_version"))),
@@ -882,5 +883,6 @@ def plan_review(snapshot: dict, profile: dict, mode: str = "AUTO") -> dict:
         "risk_by_unit": {k: sorted(v) for k, v in risk_by_unit.items()},
         "coverage_obligations": scopes,
         "not_applicable": not_applicable,
-        "tasks": tasks,
+        "tasks": cast(list[TaskRecord], tasks),
     }
+    return result

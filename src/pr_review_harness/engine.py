@@ -68,7 +68,7 @@ from .review_stages import (
     resume_completed_review,
     run_followups,
 )
-from .review_state import RunState
+from .review_state import LedgerEntry, PlanRecord, ReviewResult, RunState, SnapshotRecord, TaskRecord
 from .source_audit import serialize_source_audit_request  # noqa: F401
 
 _SYSTEM_ONE_ADVISORY_QUESTION = (
@@ -1179,7 +1179,13 @@ def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
     return "APPROVE" if allow_empty_approve else "COMMENT"
 
 
-def prepare_plan_tasks(snapshot: dict, plan: dict, profile: dict, limits: dict, provider: Any) -> tuple[list[dict], dict]:
+def prepare_plan_tasks(
+    snapshot: SnapshotRecord,
+    plan: PlanRecord,
+    profile: dict[str, Any],
+    limits: dict[str, Any],
+    provider: Any,
+) -> tuple[list[TaskRecord], LedgerEntry]:
     """Apply the same deterministic specialist chunking used by the runner.
 
     This is shared with provider-free prepare mode so admission and serialized
@@ -1451,12 +1457,12 @@ def _load_validated_resume_state(
 
 
 def run_review(
-    snapshot: dict,
-    plan: dict,
-    profile: dict,
+    snapshot: SnapshotRecord,
+    plan: PlanRecord,
+    profile: dict[str, Any],
     provider: Any,
     decision_provider: Any,
-    limits: dict,
+    limits: dict[str, Any],
     output_dir: str,
     run_id: str,
     resume: bool = False,
@@ -1471,7 +1477,7 @@ def run_review(
     private_capture_snapshot_pin: dict[str, Any] | None = None,
     private_capture_source_audit_max_bytes: int = 64_000,
     allow_archived_contracts: bool = False,
-) -> dict:
+) -> ReviewResult:
 
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1523,10 +1529,9 @@ def run_review(
     assess_claims(state)
     reduce_coverage(state)
     install_report_notes(state)
-    build_and_persist_result(state)
-    return state.saved
+    return build_and_persist_result(state)
 
 
-def render_report(result: dict) -> str:
+def render_report(result: ReviewResult) -> str:
     """Render the deterministic four-category report."""
     return _render_report(result)

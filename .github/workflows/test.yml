@@ -46,6 +46,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install '.[dev]'
+      - name: Strictly type-check stable boundary contracts
+        run: python -m mypy
+      - name: Prove a wrong-shape boundary record is rejected
+        run: |
+          set -euo pipefail
+          if python -m mypy --strict --follow-imports=silent --no-incremental src/pr_review_harness/typecheck_probe.pyi > typecheck-negative.log 2>&1; then
+            echo "negative typed boundary probe unexpectedly passed"
+            exit 1
+          fi
+          grep -Fq 'TypedDict item "unit_ids" has type "list[str]"' typecheck-negative.log
       - run: python -m pytest -q -m "not compatibility"
       - run: ruff check .
 

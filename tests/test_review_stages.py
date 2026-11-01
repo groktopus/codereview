@@ -261,10 +261,10 @@ def test_every_stage_is_importable_and_takes_explicit_state():
 def test_run_state_fields_are_explicitly_typed():
     annotations = RunState.__annotations__
     for field, expected in (
-        ("snapshot", "dict"),
-        ("plan", "dict"),
-        ("profile", "dict"),
-        ("limits", "dict"),
+        ("snapshot", "SnapshotRecord"),
+        ("plan", "PlanRecord"),
+        ("profile", "dict[str, Any]"),
+        ("limits", "dict[str, Any]"),
         ("output_dir", "str"),
         ("run_id", "str"),
         ("resume", "bool"),
