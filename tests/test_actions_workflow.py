@@ -15,6 +15,7 @@ WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-publish.yml"
 ANALYSIS_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/pr-analysis.yml"
 TEST_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/review-commits.yml"
 RECOVERY_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/hosted-recovery-rehearsal.yml"
+PILOT_WORKFLOW = Path(__file__).parents[1] / ".github/workflows/slopsearx-pilot.yml"
 SETUP_NODE_V4_PIN = "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020"
 OPERATIONS = Path(__file__).parents[1] / "docs/OPERATIONS.md"
 
@@ -363,9 +364,17 @@ def _caller_triggers_canary(caller: str, publisher: str) -> bool:
 def test_documented_caller_name_matches_the_actual_workflow_run_filter():
     caller = _caller_template()
     publisher = WORKFLOW.read_text(encoding="utf-8")
+    pilot = PILOT_WORKFLOW.read_text(encoding="utf-8")
 
+    # The operations snippet is a hypothetical caller whose name matches the
+    # publisher filter. The repository's real pilot caller has a different
+    # workflow_run name, so it cannot currently trigger this publisher.
     assert _top_level_yaml_scalar(caller, "name") == "PR Review Analysis"
     assert _caller_triggers_canary(caller, publisher)
+    assert _top_level_yaml_scalar(pilot, "name") == "SlopSearX read-only review pilot"
+    assert not _caller_triggers_canary(pilot, publisher)
+    assert "  workflow_dispatch:" in pilot
+    assert "target_repository: magnus919/SlopSearX" in pilot
     assert "PR_REVIEW_ANALYSIS_WORKFLOW_NAME: PR Review Analysis" in publisher
     assert not _caller_triggers_canary(caller.replace("name: PR Review Analysis\n", "", 1), publisher)
     assert not _caller_triggers_canary(
