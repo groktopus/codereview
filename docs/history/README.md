@@ -25,7 +25,7 @@ prominent historical banner and its original content, links, and dates.
    the current status page in its banner, and the index must place it outside
    the current set. No topic may have two competing "current" documents.
 6. **Links are maintained mechanically.** `scripts/check_relative_links.py`
-   checks relative links in the root README and `docs/`; moves update the
+   checks relative links in the root README and all `docs/`, including `docs/issues/`; moves update the
    inbound and outbound links rather than leaving broken references.
 
 ## Layout
@@ -77,4 +77,4 @@ python3 scripts/check_relative_links.py
 
 The first fails when a Markdown file under `docs/` is not indexed or when an
 index link is dangling. The second fails on a broken relative link in the root
-README or `docs/`.
+README or any Markdown under `docs/`, including issue records.

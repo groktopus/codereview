@@ -1,0 +1,22 @@
+{
+  "schema_version": "documentation-contract-ids.v1",
+  "contract_ids": [
+    "actions-receipt-v1",
+    "bounded-production-v16",
+    "bounded-production-v17",
+    "claim-assessment.1",
+    "context-selection.v1",
+    "context-selection.v2",
+    "legacy-v14",
+    "ordinary-review-limits-v2",
+    "semantic-adjudication.v1",
+    "semantic-adjudication.v2",
+    "slopsearx-v14-jev-reconciliation-candidate",
+    "slopsearx-v16-bounded-production-candidate",
+    "slopsearx-v17-context-target-manifest-candidate",
+    "slopsearx-v8-static-review-boundaries",
+    "specialist-findings.v1",
+    "specialist-findings.v2",
+    "specialist-findings.v3"
+  ]
+}
