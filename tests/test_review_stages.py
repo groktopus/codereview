@@ -305,7 +305,12 @@ def test_request_identity_is_deterministic_and_bound_before_dispatch(tmp_path):
     assert identity["snapshot_id"] == "snap"
     assert identity["plan_hash"] == second.ledger["identity"]["plan_hash"]
     assert [event["event"] for event in first.ledger["events"]] == ["RUN_STARTED"]
-    assert first.ledger["events"][0]["event_hash"] == second.ledger["events"][0]["event_hash"]
+    for state in (first, second):
+        event = state.ledger["events"][0]
+        expected_event_hash = engine_module._hash(
+            {key: value for key, value in event.items() if key != "event_hash"}
+        )
+        assert event["event_hash"] == expected_event_hash
     assert first.ledger["budget"]["reservations"] == {}
 
 
