@@ -54,6 +54,14 @@ V14_LIMITS = json.loads((ROOT / "profiles/ordinary-review-limits-v2.json").read_
 
 
 V13_PROFILE = json.loads((ROOT / "profiles/slopsearx-v13-static-assessment-candidate.json").read_text())
+TRIAL_PROFILE = json.loads((ROOT / "docs/real-case-trial-v1/profiles/PR-457.json").read_text())
+V6_LIMITS = {
+    key: value
+    for key, value in json.loads(
+        (ROOT / "docs/historical-functional-review-pr466-v6/limits.json").read_text()
+    ).items()
+    if key != "schema_version"
+}
 V5_LIMITS = {
     key: value
     for key, value in json.loads(
@@ -350,6 +358,9 @@ def test_preflight_rejects_an_unregistered_contract_version(tmp_path: Path):
 def test_preflight_rejects_an_unknown_version_of_a_real_profile_identity(tmp_path: Path):
     profile = copy.deepcopy(CODEREVIEW_PROFILE)
     profile["version"] = "codereview-native-v99-tampered"
+    # A profile claims a registry contract identity by naming one; experiment
+    # profiles that select no contract remain explicitly unregistered inputs.
+    profile["review_contract"] = "codereview-native-v1"
     state = make_state(
         tmp_path,
         snapshot=make_snapshot(),
@@ -545,3 +556,20 @@ def test_archived_combination_is_recorded_and_allowed_only_with_explicit_opt_in(
     assert allowed.contracts["profile"]["status"] == "archived"
     assert allowed.contracts["profile"]["name"] == "slopsearx-v13-static-assessment-candidate"
     assert allowed.contracts["review_contract"]["status"] == "unregistered"
+
+
+def test_unregistered_trial_profile_without_contract_claim_is_accepted():
+    result = effective_contract_set(load_registry(), TRIAL_PROFILE, V3_LIMITS, max_claim_assessments=4)
+    assert result["registration"] == "unregistered"
+    assert result["profile"]["status"] == "unregistered"
+
+
+def test_historical_v6_limits_need_explicit_archived_opt_in():
+    registry = load_registry()
+    with pytest.raises(ContractRegistryError, match="contract_archived"):
+        effective_contract_set(registry, V14_PROFILE, V6_LIMITS, max_claim_assessments=1)
+    result = effective_contract_set(
+        registry, V14_PROFILE, V6_LIMITS, max_claim_assessments=1, allow_archived=True
+    )
+    assert result["registration"] == "registered"
+    assert result["limits"]["status"] == "archived"

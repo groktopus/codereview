@@ -525,8 +525,8 @@ def _artifact_component(
     return _component(entry)
 
 
-def _verify_component_status(entry: dict[str, Any], *, allow_deprecated: bool) -> None:
-    if entry["status"] == "archived":
+def _verify_component_status(entry: dict[str, Any], *, allow_deprecated: bool, allow_archived: bool = False) -> None:
+    if entry["status"] == "archived" and not allow_archived:
         raise ContractRegistryError("contract_archived")
     if entry["status"] == "deprecated" and not allow_deprecated:
         raise ContractRegistryError("contract_deprecated")
@@ -611,14 +611,20 @@ def effective_contract_set(
         for entry in (contract, profile_entry, limits_entry):
             if entry is None:
                 raise ContractRegistryError("contract_limits_mismatch")
-            _verify_component_status(entry, allow_deprecated=allow_deprecated)
-        if limits_entry is None or limits_entry["name"] != combination["limits"]:
-            raise ContractRegistryError("contract_limits_mismatch")
-        for key, expected in limits_entry["values"].items():
-            if key == "schema_version":
-                continue
-            if limits.get(key) != expected:
+            _verify_component_status(
+                entry, allow_deprecated=allow_deprecated, allow_archived=allow_archived
+            )
+        historical_limits = bool(
+            allow_archived and limits_entry is not None and limits_entry["status"] == "archived"
+        )
+        if not historical_limits:
+            if limits_entry is None or limits_entry["name"] != combination["limits"]:
                 raise ContractRegistryError("contract_limits_mismatch")
+            for key, expected in limits_entry["values"].items():
+                if key == "schema_version":
+                    continue
+                if limits.get(key) != expected:
+                    raise ContractRegistryError("contract_limits_mismatch")
         if max_claim_assessments is not None and max_claim_assessments != combination["max_claim_assessments"]:
             raise ContractRegistryError("contract_claim_cap_mismatch")
         validate_profile_checks(profile, contract)
@@ -630,7 +636,9 @@ def effective_contract_set(
         # known target must resolve to a registered version.  Synthetic fixtures
         # without that identity remain usable as library inputs.
         identity_claims_registry = (
-            isinstance(profile.get("repository"), str) and isinstance(profile.get("profile_status"), str)
+            isinstance(profile.get("repository"), str)
+            and isinstance(profile.get("profile_status"), str)
+            and isinstance(profile.get("review_contract"), str)
         )
         if identity_claims_registry and profile["repository"] in registry["targets"] and profile_entry is None:
             raise ContractRegistryError("contract_unregistered_profile")

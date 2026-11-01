@@ -107,6 +107,14 @@ pass the explicit `--allow-archived-contracts` opt-in, which records the archive
 instead of rejecting or silently promoting it. This is enforced by
 `tests/test_contract_registry.py`.
 
+## Identity claims and experiment profiles
+
+A profile claims a registry identity when it names a `review_contract` and is bound to a registered target. Such a profile must resolve to a registered (repository, version) combination; an unknown version is rejected as `contract_unregistered_profile`.
+
+Evaluation/experiment profiles that select **no** review contract (for example the frozen real-case trial profiles under `docs/real-case-trial-v1/profiles/`) remain usable as explicit `unregistered` inputs and are recorded as such. They are not production selection.
+
+Archived profiles and archived limits are rejected by default. Historical reproduction must pass `--allow-archived-contracts`; when the historical limits are archived, the registered-contract limits equality check is skipped for that explicit run and the limits component is recorded `archived`.
+
 ## Deprecation policy
 
 1. **Announcement.** A dated entry in this document and in the registry names the
