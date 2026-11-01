@@ -118,13 +118,5 @@
     "snapshot-pr170-base.py": "68c621245d28af38f6cf5d9bf1d621d962ebe544174da50add6dda75570d3b5f"
   },
   "refresh_history": [],
-  "schema": "pr-review-historical-pins.v1",
-  "source_paths": {
-    "__init__.py": "src/pr_review_harness/__init__.py",
-    "__main__.py": "src/pr_review_harness/__main__.py",
-    "checks.py": "src/pr_review_harness/checks.py",
-    "private_capture.py": "src/pr_review_harness/private_capture.py",
-    "reconcile.py": "src/pr_review_harness/reconcile.py",
-    "recovery_inputs.py": "src/pr_review_harness/recovery_inputs.py"
-  }
+  "schema": "pr-review-historical-pins.v1"
 }

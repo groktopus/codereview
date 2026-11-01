@@ -13,7 +13,6 @@ import json
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,14 +79,14 @@ def refresh_pin(
     pin_files = manifest.get("pin_files")
     if manifest.get("schema") != "pr-review-historical-pins.v1" or not isinstance(pins, dict):
         raise PinRefreshError("pin manifest schema is invalid")
+    if module in {"pr170-tree-model", "pr170-tree-synthesis"}:
+        raise PinRefreshError("aggregate tree pins are immutable here; a tree change requires a reviewed source/finalizer migration")
     if module not in pins:
         raise PinRefreshError(f"module is not listed in frozen-runtime manifest: {module}")
     if not isinstance(pin_files, dict) or module not in pin_files:
         raise PinRefreshError(f"module has no fixture path in frozen-runtime manifest: {module}")
     configured_path = Path(pin_files[module])
     fixture_path = (configured_path if configured_path.is_absolute() else allowed_root / configured_path).resolve()
-    source_paths = manifest.get("source_paths", {})
-    source_path = source_paths.get(module, pin_files[module]) if isinstance(source_paths, dict) else pin_files[module]
     try:
         relative_fixture = fixture_path.relative_to(allowed_root.resolve())
     except ValueError:
@@ -125,94 +124,9 @@ def refresh_pin(
     revisions = manifest.setdefault("pin_revisions", {})
     if isinstance(revisions, dict):
         revisions[module] = revision
-    paths = manifest.setdefault("source_paths", {})
-    if isinstance(paths, dict):
-        paths[module] = source_path
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return {"dry_run": False, **record}
 
-
-TREE_VERIFIERS = (
-    ("scripts/verify_model_only_shadow_live_preflight.py", re.compile(r'^EXPECTED_MODULE_TREE_SHA256 = "[0-9a-f]{64}"$', re.MULTILINE), "EXPECTED_MODULE_TREE_SHA256"),
-    ("scripts/verify_synth_001_preflight.py", re.compile(r'^MODULE_TREE_SHA256 = "[0-9a-f]{64}"$', re.MULTILINE), "MODULE_TREE_SHA256"),
-)
-
-
-def _update_verifier_tree_literals(root: Path, model: str, synthesis: str) -> None:
-    """Keep legacy verifier literals synchronized with the manifest tree pins."""
-    for relative, pattern, name in TREE_VERIFIERS:
-        path = root / relative
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            raise PinRefreshError(f"verifier script unavailable: {relative}") from None
-        value = model if name == "EXPECTED_MODULE_TREE_SHA256" else synthesis
-        updated, count = pattern.subn(f'{name} = "{value}"', text)
-        if count != 1:
-            raise PinRefreshError(f"verifier tree literal route invalid: {relative}")
-        path.write_text(updated, encoding="utf-8")
-
-
-TREE_KEYS = ("pr170-tree-model", "pr170-tree-synthesis")
-
-
-def refresh_tree_pins(
-    *, reason: str | None, source_revision: str | None, dry_run: bool = False,
-    manifest_path: Path = MANIFEST, timestamp: dt.datetime | None = None, allowed_root: Path = ROOT,
-) -> dict[str, object]:
-    """Recompute both aggregate tree pins from the current pinned fixtures."""
-    if not reason or not reason.strip():
-        raise PinRefreshError("refusing tree refresh: --reason is required")
-    if not source_revision:
-        raise PinRefreshError("refusing tree refresh: --source-revision is required")
-    revision = _source_revision(source_revision)
-    clean = subprocess.run(
-        ["git", "-C", str(allowed_root), "diff", "--quiet", revision, "--", "tests/fixtures/frozen-runtime-7d550b6/*.py"],
-        check=False,
-    )
-    if clean.returncode != 0:
-        raise PinRefreshError("fixture tree is not clean at the supplied source revision")
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        raise PinRefreshError(f"pin manifest unavailable or invalid: {manifest_path}") from None
-    pins = manifest.get("pins")
-    if manifest.get("schema") != "pr-review-historical-pins.v1" or not isinstance(pins, dict):
-        raise PinRefreshError("pin manifest schema is invalid")
-    sys.path.insert(0, str(allowed_root / "tests"))
-    try:
-        import frozen_runtime
-    except ImportError:
-        raise PinRefreshError("compatibility runtime builder is unavailable") from None
-    with tempfile.TemporaryDirectory(prefix="pin-tree-") as directory:
-        hashes = frozen_runtime.frozen_tree_hashes(Path(directory))
-    new_values = {"pr170-tree-model": hashes["model"], "pr170-tree-synthesis": hashes["synthesis"]}
-    old_values = {key: pins.get(key) for key in TREE_KEYS}
-    if old_values == new_values:
-        raise PinRefreshError("refusing no-op tree refresh: recomputed trees match recorded pins")
-    record = {
-        "kind": "tree",
-        "old": old_values,
-        "new": new_values,
-        "reason": reason.strip(),
-        "source_revision": revision,
-        "historical_revision": manifest.get("historical_revision"),
-        "timestamp": (timestamp or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc).isoformat(),
-    }
-    if dry_run:
-        return {"dry_run": True, **record}
-    _update_verifier_tree_literals(allowed_root, new_values["pr170-tree-model"], new_values["pr170-tree-synthesis"])
-    pins.update(new_values)
-    revisions = manifest.setdefault("pin_revisions", {})
-    if isinstance(revisions, dict):
-        for key in TREE_KEYS:
-            revisions[key] = revision
-    history = manifest.setdefault("refresh_history", [])
-    if not isinstance(history, list):
-        raise PinRefreshError("pin manifest refresh_history must be a list")
-    history.append(record)
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"dry_run": False, **record}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -223,19 +137,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="show the provenance record without writing")
     args = parser.parse_args(argv)
     try:
-        if args.module in TREE_KEYS:
-            result = refresh_tree_pins(
-                reason=args.reason,
-                source_revision=args.source_revision,
-                dry_run=args.dry_run,
-            )
-        else:
-            result = refresh_pin(
-                module=args.module,
-                reason=args.reason,
-                source_revision=args.source_revision,
-                dry_run=args.dry_run,
-            )
+        result = refresh_pin(
+            module=args.module,
+            reason=args.reason,
+            source_revision=args.source_revision,
+            dry_run=args.dry_run,
+        )
     except PinRefreshError as error:
         print(str(error), file=sys.stderr)
         return 2
