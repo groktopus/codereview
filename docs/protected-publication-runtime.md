@@ -44,3 +44,35 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python3 -m pytest -q \
 ```
 
 These tests verify control flow and API binding against fakes. They do not establish live GitHub API behavior, provider quality, or permission to enable the workflow.
+
+## SE-4 effect fault matrix and canary procedure
+
+The deterministic fake-only matrix lives in `tests/test_publication_effect_fault_matrix.py`. Its IDs are stable and appear in pytest output:
+
+| Matrix ID | Injected fault | Terminal state / reason | Review POSTs | Receipt writes | Reconciliation owner | Required reconciliation step |
+|---|---|---|---:|---:|---|---|
+| SE4-FM-01 | receipt acknowledged before POST | `CONFIRMED` | 1 | 1 | publisher operator | verify durable receipt readback precedes the single review POST |
+| SE4-FM-02 | ambiguous submit without matching history | `UNKNOWN` / `submit_response_ambiguous` | 1 | 1 | publication operator | inspect bounded review history for the exact effect marker; never resubmit automatically |
+| SE4-FM-03 | duplicate reviews for the same slot | `CONFLICT` / `multiple_reviews_for_slot` | 0 | 0 | publication operator | compare both same-slot reviews and resolve duplicate/conflicting effects manually |
+| SE4-FM-04 | timeout after accepted POST | `CONFIRMED` / `confirmed_after_ambiguous_response` | 1 | 1 | publication operator | retain the exact matching review-history observation; do not retry |
+| SE4-FM-05 | history pagination unavailable | `UNKNOWN` / `github_history_unavailable` | 0 | 0 | publication operator | restore complete bounded history evidence before considering a new attempt |
+| SE4-FM-06 | stale head after receipt acknowledgement | `STALE` / `head_sha_changed_after_receipt` | 0 | 1 | source reviewer | reanalyze the current head and create a new review result; do not reuse this receipt |
+| SE4-FM-07 | tampered result artifact | `REJECTED` / `review result hash is invalid` | 0 | 0 | source workflow owner | preserve the rejected artifact and regenerate it from the trusted producer |
+| SE4-FM-08 | wrong publisher actor | `REJECTED` / `publisher actor is outside authorization scope` | 0 | 0 | publisher policy owner | verify the trusted actor identity and policy binding; do not broaden actor scope |
+| SE4-FM-09 | insufficient publisher scope | `UNKNOWN` / `publisher_credential_invalid` | 0 | 0 | publisher workflow owner | verify the declared minimum permissions and effective capability before any authorized retry |
+
+Each case uses injected in-memory fakes only. The suite asserts terminal state/reason, at most one receipt and at most one review POST, and exact event order where required. These tests are not a live canary and never contact GitHub. The active `.github/workflows/pr-publish.yml` grants only `actions: read`, `contents: read`, and `pull-requests: read`; its publication job is hard-disabled. The inert token-writer template declares only `actions: read`, `contents: read`, and `pull-requests: write` for the disabled publisher job, since protected source/artifact/history reads and review creation are required. A declaration is not evidence of effective token capability.
+
+### Explicit opt-in live canary procedure (not exercised)
+
+**Live canary status: NOT EXERCISED.** No authorization to enable write or contact a remote target was supplied for this work. Do not interpret the fake matrix as a canary receipt or as live qualification.
+
+A target owner may separately authorize a one-shot canary only after reviewing an immutable target-specific activation packet and the exact workflow/policy SHA. The procedure must be performed by that owner/operator, not ordinary CI:
+
+1. Confirm the target repository, protected default branch, workflow IDs/paths/refs, actor, profile, artifact pins, bounded limits, and exact `NON_BINDING_COMMENT` policy. Use a dedicated, disposable same-repository PR and a non-sensitive harmless analysis artifact; never select a fork or an ordinary user PR.
+2. Independently inspect the protected publisher workflow and its exact job permissions. The only write permission must be `pull-requests: write`; retain `actions: read` and `contents: read` only for the required protected code, artifact, and history reads. Verify environment protection, credential identity, concurrency queue, deadline, and disabled-by-default status before the explicit activation decision. Do not infer effective capability from YAML alone.
+3. Record the separate human authorization, policy/workflow hashes, target PR/base/head, actor, and rollback owner before enabling anything. Enable only the separately reviewed canary path for that exact target and one attempt; do not change the ordinary workflow or turn an input/variable into a general-purpose write switch.
+4. Observe the attempt's acknowledged pre-POST receipt, exact single `COMMENT` review marker/actor, and complete post-effect history readback. Reconcile any timeout, duplicate, stale head, or incomplete history as `UNKNOWN`/`CONFLICT` without retrying. Stop and disable the isolated canary path if any unexpected effect or identity/scope mismatch occurs.
+5. Preserve a sanitized canary receipt containing the immutable run/workflow/policy identities, effect outcome, observed actor/review ID, and history proof, with secrets and signed artifact URLs excluded. Confirm the disposable PR is closed/cleaned up under the target owner's procedure. A success requires no unintended second effect and explicit owner review of the receipt.
+
+Until separately authorized and performed, live verification remains pending; no target configuration, remote publication, or external effect is part of this change.
