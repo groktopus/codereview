@@ -146,7 +146,6 @@ def test_limits_v3_preserves_defaults_and_sets_explicit_bounded_capacity() -> No
             "max_output_bytes_per_task": 16_000,
             "max_output_bytes": 512_000,
             "max_snapshot_context_bytes": 600_000,
-            "max_retrieval_result_bytes": 96_000,
         }
     )
     assert limits == {"schema_version": "1.0", **expected}

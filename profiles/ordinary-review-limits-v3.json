@@ -11,6 +11,5 @@
   "max_output_tokens": 1800,
   "max_context_retrievals": 8,
   "max_followup_tasks": 8,
-  "max_snapshot_context_bytes": 600000,
-  "max_retrieval_result_bytes": 96000
+  "max_snapshot_context_bytes": 600000
 }
