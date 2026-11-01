@@ -101,6 +101,7 @@ class EnginePreflightError(ValueError):
         "deadline_seconds", "max_concurrent_scopes", "max_provider_calls", "max_retries_per_task",
         "max_context_bytes", "max_input_bytes_per_task", "max_output_bytes_per_task", "max_output_bytes",
         "max_context_retrievals", "max_followup_tasks", "max_snapshot_context_bytes", "max_cost_microunits",
+        "max_retrieval_result_bytes",
     }
 
     def __init__(self, reason: str, detail: str | None = None):
@@ -490,7 +491,7 @@ def validate_limits(limits: dict) -> None:
         "max_context_retrievals": (int, 0, None),
         "max_followup_tasks": (int, 0, None),
     }
-    optional_positive_ints = {"max_snapshot_context_bytes"}
+    optional_positive_ints = {"max_snapshot_context_bytes", "max_retrieval_result_bytes"}
     missing = [key for key in required if key not in limits]
     if missing:
         raise ValueError("missing finite limits: " + ", ".join(missing))
@@ -508,6 +509,10 @@ def validate_limits(limits: dict) -> None:
             value = limits[key]
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError(f"invalid limit: {key}")
+    if (
+        limits.get("max_retrieval_result_bytes", 0) > limits["max_input_bytes_per_task"]
+    ):
+        raise ValueError("invalid limit: max_retrieval_result_bytes")
     if limits.get("max_cost_microunits") is not None:
         if (
             isinstance(limits["max_cost_microunits"], bool)
@@ -2727,14 +2732,22 @@ def run_review(
                     else None
                 )
                 snapshot_reuse = snapshot_item is not None
+                # Retrieval results are sized by a dedicated ceiling, not by the
+                # provider output budget. It defaults to the per-task input
+                # ceiling so a whole allowlisted file can fit in one result,
+                # while the input ceiling still bounds the content any single
+                # task may consume. Provider response caps are unchanged.
+                retrieval_result_bytes = int(
+                    limits.get("max_retrieval_result_bytes", limits["max_input_bytes_per_task"])
+                )
                 reserved_bytes = (
                     len(snapshot_item["content"].encode("utf-8"))
                     if snapshot_reuse
                     else max(
                         0,
                         min(
+                            retrieval_result_bytes,
                             int(limits["max_input_bytes_per_task"]),
-                            int(limits["max_output_bytes_per_task"]),
                             int(limits["max_context_bytes"]) - budget.summary()["context_bytes_reserved"],
                         ),
                     )
@@ -2768,7 +2781,7 @@ def run_review(
                                 "max_bytes": reserved_bytes,
                                 "max_retrieval_bytes": reserved_bytes,
                                 "context_bytes_remaining": reserved_bytes,
-                                "max_result_bytes": int(limits["max_output_bytes_per_task"]),
+                                "max_retrieval_result_bytes": retrieval_result_bytes,
                             }
                             invocation = IsolatedInvocation(
                                 context_retriever,
@@ -2789,7 +2802,7 @@ def run_review(
                                     retrieval_limits,
                                 ),
                                 deadline_seconds=budget.remaining_seconds(),
-                                output_limit=int(limits["max_output_bytes_per_task"]),
+                                output_limit=retrieval_result_bytes,
                             )
                             while not invocation.poll() and budget.remaining_seconds() > 0:
                                 invocation.wait_for_ready(timeout=budget.remaining_seconds())
@@ -2804,7 +2817,7 @@ def run_review(
                             elif fetched is None:
                                 fetched = []
                     retrieval_envelope_bytes = None if snapshot_reuse else len(_canonical(retrieved))
-                    if not snapshot_reuse and retrieval_envelope_bytes > int(limits["max_output_bytes_per_task"]):
+                    if not snapshot_reuse and retrieval_envelope_bytes > retrieval_result_bytes:
                         raise BudgetExhausted("OUTPUT_BYTE_LIMIT_EXCEEDED")
                     if not isinstance(retrieved, dict) or retrieved.get("status") not in {
                         "RESOLVED",

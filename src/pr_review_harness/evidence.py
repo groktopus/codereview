@@ -340,7 +340,7 @@ def retrieve_context_gap(
             line_count = max(len(evidence["content"].splitlines()), 1)
             evidence["source_url"] = f"{source_url}#L1-L{line_count}"
     result = {"status": "RESOLVED" if not evidence["truncated"] else "PARTIAL", "reason": None, "evidence": evidence}
-    max_result_bytes = limits.get("max_result_bytes")
+    max_result_bytes = limits.get("max_retrieval_result_bytes")
     if max_result_bytes is not None:
         if isinstance(max_result_bytes, bool) or not isinstance(max_result_bytes, int) or max_result_bytes < 1:
             raise EvidenceError("context retrieval result byte limit is invalid")
