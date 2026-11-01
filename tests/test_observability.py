@@ -316,7 +316,10 @@ def test_run_elapsed_includes_final_advisory_stage(tmp_path, monkeypatch):
         "delayed-advisory",
     )
     wall_elapsed_ms = (time.monotonic() - started) * 1000
-    assert result["run_elapsed_ms"] >= wall_elapsed_ms - 25
+    # The advisory stage sleeps for 150 ms. Assert that delay is included without
+    # coupling to render/write time, which is not part of run_elapsed_ms.
+    assert result["run_elapsed_ms"] >= 140
+    assert result["run_elapsed_ms"] <= wall_elapsed_ms + 50
     assert "run elapsed" in engine_module.render_report(result)
 
 
