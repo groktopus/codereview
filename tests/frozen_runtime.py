@@ -43,8 +43,37 @@ FROZEN_GITHUB = Path(__file__).resolve().parent / "fixtures" / "github-pr214-bas
 FROZEN_POLICY_INVENTORY = Path(__file__).resolve().parent / "fixtures" / "policy_inventory-pr214-base.py"
 FROZEN_EVIDENCE = Path(__file__).resolve().parent / "fixtures" / "evidence-pr223-base.py"
 EXPECTED_MODULE_COUNT = 35
-EXPECTED_MODEL_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
-EXPECTED_SYNTH_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991"
+PIN_MANIFEST = PINNED_RELOCATED / "pins.json"
+HISTORICAL_REVISION = "7d550b61825defec8a8a0625511c914ba8efd5cb"
+REFRESH_COMMAND = (
+    "python scripts/refresh_compatibility_pin.py --module <fixture.py> "
+    "--reason '<why this historical pin changes>' --source-revision <full-git-sha>"
+)
+
+
+def _load_pins() -> dict[str, str]:
+    try:
+        manifest = json.loads(PIN_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise AssertionError("historical compatibility pin manifest is unavailable or invalid") from None
+    if manifest.get("schema") != "pr-review-historical-pins.v1" or manifest.get("historical_revision") != HISTORICAL_REVISION:
+        raise AssertionError("historical compatibility pin manifest schema or revision is invalid")
+    pins = manifest.get("pins")
+    if not isinstance(pins, dict):
+        raise AssertionError("historical compatibility pin manifest pins are invalid")
+    return pins
+
+
+def assert_frozen_runtime_pin(name: str, path: Path) -> None:
+    """Check a CA-2 archived blob with a named, revision-bound remedy."""
+    expected = _load_pins().get(name)
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if expected != actual:
+        raise AssertionError(
+            f"historical compatibility mismatch: module {path.name!r} at revision {HISTORICAL_REVISION}; "
+            f"expected {expected!r}, got {actual}. Preserve prior evidence before refreshing. "
+            f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', name)}"
+        )
 _MODULE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\.py\Z")
 
 
@@ -73,27 +102,27 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
     unrelated source drift invalidates the fixture.
     """
     overlays = (
-        ("engine.py", FROZEN_ENGINE),
-        ("budget.py", FROZEN_BUDGET),
-        ("planner.py", FROZEN_PLANNER),
-        ("selected_model_trial.py", FROZEN_MODULE),
-        ("external_effect_observer.py", FROZEN_OBSERVER),
-        ("report.py", FROZEN_REPORT),
-        ("artifact_intake.py", FROZEN_ARTIFACT_INTAKE),
-        ("actions_publication.py", FROZEN_ACTIONS_PUBLICATION),
-        ("actions_runtime.py", FROZEN_ACTIONS_RUNTIME),
-        ("providers.py", FROZEN_PROVIDERS),
-        ("contracts.py", FROZEN_CONTRACTS),
-        ("publication_receipts.py", FROZEN_PUBLICATION_RECEIPTS),
-        ("publisher.py", FROZEN_PUBLISHER),
-        ("snapshot.py", FROZEN_SNAPSHOT),
-        ("cli.py", FROZEN_CLI),
-        ("claim_assessment.py", FROZEN_CLAIM_ASSESSMENT),
-        ("claim_transport.py", FROZEN_CLAIM_TRANSPORT),
-        ("github.py", FROZEN_GITHUB),
-        ("policy_inventory.py", FROZEN_POLICY_INVENTORY),
-        ("shadow_audit.py", FROZEN_SHADOW_AUDIT),
-        ("evidence.py", FROZEN_EVIDENCE),
+        ("engine.py", FROZEN_ENGINE, "engine-pr170-base.py"),
+        ("budget.py", FROZEN_BUDGET, "budget-pr170-base.py"),
+        ("planner.py", FROZEN_PLANNER, "planner-pr170-base.py"),
+        ("selected_model_trial.py", FROZEN_MODULE, "selected_model_trial-pr170-base.py"),
+        ("external_effect_observer.py", FROZEN_OBSERVER, "external_effect_observer-pr170-base.py"),
+        ("report.py", FROZEN_REPORT, "report-pr170-base.py"),
+        ("artifact_intake.py", FROZEN_ARTIFACT_INTAKE, "artifact_intake-pr170-base.py"),
+        ("actions_publication.py", FROZEN_ACTIONS_PUBLICATION, "actions_publication-pr170-base.py"),
+        ("actions_runtime.py", FROZEN_ACTIONS_RUNTIME, "actions_runtime-pr170-base.py"),
+        ("providers.py", FROZEN_PROVIDERS, "providers-pr170-base.py"),
+        ("contracts.py", FROZEN_CONTRACTS, "contracts-a0988f2-base.py"),
+        ("publication_receipts.py", FROZEN_PUBLICATION_RECEIPTS, "publication_receipts-pr170-base.py"),
+        ("publisher.py", FROZEN_PUBLISHER, "publisher-pr-actions-token-base.py"),
+        ("snapshot.py", FROZEN_SNAPSHOT, "snapshot-pr170-base.py"),
+        ("cli.py", FROZEN_CLI, "cli-pr170-base.py"),
+        ("claim_assessment.py", FROZEN_CLAIM_ASSESSMENT, "claim_assessment-pr214-base.py"),
+        ("claim_transport.py", FROZEN_CLAIM_TRANSPORT, "claim_transport-pr214-base.py"),
+        ("github.py", FROZEN_GITHUB, "github-pr214-base.py"),
+        ("policy_inventory.py", FROZEN_POLICY_INVENTORY, "policy_inventory-pr214-base.py"),
+        ("shadow_audit.py", FROZEN_SHADOW_AUDIT, "shadow_audit-pr201-base.py"),
+        ("evidence.py", FROZEN_EVIDENCE, "evidence-pr223-base.py"),
     )
     runtime_root = tmp_path / "frozen-runtime"
     module_dir = runtime_root / "src" / "pr_review_harness"
@@ -101,7 +130,20 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
     module_dir.mkdir()
     source_dir = ROOT / "src" / "pr_review_harness"
     module_names = _load_module_inventory()
-    overlay_sources = dict(overlays)
+    overlay_sources = {name: path for name, path, _pin in overlays}
+    manifest = json.loads(PIN_MANIFEST.read_text(encoding="utf-8"))
+    for name in module_names:
+        source = PINNED_RELOCATED / name
+        if source.is_file():
+            assert_frozen_runtime_pin(name, source)
+            expected_path = manifest["pin_files"].get(name)
+            fixture_root = Path(__file__).resolve().parent.parent
+            if expected_path != str(source.relative_to(fixture_root)):
+                raise AssertionError(
+                    f"historical compatibility manifest path mismatch: module {name!r} at revision "
+                    f"{HISTORICAL_REVISION}; expected fixture {expected_path!r}, got {source}. "
+                    f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', name)}"
+                )
     for name in module_names:
         pinned = PINNED_RELOCATED / name
         if pinned.is_file():
@@ -117,7 +159,16 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
         if not source.is_file() or source.is_symlink():
             raise AssertionError("historical module inventory source is missing or unsafe")
         shutil.copyfile(source, module_dir / name)
-    for name, fixture in overlays:
+    manifest = json.loads(PIN_MANIFEST.read_text(encoding="utf-8"))
+    for name, fixture, pin_name in overlays:
+        assert_frozen_runtime_pin(pin_name, fixture)
+        expected_path = manifest["pin_files"].get(pin_name)
+        if expected_path != str(fixture.relative_to(Path(__file__).resolve().parent.parent)):
+            raise AssertionError(
+                f"historical compatibility manifest path mismatch: module {fixture.name!r} at revision "
+                f"{HISTORICAL_REVISION}; expected fixture {expected_path!r}, got {fixture}. "
+                f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', pin_name)}"
+            )
         (module_dir / name).write_bytes(fixture.read_bytes())
 
     files = sorted(module_dir.glob("*.py"), key=lambda path: path.name)
@@ -136,10 +187,16 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
     for path in files:
         content_hash = module_hashes[f"pr_review_harness/{path.name}"]
         synth_digest.update(path.name.encode("utf-8") + b"\0" + content_hash.encode("ascii") + b"\n")
+    pins = _load_pins()
     if (
         len(files) != EXPECTED_MODULE_COUNT
-        or model_tree != EXPECTED_MODEL_TREE_SHA256
-        or synth_digest.hexdigest() != EXPECTED_SYNTH_TREE_SHA256
+        or model_tree != pins.get("pr170-tree-model")
+        or synth_digest.hexdigest() != pins.get("pr170-tree-synthesis")
     ):
-        raise AssertionError("frozen runtime fixture no longer matches historical inventory")
+        raise AssertionError(
+            f"historical compatibility mismatch: module inventory at revision {HISTORICAL_REVISION}; "
+            f"expected model tree {pins.get('pr170-tree-model')!r}, got {model_tree}; "
+            f"expected synthesis tree {pins.get('pr170-tree-synthesis')!r}, got {synth_digest.hexdigest()}. "
+            f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', 'pr170-tree-model')}"
+        )
     return runtime_root

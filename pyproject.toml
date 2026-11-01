@@ -31,6 +31,9 @@ dev = ["build>=1.2,<2", "pytest>=8", "pytest-cov>=5,<8", "ruff>=0.9", "setuptool
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "compatibility: historical compatibility checks against preserved revision pins",
+]
 
 [tool.coverage.run]
 relative_files = true
