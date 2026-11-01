@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -184,5 +185,39 @@ def test_tree_refresh_synchronizes_legacy_verifier_literals(tmp_path: Path):
         'MODULE_TREE_SHA256 = "' + "b" * 64 + '"\n', encoding="utf-8"
     )
     refresh._update_verifier_tree_literals(tmp_path, "c" * 64, "d" * 64)
+    assert "c" * 64 in (scripts / "verify_model_only_shadow_live_preflight.py").read_text()
+    assert "d" * 64 in (scripts / "verify_synth_001_preflight.py").read_text()
+
+
+def test_tree_refresh_updates_manifest_and_verifier_literals(tmp_path: Path, monkeypatch):
+    fixture_dir = tmp_path / "tests" / "fixtures" / "frozen-runtime-7d550b6"
+    fixture_dir.mkdir(parents=True)
+    manifest = fixture_dir / "pins.json"
+    manifest.write_text(json.dumps({
+        "schema": "pr-review-historical-pins.v1",
+        "historical_revision": "7d550b61825defec8a8a0625511c914ba8efd5cb",
+        "pins": {"pr170-tree-model": "a" * 64, "pr170-tree-synthesis": "b" * 64},
+        "pin_revisions": {},
+        "refresh_history": [],
+    }), encoding="utf-8")
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "verify_model_only_shadow_live_preflight.py").write_text(
+        'EXPECTED_MODULE_TREE_SHA256 = "' + "a" * 64 + '"\n', encoding="utf-8")
+    (scripts / "verify_synth_001_preflight.py").write_text(
+        'MODULE_TREE_SHA256 = "' + "b" * 64 + '"\n', encoding="utf-8")
+    monkeypatch.setitem(sys.modules, "frozen_runtime", SimpleNamespace(
+        frozen_tree_hashes=lambda _root: {"model": "c" * 64, "synthesis": "d" * 64}))
+    monkeypatch.setattr(refresh, "_source_revision", lambda revision: revision)
+    monkeypatch.setattr(refresh.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=0))
+    record = refresh.refresh_tree_pins(
+        reason="tree refresh test", source_revision="e" * 40,
+        manifest_path=manifest, allowed_root=tmp_path,
+    )
+    updated = json.loads(manifest.read_text(encoding="utf-8"))
+    assert updated["pins"]["pr170-tree-model"] == "c" * 64
+    assert updated["pins"]["pr170-tree-synthesis"] == "d" * 64
+    assert updated["refresh_history"][0]["kind"] == "tree"
+    assert record["new"]["pr170-tree-model"] == "c" * 64
     assert "c" * 64 in (scripts / "verify_model_only_shadow_live_preflight.py").read_text()
     assert "d" * 64 in (scripts / "verify_synth_001_preflight.py").read_text()

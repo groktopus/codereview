@@ -130,6 +130,10 @@ def test_manifest_pins_match_revision_source_bytes():
     revisions = manifest["pin_revisions"]
     source_paths = manifest.get("source_paths", {})
     for name, source in source_paths.items():
+        if revisions[name] != manifest["historical_revision"]:
+            # A refreshed pin no longer represents the historical source blob;
+            # its provenance is the refresh_history record instead.
+            continue
         blob = subprocess.run(
             ["git", "-C", str(ROOT), "show", f"{manifest['historical_revision']}:{source}"],
             check=True, capture_output=True,
