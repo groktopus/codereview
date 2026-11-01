@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
 import frozen_runtime  # noqa: E402
+
+pytestmark = pytest.mark.compatibility
 
 
 def _inventory_hashes(source_root: Path) -> tuple[int, str, str]:
@@ -31,59 +34,49 @@ def _inventory_hashes(source_root: Path) -> tuple[int, str, str]:
 
 
 def test_contract_overlay_is_exact_a0988f2_base_blob():
-    assert hashlib.sha256(frozen_runtime.FROZEN_CONTRACTS.read_bytes()).hexdigest() == (
-        "5b23d6dc84bb7d4b684bb94326acf586796a4068426890f74f111690785201a3"
-    )
+    frozen_runtime.assert_frozen_runtime_pin("contracts-a0988f2-base.py", frozen_runtime.FROZEN_CONTRACTS)
 
 
 def test_publisher_overlay_is_exact_publication_branch_base_blob():
-    assert hashlib.sha256(frozen_runtime.FROZEN_PUBLISHER.read_bytes()).hexdigest() == (
-        "5baa70200351cc580070c9d4cbe450a338b2e8ee4ee70eddd3e6483729390f8c"
-    )
+    frozen_runtime.assert_frozen_runtime_pin("publisher-pr-actions-token-base.py", frozen_runtime.FROZEN_PUBLISHER)
 
 
 def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path):
-    assert hashlib.sha256(frozen_runtime.FROZEN_CLI.read_bytes()).hexdigest() == (
-        "bd35045224e9cce112a6423dddc1c396274eef9683d72a1659791d989d0c1bc6"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_ENGINE.read_bytes()).hexdigest() == (
-        "da5923ea3b1cf8902612e0c6d97ba4aef64cbe5af80da014a3615d6488656977"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_BUDGET.read_bytes()).hexdigest() == (
-        "d061b7e6e81ec75b52fb11ae8e74accdcab3a2308bdeeaeb3a46290d6669ff41"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_PLANNER.read_bytes()).hexdigest() == (
-        "82bc1851dc593ad5d17abf4f4ff2bb1185c33916051f1388813437db58a052ff"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_PUBLICATION_RECEIPTS.read_bytes()).hexdigest() == (
-        "c31cf6bddbd10e3ad5b663b79d0ead51046f6d8279561b7d6c0d84f831f3ab41"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_SNAPSHOT.read_bytes()).hexdigest() == (
-        "68c621245d28af38f6cf5d9bf1d621d962ebe544174da50add6dda75570d3b5f"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_MODULE.read_bytes()).hexdigest() == (
-        "a2efc2c78368c7d18c6f678bd889a62c0425652529316bb0c9b8d8bf699d7664"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_EVIDENCE.read_bytes()).hexdigest() == (
-        "4b6f7a3d7b1a9fe95fc2614395e153b36cc0c577b61e871933008ef847b86bfc"
-    )
-    assert hashlib.sha256(frozen_runtime.FROZEN_ACTIONS_RUNTIME.read_bytes()).hexdigest() == (
-        "8469467a09c3e2c96bf3d8ec547af0f57f8794eb6affbf753a1c919ead58e482"
-    )
+    for fixture in (
+        frozen_runtime.FROZEN_CLI, frozen_runtime.FROZEN_ENGINE, frozen_runtime.FROZEN_BUDGET,
+        frozen_runtime.FROZEN_PLANNER, frozen_runtime.FROZEN_PUBLICATION_RECEIPTS,
+        frozen_runtime.FROZEN_SNAPSHOT, frozen_runtime.FROZEN_MODULE, frozen_runtime.FROZEN_EVIDENCE,
+        frozen_runtime.FROZEN_ACTIONS_RUNTIME, frozen_runtime.FROZEN_OBSERVER,
+        frozen_runtime.FROZEN_REPORT, frozen_runtime.FROZEN_ARTIFACT_INTAKE,
+        frozen_runtime.FROZEN_ACTIONS_PUBLICATION, frozen_runtime.FROZEN_PROVIDERS,
+        frozen_runtime.FROZEN_CLAIM_ASSESSMENT, frozen_runtime.FROZEN_CLAIM_TRANSPORT,
+        frozen_runtime.FROZEN_GITHUB, frozen_runtime.FROZEN_POLICY_INVENTORY, frozen_runtime.FROZEN_SHADOW_AUDIT,
+    ):
+        name = fixture.name
+        frozen_runtime.assert_frozen_runtime_pin(name, fixture)
     runtime_root = frozen_runtime.build_frozen_runtime_root(tmp_path)
-    assert _inventory_hashes(runtime_root) == (
-        35,
-        frozen_runtime.EXPECTED_MODEL_TREE_SHA256,
-        frozen_runtime.EXPECTED_SYNTH_TREE_SHA256,
-    )
+    pins = frozen_runtime._load_pins()
+    assert _inventory_hashes(runtime_root) == (35, pins["pr170-tree-model"], pins["pr170-tree-synthesis"])
 
 
 def test_modified_archived_module_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     tampered = tmp_path / "tampered-selected-model-trial.py"
     tampered.write_bytes(frozen_runtime.FROZEN_MODULE.read_bytes() + b"\n")
     monkeypatch.setattr(frozen_runtime, "FROZEN_MODULE", tampered)
-    with pytest.raises(AssertionError, match="historical inventory"):
-        frozen_runtime.build_frozen_runtime_root(tmp_path)
+    with pytest.raises(AssertionError, match="historical compatibility mismatch"):
+        frozen_runtime.assert_frozen_runtime_pin("selected_model_trial-pr170-base.py", tampered)
+
+
+def test_historical_pin_failure_names_module_revision_and_migration(tmp_path: Path):
+    changed = tmp_path / "modified.py"
+    changed.write_bytes(b"not the historical blob")
+    with pytest.raises(AssertionError) as error:
+        frozen_runtime.assert_frozen_runtime_pin("selected_model_trial-pr170-base.py", changed)
+    message = str(error.value)
+    assert "modified.py" in message
+    assert frozen_runtime.HISTORICAL_REVISION in message
+    assert "reviewed migration" in message
+
 
 
 def test_unlisted_new_module_is_excluded_from_historical_runtime(tmp_path: Path):
@@ -123,12 +116,24 @@ def test_missing_historical_source_module_is_rejected(tmp_path: Path, monkeypatc
         frozen_runtime.build_frozen_runtime_root(tmp_path)
 
 
-def test_modified_historical_module_bytes_are_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    source_root = tmp_path / "source"
-    source_dir = source_root / "src/pr_review_harness"
-    shutil.copytree(ROOT / "src/pr_review_harness", source_dir)
-    with (source_dir / "checks.py").open("ab") as source:
-        source.write(b"\n# changed historical module\n")
-    monkeypatch.setattr(frozen_runtime, "ROOT", source_root)
-    with pytest.raises(AssertionError, match="historical inventory"):
-        frozen_runtime.build_frozen_runtime_root(tmp_path)
+def test_modified_historical_module_bytes_are_rejected(tmp_path: Path):
+    tampered = tmp_path / "checks.py"
+    tampered.write_bytes((frozen_runtime.PINNED_RELOCATED / "checks.py").read_bytes() + b"\n# changed\n")
+    with pytest.raises(AssertionError, match="historical compatibility mismatch"):
+        frozen_runtime.assert_frozen_runtime_pin("checks.py", tampered)
+
+
+def test_manifest_pins_match_revision_source_bytes():
+    manifest = json.loads(frozen_runtime.PIN_MANIFEST.read_text(encoding="utf-8"))
+    pins = manifest["pins"]
+    files = manifest["pin_files"]
+    revisions = manifest["pin_revisions"]
+    for name, digest in pins.items():
+        if name in {"pr170-tree-model", "pr170-tree-synthesis"}:
+            continue
+        source = files[name]
+        blob = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{revisions[name]}:{source}"],
+            check=True, capture_output=True,
+        ).stdout
+        assert hashlib.sha256(blob).hexdigest() == digest, name
