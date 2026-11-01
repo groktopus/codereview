@@ -246,11 +246,16 @@ class _ObservedDecisionProvider:
     def __init__(self, receipt, delay_seconds=0):
         self.receipt = receipt
         self.delay_seconds = delay_seconds
+        self.finished_at_epoch = None
 
     def assess(self, question, text, limits):
         if self.delay_seconds:
             time.sleep(self.delay_seconds)
+        self.finished_at_epoch = time.time()
         _record_fake_call("advisory")
+        stamp = os.environ.get("OBSERVABILITY_ADVISORY_STAMP")
+        if isinstance(stamp, str):
+            Path(stamp).write_text(str(self.finished_at_epoch), encoding="utf-8")
         provenance = {"provider": "native-fixture"}
         if self.receipt:
             provenance["local_http_exchange"] = {"request_attempted": True, "http_status": 200, "elapsed_ms": 1.0}
@@ -300,29 +305,31 @@ def test_engine_observations_do_not_change_request_identity_or_reducer(tmp_path,
 
 
 def test_run_elapsed_includes_final_advisory_stage(tmp_path, monkeypatch):
-    monkeypatch.setenv("OBSERVABILITY_TEST_MARKER", str(tmp_path / "delayed-calls.log"))
-
-    def measured(delay_seconds: float, name: str) -> dict:
-        snapshot = make_snapshot()
-        project_profile = profile()
-        plan = plan_review(snapshot, project_profile, "AUTO")
-        return run_review(
-            snapshot,
-            plan,
-            project_profile,
-            _ObservedProvider(receipt=False),
-            _ObservedDecisionProvider(receipt=False, delay_seconds=delay_seconds),
-            _limits(),
-            str(tmp_path / name),
-            name,
-        )
-
-    # Compare against the same case without the advisory delay so the assertion
-    # isolates stage inclusion from baseline engine cost on slow runners.
-    baseline = measured(0, "baseline-advisory")
-    delayed = measured(0.15, "delayed-advisory")
-    assert delayed["run_elapsed_ms"] - baseline["run_elapsed_ms"] >= 100
-    assert "run elapsed" in engine_module.render_report(delayed)
+    marker = tmp_path / "delayed-calls.log"
+    stamp = tmp_path / "advisory-finished-at.txt"
+    monkeypatch.setenv("OBSERVABILITY_TEST_MARKER", str(marker))
+    monkeypatch.setenv("OBSERVABILITY_ADVISORY_STAMP", str(stamp))
+    snapshot = make_snapshot()
+    project_profile = profile()
+    plan = plan_review(snapshot, project_profile, "AUTO")
+    advisory = _ObservedDecisionProvider(receipt=False, delay_seconds=0.15)
+    result = run_review(
+        snapshot,
+        plan,
+        project_profile,
+        _ObservedProvider(receipt=False),
+        advisory,
+        _limits(),
+        str(tmp_path / "delayed"),
+        "delayed-advisory",
+    )
+    # The advisory executor may be isolated, so compare the ledger start with a
+    # timestamp written by the provider after its sleep, not with process wall time.
+    advisory_epoch = float(stamp.read_text(encoding="utf-8"))
+    started = result["ledger"]["run_started_at_epoch"]
+    advisory_ms = (advisory_epoch - started) * 1000
+    assert result["run_elapsed_ms"] >= advisory_ms - 25
+    assert "run elapsed" in engine_module.render_report(result)
 
 
 def test_legacy_completed_checkpoint_without_observations_resumes_without_dispatch(tmp_path, monkeypatch):
