@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -120,3 +121,20 @@ def test_modified_historical_module_bytes_are_rejected(tmp_path: Path):
     tampered.write_bytes((frozen_runtime.PINNED_RELOCATED / "checks.py").read_bytes() + b"\n# changed\n")
     with pytest.raises(AssertionError, match="historical compatibility mismatch"):
         frozen_runtime.assert_frozen_runtime_pin("checks.py", tampered)
+
+
+def test_manifest_pins_match_revision_source_bytes():
+    manifest = json.loads(frozen_runtime.PIN_MANIFEST.read_text(encoding="utf-8"))
+    pins = manifest["pins"]
+    files = manifest["pin_files"]
+    revisions = manifest["pin_revisions"]
+    source_paths = manifest.get("source_paths", {})
+    for name, digest in pins.items():
+        if name in {"pr170-tree-model", "pr170-tree-synthesis"}:
+            continue
+        source = source_paths.get(name, files[name])
+        blob = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{revisions[name]}:{source}"],
+            check=True, capture_output=True,
+        ).stdout
+        assert hashlib.sha256(blob).hexdigest() == digest, name

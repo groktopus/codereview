@@ -19,6 +19,14 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from materialize_seeded_writer_synth_001 import MaterializeError, _validated_fixture  # noqa: E402
 
+
+def _pin(name: str) -> str:
+    manifest = json.loads((Path(__file__).resolve().parents[1] / "tests/fixtures/frozen-runtime-7d550b6/pins.json").read_text(encoding="utf-8"))
+    value = manifest["pins"].get(name)
+    if not isinstance(value, str):
+        raise RuntimeError(f"missing historical pin: {name}")
+    return value
+
 FIXTURE_ID = "SYNTH-001"
 FIXTURE_PAYLOAD_SHA256 = "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
 BASE_SHA = "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1"
@@ -42,7 +50,7 @@ MODULE_COUNT = 35
 # Interim provider-free preparation pin at PR #157 head. The v3 finalizer
 # rewrites these values from the exact immutable runtime revision selected for
 # the combined stack; until then, package identity v3 remains pending.
-MODULE_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991"
+MODULE_TREE_SHA256 = _pin("pr170-tree-synthesis")
 SOURCE_REVISION = "f6fd5158c567a2ace10e1abd63465a23cd12fc51"
 PYTHON_IDENTITY = {"implementation": "cpython", "version": "3.14.7"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")

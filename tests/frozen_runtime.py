@@ -92,8 +92,8 @@ def _load_module_inventory() -> tuple[str, ...]:
     return tuple(names)
 
 
-def build_frozen_runtime_root(tmp_path: Path) -> Path:
-    """Return a temp source root matching the original PR-170 plan inventory.
+def _frozen_runtime_root_and_hashes(tmp_path: Path, *, verify: bool = True) -> tuple[Path, dict[str, str]]:
+    """Assemble the historical tree and return its model/synthesis digests.
 
     Only the pinned original modules are copied, then modules changed after the
     historical runtime pins are restored from exact main-base blobs. Modules the
@@ -187,16 +187,27 @@ def build_frozen_runtime_root(tmp_path: Path) -> Path:
     for path in files:
         content_hash = module_hashes[f"pr_review_harness/{path.name}"]
         synth_digest.update(path.name.encode("utf-8") + b"\0" + content_hash.encode("ascii") + b"\n")
-    pins = _load_pins()
-    if (
-        len(files) != EXPECTED_MODULE_COUNT
-        or model_tree != pins.get("pr170-tree-model")
-        or synth_digest.hexdigest() != pins.get("pr170-tree-synthesis")
-    ):
-        raise AssertionError(
-            f"historical compatibility mismatch: module inventory at revision {HISTORICAL_REVISION}; "
-            f"expected model tree {pins.get('pr170-tree-model')!r}, got {model_tree}; "
-            f"expected synthesis tree {pins.get('pr170-tree-synthesis')!r}, got {synth_digest.hexdigest()}. "
-            f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', 'pr170-tree-model')}"
-        )
-    return runtime_root
+    if verify:
+        pins = _load_pins()
+        if (
+            len(files) != EXPECTED_MODULE_COUNT
+            or model_tree != pins.get("pr170-tree-model")
+            or synth_digest.hexdigest() != pins.get("pr170-tree-synthesis")
+        ):
+            raise AssertionError(
+                f"historical compatibility mismatch: module inventory at revision {HISTORICAL_REVISION}; "
+                f"expected model tree {pins.get('pr170-tree-model')!r}, got {model_tree}; "
+                f"expected synthesis tree {pins.get('pr170-tree-synthesis')!r}, got {synth_digest.hexdigest()}. "
+                f"Remediation command: {REFRESH_COMMAND.replace('<fixture.py>', 'pr170-tree-model')}"
+            )
+    return runtime_root, {"model": model_tree, "synthesis": synth_digest.hexdigest()}
+
+
+def build_frozen_runtime_root(tmp_path: Path) -> Path:
+    """Return a temp source root matching the original PR-170 plan inventory."""
+    return _frozen_runtime_root_and_hashes(tmp_path)[0]
+
+
+def frozen_tree_hashes(tmp_path: Path) -> dict[str, str]:
+    """Return recomputed model/synthesis tree digests without pin comparison."""
+    return _frozen_runtime_root_and_hashes(tmp_path, verify=False)[1]

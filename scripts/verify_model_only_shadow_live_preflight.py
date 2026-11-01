@@ -19,6 +19,15 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _pin(name: str) -> str:
+    manifest = json.loads((ROOT / "tests/fixtures/frozen-runtime-7d550b6/pins.json").read_text(encoding="utf-8"))
+    value = manifest["pins"].get(name)
+    if not isinstance(value, str):
+        raise RuntimeError(f"missing historical pin: {name}")
+    return value
+
 sys.path.insert(0, str(ROOT / "scripts"))
 from shadow_case_policy import CASE_POLICY  # noqa: E402
 
@@ -26,7 +35,7 @@ PLAN_MAX_BYTES = 128_000
 PREPARE_MAX_BYTES = 4_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_MODULE_COUNT = 35
-EXPECTED_MODULE_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
+EXPECTED_MODULE_TREE_SHA256 = _pin("pr170-tree-model")
 EXPECTED_PLAN_SHA256 = {case_id: policy["plan_sha256"] for case_id, policy in CASE_POLICY.items()}
 CASE_CONTRACTS = {
     "PR-457": {"repository": "magnus919/SlopSearX", "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e", "head_sha": "595f143607961d21d162efe76518d86e416d2548", "snapshot_id": "snap-24293f430e4f8006a52bac18", "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea", "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95", "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k", "profile_file_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918", "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977", "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311", "scope_obligations": 14, "request_count": 6, "request_bytes_total": 469539, "request_bytes_max": 118490, "remaining_call_slots": 4},

@@ -141,3 +141,34 @@ def test_refresh_refuses_non_manifest_module(tmp_path: Path, monkeypatch: pytest
             source_revision="6e18f8103daedd042027be9b27921e0416cbd05b",
             manifest_path=manifest,
         )
+
+
+def test_refresh_refuses_path_escape(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    manifest, _, _ = _manifest(tmp_path)
+    monkeypatch.setattr(refresh, "ROOT", tmp_path)
+    monkeypatch.setattr(refresh, "_source_revision", lambda revision: revision)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["pin_files"]["context_selector.py"] = "../outside.py"
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(refresh.PinRefreshError, match="escapes repository root"):
+        refresh.refresh_pin(
+            module="context_selector.py", reason="escape test",
+            source_revision="6e18f8103daedd042027be9b27921e0416cbd05b",
+            manifest_path=manifest, allowed_root=tmp_path,
+        )
+
+
+def test_refresh_refuses_noop_even_in_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    manifest, blob, relative = _manifest(tmp_path)
+    monkeypatch.setattr(refresh, "ROOT", tmp_path)
+    monkeypatch.setattr(refresh, "_source_revision", lambda revision: revision)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["pin_files"]["context_selector.py"] = relative
+    payload["pins"]["context_selector.py"] = __import__("hashlib").sha256(blob.read_bytes()).hexdigest()
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(refresh.PinRefreshError, match="no-op"):
+        refresh.refresh_pin(
+            module="context_selector.py", reason="no-op test",
+            source_revision="6e18f8103daedd042027be9b27921e0416cbd05b",
+            dry_run=True, manifest_path=manifest, allowed_root=tmp_path,
+        )
