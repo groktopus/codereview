@@ -128,6 +128,13 @@ def test_manifest_pins_match_revision_source_bytes():
     pins = manifest["pins"]
     files = manifest["pin_files"]
     revisions = manifest["pin_revisions"]
+    source_paths = manifest.get("source_paths", {})
+    for name, source in source_paths.items():
+        blob = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{manifest['historical_revision']}:{source}"],
+            check=True, capture_output=True,
+        ).stdout
+        assert hashlib.sha256(blob).hexdigest() == pins[name], name
     for name, digest in pins.items():
         if name in {"pr170-tree-model", "pr170-tree-synthesis"}:
             continue

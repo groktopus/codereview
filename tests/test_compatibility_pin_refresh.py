@@ -172,3 +172,17 @@ def test_refresh_refuses_noop_even_in_dry_run(tmp_path: Path, monkeypatch: pytes
             source_revision="6e18f8103daedd042027be9b27921e0416cbd05b",
             dry_run=True, manifest_path=manifest, allowed_root=tmp_path,
         )
+
+
+def test_tree_refresh_synchronizes_legacy_verifier_literals(tmp_path: Path):
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "verify_model_only_shadow_live_preflight.py").write_text(
+        'EXPECTED_MODULE_TREE_SHA256 = "' + "a" * 64 + '"\n', encoding="utf-8"
+    )
+    (scripts / "verify_synth_001_preflight.py").write_text(
+        'MODULE_TREE_SHA256 = "' + "b" * 64 + '"\n', encoding="utf-8"
+    )
+    refresh._update_verifier_tree_literals(tmp_path, "c" * 64, "d" * 64)
+    assert "c" * 64 in (scripts / "verify_model_only_shadow_live_preflight.py").read_text()
+    assert "d" * 64 in (scripts / "verify_synth_001_preflight.py").read_text()

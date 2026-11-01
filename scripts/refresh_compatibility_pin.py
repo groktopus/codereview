@@ -132,6 +132,27 @@ def refresh_pin(
     return {"dry_run": False, **record}
 
 
+TREE_VERIFIERS = (
+    ("scripts/verify_model_only_shadow_live_preflight.py", re.compile(r'^EXPECTED_MODULE_TREE_SHA256 = "[0-9a-f]{64}"$', re.MULTILINE), "EXPECTED_MODULE_TREE_SHA256"),
+    ("scripts/verify_synth_001_preflight.py", re.compile(r'^MODULE_TREE_SHA256 = "[0-9a-f]{64}"$', re.MULTILINE), "MODULE_TREE_SHA256"),
+)
+
+
+def _update_verifier_tree_literals(root: Path, model: str, synthesis: str) -> None:
+    """Keep legacy verifier literals synchronized with the manifest tree pins."""
+    for relative, pattern, name in TREE_VERIFIERS:
+        path = root / relative
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            raise PinRefreshError(f"verifier script unavailable: {relative}") from None
+        value = model if name == "EXPECTED_MODULE_TREE_SHA256" else synthesis
+        updated, count = pattern.subn(f'{name} = "{value}"', text)
+        if count != 1:
+            raise PinRefreshError(f"verifier tree literal route invalid: {relative}")
+        path.write_text(updated, encoding="utf-8")
+
+
 TREE_KEYS = ("pr170-tree-model", "pr170-tree-synthesis")
 
 
@@ -180,6 +201,7 @@ def refresh_tree_pins(
     }
     if dry_run:
         return {"dry_run": True, **record}
+    _update_verifier_tree_literals(allowed_root, new_values["pr170-tree-model"], new_values["pr170-tree-synthesis"])
     pins.update(new_values)
     revisions = manifest.setdefault("pin_revisions", {})
     if isinstance(revisions, dict):
