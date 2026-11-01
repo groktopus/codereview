@@ -16,14 +16,14 @@ statement counts explain the difference).
 
 | Module | Before | After | Floor | Target |
 | --- | ---: | ---: | ---: | ---: |
-| overall | 81.83% | 85.35% | 85.00% | 85% |
+| overall | 81.83% | 85.27% | 85.00% | 85% |
 | `github.py` | 61.88% | 100.00% | 98.00% | 90% |
 | `publisher.py` | 71.04% | 100.00% | 99.50% | 90% |
 | `checks.py` | 74.26% | 100.00% | 99.50% | 90% |
 | `actions_publication.py` | 77.69% | 99.05% | 98.50% | 90% |
 | `cli.py` | 76.21% | 97.36% | 97.00% | 90% |
 
-The VD-1 target is met: overall ≥85% and all four named critical modules ≥90%.
+The VD-1 target is met: overall ≥85% and all five enforced modules ≥90% (20,618 statements at this base).
 `publisher.py` and `checks.py` are fully covered. The remaining uncovered lines
 are defence-in-depth guards that cannot be reached through public state:
 
@@ -34,9 +34,9 @@ are defence-in-depth guards that cannot be reached through public state:
   duplicate checks unreachable; 1371 is a structurally consistent foreign
   historical policy that the existing v4 probe rejects earlier; 2073 is
   unreachable because `_parse_utc`'s regex admits only `Z`/`+00:00`.
-- `cli.py` (24 lines): unreachable limit/None guards (301, 345, 372) and the
-  effects-heavy `_run_one` review-dispatch paths (912-914, 923, 978, 1019-1020,
-  1027, 1117-1124, 1129, 1133, 1159, 1379), deliberately out of scope for this
+- `cli.py` (24 lines): unreachable limit/None guards (306, 322, 350, 377) and the
+  effects-heavy `_run_one` review-dispatch paths (917-919, 928, 983, 1024-1025,
+  1032, 1122-1129, 1134, 1138, 1164, 1385), deliberately out of scope for this
   issue because they require a subprocess/engine end-to-end fixture.
 
 The gate is a floor, not a claim that every remaining line is independently
