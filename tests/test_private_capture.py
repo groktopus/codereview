@@ -8,14 +8,15 @@ from pathlib import Path
 
 import pytest
 
+from experiments.harness.cross_model_v2 import CONTRACT_VERSION, calls_manifest_sha256, compare_cross_model_v2
+from experiments.harness.evaluation import validate_corpus
+from experiments.harness.shadow_audit import _validate_packet
 from pr_review_harness import cli
 from pr_review_harness.cli import (
     TRUSTED_CAPTURE_WORKFLOW_REF,
     TRUSTED_SHADOW_PLANS,
     TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF,
 )
-from pr_review_harness.cross_model_v2 import CONTRACT_VERSION, calls_manifest_sha256, compare_cross_model_v2
-from pr_review_harness.evaluation import validate_corpus
 from pr_review_harness.private_capture import (
     CONTENT_TRANSFORM,
     MAX_REQUEST_BYTES,
@@ -24,7 +25,6 @@ from pr_review_harness.private_capture import (
     _reconciled_candidate_pairs,
     write_provider_exchange,
 )
-from pr_review_harness.shadow_audit import _validate_packet
 from pr_review_harness.snapshot import _json_hash
 
 

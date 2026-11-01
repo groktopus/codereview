@@ -15,14 +15,20 @@ import hashlib
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from model_only_shadow_evaluation_identity import validate_identity
-from shadow_case_policy import validate_plan_binding
-from source_record_decision import run_source_record_decision
+ROOT = Path(__file__).resolve().parents[1]
+for _path in (ROOT, ROOT / "src"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
-from pr_review_harness.shadow_audit import (
+from model_only_shadow_evaluation_identity import validate_identity  # noqa: E402
+from shadow_case_policy import validate_plan_binding  # noqa: E402
+from source_record_decision import run_source_record_decision  # noqa: E402
+
+from experiments.harness.shadow_audit import (  # noqa: E402
     _canonical,
     _not_run,
     _parse_output,

@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 import test_selected_model_trial as selected_trial_tests  # noqa: E402
 from prepare_selected_pair_clean_control_trial import CASE_IDS, prepare_trial  # noqa: E402
 
-from pr_review_harness import selected_model_trial as trial  # noqa: E402
+from experiments.harness import selected_model_trial as trial  # noqa: E402
 from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
 
 

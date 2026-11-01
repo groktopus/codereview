@@ -29,18 +29,13 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from pr_review_harness import external_effect_observer as observer  # noqa: E402
-from pr_review_harness.claim_assessment import (  # noqa: E402
-    CONTRACT_VERSION,
-    PRIMARY_ASSESSMENT_CONTRACT_VERSION,
-    _questions,
-)
-from pr_review_harness.injection_trials import invoke_cli_bounded, prepare_suite  # noqa: E402
-from pr_review_harness.planner import plan_review  # noqa: E402
-from pr_review_harness.selected_model_trial import (  # noqa: E402
+from experiments.harness.injection_trials import invoke_cli_bounded, prepare_suite  # noqa: E402
+from experiments.harness.selected_model_trial import (  # noqa: E402
     CASE_IDS,
     MAX_CLAIM_ASSESSMENTS_PER_RUN,
     _command,
@@ -48,6 +43,13 @@ from pr_review_harness.selected_model_trial import (  # noqa: E402
     _runtime_provenance,
     canonical_json,
 )
+from pr_review_harness import external_effect_observer as observer  # noqa: E402
+from pr_review_harness.claim_assessment import (  # noqa: E402
+    CONTRACT_VERSION,
+    PRIMARY_ASSESSMENT_CONTRACT_VERSION,
+    _questions,
+)
+from pr_review_harness.planner import plan_review  # noqa: E402
 
 MAX_HTTP_REQUEST_BYTES = 64_000
 MAX_HTTP_RESPONSE_BYTES = 32_768

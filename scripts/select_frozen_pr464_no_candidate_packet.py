@@ -12,13 +12,15 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
 import run_model_only_shadow_audit as shadow_runner  # noqa: E402
 from sealed_source_record_integration import _validate_frozen_pr464  # noqa: E402
 
-from pr_review_harness.shadow_audit import _validate_packet  # noqa: E402
+from experiments.harness.shadow_audit import _validate_packet  # noqa: E402
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 

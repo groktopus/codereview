@@ -11,7 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from pr_review_harness.injection_trials import _experiment_limits  # noqa: E402
+from experiments.harness.injection_trials import _experiment_limits  # noqa: E402
 
 MANIFEST_PATH = ROOT / "examples/injection/shadow-challenge-v1.json"
 SUITE_PATH = ROOT / "examples/injection/fixture-suite.v2.json"

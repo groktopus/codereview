@@ -25,8 +25,8 @@ from sealed_source_record_integration import (  # noqa: E402
     _validate_frozen_pr464,
 )
 
+import experiments.harness.shadow_audit as shadow_audit  # noqa: E402
 import pr_review_harness.providers as providers  # noqa: E402
-import pr_review_harness.shadow_audit as shadow_audit  # noqa: E402
 from pr_review_harness import cli  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider  # noqa: E402
 

@@ -13,6 +13,10 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 MAX_SMOKE_RESULT_BYTES = 2_000_000
 
 
@@ -77,7 +81,11 @@ def smoke(cli: Path) -> dict[str, str]:
     scripts_dir = Path(sys.prefix) / ("Scripts" if os.name == "nt" else "bin")
     if cli.parent != scripts_dir.resolve():
         raise RuntimeError("installed_cli_not_in_current_environment")
-    from pr_review_harness.selected_model_trial import _case_result_summary
+    # The durable-result projection is archived experiment tooling, not part of
+    # the installed package. This repository-side validator reads the wheel's
+    # output while every ``pr_review_harness`` import inside it still resolves to
+    # the installed wheel under test.
+    from experiments.harness.selected_model_trial import _case_result_summary
 
     with tempfile.TemporaryDirectory(prefix="pr-review-wheel-smoke-") as temp:
         root = Path(temp).resolve()

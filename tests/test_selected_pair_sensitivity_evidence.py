@@ -5,10 +5,10 @@ import inspect
 import json
 from pathlib import Path
 
+from experiments.harness import selected_model_trial as trial
+from experiments.harness.injection_trials import DEFAULT_LIMITS, prepare_suite
 from pr_review_harness import cli, providers
-from pr_review_harness import selected_model_trial as trial
 from pr_review_harness.claim_transport import ClaimTransport
-from pr_review_harness.injection_trials import DEFAULT_LIMITS, prepare_suite
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = ROOT / "experiments/selected-pair-sensitivity-evidence-v1.json"

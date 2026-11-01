@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pr_review_harness.policy_inventory import PolicyInventoryError, build_policy_inventory
+from experiments.harness.policy_inventory import PolicyInventoryError, build_policy_inventory
 from pr_review_harness.snapshot import collect_snapshot
 
 

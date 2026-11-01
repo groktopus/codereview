@@ -12,12 +12,12 @@ import sys
 from pathlib import Path
 
 try:
-    from pr_review_harness.cross_model import compare_cross_model, parse_cross_model_json
-    from pr_review_harness.evaluation import MAX_INPUT_BYTES, EvaluationError
+    from experiments.harness.cross_model import compare_cross_model, parse_cross_model_json
+    from experiments.harness.evaluation import MAX_INPUT_BYTES, EvaluationError
 except ModuleNotFoundError:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-    from pr_review_harness.cross_model import compare_cross_model, parse_cross_model_json
-    from pr_review_harness.evaluation import MAX_INPUT_BYTES, EvaluationError
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from experiments.harness.cross_model import compare_cross_model, parse_cross_model_json
+    from experiments.harness.evaluation import MAX_INPUT_BYTES, EvaluationError
 
 
 class _SafeArgumentParser(argparse.ArgumentParser):

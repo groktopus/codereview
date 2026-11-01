@@ -16,10 +16,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .budget import _safe_local_http_exchange
-from .claim_assessment import _DIMENSIONS as _CLAIM_CHOICES
-from .claim_reconciliation import classify_reconciliation
-from .external_effect_observer import CLEANUP_GRACE_SECONDS, OBSERVER_ID, observe_cli
+from pr_review_harness.budget import _safe_local_http_exchange
+from pr_review_harness.claim_assessment import _DIMENSIONS as _CLAIM_CHOICES
+from pr_review_harness.claim_reconciliation import classify_reconciliation
+from pr_review_harness.external_effect_observer import CLEANUP_GRACE_SECONDS, OBSERVER_ID, observe_cli
+from pr_review_harness.providers import load_provider_config, make_decision_provider, make_provider
+from pr_review_harness.reconcile import validate_location
+
 from .injection_trials import (
     MAX_RESULT_BYTES,
     InjectionTrialError,
@@ -30,8 +33,6 @@ from .injection_trials import (
     prepare_suite,
     validate_trial_selection,
 )
-from .providers import load_provider_config, make_decision_provider, make_provider
-from .reconcile import validate_location
 
 TRIAL_ID = "selected-deployment-claim-shadow.v1"
 CURRENT_TRIAL_ID = "selected-current-source-paired-trial.v1"
@@ -297,9 +298,9 @@ def _hash_file_bounded(path: Path, *, cap: int = MAX_SOURCE_IDENTITY_BYTES) -> d
 
 def _runner_source_identity(root: Path) -> dict[str, Any]:
     paths = (
-        "src/pr_review_harness/selected_model_trial.py",
+        "experiments/harness/selected_model_trial.py",
         "src/pr_review_harness/external_effect_observer.py",
-        "src/pr_review_harness/injection_trials.py",
+        "experiments/harness/injection_trials.py",
         "scripts/run_selected_model_trial.py",
         "scripts/provider_config_from_env.py",
         "profiles/generic.json",
@@ -344,7 +345,7 @@ def _config_identity(path: Path, *, expected: dict[str, str], decision: bool) ->
     try:
         if decision:
             make_decision_provider(config)
-            from .claim_transport import ClaimTransport
+            from pr_review_harness.claim_transport import ClaimTransport
 
             ClaimTransport.from_decision_config(config)
         else:
@@ -454,7 +455,7 @@ def _prepared_plan(
     expected_files = {
         "src/pr_review_harness/cli.py", "src/pr_review_harness/engine.py",
         "src/pr_review_harness/providers.py", "src/pr_review_harness/claim_transport.py",
-        "src/pr_review_harness/selected_model_trial.py", "src/pr_review_harness/injection_trials.py",
+        "experiments/harness/selected_model_trial.py", "experiments/harness/injection_trials.py",
         "scripts/provider_config_from_env.py", "scripts/prepare_selected_pair_clean_control_trial.py",
         "tests/test_selected_pair_clean_control_trial_preparation.py",
     }
@@ -473,7 +474,7 @@ def _prepared_plan(
     if current_head != plan["source_revision"]:
         raise SelectedTrialError("prepared_source_revision_mismatch")
     for relative, identity in files.items():
-        if not isinstance(relative, str) or not relative.startswith(("src/", "scripts/", "tests/")) or ".." in Path(relative).parts:
+        if not isinstance(relative, str) or not relative.startswith(("src/", "scripts/", "tests/", "experiments/")) or ".." in Path(relative).parts:
             raise SelectedTrialError("prepared_source_identity_invalid")
         actual = _hash_file_bounded(root / relative)
         if not isinstance(identity, dict) or actual != identity:
@@ -685,7 +686,7 @@ def _expected_cli_snapshot_projection(
 ) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
     """Recompute the installed CLI's bounded evidence index from frozen Git objects."""
     try:
-        from .snapshot import collect_snapshot
+        from pr_review_harness.snapshot import collect_snapshot
 
         snapshot = collect_snapshot(str(repo), base_sha, head_sha, profile, limits)
         index, index_sha256 = _cli_evidence_index_projection(snapshot)
@@ -2841,7 +2842,7 @@ def run_provider_trial(
                     case.base_sha = row["base_sha"]
                     case.head_sha = row["head_sha"]
                     try:
-                        from .snapshot import collect_snapshot
+                        from pr_review_harness.snapshot import collect_snapshot
 
                         case.snapshot = collect_snapshot(
                             str(case.repo), case.base_sha, case.head_sha,

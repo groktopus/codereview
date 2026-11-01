@@ -4,8 +4,8 @@ import json
 
 import pytest
 
+from experiments.harness.shadow_preflight import AuditDispatchGuard, AuditPreflightError
 from pr_review_harness.providers import OpenAIProvider, ProviderError
-from pr_review_harness.shadow_preflight import AuditDispatchGuard, AuditPreflightError
 
 
 def _limits():

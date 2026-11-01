@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from experiments.harness.claim_triage import ClaimTriagePolicy, triage_claim
 from pr_review_harness.claim_assessment import ClaimAssessmentAdapter
-from pr_review_harness.claim_triage import ClaimTriagePolicy, triage_claim
 from pr_review_harness.snapshot import collect_snapshot
 from scripts import run_claim_screen as screen
 

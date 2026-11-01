@@ -24,13 +24,13 @@ from types import SimpleNamespace
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from pr_review_harness import cli, providers  # noqa: E402
-from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
-from pr_review_harness.injection_trials import prepare_suite  # noqa: E402
-from pr_review_harness.selected_model_trial import (  # noqa: E402
+from experiments.harness.injection_trials import prepare_suite  # noqa: E402
+from experiments.harness.selected_model_trial import (  # noqa: E402
     DECISION_IDENTITY,
     MAX_OUTPUT_TOKENS_PER_CALL,
     MAX_RESPONSE_BYTES_PER_CALL,
@@ -42,6 +42,8 @@ from pr_review_harness.selected_model_trial import (  # noqa: E402
     _write_json,
     trial_contract,
 )
+from pr_review_harness import cli, providers  # noqa: E402
+from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 
 CONTRACT = "selected-pair-clean-control-trial.v1"
 CASE_IDS = (
@@ -63,8 +65,8 @@ IMPLEMENTATION_PATHS = (
     "src/pr_review_harness/engine.py",
     "src/pr_review_harness/providers.py",
     "src/pr_review_harness/claim_transport.py",
-    "src/pr_review_harness/selected_model_trial.py",
-    "src/pr_review_harness/injection_trials.py",
+    "experiments/harness/selected_model_trial.py",
+    "experiments/harness/injection_trials.py",
     "scripts/provider_config_from_env.py",
     "scripts/prepare_selected_pair_clean_control_trial.py",
     "tests/test_selected_pair_clean_control_trial_preparation.py",

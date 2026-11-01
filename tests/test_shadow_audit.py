@@ -10,16 +10,18 @@ from pathlib import Path
 
 import pytest
 
-from pr_review_harness import snapshot as snapshot_module
-from pr_review_harness.providers import OpenAIProvider
-from pr_review_harness.shadow_audit import (
-    SOURCE_AUDIT_SERIALIZER_CANONICAL,
-    SOURCE_AUDIT_SERIALIZER_LEGACY,
+from experiments.harness.shadow_audit import (
     ShadowAuditError,
     _json_hash,
     _not_run,
     _validate_packet,
     run_shadow_audit,
+)
+from pr_review_harness import snapshot as snapshot_module
+from pr_review_harness.providers import OpenAIProvider
+from pr_review_harness.source_audit import (
+    SOURCE_AUDIT_SERIALIZER_CANONICAL,
+    SOURCE_AUDIT_SERIALIZER_LEGACY,
     serialize_canonical_source_audit_request,
     serialize_source_audit_request,
 )

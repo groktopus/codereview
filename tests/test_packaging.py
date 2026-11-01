@@ -98,6 +98,12 @@ def test_built_source_archive_contains_authored_source_test_support_without_poll
         expected = {
             "MANIFEST.in",
             "docs/PACKAGING-VERIFICATION.md",
+            "docs/ARCHITECTURE.md",
+            "docs/public-surface.json",
+            "experiments/README.md",
+            "experiments/harness/__init__.py",
+            "experiments/harness/injection_trials.py",
+            "experiments/harness/selected_model_trial.py",
             ".github/workflows/pr-analysis.yml",
             ".github/workflows/review-commits.yml",
             "scripts/package_smoke.py",
@@ -182,3 +188,21 @@ def test_built_source_archive_contains_authored_source_test_support_without_poll
     with zipfile.ZipFile(wheels[0]) as archive:
         wheel_paths = set(archive.namelist())
     assert not any(path.startswith(("tests/", "examples/", "profiles/", "scripts/", "docs/")) for path in wheel_paths)
+    assert not any(path.startswith("experiments/") for path in wheel_paths)
+    installed_modules = {path for path in wheel_paths if path.startswith("pr_review_harness/")}
+    assert "pr_review_harness/source_audit.py" in installed_modules
+    for archived in (
+        "selected_model_trial.py",
+        "configured_jev_injection_trial.py",
+        "injection_trials.py",
+        "cross_model.py",
+        "cross_model_v2.py",
+        "cross_model_package.py",
+        "evaluation.py",
+        "claim_triage.py",
+        "context_selector.py",
+        "policy_inventory.py",
+        "shadow_audit.py",
+        "shadow_preflight.py",
+    ):
+        assert f"pr_review_harness/{archived}" not in installed_modules

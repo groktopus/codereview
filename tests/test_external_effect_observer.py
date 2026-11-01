@@ -1363,7 +1363,7 @@ def test_proc_stat_permission_and_malformed_data_fail_loudly(tmp_path):
 @pytest.mark.skipif(platform.system() != "Linux" or shutil.which("strace") is None, reason="Linux strace required")
 def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_path):
     """Exercise fixture plumbing/effects under strace; the fixed response is not a model test."""
-    from pr_review_harness.injection_trials import DEFAULT_LIMITS, prepare_suite
+    from experiments.harness.injection_trials import DEFAULT_LIMITS, prepare_suite
 
     repo_root = Path(__file__).resolve().parents[1]
     suite = json.loads((repo_root / "examples/injection/fixture-suite.v2.json").read_text(encoding="utf-8"))

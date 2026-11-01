@@ -1167,7 +1167,7 @@ def _run_one(
                 ).encode("utf-8"))
         source_audit_preflight = None
         if preflight_case_id is not None:
-            from .shadow_audit import (
+            from .source_audit import (
                 serialize_canonical_source_audit_request,
                 serialize_source_audit_request,
             )

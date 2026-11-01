@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 # The current-source workflow installs the exact wheel built from its trusted
 # dispatch revision. Keep its installed package authoritative; legacy frozen
@@ -29,15 +31,14 @@ if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
 import source_dispatch_accounting  # noqa: E402
 from shadow_case_policy import CASE_POLICY, case_for_plan_path, validate_plan_binding  # noqa: E402
 
+from experiments.harness.shadow_audit import MAX_CASE_BYTES, run_shadow_audit  # noqa: E402
+from experiments.harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
 from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
-from pr_review_harness.shadow_audit import (  # noqa: E402
-    MAX_CASE_BYTES,
+from pr_review_harness.source_audit import (  # noqa: E402
     SOURCE_AUDIT_SERIALIZER_CANONICAL,
     SOURCE_AUDIT_SERIALIZER_LEGACY,
-    run_shadow_audit,
 )
-from pr_review_harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
 
 MAX_CAPTURE_MANIFEST_BYTES = 256_000
 MAX_RECEIPT_BYTES = 64_000

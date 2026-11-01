@@ -145,7 +145,7 @@ def test_live_activation_keeps_each_provider_boundary_fail_closed_and_private():
     assert "claim_auditor" not in jev_step
 
     audit_runner = (ROOT / "scripts" / "run_model_only_shadow_audit.py").read_text(encoding="utf-8")
-    guard = (ROOT / "src" / "pr_review_harness" / "shadow_preflight.py").read_text(encoding="utf-8")
+    guard = (ROOT / "experiments" / "harness" / "shadow_preflight.py").read_text(encoding="utf-8")
     assert "AuditDispatchGuard(limits)" in audit_runner
     assert "dispatch_guard.check(role, request_bytes)" in audit_runner
     assert "before_dispatch=before_dispatch" in audit_runner

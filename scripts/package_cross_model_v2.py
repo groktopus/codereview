@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
@@ -20,11 +22,11 @@ from model_only_shadow_evaluation_identity import (  # noqa: E402
     validate_identity,
 )
 
-from pr_review_harness.cross_model_package import (  # noqa: E402
+from experiments.harness.cross_model_package import (  # noqa: E402
     _json,
     build_cross_model_package,
 )
-from pr_review_harness.evaluation import EvaluationError  # noqa: E402
+from experiments.harness.evaluation import EvaluationError  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

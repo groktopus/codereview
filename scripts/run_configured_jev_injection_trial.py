@@ -9,8 +9,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+for _path in (ROOT, ROOT / "src"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
-from pr_review_harness.configured_jev_injection_trial import (  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
+
+from experiments.harness.configured_jev_injection_trial import (  # noqa: E402
     ConfiguredJevTrialError,
     prepare_trial,
     run_trial,

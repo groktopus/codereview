@@ -14,7 +14,7 @@ import stat
 from pathlib import Path
 from typing import Any
 
-from .shadow_audit import SOURCE_AUDIT_SERIALIZER_CANONICAL
+from .source_audit import SOURCE_AUDIT_SERIALIZER_CANONICAL
 
 PLAN_SCHEMA = "pr457-current-source-capture-plan.v3"
 RECEIPT_SCHEMA = "pr457-current-source-capture-receipt.v3"

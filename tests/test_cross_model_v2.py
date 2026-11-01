@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from pr_review_harness.cross_model_v2 import (
+from experiments.harness.cross_model_v2 import (
     CONTRACT_VERSION,
     calls_manifest_sha256,
     compare_cross_model_v2,
     validate_cross_model_comparison_v2,
 )
-from pr_review_harness.evaluation import EvaluationError, validate_corpus
+from experiments.harness.evaluation import EvaluationError, validate_corpus
 
 ROOT = Path(__file__).resolve().parents[1]
 
