@@ -24,7 +24,7 @@ from typing import Any
 
 REGISTRY_VERSION = "contract-registry.v1"
 REGISTRY_FILENAME = "contract_registry.json"
-STATUSES = ("supported", "deprecated", "archived")
+STATUSES = ("supported", "deprecated", "archived", "experimental")
 KINDS = (
     "review-contract",
     "review-profile",
@@ -615,7 +615,10 @@ def effective_contract_set(
                 entry, allow_deprecated=allow_deprecated, allow_archived=allow_archived
             )
         historical_limits = bool(
-            allow_archived and limits_entry is not None and limits_entry["status"] == "archived"
+            allow_archived
+            and limits_entry is not None
+            and limits_entry["status"] == "archived"
+            and contract["status"] != "supported"
         )
         if not historical_limits:
             if limits_entry is None or limits_entry["name"] != combination["limits"]:
@@ -631,6 +634,8 @@ def effective_contract_set(
         registration = "registered"
     elif profile_entry is not None and profile_entry["status"] == "archived":
         registration = "archived"
+    elif profile_entry is not None and profile_entry["status"] == "experimental":
+        registration = "experimental"
     else:
         # A profile that presents a registry identity (repository + status) on a
         # known target must resolve to a registered version.  Synthetic fixtures
@@ -638,7 +643,6 @@ def effective_contract_set(
         identity_claims_registry = (
             isinstance(profile.get("repository"), str)
             and isinstance(profile.get("profile_status"), str)
-            and isinstance(profile.get("review_contract"), str)
         )
         if identity_claims_registry and profile["repository"] in registry["targets"] and profile_entry is None:
             raise ContractRegistryError("contract_unregistered_profile")

@@ -139,7 +139,7 @@ def test_registry_loader_validates_statuses_references_and_pinned_digests():
     identities = [(entry["kind"], entry["name"]) for entry in entries]
     assert len(identities) == len(set(identities))
     for entry in entries:
-        assert entry["status"] in {"supported", "deprecated", "archived"}
+        assert entry["status"] in {"supported", "deprecated", "archived", "experimental"}
         assert entry["owner"]
         if entry["status"] == "deprecated":
             assert entry["deprecation"]["replacement_path"]
@@ -358,9 +358,6 @@ def test_preflight_rejects_an_unregistered_contract_version(tmp_path: Path):
 def test_preflight_rejects_an_unknown_version_of_a_real_profile_identity(tmp_path: Path):
     profile = copy.deepcopy(CODEREVIEW_PROFILE)
     profile["version"] = "codereview-native-v99-tampered"
-    # A profile claims a registry contract identity by naming one; experiment
-    # profiles that select no contract remain explicitly unregistered inputs.
-    profile["review_contract"] = "codereview-native-v1"
     state = make_state(
         tmp_path,
         snapshot=make_snapshot(),
@@ -560,8 +557,8 @@ def test_archived_combination_is_recorded_and_allowed_only_with_explicit_opt_in(
 
 def test_unregistered_trial_profile_without_contract_claim_is_accepted():
     result = effective_contract_set(load_registry(), TRIAL_PROFILE, V3_LIMITS, max_claim_assessments=4)
-    assert result["registration"] == "unregistered"
-    assert result["profile"]["status"] == "unregistered"
+    assert result["registration"] == "experimental"
+    assert result["profile"]["status"] == "experimental"
 
 
 def test_historical_v6_limits_need_explicit_archived_opt_in():
@@ -573,3 +570,18 @@ def test_historical_v6_limits_need_explicit_archived_opt_in():
     )
     assert result["registration"] == "registered"
     assert result["limits"]["status"] == "archived"
+
+
+def test_supported_profile_cannot_bypass_limits_with_archived_allow_flag():
+    registry = load_registry()
+    archived_limits = {
+        key: value
+        for key, value in json.loads(
+            (ROOT / "docs/historical-functional-review-pr466-v5/limits.json").read_text()
+        ).items()
+        if key != "schema_version"
+    }
+    with pytest.raises(ContractRegistryError, match="contract_limits_mismatch"):
+        effective_contract_set(
+            registry, CODEREVIEW_PROFILE, archived_limits, max_claim_assessments=4, allow_archived=True
+        )

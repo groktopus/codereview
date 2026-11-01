@@ -109,9 +109,9 @@ instead of rejecting or silently promoting it. This is enforced by
 
 ## Identity claims and experiment profiles
 
-A profile claims a registry identity when it names a `review_contract` and is bound to a registered target. Such a profile must resolve to a registered (repository, version) combination; an unknown version is rejected as `contract_unregistered_profile`.
+A profile claims a registry identity when it carries a `repository` and `profile_status` on a registered target. Such a profile must resolve to a registered (repository, version) entry; an unknown or tampered version is rejected as `contract_unregistered_profile`.
 
-Evaluation/experiment profiles that select **no** review contract (for example the frozen real-case trial profiles under `docs/real-case-trial-v1/profiles/`) remain usable as explicit `unregistered` inputs and are recorded as such. They are not production selection.
+Evaluation/experiment profiles (for example the frozen real-case trial profiles under `docs/real-case-trial-v1/profiles/`) are registered with status `experimental`, carry no review-contract combination, are not production selection, and are recorded as `experimental`. Synthetic fixtures without a repository/profile-status identity remain usable as `unregistered` library inputs.
 
 Archived profiles and archived limits are rejected by default. Historical reproduction must pass `--allow-archived-contracts`; when the historical limits are archived, the registered-contract limits equality check is skipped for that explicit run and the limits component is recorded `archived`.
 
