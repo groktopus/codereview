@@ -267,6 +267,11 @@ def _validate_claim_state(state: dict[str, Any], questions: dict[str, Any]) -> N
 
 
 def _endpoint(value: Any, *, operator_root: bool = False) -> str:
+    if isinstance(value, str):
+        try:
+            _ = urlsplit(value).port
+        except ValueError:
+            raise ProviderError("unsupported_native_endpoint") from None
     try:
         endpoint = _safe_url(value)
     except ProviderError as exc:

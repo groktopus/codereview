@@ -234,6 +234,18 @@ def test_operator_decision_config_rejects_unsafe_or_nonroute_endpoints(endpoint)
         )
 
 
+def test_operator_decision_config_malformed_port_keeps_unsupported_native_endpoint():
+    with pytest.raises(ProviderError, match="unsupported_native_endpoint"):
+        ClaimTransport.from_decision_config(
+            {
+                "kind": "typesafe",
+                "endpoint": "https://gateway.example:bad/api/native/systemone",
+                "model": "jev-latest",
+                "api_key_env": "JEV_API_KEY",
+            }
+        )
+
+
 def test_operator_decision_config_accepts_explicit_loopback_http_for_tests():
     transport = ClaimTransport.from_decision_config(
         {
