@@ -376,3 +376,31 @@ def test_run_review_emits_a_run_summary_and_report_metrics_line(tmp_path):
     stored = json.loads((tmp_path / "metrics-emission.json").read_text(encoding="utf-8"))
     assert stored["run_summary"] == summary
     assert "Run metrics (review-run-summary.v1)" in render_report(result)
+
+
+def test_stats_manifest_and_default_artifacts(tmp_path, monkeypatch, capsys):
+    first = tmp_path / "first.json"
+    first.write_text((FIXTURES / "run-1-complete.json").read_text(), encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"results": ["first.json"]}), encoding="utf-8")
+    assert cli.main(["stats", "--results-manifest", str(manifest), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["runs"]["included"] == 1
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "run.json").write_text((FIXTURES / "run-1-complete.json").read_text(), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["stats", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["runs"]["included"] == 1
+
+
+def test_stats_jsonl_success_does_not_expose_paths(tmp_path, capsys):
+    jsonl = tmp_path / "metrics.jsonl"
+    code = cli.main(
+        ["stats", "--results-dir", str(FIXTURES), "--jsonl", str(jsonl), "--json"]
+    )
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["jsonl_export"]["records"] >= 1
+    assert "path" not in payload["jsonl_export"]
+    assert sum(1 for line in jsonl.read_text().splitlines() if line.strip()) == payload["jsonl_export"]["records"]
