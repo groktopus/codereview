@@ -30,7 +30,7 @@ field contract, exit codes, owner settings action, and enforcement limits are in
 Major decisions and their owners are recorded in the
 [decision-record index](docs/adr/README.md), with status, date, evidence, and
 reversal conditions. A change that alters a **safety invariant** or an
-**external effect** requires a decision record before merge: add a new record,
+**external effect** must link a decision record; the structural check does not inspect PR diffs: add a new record,
 amend an existing one with a dated note, or link the specific accepted record in
 the pull request. The surfaces that require this are listed in
 [`docs/adr/safety-invariants.json`](docs/adr/safety-invariants.json).

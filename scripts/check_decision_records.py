@@ -10,6 +10,7 @@ cited evidence is sufficient or whether the decision was wise.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import re
 from pathlib import Path
@@ -95,6 +96,15 @@ def _check_record(record: dict[str, object], errors: list[str]) -> None:
     date = _field_value(fields, "Date")
     if date and not DATE_RE.match(date):
         errors.append(f"{label}: Date must start with YYYY-MM-DD, got {date!r}")
+    elif date:
+        try:
+            datetime.date.fromisoformat(date[:10])
+        except ValueError:
+            errors.append(f"{label}: Date is not a real calendar date: {date!r}")
+    for name in ("Owner", "Evidence"):
+        value = _field_value(fields, name).strip().lower()
+        if value in {"tbd", "todo", "unknown", "n/a", "-"}:
+            errors.append(f"{label}: {name} is a placeholder, not evidence")
 
     if status == "Accepted":
         authority = _field_value(fields, "Decision authority").lower()
@@ -113,12 +123,13 @@ def _check_record(record: dict[str, object], errors: list[str]) -> None:
 
 
 def _check_index(
-    record_ids: set[str],
+    records: dict[str, dict[str, object]],
     rows: dict[str, list[str]],
-    index_text: str,
     errors: list[str],
 ) -> None:
-    linked = {Path(match.group("target")).name for match in LINK_RE.finditer(index_text)}
+    record_ids = set(records)
+    for record_id in sorted(set(rows) - record_ids):
+        errors.append(f"docs/adr/README.md: row {record_id} has no record file")
     for record_id in sorted(record_ids):
         if record_id not in rows:
             errors.append(f"docs/adr/README.md: record {record_id} is not listed in the decisions table")
@@ -137,8 +148,29 @@ def _check_index(
             errors.append(f"docs/adr/README.md: row {record_id} has no YYYY-MM-DD date")
         if not cells[5]:
             errors.append(f"docs/adr/README.md: row {record_id} has no evidence")
-        if not any(name.startswith(f"{record_id}-") for name in linked):
+        targets = [
+            Path(match.group("target")).name
+            for match in LINK_RE.finditer(cells[1])
+            if RECORD_RE.match(Path(match.group("target")).name)
+        ]
+        if not any(name.startswith(f"{record_id}-") for name in targets):
             errors.append(f"docs/adr/README.md: row {record_id} has no link to its record file")
+        fields = records[record_id]["fields"]
+        assert isinstance(fields, dict)
+        expected = {
+            "status": _field_value(fields, "Status"),
+            "owner": _field_value(fields, "Owner"),
+            "date": _field_value(fields, "Date")[:10],
+            "evidence": _field_value(fields, "Evidence"),
+        }
+        if cells[2] != expected["status"]:
+            errors.append(f"docs/adr/README.md: row {record_id} status does not match the record")
+        if not cells[3] or cells[3].strip().lower() in {"tbd", "todo", "unknown"}:
+            errors.append(f"docs/adr/README.md: row {record_id} has no real owner")
+        if cells[4] != expected["date"]:
+            errors.append(f"docs/adr/README.md: row {record_id} date does not match the record")
+        if not cells[5] or cells[5].strip().lower() in {"tbd", "todo", "unknown"}:
+            errors.append(f"docs/adr/README.md: row {record_id} has no real evidence")
 
 
 def _check_legacy(root: Path, index_text: str, errors: list[str]) -> int:
@@ -256,6 +288,9 @@ def check(root: Path) -> dict[str, object]:
     rows = parse_index_rows(index_text)
 
     records: dict[str, dict[str, object]] = {}
+    for path in sorted(adr_dir.glob("*.md")):
+        if path.name != "README.md" and not RECORD_RE.match(path.name):
+            errors.append(f"docs/adr/{path.name}: record filename must be NNNN-lowercase-name.md")
     paths = sorted(path for path in adr_dir.glob("*.md") if RECORD_RE.match(path.name))
     if not paths:
         errors.append("docs/adr: no decision records found")
@@ -273,7 +308,7 @@ def check(root: Path) -> dict[str, object]:
                 f"record status {_field_value(fields, 'Status')!r}"
             )
 
-    _check_index(set(records), rows, index_text, errors)
+    _check_index(records, rows, errors)
     legacy_count = _check_legacy(root, index_text, errors)
     invariant_count = _check_manifest(root, manifest_path, records, errors)
     _check_process_docs(root, errors)

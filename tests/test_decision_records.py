@@ -128,3 +128,29 @@ def test_legacy_adr_must_be_reconciled(tmp_path: Path) -> None:
     write(root / "docs" / "design" / "adrs" / "001-legacy.md", "# ADR-001\n")
     result = records.check(root)
     assert any("001-legacy.md must be reconciled" in error for error in result["errors"])
+
+
+def test_missing_or_phantom_or_malformed_records_fail_closed(tmp_path: Path) -> None:
+    make_repo(tmp_path)
+    (tmp_path / "docs" / "adr" / "0001-test-record.md").unlink()
+    assert records.check(tmp_path)["errors"]
+
+    make_repo(tmp_path)
+    index = tmp_path / "docs" / "adr" / "README.md"
+    index.write_text(index.read_text() + "| 0009 | [Phantom](0009-phantom.md) | Accepted | X | 2026-11-01 | E |\n")
+    assert any("no record file" in error for error in records.check(tmp_path)["errors"])
+
+    make_repo(tmp_path)
+    (tmp_path / "docs" / "adr" / "0001-test-record.md").rename(tmp_path / "docs" / "adr" / "0001_test_record.md")
+    assert any("filename must be" in error for error in records.check(tmp_path)["errors"])
+
+
+def test_placeholder_owner_and_impossible_date_fail(tmp_path: Path) -> None:
+    write(tmp_path / "docs" / "adr" / "0001-test-record.md", RECORD.format(status="Accepted").replace("Test owner", "TBD"))
+    write(tmp_path / "docs" / "adr" / "README.md", INDEX.format(status="Accepted").replace("Test owner", "TBD"))
+    write(tmp_path / "docs" / "adr" / "safety-invariants.json", json.dumps(MANIFEST))
+    write(tmp_path / "src" / "example.py", "# example\n")
+    for relative in ("CONTRIBUTING.md", ".github/pull_request_template.md"):
+        write(tmp_path / relative, "A safety invariant change needs a decision record. See docs/adr/README.md.\n")
+    errors = records.check(tmp_path)["errors"]
+    assert any("placeholder" in error for error in errors)

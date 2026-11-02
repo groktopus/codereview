@@ -137,7 +137,7 @@ jobs:
         run: python scripts/check_relative_links.py
       - name: Preserve DT-2 docs index coverage
         run: python scripts/check_docs_index.py
-      - name: Enforce GA-2 decision-record index and safety-invariant links
+      - name: Check GA-2 decision-record index and safety-invariant links (structural; not PR-diff enforcement)
         run: python scripts/check_decision_records.py
       - name: Enforce release metadata and changelog classification
         run: |

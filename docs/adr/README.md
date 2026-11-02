@@ -50,7 +50,10 @@ These are intentionally not "accepted by implication" from a merged feature:
 
 - **Production model selection.** ADR 0005 records the provider boundary but not
   a production model. `docs/TEST-MODEL-POLICY.md` says the model is not yet
-  selected; `docs/RELEASE-PLAN.md` records a candidate. The conflict is visible
+  selected; `docs/RELEASE-PLAN.md` states `openai/gpt-6-luna` **is the selected
+  production inference model**, while `docs/TEST-MODEL-POLICY.md` says the
+  production model is unselected. No dated owner decision resolves the conflict;
+  it is treated as unresolved rather than downgraded to a candidate.
   in ADR 0005 and needs an owner decision plus model-specific quality evidence.
 - **Publication activation.** ADR 0004 keeps the CLI and central route
   disabled. Enabling a route needs a separate owner decision, the readiness

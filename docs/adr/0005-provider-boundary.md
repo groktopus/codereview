@@ -21,7 +21,7 @@ The harness can speak to OpenAI-compatible endpoints and a native Jev/decision t
 - Provider, endpoint, model, and credential names come from trusted operator configuration, never from pull-request content, model output, or repository text.
 - Do not add a provider, account, endpoint, credential route, or increased limit without explicit applicable owner authorization.
 - Do not add silent model, endpoint, or response-format fallback. An unsupported or failed call is an explicit failure, not a substitution.
-- The production model choice is **not settled by this record**. [TEST-MODEL-POLICY.md](../TEST-MODEL-POLICY.md) says the production model is not yet selected; [RELEASE-PLAN.md](../RELEASE-PLAN.md) records a candidate selection. The conflict is retained rather than resolved here; a production model selection needs its own owner decision and model-specific quality evidence.
+- The production model choice is **not settled by this record**. [TEST-MODEL-POLICY.md](../TEST-MODEL-POLICY.md) says the production model is not yet selected; [RELEASE-PLAN.md](../RELEASE-PLAN.md) states `openai/gpt-6-luna` is the selected production inference model, while TEST-MODEL-POLICY says unselected. No dated owner decision resolves the conflict; it is retained as unresolved, not downgraded to a candidate. A production model selection needs its own owner decision and model-specific quality evidence.
 
 ## Consequences
 
