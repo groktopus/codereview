@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a reproducible defect with evidence and the affected revision.
+title: "[bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include secrets, provider keys, private repository content, or
+        exploit details. Security vulnerabilities follow
+        [SECURITY.md](https://github.com/groktopus/codereview/blob/main/SECURITY.md),
+        not this public form.
+
+  - type: input
+    id: revision
+    attributes:
+      label: Affected revision
+      description: Commit SHA, tag, or release where the defect was observed.
+      placeholder: e.g. a3599f6 or v0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened, with the exact command and the relevant output.
+      placeholder: Command, exit code, and the observed result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened, and which documented contract or test states it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Steps, fixture, or test that reproduces the defect without target-code execution or credentials.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Links to logs, test output, artifacts, or a failing check. Do not paste secrets.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - Incorrect review output or evidence
+        - Publication or external-effect boundary
+        - Credential or access boundary
+        - Release or supply chain
+        - Documentation or ownership record
+        - Tooling or developer experience
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I removed secrets, tokens, private repository content, and exploit details.
+          required: true
+        - label: I checked the issue backlog for an existing report.
+          required: true

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability or credential exposure
+    url: https://github.com/groktopus/codereview/blob/main/SECURITY.md
+    about: Read the security policy first. Do not open a public issue with exploit details or secrets.
+  - name: Ownership, review, and triage rules
+    url: https://github.com/groktopus/codereview/blob/main/docs/OWNERSHIP.md
+    about: Who owns which path, the second-reviewer limits, and what happens if the maintainer is unavailable.
+  - name: Backlog states and closure evidence
+    url: https://github.com/groktopus/codereview/blob/main/docs/BACKLOG.md
+    about: Triage states, labels, owners, and the evidence required to close an issue.

@@ -194,6 +194,12 @@ All issues are filed as [#239–#271](https://github.com/groktopus/codereview/is
 
 Filing is idempotent by title prefix; re-running the filing step skips issues that already exist.
 
+Open-issue states, state labels, owners, closure-evidence rules, and the
+proposed mapping for the current 18 open issues are in
+[Backlog triage](../BACKLOG.md). The checked snapshot is
+[`backlog-open-issues.json`](../backlog-open-issues.json). Applying a state
+label is an owner/root action; the filing step does not mutate existing issues.
+
 The backlog is only "done" when every issue has an owner, a current state, and an evidence link, and the coverage map shows a credible path to each A− gate.
 
 ---
