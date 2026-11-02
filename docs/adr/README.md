@@ -39,7 +39,7 @@ them; the original rationale is retained.
 | 0006 | [Evaluation gates: no quality or replacement claim without independent evidence](0006-evaluation-gates.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-01 | [STATUS.md](../STATUS.md); [EVALUATION-TOOLKIT.md](../EVALUATION-TOOLKIT.md); [test_evaluation.py](../../tests/test_evaluation.py) |
 | 0007 | [License: MIT for original code and documentation](0007-license.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-01 | PR [#292](https://github.com/groktopus/codereview/pull/292); [LICENSE](../../LICENSE); [pyproject.toml](../../pyproject.toml) |
 | 0008 | [Release and version policy: SemVer plus independent contract versions](0008-release-version-policy.md) | Accepted | Repository maintainers (`@magnus919`) | 2026-11-02 | PR [#294](https://github.com/groktopus/codereview/pull/294); [VERSIONING.md](../VERSIONING.md); [RELEASING.md](../RELEASING.md) |
-| 0009 | [Ownership and second-review path](0009-ownership-and-second-review.md) | Accepted | @magnus919 | 2026-11-02 | PR #297, CODEOWNERS, OWNERSHIP/BACKLOG, GA-1 receipts |
+| 0009 | [Ownership and second-review path](0009-ownership-and-second-review.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-02 | [issue #271](https://github.com/groktopus/codereview/issues/271), PR #297, CODEOWNERS, OWNERSHIP/BACKLOG |
 
 
 The post-CA-2 budget (0001) is accepted as a one-time migration exception:

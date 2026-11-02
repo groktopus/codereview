@@ -3,9 +3,9 @@
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Owner:** @magnus919
-- **Decision authority:** Repository owner, direct task authorization for harness governance work (2026-11-02); recorded here because this is the owning change.
+- **Decision authority:** Repository owner, exercised through owner-authorized issue #271 and the direct task instruction to resolve the backlog (2026-11-02); AGENTS.md records the standing user authority.
 - **Scope:** CODEOWNERS, ownership/recovery documentation, backlog triage, and the second-reviewer path.
-- **Evidence:** PR #297, `.github/CODEOWNERS`, `docs/OWNERSHIP.md`, `docs/BACKLOG.md`, GA-1 receipts in PRs #293/#295/#296.
+- **Evidence:** [issue #271](https://github.com/groktopus/codereview/issues/271), [AGENTS.md](../../AGENTS.md), PR #297, `.github/CODEOWNERS`, `docs/OWNERSHIP.md`, `docs/BACKLOG.md`, GA-1 receipts in PRs #293/#295/#296.
 - **Reversal/expiry:** Supersede if a second human maintainer or different ownership model is adopted.
 
 ## Context
