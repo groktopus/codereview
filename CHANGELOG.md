@@ -1,0 +1,41 @@
+# Changelog
+
+All notable changes to `pr-review-harness` are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow the
+[package versioning policy](docs/VERSIONING.md). Entries describe source changes;
+a version heading does not by itself assert that a tagged GitHub Release exists.
+See [RELEASING.md](docs/RELEASING.md) for the release procedure.
+
+## [Unreleased]
+
+No unreleased changes.
+
+## [0.1.0] - 2026-11-02
+
+Initial source version of the read-only review harness.
+
+### Added
+
+- `pr-review` CLI with `review`, `publish` (read-only preview), and `stats` commands.
+- Deterministic snapshot, planner, stage scheduler, budget, and disposition pipeline over immutable Git objects.
+- OpenAI-compatible primary review provider plus optional advisory Jev and native claim-assessment adapters.
+- Bounded context selection, external check ingestion, claim reconciliation, and incomplete-reason reporting.
+- Contract and version registry with supported, deprecated, archived, and experimental identities.
+- GitHub Actions reusable analysis workflow and a separately installed target-local protected-publication runtime.
+- Versioned artifact contracts and schemas for review results, run summaries, price tables, and cross-model comparisons.
+- Packaging as a wheel and source distribution with an installed-entry-point smoke test.
+- Operations, deployment, provenance, threat-model, and verification documentation.
+
+### Changed
+
+- Publication remains disabled by default; the CLI `publish` command only renders a preview and the central publisher job is hard-disabled.
+- Run metrics represent unknown token, latency, and cost values as `UNKNOWN` rather than zero.
+
+### Security
+
+- Read-only CodeQL, dependency-review, and secret-scanning workflows.
+- Provider credentials are referenced through environment variable names and are never written to configuration files or logs.
+- Target code, hooks, tests, and builds are not executed during review.
+
+[Unreleased]: https://github.com/groktopus/codereview/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/groktopus/codereview/releases/tag/v0.1.0

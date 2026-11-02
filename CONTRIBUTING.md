@@ -25,6 +25,25 @@ at the exact reviewed head, then verify the merge commit and its checks. The
 field contract, exit codes, owner settings action, and enforcement limits are in
 [review evidence](docs/REVIEW-EVIDENCE.md).
 
+## Versioning, changelog, and releases
+
+Package and contract versions follow the [versioning policy](docs/VERSIONING.md).
+Every pull request that changes behavior or a promised surface updates the
+`Unreleased` section of [`CHANGELOG.md`](CHANGELOG.md) in the same change. Use
+`python scripts/check_changelog.py --classify "<conventional commit message>"`
+to choose the category; `!` or a `BREAKING CHANGE:` footer means `Breaking`.
+
+Run the release-metadata checks before opening the pull request:
+
+```sh
+python scripts/check_changelog.py
+python scripts/check_version_policy.py
+```
+
+Do not create tags, GitHub Releases, or version bumps outside the
+[release procedure](docs/RELEASING.md). Maintainers cut releases only from green
+`main`; the release workflow itself never creates a tag.
+
 ## Historical compatibility pins (VD-3)
 
 Historical evidence is pinned under `tests/fixtures/frozen-runtime-7d550b6` and checked with `pytest -m compatibility`; CI runs that suite as a separate job. These pins are immutable evidence: do not edit a fixture or the manifest to make a current test pass. A legitimate historical migration requires a reviewed change that updates the fixture set, tree pins, verifier literals, and any plan artifacts together. The refresh tooling is tracked separately and is not part of this repository's supported workflow yet.

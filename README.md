@@ -63,6 +63,8 @@ python -m venv /tmp/pr-review-wheel
 /tmp/pr-review-wheel/bin/python scripts/package_smoke.py --cli /tmp/pr-review-wheel/bin/pr-review
 ```
 
+Release tags are cut only from green `main`, and the release workflow attaches the wheel, source distribution, and SHA-256 checksums to a GitHub Release. See the [versioning policy](docs/VERSIONING.md) and [release procedure](docs/RELEASING.md) before tagging.
+
 ## What is included
 
 | Path | Purpose |
@@ -78,8 +80,11 @@ python -m venv /tmp/pr-review-wheel
 | `docs/OPERATIONS.md` | Safe local and GitHub Actions operation, evidence handling, and recovery |
 | `docs/EXTERNAL-EFFECT-OBSERVER.md` | Linux observer v2 event-sample, aggregate, and coverage contract |
 | `docs/PACKAGING-VERIFICATION.md` | Wheel, source distribution, matrix, and installed-entry-point checks |
+| `docs/VERSIONING.md` | Package semantic versioning and independent contract versioning, promised surfaces, and breaking-change rules |
+| `docs/RELEASING.md` | Tag creation, release workflow triggers and permissions, verification commands, and rollback |
+| `CHANGELOG.md` | Classified source changes, including the initial `0.1.0` entry |
 | `docs/REVIEW-COMPLETENESS.md` | Canonical incomplete-reason taxonomy, per-run completeness summary, and the fixture baseline regression gate |
-| `.github/workflows/` | Python support matrix, wheel verification, and read-only review artifacts |
+| `.github/workflows/` | Python support matrix, wheel verification, release pipeline, and read-only review artifacts |
 
 ## Package surface
 
