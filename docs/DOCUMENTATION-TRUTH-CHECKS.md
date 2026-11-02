@@ -13,6 +13,7 @@ python3 scripts/check_docs_index.py
 python3 scripts/check_docs_truth.py \
   --sha-manifest scripts/documentation-sha-references.v1.json \
   --contract-ids scripts/documentation-contract-ids.v1.json
+python3 scripts/generate_status_evidence.py --check
 ```
 
 The truth checker returns exit code 0 when clean, 1 for findings, and 2 for
@@ -121,6 +122,16 @@ not a pass. OE-3 can generate this manifest from its evidence artifacts without
 changing the checker or allowing this checker to invent owners, decisions, or
 quality claims. Current integration deliberately does not claim status freshness
 until its evidence owner refreshes the record.
+
+OE-3 adds a separate derived page, [STATUS-EVIDENCE.md](STATUS-EVIDENCE.md), and
+`scripts/documentation-status-evidence.v1.json`. They are generated from checked-in
+artifacts by `scripts/generate_status_evidence.py`; the `status-evidence` CI job
+verifies reproducibility, artifact links, contract labels, and freshness, and
+seeded stale and superseded-contract failures. The generated block records the
+owner-reviewed page's `STATUS_STALE` finding verbatim and never writes
+`docs/STATUS.md` or claims an owner review. The DT-1 handoff manifest for
+`docs/STATUS.md` therefore remains a non-passing record until an owner refreshes
+it; only the derived page's own artifact dependency set is gated as fresh.
 
 ## Seeded failure coverage
 
