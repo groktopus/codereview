@@ -59,6 +59,9 @@ def test_src_reduction_meets_the_documented_floor():
     manifest = _manifest()["consolidation"]
     current = _src_line_count()
     assert current <= manifest["base_src_lines"]
+    assert current == manifest["measured_src_lines"], "update documented src line count"
+    computed_reduction = (manifest["base_src_lines"] - current) / manifest["base_src_lines"]
+    assert abs(computed_reduction - manifest["measured_reduction"]) < 1e-6
     budget = manifest.get("post_ca2_feature_budget_lines", 0)
     ceiling = int(manifest["base_src_lines"] * (1 - manifest["required_reduction"]) + budget)
     assert current <= ceiling, (
