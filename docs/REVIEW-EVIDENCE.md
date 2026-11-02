@@ -1,14 +1,18 @@
 # Review evidence receipts (GA-1)
 
-Status: current protocol for merge review evidence. It implements GA-1
-([issue #269](https://github.com/groktopus/codereview/issues/269)) as a
-documented, CI-validated receipt rather than a GitHub review record or branch
-protection. The owner chose this mechanism; see
-[Enforcement limits](#enforcement-limits) for what it does and does not make
+Status: **partial implementation of GA-1
+([issue #269](https://github.com/groktopus/codereview/issues/269))**. The receipt
+protocol and CI validator exist; enforcement is pending the owner marking the
+`Review receipt` check required. It is not a GitHub review record or branch
+protection, and this change does not by itself make an unreceipted merge
 impossible.
 
-Every merge into `main` must carry a review receipt bound to the exact reviewed
-head. The receipt lives in the pull request body inside one fenced
+Once the check is required, every merge into `main` must carry a review receipt
+bound to the exact reviewed head. The first merge that adds this workflow is an
+explicit bootstrap exception: `pull_request_target` executes the workflow from
+the default branch, so the check cannot exist for that PR. Put a completed
+receipt in the bootstrap PR body and merge after independent review; every later
+PR is checked. The receipt lives in the pull request body inside one fenced
 `review-receipt` block, is validated by
 [`scripts/check_review_receipt.py`](../scripts/check_review_receipt.py) in the
 [`Review receipt` workflow](../.github/workflows/review-receipt.yml), and is
@@ -133,7 +137,7 @@ Failure codes and exit codes are stable:
 | 0 | — | Receipt accepted for the exact head. |
 | 1 | — | Unexpected internal error. |
 | 2 | `EVENT_PATH_MISSING`, `EVENT_PATH_UNREADABLE`, `EVENT_TOO_LARGE`, `EVENT_INVALID_JSON`, `EVENT_INVALID_SHAPE`, `EVENT_HEAD_UNKNOWN`, `EVENT_AUTHOR_UNKNOWN` | The event is absent or malformed; the check fails closed. |
-| 3 | `RECEIPT_MISSING`, `RECEIPT_DUPLICATE`, `RECEIPT_UNCLOSED`, `RECEIPT_TOO_LARGE`, `RECEIPT_NOT_JSON`, `RECEIPT_NOT_OBJECT` | The fenced block is absent or unusable. |
+| 3 | `RECEIPT_MISSING`, `RECEIPT_DUPLICATE`, `RECEIPT_UNCLOSED`, `RECEIPT_TOO_LARGE`, `RECEIPT_NOT_JSON`, `RECEIPT_NOT_OBJECT`, `RECEIPT_DUPLICATE_KEY` | The fenced block is absent or unusable (duplicate JSON keys are rejected). |
 | 4 | `FIELD_MISSING`, `FIELD_TYPE`, `FIELD_EMPTY`, `FIELD_INVALID`, `FIELD_UNKNOWN` | Schema or field validation failed. |
 | 5 | `PLACEHOLDER` | Template or placeholder text remains in a required field. |
 | 6 | `SHA_MISMATCH` | `reviewed_sha` is not the pull request head. |
@@ -150,12 +154,26 @@ does not prevent a merge:
 > **Owner action:** in repository **Settings → Branches**, protect `main`,
 > enable **Require status checks to pass before merging**, and select
 > **Review receipt** (and the other required harness jobs). Enable **Require
-> branches to be up to date before merging** so the receipt is evaluated on the
-> merge base. Optionally restrict force pushes and deletions.
+> branches to be up to date before merging** so the check runs against the
+> latest base. Optionally restrict force pushes and deletions.
 
 The owner deliberately did not enable branch protection in this change, so the
 current state is: the receipt protocol is documented, checked, and visible, but
 a merge is only procedurally blocked until that setting exists.
+
+## Bootstrap, retention, and caps
+
+- The bootstrap merge is the only acknowledged exception; it must still carry a
+  completed receipt in its body even though the check is absent. The owner
+  cannot select `Review receipt` as required until it has run at least once on
+  `main`; bootstrap in two steps (merge this protocol with a receipt, then mark
+  the check required).
+- The workflow retains the PASS/error summary in the job summary and log. It
+  does **not** upload a signed or immutable receipt artifact; PR bodies remain
+  editable and logs expire. Export the PR body and job log together for audit.
+- Caps: receipt ≤64 KB, event body ≤2 MB, scope/evidence ≤50 items each, most
+  fields ≤4000 chars, reviewer identity ≤200, `post_merge_verification` ≥10
+  chars, evidence values single-line.
 
 Even with the check required, CI can and cannot do the following:
 
