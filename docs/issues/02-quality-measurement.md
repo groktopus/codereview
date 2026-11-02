@@ -69,21 +69,25 @@ implemented contract, not closure.
 
 - QM-2: [labeling protocol and rubric](../QUALITY-LABELING-PROTOCOL.md)
   (`qm2-labeling-rubric.v1`), `reviewer_kind: synthetic` with exact provenance,
-  and a fixed six-case, empty
+  and a fixed six-case
   [pilot subset](../../examples/evaluation/qm2-labeling-pilot-v1/manifest.json).
-  The pilot has zero synthetic packets, zero human packets, zero model-teacher
-  screening packets, and no predictions. The contract now accepts synthetic
-  adjudication and rejects synthetic packets mislabelled as human; this is not
-  evidence that a real teacher run produced usable labels.
+  The pilot now has six retained synthetic adjudicated packets
+  ([labels](../../examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json)):
+  five complete cases are `NO_KNOWN_MATERIAL_DEFECTS` and one case is incomplete
+  and inconclusive. It still has zero human packets, zero model-teacher
+  screening packets, and no predictions. The contract accepts synthetic
+  adjudication and rejects synthetic packets mislabelled as human; this retained
+  pilot is not evidence that the method produced usable labels.
 - QM-3: [scorecard and regression gate](../QUALITY-SCORECARD.md) v2, a CI job
-  that runs the empty pilot, proves a synthetic-only fixture scorecard is
+  that runs the retained synthetic pilot, proves a synthetic-only fixture scorecard is
   `COMPLETE` with a missing human arm, and proves a seeded synthetic regression
   fails. The scorecard never emits accuracy and reports the two label arms
   separately.
 
-QM-2 exit criteria still unmet: there is no real synthetic adjudicated packet
-with retained model output, no non-empty packet set for a case family, and no
-synthetic scorecard baseline. The accepted method does not substitute for the
+QM-2 exit criteria still unmet: a retained synthetic packet set now exists, but
+it contains no material finding labels, one case is incomplete, no prediction
+runs give precision or recall a denominator, and there is no synthetic scorecard
+baseline. The accepted method does not substitute for the
 missing evidence.
 
 QM-3 exit criteria still unmet: real predictions and real synthetic (or

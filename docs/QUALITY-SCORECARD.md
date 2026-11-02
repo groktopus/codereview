@@ -7,7 +7,7 @@ optional. **No accepted quality baseline exists** and no accuracy or release
 claim is made. Issue [#244](https://github.com/groktopus/codereview/issues/244)
 remains open and blocked by [#241](https://github.com/groktopus/codereview/issues/241)
 and [#243](https://github.com/groktopus/codereview/issues/243): the pilot still
-has no real synthetic packets, no predictions, and no baseline.
+has retained synthetic packets (five complete, one incomplete) but no predictions and no baseline.
 
 **Contract:** `review-evaluation-scorecard.v2`
 **Gate contract:** `review-evaluation-scorecard-gate.v2`
@@ -93,12 +93,13 @@ adjudicated packet exists in either arm, the data state is `MISSING_DATA`.
 
 ## Missing data is not zero
 
-The pilot inputs contain zero labels and zero prediction runs. The generated
-scorecard reports:
+The retained pilot has six synthetic adjudicated packets but zero prediction
+runs. The generated scorecard reports:
 
 - `data_state.state: MISSING_DATA`;
 - `arms.harness.status: missing` and `arms.droid.status: missing`;
-- `label_arms.synthetic.status` and `label_arms.human.status` both `missing`;
+- `data_state.label_state.arms.synthetic.status: partial` (five of six cases complete) and
+  `data_state.label_state.arms.human.status: missing`;
 - `candidate_findings: null`, not `0`;
 - precision and recall bounds with null values and explicit reasons;
 - abstention, duplicate, unadjudicated, and `APPROVE`-with-known-defect counts
@@ -163,7 +164,7 @@ Human and synthetic checks are separate, so a synthetic regression cannot hide
 behind a human baseline or vice versa. Identity checks fail on a corpus,
 dataset, rubric, evaluator revision, or evaluator source-hash mismatch. A metric
 that is missing on either side is `NOT_EVALUATED`; it is not treated as zero.
-When no check is evaluable — for example both scorecards are the empty pilot —
+When no check is evaluable — for example both scorecards are the retained synthetic pilot without predictions —
 the gate returns `MISSING_DATA` and exits `0`. A seed that regresses a present
 metric returns `FAIL` and exits `1`. Contract or read failures return `2` with a
 stable error code.
@@ -190,14 +191,15 @@ The `quality-scorecard` job in [test.yml](../.github/workflows/test.yml):
 5. Proves a synthetic-only scorecard is `COMPLETE` with a missing human arm,
    that its synthetic metrics are present and non-human, and that its gate
    passes.
-6. Runs the gate on the empty pilot, the synthetic-only baseline, and a seeded
-   synthetic regression. The empty pilot must exit `0` as `MISSING_DATA`; the
-   synthetic-only baseline must exit `0` as `PASS`; the seeded regression must
-   exit `1` as `FAIL`.
+6. Runs the gate on the retained six-packet pilot, the synthetic-only fixture
+   baseline, and a seeded synthetic regression. The retained pilot must exit `0`
+   as `MISSING_DATA` because no prediction runs exist; the synthetic-only
+   baseline must exit `0` as `PASS`; the seeded regression must exit `1` as
+   `FAIL`.
 
 The job proves the gate is wired, keeps the label arms separate, and is
-sensitive to a known injected regression. It does not prove the corpus has
-synthetic or human labels, real predictions, a baseline, or quality.
+sensitive to a known injected regression. It does not prove that prediction
+runs, a material finding label, an accepted baseline, or quality exist.
 
 ## How to run it
 
@@ -205,7 +207,7 @@ synthetic or human labels, real predictions, a baseline, or quality.
 python3 scripts/generate_quality_scorecard.py \
   --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
   --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
-  --labels examples/evaluation/qm2-labeling-pilot-v1/labels.json \
+  --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
   --output quality-scorecard.json \
   --json
 
@@ -222,7 +224,8 @@ packets are `reviewer_kind: synthetic`; the scorecard reports the human arm as
 ## What remains for QM-3
 
 - Real arm predictions for the corpus, not empty or test-only fixtures.
-- A real synthetic teacher packet set from QM-2.
+- A complete synthetic packet set from QM-2, including the currently incomplete
+  `qm1-slopsearx-pr770` case.
 - An owner-accepted baseline scorecard and owner-set regression tolerances.
 - A scheduled full-corpus run, not only the fixed pilot subset.
 - A published scorecard for a real corpus run with meaningful denominators.

@@ -4,28 +4,132 @@
       "change": "Created the fixed six-case labeling pilot subset with empty label and prediction packets.",
       "date": "2026-11-02",
       "version": "2026-11-02.1"
+    },
+    {
+      "change": "Retained a synthetic six-packet QM-2 pilot: exact diffs, teacher prompt/request/response, teacher output, and validated synthetic adjudicated labels. Five complete cases are NO_KNOWN_MATERIAL_DEFECTS with empty findings; qm1-slopsearx-pr770 is INCOMPLETE/INCONCLUSIVE because the frozen manifest records incomplete evidence. No human packets and no quality claim.",
+      "date": "2026-11-02",
+      "version": "2026-11-02.2"
     }
   ],
   "content_hashes": {
     "corpus.json": "277fe6dc2f6ec1a7c6290b82ebe16ad56a3194266ebd809504b8df5cffdb27ab",
+    "evidence/prompt.md": "78dcc9a0b151636077866c3f6c8a2ca4660b94ffd8e7cc90f5a7aaf00dbc82d3",
+    "evidence/qm1-codereview-pr112.diff.gz": "0a6f8651576b7e5b195f070d8963d1dcf34a3003cd71b01c70b430a882a646d3",
+    "evidence/qm1-codereview-pr285.diff.gz": "e18f569fe183253fb4ac1d449f4d70a711cc46fa2a50d9650a8e75565cb1921f",
+    "evidence/qm1-codereview-pr289.diff.gz": "7289fd3780a8501b09dfd7aee22e8c97e35865d3a2833c0e9f963f4d87b49270",
+    "evidence/qm1-slopsearx-pr745.diff.gz": "eb85e055eb1405e116bb0f8f956f8395afdb455cbcf7686e4a7a64b773c8652e",
+    "evidence/qm1-slopsearx-pr759.diff.gz": "20f724768192da1b7ccc6a8d9b4f59aee1bb2e29f70d7b676033dc3c8b7aa73c",
+    "evidence/qm1-slopsearx-pr770.diff.gz": "46e182d7179c477b4cb756ab04c197a56101d1cc250b5231f4d76d5f119f392d",
+    "evidence/request.json": "c7fb53fa523aab1da9c4ca0e427cd9518a613dd9caa981e7e7b56fad0a84c064",
+    "evidence/teacher-response.txt": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+    "labels-synthetic-v1.json": "668749ee57c430bd79f6cfe74e77a4fd2c11a0e4689d5ab0bc4f5954031ad315",
     "labels.json": "83b937d9413dcb83f28ac44ef989c28dab9d1c30fd79df1d452975269889147c",
-    "predictions.json": "f05744c5818b42b817aa60347326bed1b01003fe8e13c61ba5c05d2c29eebbad"
+    "predictions.json": "f05744c5818b42b817aa60347326bed1b01003fe8e13c61ba5c05d2c29eebbad",
+    "teacher-output-2026-11-02.json": "ebd67054b78b17f374bcb5f7b8c9d4f3289d0f134c9180209e941a931b08e073"
   },
   "corpus_id": "qm2-labeling-pilot-v1",
   "dataset_version": "2026-11-02.1",
   "label_packet_state": {
-    "authored_at": null,
+    "authored_at": "2026-11-02T22:26:00Z",
     "human_packets": 0,
+    "label_source": "synthetic",
     "model_teacher_screening_packets": 0,
-    "packet_version": "labels-pilot-v1",
-    "reason": "No real synthetic model-teacher adjudication run exists for this pilot subset: the frozen corpus does not check in reviewed diff bytes and no teacher run has been retained. Human packets are optional. Empty packets are intentional; they are not negative or clean labels.",
-    "state": "missing",
-    "synthetic_adjudicated_packets": 0,
+    "packet_version": "labels-synthetic-v1",
+    "reason": "A retained six-packet synthetic adjudication run is present. Five complete cases are NO_KNOWN_MATERIAL_DEFECTS with empty finding_labels; qm1-slopsearx-pr770 is INCOMPLETE and INCONCLUSIVE because the frozen manifest records evidence_completeness=incomplete. Empty findings are conservative adjudications, not a clean-review claim. No human packets and no model-teacher screening packets are present.",
+    "state": "present",
+    "synthetic_adjudicated_packets": 6,
+    "synthetic_complete_packets": 5,
+    "synthetic_incomplete_packets": 1,
+    "synthetic_present": true,
     "unknown_provenance_packets": 0
   },
+  "pilot_result": {
+    "complete_synthetic_packets": 5,
+    "incomplete_synthetic_packets": 1,
+    "labels_file": "labels-synthetic-v1.json",
+    "prediction_runs": 0,
+    "quality_claim": false,
+    "scorecard_label_state": "partial",
+    "scorecard_reason": "No prediction runs exist; the synthetic label arm is partial because qm1-slopsearx-pr770 is incomplete.",
+    "scorecard_state": "MISSING_DATA",
+    "synthetic_packets": 6
+  },
+  "provenance_limitation": "Retained response is a provenance-corrected normalization of a model output from the DeepSeek Harness synthetic teacher, not a fresh live provider call. Prompt, diffs, request, response bytes, and output hash are retained; transport logs and provider request IDs are not.",
   "relabeling": {
     "policy": "A relabel creates a new packet version and a new labels file; prior packet files are retained and never mutated.",
     "supersedes": null
+  },
+  "retained_evidence": {
+    "cases": {
+      "qm1-codereview-pr112": {
+        "bytes": 7903,
+        "diff_path": "evidence/qm1-codereview-pr112.diff.gz",
+        "diff_sha256": "1a1e4e473a1eaca85db832c0d46e1717a3e8347cb3c1241f7d5cda4beed7e5dc",
+        "evidence_completeness": "bounded",
+        "repository": "groktopus/codereview",
+        "snapshot_id": "snap-95934f06170088c446a0d7b0",
+        "source_manifest_sha256": "c4b354be2f2acf845543fb3464d2a606438638c36b79ffabb7473919b9042ea9"
+      },
+      "qm1-codereview-pr285": {
+        "bytes": 19628,
+        "diff_path": "evidence/qm1-codereview-pr285.diff.gz",
+        "diff_sha256": "a57479030217682d7fae22750a1669e362a754878505b53254c9c8b741e21a5f",
+        "evidence_completeness": "bounded",
+        "repository": "groktopus/codereview",
+        "snapshot_id": "snap-ea9855d399fd37608196b9a7",
+        "source_manifest_sha256": "65564697cd53a812c10acd26f9769261b9bc9d105260627da92b369e77e1d3fb"
+      },
+      "qm1-codereview-pr289": {
+        "bytes": 42896,
+        "diff_path": "evidence/qm1-codereview-pr289.diff.gz",
+        "diff_sha256": "ad11485b13b7a649847b0400a47e5b05147a8fbcadeeccd1686018a5e07c948c",
+        "evidence_completeness": "bounded",
+        "repository": "groktopus/codereview",
+        "snapshot_id": "snap-a3b0ba253b9877c326233ef2",
+        "source_manifest_sha256": "6de2989efaca273e2e73c6efd970dcc2a6a95596b557112e339e9a5ead3bba00"
+      },
+      "qm1-slopsearx-pr745": {
+        "bytes": 14803,
+        "diff_path": "evidence/qm1-slopsearx-pr745.diff.gz",
+        "diff_sha256": "7720d6d07fe808a6459790b9333fdc4368fe5a08f3fa44e0458d09bfcc04a78f",
+        "evidence_completeness": "bounded",
+        "repository": "magnus919/SlopSearX",
+        "snapshot_id": "snap-4f6697039622e7fb738d608a",
+        "source_manifest_sha256": "0baaf872ab7be6f28dcc821ecaa10ad5991907f825bd60e20ae817813da6067f"
+      },
+      "qm1-slopsearx-pr759": {
+        "bytes": 6411,
+        "diff_path": "evidence/qm1-slopsearx-pr759.diff.gz",
+        "diff_sha256": "4e034750192859f7d4227382b2bc956859e803e29b91ce432a67c57648bd6053",
+        "evidence_completeness": "bounded",
+        "repository": "magnus919/SlopSearX",
+        "snapshot_id": "snap-d5a43f5d4c64a1bc7b9701eb",
+        "source_manifest_sha256": "01f96b31ad5537b3e3cfe5fa1a37d465c8650fda6221edd877dfed3854b024f6"
+      },
+      "qm1-slopsearx-pr770": {
+        "bytes": 151601,
+        "diff_path": "evidence/qm1-slopsearx-pr770.diff.gz",
+        "diff_sha256": "1e9271c5bf8ad62b7dd8f441b003998fd0cb6340913a9d9d88b63cd70f676aa9",
+        "evidence_completeness": "incomplete",
+        "repository": "magnus919/SlopSearX",
+        "snapshot_id": "snap-930458eba9d270f546e83939",
+        "source_manifest_sha256": "fd37dd93e6516aea53c246e3a7d0f355b5d499aa64a5809ce881e07ab4888433"
+      }
+    },
+    "prompt": {
+      "bytes": 3442,
+      "path": "evidence/prompt.md",
+      "revision": "qm2-synthetic-adjudication-prompt-v1",
+      "sha256": "78dcc9a0b151636077866c3f6c8a2ca4660b94ffd8e7cc90f5a7aaf00dbc82d3"
+    },
+    "request": {
+      "path": "evidence/request.json",
+      "sha256": "c7fb53fa523aab1da9c4ca0e427cd9518a613dd9caa981e7e7b56fad0a84c064"
+    },
+    "response": {
+      "path": "evidence/teacher-response.txt",
+      "sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016"
+    }
   },
   "rubric_version": "qm2-labeling-rubric.v1",
   "schema_version": "qm2-labeling-pilot-manifest.v1",
@@ -54,5 +158,18 @@
     "dataset_version": "2026-11-02.1",
     "path": "examples/evaluation/frozen-corpus-v1/corpus.json",
     "sha256": "bd843ca82c17dce86144bb45415dbe6ea20d6db4a0b094e257f24c1568dec88a"
+  },
+  "teacher_output": {
+    "labeled_at": "2026-11-02T22:26:00Z",
+    "model_id": "deepseek-v4.1-flash-1017",
+    "model_revision": "deepseek-v4.1-flash-1017",
+    "packets": 6,
+    "path": "teacher-output-2026-11-02.json",
+    "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+    "provider_id": "deepseek",
+    "response_path": "evidence/teacher-response.txt",
+    "response_sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+    "rubric_revision": "qm2-labeling-rubric.v1",
+    "run_id": "qm2-synthetic-pilot-2026-11-02"
   }
 }

@@ -1,0 +1,97 @@
+{
+  "cases": [
+    {
+      "base_sha": "84a373c31e5a80af0da589ce239f8eed6e962eaa",
+      "bytes": 7903,
+      "case_id": "qm1-codereview-pr112",
+      "diff_path": "qm1-codereview-pr112.diff.gz",
+      "diff_sha256": "1a1e4e473a1eaca85db832c0d46e1717a3e8347cb3c1241f7d5cda4beed7e5dc",
+      "evidence_completeness": "bounded",
+      "head_sha": "415417ef496706198d050a573ffb86260f231b1d",
+      "repository": "groktopus/codereview",
+      "snapshot_id": "snap-95934f06170088c446a0d7b0",
+      "source_manifest_sha256": "c4b354be2f2acf845543fb3464d2a606438638c36b79ffabb7473919b9042ea9"
+    },
+    {
+      "base_sha": "feb33d9ccb98e1989762537f3fa0f490a8ee6c9f",
+      "bytes": 42896,
+      "case_id": "qm1-codereview-pr289",
+      "diff_path": "qm1-codereview-pr289.diff.gz",
+      "diff_sha256": "ad11485b13b7a649847b0400a47e5b05147a8fbcadeeccd1686018a5e07c948c",
+      "evidence_completeness": "bounded",
+      "head_sha": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+      "repository": "groktopus/codereview",
+      "snapshot_id": "snap-a3b0ba253b9877c326233ef2",
+      "source_manifest_sha256": "6de2989efaca273e2e73c6efd970dcc2a6a95596b557112e339e9a5ead3bba00"
+    },
+    {
+      "base_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+      "bytes": 19628,
+      "case_id": "qm1-codereview-pr285",
+      "diff_path": "qm1-codereview-pr285.diff.gz",
+      "diff_sha256": "a57479030217682d7fae22750a1669e362a754878505b53254c9c8b741e21a5f",
+      "evidence_completeness": "bounded",
+      "head_sha": "dfd865bc6e72fde7bdbe7b9cc30bef91ae4be53c",
+      "repository": "groktopus/codereview",
+      "snapshot_id": "snap-ea9855d399fd37608196b9a7",
+      "source_manifest_sha256": "65564697cd53a812c10acd26f9769261b9bc9d105260627da92b369e77e1d3fb"
+    },
+    {
+      "base_sha": "8c69cde94436782bde13efa018c2f428f5a6881d",
+      "bytes": 6411,
+      "case_id": "qm1-slopsearx-pr759",
+      "diff_path": "qm1-slopsearx-pr759.diff.gz",
+      "diff_sha256": "4e034750192859f7d4227382b2bc956859e803e29b91ce432a67c57648bd6053",
+      "evidence_completeness": "bounded",
+      "head_sha": "6fbd0675091420397b6757e7e87816305e9f5b58",
+      "repository": "magnus919/SlopSearX",
+      "snapshot_id": "snap-d5a43f5d4c64a1bc7b9701eb",
+      "source_manifest_sha256": "01f96b31ad5537b3e3cfe5fa1a37d465c8650fda6221edd877dfed3854b024f6"
+    },
+    {
+      "base_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+      "bytes": 14803,
+      "case_id": "qm1-slopsearx-pr745",
+      "diff_path": "qm1-slopsearx-pr745.diff.gz",
+      "diff_sha256": "7720d6d07fe808a6459790b9333fdc4368fe5a08f3fa44e0458d09bfcc04a78f",
+      "evidence_completeness": "bounded",
+      "head_sha": "1db229364205e35acc97442456f56a4c19a38050",
+      "repository": "magnus919/SlopSearX",
+      "snapshot_id": "snap-4f6697039622e7fb738d608a",
+      "source_manifest_sha256": "0baaf872ab7be6f28dcc821ecaa10ad5991907f825bd60e20ae817813da6067f"
+    },
+    {
+      "base_sha": "282cf846e0f834aa55487f948ce66c1b8426a954",
+      "bytes": 151601,
+      "case_id": "qm1-slopsearx-pr770",
+      "diff_path": "qm1-slopsearx-pr770.diff.gz",
+      "diff_sha256": "1e9271c5bf8ad62b7dd8f441b003998fd0cb6340913a9d9d88b63cd70f676aa9",
+      "evidence_completeness": "incomplete",
+      "head_sha": "5359f410a87f0d3275366e3d6bde8b68aa8557c7",
+      "repository": "magnus919/SlopSearX",
+      "snapshot_id": "snap-930458eba9d270f546e83939",
+      "source_manifest_sha256": "fd37dd93e6516aea53c246e3a7d0f355b5d499aa64a5809ce881e07ab4888433"
+    }
+  ],
+  "corpus": {
+    "corpus_id": "qm2-labeling-pilot-v1",
+    "dataset_version": "2026-11-02.1",
+    "path": "../../corpus.json"
+  },
+  "created_at": "2026-11-02T22:18:00Z",
+  "paths_relative_to": "examples/evaluation/qm2-labeling-pilot-v1/evidence/",
+  "prompt": {
+    "bytes": 3442,
+    "path": "prompt.md",
+    "revision": "qm2-synthetic-adjudication-prompt-v1",
+    "sha256": "78dcc9a0b151636077866c3f6c8a2ca4660b94ffd8e7cc90f5a7aaf00dbc82d3"
+  },
+  "provider": {
+    "model_id": "deepseek-v4.1-flash-1017",
+    "model_revision": "deepseek-v4.1-flash-1017",
+    "provider_id": "deepseek"
+  },
+  "rubric_revision": "qm2-labeling-rubric.v1",
+  "run_id": "qm2-synthetic-pilot-2026-11-02",
+  "schema_version": "qm2-synthetic-pilot-request.v1"
+}

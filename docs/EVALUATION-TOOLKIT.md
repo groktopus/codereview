@@ -51,7 +51,7 @@ synthetic adjudication, the optional human independent/adjudicated workflow,
 advisory evidence only. Synthetic adjudication is a distinct, non-human arm.
 The fixed pilot subset in
 [examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)
-has empty labels and predictions and therefore reports missing data; no real
+has retained synthetic labels but empty predictions and therefore reports missing data; no real
 synthetic teacher run is checked in.
 
 [QUALITY-SCORECARD.md](QUALITY-SCORECARD.md) documents the deterministic

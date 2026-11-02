@@ -123,7 +123,7 @@ The corpus cannot establish:
 The fixed six-case QM-2 pilot subset
 [examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)
 copies case identities unchanged from this corpus, covers both repositories and
-all three splits, and intentionally contains empty label and prediction
+all three splits, and contains retained synthetic label packets and empty prediction
 packets. It is a measurement-infrastructure fixture, not a labeled dataset; see
 [QUALITY-LABELING-PROTOCOL.md](QUALITY-LABELING-PROTOCOL.md).
 

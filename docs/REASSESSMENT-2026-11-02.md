@@ -15,7 +15,7 @@ keeping that document as the original evidence snapshot.
 | Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | No A− blocker; A would require reducing the 35 functions over 150 lines and tightening module cohesion. |
 | Test depth | **B+** | 3,600+ tests, 88.48% coverage (CI run 41438939529 at PR #302), compatibility suite, fault/invariant suites. | Mutation score is **not established**: the exploratory probe was discarded and no retained report, mutant count, killed count, or survivor triage exists (#252). |
 | Review completeness | **C−/D+** | Canonical `review-completeness-taxonomy.v1`, per-run summary, fixture baseline, and an active seeded-regression CI gate exist; frozen corpus exists. | No frozen-corpus baseline from real review runs (#241); fixture-only gate does not prove corpus completeness. |
-| Review quality evidence | **F** | Frozen corpus v1 (41 cases), synthetic labeling rubric (ADR 0010), empty pilot, scorecard/gate infrastructure. | Zero synthetic packets, zero harness predictions, no accepted baseline, no real scorecard run (#243/#244). Quality is unmeasured even synthetically. |
+| Review quality evidence | **F** | Frozen corpus v1 (41 cases), synthetic labeling rubric (ADR 0010), retained six-packet synthetic pilot (5 complete, 1 incomplete), scorecard/gate infrastructure. | Zero harness predictions, no accepted baseline, no real scorecard run (#243/#244). Quality is unmeasured even synthetically. |
 | Architecture | **C+/B−** | Typed core boundaries, contract registry, staged pipeline, no runtime dependencies. | Oversized functions remain; `run_review` orchestration is still concentrated; module ownership is documented but not enforced by required review. |
 | Operational readiness | **C+/B−** | Hash-locked dependencies, install matrix, public API/support matrix, SBOM/provenance tooling, release workflow. | `v0.1.0` and attested `v0.1.1` releases exist with wheel/sdist, SBOM, checksums, and reproducibility reports; dependency review remains inactive (#262). |
 | Documentation | **B+** | 180+ indexed documents, 1,200+ links with 0 broken, generated status evidence, ADR index, docs-truth checks. | Owner-reviewed status remains intentionally stale; some operational evidence is CI-defined but unexecuted. |
@@ -29,9 +29,9 @@ keeping that document as the original evidence snapshot.
   #298, #300); decision-record links enforced for future safety-invariant
   changes (#300).
 - Ownership/backlog: GA-3 closed with current 16-issue snapshot (#301).
-- Quality measurement: frozen corpus, versioned labeling protocol, empty pilot,
-  deterministic scorecard, missing-data semantics, seeded regression gate
-  (#298, #302).
+- Quality measurement: frozen corpus, versioned labeling protocol, retained
+  synthetic pilot, deterministic scorecard, missing-data semantics, seeded
+  regression gate (#298, #302, #316).
 - Release/supply chain: version/changelog policy, SBOM, provenance, reproducible
   build checks, unsigned-attestation limits documented (#294, #296).
 

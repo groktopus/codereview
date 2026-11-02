@@ -1,0 +1,134 @@
+{
+  "contract_version": "review-evaluation-labels.v1",
+  "corpus_id": "qm2-labeling-pilot-v1",
+  "dataset_version": "2026-11-02.1",
+  "packets": [
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-codereview-pr112",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:26:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "deepseek-v4.1-flash-1017",
+        "output_sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-codereview-pr289",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:26:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "deepseek-v4.1-flash-1017",
+        "output_sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-codereview-pr285",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:26:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "deepseek-v4.1-flash-1017",
+        "output_sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-slopsearx-pr759",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:26:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "deepseek-v4.1-flash-1017",
+        "output_sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-slopsearx-pr745",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:26:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "deepseek-v4.1-flash-1017",
+        "output_sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "INCONCLUSIVE",
+      "case_completeness": "INCOMPLETE",
+      "case_id": "qm1-slopsearx-pr770",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:26:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "deepseek-v4.1-flash-1017",
+        "output_sha256": "90726caaeeea75ac13821a68cc8d172231f4931e0f54791c5bd7724df6148016",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    }
+  ],
+  "rubric_version": "qm2-labeling-rubric.v1"
+}
