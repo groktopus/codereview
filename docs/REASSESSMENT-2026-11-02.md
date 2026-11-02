@@ -12,7 +12,7 @@ keeping that document as the original evidence snapshot.
 |---|---|---|---|
 | Evidence discipline | **A** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, frozen historical fixtures, exact-byte pins. | None material. |
 | Effect safety | **B+** | Default read-only, typed effect boundaries, fault matrix, publication receipts, fail-closed unknown states. | The documented A− gate requires an exercised canary; the live canary remains NOT EXERCISED (#258), so the fault matrix alone is not enough. |
-| Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | `run_review` is 76 lines, but 35 functions still exceed 150 lines; architecture remains B+ in cohesion/ownership terms. |
+| Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | No A− blocker; A would require reducing the 35 functions over 150 lines and tightening module cohesion. |
 | Test depth | **B+** | 3,600+ tests, 88.48% coverage (CI run 41438939529 at PR #302), compatibility suite, fault/invariant suites. | Mutation score is **not established**: the exploratory probe was discarded and no retained report, mutant count, killed count, or survivor triage exists (#252). |
 | Review completeness | **C−/D+** | Canonical `review-completeness-taxonomy.v1`, per-run summary, fixture baseline, and an active seeded-regression CI gate exist; frozen corpus exists. | No frozen-corpus baseline from real review runs (#241); fixture-only gate does not prove corpus completeness. |
 | Review quality evidence | **F** | Frozen corpus v1 (41 cases), labeling rubric, empty pilot, scorecard/gate infrastructure. | Zero human packets, zero harness predictions, no accepted baseline, no real scorecard run (#243/#244). Quality is unmeasured. |
@@ -33,11 +33,11 @@ keeping that document as the original evidence snapshot.
   deterministic scorecard, missing-data semantics, seeded regression gate
   (#298, #302).
 - Release/supply chain: version/changelog policy, SBOM, provenance, reproducible
-  build checks, unsigned-attestation limits documented (#294–#296).
+  build checks, unsigned-attestation limits documented (#294, #296).
 
 ## Why A− is not reached
 
-Seven dimensions remain below A−. Five of them cannot be closed by more harness
+Eight dimensions remain below A−. Five of them cannot be closed by more harness
 code alone:
 
 1. **Human labels and adjudication (QM-2/QM-3).** The label contract permits
@@ -55,14 +55,17 @@ code alone:
 5. **Live canary (SE-4).** The live publication path is deliberately disabled;
    exercising it needs explicit publication authorization.
 
-The remaining two are code work that has not yet produced threshold evidence:
+The remaining code-evidence gaps are:
 
 6. **Completeness baseline (RC-3).** The taxonomy, summary, and fixture gate
    are already active; only a frozen-corpus baseline from real review runs is
    missing, and it cannot be invented.
-7. **Mutation/static depth (VD-2/VD-4).** Mutation score is ~6%; formatting and
-   broad typing enforcement are not adopted. Neither closes without substantial
-   test hardening.
+Architecture (C+/B−) and documentation (B+) remain below A− for the structural
+and staleness reasons in the table; neither is blocked on external authority.
+
+7. **Mutation/static depth (VD-2/VD-4).** Mutation score is **not established**
+   (no retained scoped run); formatting and broad typing enforcement are not
+   adopted. Neither closes without substantial test hardening.
 
 ## What can still be done without new authority
 
