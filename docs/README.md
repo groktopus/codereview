@@ -278,3 +278,5 @@ policy, layout, and `git mv` move log are in
 are recorded there and Git reports them as renames, not copies.
 
 - [Reassessment 2026-11-02](REASSESSMENT-2026-11-02.md) — current A-minus judgment and blockers.
+
+- [GA-1 verification](GA-1-VERIFICATION.md) — merge-receipt sample and blocked attempt.
