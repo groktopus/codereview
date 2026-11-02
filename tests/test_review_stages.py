@@ -444,13 +444,30 @@ def test_dispatch_stage_skips_an_unavailable_provider_without_reserving(tmp_path
     assert state.budget.state["settlements"] == {}
 
 
-def test_plan_and_task_keys_are_declared_in_typed_contracts(tmp_path):
-    from pr_review_harness.planner import plan_review
-    from pr_review_harness.review_state import PlanRecord, SnapshotRecord, TaskRecord
+def test_real_collected_snapshot_keys_are_declared_in_typed_contracts(tmp_path):
+    import subprocess
 
-    snapshot = make_snapshot()
+    from pr_review_harness.planner import plan_review
+    from pr_review_harness.review_state import PlanRecord, SnapshotRecord, SnapshotUnit, TaskRecord
+    from pr_review_harness.snapshot import collect_snapshot
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    (repo / "module.py").write_text("value = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "module.py"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo, check=True)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    (repo / "module.py").write_text("value = 2\n", encoding="utf-8")
+    subprocess.run(["git", "commit", "-qam", "head"], cwd=repo, check=True)
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    snapshot = collect_snapshot(str(repo), base, head, make_profile(), {"max_context_bytes": 100000})
     plan = plan_review(snapshot, make_profile())
-    assert set(plan) <= set(PlanRecord.__annotations__)
     assert set(snapshot) <= set(SnapshotRecord.__annotations__)
+    assert set(plan) <= set(PlanRecord.__annotations__)
+    for unit in snapshot["inventory"]:
+        assert set(unit) <= set(SnapshotUnit.__annotations__)
     for task in plan["tasks"]:
         assert set(task) <= set(TaskRecord.__annotations__)

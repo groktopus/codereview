@@ -40,6 +40,15 @@ class SnapshotEvidence(TypedDict, total=False):
     source_object_id: str
     source_object_format: str
     source_object_size_bytes: int
+    source_url: str | None
+    manifest_sha256: str
+    lock_object_id: str | None
+    lock_sha256: str
+    dependency_binding_id: str
+    dependency_lenses: list[str]
+    dependency_unit_ids: list[str]
+    changed_line_ranges: list[list[int]]
+    head_object_id: str
 
 
 class SnapshotUnit(TypedDict, total=False):
@@ -53,6 +62,9 @@ class SnapshotUnit(TypedDict, total=False):
     changed_lines: list[list[int]]
     old_line_ranges: list[list[int]]
     evidence_ids: list[str]
+    review_context_evidence_ids: list[str]
+    diff_hash: str
+    file_level_location: dict[str, object]
 
 
 class SnapshotRecord(TypedDict, total=False):
@@ -75,6 +87,7 @@ class SnapshotRecord(TypedDict, total=False):
     trusted_context_refs: list[str | dict[str, str]]
     gaps: list[dict[str, object]]
     external_check_results: dict[str, dict[str, object]]
+    profile_hash: str
 
 
 class TaskRecord(TypedDict, total=False):
@@ -226,6 +239,7 @@ class LedgerEntry(TypedDict, total=False):
     created_at: str
     deadline_epoch: float
     ledger_version: str
+    adjudications: dict[str, dict[str, object]]
 
 
 class FindingRecord(TypedDict, total=False):
@@ -254,6 +268,8 @@ class FindingRecord(TypedDict, total=False):
     blocking_class: str
     blocking_rationale: str
     reconciliation_conflict: bool
+    semantic_usage: dict[str, object]
+    semantic_provenance: dict[str, object]
 
 
 class ReviewResult(TypedDict, total=False):
