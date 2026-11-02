@@ -55,7 +55,7 @@
   - Publish hashes and verification instructions with each release.
 - **Exit criteria:** Every release has an SBOM and attestation; consumers can verify signatures/hashes; a reproducibility check runs in CI and its result is recorded.
 - **Verification:** release assets; `cosign`/`sigstore` verification; rebuild hash comparison.
-- **Status (2026-11-02):** `v0.1.0` carries the SBOM, unsigned provenance, and reproducibility reports and remains unsigned. The `0.1.1` source adds keyless GitHub OIDC build provenance attestations for the wheel and sdist (SHA-pinned `actions/attest-build-provenance` v2.4.0, `contents: read` + `id-token: write` + `attestations: write`), retains the unsigned `provenance.json`/SBOM, and documents `gh attestation verify <artifact> --repo groktopus/codereview`. No `v0.1.1` tag or release exists yet in this change.
+- **Status (2026-11-02):** **done.** `v0.1.0` remains unsigned. `v0.1.1` is published with keyless GitHub OIDC build provenance attestations for the wheel and sdist, plus the retained SBOM, unsigned `provenance.json`, reproducibility reports, notes, and `SHA256SUMS`; the GitHub attestations API returns a bundle for each artifact digest. The release workflow uses only `contents: read` + `id-token: write` + `attestations: write`, and the docs include `gh attestation verify <artifact> --repo groktopus/codereview`.
 - **Depends on:** RS-2.
 - **Non-goals:** claiming bit-for-bit reproducibility where timestamps or toolchains prevent it.
 
