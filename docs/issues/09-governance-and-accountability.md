@@ -19,6 +19,11 @@
   - Enable branch protection or a merge queue that enforces the rule.
 - **Exit criteria:** Branch protection (or equivalent) requires review evidence; 100% of new merges carry a record bound to the merged SHA; a merge without evidence is impossible, not merely discouraged.
 - **Verification:** protection settings; a sample of 10 merges with matching SHA and verdict; a blocked merge attempt.
+- **Status (2026-11-02):** **done, with an owner-approved exception.** Branch
+  protection requires both checks; a ten-merge receipt sample and a blocked
+  attempt (PR #307) are recorded in [GA-1 verification](../GA-1-VERIFICATION.md).
+  `enforce_admins: false` is the deliberate sole-maintainer bypass, so a merge
+  without evidence remains possible for the owner but not for non-admin merges.
 - **Depends on:** DT-1 (scope clarity) and an owner decision on reviewer identity.
 - **Non-goals:** requiring a human where a documented agent review is permitted, or auto-approving from CI.
 
