@@ -94,6 +94,8 @@ implementation.
 | [System One decision strategy](SYSTEM-ONE-STRATEGY.md) | System One decision strategy and advisory-only boundary. |
 | [Packaging and CI verification](PACKAGING-VERIFICATION.md) | Wheel, source-distribution, matrix, and installed-entry-point checks. |
 | [Release and staged adoption plan](RELEASE-PLAN.md) | Release and staged-adoption plan; publication remains separately gated. |
+| [Versioning policy](VERSIONING.md) | Package semantic versioning plus independent contract versioning, promised surfaces, and breaking-change rules. |
+| [Release procedure](RELEASING.md) | Tag creation, release workflow triggers and permissions, verification commands, and rollback. |
 
 ## History and evidence
 

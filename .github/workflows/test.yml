@@ -137,6 +137,11 @@ jobs:
         run: python scripts/check_relative_links.py
       - name: Preserve DT-2 docs index coverage
         run: python scripts/check_docs_index.py
+      - name: Enforce release metadata and changelog classification
+        run: |
+          set -euo pipefail
+          python scripts/check_changelog.py
+          python scripts/check_version_policy.py
       - name: Run living-document truth and provenance checks
         run: >-
           python scripts/check_docs_truth.py

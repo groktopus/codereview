@@ -1,9 +1,11 @@
 include README.md
+include CHANGELOG.md
 include pyproject.toml
 recursive-include docs *.md
 include docs/public-surface.json
 recursive-include experiments *.py *.md *.json
 recursive-include scripts *.py
+include scripts/release-policy.v1.json
 include scripts/actions-artifact-uploader/action.yml
 include scripts/actions-artifact-uploader/canary.mjs
 include scripts/actions-artifact-uploader/upload.mjs

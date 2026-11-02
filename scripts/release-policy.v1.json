@@ -1,0 +1,44 @@
+{
+  "schema": "release-policy.v1",
+  "package": {
+    "name": "pr-review-harness",
+    "version_source": "pyproject.toml",
+    "tag_prefix": "v",
+    "changelog": "CHANGELOG.md"
+  },
+  "contracts": {
+    "registry": "src/pr_review_harness/contract_registry.json",
+    "registry_schema": "schemas/contract-registry.v1.schema.json",
+    "required_kinds": [
+      "review-contract",
+      "claim-assessment",
+      "canary-receipt",
+      "artifact",
+      "registry"
+    ],
+    "artifact_contract_ids": [
+      "review-result.v0.1"
+    ],
+    "artifact_schemas": [
+      "schemas/contract-registry.v1.schema.json",
+      "schemas/review-cross-model-comparison.v1.schema.json",
+      "schemas/review-cross-model-comparison.v2.schema.json",
+      "schemas/review-price-table.v1.schema.json",
+      "schemas/review-run-summary.v1.schema.json"
+    ]
+  },
+  "changelog": {
+    "categories": [
+      "Added",
+      "Changed",
+      "Deprecated",
+      "Removed",
+      "Fixed",
+      "Security"
+    ],
+    "breaking_categories": [
+      "Breaking",
+      "Breaking changes"
+    ]
+  }
+}
