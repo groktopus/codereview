@@ -112,7 +112,8 @@ retained per release.
 Run the check locally:
 
 ```sh
-python3 -m pip install '.[dev]'
+python3 -m pip install --require-hashes --no-deps -r requirements-dev.lock
+python3 -m pip install --no-deps --no-build-isolation -e .
 python3 scripts/check_reproducible_build.py \
   --source-date-epoch "$(git show -s --format=%ct 'v0.1.0^{commit}')" \
   --json-out /tmp/reproducibility.json \
@@ -190,6 +191,23 @@ python3 -m venv /tmp/pr-review-release-venv
   and provenance before creating the release.
 * Every action is pinned to a full commit SHA. The workflow reads no repository
   secrets and does not publish to PyPI.
+* `.github/workflows/test.yml` installs the development/test environment from
+  `requirements-dev.lock` with `pip --require-hashes` in the tests, coverage,
+  compatibility, documentation, build, and supply-chain jobs. The mandatory
+  `lock-freshness` job runs `scripts/check_dev_lock.py` (`uv lock --check`, a
+  byte-identical `uv export` diff, per-requirement SHA-256 hashes, no
+  editable/direct-URL/alternate-index entries) and the lock/public-surface
+  regression tests. `uv` is pinned in the `dev` extra and by
+  `[tool.uv].required-version`, so the freshness check uses the reviewed
+  generator release. The full commands are in [`SUPPORT-MATRIX.md`](SUPPORT-MATRIX.md).
+* `.github/workflows/security.yml` has a `vulnerability-scan` job that runs
+  `uv audit --locked` against the hash-locked set on the weekly schedule and on
+  manual dispatch only. It is not a pull-request gate, so a newly published
+  advisory cannot make an unrelated PR flaky; a failing scan identifies the
+  advisory in its output and retained artifact. Dependency review is opt-in via
+  the `DEPENDENCY_GRAPH_ENABLED` repository variable; the activation steps and
+  the compensating guidance job are documented in
+  [`SUPPORT-MATRIX.md`](SUPPORT-MATRIX.md#dependency-review-conditional-variable).
 
 ## Residual gaps
 

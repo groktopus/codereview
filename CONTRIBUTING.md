@@ -2,10 +2,23 @@
 
 ## Development checks
 
-Install the development dependencies with `python -m pip install -e '.[dev]'`. Run
-`python -m pytest -q` for the full suite and `ruff check .` before submitting a
-change. Keep historical compatibility checks separately selectable with
-`python -m pytest -m compatibility`.
+The development/test environment is hash-locked in `requirements-dev.lock`
+(generated from `pyproject.toml` with the pinned `uv`; see the
+[support matrix](docs/SUPPORT-MATRIX.md)). Install it, then the editable project
+without resolving new dependencies:
+
+```sh
+python -m pip install --require-hashes --no-deps -r requirements-dev.lock
+python -m pip install --no-deps --no-build-isolation -e .
+python scripts/check_dev_lock.py   # uv lock --check + byte-identical export diff
+```
+
+Run `python -m pytest -q` for the full suite and `ruff check .` before submitting
+a change. Keep historical compatibility checks separately selectable with
+`python -m pytest -m compatibility`. Do not hand-edit either lockfile; if a
+reviewed change alters `pyproject.toml`, regenerate both with the commands in
+the support matrix. Runtime dependencies must stay empty; see the
+[public API and internal-module policy](docs/PUBLIC-API.md).
 
 ## Merge review evidence (GA-1)
 

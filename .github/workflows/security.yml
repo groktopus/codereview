@@ -4,7 +4,11 @@ name: Security scanning
 # target repository, runs target code, dispatches a provider call, or holds a
 # write credential for any reviewed repository. CodeQL uploads SARIF to GitHub
 # code scanning (this repository only); dependency review and the secret scan
-# only read and fail the job.
+# only read and fail the job. The weekly vulnerability scan audits the
+# hash-locked dependency set with the pinned uv and runs only on schedule or
+# manual dispatch, so new advisories cannot make unrelated pull requests flaky.
+# The dependency graph is opt-in via the repository variable documented in
+# docs/SUPPORT-MATRIX.md; a guidance job makes the skip visible and actionable.
 on:
   pull_request:
   push:
@@ -52,7 +56,9 @@ jobs:
     name: Dependency review
     # Requires the repository dependency graph (Settings -> Code security and
     # analysis). Set the repository variable DEPENDENCY_GRAPH_ENABLED=true after
-    # enabling it; otherwise this job skips instead of failing every PR.
+    # enabling it; otherwise this job skips instead of failing every PR. The
+    # skip is made visible and actionable by dependency-review-guidance below,
+    # and the activation steps are documented in docs/SUPPORT-MATRIX.md.
     if: ${{ github.event_name == 'pull_request' && vars.DEPENDENCY_GRAPH_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -70,6 +76,66 @@ jobs:
           # Never post a comment; this keeps the job at contents: read and
           # avoids any write path to the pull request.
           comment-summary-in-pr: never
+
+  dependency-review-guidance:
+    name: Dependency review guidance (graph not enabled)
+    # Counterpart to the skipped dependency-review job: the skip is deliberate
+    # when the repository variable is unset, but it must be visible and carry
+    # the exact activation steps. This job never fails the pull request.
+    if: ${{ github.event_name == 'pull_request' && vars.DEPENDENCY_GRAPH_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Publish the activation instructions as a warning and step summary
+        run: |
+          set -euo pipefail
+          message='Dependency review is skipped because the repository variable DEPENDENCY_GRAPH_ENABLED is not "true". Enable Settings -> Code security and analysis -> Dependency graph, then run: gh variable set DEPENDENCY_GRAPH_ENABLED --repo ${{ github.repository }} --body true. See docs/SUPPORT-MATRIX.md.'
+          echo "::warning title=Dependency review skipped::${message}"
+          {
+            echo '## Dependency review skipped'
+            echo ''
+            echo "${message}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  vulnerability-scan:
+    name: Scheduled vulnerability scan (uv audit)
+    # Scheduled and manual runs only. Auditing on every pull request would make
+    # unrelated PRs fail when a new advisory is published, so the advisory gate
+    # is cadence-based; PRs keep the hash-locked install and SHA-pinned actions.
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out this repository at the triggering revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Install the hash-locked development/test set (includes pinned uv)
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+
+      - name: Audit the locked dependency set for known vulnerabilities
+        run: |
+          set -euo pipefail
+          uv audit --locked | tee uv-audit.txt
+
+      - name: Retain the audit report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr-review-uv-audit-${{ github.run_id }}
+          path: uv-audit.txt
+          if-no-files-found: warn
+          retention-days: 7
 
   secret-scan:
     name: Secret scan (TruffleHog)

@@ -10,6 +10,10 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Added
 
+- Hash-locked development/test environment: `uv.lock` plus a SHA-256-hashed `requirements-dev.lock` exported from `pyproject.toml`, a mandatory `lock-freshness` CI job (`uv lock --check` and byte-identical export diff), and a scheduled `uv audit --locked` vulnerability scan that does not gate pull requests (RS-4).
+- A documented public import/CLI surface and internal-module policy (`docs/PUBLIC-API.md`) plus a support and install matrix (`docs/SUPPORT-MATRIX.md`) covering Python 3.11–3.14 and Linux, macOS, and Windows install smoke checks, linked from the root README and the documentation index.
+- Executable RS-4 contracts: an import-surface test, a zero-runtime-dependency invariant test over `pyproject.toml` and the built wheel's `METADATA`, lock freshness/hash tests, and SHA-pinning/scheduled-scan workflow checks.
+- An `install-matrix` CI job that installs the built wheel without development dependencies into fresh environments and runs `pr-review --help` on every documented combination.
 - Frozen evaluation corpus v1: 41 real merged-PR cases across two public repositories, all three splits, with source manifests and no labels or quality claims (QM-1).
 
 

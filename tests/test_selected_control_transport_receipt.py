@@ -759,7 +759,8 @@ def test_secretless_ci_runs_opt_in_roundtrip_against_the_built_wheel():
     assert "bash scripts/install_ci_strace.sh" in job
     assert "continue-on-error" not in job
     assert "actions/download-artifact" in job and "pr-review-distributions" in job
-    assert 'pip install "$ROUNDTRIP_DIST"/*.whl pytest' in job
+    assert "--require-hashes --no-deps -r requirements-dev.lock" in job
+    assert 'pip install --no-deps "$ROUNDTRIP_DIST"/*.whl' in job
     assert "RUN_INSTALLED_LOOPBACK_TRANSPORT_VALIDATOR_TEST: '1'" in job
     assert "tests/test_selected_control_transport_receipt.py::test_actual_installed_cli_transport_emitter_roundtrips_through_strict_validator" in job
     assert "secrets." not in job and "GITHUB_TOKEN" not in job

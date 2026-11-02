@@ -109,6 +109,8 @@ implementation.
 | [Versioning policy](VERSIONING.md) | Package semantic versioning plus independent contract versioning, promised surfaces, and breaking-change rules. |
 | [Release procedure](RELEASING.md) | Tag creation, release workflow triggers and permissions, verification commands, and rollback. |
 | [Supply chain and release evidence](SUPPLY-CHAIN.md) | Release SBOM, unsigned provenance, reproducibility results, asset hashes, and consumer verification commands. |
+| [Public API and internal-module policy](PUBLIC-API.md) | RS-4 supported import/CLI surface, internal-module compatibility policy, and zero-runtime-dependency contract. |
+| [Support matrix, install matrix, and dependency policy](SUPPORT-MATRIX.md) | RS-4 supported Python/OS combinations, documented install matrix, hash-locked dev environment, dependency review switch, and scheduled vulnerability scan. |
 
 ## History and evidence
 

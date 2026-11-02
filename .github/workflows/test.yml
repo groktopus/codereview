@@ -22,7 +22,11 @@ jobs:
         run: |
           set -euo pipefail
           PYTHONPATH=src python -m pr_review_harness.external_effect_observer | tee -a "$GITHUB_STEP_SUMMARY"
-      - run: python -m pip install '.[dev]'
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
       - name: Measure bounded events for installed provider-free review preparation
         run: |
           set -euo pipefail
@@ -45,7 +49,11 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install '.[dev]'
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
       - name: Strictly type-check stable boundary contracts
         run: python -m mypy
       - name: Prove a wrong-shape boundary record is rejected
@@ -72,9 +80,47 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.13'
-      - run: python -m pip install '.[dev]'
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
       - name: Run the historical compatibility suite separately
         run: python -m pytest -q -m compatibility
+
+  lock-freshness:
+    name: Lock freshness, hashes, and zero runtime dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
+      - name: Prove uv.lock is current and requirements-dev.lock is a byte-identical hashed export
+        run: |
+          set -euo pipefail
+          python scripts/check_dev_lock.py --json --summary lock-freshness.md | tee lock-freshness.json
+          cat lock-freshness.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Run the lock, packaging, and public-surface regression tests
+        run: python -m pytest -q tests/test_dependency_supply_chain.py tests/test_public_surface.py
+      - name: Retain the lock freshness evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-review-lock-freshness-${{ github.run_id }}
+          path: |
+            lock-freshness.json
+            lock-freshness.md
+          if-no-files-found: warn
+          retention-days: 7
 
   coverage:
     name: Coverage floors and per-module report
@@ -89,7 +135,11 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.14'
-      - run: python -m pip install '.[dev]'
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
       - name: Run the suite with line coverage
         run: |
           set -euo pipefail
@@ -132,7 +182,10 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install development and test dependencies
-        run: python -m pip install '.[dev]'
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
       - name: Check relative links across README and all docs, including issues
         run: python scripts/check_relative_links.py
       - name: Preserve DT-2 docs index coverage
@@ -218,7 +271,10 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install development and test dependencies
-        run: python -m pip install '.[dev]'
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
       - name: Verify the generated block and manifest are reproducible and linked
         run: |
           set -euo pipefail
@@ -380,7 +436,10 @@ jobs:
 
       - name: Install harness test dependencies
         timeout-minutes: 3
-        run: python -m pip install '.[dev]'
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
 
       - name: Rehearse frozen capture and source audit without provider dispatch
         timeout-minutes: 3
@@ -398,8 +457,12 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.13'
-      - run: python -m pip install '.[dev]'
-      - run: python -m build --wheel --sdist --outdir dist
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
+      - run: python -m build --no-isolation --wheel --sdist --outdir dist
       - name: Record distribution digests
         run: sha256sum dist/* | tee dist/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -422,7 +485,11 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.13'
-      - run: python -m pip install '.[dev]'
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
       - name: Build twice with SOURCE_DATE_EPOCH, generate evidence, and verify it
         run: |
           set -euo pipefail
@@ -512,7 +579,8 @@ jobs:
           python -m venv "$WHEEL_ENV"
           mapfile -t WHEELS < <(find "$DIST_DIR" -maxdepth 1 -type f -name '*.whl' -print)
           test "${#WHEELS[@]}" -eq 1
-          "$WHEEL_ENV/bin/python" -m pip install "${WHEELS[0]}" pytest
+          "$WHEEL_ENV/bin/python" -m pip install --require-hashes --no-deps -r requirements-dev.lock
+          "$WHEEL_ENV/bin/python" -m pip install --no-deps "${WHEELS[0]}"
           printf 'PR_REVIEW_PROTECTED_PUBLICATION_WHEEL=%s\n' "${WHEELS[0]}" >> "$GITHUB_ENV"
           "$WHEEL_ENV/bin/python" scripts/package_smoke.py --cli "$WHEEL_ENV/bin/pr-review"
       - name: Run protected publication safe-default tests against the built wheel
@@ -538,6 +606,59 @@ jobs:
             ${{ runner.temp }}/pr-review-recovery-${{ matrix.python-version }}/artifacts/
           if-no-files-found: warn
           retention-days: 7
+
+  install-matrix:
+    name: Install matrix (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.11', '3.14']
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: pr-review-distributions
+          path: ${{ runner.temp }}/install-matrix-dist
+      - name: Install the wheel in a fresh environment and prove the documented contract
+        shell: bash
+        env:
+          DIST_DIR: ${{ runner.temp }}/install-matrix-dist
+          MATRIX_VENV: ${{ runner.temp }}/pr-review-install-matrix
+        run: |
+          set -euo pipefail
+          # Git Bash/Windows: use forward slashes so both MSYS tools and the
+          # native python.exe accept the runner paths.
+          MATRIX_VENV="${MATRIX_VENV//\\//}"
+          DIST_DIR="${DIST_DIR//\\//}"
+          python -m venv "$MATRIX_VENV"
+          if [ -d "$MATRIX_VENV/bin" ]; then BIN="$MATRIX_VENV/bin"; else BIN="$MATRIX_VENV/Scripts"; fi
+          PYTHON="$BIN/python"
+          if [ ! -x "$PYTHON" ]; then PYTHON="$BIN/python.exe"; fi
+          WHEEL_COUNT="$(find "$DIST_DIR" -maxdepth 1 -type f -name '*.whl' | wc -l | tr -d ' ')"
+          test "$WHEEL_COUNT" -eq 1
+          WHEEL="$(find "$DIST_DIR" -maxdepth 1 -type f -name '*.whl' | head -n 1)"
+          test -n "$WHEEL"
+          "$PYTHON" -m pip install --disable-pip-version-check "$WHEEL"
+          "$PYTHON" - <<'PY'
+          import importlib.metadata as metadata
+
+          requires = metadata.requires("pr-review-harness") or []
+          runtime = [item for item in requires if "extra ==" not in item]
+          assert runtime == [], runtime
+          assert metadata.metadata("pr-review-harness")["Requires-Python"] == ">=3.11"
+          print("installed metadata: no runtime requirements; Requires-Python >=3.11")
+          PY
+          if [ -x "$BIN/pr-review" ]; then
+            "$BIN/pr-review" --help
+          else
+            "$BIN/pr-review.exe" --help
+          fi
+          echo "pr-review --help: OK on ${{ matrix.os }} / Python ${{ matrix.python-version }}"
 
   transport-receipt-roundtrip:
     name: Installed loopback emitter and strict receipt validator
@@ -567,7 +688,8 @@ jobs:
         run: |
           set -euo pipefail
           python -m venv "$ROUNDTRIP_ENV"
-          "$ROUNDTRIP_ENV/bin/python" -m pip install "$ROUNDTRIP_DIST"/*.whl pytest
+          "$ROUNDTRIP_ENV/bin/python" -m pip install --require-hashes --no-deps -r requirements-dev.lock
+          "$ROUNDTRIP_ENV/bin/python" -m pip install --no-deps "$ROUNDTRIP_DIST"/*.whl
       - name: Run actual loopback emitter to strict validator roundtrip
         env:
           ROUNDTRIP_ENV: ${{ runner.temp }}/transport-roundtrip-venv
