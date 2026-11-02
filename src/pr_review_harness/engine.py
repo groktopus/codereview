@@ -568,6 +568,12 @@ def validate_limits(limits: dict) -> None:
             or limits["max_cost_microunits"] < 1
         ):
             raise ValueError("invalid limit: max_cost_microunits")
+    if limits.get("max_cost_currency") is not None:
+        currency = limits["max_cost_currency"]
+        if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
+            raise ValueError("invalid limit: max_cost_currency")
+        if limits.get("max_cost_microunits") is None:
+            raise ValueError("invalid limit: max_cost_currency")
 
 
 def _provider_identity(provider: Any, decision_provider: Any) -> Any:
@@ -1477,6 +1483,7 @@ def run_review(
     private_capture_snapshot_pin: dict[str, Any] | None = None,
     private_capture_source_audit_max_bytes: int = 64_000,
     allow_archived_contracts: bool = False,
+    price_table: Any = None,
 ) -> ReviewResult:
 
     """Run bounded provider tasks and persist an integrity-checked review result.
@@ -1507,6 +1514,7 @@ def run_review(
         private_capture_snapshot_pin=private_capture_snapshot_pin,
         private_capture_source_audit_max_bytes=private_capture_source_audit_max_bytes,
         allow_archived_contracts=allow_archived_contracts,
+        price_table=price_table,
     )
     # Deterministic stage order; the coordinator makes no review decisions and
     # never dispatches on model output.  Invariants that hold across the whole

@@ -1,0 +1,13 @@
+{
+  "schema": "review-price-table.v1",
+  "revision": "example-0",
+  "currency": "USD",
+  "providers": [
+    {
+      "provider_id": "example-provider",
+      "model_id": "example-model",
+      "input_price_microunits_per_million_tokens": 0,
+      "output_price_microunits_per_million_tokens": 0
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/groktopus/codereview/schemas/review-price-table.v1.schema.json",
+  "title": "PR review operator price table v1",
+  "description": "Versioned operator-supplied provider/model prices. All prices are integer microunits of the declared currency per million tokens. This file is trusted configuration, not provider-reported billing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "revision", "currency", "providers"],
+  "properties": {
+    "schema": { "const": "review-price-table.v1" },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$"
+    },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "providers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "model_id",
+        "input_price_microunits_per_million_tokens",
+        "output_price_microunits_per_million_tokens"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "input_price_microunits_per_million_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
+        "output_price_microunits_per_million_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000000000
+        }
+      }
+    }
+  }
+}

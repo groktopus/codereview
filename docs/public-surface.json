@@ -6,13 +6,13 @@
     "base_revision": "7d550b61825defec8a8a0625511c914ba8efd5cb",
     "base_src_lines": 40686,
     "required_reduction": 0.25,
-    "measured_src_lines": 30030,
-    "measured_reduction": 0.2619082731160596,
+    "measured_src_lines": 30510,
+    "measured_reduction": 0.2501106031558767,
     "measurement": "python byte counts of committed .py files in src/pr_review_harness at issue base and current head",
     "base_module_count": 48,
-    "measured_module_count": 39,
-    "module_delta": -9,
-    "line_delta": -10656
+    "measured_module_count": 40,
+    "module_delta": -8,
+    "line_delta": -10176
   },
   "review_orchestrator": {
     "module": "pr_review_harness.engine",
@@ -47,6 +47,7 @@
     "context_targets.py",
     "contract_registry.py",
     "contracts.py",
+    "cost.py",
     "current_source_capture.py",
     "dependency_context.py",
     "engine.py",

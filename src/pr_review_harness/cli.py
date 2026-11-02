@@ -194,6 +194,10 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--profile", required=True, help="external trusted profile JSON")
     p.add_argument("--provider-config", help="external provider configuration JSON")
     p.add_argument("--decision-config", help="external semantic decision provider configuration JSON")
+    p.add_argument(
+        "--price-table",
+        help="external versioned provider/model price table JSON (enables ESTIMATED cost and currency ceilings)",
+    )
     p.add_argument("--limits", help="external finite limits JSON (overrides documented defaults)")
     p.add_argument("--checks-json", help="versioned GitHub check-run evidence captured outside PR-controlled code")
     p.add_argument(
@@ -529,6 +533,7 @@ def _read_limits(args) -> dict:
             - set(defaults)
             - {
                 "max_cost_microunits",
+                "max_cost_currency",
                 "max_snapshot_context_bytes",
                 "max_retrieval_result_bytes",
                 "schema_version",
@@ -798,6 +803,33 @@ def _claim_transport_from_config(config: dict):
         raise ValueError("claim assessment decision configuration is invalid") from None
 
 
+def _price_table(args, limits: dict):
+    """Load the operator price table independently of provider construction.
+
+    Keeping this separate preserves the existing ``_configs`` seam and lets a
+    provider-free run still carry a table for estimation or fail closed on a
+    currency ceiling.  Nothing here contacts the network.
+    """
+
+    path = getattr(args, "price_table", None)
+    if not path:
+        return None
+    try:
+        from .cost import load_price_table, validate_cost_ceiling
+
+        table = load_price_table(path)
+        validate_cost_ceiling(table, limits)
+        return table
+    except ValueError as exc:
+        message = str(exc)
+        if message in {
+            "configured monetary budget requires max_cost_currency",
+            "configured monetary budget currency does not match the price table",
+        }:
+            raise ValueError(message) from None
+        raise ValueError("price table configuration is invalid") from None
+
+
 def _configs(args, profile: dict | None = None):
     profile = profile if profile is not None else _load_json(args.profile, "profile")
     limits = _read_limits(args)
@@ -843,6 +875,7 @@ def _run_one(
     historical_check_identity: dict | None = None,
     claim_assessor=None,
     max_claim_assessments: int = 0,
+    price_table=None,
 ) -> dict:
     capture_dir = getattr(args, "private_shadow_capture", None)
     capture_case_id = getattr(args, "private_shadow_case_id", None)
@@ -1390,6 +1423,7 @@ def _run_one(
                 else 64_000
             ),
             allow_archived_contracts=getattr(args, "allow_archived_contracts", False),
+            price_table=price_table,
             **review_kwargs,
         )
     except EnginePreflightError:
@@ -1556,6 +1590,7 @@ def _public_error(exc: Exception) -> str:
             "stateless publication capability is unavailable",
             "provider adapter is unavailable",
             "provider configuration is invalid",
+            "price table configuration is invalid",
             "cannot read profile JSON",
             "cannot read limits JSON",
         }:
@@ -1698,6 +1733,7 @@ def main(argv=None) -> int:
                 "provider_configured": bool(args.provider_config),
                 "decision_provider_configured": bool(args.decision_config),
                 "limits_path": os.path.realpath(args.limits) if args.limits else None,
+                "price_table_path": os.path.realpath(args.price_table) if getattr(args, "price_table", None) else None,
                 "checks_path": os.path.realpath(args.checks_json) if args.checks_json else None,
                 "mode": args.mode,
                 "effect_policy": "READ_ONLY",
@@ -1719,6 +1755,7 @@ def main(argv=None) -> int:
             _emit(args, preview)
             return 0
         profile, limits, provider, decision_provider, claim_assessor = _configs(args)
+        price_table = _price_table(args, limits)
         if bool(getattr(args, "private_shadow_current_source_plan", False)):
             from .current_source_capture import _canonical, installed_module_inventory, validate_plan
 
@@ -1861,6 +1898,7 @@ def main(argv=None) -> int:
                 historical_check_identity,
                 claim_assessor,
                 claim_cap,
+                **({"price_table": price_table} if price_table is not None else {}),
             )
             _emit(args, result)
             return 0
@@ -1882,6 +1920,7 @@ def main(argv=None) -> int:
                     run_id,
                     claim_assessor=claim_assessor,
                     max_claim_assessments=claim_cap,
+                    **({"price_table": price_table} if price_table is not None else {}),
                 )
                 runs.append(
                     {
