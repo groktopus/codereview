@@ -72,19 +72,25 @@ class Release:
         return "\n".join(lines).strip() + "\n"
 
 
-def version_key(version: str) -> tuple[int, int, int, int, str]:
-    """Return a sortable key; a final release sorts after its pre-releases."""
+def version_key(version: str) -> tuple[int, int, int, int, tuple[tuple[int, int, str], ...]]:
+    """Return a sortable SemVer key; numeric prerelease ids compare numerically."""
 
     match = SEMVER_RE.match(version)
     if not match:
         raise ValueError(f"not a semantic version: {version!r}")
     pre = match.group("pre")
+    identifiers: tuple[tuple[int, int, str], ...] = ()
+    if pre:
+        identifiers = tuple(
+            (0, int(part), "") if part.isdigit() else (1, 0, part)
+            for part in pre.split(".")
+        )
     return (
         int(match.group("major")),
         int(match.group("minor")),
         int(match.group("patch")),
         0 if pre else 1,
-        pre or "",
+        identifiers,
     )
 
 

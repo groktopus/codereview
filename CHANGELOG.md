@@ -25,6 +25,7 @@ Initial source version of the read-only review harness.
 - Versioned artifact contracts and schemas for review results, run summaries, price tables, and cross-model comparisons.
 - Packaging as a wheel and source distribution with an installed-entry-point smoke test.
 - Operations, deployment, provenance, threat-model, and verification documentation.
+- Version policy, changelog, machine-readable release policy, and a tag-gated release workflow that attaches wheel/sdist checksums and notes.
 
 ### Changed
 

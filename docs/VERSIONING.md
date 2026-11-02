@@ -38,7 +38,7 @@ A version promises the following, and nothing more:
 
 | Surface | Promise |
 |---|---|
-| CLI | The documented command names (`review`, `publish`, `stats`), documented option names and their meaning, and process exit-code meanings. Removing or renaming a command or option, or changing what an exit code means, is breaking. |
+| CLI | The documented command names (`review`, `publish`, `stats`, `recent`), documented option names and their meaning, and process exit-code meanings. Removing or renaming a command or option, or changing what an exit code means, is breaking. |
 | Installed entry point | The `pr-review` console script resolves to the documented CLI. The only advertised review entry point remains `pr_review_harness.engine.run_review`; other modules are internal unless a document names them. |
 | Artifact schemas | The installed package emits only registered artifact identities. A package version never silently changes the meaning of an already-registered artifact version; incompatible artifact changes require a new artifact identity and a package release that declares it. |
 | Contract compatibility | The registry shipped in the wheel is authoritative. A target's pinned default is not silently upgraded. Deprecated identities remain selectable during their compatibility window; archived identities are rejected by default. |
@@ -68,7 +68,7 @@ not claim post-1.0 stability before these rules are exercised by a real release.
 | Deprecate a contract identity without removing it | minor |
 | Bug fix, documentation correction, or internal refactor with no promised-surface change | patch |
 | Security fix | patch, or minor if it changes a promised surface |
-| Any release that adds, deprecates, or removes a registered contract | at least minor (removal: major after the compatibility window) |
+| Any release that adds, deprecates, or removes a registered contract | at least minor in 0.y (removal: major after the compatibility window; in 0.y a removal still requires a Breaking note and migration path) |
 | Editorial clarification with no schema or behavior change | patch; no contract version bump |
 
 Every merge that changes behavior or a promised surface updates the
@@ -215,5 +215,6 @@ python3 scripts/check_version_policy.py --tag v0.1.0 --notes-out /tmp/release-no
 python3 -m pytest -q tests/test_version_policy.py tests/test_changelog.py tests/test_release_workflow.py
 ```
 
-The release workflow repeats the tag check before it builds and again before it
-creates the GitHub Release. See [RELEASING.md](RELEASING.md).
+The release workflow checks the tag/HEAD/version/changelog before building,
+then re-probes that the tag still exists, refuses an existing release, and uses
+`--verify-tag` before creating the GitHub Release. See [RELEASING.md](RELEASING.md).

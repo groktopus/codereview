@@ -135,3 +135,4 @@ def test_cli_classify_is_scriptable_and_exits_nonzero_for_unknown_types() -> Non
     )
     assert unknown.returncode == 1
     assert unknown.stdout.strip() == "unclassified"
+
