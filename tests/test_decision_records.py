@@ -84,7 +84,7 @@ def test_repository_decision_log_passes() -> None:
     assert result["errors"] == []
     assert result["records"] == 10
     assert result["legacy"] == 4
-    assert result["invariants"] == 7
+    assert result["invariants"] == 8
 
 
 def test_missing_required_field_fails(tmp_path: Path) -> None:

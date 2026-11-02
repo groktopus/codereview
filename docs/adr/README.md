@@ -75,8 +75,9 @@ external effect requires a decision record, and CI now checks the pull request
 diff for it. The machine-readable surface list is
 [safety-invariants.json](safety-invariants.json). It covers the deterministic
 control plane, no target-code execution, credential transport, provider
-selection, budget/surface limits, publication authorization, and the
-quality-claim gate. Each entry is an exact path, a directory path ending in `/`,
+selection, budget/surface limits, publication authorization, the quality-claim
+gate, and the review-evidence enforcement surface (receipt and decision-link
+workflows, validators, and the manifest itself). Each entry is an exact path, a directory path ending in `/`,
 or a glob (`*`, `?`, `**`, `[...]`). The manifest file itself is always a
 protected path, and a renamed or deleted protected path counts as a change.
 
