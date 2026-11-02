@@ -319,10 +319,10 @@ def _summarize_arm(
             ),
         },
         "approve_with_known_defect": {
-            "status": "present",
-            "cases": approve_cases,
-            "denominator": approve_denominator,
-            "rate": _rate(approve_cases, approve_denominator, "no_complete_adjudicated_human_labeled_cases"),
+            "status": "unresolved_missing_runs" if missing_case_ids else "present",
+            "cases": None if missing_case_ids else approve_cases,
+            "denominator": None if missing_case_ids else approve_denominator,
+            "rate": None if missing_case_ids else _rate(approve_cases, approve_denominator, "no_complete_adjudicated_human_labeled_cases"),
             "complete_adjudicated_human_cases": complete_cases,
         },
         "accuracy": _accuracy(complete_labeled_cases, present_runs, missing_cases),
@@ -490,7 +490,7 @@ def build_scorecard(
         reasons.append("missing_arm")
     if label_state["complete_adjudicated_human_packets"] == 0 or present_runs == 0:
         data_state = "MISSING_DATA"
-    elif reasons:
+    elif reasons or label_state.get("status") != "present":
         data_state = "PARTIAL"
     else:
         data_state = "COMPLETE"
@@ -615,6 +615,8 @@ def regression_gate(current: dict[str, Any], baseline: dict[str, Any]) -> dict[s
         "evaluator_source_sha256",
     )
     mismatches = [field for field in identity_fields if current.get(field) != baseline.get(field)]
+    if (current.get("input_hashes") or {}).get("corpus") != (baseline.get("input_hashes") or {}).get("corpus"):
+        mismatches.append("corpus_input_hash")
     if mismatches:
         return {
             "contract_version": GATE_VERSION,
@@ -636,7 +638,13 @@ def regression_gate(current: dict[str, Any], baseline: dict[str, Any]) -> dict[s
     for arm in arm_names:
         current_arm = current.get("arms", {}).get(arm)
         baseline_arm = baseline.get("arms", {}).get(arm)
-        if current_arm is None or baseline_arm is None or current_arm["status"] == "missing" or baseline_arm["status"] == "missing":
+        if current_arm is None or baseline_arm is None:
+            checks.append(_check(f"arm:{arm}", "NOT_EVALUATED", reason="arm_missing"))
+            continue
+        if current_arm["status"] == "missing" and baseline_arm["status"] != "missing":
+            checks.append(_check(f"arm:{arm}", "FAIL", reason="arm_missing_since_baseline"))
+            continue
+        if current_arm["status"] == "missing" or baseline_arm["status"] == "missing":
             checks.append(_check(f"arm:{arm}", "NOT_EVALUATED", reason="arm_missing"))
             continue
         checks.append(

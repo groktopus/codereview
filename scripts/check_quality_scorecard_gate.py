@@ -36,7 +36,14 @@ def _load(path: str, label: str):
         raise EvaluationError(f"cannot_read_{label}") from None
     if len(data) > MAX_INPUT_BYTES:
         raise EvaluationError(f"{label}_too_large")
-    return parse_bounded_json(data, label)
+    result = parse_bounded_json(data, label)
+    if not isinstance(result, dict) or result.get("contract_version") is None:
+        raise EvaluationError("invalid_scorecard_schema")
+    if not isinstance(result.get("data_state"), dict) or not isinstance(result.get("arms"), dict):
+        raise EvaluationError("invalid_scorecard_schema")
+    if not isinstance(result.get("data_state", {}).get("state"), str):
+        raise EvaluationError("invalid_scorecard_schema")
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

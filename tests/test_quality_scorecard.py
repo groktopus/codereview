@@ -153,6 +153,7 @@ def test_scorecard_publishes_bounds_counts_and_denominators():
         FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json"
     )
     assert scorecard["data_state"]["state"] == "COMPLETE"
+    assert scorecard["data_state"]["label_state"]["status"] == "present"
     harness = scorecard["arms"]["harness"]
     assert harness["status"] == "complete"
     assert harness["precision"]["lower_bound"] == {
