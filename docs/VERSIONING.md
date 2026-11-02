@@ -6,7 +6,7 @@ This repository versions two different things independently:
 
 | Surface | Version source | Current value |
 |---|---|---|
-| Python package and CLI | `pyproject.toml` `project.version` | `0.1.0` |
+| Python package and CLI | `pyproject.toml` `project.version` | `0.1.1` |
 | Contract identities | [`contract_registry.json`](../src/pr_review_harness/contract_registry.json) | `contract-registry.v1` |
 
 A package version is a statement about the installed distribution. A contract
@@ -211,7 +211,7 @@ change:
 ```sh
 python3 scripts/check_changelog.py
 python3 scripts/check_version_policy.py
-python3 scripts/check_version_policy.py --tag v0.1.0 --notes-out /tmp/release-notes.md
+python3 scripts/check_version_policy.py --tag v0.1.1 --notes-out /tmp/release-notes.md
 python3 -m pytest -q tests/test_version_policy.py tests/test_changelog.py tests/test_release_workflow.py
 ```
 

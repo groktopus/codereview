@@ -11,10 +11,14 @@ created.
 
 When a release is published, its assets are a wheel, a source distribution,
 `SHA256SUMS`, a CycloneDX SBOM, unsigned provenance, the reproducibility
-report, and `RELEASE-NOTES.md`. It does not
-publish to PyPI, create tags, or sign artifacts. **No release asset carries a
-signature or a Sigstore/GitHub attestation.** Do not describe the provenance as
-signed, verified, or attested.
+report, and `RELEASE-NOTES.md`. Starting with `0.1.1`, the release build job also
+records a keyless GitHub OIDC build provenance attestation for the wheel and
+source distribution; GitHub stores that attestation in its attestations API
+rather than attaching it as a file asset. The workflow does not publish to PyPI
+and does not create tags. The artifacts themselves are not signed: the signed
+layer is the attestation, while the attached `provenance.json` and SBOM remain
+unsigned, self-asserted evidence. The earlier `v0.1.0` release has no
+attestation and remains unsigned.
 
 ## Release assets
 
@@ -25,6 +29,7 @@ signed, verified, or attested.
 | `SHA256SUMS` | `sha256sum` over the wheel, sdist, SBOM, provenance, reproducibility report, and release notes | SHA-256 of each listed asset. |
 | `pr-review-harness-<version>.cdx.json` | [`scripts/generate_sbom.py`](../scripts/generate_sbom.py) | CycloneDX 1.5 inventory of the actual wheel and sdist. |
 | `provenance.json` | [`scripts/generate_provenance.py`](../scripts/generate_provenance.py) | Source revision, workflow ref, builder identity, and artifact hashes, explicitly marked unsigned. |
+| GitHub build provenance attestation | Pinned `actions/attest-build-provenance` in the release `build` job | Signed, keyless statement binding the wheel and sdist digests to this repository, workflow, and source revision; stored by GitHub's attestations API, not listed in `SHA256SUMS`. |
 | `REPRODUCIBILITY.json` / `REPRODUCIBILITY.md` | [`scripts/check_reproducible_build.py`](../scripts/check_reproducible_build.py) | Two-build hash comparison and recorded non-determinism. |
 | `RELEASE-NOTES.md` | `scripts/check_version_policy.py` | Changelog-derived release notes. |
 
@@ -74,11 +79,51 @@ makes the build inputs inspectable and lets a consumer bind the published
 artifact hashes to a recorded source revision; it does not authenticate the
 builder.
 
-GitHub artifact attestation is not used. The repository does not yet include a
-reviewed, pinned attestation action and the workflow has no `id-token: write` or
-`attestations: write` permission. Generating a signature or a GitHub
-attestation requires an owner-approved change and available credentials; until
-then the workflow emits unsigned provenance rather than claiming a signature.
+`provenance.json` is retained as unsigned, human-inspectable metadata. It is
+not a signature and must not be described as one; the signed layer is the
+separate GitHub build provenance attestation described below.
+
+## Signed build provenance attestation
+
+Starting with `0.1.1`, the `build` job of
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) attests the
+wheel and source distribution after their checksums, SBOM, and provenance have
+been verified:
+
+* it uses `actions/attest-build-provenance` pinned to a full commit SHA
+  (v2.4.0);
+* `subject-path` covers `dist/*.whl` and `dist/*.tar.gz`, so one attestation
+  binds both distribution digests;
+* the build job requests only `contents: read`, `id-token: write`, and
+  `attestations: write`; GitHub exchanges the workflow's OIDC token for a
+  short-lived Sigstore signing certificate, so no long-lived signing key or
+  repository secret is used;
+* GitHub stores the resulting Sigstore bundle in the repository's attestation
+  store and records it in the public transparency log when the repository is
+  public.
+
+The attestation is not attached as a release asset and is not listed in
+`SHA256SUMS`. The general verification form is
+`gh attestation verify <artifact> --repo groktopus/codereview`. Verify each
+downloaded artifact against the repository:
+
+```sh
+gh attestation verify ./pr_review_harness-0.1.1-py3-none-any.whl \
+  --repo groktopus/codereview
+gh attestation verify ./pr_review_harness-0.1.1.tar.gz \
+  --repo groktopus/codereview
+```
+
+A passing verification establishes that the attestation was issued by this
+repository's release workflow for that exact artifact digest through a GitHub
+Actions identity. It does not prove that the source is correct or that the
+review harness is effective, and it does not replace checking the checksums and
+SBOM. If attestation creation fails, the build step fails and the `publish` job
+does not run.
+
+`v0.1.0` was published before the attestation step existed: it remains unsigned
+and has no GitHub attestation. Do not claim an attestation for `v0.1.0`
+artifacts, and do not treat a later version's attestation as covering them.
 
 ## Reproducibility
 
@@ -115,7 +160,7 @@ Run the check locally:
 python3 -m pip install --require-hashes --no-deps -r requirements-dev.lock
 python3 -m pip install --no-deps --no-build-isolation -e .
 python3 scripts/check_reproducible_build.py \
-  --source-date-epoch "$(git show -s --format=%ct 'v0.1.0^{commit}')" \
+  --source-date-epoch "$(git show -s --format=%ct 'v0.1.1^{commit}')" \
   --json-out /tmp/reproducibility.json \
   --summary /tmp/reproducibility.md
 ```
@@ -133,37 +178,51 @@ python3 scripts/check_reproducible_build.py \
 Download the assets and verify the checksums first:
 
 ```sh
-gh release download v0.1.0 --dir /tmp/pr-review-release
+gh release download v0.1.1 --dir /tmp/pr-review-release
 cd /tmp/pr-review-release
 sha256sum -c SHA256SUMS
 ```
+
+Then verify the signed build provenance attestation for each distribution:
+
+```sh
+gh attestation verify ./pr_review_harness-0.1.1-py3-none-any.whl \
+  --repo groktopus/codereview
+gh attestation verify ./pr_review_harness-0.1.1.tar.gz \
+  --repo groktopus/codereview
+```
+
+For `v0.1.0`, `gh attestation verify` has nothing to verify: that release
+remains unsigned and predates the attestation step.
 
 Then check that the SBOM, provenance, and checksums agree with the actual files.
 Use the verification script from the repository at the same tag:
 
 ```sh
 git clone https://github.com/groktopus/codereview /tmp/pr-review-repo
-git -C /tmp/pr-review-repo checkout v0.1.0
+git -C /tmp/pr-review-repo checkout v0.1.1
 python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
   --dist /tmp/pr-review-release \
-  --sbom /tmp/pr-review-release/pr-review-harness-0.1.0.cdx.json \
+  --sbom /tmp/pr-review-release/pr-review-harness-0.1.1.cdx.json \
   --provenance /tmp/pr-review-release/provenance.json \
   --checksums /tmp/pr-review-release/SHA256SUMS \
   --source-revision "$(git -C /tmp/pr-review-repo rev-parse HEAD)" \
-  --workflow-ref "groktopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.0"
+  --workflow-ref "groktopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.1"
 ```
 
-A passing result prints `Release verification: PASS (signed: no)`. The
-`signed: no` is expected: nothing in this release is signed. To make an unsigned
-release fail verification, pass `--require-signed`; that flag always fails today
-because cryptographic signature verification is not implemented, even if a
-provenance merely claims a signature.
+A passing result prints `Release verification: PASS (signed: no)`. That script
+verifies the unsigned `provenance.json` and SBOM layer; the `signed: no` is
+expected there even for `0.1.1` because the signed attestation is verified
+separately with `gh attestation verify`. To make unsigned provenance fail the
+script, pass `--require-signed`; that flag always fails today because
+cryptographic signature verification is not implemented in the script, even if
+a provenance merely claims a signature.
 
 Inspect the evidence directly:
 
 ```sh
 jq '.metadata.component | {name, version, licenses, properties}' \
-  /tmp/pr-review-release/pr-review-harness-0.1.0.cdx.json
+  /tmp/pr-review-release/pr-review-harness-0.1.1.cdx.json
 jq '{subject, signing, source: .predicate.buildDefinition.externalParameters.source}' \
   /tmp/pr-review-release/provenance.json
 jq '{status, artifact_hashes_match, content_matches, non_determinism}' \
@@ -185,10 +244,12 @@ python3 -m venv /tmp/pr-review-release-venv
 * `.github/workflows/test.yml` has a `Supply chain` job that builds twice, writes
   the reproducibility report, generates an SBOM and unsigned provenance, verifies
   them, runs `tests/test_supply_chain.py`, and retains the evidence for the run.
-* `.github/workflows/release.yml` runs the same check before publishing. The
-  `build` job is `contents: read` and verifies the evidence; only the `publish`
-  job has `contents: write`, and it re-verifies the downloaded checksums, SBOM,
-  and provenance before creating the release.
+* `.github/workflows/release.yml` runs the same check before publishing and then
+  creates the signed attestation. The `build` job has `contents: read`,
+  `id-token: write`, and `attestations: write`; the two write scopes exist only
+  for keyless attestation, and the job never receives `contents: write`. Only
+  the `publish` job has `contents: write`, and it re-verifies the downloaded
+  checksums, SBOM, and provenance before creating the release.
 * Every action is pinned to a full commit SHA. The workflow reads no repository
   secrets and does not publish to PyPI.
 * `.github/workflows/test.yml` installs the development/test environment from
@@ -211,14 +272,19 @@ python3 -m venv /tmp/pr-review-release-venv
 
 ## Residual gaps
 
-* Artifacts and provenance are unsigned. There is no Sigstore signature, GitHub
-  artifact attestation, or verified tag signature. Consumers can verify hashes
-  and recorded build inputs, not origin authenticity.
+* `provenance.json` and the SBOM remain unsigned and self-asserted. The
+  attestation is the signed layer for the `0.1.1`-and-later wheel and sdist; it
+  authenticates the release workflow and artifact digests, not the correctness
+  or quality of the source. The earlier `v0.1.0` release remains unsigned and
+  has no attestation.
+* The tag signature is not verified in CI. A signed tag is a local operator
+  practice until a verification step exists.
 * The sdist is not byte-for-byte reproducible with the current setuptools
   toolchain; the report records `CONTENT_REPRODUCIBLE` and the affected
   timestamps. The wheel was byte-for-byte identical in the recorded run.
-* Builder identity and workflow fields are self-asserted. There is no
-  transparency log or independent builder.
+* Builder identity and workflow fields in `provenance.json` are self-asserted.
+  The attestation provides a GitHub-issued builder identity, but the project
+  retains no independent builder or separate transparency-log audit.
 * The SBOM covers distribution metadata and artifact hashes, not every file
   inside the archives, and not development dependencies.
 * The release workflow has not been exercised by a real tag or release in this

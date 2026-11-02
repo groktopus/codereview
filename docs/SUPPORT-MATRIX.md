@@ -58,7 +58,7 @@ Runtime install (no dependencies are pulled):
 
 ```sh
 python3 -m venv /tmp/pr-review
-/tmp/pr-review/bin/python -m pip install dist/pr_review_harness-0.1.0-py3-none-any.whl
+/tmp/pr-review/bin/python -m pip install dist/pr_review_harness-0.1.1-py3-none-any.whl
 /tmp/pr-review/bin/pr-review --help
 ```
 

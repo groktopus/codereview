@@ -63,7 +63,7 @@ python -m venv /tmp/pr-review-wheel
 /tmp/pr-review-wheel/bin/python scripts/package_smoke.py --cli /tmp/pr-review-wheel/bin/pr-review
 ```
 
-Release tags are cut only from green `main`. The release workflow attaches the wheel, source distribution, `SHA256SUMS`, a CycloneDX SBOM, unsigned provenance, the reproducibility report, and changelog-derived release notes to a GitHub Release; no package is published to PyPI. The prepared notes and verification commands for `0.1.0` are in [docs/releases/0.1.0.md](docs/releases/0.1.0.md). See the [versioning policy](docs/VERSIONING.md) and [release procedure](docs/RELEASING.md) before tagging.
+Release tags are cut only from green `main`. The release workflow attaches the wheel, source distribution, `SHA256SUMS`, a CycloneDX SBOM, unsigned provenance, the reproducibility report, and changelog-derived release notes to a GitHub Release; no package is published to PyPI. Starting with `0.1.1`, the release build job also records a keyless GitHub OIDC build provenance attestation for the wheel and sdist, verifiable with `gh attestation verify <artifact> --repo groktopus/codereview`; the attached `provenance.json` and SBOM remain unsigned, and the earlier `v0.1.0` release remains unsigned. The prepared notes and verification commands for `0.1.1` are in [docs/releases/0.1.1.md](docs/releases/0.1.1.md). See the [versioning policy](docs/VERSIONING.md) and [release procedure](docs/RELEASING.md) before tagging.
 
 ## What is included
 
@@ -82,7 +82,7 @@ Release tags are cut only from green `main`. The release workflow attaches the w
 | `docs/PACKAGING-VERIFICATION.md` | Wheel, source distribution, matrix, and installed-entry-point checks |
 | `docs/VERSIONING.md` | Package semantic versioning and independent contract versioning, promised surfaces, and breaking-change rules |
 | `docs/RELEASING.md` | Tag creation, release workflow triggers and permissions, verification commands, and rollback |
-| `CHANGELOG.md` | Classified source changes, including the initial `0.1.0` entry |
+| `CHANGELOG.md` | Classified source changes, including the initial `0.1.0` entry and the `0.1.1` attestation entry |
 | `docs/REVIEW-COMPLETENESS.md` | Canonical incomplete-reason taxonomy, per-run completeness summary, and the fixture baseline regression gate |
 | `.github/workflows/` | Python support matrix, wheel verification, release pipeline, and read-only review artifacts |
 

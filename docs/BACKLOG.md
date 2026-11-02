@@ -126,7 +126,7 @@ the concrete move, not a schedule.
 | #253 | VD-3 | [VD-3] Isolate historical pins in a compatibility suite | `@magnus919` | `ready` | `state:ready` | Dependency #248 is closed. The compatibility marker exists; the refresh tool and manifest work remain. |
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |
 | #258 | SE-4 | [SE-4] Prove effect-boundary behavior with a fault matrix and canary | `@magnus919` | `ready` | `state:ready` | Dependencies #255, #256, #247 are closed. Build the parameterized matrix; live publication stays disabled. |
-| #261 | RS-3 | [RS-3] Produce SBOM, provenance, and reproducible artifacts | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | `v0.1.0` carries the SBOM, unsigned provenance, and reproducibility reports. Owner action: accept unsigned provenance explicitly or add signed attestation. |
+| #261 | RS-3 | [RS-3] Produce SBOM, provenance, and reproducible artifacts | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | `v0.1.0` carries the SBOM, unsigned provenance, and reproducibility reports and remains unsigned. `0.1.1` adds keyless GitHub OIDC build provenance attestations for the wheel/sdist while retaining the unsigned evidence. Owner action: publish `v0.1.1` and verify the attestations. |
 | #262 | RS-4 | [RS-4] Lock dependencies and publish the package contract | `@magnus919` | `ready` | `state:ready` | Dependency #259 is closed. The package has no runtime dependencies; lock and publish the contract deliberately. |
 <!-- backlog-table:end -->
 

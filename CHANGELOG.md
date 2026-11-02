@@ -13,6 +13,12 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 - Owner-accepted synthetic model-teacher adjudication ([ADR 0010](docs/adr/0010-synthetic-model-teacher-adjudication.md)): a `reviewer_kind: synthetic` labels extension with exact model/prompt/rubric/run/hash provenance, separate human and synthetic arms, and rejection of synthetic packets mislabelled as human. Human packets remain optional.
 - `review-evaluation-scorecard.v2` and `review-evaluation-scorecard-gate.v2`: per-evaluation-arm `human` and `synthetic` label arms, synthetic-only `COMPLETE` without human packets, synthetic metrics scoped as non-human, and arm-specific regression checks (`<metric>:<arm>:<label-arm>`).
 
+## [0.1.1] - 2026-11-02
+
+### Added
+
+- Keyless GitHub OIDC build provenance attestations for the release wheel and source distribution: the release build job runs the SHA-pinned `actions/attest-build-provenance` v2.4.0 after the artifacts and their evidence are verified, with `subject-path` covering `dist/*.whl` and `dist/*.tar.gz`. The build job has only `contents: read`, `id-token: write`, and `attestations: write`; consumers verify with `gh attestation verify <artifact> --repo groktopus/codereview`. The existing unsigned `provenance.json` and CycloneDX SBOM remain attached as the inspectable unsigned layer, and `v0.1.0` remains unsigned.
+
 ## [0.1.0] - 2026-11-02
 
 Initial source version of the read-only review harness.
@@ -57,5 +63,6 @@ evidence that a tag or GitHub Release exists.
 - Provider credentials are referenced through environment variable names and are never written to configuration files or logs.
 - Target code, hooks, tests, and builds are not executed during review.
 
-[Unreleased]: https://github.com/groktopus/codereview/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/groktopus/codereview/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/groktopus/codereview/releases/tag/v0.1.1
 [0.1.0]: https://github.com/groktopus/codereview/releases/tag/v0.1.0

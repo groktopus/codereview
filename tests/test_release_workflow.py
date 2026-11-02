@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 PINNED_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
+ATTESTATION_ACTION = "actions/attest-build-provenance"
+ATTESTATION_PIN = f"{ATTESTATION_ACTION}@e8998f949152b193b063cb0ec769d69d929409be"
 
 
 def _workflow() -> str:
@@ -25,19 +27,34 @@ def test_release_workflow_is_triggered_by_a_tag_or_an_existing_tag_dispatch() ->
     assert "branches:" not in triggers
 
 
-def test_release_workflow_permissions_are_read_only_except_publish() -> None:
+def _job_permission_lines(job: str) -> set[str]:
+    block = job.split("permissions:\n", 1)[1].split("steps:", 1)[0]
+    return {
+        line.strip()
+        for line in block.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+
+
+def test_release_workflow_permissions_are_least_privilege() -> None:
     text = _workflow()
     top_permissions = text.split("\npermissions:\n", 1)[1].split("\njobs:", 1)[0]
     assert "contents: read" in top_permissions
     assert "write" not in top_permissions
 
     build_job = text.split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
-    assert "contents: read" in build_job
+    # The only write scopes in the build job are the two required by keyless
+    # GitHub OIDC attestation; it never receives contents: write.
+    assert _job_permission_lines(build_job) == {
+        "contents: read",
+        "id-token: write",
+        "attestations: write",
+    }
     assert "contents: write" not in build_job
+    assert "contents: write" not in _job_permission_lines(build_job)
 
     publish_job = text.split("  publish:\n", 1)[1]
-    assert "contents: write" in publish_job
-    assert "permissions:" in publish_job
+    assert _job_permission_lines(publish_job) == {"contents: write"}
 
 
 def test_release_workflow_uses_no_external_credentials_or_secrets() -> None:
@@ -103,8 +120,9 @@ def test_release_workflow_generates_and_publishes_supply_chain_evidence() -> Non
         "--build-command",
     ):
         assert token in text
-    assert "id-token: write" not in text
-    assert "attestations: write" not in text
+    # The unsigned provenance/SBOM layer is retained; the attestation is an
+    # additional signed layer, not a replacement.
+    assert "Record unsigned build provenance" in text
     assert "signing" not in text.lower() or "unsigned" in text.lower()
     # The publish step attaches the evidence as release assets, not only as a
     # workflow artifact.
@@ -112,6 +130,26 @@ def test_release_workflow_generates_and_publishes_supply_chain_evidence() -> Non
     assert '"${EVIDENCE[@]}"' in release_step
     assert "provenance.json" in release_step
     assert "*.cdx.json" in release_step
+
+
+def test_release_workflow_attests_verified_wheel_and_sdist_with_pinned_action() -> None:
+    text = _workflow()
+    build_job = text.split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
+    assert ATTESTATION_PIN in build_job
+    assert "# v2.4.0" in build_job.split(ATTESTATION_PIN, 1)[1].splitlines()[0]
+
+    attest_step = build_job.split("Attest the verified wheel and sdist", 1)[1].split("- name:", 1)[0]
+    assert "subject-path: |" in attest_step
+    assert "dist/*.whl" in attest_step
+    assert "dist/*.tar.gz" in attest_step
+
+    # Attestation happens after the wheel/sdist and their evidence are verified,
+    # and before the verified release set is retained for the publish job.
+    verify = build_job.index("Verify SBOM, provenance, and checksums agree")
+    attest = build_job.index(ATTESTATION_PIN)
+    retain = build_job.index("Retain the verified release evidence")
+    assert verify < attest < retain
+    assert "Verify SBOM, provenance, and checksums agree" not in build_job[attest:retain]
 
 
 def test_release_workflow_verifies_evidence_in_both_build_and_publish() -> None:
@@ -135,6 +173,28 @@ def test_verification_workflow_runs_the_reproducibility_and_supply_chain_checks(
     assert "actions/upload-artifact@" in job
 
 
+def test_release_workflow_documents_keyless_attestation_and_v010_limit() -> None:
+    supply_chain = (ROOT / "docs/SUPPLY-CHAIN.md").read_text(encoding="utf-8")
+    releasing = (ROOT / "docs/RELEASING.md").read_text(encoding="utf-8")
+    notes = (ROOT / "docs/releases/0.1.1.md").read_text(encoding="utf-8")
+    for name, text in (
+        ("docs/SUPPLY-CHAIN.md", supply_chain),
+        ("docs/RELEASING.md", releasing),
+        ("docs/releases/0.1.1.md", notes),
+    ):
+        lowered = text.lower()
+        assert "keyless" in lowered, name
+        assert "oidc" in lowered, name
+        assert "gh attestation verify" in text, name
+        assert "--repo groktopus/codereview" in text, name
+        assert "unsigned" in lowered, name
+        assert "v0.1.0" in text, name
+        assert "remains unsigned" in lowered, name
+    assert "provenance.json" in supply_chain
+    assert "GitHub artifact attestation is not used" not in supply_chain
+    assert "No release asset carries a signature" not in supply_chain
+
+
 def test_release_actions_reuse_the_same_pins_as_the_verification_workflow() -> None:
     def pins(text: str) -> set[str]:
         found = set()
@@ -145,4 +205,7 @@ def test_release_actions_reuse_the_same_pins_as_the_verification_workflow() -> N
 
     release_pins = pins(_workflow())
     verification_pins = pins((ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8"))
-    assert release_pins <= verification_pins
+    # The attestation action is release-only; every other release pin must be
+    # shared with the verification workflow.
+    assert release_pins - {ATTESTATION_PIN} <= verification_pins
+    assert ATTESTATION_PIN not in verification_pins

@@ -5,7 +5,9 @@ name: Release
 # an already-existing tag. It uses the repository-scoped GITHUB_TOKEN, reads no
 # repository secrets, and does not publish to PyPI. Release assets include the
 # wheel, sdist, SHA256SUMS, an unsigned CycloneDX SBOM, unsigned provenance, and
-# the retained reproducibility report; see docs/SUPPLY-CHAIN.md.
+# the retained reproducibility report. The build job also records a keyless
+# GitHub OIDC build provenance attestation for the wheel and sdist; the SBOM and
+# provenance.json remain unsigned. See docs/SUPPLY-CHAIN.md.
 on:
   push:
     tags:
@@ -30,7 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
+      # The two write scopes exist only for the keyless build provenance
+      # attestation below. This job has no write access to repository contents.
       contents: read
+      id-token: write
+      attestations: write
     steps:
       - name: Check out the exact tag revision
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -162,6 +168,13 @@ jobs:
             --source-revision "$SOURCE_REVISION" \
             --workflow-ref "$GITHUB_WORKFLOW_REF"
 
+      - name: Attest the verified wheel and sdist with keyless GitHub OIDC provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+
       - name: Retain the verified release evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -176,7 +189,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      # Only this job may create the release; the build job stays read-only.
+      # Only this job may create the release; the build job has no
+      # contents: write.
       contents: write
     steps:
       - name: Check out the release verification scripts at the tag

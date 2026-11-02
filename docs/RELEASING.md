@@ -17,7 +17,11 @@ procedure as every later release.
    merged. The release commit is the tag target; do not tag an unmerged branch.
 4. No external credential is needed. The workflow uses the repository-scoped
    `GITHUB_TOKEN` only to create the GitHub Release, and it publishes no Python
-   package.
+   package. Starting with `0.1.1`, keyless GitHub OIDC build provenance
+   attestation requires GitHub artifact attestations to be available for the
+   repository (public repository on the available plan, or an eligible private
+   repository); it uses a short-lived OIDC-issued certificate and no signing key
+   or repository secret.
 
 ## Prepare the version
 
@@ -29,7 +33,8 @@ procedure as every later release.
    compare/release link definitions at the bottom.
 4. Write the prepared release notes at `docs/releases/<version>.md` and index the
    file in [`docs/README.md`](README.md). The notes carry the release scope, the
-   verification commands, and the unsigned-provenance limit. The published
+   verification commands, the keyless-attestation layer, and the limits of the
+   unsigned `provenance.json`/SBOM. The published
    `RELEASE-NOTES.md` asset is **generated from the changelog section** by
    `scripts/check_version_policy.py --notes-out`, so prepared prose notes become
    the release body only if the workflow's `--notes-file` is pointed at them; that
@@ -66,18 +71,21 @@ git switch main
 git pull --ff-only
 git log -1 --format='%H %s'
 # Signed tag (preferred when a release key is configured):
-git tag -s v0.1.0 -m "pr-review-harness 0.1.0"
-git tag -v v0.1.0
+git tag -s v0.1.1 -m "pr-review-harness 0.1.1"
+git tag -v v0.1.1
 # Annotated fallback when no signing key is configured:
-# git tag -a v0.1.0 -m "pr-review-harness 0.1.0"
-# git tag -n99 v0.1.0
-git push origin v0.1.0
+# git tag -a v0.1.1 -m "pr-review-harness 0.1.1"
+# git tag -n99 v0.1.1
+git push origin v0.1.1
 ```
 
 Use one of `-s` or `-a`; a lightweight tag is not accepted by this procedure.
 CI verifies that the tag resolves to the checked-out commit and matches
-`project.version`, but it does **not** verify the tag signature. The release
-artifacts are also unsigned; see [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md).
+`project.version`, but it does **not** verify the tag signature. Starting with
+`0.1.1`, the build job records a signed, keyless GitHub OIDC attestation for the
+wheel and sdist; the artifacts themselves are not signed, and the attached
+`provenance.json` and SBOM remain unsigned. The earlier `v0.1.0` release remains
+unsigned and has no attestation. See [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md).
 
 Do not create the GitHub Release by hand before the tag exists. The release
 workflow runs `gh release create --verify-tag`; without an existing tag the
@@ -98,15 +106,18 @@ The workflow runs two jobs:
 
 | Job | Permission | Work |
 |---|---|---|
-| `build` | `contents: read` | Check out the tag, verify the tag equals the package version, has a changelog section, and is an ancestor of the default branch. Build the wheel and sdist twice with a `SOURCE_DATE_EPOCH` derived from the tag commit and compare them; generate the CycloneDX SBOM, unsigned provenance, and reproducibility report; write and verify `SHA256SUMS`; verify that the SBOM, provenance, and checksums agree; retain the distribution and evidence artifacts. |
+| `build` | `contents: read`, `id-token: write`, `attestations: write` | Check out the tag, verify the tag equals the package version, has a changelog section, and is an ancestor of the default branch. Build the wheel and sdist twice with a `SOURCE_DATE_EPOCH` derived from the tag commit and compare them; generate the CycloneDX SBOM, unsigned provenance, and reproducibility report; write and verify `SHA256SUMS`; verify that the SBOM, provenance, and checksums agree; record the signed keyless GitHub OIDC build provenance attestation for the wheel and sdist; retain the distribution and evidence artifacts. |
 | `publish` | `contents: write` | Check out the verification scripts at the tag, download the retained assets, verify the checksums, SBOM, and provenance again, refuse to overwrite an existing release, and create the GitHub Release with the wheel, sdist, `SHA256SUMS`, SBOM, provenance, reproducibility report, and notes. |
 
 The top-level workflow permission is `contents: read`; only the `publish` job
-escalates to `contents: write`. Every action is pinned to a full commit SHA
-consistent with the repository's other workflows. The workflow does not read
-repository secrets, does not publish to PyPI, does not create tags, and does not
-request `id-token` or `attestations` permissions. The supply-chain evidence is
-unsigned; see [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md).
+escalates to `contents: write`. The `build` job's `id-token: write` and
+`attestations: write` scopes exist solely for the keyless attestation and do not
+grant write access to repository contents. Every action is pinned to a full
+commit SHA consistent with the repository's other workflows. The workflow does
+not read repository secrets, does not publish to PyPI, and does not create tags.
+The signed layer is the GitHub OIDC attestation; `provenance.json` and the SBOM
+remain unsigned, and the `v0.1.0` release remains unsigned. See
+[SUPPLY-CHAIN.md](SUPPLY-CHAIN.md).
 
 The separate `Supply chain` job in
 [`.github/workflows/test.yml`](../.github/workflows/test.yml) runs the same
@@ -116,7 +127,7 @@ requests, so the checks are not release-only.
 ## Manual dispatch
 
 Use **Actions → Release → Run workflow** and enter an existing tag such as
-`v0.1.0`. Dispatch is for rebuilding or retrying an existing tag. It rejects:
+`v0.1.1`. Dispatch is for rebuilding or retrying an existing tag. It rejects:
 
 * a tag that does not exist;
 * a tag whose version does not equal `project.version`;
@@ -127,7 +138,9 @@ Use **Actions → Release → Run workflow** and enter an existing tag such as
 
 ## Cut the first release
 
-The first release is `v0.1.0`. After the preparation pull request is merged:
+The first release is `v0.1.0`. It predates the attestation step and remains
+unsigned; the `gh attestation verify` commands in this procedure apply to
+`0.1.1` and later. After the preparation pull request is merged:
 
 ```sh
 git switch main
@@ -155,52 +168,74 @@ never move or delete a published tag.
 
 ## Verify a published release
 
-Replace `v0.1.0` with the actual tag:
+Replace `v0.1.1` with the actual tag:
 
 ```sh
-gh release view v0.1.0 --json tagName,url,assets
-gh release download v0.1.0 --dir /tmp/pr-review-release
+gh release view v0.1.1 --json tagName,url,assets
+gh release download v0.1.1 --dir /tmp/pr-review-release
 cd /tmp/pr-review-release
 sha256sum -c SHA256SUMS
+```
+
+The general attestation form is
+`gh attestation verify <artifact> --repo groktopus/codereview`. For the `0.1.1`
+assets:
+
+```sh
+gh attestation verify ./pr_review_harness-0.1.1-py3-none-any.whl \
+  --repo groktopus/codereview
+gh attestation verify ./pr_review_harness-0.1.1.tar.gz \
+  --repo groktopus/codereview
+```
+
+```sh
 python3 -m venv /tmp/pr-review-release-venv
 /tmp/pr-review-release-venv/bin/python -m pip install ./*.whl
 /tmp/pr-review-release-venv/bin/pr-review --help
 ```
+
+The `gh attestation verify` commands apply to `0.1.1` and later. The earlier
+`v0.1.0` release remains unsigned and has no attestation, so those commands have
+nothing to verify for it.
 
 Verify that the SBOM, provenance, and checksums agree with the downloaded
 artifacts, using the verification script from the same tag:
 
 ```sh
 git clone https://github.com/groktopus/codereview /tmp/pr-review-repo
-git -C /tmp/pr-review-repo checkout v0.1.0
+git -C /tmp/pr-review-repo checkout v0.1.1
 python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
   --dist /tmp/pr-review-release \
-  --sbom /tmp/pr-review-release/pr-review-harness-0.1.0.cdx.json \
+  --sbom /tmp/pr-review-release/pr-review-harness-0.1.1.cdx.json \
   --provenance /tmp/pr-review-release/provenance.json \
   --checksums /tmp/pr-review-release/SHA256SUMS \
   --source-revision "$(git -C /tmp/pr-review-repo rev-parse HEAD)" \
-  --workflow-ref "groktopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.0"
+  --workflow-ref "groktopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.1"
 ```
 
-The expected result is `Release verification: PASS (signed: no)`. The
-provenance is unsigned by design; `--require-signed` always fails today because
-signature verification is not implemented, even for a claimed signature.
+The expected result is `Release verification: PASS (signed: no)`. That script
+checks the unsigned `provenance.json`/SBOM layer; the signed attestation is
+verified separately with `gh attestation verify`. `--require-signed` always
+fails today because signature verification is not implemented in the script,
+even for a claimed signature.
 
 Also verify the tag and metadata against the checkout:
 
 ```sh
 git fetch --tags
-git rev-parse --verify 'v0.1.0^{commit}'
-python3 scripts/check_version_policy.py --tag v0.1.0
+git rev-parse --verify 'v0.1.1^{commit}'
+python3 scripts/check_version_policy.py --tag v0.1.1
 ```
 
 The release is verified when the GitHub Release exists at the pushed tag, the
 wheel, sdist, `SHA256SUMS`, SBOM, provenance, and reproducibility report are
-present, `SHA256SUMS` validates in a clean directory, `verify_release_artifacts.py`
-passes, and the wheel installs and runs outside the checkout. `SHA256SUMS` is
-not a signature, and the reproducibility report does not claim bit-for-bit
-reproducibility where the recorded result says `CONTENT_REPRODUCIBLE`. See
-[SUPPLY-CHAIN.md](SUPPLY-CHAIN.md) for formats, limits, and local checks.
+present, `SHA256SUMS` validates in a clean directory,
+`gh attestation verify` passes for each distribution (for `0.1.1` and later),
+`verify_release_artifacts.py` passes, and the wheel installs and runs outside
+the checkout. `SHA256SUMS` is not a signature, and the reproducibility report
+does not claim bit-for-bit reproducibility where the recorded result says
+`CONTENT_REPRODUCIBLE`. See [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md) for formats,
+limits, and local checks.
 
 ## Failure and rollback
 
@@ -235,10 +270,13 @@ test suite.
 
 ## Residual gaps
 
-* Artifacts and provenance are unsigned. There is no Sigstore signature or
-  GitHub artifact attestation, so consumers can verify hashes and recorded build
-  inputs but not origin authenticity. Adding a signature needs an
-  owner-approved signing credential or attestation job.
+* `provenance.json` and the SBOM remain unsigned. Starting with `0.1.1`, the
+  keyless GitHub OIDC build provenance attestation is the signed layer for the
+  wheel and sdist; it authenticates the release workflow and artifact digests,
+  not the correctness or quality of the source. The `v0.1.0` release remains
+  unsigned and has no attestation. Attestation availability depends on the
+  repository's GitHub plan; if the attestation step fails, the release is not
+  published.
 * The tag signature is not verified in CI. A signed tag is a local operator
   practice until a verification step exists.
 * The source distribution is `CONTENT_REPRODUCIBLE`, not byte-for-byte

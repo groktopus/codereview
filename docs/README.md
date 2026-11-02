@@ -111,7 +111,7 @@ implementation.
 | [Release and staged adoption plan](RELEASE-PLAN.md) | Release and staged-adoption plan; publication remains separately gated. |
 | [Versioning policy](VERSIONING.md) | Package semantic versioning plus independent contract versioning, promised surfaces, and breaking-change rules. |
 | [Release procedure](RELEASING.md) | Tag creation, release workflow triggers and permissions, verification commands, and rollback. |
-| [Supply chain and release evidence](SUPPLY-CHAIN.md) | Release SBOM, unsigned provenance, reproducibility results, asset hashes, and consumer verification commands. |
+| [Supply chain and release evidence](SUPPLY-CHAIN.md) | Release SBOM, unsigned provenance, keyless GitHub OIDC build provenance attestations, reproducibility results, asset hashes, and consumer verification commands. |
 | [Public API and internal-module policy](PUBLIC-API.md) | RS-4 supported import/CLI surface, internal-module compatibility policy, and zero-runtime-dependency contract. |
 | [Support matrix, install matrix, and dependency policy](SUPPORT-MATRIX.md) | RS-4 supported Python/OS combinations, documented install matrix, hash-locked dev environment, dependency review switch, and scheduled vulnerability scan. |
 
@@ -128,7 +128,8 @@ banner; evidence that already lived under `docs/experiments/` or a
 | Document | What it records |
 |---|---|
 | [Codebase assessment — PR Review Harness](CODEBASE-ASSESSMENT-2026-11-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
-| [Release notes — 0.1.0](releases/0.1.0.md) | Prepared release notes for the `0.1.0` source release: scope, verification commands, and the unsigned-provenance limit. Not evidence that a tag or GitHub Release exists. |
+| [Release notes — 0.1.1](releases/0.1.1.md) | Prepared release notes for the `0.1.1` source release: keyless GitHub OIDC build provenance attestations, verification commands, and the unsigned `provenance.json`/SBOM limit. Not evidence that a tag or GitHub Release exists. |
+| [Release notes — 0.1.0](releases/0.1.0.md) | Prepared release notes for the `0.1.0` source release: scope, verification commands, and the unsigned-provenance limit. `v0.1.0` remains unsigned. Not evidence that a tag or GitHub Release exists. |
 | [Complete requirement audit — 2026-10-01](COMPLETE-REQUIREMENT-AUDIT-2026-10-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Local hard-termination recovery qualification — 2026-10-01](HARD-TERMINATION-LOCAL-RECOVERY-QUALIFICATION-2026-10-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [SlopSearX historical pilot — 2026-09-26](PILOT-RESULTS.md) | The initial 2026-09-26 SlopSearX pilot and its limitations. |
