@@ -43,12 +43,13 @@ class SnapshotEvidence(TypedDict, total=False):
     source_url: str | None
     manifest_sha256: str
     lock_object_id: str | None
-    lock_sha256: str
+    lock_sha256: str | None
     dependency_binding_id: str
     dependency_lenses: list[str]
     dependency_unit_ids: list[str]
     changed_line_ranges: list[list[int]]
-    head_object_id: str
+    head_object_id: str | None
+    head_relation: str
 
 
 class SnapshotUnit(TypedDict, total=False):
