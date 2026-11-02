@@ -1,0 +1,71 @@
+name: Feature or improvement
+description: Propose a bounded change with a problem statement, scope, and observable exit criterion.
+title: "[feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A feature request is intake, not approval. It becomes backlog work only
+        when it has an accountable owner, a state, and observable exit criteria.
+        See
+        [docs/BACKLOG.md](https://github.com/groktopus/codereview/blob/main/docs/BACKLOG.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What cannot be done today, for whom, and what evidence shows it.
+      placeholder: Cite a revision, file, document, or observed run.
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change and scope
+      description: The smallest change that addresses the problem, including explicit non-goals.
+    validations:
+      required: true
+
+  - type: textarea
+    id: exit
+    attributes:
+      label: Observable exit criterion
+      description: A metric, test, CI job, artifact, or external record that proves completion.
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: The command or artifact that would prove the exit criterion.
+    validations:
+      required: true
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: Hard dependencies
+      description: Open issue numbers or owner decisions that must resolve first, or "none".
+      placeholder: e.g. #242, #243, or none
+    validations:
+      required: true
+
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Ownership and effect impact
+      description: Which surface changes (core review, publication/effects, security/credentials, workflows, docs, release), and whether a decision record is needed.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: This request does not include secret values, private repository content, or exploit details.
+          required: true
+        - label: I understand a proposal is not an approval or a quality claim.
+          required: true

@@ -1,0 +1,29 @@
+{
+  "schema": "review-harness-backlog-snapshot.v1",
+  "repository": "groktopus/codereview",
+  "captured_at": "2026-11-02T07:20:00Z",
+  "source": "gh issue list --repo groktopus/codereview --state open --limit 100",
+  "state": "open",
+  "total_filed": 33,
+  "open_issue_numbers": [
+    239,
+    240,
+    241,
+    242,
+    243,
+    244,
+    245,
+    246,
+    252,
+    253,
+    254,
+    258,
+    260,
+    261,
+    262,
+    269,
+    270,
+    271
+  ],
+  "notes": "Read-only snapshot of the 18 open issues at branch base a3599f6. Update this file with the same query when the open set changes; the ownership check compares it with docs/BACKLOG.md."
+}

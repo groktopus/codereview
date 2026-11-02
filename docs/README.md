@@ -52,6 +52,8 @@ implementation.
 |---|---|
 | [Typed boundaries](TYPED-BOUNDARIES.md) | Stable record contracts, typed stage interfaces, and the strict-check scope and migration limits. |
 | [Decision records (ADR index)](adr/README.md) | Status, owner, date, and evidence for each recorded decision, plus the safety-invariant change requirement and legacy-proposal reconciliation. |
+| [Ownership, review authority, and access record](OWNERSHIP.md) | GA-3: path ownership, module map, second-reviewer protocol and limits, publication incident/rollback ownership, credentials, and the honest bus-factor-1 fallback. |
+| [Backlog triage](BACKLOG.md) | GA-3: issue states, labels, owners, closure-evidence rules, issue forms, and the proposed owner/state mapping for the open issues. |
 | [ADR 0001: post-CA-2 feature budget](adr/0001-post-ca2-feature-budget.md) | Accepted bounded source-line exception preserving the one-time CA-2 reduction. |
 | [ADR 0002: production architecture](adr/0002-production-architecture.md) | Accepted: one modular core with typed deterministic stages and one production review path. |
 | [ADR 0003: transport and credential policy](adr/0003-transport-security-policy.md) | Accepted: HTTPS for remote endpoints, exact loopback HTTP only, no redirects. |

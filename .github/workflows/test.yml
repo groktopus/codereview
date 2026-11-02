@@ -139,6 +139,8 @@ jobs:
         run: python scripts/check_docs_index.py
       - name: Check GA-2 decision-record index and safety-invariant links (structural; not PR-diff enforcement)
         run: python scripts/check_decision_records.py
+      - name: Check GA-3 CODEOWNERS coverage, ownership sections, and backlog triage
+        run: python scripts/check_ownership.py
       - name: Enforce release metadata and changelog classification
         run: |
           set -euo pipefail

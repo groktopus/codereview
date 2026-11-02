@@ -1,2 +1,114 @@
-# Default owner for all paths. Add narrower owners as the project grows.
+# CODEOWNERS — GA-3 ownership and review routing
+#
+# Bus factor is 1. @magnus919 is the only recorded accountable owner for every
+# surface below. There is no second human owner to invent. The documented
+# agent review protocol in docs/OWNERSHIP.md can produce a GA-1 review receipt,
+# but it does not make an agent the owner and does not authorize live effects.
+#
+# Later matching patterns win, so the more sensitive group is placed after the
+# general group. Keep `# group:` markers: scripts/check_ownership.py compares
+# the effective category of every public production module with the module map
+# in docs/OWNERSHIP.md.
+
+# Default owner for paths not named below.
 * @magnus919
+
+# group: core-review
+# Core review path: the single orchestrator, deterministic stages, evidence,
+# budget, contracts, reporting, CLI, and deterministic support modules.
+/src/pr_review_harness/__init__.py @magnus919
+/src/pr_review_harness/__main__.py @magnus919
+/src/pr_review_harness/budget.py @magnus919
+/src/pr_review_harness/checks.py @magnus919
+/src/pr_review_harness/claim_assessment.py @magnus919
+/src/pr_review_harness/claim_reconciliation.py @magnus919
+/src/pr_review_harness/claim_transport.py @magnus919
+/src/pr_review_harness/cli.py @magnus919
+/src/pr_review_harness/completeness.py @magnus919
+/src/pr_review_harness/context_targets.py @magnus919
+/src/pr_review_harness/contract_registry.py @magnus919
+/src/pr_review_harness/contracts.py @magnus919
+/src/pr_review_harness/cost.py @magnus919
+/src/pr_review_harness/current_source_capture.py @magnus919
+/src/pr_review_harness/dependency_context.py @magnus919
+/src/pr_review_harness/engine.py @magnus919
+/src/pr_review_harness/errors.py @magnus919
+/src/pr_review_harness/evidence.py @magnus919
+/src/pr_review_harness/github.py @magnus919
+/src/pr_review_harness/metrics.py @magnus919
+/src/pr_review_harness/planner.py @magnus919
+/src/pr_review_harness/reconcile.py @magnus919
+/src/pr_review_harness/recovery_inputs.py @magnus919
+/src/pr_review_harness/report.py @magnus919
+/src/pr_review_harness/review_stages.py @magnus919
+/src/pr_review_harness/review_state.py @magnus919
+/src/pr_review_harness/snapshot.py @magnus919
+/src/pr_review_harness/source_audit.py @magnus919
+
+# group: docs
+# Living documentation, navigation, contributor policy, and repository guidance.
+/docs/ @magnus919
+/README.md @magnus919
+/CONTRIBUTING.md @magnus919
+/AGENTS.md @magnus919
+/.github/pull_request_template.md @magnus919
+/.github/ISSUE_TEMPLATE/ @magnus919
+
+# group: workflows
+# CI and automation definitions. Workflow changes can change effects and
+# credential exposure even when no application code changes.
+/.github/workflows/ @magnus919
+/.github/codeql/ @magnus919
+/.github/CODEOWNERS @magnus919
+
+# group: release
+# Version, license, changelog, packaging, tag, and release-artifact surfaces.
+/pyproject.toml @magnus919
+/MANIFEST.in @magnus919
+/CHANGELOG.md @magnus919
+/LICENSE @magnus919
+/scripts/check_changelog.py @magnus919
+/scripts/check_version_policy.py @magnus919
+/scripts/release-policy.v1.json @magnus919
+/scripts/generate_sbom.py @magnus919
+/scripts/generate_provenance.py @magnus919
+/scripts/verify_release_artifacts.py @magnus919
+/scripts/check_reproducible_build.py @magnus919
+/.github/workflows/release.yml @magnus919
+/docs/RELEASING.md @magnus919
+/docs/VERSIONING.md @magnus919
+/docs/SUPPLY-CHAIN.md @magnus919
+
+# group: publication-effects
+# Guarded publication and external-effect surfaces. Live effects remain
+# disabled by default under ADR 0004.
+/src/pr_review_harness/actions_publication.py @magnus919
+/src/pr_review_harness/actions_runtime.py @magnus919
+/src/pr_review_harness/artifact_intake.py @magnus919
+/src/pr_review_harness/external_effect_observer.py @magnus919
+/src/pr_review_harness/protected_publication_runtime.py @magnus919
+/src/pr_review_harness/publication_receipts.py @magnus919
+/src/pr_review_harness/publisher.py @magnus919
+/templates/protected-pr-review-publisher.yml @magnus919
+/scripts/protected-publication-action/ @magnus919
+/.github/workflows/pr-publish.yml @magnus919
+/docs/PUBLICATION-READINESS.md @magnus919
+/docs/protected-publication-runtime.md @magnus919
+/docs/ACTIONS-PUBLICATION-DESIGN.md @magnus919
+/docs/EXTERNAL-EFFECT-OBSERVER.md @magnus919
+/docs/ARTIFACT-INTAKE.md @magnus919
+
+# group: security-credentials
+# Credential providers, provider transport, private-data capture, and the
+# security policy. Changes here require owner review, not agent-only review.
+/src/pr_review_harness/github_actions_credentials.py @magnus919
+/src/pr_review_harness/github_app_canary.py @magnus919
+/src/pr_review_harness/github_app_credentials.py @magnus919
+/src/pr_review_harness/private_capture.py @magnus919
+/src/pr_review_harness/providers.py @magnus919
+/SECURITY.md @magnus919
+/.github/workflows/security.yml @magnus919
+/scripts/provider_config_from_env.py @magnus919
+/docs/GITHUB-APP-CREDENTIAL-PROVIDER.md @magnus919
+/docs/DEPLOYMENT-CONFIGURATION.md @magnus919
+/docs/THREAT-MODEL.md @magnus919

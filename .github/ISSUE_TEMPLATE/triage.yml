@@ -1,0 +1,94 @@
+name: Triage intake
+description: Structured intake for a new finding, risk, or task that is not yet a scheduled issue.
+title: "[triage] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for new findings so triage does not start from prose. The
+        issue stays `state:triage` until the owner records an accountable owner,
+        one state, and observable exit criteria. Rules are in
+        [docs/BACKLOG.md](https://github.com/groktopus/codereview/blob/main/docs/BACKLOG.md).
+
+  - type: textarea
+    id: finding
+    attributes:
+      label: Finding
+      description: What is wrong or missing, stated as an observable fact rather than an opinion.
+      placeholder: Cite the revision, file, document, run, or external record.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: The command output, link, measurement, or artifact that supports the finding. No secret values.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Primary surface
+      options:
+        - Core review path
+        - Publication or external effects
+        - Security or credentials
+        - Workflows and automation
+        - Documentation and ownership
+        - Release and supply chain
+        - Quality measurement and evaluation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Proposed priority
+      description: The owner ratifies or changes this during triage.
+      options:
+        - P0 - active correctness, truth, or trust defect, or unblocks measurement
+        - P1 - required for the A- gate on its dimension
+        - P2 - hardening or long-term operability
+    validations:
+      required: true
+
+  - type: textarea
+    id: exit
+    attributes:
+      label: Proposed observable exit criterion
+      description: What would prove this is done? A metric, test, CI job, artifact, or external record.
+    validations:
+      required: true
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: Hard dependencies
+      description: Open issue numbers or owner decisions that must resolve first, or "none".
+      placeholder: e.g. #242, or none
+    validations:
+      required: true
+
+  - type: input
+    id: proposed_owner
+    attributes:
+      label: Proposed accountable owner
+      description: The accountable human, not an agent. Use "unassigned" if no owner has accepted.
+      placeholder: e.g. @magnus919 or unassigned
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Triage confirmations
+      options:
+        - label: I included no secret values, private repository content, or exploit details.
+          required: true
+        - label: I checked for an existing issue before filing this one.
+          required: true
+        - label: I understand this intake is not yet owned, scheduled, or approved.
+          required: true

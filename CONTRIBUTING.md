@@ -48,6 +48,35 @@ valid, safety-invariant surfaces map to accepted records, and the process is
 documented here and in the pull request template. It does not judge whether the
 evidence is sufficient.
 
+## Ownership, review routing, and backlog triage (GA-3)
+
+[`.github/CODEOWNERS`](.github/CODEOWNERS) assigns every path to the recorded
+accountable owner, with narrower groups for core review, publication/effects,
+security/credentials, workflows, docs, and release. The owner is one person:
+the repository is honestly **bus factor 1**. Do not invent a second human or
+describe an agent as one.
+
+[Ownership, review authority, and access record](docs/OWNERSHIP.md) documents
+the module map, the independent read-only agent review protocol and its limits,
+publication incident/rollback ownership, credential rotation/recovery, and the
+freeze rules if the maintainer is unavailable. An agent review can produce a
+GA-1 receipt; it cannot approve live publication, credentials, releases,
+repository settings, or a merge.
+
+New findings use the issue forms under
+[`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). The
+[backlog triage rules](docs/BACKLOG.md) define the five open states, state
+labels, owners, closure-evidence rules, and the current proposed mapping. An
+issue closes only with observable evidence for its exit criteria, not because a
+pull request merged.
+
+Run the structural check before changing CODEOWNERS, the ownership record, the
+backlog table, or a production module:
+
+```sh
+python3 scripts/check_ownership.py
+```
+
 ## Versioning, changelog, and releases
 
 Package and contract versions follow the [versioning policy](docs/VERSIONING.md).
