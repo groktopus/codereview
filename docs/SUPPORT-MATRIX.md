@@ -158,8 +158,9 @@ variable `DEPENDENCY_GRAPH_ENABLED` is set to `true`, because the action fails
 Until the variable is set, the `dependency-review-guidance` job emits a warning
 annotation and a step-summary note containing these instructions, so the skipped
 gate is visible and actionable rather than silent. This repository currently has
-no runtime dependencies, so dependency review mainly covers `uv.lock`,
-`requirements-dev.lock`, and workflow/action changes once the graph is enabled.
+no runtime dependencies. Whether GitHub's dependency graph parses `uv.lock`
+revision 5 and `requirements-dev.lock` is unverified until dependency review
+actually runs; the gate remains inactive until the repository variable is set.
 
 ## Verification map
 
