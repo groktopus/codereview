@@ -36,7 +36,7 @@ its state label; the closure record is the evidence.
 | `awaiting-evidence` | Implementation merged, but one or more exit criteria still lack observable evidence. | `state:awaiting-evidence` | The evidence is linked and checked (`done`), or the remaining work returns to `ready`. |
 | `done` | Closed because the exit criteria are met and linked. | none (closed) | Reopen with new evidence if the claim regresses. |
 
-`triage` is not a resting state for this snapshot: all 14 issues have a
+`triage` is not a resting state for this snapshot: all 13 issues have a
 state below. Use it for new intake until the owner has read the issue.
 
 ## Labels
@@ -57,7 +57,7 @@ may be a worker, but the assignee remains the accountable human.
 
 ## Owners
 
-- Accountable owner for all 14 open issues: `@magnus919`.
+- Accountable owner for all 13 open issues: `@magnus919`.
 - An implementing agent, when one is used, is a worker on a branch under the
   owner's direction. It is not the assignee and cannot close the issue.
 - If the owner is unavailable, do not reassign to an agent or to a placeholder.
@@ -106,7 +106,7 @@ The checker validates that the table below stays consistent with the open-issue
 snapshot and the filed-issue map. It cannot validate the truth of a closure
 record; a reviewer must do that.
 
-## Mapping for the 14 open issues
+## Mapping for the 13 open issues
 
 Existing labels stay. "Labels to add" is the applied state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
@@ -128,11 +128,10 @@ the concrete move, not a schedule.
 | #258 | SE-4 | [SE-4] Prove effect-boundary behavior with a fault matrix and canary | `@magnus919` | `ready` | `state:ready` | Dependencies #255, #256, #247 are closed. Build the parameterized matrix; live publication stays disabled. |
 | #261 | RS-3 | [RS-3] Produce SBOM, provenance, and reproducible artifacts | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | `v0.1.0` carries the SBOM, unsigned provenance, and reproducibility reports. Owner action: accept unsigned provenance explicitly or add signed attestation. |
 | #262 | RS-4 | [RS-4] Lock dependencies and publish the package contract | `@magnus919` | `ready` | `state:ready` | Dependency #259 is closed. The package has no runtime dependencies; lock and publish the contract deliberately. |
-| #270 | GA-2 | [GA-2] Record decisions with named owners and evidence | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | Both checks are required on `main`. Owner action: trace a sampled safety-invariant change to its accepted decision record. That verification is still outstanding. |
 <!-- backlog-table:end -->
 
-Summary: **8 `ready`, 4 `blocked`, 2 `awaiting-evidence`, 0 `in-progress`**;
-14 open issues, all with one owner and one state.
+Summary: **8 `ready`, 4 `blocked`, 1 `awaiting-evidence`, 0 `in-progress`**;
+13 open issues, all with one owner and one state.
 
 ## Board and issue-template configuration
 

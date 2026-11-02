@@ -76,9 +76,8 @@ sufficient. Failure codes, the fixture format, and the limits are in
 **Required on `main`.** `Decision record links` (like `Review receipt`) is a
 required status check. The sole maintainer retains an explicit administrator
 bypass, so the owner can merge their own PRs; every non-admin merge requires the
-check. Issue
-[#270](https://github.com/groktopus/codereview/issues/270) remains open only for
-a sampled safety change traced to its record.
+check. GA-2 closes with the sampled safety-invariant trace in PR #310, whose
+receipt cites accepted records `0002` and `0009`.
 
 ## Ownership, review routing, and backlog triage (GA-3)
 
