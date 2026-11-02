@@ -104,6 +104,7 @@ implementation.
 | [Release and staged adoption plan](RELEASE-PLAN.md) | Release and staged-adoption plan; publication remains separately gated. |
 | [Versioning policy](VERSIONING.md) | Package semantic versioning plus independent contract versioning, promised surfaces, and breaking-change rules. |
 | [Release procedure](RELEASING.md) | Tag creation, release workflow triggers and permissions, verification commands, and rollback. |
+| [Supply chain and release evidence](SUPPLY-CHAIN.md) | Release SBOM, unsigned provenance, reproducibility results, asset hashes, and consumer verification commands. |
 
 ## History and evidence
 

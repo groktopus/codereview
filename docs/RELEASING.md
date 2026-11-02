@@ -1,6 +1,6 @@
 # Releasing
 
-**Status:** release procedure. **Owner:** groktopus/codereview maintainers. **Issue:** #260 (RS-2).
+**Status:** release procedure. **Owner:** groktopus/codereview maintainers. **Issue:** #260 (RS-2); supply-chain evidence in #261 (RS-3).
 
 This document describes how a release is cut from green `main`. It does not
 assert that any tag or GitHub Release exists; the repository state, the tag
@@ -67,8 +67,8 @@ git push origin v0.1.0
 
 Use one of `-s` or `-a`; a lightweight tag is not accepted by this procedure.
 CI verifies that the tag resolves to the checked-out commit and matches
-`project.version`, but it does **not** verify the tag signature. Signature
-verification is a separate supply-chain concern (RS-3).
+`project.version`, but it does **not** verify the tag signature. The release
+artifacts are also unsigned; see [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md).
 
 Do not create the GitHub Release by hand before the tag exists. The release
 workflow runs `gh release create --verify-tag`; without an existing tag the
@@ -89,13 +89,20 @@ The workflow runs two jobs:
 
 | Job | Permission | Work |
 |---|---|---|
-| `build` | `contents: read` | Check out the tag, verify the tag equals the package version, has a changelog section, and is an ancestor of the default branch, build the wheel and sdist, write `SHA256SUMS`, verify the checksums, retain the distribution artifact and release notes. |
-| `publish` | `contents: write` | Download the retained artifact, verify its checksums, refuse to overwrite an existing release, and create the GitHub Release with the wheel, sdist, `SHA256SUMS`, and notes. |
+| `build` | `contents: read` | Check out the tag, verify the tag equals the package version, has a changelog section, and is an ancestor of the default branch. Build the wheel and sdist twice with a `SOURCE_DATE_EPOCH` derived from the tag commit and compare them; generate the CycloneDX SBOM, unsigned provenance, and reproducibility report; write and verify `SHA256SUMS`; verify that the SBOM, provenance, and checksums agree; retain the distribution and evidence artifacts. |
+| `publish` | `contents: write` | Check out the verification scripts at the tag, download the retained assets, verify the checksums, SBOM, and provenance again, refuse to overwrite an existing release, and create the GitHub Release with the wheel, sdist, `SHA256SUMS`, SBOM, provenance, reproducibility report, and notes. |
 
 The top-level workflow permission is `contents: read`; only the `publish` job
 escalates to `contents: write`. Every action is pinned to a full commit SHA
 consistent with the repository's other workflows. The workflow does not read
-repository secrets, does not publish to PyPI, and does not create tags.
+repository secrets, does not publish to PyPI, does not create tags, and does not
+request `id-token` or `attestations` permissions. The supply-chain evidence is
+unsigned; see [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md).
+
+The separate `Supply chain` job in
+[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs the same
+two-build comparison and SBOM/provenance verification on normal pushes and pull
+requests, so the checks are not release-only.
 
 ## Manual dispatch
 
@@ -151,6 +158,25 @@ python3 -m venv /tmp/pr-review-release-venv
 /tmp/pr-review-release-venv/bin/pr-review --help
 ```
 
+Verify that the SBOM, provenance, and checksums agree with the downloaded
+artifacts, using the verification script from the same tag:
+
+```sh
+git clone https://github.com/grokopus/codereview /tmp/pr-review-repo
+git -C /tmp/pr-review-repo checkout v0.1.0
+python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
+  --dist /tmp/pr-review-release \
+  --sbom /tmp/pr-review-release/pr-review-harness-0.1.0.cdx.json \
+  --provenance /tmp/pr-review-release/provenance.json \
+  --checksums /tmp/pr-review-release/SHA256SUMS \
+  --source-revision "$(git -C /tmp/pr-review-repo rev-parse HEAD)" \
+  --workflow-ref "grokopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.0"
+```
+
+The expected result is `Release verification: PASS (signed: no)`. The
+provenance is unsigned by design; `--require-signed` fails until a real
+signature exists.
+
 Also verify the tag and metadata against the checkout:
 
 ```sh
@@ -159,10 +185,13 @@ git rev-parse --verify 'v0.1.0^{commit}'
 python3 scripts/check_version_policy.py --tag v0.1.0
 ```
 
-The release is verified when the GitHub Release exists at the pushed tag, both
-assets are present, `SHA256SUMS` validates in a clean directory, and the wheel
-installs and runs outside the checkout. The workflow's checksums are SHA-256
-only; they are not a signature and do not establish reproducibility.
+The release is verified when the GitHub Release exists at the pushed tag, the
+wheel, sdist, `SHA256SUMS`, SBOM, provenance, and reproducibility report are
+present, `SHA256SUMS` validates in a clean directory, `verify_release_artifacts.py`
+passes, and the wheel installs and runs outside the checkout. `SHA256SUMS` is
+not a signature, and the reproducibility report does not claim bit-for-bit
+reproducibility where the recorded result says `CONTENT_REPRODUCIBLE`. See
+[SUPPLY-CHAIN.md](SUPPLY-CHAIN.md) for formats, limits, and local checks.
 
 ## Failure and rollback
 
@@ -197,12 +226,17 @@ test suite.
 
 ## Residual gaps
 
-* The release workflow produces checksums but not signatures, attestations,
-  SBOMs, or a reproducibility check. Those are RS-3 scope.
+* Artifacts and provenance are unsigned. There is no Sigstore signature or
+  GitHub artifact attestation, so consumers can verify hashes and recorded build
+  inputs but not origin authenticity. Adding a signature needs an
+  owner-approved signing credential or attestation job.
+* The tag signature is not verified in CI. A signed tag is a local operator
+  practice until a verification step exists.
+* The source distribution is `CONTENT_REPRODUCIBLE`, not byte-for-byte
+  reproducible, with the current setuptools toolchain; the retained report
+  records the gzip-header and directory-entry timestamp differences.
 * The workflow does not publish to PyPI. Installation remains from the attached
   wheel or a source checkout.
-* The tag signature is not verified in CI. A signed tag is a local operator
-  practice until RS-3 defines verification.
 * The release workflow's end-to-end behavior is only established by a real
   release run; a workflow file in a merged branch is not evidence that a release
   exists.

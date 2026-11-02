@@ -39,13 +39,14 @@ The smoke test confirms that the entry point belongs to the selected environment
 
 ## Continuous integration
 
-`.github/workflows/test.yml` runs pytest and Ruff on Python 3.11, 3.12, 3.13, and 3.14. A separate build job produces a wheel and sdist and records SHA-256 digests. Installed-wheel smoke jobs install that exact uploaded wheel into fresh environments outside the checkout on Python 3.11 and 3.14. The artifact is retained for seven days for the run.
+`.github/workflows/test.yml` runs pytest and Ruff on Python 3.11, 3.12, 3.13, and 3.14. A separate build job produces a wheel and sdist and records SHA-256 digests. Installed-wheel smoke jobs install that exact uploaded wheel into fresh environments outside the checkout on Python 3.11 and 3.14. A `Supply chain` job builds twice with a fixed `SOURCE_DATE_EPOCH`, compares artifact and archive-content hashes, generates a CycloneDX SBOM and unsigned provenance from the built distributions, verifies that the evidence agrees, and retains the reports. The artifact is retained for seven days for the run. Asset formats, verification commands, and the unsigned/reproducibility limits are documented in [`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md).
 
 The regular test workflow has only `contents: read` and no provider credentials. CI executing this repository's own tests/build metadata is not a PR-analysis job. The PR-analysis workflow is separate and does not execute the target PR tree.
 
 ## Evidence still required before release
 
 - A successful Actions run on each supported Python version and successful installed-wheel jobs, with the wheel digest retained.
+- A successful `Supply chain` job run with its reproducibility status and SBOM/provenance evidence retained for the release candidate.
 - Review of the generated wheel contents, source revision, and dependency inventory for a release candidate.
 - An observed GitHub PR analysis run using a caller workflow and separately pinned trusted harness/profile SHA, checked fresh-head behavior, and reviewed artifact retention; this repository change has not triggered or verified a remote Actions run.
 - An independently verified provider/model selection and representative review-quality evaluation. Current test-model compatibility does not establish production suitability or parity with Droid.
