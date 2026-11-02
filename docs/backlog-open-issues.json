@@ -17,11 +17,8 @@
     253,
     254,
     258,
-    260,
     261,
-    262,
-    269,
-    270
+    262
   ],
-  "notes": "Read-only snapshot of the 16 open issues at branch base 5becb81 after #242 closed, excluding #271 which this PR closes. Update this file with the same query when the open set changes; the ownership check compares it with docs/BACKLOG.md."
+  "notes": "Read-only snapshot of the 13 open issues at branch base e6b7e98 after #260, #269, #270 and the release/protection closeout. Update this file with the same query when the open set changes; the ownership check compares it with docs/BACKLOG.md."
 }

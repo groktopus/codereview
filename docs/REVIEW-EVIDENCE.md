@@ -1,15 +1,12 @@
 # Review evidence receipts (GA-1) and decision-record links (GA-2)
 
-Status: **GA-1 is partially implemented
-([issue #269](https://github.com/groktopus/codereview/issues/269)) and the GA-2
-decision-record link check is active
-([issue #270](https://github.com/groktopus/codereview/issues/270))**. Both
-checks exist and fail closed in CI; neither is a GitHub review record, and
-neither is enforced by branch protection yet. Branch protection is absent, so
-the `Review receipt` and `Decision record links` checks are visible and recorded
-but are not yet *required* — a merge is blocked procedurally, not by GitHub.
-The owner action in [Enforcement limits](#enforcement-limits) is still
-outstanding, and issue #270 stays open until it is done.
+Status: **GA-1 and GA-2 enforcement are active** (issues
+[#269](https://github.com/groktopus/codereview/issues/269) and
+[#270](https://github.com/groktopus/codereview/issues/270)). Both checks exist,
+fail closed in CI, and are required status checks on `main`. Branch protection
+keeps an explicit administrator bypass for the sole maintainer (`enforce_admins:
+false`), so the owner can still merge their own PRs; the checks are mandatory for
+every non-admin merge. Neither check is a GitHub review record.
 
 Once the check is required, every merge into `main` must carry a review receipt
 bound to the exact reviewed head. The first merge that adds this workflow is an
@@ -231,11 +228,10 @@ does not prevent a merge:
 > checks run against the latest base. Optionally restrict force pushes and
 > deletions.
 
-The owner deliberately did not enable branch protection in this change, so the
-current state is: the receipt protocol and the decision-record link check are
-documented, active in CI, and visible, but a merge is only procedurally blocked
-until that setting exists. Branch protection is not enabled; the checks are not
-yet required.
+Branch protection is enabled on `main` with `Review receipt` and
+`Decision record links` as required contexts, `enforce_admins: false`,
+`strict: false`, and force-push/deletion disabled. The administrator bypass is a
+deliberate sole-maintainer exception, not an absence of enforcement.
 
 ## Bootstrap exception for GA-2 enforcement
 

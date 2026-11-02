@@ -19,6 +19,12 @@
   - Enable branch protection or a merge queue that enforces the rule.
 - **Exit criteria:** Branch protection (or equivalent) requires review evidence; 100% of new merges carry a record bound to the merged SHA; a merge without evidence is impossible, not merely discouraged.
 - **Verification:** protection settings; a sample of 10 merges with matching SHA and verdict; a blocked merge attempt.
+- **Status (2026-11-02):** **done.** Branch protection on `main` requires
+  `Review receipt` and `Decision record links`; merged PRs #293, #295, #297,
+  #298, #300, #304, #305, and #306 carry CLEAR receipts bound to their exact
+  heads. `enforce_admins: false` is the owner-approved sole-maintainer bypass,
+  so the owner can still merge their own PRs; all non-admin merges require the
+  checks.
 - **Depends on:** DT-1 (scope clarity) and an owner decision on reviewer identity.
 - **Non-goals:** requiring a human where a documented agent review is permitted, or auto-approving from CI.
 
@@ -36,13 +42,13 @@
   - Link decisions from `STATUS.md` and the affected code/docs.
 - **Exit criteria:** A decision log exists; the named decisions have records; every safety-invariant change links to one; owners are identifiable.
 - **Verification:** decision index; a sampled change traced to its record.
-- **Status (2026-11-02):** enforcement is active. The review receipt accepts an
+- **Status (2026-11-02):** **done.** Enforcement is active. The review receipt accepts an
   optional `decision_records` list, and the fail-closed `Decision record links`
   check reads the changed-file list from the read-only GitHub API and requires
   indexed, `Accepted` records on the base revision when a safety-invariant path
-  changes. This issue stays open: branch protection is absent, so the check is
-  not yet a required status check, and no sampled change has been traced to its
-  record as the verification step requires.
+  changes. Branch protection now requires both checks, with an explicit
+  administrator bypass for the sole maintainer. The issue is closed on that
+  evidence; a sampled safety change is still the next verification step.
 - **Depends on:** GA-1, DT-1.
 - **Non-goals:** documenting every small change.
 

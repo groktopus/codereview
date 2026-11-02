@@ -105,11 +105,9 @@ depends on it. The field contract, failure codes, and enforcement limits are in
 
 Neither check judges whether the evidence is sufficient or the decision was
 wise. Both fail closed, but **branch protection is not enabled**: the checks run
-and report, and they are not yet required status checks, so a failing result is
-visible and recorded but GitHub does not by itself block the merge. The owner
-action is recorded in [review evidence](../REVIEW-EVIDENCE.md#enforcement-limits);
-issue [#270](https://github.com/groktopus/codereview/issues/270) stays open until
-the owner marks the checks required.
+and report. They are required status checks on `main`; an explicit administrator
+bypass remains for the sole maintainer. See
+[review evidence](../REVIEW-EVIDENCE.md#enforcement-limits).
 
 ## Legacy design ADRs (proposed, not rewritten)
 
