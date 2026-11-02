@@ -370,3 +370,50 @@ def test_gate_cli_rejects_malformed_scorecard(tmp_path: Path) -> None:
     )
     assert result.returncode == 2
     assert json.loads(result.stdout)["error"] == "invalid_scorecard_schema"
+
+
+def test_gate_fails_on_partial_current_coverage() -> None:
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
+    current = deepcopy(baseline)
+    current["data_state"]["state"] = "PARTIAL"
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert gate["current_data_state"] == "PARTIAL"
+
+
+def test_gate_fails_when_baseline_arm_key_is_absent() -> None:
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
+    current = deepcopy(baseline)
+    del current["arms"]["droid"]
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert any(check["id"] == "arm:droid" and check["reason"] == "arm_absent_since_baseline" for check in gate["checks"])
+
+
+@pytest.mark.parametrize("mutator", ["completion", "label_state", "hashes"])
+def test_gate_rejects_deeply_incomplete_scorecard(tmp_path: Path, mutator: str) -> None:
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
+    malformed = deepcopy(baseline)
+    if mutator == "completion":
+        malformed["completion"] = {}
+    elif mutator == "label_state":
+        del malformed["data_state"]["label_state"]
+    else:
+        malformed["input_hashes"] = {"corpus": malformed["input_hashes"]["corpus"]}
+    baseline_path = tmp_path / "baseline.json"
+    malformed_path = tmp_path / "malformed.json"
+    baseline_path.write_bytes(canonical_bytes(baseline) + b"\n")
+    malformed_path.write_bytes(canonical_bytes(malformed) + b"\n")
+    result = _run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/check_quality_scorecard_gate.py"),
+            "--baseline",
+            str(baseline_path),
+            "--current",
+            str(malformed_path),
+            "--json",
+        ]
+    )
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"] == "invalid_scorecard_schema"

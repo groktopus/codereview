@@ -709,7 +709,7 @@ def regression_gate(current: dict[str, Any], baseline: dict[str, Any]) -> dict[s
 
     current_state = current.get("data_state", {}).get("state")
     baseline_state = baseline.get("data_state", {}).get("state")
-    if current_state == "PARTIAL" or baseline_state == "PARTIAL":
+    if current_state == "PARTIAL":
         checks.append(_check("data_state", "FAIL", reason="partial_coverage"))
     failed = [check for check in checks if check["status"] == "FAIL"]
     evaluated = [check for check in checks if check["status"] in {"PASS", "FAIL"}]

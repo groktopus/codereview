@@ -15,11 +15,11 @@ from pathlib import Path
 
 try:
     from experiments.harness.evaluation import MAX_INPUT_BYTES, EvaluationError, parse_bounded_json
-    from experiments.harness.scorecard import canonical_bytes, regression_gate
+    from experiments.harness.scorecard import SCORECARD_VERSION, canonical_bytes, regression_gate
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from experiments.harness.evaluation import MAX_INPUT_BYTES, EvaluationError, parse_bounded_json
-    from experiments.harness.scorecard import canonical_bytes, regression_gate
+    from experiments.harness.scorecard import SCORECARD_VERSION, canonical_bytes, regression_gate
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -46,12 +46,26 @@ def _validate_scorecard(value: object) -> None:
     if not isinstance(value, dict):
         raise EvaluationError("invalid_scorecard_schema")
     required = ("contract_version", "data_state", "arms", "completion", "claims", "input_hashes")
-    if any(key not in value for key in required):
+    if any(key not in value for key in required) or value["contract_version"] != SCORECARD_VERSION:
         raise EvaluationError("invalid_scorecard_schema")
     data_state = value["data_state"]
     if not isinstance(data_state, dict) or data_state.get("state") not in {"COMPLETE", "PARTIAL", "MISSING_DATA"}:
         raise EvaluationError("invalid_scorecard_schema")
     if not isinstance(data_state.get("reasons"), list):
+        raise EvaluationError("invalid_scorecard_schema")
+    label_state = data_state.get("label_state")
+    required_label = (
+        "status",
+        "human_packets",
+        "adjudicated_human_packets",
+        "complete_adjudicated_human_packets",
+        "human_labeled_cases",
+        "complete_adjudicated_human_labeled_cases",
+        "rubric_version",
+    )
+    if not isinstance(label_state, dict) or any(key not in label_state for key in required_label):
+        raise EvaluationError("invalid_scorecard_schema")
+    if label_state["status"] not in {"missing", "partial", "present"}:
         raise EvaluationError("invalid_scorecard_schema")
     arms = value["arms"]
     if not isinstance(arms, dict) or any(
@@ -59,11 +73,22 @@ def _validate_scorecard(value: object) -> None:
         for arm in arms.values()
     ):
         raise EvaluationError("invalid_scorecard_schema")
-    if not isinstance(value["completion"], dict) or not isinstance(value["claims"], dict):
+    completion = value["completion"]
+    if not isinstance(completion, dict) or any(
+        key not in completion for key in ("expected_cases", "expected_case_arms", "by_status", "completed_of_expected")
+    ):
+        raise EvaluationError("invalid_scorecard_schema")
+    claims = value["claims"]
+    if not isinstance(claims, dict) or any(
+        key not in claims for key in ("quality_claim", "release_gate", "accuracy", "model_teacher_is_truth")
+    ):
         raise EvaluationError("invalid_scorecard_schema")
     hashes = value["input_hashes"]
-    if not isinstance(hashes, dict) or not isinstance(hashes.get("corpus"), str) or not re.fullmatch(r"[0-9a-f]{64}", hashes["corpus"]):
+    if not isinstance(hashes, dict):
         raise EvaluationError("invalid_scorecard_schema")
+    for key in ("corpus", "predictions", "labels"):
+        if not isinstance(hashes.get(key), str) or not re.fullmatch(r"[0-9a-f]{64}", hashes[key]):
+            raise EvaluationError("invalid_scorecard_schema")
 
 
 def main(argv: list[str] | None = None) -> int:
