@@ -1,6 +1,6 @@
 # Reassessment after the A-minus issue program (2026-11-02)
 
-Status: **A− not achieved. 3 of 10 dimensions meet A−.** This note records the
+Status: **A− not achieved. 2 of 10 dimensions meet A−.** This note records the
 current judgment after the 33-issue remediation program and the merged
 infrastructure PRs. It supersedes the overall judgment in
 [`CODEBASE-ASSESSMENT-2026-11-01.md`](CODEBASE-ASSESSMENT-2026-11-01.md) while
@@ -11,11 +11,11 @@ keeping that document as the original evidence snapshot.
 | Dimension | Grade | Current evidence | What still blocks A− |
 |---|---|---|---|
 | Evidence discipline | **A** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, frozen historical fixtures, exact-byte pins. | None material. |
-| Effect safety | **A−** | Default read-only, typed effect boundaries, fault matrix, publication receipts, fail-closed unknown states. | Live canary remains NOT EXERCISED (#258); no independent effect-boundary review beyond the fault matrix. |
+| Effect safety | **B+** | Default read-only, typed effect boundaries, fault matrix, publication receipts, fail-closed unknown states. | The documented A− gate requires an exercised canary; the live canary remains NOT EXERCISED (#258), so the fault matrix alone is not enough. |
 | Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | `run_review` is 76 lines, but 35 functions still exceed 150 lines; architecture remains B+ in cohesion/ownership terms. |
-| Test depth | **B+** | 3,600+ tests, 88.48% coverage, compatibility suite, fault/invariant suites. | Mutation score is **~6%** on the probed module (40 killed / 668 mutants), far below the ≥70% requirement (#252). |
-| Review completeness | **C−/D+** | Completeness summary and reason strings exist; frozen corpus exists. | No canonical versioned taxonomy, no frozen-corpus baseline, no active regression gate (#241). |
-| Review quality evidence | **F** | Frozen corpus v1 (41 cases), labeling rubric, empty pilot, scorecard/gate infrastructure. | Zero human packets, zero real predictions, no accepted baseline, no real scorecard run (#243/#244). Quality is unmeasured. |
+| Test depth | **B+** | 3,600+ tests, 88.48% coverage (CI run 41438939529 at PR #302), compatibility suite, fault/invariant suites. | Mutation score is **not established**: the exploratory probe was discarded and no retained report, mutant count, killed count, or survivor triage exists (#252). |
+| Review completeness | **C−/D+** | Canonical `review-completeness-taxonomy.v1`, per-run summary, fixture baseline, and an active seeded-regression CI gate exist; frozen corpus exists. | No frozen-corpus baseline from real review runs (#241); fixture-only gate does not prove corpus completeness. |
+| Review quality evidence | **F** | Frozen corpus v1 (41 cases), labeling rubric, empty pilot, scorecard/gate infrastructure. | Zero human packets, zero harness predictions, no accepted baseline, no real scorecard run (#243/#244). Quality is unmeasured. |
 | Architecture | **C+/B−** | Typed core boundaries, contract registry, staged pipeline, no runtime dependencies. | Oversized functions remain; `run_review` orchestration is still concentrated; module ownership is documented but not enforced by required review. |
 | Operational readiness | **C+/B−** | Hash-locked dependencies, install matrix, public API/support matrix, SBOM/provenance tooling, release workflow. | No tagged release or release artifact; provenance unsigned; dependency review inactive (#260/#261/#262). |
 | Documentation | **B+** | 180+ indexed documents, 1,200+ links with 0 broken, generated status evidence, ADR index, docs-truth checks. | Owner-reviewed status remains intentionally stale; some operational evidence is CI-defined but unexecuted. |
@@ -25,8 +25,9 @@ keeping that document as the original evidence snapshot.
 
 - Dependency and package contract: hash-locked dev set, install matrix, public
   API/support matrix, scheduled audit (#299).
-- Review evidence: receipt protocol enforced on merged PRs; decision-record
-  links enforced for future safety-invariant changes (#293–#300).
+- Review evidence: receipt protocol enforced on merged PRs (#293, #295, #297,
+  #298, #300); decision-record links enforced for future safety-invariant
+  changes (#300).
 - Ownership/backlog: GA-3 closed with current 16-issue snapshot (#301).
 - Quality measurement: frozen corpus, versioned labeling protocol, empty pilot,
   deterministic scorecard, missing-data semantics, seeded regression gate
@@ -56,16 +57,17 @@ code alone:
 
 The remaining two are code work that has not yet produced threshold evidence:
 
-6. **Completeness baseline/gate (RC-3).** A real baseline requires review runs;
-   the taxonomy and gate can be built, but the baseline cannot be invented.
+6. **Completeness baseline (RC-3).** The taxonomy, summary, and fixture gate
+   are already active; only a frozen-corpus baseline from real review runs is
+   missing, and it cannot be invented.
 7. **Mutation/static depth (VD-2/VD-4).** Mutation score is ~6%; formatting and
    broad typing enforcement are not adopted. Neither closes without substantial
    test hardening.
 
 ## What can still be done without new authority
 
-- Finish the RC-3 taxonomy and gate wiring, leaving the baseline explicitly
-  pending real runs.
+- Keep the RC-3 fixture gate green; publish the frozen-corpus baseline only
+  after real review runs exist.
 - Add formatter/pre-commit and a complexity ratchet (VD-4 partial).
 - Harden mutation scope and add tests for the highest-risk modules (VD-2
   partial).
@@ -75,7 +77,7 @@ The remaining two are code work that has not yet produced threshold evidence:
 
 The harness is materially stronger than the 2026-11-01 snapshot, and its
 evidence discipline and deterministic control plane are genuinely strong. It is
-not an A− codebase overall: quality remains unmeasured in human terms, release
-artifacts do not exist, and merge governance is advisory rather than required.
-Those are evidence and authorization gaps, not omissions that more code can
-close by itself.
+not an A− codebase overall: effect safety still lacks an exercised canary,
+quality remains unmeasured in human terms, release artifacts do not exist, and
+merge governance is advisory rather than required. Those are evidence and
+authorization gaps, not omissions that more code can close by itself.
