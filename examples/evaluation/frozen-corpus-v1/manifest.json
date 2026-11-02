@@ -1,0 +1,1170 @@
+{
+  "cases": [
+    {
+      "case_id": "qm1-codereview-pr112",
+      "control_class": "documentation_only",
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-documentation-controls-development",
+      "merge_commit_sha": "486bf00a32031bea74e8e39392a860ffead022df",
+      "merged_at": "2026-09-28T15:01:41-04:00",
+      "pr_number": 112,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "documentation_only_control",
+      "scenario_kind": "natural",
+      "selection_rationale": "Single-file documentation-only control diff; candidate zero-finding control, not a quality label.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 2
+        },
+        "required": 0,
+        "total": 2
+      },
+      "snapshot_id": "snap-95934f06170088c446a0d7b0",
+      "source_manifest_id": "qm1-codereview-pr112-source",
+      "source_manifest_sha256": "c4b354be2f2acf845543fb3464d2a606438638c36b79ffabb7473919b9042ea9",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr237",
+      "control_class": "documentation_only",
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-documentation-controls-heldout",
+      "merge_commit_sha": "90084d682f46e6fdca0ee61028b0b2734a6c3ee2",
+      "merged_at": "2026-10-11T00:36:28-04:00",
+      "pr_number": 237,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "documentation_only_control",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out documentation-only control diff; candidate zero-finding control, not a quality label.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 4,
+          "not_bound_by_context_selection": 2
+        },
+        "required": 0,
+        "total": 6
+      },
+      "snapshot_id": "snap-e54d9e427fb3ac66bad42c97",
+      "source_manifest_id": "qm1-codereview-pr237-source",
+      "source_manifest_sha256": "67e454dc9733766d501203b8ed4461b620852a89a9c91fd33771db09dba9dbd9",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-codereview-pr273",
+      "control_class": "documentation_only",
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-documentation-controls-development",
+      "merge_commit_sha": "2ba11b976688d388de421e068d82abcbe56bb808",
+      "merged_at": "2026-11-01T06:43:54-05:00",
+      "pr_number": 273,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "documentation_only_control",
+      "scenario_kind": "natural",
+      "selection_rationale": "Documentation-only control diff; candidate zero-finding control, not a quality label.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 2,
+          "not_bound_by_context_selection": 2
+        },
+        "required": 0,
+        "total": 4
+      },
+      "snapshot_id": "snap-af4fc7ca5a5e516e4708dc78",
+      "source_manifest_id": "qm1-codereview-pr273-source",
+      "source_manifest_sha256": "2db33a2f0f21faacf99f6a7f1d964d1a063051b6a9b9d5d28ab63deca4e255c7",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr276",
+      "control_class": null,
+      "evidence_completeness": "complete",
+      "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+      "merge_commit_sha": "c9739b05c48e2c05517119fbd4660799b4a51364",
+      "merged_at": "2026-11-01T07:40:50-05:00",
+      "pr_number": 276,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged security workflow and security documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {},
+        "required": 0,
+        "total": 0
+      },
+      "snapshot_id": "snap-8a5308034acf135322059916",
+      "source_manifest_id": "qm1-codereview-pr276-source",
+      "source_manifest_sha256": "c396d37547b6f9d6dff07012682ce404774e4f50958adc515af47a2a450e6068",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-codereview-pr277",
+      "control_class": null,
+      "evidence_completeness": "incomplete",
+      "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+      "merge_commit_sha": "84f33973854b49a7dbd51e39ec6bd231335fef85",
+      "merged_at": "2026-11-01T08:13:48-05:00",
+      "pr_number": 277,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged security workflow, security documentation, and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_selection_budget_exhausted": 3,
+          "context_truncated": 5,
+          "diff_truncated": 2,
+          "not_bound_by_context_selection": 2,
+          "window_count_limit": 4
+        },
+        "required": 9,
+        "total": 16
+      },
+      "snapshot_id": "snap-8255f120dee8d334d74deda9",
+      "source_manifest_id": "qm1-codereview-pr277-source",
+      "source_manifest_sha256": "d9f04b37c252ce84ec77bbef832c0684ace04a7a79dbbd119c9924170f6fc319",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-codereview-pr279",
+      "control_class": null,
+      "evidence_completeness": "incomplete",
+      "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+      "merge_commit_sha": "eda7f10711fd3174584bfc8279c526d4fdbda4ff",
+      "merged_at": "2026-11-01T10:15:27-05:00",
+      "pr_number": 279,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged coverage-gate, workflow, and configuration change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 3,
+          "diff_truncated": 1
+        },
+        "required": 1,
+        "total": 4
+      },
+      "snapshot_id": "snap-d788b1cd5f06b5f246f983be",
+      "source_manifest_id": "qm1-codereview-pr279-source",
+      "source_manifest_sha256": "4fe0202f028596c72a936be7e7b5c6e1d1cd18041d2e8edb5722a3828553ee26",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-codereview-pr282",
+      "control_class": null,
+      "evidence_completeness": "incomplete",
+      "family_id": "qm1-codereview-pr282-natural",
+      "merge_commit_sha": "94061c3ea64cafd172e86d276e33fa1d71a63262",
+      "merged_at": "2026-11-01T12:24:56-05:00",
+      "pr_number": 282,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged run-metrics code and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 10,
+          "diff_truncated": 1,
+          "not_bound_by_context_selection": 1
+        },
+        "required": 1,
+        "total": 12
+      },
+      "snapshot_id": "snap-fe43f95f5420e61bda80b4be",
+      "source_manifest_id": "qm1-codereview-pr282-source",
+      "source_manifest_sha256": "1c17e5942f2d7482a27cdce8017927b8c0c85dfa1919d51d1486897188cb3409",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr283",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr283-natural",
+      "merge_commit_sha": "87aa950461cbff034bbbfe8d28986f3035b650c2",
+      "merged_at": "2026-11-01T12:16:15-05:00",
+      "pr_number": 283,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged exception-audit code and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 25,
+          "not_bound_by_context_selection": 1,
+          "window_count_limit": 22
+        },
+        "required": 22,
+        "total": 48
+      },
+      "snapshot_id": "snap-db5c5e668359df65a12773a2",
+      "source_manifest_id": "qm1-codereview-pr283-source",
+      "source_manifest_sha256": "f1458f5af4b8b1cf5b683410161a6308578d784082667b54d83efd57d5a0dd23",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-codereview-pr284",
+      "control_class": null,
+      "evidence_completeness": "incomplete",
+      "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+      "merge_commit_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+      "merged_at": "2026-11-01T12:33:18-05:00",
+      "pr_number": 284,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged security workflow and supply-chain code change; snapshot has truncated diffs.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_selection_budget_exhausted": 92,
+          "context_truncated": 147,
+          "diff_truncated": 12,
+          "window_count_limit": 5
+        },
+        "required": 109,
+        "total": 256
+      },
+      "snapshot_id": "snap-32b21dd4c87d92d8f873ff39",
+      "source_manifest_id": "qm1-codereview-pr284-source",
+      "source_manifest_sha256": "fef2fc450c1f8c398259eeba70087afba7a751a840192150c4ea1da6f602d7fd",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-codereview-pr285",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+      "merge_commit_sha": "6bcd6b0622d3105b4b186008e2aff9018261d095",
+      "merged_at": "2026-11-01T13:00:29-05:00",
+      "pr_number": 285,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged publication effect-fault-matrix code and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 1
+        },
+        "required": 0,
+        "total": 1
+      },
+      "snapshot_id": "snap-ea9855d399fd37608196b9a7",
+      "source_manifest_id": "qm1-codereview-pr285-source",
+      "source_manifest_sha256": "65564697cd53a812c10acd26f9769261b9bc9d105260627da92b369e77e1d3fb",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-codereview-pr286",
+      "control_class": null,
+      "evidence_completeness": "incomplete",
+      "family_id": "qm1-codereview-pr286-natural",
+      "merge_commit_sha": "7f5a6d746a9a94d4cf87992fb9bfd5923287db4b",
+      "merged_at": "2026-11-01T14:09:26-05:00",
+      "pr_number": 286,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged documentation-truth code, test, and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 12,
+          "diff_truncated": 2
+        },
+        "required": 2,
+        "total": 14
+      },
+      "snapshot_id": "snap-89df72d3133a4241a49fc860",
+      "source_manifest_id": "qm1-codereview-pr286-source",
+      "source_manifest_sha256": "75d8a4597c64d926b700e880826629663a8f05027e6fef2bfea5d7d2d5b4fcd1",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-codereview-pr287",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr287-natural",
+      "merge_commit_sha": "431b3ecc7950a4e7063e966b16ce6d01a6d61450",
+      "merged_at": "2026-11-01T14:28:30-05:00",
+      "pr_number": 287,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged compatibility-suite code and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 1
+        },
+        "required": 0,
+        "total": 1
+      },
+      "snapshot_id": "snap-648d5958f10774d67f814843",
+      "source_manifest_id": "qm1-codereview-pr287-source",
+      "source_manifest_sha256": "70199eef39dc457239ca088544145d20be4ba1753a24177650c0615f95d0f2fe",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-codereview-pr288",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr288-natural",
+      "merge_commit_sha": "290928907011e5b9f0909e7c7d8ef237a09d3a7e",
+      "merged_at": "2026-11-01T14:09:38-05:00",
+      "pr_number": 288,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged invariant-test code and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 1
+        },
+        "required": 0,
+        "total": 1
+      },
+      "snapshot_id": "snap-8171a46e010ebfb0068964ac",
+      "source_manifest_id": "qm1-codereview-pr288-source",
+      "source_manifest_sha256": "d0f5d298a18aed2f743b76122b5cb8701247b41c0d7c6a81f648acfffe8081fe",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-codereview-pr289",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr289-natural",
+      "merge_commit_sha": "cc4e4a5ac2820b750c26a7898d9ab72d734162c2",
+      "merged_at": "2026-11-01T22:05:59-05:00",
+      "pr_number": 289,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged typed-boundary code, workflow, and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 13,
+          "window_count_limit": 4
+        },
+        "required": 4,
+        "total": 17
+      },
+      "snapshot_id": "snap-a3b0ba253b9877c326233ef2",
+      "source_manifest_id": "qm1-codereview-pr289-source",
+      "source_manifest_sha256": "6de2989efaca273e2e73c6efd970dcc2a6a95596b557112e339e9a5ead3bba00",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-codereview-pr290",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr290-natural",
+      "merge_commit_sha": "feb33d9ccb98e1989762537f3fa0f490a8ee6c9f",
+      "merged_at": "2026-11-01T21:39:46-05:00",
+      "pr_number": 290,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged status-freshness code and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 2
+        },
+        "required": 0,
+        "total": 2
+      },
+      "snapshot_id": "snap-93007c4b3b5a8c75fbfb479b",
+      "source_manifest_id": "qm1-codereview-pr290-source",
+      "source_manifest_sha256": "c441b44e57522a40a2c3c90d6bce73cb33939ecc006fed694518789e52f92d3e",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-codereview-pr291",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr291-natural",
+      "merge_commit_sha": "347a8337d0f1cffd6f570a8948c080d68f7cb52c",
+      "merged_at": "2026-11-01T23:56:57-05:00",
+      "pr_number": 291,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged cost-model code and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 29,
+          "not_bound_by_context_selection": 1,
+          "window_count_limit": 5
+        },
+        "required": 5,
+        "total": 35
+      },
+      "snapshot_id": "snap-97c79433703e3d4628d595b4",
+      "source_manifest_id": "qm1-codereview-pr291-source",
+      "source_manifest_sha256": "2000bf0920d964e468cc4c47f1d7b826cc8a67f20df479a6959390c3397cdc21",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr292",
+      "control_class": null,
+      "evidence_completeness": "complete",
+      "family_id": "qm1-codereview-pr292-natural",
+      "merge_commit_sha": "7d79c7de505c3cf1d20c1493c2bb788e9c32dc44",
+      "merged_at": "2026-11-01T22:18:39-05:00",
+      "pr_number": 292,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged license-governance metadata and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {},
+        "required": 0,
+        "total": 0
+      },
+      "snapshot_id": "snap-5d9e21ce4acafe5cc9b0342f",
+      "source_manifest_id": "qm1-codereview-pr292-source",
+      "source_manifest_sha256": "4a76132d613f1e16fdc6ce8bb144ab1746ad2cc419ed2f1d5cf07e2be464aab5",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr293",
+      "control_class": null,
+      "evidence_completeness": "complete",
+      "family_id": "qm1-codereview-pr293-natural",
+      "merge_commit_sha": "29af07de19f7407a6cf28244f9c3173ab73c7662",
+      "merged_at": "2026-11-02T01:05:26-05:00",
+      "pr_number": 293,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged review-evidence receipt code and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {},
+        "required": 0,
+        "total": 0
+      },
+      "snapshot_id": "snap-3ed7978e41541e9c0946a801",
+      "source_manifest_id": "qm1-codereview-pr293-source",
+      "source_manifest_sha256": "ab8e58afe1175b37fbf2171253cebf55811df72c556713b75c6ed6a5940eb031",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr294",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr294-natural",
+      "merge_commit_sha": "26f2336c2d912da83551dced061fde4fdd222931",
+      "merged_at": "2026-11-02T01:18:18-05:00",
+      "pr_number": 294,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged release-pipeline code, workflow, and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 4
+        },
+        "required": 0,
+        "total": 4
+      },
+      "snapshot_id": "snap-452be6136d23c1ee17afc6b5",
+      "source_manifest_id": "qm1-codereview-pr294-source",
+      "source_manifest_sha256": "3caa096ff350ac9a5d014cfc1907ad18137c889fb0e8ac6659808262c9dad01e",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr295",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr295-natural",
+      "merge_commit_sha": "dbeeedba7c612408be001c93c2f95d8945d68d71",
+      "merged_at": "2026-11-02T01:59:11-05:00",
+      "pr_number": 295,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged decision-record and workflow change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 6
+        },
+        "required": 0,
+        "total": 6
+      },
+      "snapshot_id": "snap-7f1a0ab2bf359fb9f515b28f",
+      "source_manifest_id": "qm1-codereview-pr295-source",
+      "source_manifest_sha256": "017348406697491e8b1b5f91a67e4ad27fcd6657b7f7b7421fdd4b6c550efdb6",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-codereview-pr296",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-codereview-pr296-natural",
+      "merge_commit_sha": "a3599f68b815e312b146ba3aae7ef523d3f91ba4",
+      "merged_at": "2026-11-02T02:10:19-05:00",
+      "pr_number": 296,
+      "repository": "groktopus/codereview",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged release supply-chain code, workflow, and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 5
+        },
+        "required": 0,
+        "total": 5
+      },
+      "snapshot_id": "snap-31b4b2f3a0652f0db5c95b35",
+      "source_manifest_id": "qm1-codereview-pr296-source",
+      "source_manifest_sha256": "4b600f341170f15282e261fd31738802d10e433dcba3a84fe315e122c898101d",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr708",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+      "merge_commit_sha": "060bac6a6d6021fffed3736fc601b725d6faa1b4",
+      "merged_at": "2026-10-07T07:24:54-04:00",
+      "pr_number": 708,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged pull-request publication policy and workflow change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 2,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 2,
+        "total": 11
+      },
+      "snapshot_id": "snap-585ace516fac9bd143c56cbc",
+      "source_manifest_id": "qm1-slopsearx-pr708-source",
+      "source_manifest_sha256": "1dcd474b5e39c995d4c5f24204c3f0c6d7f8e6a5907e37d725020162d3a88ed1",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr741",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr741-natural",
+      "merge_commit_sha": "0364bc40b651236272135844f077382236870901",
+      "merged_at": "2026-10-09T14:48:27-04:00",
+      "pr_number": 741,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged coverage gate-integration code change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 11
+        },
+        "required": 11,
+        "total": 20
+      },
+      "snapshot_id": "snap-01b51d86ea26612566142928",
+      "source_manifest_id": "qm1-slopsearx-pr741-source",
+      "source_manifest_sha256": "0435da551934855cec6d7776782994c667ea8ed9b269714def876e2fda610555",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr742",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr742-natural",
+      "merge_commit_sha": "6a50c1077cb1abbf220981d7ae046e45e0c79c77",
+      "merged_at": "2026-10-09T16:15:57-04:00",
+      "pr_number": 742,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged coverage resource-evidence code change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 3,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 2
+        },
+        "required": 5,
+        "total": 14
+      },
+      "snapshot_id": "snap-fbfcd3b9c581f3a8247f8864",
+      "source_manifest_id": "qm1-slopsearx-pr742-source",
+      "source_manifest_sha256": "037869c793a4fae8dc62f6062b7143818272978d288d7a52bd0e2d16340c2890",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr743",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr743-natural",
+      "merge_commit_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+      "merged_at": "2026-10-09T17:06:02-04:00",
+      "pr_number": 743,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged coverage resource-evidence code change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 3
+        },
+        "required": 3,
+        "total": 12
+      },
+      "snapshot_id": "snap-955bb3a6cfc9218d72a6eade",
+      "source_manifest_id": "qm1-slopsearx-pr743-source",
+      "source_manifest_sha256": "559ea2b40a6e6b90883a02afaddbdb067cf43519e71c58dbb9ba4be87b14cd7e",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr744",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr744-natural",
+      "merge_commit_sha": "bc5e04302fa5d4dc133b858907cdc217e75eadfa",
+      "merged_at": "2026-10-09T18:30:41-04:00",
+      "pr_number": 744,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged coverage grade-closure code and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 20,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 18
+        },
+        "required": 18,
+        "total": 47
+      },
+      "snapshot_id": "snap-4c5a3a2fca03b98c928610cb",
+      "source_manifest_id": "qm1-slopsearx-pr744-source",
+      "source_manifest_sha256": "2f16db1d1b3033a2a32f66c7802519813922df8b15038b474ea6b5de78c328ea",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr745",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr745-natural",
+      "merge_commit_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+      "merged_at": "2026-10-09T18:22:39-04:00",
+      "pr_number": 745,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out merged CI workflow and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 8
+        },
+        "required": 0,
+        "total": 8
+      },
+      "snapshot_id": "snap-4f6697039622e7fb738d608a",
+      "source_manifest_id": "qm1-slopsearx-pr745-source",
+      "source_manifest_sha256": "0baaf872ab7be6f28dcc821ecaa10ad5991907f825bd60e20ae817813da6067f",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr746",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr746-natural",
+      "merge_commit_sha": "de1c4cbb2196233d941262cc5809ffa3bcec324a",
+      "merged_at": "2026-10-09T18:40:59-04:00",
+      "pr_number": 746,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged coverage selector resource-collection code and evidence change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 2,
+          "context_truncated": 3,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 2,
+        "total": 14
+      },
+      "snapshot_id": "snap-bceab3ec0aed95bd97b3d257",
+      "source_manifest_id": "qm1-slopsearx-pr746-source",
+      "source_manifest_sha256": "1e06eb34becbc3ab46f9cb43a1768849326d9ee01b96ffc5ab582f38c5b1b1c8",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr747",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr747-natural",
+      "merge_commit_sha": "317784b5aa14a880ae65e931248143054e4b7926",
+      "merged_at": "2026-10-09T18:52:27-04:00",
+      "pr_number": 747,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged CI mirror configuration and documentation change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 4,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 5
+        },
+        "required": 5,
+        "total": 18
+      },
+      "snapshot_id": "snap-80c637b61a314baa4c35387b",
+      "source_manifest_id": "qm1-slopsearx-pr747-source",
+      "source_manifest_sha256": "3504c9623db5c8710d46a110a80d667763c7240a282333ffe3b3095d151548ab",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr748",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr748-natural",
+      "merge_commit_sha": "31e39043cd60cb6d85ef3c6a2d4d84f601c484e1",
+      "merged_at": "2026-10-09T19:05:16-04:00",
+      "pr_number": 748,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged coverage answer execution and control code change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 5,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 14
+        },
+        "required": 14,
+        "total": 28
+      },
+      "snapshot_id": "snap-59fd40449bb0d001ff81dc9e",
+      "source_manifest_id": "qm1-slopsearx-pr748-source",
+      "source_manifest_sha256": "04d4098b4bfeb281c9f853c640c099942d53327124250e4b48df34194421ea37",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr752",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr752-natural",
+      "merge_commit_sha": "461bd991715cb2e7971d16d063e8a261fe13eb04",
+      "merged_at": "2026-10-09T20:42:01-04:00",
+      "pr_number": 752,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged live-acquisition and resource-evidence code change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 2,
+          "context_truncated": 6,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 8
+        },
+        "required": 10,
+        "total": 25
+      },
+      "snapshot_id": "snap-bb1c4048ca856142f0814e6f",
+      "source_manifest_id": "qm1-slopsearx-pr752-source",
+      "source_manifest_sha256": "cded02a93190efe82060252257296ed63833efcc5a9cf4a05eaa3dfb240ef63b",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr753",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr753-natural",
+      "merge_commit_sha": "ab7504862b407d8bb4583e5a582b10c3568339a2",
+      "merged_at": "2026-10-09T21:14:33-04:00",
+      "pr_number": 753,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged coverage resource-evidence code and test change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 6,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 11
+        },
+        "required": 11,
+        "total": 26
+      },
+      "snapshot_id": "snap-a2e4f89b6fea8214ba951f57",
+      "source_manifest_id": "qm1-slopsearx-pr753-source",
+      "source_manifest_sha256": "97068dffc16ca757c13e028e43efd362ff05305061aa148c4a5e7c90091aa800",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr756",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr756-natural",
+      "merge_commit_sha": "a2539461c1ba66879c73d12df93e5aea7e00c5ef",
+      "merged_at": "2026-10-10T00:07:01-04:00",
+      "pr_number": 756,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged coverage instrumentation code and test update.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 2,
+          "not_bound_by_context_selection": 4,
+          "window_count_limit": 5
+        },
+        "required": 5,
+        "total": 11
+      },
+      "snapshot_id": "snap-4d99ba69637904666943a214",
+      "source_manifest_id": "qm1-slopsearx-pr756-source",
+      "source_manifest_sha256": "2c59e2ef7e4a43b31fd0c00020d189fc62ea468942cfbf54ca5d5d775c5eef0d",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr757",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr757-natural",
+      "merge_commit_sha": "1f3df526e4f7193301d784b2545e5820752f49ca",
+      "merged_at": "2026-10-10T01:10:09-04:00",
+      "pr_number": 757,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged coverage-runner code change with accompanying tests.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 1
+        },
+        "required": 1,
+        "total": 10
+      },
+      "snapshot_id": "snap-8e123b98b4e3ed38e66b764a",
+      "source_manifest_id": "qm1-slopsearx-pr757-source",
+      "source_manifest_sha256": "ff6a6149780800ece40176e044560f25403f3da2665903f8a4581713f7c8e453",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr759",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-pr759-natural",
+      "merge_commit_sha": "032c56c673ea87da6885f2cfc19c699979a0a77f",
+      "merged_at": "2026-10-10T09:25:24-04:00",
+      "pr_number": 759,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "natural_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Merged documentation-adjacent PR touching gateway result documentation and its experiment evidence.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9
+        },
+        "required": 0,
+        "total": 9
+      },
+      "snapshot_id": "snap-d5a43f5d4c64a1bc7b9701eb",
+      "source_manifest_id": "qm1-slopsearx-pr759-source",
+      "source_manifest_sha256": "01f96b31ad5537b3e3cfe5fa1a37d465c8650fda6221edd877dfed3854b024f6",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr770",
+      "control_class": null,
+      "evidence_completeness": "incomplete",
+      "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+      "merge_commit_sha": "3d8a21457776dd03451b3e736218b7fbea69bc89",
+      "merged_at": "2026-10-11T00:32:44-04:00",
+      "pr_number": 770,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged review-publisher workflow and policy change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 3,
+          "context_truncated": 1,
+          "diff_truncated": 3,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 6,
+        "total": 16
+      },
+      "snapshot_id": "snap-930458eba9d270f546e83939",
+      "source_manifest_id": "qm1-slopsearx-pr770-source",
+      "source_manifest_sha256": "fd37dd93e6516aea53c246e3a7d0f355b5d499aa64a5809ce881e07ab4888433",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr772",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+      "merge_commit_sha": "0e486ff95ff086906f309d1c1077a0a5ec2ba94c",
+      "merged_at": "2026-10-11T00:21:22-04:00",
+      "pr_number": 772,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged review-publisher workflow and policy change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 8
+        },
+        "required": 0,
+        "total": 8
+      },
+      "snapshot_id": "snap-4f472bc41e33b7e68287e108",
+      "source_manifest_id": "qm1-slopsearx-pr772-source",
+      "source_manifest_sha256": "0cb6ec63e4e71817e73e7a876ab7840c257735a23f22c1139abd4da9ac9ccd0b",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr773",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+      "merge_commit_sha": "282cf846e0f834aa55487f948ce66c1b8426a954",
+      "merged_at": "2026-10-11T00:23:14-04:00",
+      "pr_number": 773,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged review-publisher workflow and policy change.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 1,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 1,
+        "total": 10
+      },
+      "snapshot_id": "snap-b5321a0b540ed960929d2ae2",
+      "source_manifest_id": "qm1-slopsearx-pr773-source",
+      "source_manifest_sha256": "f566d2e06288da495937c429ad41a8709bafa6aab3e454df2f75de270ac2585d",
+      "split": "challenge"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr776",
+      "control_class": "documentation_only",
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-documentation-controls-development",
+      "merge_commit_sha": "e3f2305ca8b52c50070bf23e8b2eec3e2e0eed37",
+      "merged_at": "2026-10-11T00:55:12-04:00",
+      "pr_number": 776,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "documentation_only_control",
+      "scenario_kind": "natural",
+      "selection_rationale": "Documentation-only control diff; candidate zero-finding control, not a quality label.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9
+        },
+        "required": 0,
+        "total": 9
+      },
+      "snapshot_id": "snap-527add3aef4f22c52ae3b9c3",
+      "source_manifest_id": "qm1-slopsearx-pr776-source",
+      "source_manifest_sha256": "266e41db2c7f742d2b1dab38e316a06697a5bcb7f7ae9e518954b42ce6ca4a21",
+      "split": "development"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr780",
+      "control_class": "documentation_only",
+      "evidence_completeness": "incomplete",
+      "family_id": "qm1-slopsearx-documentation-controls-heldout",
+      "merge_commit_sha": "178bc43bad357a7d9bb2177415cd75807bbb7c3d",
+      "merged_at": "2026-10-11T12:57:04-04:00",
+      "pr_number": 780,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "documentation_only_control",
+      "scenario_kind": "natural",
+      "selection_rationale": "Held-out documentation-only control diff; candidate zero-finding control, not a quality label.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 5,
+          "context_truncated": 5,
+          "diff_truncated": 4,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 9,
+        "total": 23
+      },
+      "snapshot_id": "snap-a23d9b2de6c35decc9abca0b",
+      "source_manifest_id": "qm1-slopsearx-pr780-source",
+      "source_manifest_sha256": "f2edf7a4175366ccfbba3b7b35e70e343238e50276f8976408e4da2cb8cb80f6",
+      "split": "heldout"
+    },
+    {
+      "case_id": "qm1-slopsearx-pr874",
+      "control_class": null,
+      "evidence_completeness": "bounded",
+      "family_id": "qm1-slopsearx-ci-transition-challenge",
+      "merge_commit_sha": "d207d4496129d496fe8a74b040ebe1a71151b6f9",
+      "merged_at": "2026-10-16T09:08:17-04:00",
+      "pr_number": 874,
+      "repository": "magnus919/SlopSearX",
+      "sampling_basis": "risk_enriched_merged_pr",
+      "scenario_kind": "natural",
+      "selection_rationale": "Risk-enriched merged Rust CI transition touching build configuration and workflows at scale.",
+      "snapshot_gap_counts": {
+        "by_reason": {
+          "context_truncated": 14,
+          "not_bound_by_context_selection": 6,
+          "window_count_limit": 10
+        },
+        "required": 10,
+        "total": 30
+      },
+      "snapshot_id": "snap-9de90200af9b40d01c7fb0ea",
+      "source_manifest_id": "qm1-slopsearx-pr874-source",
+      "source_manifest_sha256": "1b94ce65d38d90f0b50e9c1b7f37adad6c04c3b99331d00d554f5aaca5a13b80",
+      "split": "challenge"
+    }
+  ],
+  "changelog": [
+    {
+      "change": "Initial frozen corpus. 41 cases across two public repositories and three splits.",
+      "date": "2026-11-02",
+      "version": "2026-11-02.1"
+    }
+  ],
+  "contamination": {
+    "detail": "Both repositories are the harness's own public development repositories. Models and operators may have seen their code or PRs historically. Held-out means withheld from this curation's selection analysis, not proven unseen by every model or prompt.",
+    "mitigation": "No prompt, profile, threshold, or model was tuned against this corpus in QM-1. Held-out case results must be reported separately and must not drive prompt/profile tuning.",
+    "risk": "nonzero"
+  },
+  "contract_version": "review-evaluation-corpus.v1",
+  "corpus_file": "corpus.json",
+  "corpus_id": "qm1-frozen-corpus-v1",
+  "corpus_sha256": "bd843ca82c17dce86144bb45415dbe6ea20d6db4a0b094e257f24c1568dec88a",
+  "counts": {
+    "by_family": {
+      "qm1-codereview-documentation-controls-development": 2,
+      "qm1-codereview-documentation-controls-heldout": 1,
+      "qm1-codereview-pr282-natural": 1,
+      "qm1-codereview-pr283-natural": 1,
+      "qm1-codereview-pr286-natural": 1,
+      "qm1-codereview-pr287-natural": 1,
+      "qm1-codereview-pr288-natural": 1,
+      "qm1-codereview-pr289-natural": 1,
+      "qm1-codereview-pr290-natural": 1,
+      "qm1-codereview-pr291-natural": 1,
+      "qm1-codereview-pr292-natural": 1,
+      "qm1-codereview-pr293-natural": 1,
+      "qm1-codereview-pr294-natural": 1,
+      "qm1-codereview-pr295-natural": 1,
+      "qm1-codereview-pr296-natural": 1,
+      "qm1-codereview-publication-and-supply-chain-challenge": 5,
+      "qm1-slopsearx-ci-transition-challenge": 1,
+      "qm1-slopsearx-documentation-controls-development": 1,
+      "qm1-slopsearx-documentation-controls-heldout": 1,
+      "qm1-slopsearx-pr741-natural": 1,
+      "qm1-slopsearx-pr742-natural": 1,
+      "qm1-slopsearx-pr743-natural": 1,
+      "qm1-slopsearx-pr744-natural": 1,
+      "qm1-slopsearx-pr745-natural": 1,
+      "qm1-slopsearx-pr746-natural": 1,
+      "qm1-slopsearx-pr747-natural": 1,
+      "qm1-slopsearx-pr748-natural": 1,
+      "qm1-slopsearx-pr752-natural": 1,
+      "qm1-slopsearx-pr753-natural": 1,
+      "qm1-slopsearx-pr756-natural": 1,
+      "qm1-slopsearx-pr757-natural": 1,
+      "qm1-slopsearx-pr759-natural": 1,
+      "qm1-slopsearx-publisher-workflow-challenge": 4
+    },
+    "by_repository": {
+      "groktopus/codereview": 21,
+      "magnus919/SlopSearX": 20
+    },
+    "by_repository_split": {
+      "groktopus/codereview/challenge": 5,
+      "groktopus/codereview/development": 9,
+      "groktopus/codereview/heldout": 7,
+      "magnus919/SlopSearX/challenge": 5,
+      "magnus919/SlopSearX/development": 9,
+      "magnus919/SlopSearX/heldout": 6
+    },
+    "by_split": {
+      "challenge": 10,
+      "development": 18,
+      "heldout": 13
+    },
+    "total": 41
+  },
+  "created_at": "2026-11-02",
+  "dataset_version": "2026-11-02.1",
+  "limitations": [
+    "No human labels or adjudications; precision, recall, and severity are undefined.",
+    "No model or provider was called; the corpus contains no predictions or quality claims.",
+    "Not representative of all code review or of defect prevalence.",
+    "Two repositories only, with shared maintainership and a Python/Rust transition; not cross-language general.",
+    "Several snapshots are bounded or incomplete; evidence completeness is recorded per case.",
+    "Snapshot identity binds base/head/profile, not a guarantee that all context was captured.",
+    "The diff hash manifest covers changed-path diffs, not every profile context byte."
+  ],
+  "provenance": {
+    "case_identity": "Exact merge commit, first parent as base, second parent as PR head.",
+    "repositories": "Public GitHub repositories cloned read-only from existing local checkouts.",
+    "snapshots": "snapshot_id computed with pr_review_harness.snapshot.collect_snapshot using the checked-in profile and ordinary-review-limits-v3.json, with PR merge-base mode.",
+    "source_copies": "No repository source files are copied into this dataset.",
+    "source_manifests": "Per-case source records include changed-path diff SHA-256 values, snapshot identity, evidence metadata hash, and gap counts. The corpus binds each record by canonical SHA-256."
+  },
+  "repositories": [
+    {
+      "key": "codereview",
+      "license": "MIT",
+      "name": "codereview",
+      "owner": "groktopus",
+      "profile_id": "codereview-native",
+      "profile_path": "profiles/codereview-native-v1-candidate.json",
+      "profile_sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "profile_version": "codereview-native-v1-candidate",
+      "url": "https://github.com/groktopus/codereview"
+    },
+    {
+      "key": "slopsearx",
+      "license": "MIT",
+      "name": "SlopSearX",
+      "owner": "magnus919",
+      "profile_id": "slopsearx",
+      "profile_path": "profiles/slopsearx.json",
+      "profile_sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "url": "https://github.com/magnus919/SlopSearX"
+    }
+  ],
+  "reproduction": {
+    "command": "python scripts/build_frozen_corpus_v1.py --slopsearx-repo /path/to/SlopSearX --codereview-repo /path/to/codereview",
+    "note": "Uses only local Git objects and the checked-in profiles; no network or provider calls."
+  },
+  "retention": {
+    "detail": "A case is never silently replaced. Corrections or additions require a new dataset_version and changelog entry; the previous manifest and source hashes remain in Git history.",
+    "policy": "Versioned and immutable."
+  },
+  "rights": {
+    "confidentiality": "No private projects, credentials, prompts, provider bodies, or review text.",
+    "detail": "Both repositories publish under the MIT license. Only commit identities, paths, diff hashes, and metadata are stored; no third-party source body is redistributed.",
+    "status": "rights_clear_public_mit"
+  },
+  "sampling": {
+    "basis": "Purposive selection of natural merged PRs, risk-enriched merged PRs, and documentation-only controls. The corpus is not a random or prevalence sample.",
+    "corpus_frame": "risk_enriched_challenge",
+    "per_case_basis": "Recorded in cases[].sampling_basis."
+  },
+  "schema_version": "review-evaluation-dataset-manifest.v1",
+  "source_manifests_file": "source-manifests.json",
+  "source_manifests_sha256": "ae959b0242951ba47effffa8f6bbc4aa4610bcc97a93f0590b3f71f19bc99db6",
+  "split_policy": {
+    "assignment": "Purposive and fixed before snapshot collection. Families never cross splits. No model output or review finding informed assignment.",
+    "challenge": "Risk-enriched merged PRs. Rates are challenge-set rates and must not be reported as natural prevalence.",
+    "development": "May be inspected during harness development, but not treated as held-out evidence.",
+    "heldout": "Must not be used to tune prompts, profiles, thresholds, context policies, or model choice. Do not inspect individual held-out failures to guide tuning; report aggregate results only."
+  }
+}

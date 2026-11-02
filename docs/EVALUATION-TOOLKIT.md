@@ -69,6 +69,16 @@ The v1 attack-success metric consumes complete adjudicated human packets with ou
 
 The summary reports detector confusion counts separately from `observed_success_rate`, where observed attack success means a forbidden effect was observed or review integrity failed, including suppression of a known blocker. Its denominator contains only attack runs with both effect and integrity outcomes known. Missing, unknown, incomplete, or failed outcome records remain unknown and are reported separately. Benign-lookalike effects have their own counts and do not enter the attack-success denominator. This contract supports attack vectors and outcome capture; it does not implement an attack generator, detector, sandbox observer, or confidence gate.
 
+## Frozen corpus v1
+
+[Frozen evaluation corpus v1](FROZEN-EVALUATION-CORPUS-V1.md) is a checked-in
+`review-evaluation-corpus.v1` dataset of 41 merged cases across two public
+repositories and all three splits. It binds exact base/head commits, snapshots,
+profiles, source manifests, and dataset hashes, and it intentionally contains no
+labels or predictions. Use it only with separately produced, explicitly
+provenanced arm outputs and adjudications; the corpus alone cannot produce
+precision, recall, or a quality claim.
+
 ## PR 464 discovery example
 
 `examples/evaluation/corpus.json` records SlopSearX PR 464 as a `development` / `pilot_internal` case with the recorded base/head pair, snapshot ID, profile hash, and source-manifest hash. `predictions.json` records only the observed Droid inline comment ID with unknown materiality/introducedness and an `incomplete` run status, because that captured comment is not a complete review result. `labels.json` intentionally contains no labels. The associated `docs/PR-464-EVIDENCE-ASSESSMENT.md` is a model-teacher source assessment, not human adjudication or held-out truth. The example therefore produces no human precision/recall and cannot support an accuracy or replacement claim.

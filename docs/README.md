@@ -95,6 +95,7 @@ implementation.
 | [Production context profile revision](PROFILE-REVISION.md) | Production context-profile revision. |
 | [Provider contract revision](PROVIDER-CONTRACT-REVISION.md) | Provider contract revision. |
 | [Review evaluation toolkit](EVALUATION-TOOLKIT.md) | Review evaluation toolkit. |
+| [Frozen evaluation corpus v1](FROZEN-EVALUATION-CORPUS-V1.md) | QM-1 versioned 41-case corpus identity, provenance, splits, hashes, and limits. |
 | [GitHub Actions canary runtime](ACTIONS-RUNTIME.md) | GitHub Actions canary runtime contract. |
 | [Stateless GitHub Actions publication design](ACTIONS-PUBLICATION-DESIGN.md) | Stateless GitHub Actions publication design. |
 | [GitHub review publication readiness](PUBLICATION-READINESS.md) | 2026-09-29 CLI/central-route publication NO-GO decision record, scope-qualified. It does not describe the reported post-2026-10-11 target-local route. |

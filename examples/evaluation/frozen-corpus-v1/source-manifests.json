@@ -1,0 +1,4135 @@
+{
+  "dataset_version": "2026-11-02.1",
+  "manifests": {
+    "qm1-codereview-pr112": {
+      "base_sha": "84a373c31e5a80af0da589ce239f8eed6e962eaa",
+      "case_id": "qm1-codereview-pr112",
+      "change_base_sha": "84a373c31e5a80af0da589ce239f8eed6e962eaa",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "9c99d5f04a00a749cb9e547d58ddc48ff4b97549a6e8cf5ff1b20fa2788835c5",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 2
+        },
+        "required": 0,
+        "total": 2
+      },
+      "head_sha": "415417ef496706198d050a573ffb86260f231b1d",
+      "manifest_id": "qm1-codereview-pr112-source",
+      "merge_commit_sha": "486bf00a32031bea74e8e39392a860ffead022df",
+      "merged_at": "2026-09-28T15:01:41-04:00",
+      "pr_number": 112,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 7,
+      "snapshot_id": "snap-95934f06170088c446a0d7b0",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "4c8727405127bb11025ad4be0d0cedf8d3ce82f03619ef72d32b6985d57698fd",
+          "old_path": null,
+          "path": "docs/experiments/model-only-shadow-hosted-runs-2026-09-28.md"
+        }
+      ]
+    },
+    "qm1-codereview-pr237": {
+      "base_sha": "afe5117c2e6c80de6ef84ca3577a5e8b536d36cc",
+      "case_id": "qm1-codereview-pr237",
+      "change_base_sha": "afe5117c2e6c80de6ef84ca3577a5e8b536d36cc",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "357e8ac79a996567ff7c31cfca6d8f3fe485c1feab9a8c6aa0523c580d141e43",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 4,
+          "not_bound_by_context_selection": 2
+        },
+        "required": 0,
+        "total": 6
+      },
+      "head_sha": "4f6607356104252a1208dbc872ba80d1e8bd0374",
+      "manifest_id": "qm1-codereview-pr237-source",
+      "merge_commit_sha": "90084d682f46e6fdca0ee61028b0b2734a6c3ee2",
+      "merged_at": "2026-10-11T00:36:28-04:00",
+      "pr_number": 237,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 26,
+      "snapshot_id": "snap-e54d9e427fb3ac66bad42c97",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "eb5effbf2147d10667e4e983a144ce57c2e54ceba14d35cd7a5e8d80aeb1d177",
+          "old_path": null,
+          "path": "docs/CURRENT-ACCEPTANCE-TRACE.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a4dceced4bb85ffde5225cd18cdf057dfc6d80ce8292957732fd34cc3592178c",
+          "old_path": null,
+          "path": "docs/CURRENT-DELIVERY-TRACE.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "dc1883ab758dc5804a34db02e9ec53f31548399d3c144e0c35ecc7046ff696d3",
+          "old_path": null,
+          "path": "docs/CURRENT-EXECUTION-PLAN.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "7f4dc8577f3e6c7e57fc79da08a69cd200641ed20623f6edc03fb42e5dea7dcb",
+          "old_path": null,
+          "path": "docs/CURRENT-STATUS.md"
+        }
+      ]
+    },
+    "qm1-codereview-pr273": {
+      "base_sha": "8223fd77e3e146fca7afb2ac705dd2b60e891f61",
+      "case_id": "qm1-codereview-pr273",
+      "change_base_sha": "8223fd77e3e146fca7afb2ac705dd2b60e891f61",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "b3e796cfe2a8f96e7c61d219c9cf17af66650608d933136ef74b15276258fb84",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 2,
+          "not_bound_by_context_selection": 2
+        },
+        "required": 0,
+        "total": 4
+      },
+      "head_sha": "0457f24a169be33b3e9c2834f314d36304ee1539",
+      "manifest_id": "qm1-codereview-pr273-source",
+      "merge_commit_sha": "2ba11b976688d388de421e068d82abcbe56bb808",
+      "merged_at": "2026-11-01T06:43:54-05:00",
+      "pr_number": 273,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 26,
+      "snapshot_id": "snap-af4fc7ca5a5e516e4708dc78",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "31cd4d7a39b52fa1fadfcd7a35675e6a6ed3b154106abf51cfe2da5dc4407d3b",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "ff5f195728215d09cb6fc9f7dd8b7e763359905000fa280117c7cfe0b12329bd",
+          "old_path": null,
+          "path": "docs/CURRENT-STATUS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "18ddf87301109fdf22fd9b1f5604277345d62c414de70e072799a4dab8b4e224",
+          "old_path": null,
+          "path": "docs/PUBLICATION-READINESS.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "3b3c7d053b5aedb5d02d8f464ca80934cf6b4b98022f07f63d7f051a2c3c9113",
+          "old_path": null,
+          "path": "docs/STATUS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "27471b2a9a7970760e62414acaae2500137ca3edc012f7d1899dba857c40f3c0",
+          "old_path": null,
+          "path": "docs/VERIFICATION.md"
+        }
+      ]
+    },
+    "qm1-codereview-pr276": {
+      "base_sha": "dbb42a62d8e8ccf8a3d32eb1a9aa31eec55ff428",
+      "case_id": "qm1-codereview-pr276",
+      "change_base_sha": "dbb42a62d8e8ccf8a3d32eb1a9aa31eec55ff428",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "ef2dd4a51728ddee9e83fd06d2380499626a0366220aadccda40c94a9c470231",
+      "gap_counts": {
+        "by_reason": {},
+        "required": 0,
+        "total": 0
+      },
+      "head_sha": "527e239de79758eaad617decc574ce3cfabc3cbf",
+      "manifest_id": "qm1-codereview-pr276-source",
+      "merge_commit_sha": "c9739b05c48e2c05517119fbd4660799b4a51364",
+      "merged_at": "2026-11-01T07:40:50-05:00",
+      "pr_number": 276,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 20,
+      "snapshot_id": "snap-8a5308034acf135322059916",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "bcdd7eea6a735344c390d3b8a6fe263f5aed783af53173bec53c568743183b9c",
+          "old_path": null,
+          "path": ".github/workflows/security.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "5acc84a21a2a52b582b13ac8c5a4dfb6af56b5a7329f03ff6908592823eba86d",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "9000748134aa927a9852b298483f414274857df5e567544347da136221dc714d",
+          "old_path": null,
+          "path": "SECURITY.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "fdf6eaf97a9ca5800f921019b53f6e7a1493f842b881ea0ffa8bb65ca26f2066",
+          "old_path": null,
+          "path": "docs/THREAT-MODEL.md"
+        }
+      ]
+    },
+    "qm1-codereview-pr277": {
+      "base_sha": "c9739b05c48e2c05517119fbd4660799b4a51364",
+      "case_id": "qm1-codereview-pr277",
+      "change_base_sha": "dbb42a62d8e8ccf8a3d32eb1a9aa31eec55ff428",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "ef49d5080ad352df7f201250dad908ff1e30cdf24aa201fab6f8037ecdf25101",
+      "gap_counts": {
+        "by_reason": {
+          "context_selection_budget_exhausted": 3,
+          "context_truncated": 5,
+          "diff_truncated": 2,
+          "not_bound_by_context_selection": 2,
+          "window_count_limit": 4
+        },
+        "required": 9,
+        "total": 16
+      },
+      "head_sha": "6156dfbbb53c6675f76895cf226ace3bbd67b935",
+      "manifest_id": "qm1-codereview-pr277-source",
+      "merge_commit_sha": "84f33973854b49a7dbd51e39ec6bd231335fef85",
+      "merged_at": "2026-11-01T08:13:48-05:00",
+      "pr_number": 277,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 31,
+      "snapshot_id": "snap-8255f120dee8d334d74deda9",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "fe63304ff4ad064392c41b33eec1f7943e37a2a7b8aa649358db03df9229389e",
+          "old_path": null,
+          "path": "src/pr_review_harness/engine.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "50a80ebb9627b956f39f1ee8ac094870ad9e8a64726cfbed5421ad4bdad69917",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_stages.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "0ac9ddb6ac5dc8b9e6703a7772fb2ddff78a243b6e1e9d760803998ebd61b269",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_state.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b5c3d43d2c7d823339929ffde24e9c67cbaaff6a80126cebc4c4e220b115316c",
+          "old_path": null,
+          "path": "tests/test_review_stages.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr279": {
+      "base_sha": "1dc1446efee66f9ab8913f14075f3ffdd1c6d3d1",
+      "case_id": "qm1-codereview-pr279",
+      "change_base_sha": "1dc1446efee66f9ab8913f14075f3ffdd1c6d3d1",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "3e68637bb3095a113c4cb9fc6284ad65bdd3ee6c950c9474232dc878d6922a8c",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 3,
+          "diff_truncated": 1
+        },
+        "required": 1,
+        "total": 4
+      },
+      "head_sha": "fd740ae8acdaa707474d0e60800421c8d0e2e5a9",
+      "manifest_id": "qm1-codereview-pr279-source",
+      "merge_commit_sha": "eda7f10711fd3174584bfc8279c526d4fdbda4ff",
+      "merged_at": "2026-11-01T10:15:27-05:00",
+      "pr_number": 279,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 50,
+      "snapshot_id": "snap-d788b1cd5f06b5f246f983be",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "2095017c4c02a41942bb3bf587f1d18f05a4b824285063ae4f324cf976715897",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "36a9c0d3a8c8f54b0d872a0a3e1cd358b7ae2e62ce7cc4dd98b4ef485a60c6ba",
+          "old_path": null,
+          "path": "docs/COVERAGE-GATES.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "db80deef83e332ed91576a4bb1e7e21f9d7ee1a6695e34c35bdc5b0aa6262dbc",
+          "old_path": null,
+          "path": "pyproject.toml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "1f4a4506df348b164cd98acdee1d87e1815787c322f38fd8928a2d5d3a31102e",
+          "old_path": null,
+          "path": "scripts/coverage_gate.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "df2624e2eee323918da574dcfebfa953d6f2ebcfb4a1bb71d3aff9316c427534",
+          "old_path": null,
+          "path": "tests/test_coverage_actions_publication.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e663b236348f673bc49de340f06bcdf44290cad4073606a29ba740f74f021149",
+          "old_path": null,
+          "path": "tests/test_coverage_checks.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "dc463ab2b290e561b33029e82a7c15c90d9c31767ec20dbb3d8ba0fa6ac0a4d3",
+          "old_path": null,
+          "path": "tests/test_coverage_cli.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "c544cf45d322b5a80084ae57e322b999381da7bbc9c761efae48237fda8b3687",
+          "old_path": null,
+          "path": "tests/test_coverage_gate.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "49973cf4ba26384c8aaaa07d7154fa8fbf87875150e30dceb59bed1a5f492283",
+          "old_path": null,
+          "path": "tests/test_coverage_github.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "54b3d1315371ac3bf9f58eb140ac4d92d901c484177726311e65ad2478a3e8dc",
+          "old_path": null,
+          "path": "tests/test_coverage_publisher.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr282": {
+      "base_sha": "87aa950461cbff034bbbfe8d28986f3035b650c2",
+      "case_id": "qm1-codereview-pr282",
+      "change_base_sha": "87aa950461cbff034bbbfe8d28986f3035b650c2",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "7889ff2d50b4d8acdaa7598d56248b046ea0595e81388b4fa88f89868df6aaa0",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 10,
+          "diff_truncated": 1,
+          "not_bound_by_context_selection": 1
+        },
+        "required": 1,
+        "total": 12
+      },
+      "head_sha": "32a25f20de378f197f0a68183e3ed4822feec230",
+      "manifest_id": "qm1-codereview-pr282-source",
+      "merge_commit_sha": "94061c3ea64cafd172e86d276e33fa1d71a63262",
+      "merged_at": "2026-11-01T12:24:56-05:00",
+      "pr_number": 282,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 66,
+      "snapshot_id": "snap-fe43f95f5420e61bda80b4be",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "0780baf303b4d5198b14e70f8c98539ec203797b61502c36d1b72865550bfb71",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "739f4a2c215783504a9854e7b3703c44635b06a25ea0f6ef4bf47085a1dd86ae",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "c6628d6c97e2808fc3ee99fd3530b0cbe4b1cc519f5ebf473751c321884c50f2",
+          "old_path": null,
+          "path": "docs/RUN-METRICS.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "028b4c2ec279f9903230b1f942cddd84701ba4e663a7088d61216078a898a9b1",
+          "old_path": null,
+          "path": "schemas/review-run-summary.v1.schema.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "448065192eb6d5a890dbc3ee09b6320cb9f05366c7c0178a4c5b10f27579e7f0",
+          "old_path": null,
+          "path": "src/pr_review_harness/cli.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "fedfa834a12013a7b5720d313e4e59a57a23e9f65e5be11d0f2dad8f98421fa2",
+          "old_path": null,
+          "path": "src/pr_review_harness/metrics.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8b5ed23ed55dd926da4c9d30bbfff6ba33485c2cb5e41027176d696048a9efc1",
+          "old_path": null,
+          "path": "src/pr_review_harness/report.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d7cfbbd9aa6bd6dcf72444bf5d1bd6873021527fc433116381c29457efc4db39",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_stages.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "2779bee153dcb22e6adfdff323c4e72c6224ff06f3d6665cb6567717eaab4ba6",
+          "old_path": null,
+          "path": "tests/fixtures/run-metrics/run-1-complete.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "04af3a6991a28e3b62ae268102f7afe2d3ae87cfc365064cd2fd73e4eb08f29e",
+          "old_path": null,
+          "path": "tests/fixtures/run-metrics/run-2-partial.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "70eb77db5d7386e3719f42b63f961810d993693985e9b445a29d30b93bf15574",
+          "old_path": null,
+          "path": "tests/fixtures/run-metrics/run-3-old-not-started.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "49676a6ea14bed540f2155935bebdc893837b5f67cd27d577a89cd8dedafd295",
+          "old_path": null,
+          "path": "tests/fixtures/run-metrics/run-4-no-created-at.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "441a48cc8a3fe4f069a675075186f5e79620522b4eb01f81f3605599e8d9b30c",
+          "old_path": null,
+          "path": "tests/test_review_stages.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "93805559edc0924cc7de3afd8cae2a1ca787d4921c4431f06f5aa3c11f038a8b",
+          "old_path": null,
+          "path": "tests/test_run_metrics.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr283": {
+      "base_sha": "40eb5321f30b06da27f305aa473722034e64ee99",
+      "case_id": "qm1-codereview-pr283",
+      "change_base_sha": "40eb5321f30b06da27f305aa473722034e64ee99",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "0c54d46ade6bbe697c9e1b96d07e7d6d024ae9d43e68308fe3a55e2fcc909b2e",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 25,
+          "not_bound_by_context_selection": 1,
+          "window_count_limit": 22
+        },
+        "required": 22,
+        "total": 48
+      },
+      "head_sha": "9f9ee70232c710731f40f07e70e766bc35b121d6",
+      "manifest_id": "qm1-codereview-pr283-source",
+      "merge_commit_sha": "87aa950461cbff034bbbfe8d28986f3035b650c2",
+      "merged_at": "2026-11-01T12:16:15-05:00",
+      "pr_number": 283,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 110,
+      "snapshot_id": "snap-db5c5e668359df65a12773a2",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "ba0ab4f39e44d917c96b20757134d000e31b79ff63e5070bd9da28d66a00b047",
+          "old_path": null,
+          "path": "docs/EXCEPTION-AUDIT.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "470f73a8af5d726ac334096d5a6d670e0b7d159be3cc5aa89460ac792827ee13",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "1a6fc7511df4d9a7c85c4cee61041aede843fa540a053273178158c12d599a15",
+          "old_path": null,
+          "path": "src/pr_review_harness/actions_publication.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "5a05865f77b353b27addeca8a97181d5c5f2f8be3518f61be1d48ee3bd71b781",
+          "old_path": null,
+          "path": "src/pr_review_harness/budget.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3dbef88fd7fad16592e2d0802036e48c3c599951b65105033fe3c794092388a1",
+          "old_path": null,
+          "path": "src/pr_review_harness/claim_assessment.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8583dd7b5a442efd27d4fdb2adc9b2036b4facdc690d8466208974dfc7a71430",
+          "old_path": null,
+          "path": "src/pr_review_harness/claim_transport.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f97b99fdec5351808a6ec8b44bb21fe6026f0134ce41ddf27df58b7373de4e46",
+          "old_path": null,
+          "path": "src/pr_review_harness/engine.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "0fbb30ea121f6faf7aeeac02e87e3fb1448d2978aa78e7dd3aa4766ead88a6ed",
+          "old_path": null,
+          "path": "src/pr_review_harness/errors.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6a11df834632e56ca0a2f23f90dc31e875905cd11ae1cc7698080c05444235db",
+          "old_path": null,
+          "path": "src/pr_review_harness/github.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "50860a3db21aaf54af5c36a18806875d2f680352b8a62ae8ad5ce4874e92e90a",
+          "old_path": null,
+          "path": "src/pr_review_harness/providers.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b344e23178241a9c3ededac5b28e4cdc9c6c31f072c0fb29f29b3b38c112b3c7",
+          "old_path": null,
+          "path": "src/pr_review_harness/publisher.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f5ba9d38bbf129a9fc5f72a66b71b7598c19b6de0c9b91074908bd0480ea845c",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_stages.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b74d835b1fc71d5c582cd2bafaeb477c93d83972988635f279dd98fbf30c5f61",
+          "old_path": null,
+          "path": "tests/test_claim_engine.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b2d485b47501e03cbd59bff338eb517ff2c1448664abc951166c22b1cfc5bf67",
+          "old_path": null,
+          "path": "tests/test_exception_audit.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e947e3d8f2a45bba180e173971080ba13f2c1792402e11aec3ba305b55c234be",
+          "old_path": null,
+          "path": "tests/test_review_stages.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr284": {
+      "base_sha": "94061c3ea64cafd172e86d276e33fa1d71a63262",
+      "case_id": "qm1-codereview-pr284",
+      "change_base_sha": "94061c3ea64cafd172e86d276e33fa1d71a63262",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "249670651d6b7539eb1cfefcbc0f875b82d855e0539ffa381e9218e8eb378698",
+      "gap_counts": {
+        "by_reason": {
+          "context_selection_budget_exhausted": 92,
+          "context_truncated": 147,
+          "diff_truncated": 12,
+          "window_count_limit": 5
+        },
+        "required": 109,
+        "total": 256
+      },
+      "head_sha": "243fb84755550229817586dd2ee06a324a9fd74f",
+      "manifest_id": "qm1-codereview-pr284-source",
+      "merge_commit_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+      "merged_at": "2026-11-01T12:33:18-05:00",
+      "pr_number": 284,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 319,
+      "snapshot_id": "snap-32b21dd4c87d92d8f873ff39",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "f2fe5f8ccd488c3034e50a3580656a6de7b0f64b5e1d85b20d6fc03436e800a0",
+          "old_path": null,
+          "path": ".github/codeql/codeql-config.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "98cf333545e2bfd2273da2fcb57f486d9c647209fd9368567d6b40b487bf8c59",
+          "old_path": null,
+          "path": ".github/workflows/security.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "138aabc5b74ef0f493ff5d7f28e4cf16b94e8321c8e62bcca9ac1a14d1578ee4",
+          "old_path": null,
+          "path": "MANIFEST.in"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "79f6463425e48cb862ed2b682d16b57ce52a4084c4a7f222b31e782aef04ed4e",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "58aea7d9267949b981f70b128edd3da4ecc60ffa22d06af2490a6770d607da22",
+          "old_path": null,
+          "path": "docs/ARCHITECTURE.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "60e4591febd2cb0ca2f6f9cca1cf7b7d66a01aa087a3d05578ee64b503ec09b2",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "9e174991cae779c8ec238a5cc8cc34171c0c72d20749b03d86271af0777cfb26",
+          "old_path": null,
+          "path": "docs/public-surface.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a75b734d0c4a2f38f4059e550d55e2c601add9092784f968209ba7e1dd3bf96f",
+          "old_path": null,
+          "path": "experiments/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "6edb7c97ea670c6ce12452321c36bfccf9908311d6935e8aa9d9112e31cd5831",
+          "old_path": null,
+          "path": "experiments/harness/__init__.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "f5a0e2b8edc348ec396d9cd18bbb8493843aeeff0c0d487b4a8f6e5ddf94161f",
+          "old_path": null,
+          "path": "experiments/harness/actions_canary.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "da56634a41d788022c272d1416f1886729019386da2084bdf5e62545e86322f9",
+          "old_path": "src/pr_review_harness/claim_triage.py",
+          "path": "experiments/harness/claim_triage.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "4a1277d4d976cfcd33dcf1766813a7bdfefeee3fd0e3a053da35f4cafef0625e",
+          "old_path": "src/pr_review_harness/configured_jev_injection_trial.py",
+          "path": "experiments/harness/configured_jev_injection_trial.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "4a8266ec3b211eafbf782e6c5ba36f28fe32ce44d29b9b3f0b63dacfc2323d31",
+          "old_path": "src/pr_review_harness/context_selector.py",
+          "path": "experiments/harness/context_selector.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "9dfcba4cda6c12083050f4b7d68fb615552bd4a687bd2938cb1584a68dc95819",
+          "old_path": "src/pr_review_harness/cross_model.py",
+          "path": "experiments/harness/cross_model.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "9ccc029dcf62a8a7a955c78fa5bb8799499e61ae3fdd3c7309dd9b7358a7d9b8",
+          "old_path": null,
+          "path": "experiments/harness/cross_model_package.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "d449469ed3bbd0c0647c5e35ec928f4d8a073df8c76dd3213afb01c94dc201cb",
+          "old_path": "src/pr_review_harness/cross_model_v2.py",
+          "path": "experiments/harness/cross_model_v2.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "a23fb06ae9cfe8ad0e9cedf306e18d5e2d6d9b6033b2a816ce6358185aedb4e3",
+          "old_path": "src/pr_review_harness/evaluation.py",
+          "path": "experiments/harness/evaluation.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "6e72f42107966bd33573c698da380daa2a0bda43f263e069d50cf939fafdff60",
+          "old_path": null,
+          "path": "experiments/harness/injection_trials.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "468995cac780b4c459f3a161ad1040e723d98281e39afc60a78bc6cefd612e1b",
+          "old_path": "src/pr_review_harness/policy_inventory.py",
+          "path": "experiments/harness/policy_inventory.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "3439603cd2c0262bef3353812b6e545131b628a4bc29e8dd8d63c8ad51ac72e0",
+          "old_path": "src/pr_review_harness/selected_model_trial.py",
+          "path": "experiments/harness/selected_model_trial.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "97e2edcadd6dc379569d68877fd43b65206e52d32ade9f5aad569fe188c40ee3",
+          "old_path": null,
+          "path": "experiments/harness/shadow_audit.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a6db72605115557cbf9c1aa99b5e5dc21fc6d13724737f9c77b85c80d151641c",
+          "old_path": null,
+          "path": "experiments/harness/shadow_preflight.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "159f14a61bff6f0dd804190b00daff05172228308b29dbfb15578feff2c1d46c",
+          "old_path": null,
+          "path": "scripts/compare_cross_models.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "9289352b74963cf7ebdd7bd7681099cded479bdb8a8144302335580269a61ac4",
+          "old_path": null,
+          "path": "scripts/compare_cross_models_v2.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f232dc3f9cdb502d97345d1e916d4a952b3b321682d58a09872ea8b7dd586a93",
+          "old_path": null,
+          "path": "scripts/evaluate_reviews.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3c6d05bb6161b1928ab5533740d61cde6e32672723be691a1aedd6b002aa0ce0",
+          "old_path": null,
+          "path": "scripts/package_cross_model_v2.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "006c6d5381d8056a9421e1679c5c71e748548747eeba7bd8cad844d6fe4b22a1",
+          "old_path": null,
+          "path": "scripts/package_smoke.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "7a48e8655c10705fbacfbf432e347e685cbc2f990a176eb18fd9eb15b06153d5",
+          "old_path": null,
+          "path": "scripts/package_synth_001_cross_model.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3ffb4f078cc26cf60cdbdbb72f2276893e82d1d972d66aff61de41021ed8a343",
+          "old_path": null,
+          "path": "scripts/prepare_selected_pair_clean_control_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6c07acd25dcfbc0f5d566946a2f6168d0229cca4d7dc278683221bb24aeb1e82",
+          "old_path": null,
+          "path": "scripts/run_configured_jev_injection_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "7ee55cdc0e49d509f75cca77fdb60ecbea03dbfd48341a8d179c5483d3f25aa9",
+          "old_path": null,
+          "path": "scripts/run_current_selected_model_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "01ef207fdfe7b79c194a22331a0ed387dc23e48e5f927a1b0e4fb0992e84a35f",
+          "old_path": null,
+          "path": "scripts/run_injection_trials.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d887eb03ee9c853a40f7982ebc376e4d46d41a688c2a6482dd18c730238cca5b",
+          "old_path": null,
+          "path": "scripts/run_model_only_shadow_audit.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b422eeef26d6afa3d8d1d11e839cff451e5ef5a211d80a3cd6efff216a5bd77f",
+          "old_path": null,
+          "path": "scripts/run_selected_model_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "55c39d2c38b3b96027d19959916ee900a1eb41cc35262d1532f6a9785b116cfa",
+          "old_path": null,
+          "path": "scripts/run_shadow_audit.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f46e37d50b530a47eda893511ecdc268219d8544f66b1fca0a612391e161e5b8",
+          "old_path": null,
+          "path": "scripts/sealed_source_record_integration.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "160205b0ae19488716b4c498d70c7c47611665d442073d86fb052310511b5ee1",
+          "old_path": null,
+          "path": "scripts/select_frozen_pr464_no_candidate_packet.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e32614c898aa6ffd8a5c142b9a169c6eec532c1e48ba2a9f7840eed9ed9f519b",
+          "old_path": null,
+          "path": "scripts/selected_control_trace_attribution.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "1d2e28df3f3e2e95cb30a19781ece95f502dcd42ad42b2334fbb8264e55e5355",
+          "old_path": null,
+          "path": "src/pr_review_harness/actions_runtime.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d61704dcbba040f431cfdbbbbceb59b7d02bd3228dccd4da90647d9ff971e566",
+          "old_path": null,
+          "path": "src/pr_review_harness/cli.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "ca505e65179d57803885bf30dc8c905c9d3101189520fe576aaea086ac722c97",
+          "old_path": null,
+          "path": "src/pr_review_harness/current_source_capture.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "24b10362a5d6b97ee9f8560c6b69946b2b4746556e1d16a507145e772f847274",
+          "old_path": null,
+          "path": "src/pr_review_harness/engine.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b91894601cac7c69cfba3fd84a11b1bec6e775f8e33c284106bd6a4e6deebbd8",
+          "old_path": null,
+          "path": "src/pr_review_harness/source_audit.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "17da19b1ac253fcbd995d406a318a71b83d4a14bad18145f9cdbf939317ee52f",
+          "old_path": null,
+          "path": "tests/conftest.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "139bd8f166f620e23e742698ee68e86f5b8ebdecfa6fa8b5d5e8bf2347e5d249",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/claim_triage.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "48d39419c832c7e4df182daa93789aeffbead984711e00f0961acd7a8a941e6d",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/context_selector.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "ad2ea3aa3e1242a5e126f65a57a83ce8a7050aa2cc2314eeb4c9067e7147c427",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/cross_model.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "d027526856050b70f2a0b970d678ea8879ad398062e0462c8c94f7d8b4a18781",
+          "old_path": "src/pr_review_harness/cross_model_package.py",
+          "path": "tests/fixtures/frozen-runtime-7d550b6/cross_model_package.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "f56d33337a148f7d47b3c91aca06820a255f41c8d77ccf759659f092e91a6dca",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/cross_model_v2.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e68f45d9f1e40082e34da881b391411a6a27655e0e06f4c1b0988a078bdcea06",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/evaluation.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "af3450dc852d4bf838e82b025f161b53fd125790fa13312c816d89968e97574e",
+          "old_path": "src/pr_review_harness/injection_trials.py",
+          "path": "tests/fixtures/frozen-runtime-7d550b6/injection_trials.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "bbc9faa8f74fc7972b98baba6464f6d36a597558ea6f87da72b33706dd20ce6d",
+          "old_path": "src/pr_review_harness/shadow_audit.py",
+          "path": "tests/fixtures/frozen-runtime-7d550b6/shadow_audit.py"
+        },
+        {
+          "change": "renamed",
+          "diff_sha256": "7f568ae8d503659fe024097e004f10fb6509258a72013a4f452dbcb10addbd41",
+          "old_path": "src/pr_review_harness/shadow_preflight.py",
+          "path": "tests/fixtures/frozen-runtime-7d550b6/shadow_preflight.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "9ba520fc3b61fb1fe282593e401247ed73a30832c13961880bd4afa5ba017b71",
+          "old_path": null,
+          "path": "tests/frozen_runtime.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "c70e1c4ac3e45d6ad8b66a96958a0f0cd89113adb2fb789d38a67ec0db87b532",
+          "old_path": null,
+          "path": "tests/test_actions_runtime.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "db7da4fd614acfd2a2eed4225d678cefebc5610d1d46f61ba5f28b43545093da",
+          "old_path": null,
+          "path": "tests/test_claim_engine.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "0a90e39eb94cc8b2e5ebc97f47166499c7109b46fc176b83c97692a636c964fa",
+          "old_path": null,
+          "path": "tests/test_claim_screen.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "ee0d393188e5313420c812a96d75602082034db4ed15adfa31d325f13badbd4b",
+          "old_path": null,
+          "path": "tests/test_claim_triage.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "15a91188a8fc05cd75f90d36a2f375f2a73cd7e459240092cfa6430427669799",
+          "old_path": null,
+          "path": "tests/test_clean_review_control.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "0997f12b70f67044fca52602e6258d872ec0186082b20e77d890c0c58624afce",
+          "old_path": null,
+          "path": "tests/test_configured_jev_injection_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6b6585c4e806b39e3f1737213beb168478951c38d5d2821c45891f899fbd6067",
+          "old_path": null,
+          "path": "tests/test_context_selector.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b2345d906feb33ef51031d6a72deb75389d4722a4427013b8c8cf56a62d57aaf",
+          "old_path": null,
+          "path": "tests/test_cross_model.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "5c42dfc5def76c3d0945a4d8c06dbca10967f71746769e6472e012d9eed45204",
+          "old_path": null,
+          "path": "tests/test_cross_model_package.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "280a05fc4d1202f35dc3c0db2cb7d472541ff5d978e306150644befae5956e24",
+          "old_path": null,
+          "path": "tests/test_cross_model_v2.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "7d618e84f6a11e1bf53b4aa7efc191d63d9b008ca637a9eeb7ca91ebc7af8f44",
+          "old_path": null,
+          "path": "tests/test_current_selected_model_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "747746a68d53f821299a8a9695719cb2a1e115e9078e47abb13fd0018d1d22fe",
+          "old_path": null,
+          "path": "tests/test_evaluation.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "85347843407a60701abc27b365a96df93d2c97c1d5c1766559891204a1b282f8",
+          "old_path": null,
+          "path": "tests/test_external_effect_observer.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "35498b76a5da71f8c73a8704b879d80607ef39c6cb3601a28f59b01b33e0dc10",
+          "old_path": null,
+          "path": "tests/test_frozen_pr464_capture_integration.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f3298fa6c832d7559ec6c69611ebff8df6e1f547f024e74604014e7beed226fb",
+          "old_path": null,
+          "path": "tests/test_frozen_pr464_source_audit_preflight.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "16a3a8b8b1574c550bf68b119cd51ceb57910d53a673e7268624c680d1fc5ed8",
+          "old_path": null,
+          "path": "tests/test_injection_trials.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b86b0ce0a89dae8c84068b7bdd6f406ac95362591f14006c09690462d861dfe8",
+          "old_path": null,
+          "path": "tests/test_model_only_shadow_audit_runner.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "905737256ecbb6f1b4e00dd38fd01bb1d93564258c4ca330a098a03d7d790aad",
+          "old_path": null,
+          "path": "tests/test_model_only_shadow_workflow.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "bda5f70e1e345acff9a9d06d108bb56894881f25759896bd9898556ecb02b4df",
+          "old_path": null,
+          "path": "tests/test_native_paired_claim_trial_v2.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "ba6c991127bc3b935d6ef8cba696f77d4e6e43f9a6aa2cdeab4ddeda698924ba",
+          "old_path": null,
+          "path": "tests/test_packaging.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b000b2224cb767b650c8e2db4c09e35b59a6dc690d2cccded7340019e3643a3b",
+          "old_path": null,
+          "path": "tests/test_policy_inventory.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "547c32ce8a44d182b65a60611dd402804b6c003af6dc3cacb598bfe2dde52f7c",
+          "old_path": null,
+          "path": "tests/test_prepared_selected_model_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "967a6873340a2eff911db7e314aab222024e2e315cc07cf08e54f4c85805b790",
+          "old_path": null,
+          "path": "tests/test_private_capture.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "fa6aa79275fb35274b7dd3209fae5223de49905f607940c3f629675f93b4efc3",
+          "old_path": null,
+          "path": "tests/test_prompt_injection_shadow_challenge.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d3cf106c39b928845e11a2e7592819f38492c460b254d8eea50578d8065a870a",
+          "old_path": null,
+          "path": "tests/test_prompt_injection_shadow_e2e.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "01cddc9c9db3222c53333cc842e0c091e6dfd3bbeeea3ddd35ae1334a83671c4",
+          "old_path": null,
+          "path": "tests/test_selected_control_trace_attribution.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "60671f8320a57f648f888b02a6211a10b9e878631f9be2c7a75e2ed9e567401c",
+          "old_path": null,
+          "path": "tests/test_selected_model_trial.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "54cef44df29f418ebf73374b6b13fcfdb1ade89d94f708bc10333fc48e628f67",
+          "old_path": null,
+          "path": "tests/test_selected_pair_sensitivity_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "5d981c74e16140c85b94955b2748f4fd8682e1e99884d4f39e1500365f6b40ba",
+          "old_path": null,
+          "path": "tests/test_shadow_audit.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "038054777b5060ed47b4a0d016ece0bf1c1541a523d0eff8b8bf2841d5c98c1e",
+          "old_path": null,
+          "path": "tests/test_shadow_preflight.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a6fa27a68745b4f4abc050b37fc5f6410485801c1839019acc33b29c1ec7079a",
+          "old_path": null,
+          "path": "tests/test_surface_consolidation.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr285": {
+      "base_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+      "case_id": "qm1-codereview-pr285",
+      "change_base_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "fe5f54e0087da2202f5d70c7342f71d8bea0fe5b5ca39547f82eaf4cef9132e6",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 1
+        },
+        "required": 0,
+        "total": 1
+      },
+      "head_sha": "dfd865bc6e72fde7bdbe7b9cc30bef91ae4be53c",
+      "manifest_id": "qm1-codereview-pr285-source",
+      "merge_commit_sha": "6bcd6b0622d3105b4b186008e2aff9018261d095",
+      "merged_at": "2026-11-01T13:00:29-05:00",
+      "pr_number": 285,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 11,
+      "snapshot_id": "snap-ea9855d399fd37608196b9a7",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "23cebd8504992fe9a676cb3c65225949112ee1990b580c81abb527acb56b678a",
+          "old_path": null,
+          "path": "docs/protected-publication-runtime.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "46063b3480ef53934f97cbc7dca90e1deb1c99088613bdb2f525ac1cb4486088",
+          "old_path": null,
+          "path": "tests/test_publication_effect_fault_matrix.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr286": {
+      "base_sha": "6bcd6b0622d3105b4b186008e2aff9018261d095",
+      "case_id": "qm1-codereview-pr286",
+      "change_base_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "bfa6d12ab6f3cdfb109ae2501fd33f02d1a57c620bc9b3abe369cfec0de2bdda",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 12,
+          "diff_truncated": 2
+        },
+        "required": 2,
+        "total": 14
+      },
+      "head_sha": "1012b40e796011d7e2340ecb7efbb6e8e56d8cef",
+      "manifest_id": "qm1-codereview-pr286-source",
+      "merge_commit_sha": "7f5a6d746a9a94d4cf87992fb9bfd5923287db4b",
+      "merged_at": "2026-11-01T14:09:26-05:00",
+      "pr_number": 286,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 86,
+      "snapshot_id": "snap-89df72d3133a4241a49fc860",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "a8a23a94af4dc613d0e4879a1f8c42dae77af150f269f54aece885309e0372af",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "4a284145638d01370aac3f1abb3d8ecc9e20701fb9b2bcc932611ca7d92bf031",
+          "old_path": null,
+          "path": "docs/CONTRACT-REGISTRY.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "86193729f9157a789ce47a6c46c366a6d1e51288d3669872e6349c1b7845715d",
+          "old_path": null,
+          "path": "docs/CURRENT-STATUS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "93daf9770e8e77321840f30b7f9042e7213fb70febccc629a09ae27bbf4507e4",
+          "old_path": null,
+          "path": "docs/DEPLOYMENT-CONFIGURATION.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "9de7909c3593051e05d9274a3a3a610a5304642d27fe1250554412ccf2ed0f91",
+          "old_path": null,
+          "path": "docs/DOCUMENTATION-TRUTH-CHECKS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "78b3ac817035576e3c068736a5bd1ad3ce1c7af12bab34e311430124ff39cd26",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "75090bffea8ad046dde236582ba741fcce1637a63f1baff6ee9c4a69bfd6d397",
+          "old_path": null,
+          "path": "docs/history/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "118cf2a23e544db87d29cff8670918010a7f6c3670bff7acf508ffedead41054",
+          "old_path": null,
+          "path": "scripts/check_docs_truth.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "840a1a2fce55e1345de9d251f2a23f91415bbcb6befa52c2f0ab8988a54f56f9",
+          "old_path": null,
+          "path": "scripts/documentation-contract-ids.v1.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "da9c7209b7c2dd0e287a6713f5024aacd37a708d2f2a5a2a506b711e451eab0c",
+          "old_path": null,
+          "path": "scripts/documentation-sha-references.v1.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "90872202e12ab1e01f27b02c4c6f7d5d7af762ed16a85a487e7d436c6f0bbb71",
+          "old_path": null,
+          "path": "scripts/documentation-truth-evidence.v1.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "4a74856fabccdd223f431869ed31af0d5049ca537325df32ac6640a504de56dd",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/freshness-current.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "3fb7593139e1003ed697990423e230974035f65cbbcc24f6700361abca3bb963",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/freshness-stale.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b45696d6136422acbdbe54ab4e77dc6461a37733eb0654d77df530372f5ae684",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/seeded-bad-link.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "19b7b251ba7fedcc1c3c1eb6e6f01bf3f546d0d0878804a47b6eb252a4235859",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/seeded-missing-sha.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e47cc3663769d08bb90fd900027e6a6b972745697409685ef94ab5d24a51c2ae",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/seeded-sha-manifest.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "42509fdf73a8138d32f513b87ae6d0a019b0a7ad75baa17c5bdb0862a0b8c4b2",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/seeded-status.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "3192aeac9125f870cb6502411b14b838f23ef283f750ba9665fbd2c28cac5620",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/seeded-superseded-contract.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "60e0eba6f836c7a4f5efdfa823d339ca1991f79f04b4748fbbf391e42c99446a",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/seeded-unqualified-claim.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "ee15254ad1e6786ea5532df2e38bb89845a9d0b57957c7198af13c13fd19958b",
+          "old_path": null,
+          "path": "tests/test_docs_truth.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr287": {
+      "base_sha": "290928907011e5b9f0909e7c7d8ef237a09d3a7e",
+      "case_id": "qm1-codereview-pr287",
+      "change_base_sha": "6bcd6b0622d3105b4b186008e2aff9018261d095",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "4481cc254fa6796979ad9953bba66fc4d305dee7b5dd99ae464dd5c683d6097c",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 1
+        },
+        "required": 0,
+        "total": 1
+      },
+      "head_sha": "13916b491270d4738861cf948c6ba8cf7fe34bdf",
+      "manifest_id": "qm1-codereview-pr287-source",
+      "merge_commit_sha": "431b3ecc7950a4e7063e966b16ce6d01a6d61450",
+      "merged_at": "2026-11-01T14:28:30-05:00",
+      "pr_number": 287,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 48,
+      "snapshot_id": "snap-648d5958f10774d67f814843",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "60198ecb4ca0f803bb45f41a43ff80852d4ed509e623c772ee4e173466f19116",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "575b13dca05e5ef9474c347343060fce7aa4121ff7287deb03dffc747b61233e",
+          "old_path": null,
+          "path": "CONTRIBUTING.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "7c7ed21e7fa3e424c98fba8e5001f6f07af598a98e57fc46ecbb7c1e7ad9548c",
+          "old_path": null,
+          "path": "pyproject.toml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "9278a23c671f7bb3ac9d4dd0ff5b494869e3723e3f7a2262d15c0c47d301eaa5",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/__init__.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "fee5931eb7f37ad6d3674d225290166ec491c10d28cb459eaa77cae05115151b",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/__main__.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "3a58d2608133e978050d291016706bbc5148650390401d374023790da597dea3",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/checks.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "68756f71fd81d2dae8c1a4569ea809d4f12770f64f67ebb8184d41097ce6827f",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/pins.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "9b1c49744902902515e689c87aa9921d49a6b914bd5dfc4294834026bc56a26a",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/private_capture.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "0b5de8c1090b3a4525d80a7038e4c696915b09152ce7ac91e9eeba501997ded7",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/reconcile.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "adeb08e4f5b5d837c46ddbd4de1f579929af1ef7e7f537e120c92b7c0617c544",
+          "old_path": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/recovery_inputs.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "45dd872f6aa759fe9490978673d2b8ebda6413725b503985cfde4d741e6b53fc",
+          "old_path": null,
+          "path": "tests/frozen_runtime.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "50b2b3f197549b8d0e9d8c043ba7aa637e08308afc721e66d154751549de7539",
+          "old_path": null,
+          "path": "tests/test_frozen_runtime.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr288": {
+      "base_sha": "7f5a6d746a9a94d4cf87992fb9bfd5923287db4b",
+      "case_id": "qm1-codereview-pr288",
+      "change_base_sha": "6bcd6b0622d3105b4b186008e2aff9018261d095",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "49535c7c8d73130d85405b5509218a3e3bfb25221f79a98b9437527b971ee295",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 1
+        },
+        "required": 0,
+        "total": 1
+      },
+      "head_sha": "95f8ef0c5c6c53c54bae53da4d000180c4dbea90",
+      "manifest_id": "qm1-codereview-pr288-source",
+      "merge_commit_sha": "290928907011e5b9f0909e7c7d8ef237a09d3a7e",
+      "merged_at": "2026-11-01T14:09:38-05:00",
+      "pr_number": 288,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 21,
+      "snapshot_id": "snap-8171a46e010ebfb0068964ac",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "da3e910d5131103cc5d96133aa98ffd6a6115452f45c3e480289ba1a909f0b82",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "ce9e724f6a069a4a4ee3b9d2f6d4f1589e7e5674efbf530a0589a9eed1a8ae6e",
+          "old_path": null,
+          "path": "docs/issues/vd2-test-evidence.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8d1909373a644f07104e8413618d0212fd54604d40bd8571afb155f5158dcee2",
+          "old_path": null,
+          "path": "tests/test_observability.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "f4edf2d4706fff40b4c4b34f42cebd60380be3e2c51086a78474092ab4ff6bf6",
+          "old_path": null,
+          "path": "tests/test_vd2_invariants.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "c5524c5fa4169f73480759636dbc0e9213af61086760a60b7f6b761ba6210727",
+          "old_path": null,
+          "path": "tests/test_vd2_provider_faults.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr289": {
+      "base_sha": "feb33d9ccb98e1989762537f3fa0f490a8ee6c9f",
+      "case_id": "qm1-codereview-pr289",
+      "change_base_sha": "431b3ecc7950a4e7063e966b16ce6d01a6d61450",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "8f565d748556f51e0c900edf2be96978b90e31c33b3ee4824548b3b6ad5d02d4",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 13,
+          "window_count_limit": 4
+        },
+        "required": 4,
+        "total": 17
+      },
+      "head_sha": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+      "manifest_id": "qm1-codereview-pr289-source",
+      "merge_commit_sha": "cc4e4a5ac2820b750c26a7898d9ab72d734162c2",
+      "merged_at": "2026-11-01T22:05:59-05:00",
+      "pr_number": 289,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 90,
+      "snapshot_id": "snap-a3b0ba253b9877c326233ef2",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "8f20c859160464fd854582dfcaef92e6f28aa8dd6d49d267a8a7061015f0226b",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d1e5a103641f19440a9ea92ce31a15ba5877ab602f332dbbfcdcba5a76b3b19e",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5cd556a27a6a8db17d343e4eec1a5d1c1cbde6c71fbe965afc8d03e6c7274863",
+          "old_path": null,
+          "path": "docs/TYPED-BOUNDARIES.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d7c9011d75a0ff87c4168491429f5b175d017dafb0b883cc060a8bb44ea74091",
+          "old_path": null,
+          "path": "pyproject.toml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d2ae1345f003ac04074451beb65174a5bc74282d0e9ca044c333a41643d9e9a2",
+          "old_path": null,
+          "path": "src/pr_review_harness/engine.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "0f12ceaa809267515c0ccd83c71a71bcea6ed54119b982b094be2334957acf53",
+          "old_path": null,
+          "path": "src/pr_review_harness/planner.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "451bfaf55012a8793c8d94c01b203a4057fe51e13ab03029b3080c82ac318873",
+          "old_path": null,
+          "path": "src/pr_review_harness/reconcile.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "731041c7df7895a9a3ddb188974ac452b0b4d90b999109224ed4ddb7b1c688b1",
+          "old_path": null,
+          "path": "src/pr_review_harness/report.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6bfec95d9633f55a0b41d8c62ad3ac1b5b54368f139b8668c5387335a94c360b",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_stages.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e9f982839d1ea6d9b96af39a10303bff894e14f04721675c24c85d69986605ca",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_state.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "ca1cb60abefeff4895dd790b93127c5d78531cfae30bd7898ef28e0675753593",
+          "old_path": null,
+          "path": "src/pr_review_harness/typecheck_probe.pyi"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5a29c05a90c4f8404ac01460e99eafea2ec227cc770e5b8db7885b5499b49bd3",
+          "old_path": null,
+          "path": "src/pr_review_harness/typed_boundary_probe.pyi"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "4852b24b4eb9d2257e948bee6ba1e9c880baf34889c9417de4e5c5212f041896",
+          "old_path": null,
+          "path": "src/pr_review_harness/typed_contracts.pyi"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "0a5d4c64b625963b67810ac2a66907a2750d61404f40f2f602d0256870685951",
+          "old_path": null,
+          "path": "tests/test_review_stages.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr290": {
+      "base_sha": "431b3ecc7950a4e7063e966b16ce6d01a6d61450",
+      "case_id": "qm1-codereview-pr290",
+      "change_base_sha": "431b3ecc7950a4e7063e966b16ce6d01a6d61450",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "279c857fdde484c32899f00d9900b78b83db022b506c962b806dc75e68999065",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 2
+        },
+        "required": 0,
+        "total": 2
+      },
+      "head_sha": "e2b5f871c2477bd7bb5fd542ac24150ce48349c3",
+      "manifest_id": "qm1-codereview-pr290-source",
+      "merge_commit_sha": "feb33d9ccb98e1989762537f3fa0f490a8ee6c9f",
+      "merged_at": "2026-11-01T21:39:46-05:00",
+      "pr_number": 290,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 38,
+      "snapshot_id": "snap-93007c4b3b5a8c75fbfb479b",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "7846dc4310bcfd24814983ced299eb5de243252cbff75914b27f7e7c444e8710",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3baa5746e0e7131eff94d3d3183815212fa62abd8f2cbe656dee123d14c5600e",
+          "old_path": null,
+          "path": "docs/DOCUMENTATION-TRUTH-CHECKS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "4413fdce9231da93f68db332130dba9f7fe7cb1020ad08c26c393c90cb6185c7",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "ea4977caff61a8bed6d6d8edc14e412f0bd303443de21ba3c7ddefa1b3e3731c",
+          "old_path": null,
+          "path": "docs/STATUS-EVIDENCE.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "35a82bfa2adabc4f9a748c24a789187877b9a3fe5398bd27479b35c89a1400c2",
+          "old_path": null,
+          "path": "scripts/documentation-status-evidence.v1.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5d7857a4ac48e366c7f5588fda6c47e1019296dc08c92b57638d1bd8f2031e1e",
+          "old_path": null,
+          "path": "scripts/generate_status_evidence.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "4531c52901822be93bff9872eb2cc957d22c60e1e4d078d34fed5ece624edf98",
+          "old_path": null,
+          "path": "scripts/status-evidence.inputs.v1.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "c77115dafe94bd7251853981e345ab59220b41c1c68b980a117a1077bf6aff6c",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/empty-sha-manifest.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a8e3f97f47c98c17ac455ea521f659bdca241a235e3adb9e584b01df5ec97b48",
+          "old_path": null,
+          "path": "tests/test_status_evidence.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr291": {
+      "base_sha": "7d79c7de505c3cf1d20c1493c2bb788e9c32dc44",
+      "case_id": "qm1-codereview-pr291",
+      "change_base_sha": "7d79c7de505c3cf1d20c1493c2bb788e9c32dc44",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "86e0f338551152539a438964dd3422fcd134e6b7a57259249a86d3d17fe62f5a",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 29,
+          "not_bound_by_context_selection": 1,
+          "window_count_limit": 5
+        },
+        "required": 5,
+        "total": 35
+      },
+      "head_sha": "94a7b415ca88946851d3ad8acbc434ade50e878d",
+      "manifest_id": "qm1-codereview-pr291-source",
+      "merge_commit_sha": "347a8337d0f1cffd6f570a8948c080d68f7cb52c",
+      "merged_at": "2026-11-01T23:56:57-05:00",
+      "pr_number": 291,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 135,
+      "snapshot_id": "snap-97c79433703e3d4628d595b4",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "53537239f366ba29d245fee6abd28c3a5af8d0a62a783ea32d11f34f3dbcaa2f",
+          "old_path": null,
+          "path": "docs/ARCHITECTURE.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "24be4bf838ed52b891fea545fe5b481b584436060b0f51e128fd74a154cf8ae6",
+          "old_path": null,
+          "path": "docs/COST-MODEL.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "eeea776d68fed2aa1837c63da461dd1ecf6167c750e29458d0758cde2f4fe395",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "20c7716036554d71839cab60551e69ab8e5ac364b4a09b88219cfb17eaf7d89d",
+          "old_path": null,
+          "path": "docs/RUN-METRICS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "4eaf7234e6847b207dd9e53a7167385f60cdadef3285e708031ec78d8c17482e",
+          "old_path": null,
+          "path": "docs/STATUS-EVIDENCE.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e5fb9cd3653940354866badbc44379b770a5ecb778d6b6591a1dba1e101c9509",
+          "old_path": null,
+          "path": "docs/adr/0001-post-ca2-feature-budget.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "c7ea071155bcb5cfa1447eb26237607e0af2328a8e690f1e66683e7ad94504c9",
+          "old_path": null,
+          "path": "docs/public-surface.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "370d8b95700daf716345f09e2dae31482868ea9b1a5f26d31f69f06c2c18362c",
+          "old_path": null,
+          "path": "examples/price-table.example.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "333ecb2b24eb4be71495991dc4dfdb15c4b59da68d57f5401eca1becd85c35ae",
+          "old_path": null,
+          "path": "schemas/review-price-table.v1.schema.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3436aa4abaed710bfad49fd5d827aaa5ff27f0c8cd3d44088d4e9230a1e78887",
+          "old_path": null,
+          "path": "schemas/review-run-summary.v1.schema.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a759a3c4ed408e023c29f31901c4c7d03adb2cb99cab25a925e907f3782a4e64",
+          "old_path": null,
+          "path": "scripts/documentation-status-evidence.v1.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "286d15b9a0fb2816eff69256a673e06f7db624ecc1dbfca0d28ae0857715331f",
+          "old_path": null,
+          "path": "scripts/status-evidence.inputs.v1.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "9029d44e0895aadb97323db3bbf63a11730d2ada3f1b3edffe511bbcd73f5750",
+          "old_path": null,
+          "path": "src/pr_review_harness/budget.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b13a2f2ae397f088df56de43db73befefe3f38006a7c72bdc9ab30925d420abf",
+          "old_path": null,
+          "path": "src/pr_review_harness/cli.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "d013b3fea84c601260f0484da1ff5ba17774ef7c6438dd73f3c594a6d8214e2e",
+          "old_path": null,
+          "path": "src/pr_review_harness/cost.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "0d7058e736318cd42761319a49d87522b56aca72f9c85b8d47ffcd2690c63d47",
+          "old_path": null,
+          "path": "src/pr_review_harness/engine.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6b10bd5a1e34193c784e50b146e18df505b43e7bdd50627222560c3c3f6828f4",
+          "old_path": null,
+          "path": "src/pr_review_harness/metrics.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "aa43e5c84534ba3c21c76add24b9ec6d32d406a934103abe3e2b4f22e9ff1252",
+          "old_path": null,
+          "path": "src/pr_review_harness/report.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a78d4c40466720b78afa100d7edb10392803b50973436177105736e21a887b58",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_stages.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d8b59b925f618e25c206defbb460aa12340c143efe767a70e38f8923f0273838",
+          "old_path": null,
+          "path": "src/pr_review_harness/review_state.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "57f6c04409a47598cb3eed01b1be1c2f47813813a301dd082f15a2f8286e802c",
+          "old_path": null,
+          "path": "tests/fixtures/docs_truth/freshness-current.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "14a78fade357c7bfccd364cf34abb78bc0e825ff707b471dc726563685c47d93",
+          "old_path": null,
+          "path": "tests/test_cost_model.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "cc733a7534481dd1ce36f35ba365aaf06a4ab0d0e69f0c2a2eeddf6ce4ebaff3",
+          "old_path": null,
+          "path": "tests/test_review_stages.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a5fda153b79debb8ca416ce5436d6ab9fd430ace08e4ee143090e1f0cbdf876a",
+          "old_path": null,
+          "path": "tests/test_surface_consolidation.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr292": {
+      "base_sha": "cc4e4a5ac2820b750c26a7898d9ab72d734162c2",
+      "case_id": "qm1-codereview-pr292",
+      "change_base_sha": "cc4e4a5ac2820b750c26a7898d9ab72d734162c2",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "728a62f6f9103f11b72566306354ebcba8070d6a619663494bed24a02cb35745",
+      "gap_counts": {
+        "by_reason": {},
+        "required": 0,
+        "total": 0
+      },
+      "head_sha": "0afa159317cc1de16118c5bc1975a84e12f90585",
+      "manifest_id": "qm1-codereview-pr292-source",
+      "merge_commit_sha": "7d79c7de505c3cf1d20c1493c2bb788e9c32dc44",
+      "merged_at": "2026-11-01T22:18:39-05:00",
+      "pr_number": 292,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 34,
+      "snapshot_id": "snap-5d9e21ce4acafe5cc9b0342f",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "66da313637804eeeb6b34d2a184d246a1dfe0ea7779d084d4428104f336fe8d1",
+          "old_path": null,
+          "path": ".github/CODEOWNERS"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5cd562e73e5de019bacf44ebb8d8a150fe73e5f32c0f22fa735b8bbebc0f8553",
+          "old_path": null,
+          "path": "LICENSE"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "c6aaa3fa1df3d28bc5c280352a8d334f284203ebef29f022ba7ed1c56b32c22f",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3d50c76b35bbe778d1e40b80dd2346153684bd90ddd44e658c7e8b2ef853cdc2",
+          "old_path": null,
+          "path": "SECURITY.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "66d96574c423cbe9f403bc5a846e4ae66137c4dcfe3ca17c0921522044081cc7",
+          "old_path": null,
+          "path": "docs/PROVENANCE.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "eddd664866af5e6ed618b883662ff72435f8640ebf769118c91263ed05d40c93",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8ab967014fb0fe0dc10c090e2924ef0eb1fbe632c2f4673022e42325351aff48",
+          "old_path": null,
+          "path": "pyproject.toml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "425f11fe3907be8750454622edeb308cec0d7295b2b7bcbd6cde224ed78802cb",
+          "old_path": null,
+          "path": "tests/test_governance_files.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr293": {
+      "base_sha": "347a8337d0f1cffd6f570a8948c080d68f7cb52c",
+      "case_id": "qm1-codereview-pr293",
+      "change_base_sha": "347a8337d0f1cffd6f570a8948c080d68f7cb52c",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "495a6c41a7a84125045c5f2145ca97550fe163d79090c2f16440a32101b45a5c",
+      "gap_counts": {
+        "by_reason": {},
+        "required": 0,
+        "total": 0
+      },
+      "head_sha": "2449edeed2e73109259fd5db4a597584028dde9a",
+      "manifest_id": "qm1-codereview-pr293-source",
+      "merge_commit_sha": "29af07de19f7407a6cf28244f9c3173ab73c7662",
+      "merged_at": "2026-11-02T01:05:26-05:00",
+      "pr_number": 293,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 39,
+      "snapshot_id": "snap-3ed7978e41541e9c0946a801",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "0b1f6e6cbbb24e79427e2de852562cdba2e0beb4d065d235db9a63597fc37fe2",
+          "old_path": null,
+          "path": ".github/pull_request_template.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b69b21d56fe38ede23ff88ac749c8bd093e82f281b92e00eb6aeac658c81f009",
+          "old_path": null,
+          "path": ".github/workflows/review-receipt.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b07402fbefb2e29633655aa0064c87c8c7e9c18a24d96983cc56bd44669d2c76",
+          "old_path": null,
+          "path": "CONTRIBUTING.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "392c16a1f66d557652cd707f4cc0669adc47267a41a02fc447bbed28cc3574de",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "52a570a3dc87a53f56db558b2f4bc1145fbd9f2ff90567d3bd1657af7efdee26",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "29c3925c0346f010629b641eba6cb35f1efd8c4a22181e5ed28cfdb1d4ec2c5c",
+          "old_path": null,
+          "path": "docs/REVIEW-EVIDENCE.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "54a20df120cb629a549ef10774875783fbf89bdd575b6e0eb7b902d1d98de41f",
+          "old_path": null,
+          "path": "scripts/check_review_receipt.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "d49e91c7baf291e53347b43af27ef118427aca92ff9a497a3ddd3a6f45af8449",
+          "old_path": null,
+          "path": "tests/test_review_receipt.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "d07fe01e48b0ac60e6d4ee839d71a040087414d6bcae90691eec96d7e4cbfc5b",
+          "old_path": null,
+          "path": "tests/test_review_receipt_workflow.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr294": {
+      "base_sha": "29af07de19f7407a6cf28244f9c3173ab73c7662",
+      "case_id": "qm1-codereview-pr294",
+      "change_base_sha": "29af07de19f7407a6cf28244f9c3173ab73c7662",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "24c8ead4f228062056c8edc402ffb1ea158b156c5126e8627f4fddcbac7d9867",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 4
+        },
+        "required": 0,
+        "total": 4
+      },
+      "head_sha": "6b6ec4798716273eea7582e4915515a207cc619c",
+      "manifest_id": "qm1-codereview-pr294-source",
+      "merge_commit_sha": "26f2336c2d912da83551dced061fde4fdd222931",
+      "merged_at": "2026-11-02T01:18:18-05:00",
+      "pr_number": 294,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 57,
+      "snapshot_id": "snap-452be6136d23c1ee17afc6b5",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "5dabb6ed056b8871af6c5f38f37f1ccc2845dedd45df8eead8d137b1e283f47d",
+          "old_path": null,
+          "path": ".github/workflows/release.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d892ba9dc28d119418d0aa85c8f2479779e4167a624bb5040619e8abba835f76",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "218fe09f8e7a256814c0e7abb7a7f580d0e983719b0a4172cf54e2a679403325",
+          "old_path": null,
+          "path": "CHANGELOG.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f1e1b1548ed34d6700d8505fc018204448a3876abd388d42e7632623f319f61c",
+          "old_path": null,
+          "path": "CONTRIBUTING.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "59d2532843698d5750393291e76746169fe8ec0757eadc532fd067780a30765a",
+          "old_path": null,
+          "path": "MANIFEST.in"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e8d6893831f7028ad705b71ff387ae815902eaa52e93dd1c768e26681283f092",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "13cfc46863011016679777052475f3d14a9294c5065b1b5e6545c85b269d8bfc",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b537b996e18f96eb9649da9c4269d21001f3a561044d8f2c5efceb6ac137cedf",
+          "old_path": null,
+          "path": "docs/RELEASING.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "d97170678389ceb5930ba54a7d29519617db17d5ffebbbe1d2838dd32ba6d0f0",
+          "old_path": null,
+          "path": "docs/VERSIONING.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b5831fcefcb56c05f78e77217f29e80fcb8bfa69bae193970bbc3c352143e1e7",
+          "old_path": null,
+          "path": "scripts/check_changelog.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "1eb5a2d2c2d58a0d28c1dc649929e631fbd5e322af0f08599818501813082db9",
+          "old_path": null,
+          "path": "scripts/check_version_policy.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "7af1336ebbf107a5c9a9fd9873e0b736a7bc7ad38d201828d8a48a48a1a268f4",
+          "old_path": null,
+          "path": "scripts/release-policy.v1.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "05ffba6bf285edbcda3199651b633690400155f4a91b651468e62130a620c07b",
+          "old_path": null,
+          "path": "tests/test_changelog.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "98627d17d3eaff1792827e9fb49933e22949624519eb329e563f1f2d22b76576",
+          "old_path": null,
+          "path": "tests/test_release_workflow.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a3c22ec77f656246d54192392293ffde5d4cb87c4f7a14d4ac612bfca5d6e942",
+          "old_path": null,
+          "path": "tests/test_version_policy.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr295": {
+      "base_sha": "26f2336c2d912da83551dced061fde4fdd222931",
+      "case_id": "qm1-codereview-pr295",
+      "change_base_sha": "26f2336c2d912da83551dced061fde4fdd222931",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "0da868a55ba66c88cc22f0bbb8c2b571843ef5c8a71feeceffdabdbdf307f87a",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 6
+        },
+        "required": 0,
+        "total": 6
+      },
+      "head_sha": "5dc96602f7aaac0fdeaffb25c45554ab0a0b23ac",
+      "manifest_id": "qm1-codereview-pr295-source",
+      "merge_commit_sha": "dbeeedba7c612408be001c93c2f95d8945d68d71",
+      "merged_at": "2026-11-02T01:59:11-05:00",
+      "pr_number": 295,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 85,
+      "snapshot_id": "snap-7f1a0ab2bf359fb9f515b28f",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "e4c20d3c3d1cf181286a68fac2b2a4f0345dfac27d91f71de0b14694c56d9774",
+          "old_path": null,
+          "path": ".github/pull_request_template.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "96c681bb3d504caf731eec4a48a5973d50e683a149ecb659d856558b12a18d88",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8bc675ed413a1e9277236bb79e731fe0b45170c70047db225526acdc3fdc26bb",
+          "old_path": null,
+          "path": "CHANGELOG.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b1c3b9262310b9fb4304c90ab8a4ed86f33be5db79c84977bd65e3fb17be09f6",
+          "old_path": null,
+          "path": "CONTRIBUTING.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "aa1e99f1fae30e898544ce7aa36f8cc2df09fca151c5ec29bd25050d318a9681",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "64c37751dacf6e8a5483480c7bd0a3c1c0e32da2af8e7a2498161a7f21941695",
+          "old_path": null,
+          "path": "docs/STATUS-EVIDENCE.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6f0cab31f31c76c5dd47690ce25507444e58725f79532b81dcf298ef4133f225",
+          "old_path": null,
+          "path": "docs/STATUS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "54db238c41679a88d28409eafe6a0c777f01b55b1428fd09b98b4318397b0b54",
+          "old_path": null,
+          "path": "docs/adr/0001-post-ca2-feature-budget.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "eb2295498435fe7d44fbaf8d7b0d8bcfe21ed10af846d61de67faff9b62953a8",
+          "old_path": null,
+          "path": "docs/adr/0002-production-architecture.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5cee20589cdf6fdd7f2faff3ea35caa46b08908d773f4e49d07e99edaf796557",
+          "old_path": null,
+          "path": "docs/adr/0003-transport-security-policy.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "7b3b505cc96c5ab50a13cbb41f11518d31559816a4c3cbd50d1722b48cb957ee",
+          "old_path": null,
+          "path": "docs/adr/0004-publication-authorization.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "103e000390d87dc2c90894ae7c8b4f3128f07d7247adfa1afa99340db3d09314",
+          "old_path": null,
+          "path": "docs/adr/0005-provider-boundary.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "17fece9fc75324ae8173d025af2ba23e62302eddd876e96c9265888ac5e3da94",
+          "old_path": null,
+          "path": "docs/adr/0006-evaluation-gates.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "57ad285ef5e2691805be8f1e725edba1dedb88235292d4c3dfd4e84c37a21ac9",
+          "old_path": null,
+          "path": "docs/adr/0007-license.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b689db6ccc0f7edb39661cafd9129479df42ad5d401d269ebfb6ed9ab50b9be1",
+          "old_path": null,
+          "path": "docs/adr/0008-release-version-policy.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "94a2e4d8595e606676edf85ef40f0e241f6875e97b1cbb7ca57ea91c82ed76a6",
+          "old_path": null,
+          "path": "docs/adr/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a7332ad207ee00d26d8a773e0ce70124d6312cdcee2478116804d9ae29f10b75",
+          "old_path": null,
+          "path": "docs/adr/safety-invariants.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e0bfc70228f9fa19c780fff25e6eac6c054f79c8b05ed721308ba96dacdd6745",
+          "old_path": null,
+          "path": "scripts/check_decision_records.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a807bfd61fddeb9694552d9cbdeff612c84c74fb296375250f4ecba3ffe7c576",
+          "old_path": null,
+          "path": "scripts/documentation-status-evidence.v1.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8a73d2003c5385cef01b34646026e54cfaea399f2e5b52c3968245b94deb7860",
+          "old_path": null,
+          "path": "scripts/status-evidence.inputs.v1.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "c39057f574b8d126dacd2d6971fe286c164b377241a1a2ce6cbeceff82916919",
+          "old_path": null,
+          "path": "tests/test_decision_records.py"
+        }
+      ]
+    },
+    "qm1-codereview-pr296": {
+      "base_sha": "dbeeedba7c612408be001c93c2f95d8945d68d71",
+      "case_id": "qm1-codereview-pr296",
+      "change_base_sha": "dbeeedba7c612408be001c93c2f95d8945d68d71",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "4a86b71a83501c9c98cdac67e0fc4556b15bdc10b8b0cae75efa993162c848d8",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 5
+        },
+        "required": 0,
+        "total": 5
+      },
+      "head_sha": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+      "manifest_id": "qm1-codereview-pr296-source",
+      "merge_commit_sha": "a3599f68b815e312b146ba3aae7ef523d3f91ba4",
+      "merged_at": "2026-11-02T02:10:19-05:00",
+      "pr_number": 296,
+      "profile": {
+        "profile_id": "codereview-native",
+        "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+        "version": "codereview-native-v1-candidate"
+      },
+      "repository": {
+        "name": "codereview",
+        "owner": "groktopus"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 66,
+      "snapshot_id": "snap-31b4b2f3a0652f0db5c95b35",
+      "snapshot_profile_hash": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "snapshot_profile_version": "codereview-native-v1-candidate",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "cd99b71b9ade64f30a0e21c4d32b57af1ad1e23e8b002e92cfcfb6ac6cb785ca",
+          "old_path": null,
+          "path": ".github/workflows/release.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3b309fca386a7c4bc8d61cf997266cadc8c9f023674b6ddb9d51c0d9900d2105",
+          "old_path": null,
+          "path": ".github/workflows/test.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e55ebaaff799eb85c8e491e561f159e445309c78bbd1d4d68ca6aeda405642f7",
+          "old_path": null,
+          "path": "CHANGELOG.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a7d416a84fe5a413384795f3a52095dae39534e8953274389e4810d23284f1c7",
+          "old_path": null,
+          "path": "docs/PACKAGING-VERIFICATION.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b2d800d121522c9023e8c5a215dd38bd273c94111826bd3f4ca5f6b383c0e781",
+          "old_path": null,
+          "path": "docs/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "1cc4c0fc9550c7e64c40cdaceca76f7172d150813302ec0b7b4ee8ae94ce6532",
+          "old_path": null,
+          "path": "docs/RELEASING.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "24c4742cd5a25d4a915f88af51fd9c425ad80cd4e1a46e4ae6faa368a29f4833",
+          "old_path": null,
+          "path": "docs/SUPPLY-CHAIN.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "2cc45bb6e17d466f4a5b5528f2c6e007107e19c922e7cf7e123db767fde6e1ae",
+          "old_path": null,
+          "path": "scripts/check_reproducible_build.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "fdec64784835bd4e263e8ae19f015a66ce7dd6cb9ec9b6168378eb1125ac63f5",
+          "old_path": null,
+          "path": "scripts/generate_provenance.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "837d815afa64a71813fc5f9a6b7d74803340e943b9046b31e2e95287c0a90dbe",
+          "old_path": null,
+          "path": "scripts/generate_sbom.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e07d9b7c8a89f420b4aeb37e35a508048b63e91c1d294ff36d643dcad440c38a",
+          "old_path": null,
+          "path": "scripts/verify_release_artifacts.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3736b650403875bb81c86ed8b75a5d49fb0b0983ebbd1bb6f2ae46fecbfc0c24",
+          "old_path": null,
+          "path": "tests/test_release_workflow.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e22ca80db3a7e43bf44a609702b83756dfcd8b24dce4b82052a0ac80e3fb68a3",
+          "old_path": null,
+          "path": "tests/test_supply_chain.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr708": {
+      "base_sha": "ddaae1ddac16659da2c055916b3c4c2f82a46cdb",
+      "case_id": "qm1-slopsearx-pr708",
+      "change_base_sha": "e288455501451a34468aa85aac8b667b363cd290",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "7489c9b87f17d96163d6c80483a61d14e533483574f2c8d3e685d1104e5376f1",
+      "gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 2,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 2,
+        "total": 11
+      },
+      "head_sha": "1788742586a8160eb9070ec9cae8d80c60071205",
+      "manifest_id": "qm1-slopsearx-pr708-source",
+      "merge_commit_sha": "060bac6a6d6021fffed3736fc601b725d6faa1b4",
+      "merged_at": "2026-10-07T07:24:54-04:00",
+      "pr_number": 708,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 21,
+      "snapshot_id": "snap-585ace516fac9bd143c56cbc",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "b8e483391e4c073bc48a8ebcfa97e858390c75d1d48e4460cc3149f9bdfc3206",
+          "old_path": null,
+          "path": "docs/experiments/EXP-094-sol-assessments.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "4abe2aac0734be79cd0d4085e251247aff5f8930f7784e545ee8428739de1477",
+          "old_path": null,
+          "path": "docs/experiments/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "015adb45f8bf7631a24ed4c5ad21d51f6005916e89db065726d0c175f13852a7",
+          "old_path": null,
+          "path": "docs/experiments/complete-pool-production-acceptance.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "ef362f25d9ae776621bba4dcd5c735b43d58a7e7aafb80e6aaca92a648f674c6",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-094/completed/interrupted-terminal.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5e137913199b15420a8761385213965f9f2167e7c02a07b867d889cdf7713978",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-094/completed/readout.md"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr741": {
+      "base_sha": "573a2f5d2dd9e09a0ab8bad82f3b6a6717d4d9d3",
+      "case_id": "qm1-slopsearx-pr741",
+      "change_base_sha": "573a2f5d2dd9e09a0ab8bad82f3b6a6717d4d9d3",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "ab5a9e600aafd4d2955d25d32ae6a61c92a246860ccd29b4e49453a93c3c5807",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 11
+        },
+        "required": 11,
+        "total": 20
+      },
+      "head_sha": "9d9921e58056a0accb5fb992baa251cef81d933e",
+      "manifest_id": "qm1-slopsearx-pr741-source",
+      "merge_commit_sha": "0364bc40b651236272135844f077382236870901",
+      "merged_at": "2026-10-09T14:48:27-04:00",
+      "pr_number": 741,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 19,
+      "snapshot_id": "snap-01b51d86ea26612566142928",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "6b9851ecfe12fd042a892cdcb7a6f85473591f54aeaa36543e8b3235678b5ab5",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/coordinator-gate-integration.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "45ead1ab8918260673c2cb5e08d725276332b681cb24deeca92a7d7d65103af4",
+          "old_path": null,
+          "path": "scripts/coverage_stage_orchestration.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "66c35b7a847de8abf87c09c6b1b134ad55fdf53185433aa1fa3e8c993bf7b53d",
+          "old_path": null,
+          "path": "tests/test_coverage_stage_orchestration.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr742": {
+      "base_sha": "0364bc40b651236272135844f077382236870901",
+      "case_id": "qm1-slopsearx-pr742",
+      "change_base_sha": "0364bc40b651236272135844f077382236870901",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "53cea93a0ba85152a48421779ef8a5ef65ba2b315e5080426e6a485f0c7e6bea",
+      "gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 3,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 2
+        },
+        "required": 5,
+        "total": 14
+      },
+      "head_sha": "60a2c4accac84d41728c69cba3691bbf4be5f587",
+      "manifest_id": "qm1-slopsearx-pr742-source",
+      "merge_commit_sha": "6a50c1077cb1abbf220981d7ae046e45e0c79c77",
+      "merged_at": "2026-10-09T16:15:57-04:00",
+      "pr_number": 742,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 26,
+      "snapshot_id": "snap-fbfcd3b9c581f3a8247f8864",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "67035d05ad0ca49de6b2aed80fa1d1e4b499eebf8240a355df8c5146b95bdb35",
+          "old_path": null,
+          "path": "docs/experiments/coverage-resource-evidence.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "2153bc5951dc9af63468d41d52fc00b8e3286dc2810f70a09bd466dc37f97ed3",
+          "old_path": null,
+          "path": "scripts/coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "1e1fd356d471d16bae43ee60ef8f5b72cb0289e782b7c8f0b2c1c9407b63aa46",
+          "old_path": null,
+          "path": "scripts/coverage_source_capture.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "4e92acfc1dc7c93e9aad6b4570b2235f412b762be5ae04c2892b2751672abc80",
+          "old_path": null,
+          "path": "tests/test_coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3ee7c4a608a620b8aacaf7936c7ba1af7b3097f8ccbc5781a9c6bf3e703b7803",
+          "old_path": null,
+          "path": "tests/test_coverage_source_capture.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e1a860a51f3ef7449d9beeb5e69de7821f10002391af9b1adb51fa1d706945cc",
+          "old_path": null,
+          "path": "tests/test_coverage_stage_orchestration.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr743": {
+      "base_sha": "6a50c1077cb1abbf220981d7ae046e45e0c79c77",
+      "case_id": "qm1-slopsearx-pr743",
+      "change_base_sha": "6a50c1077cb1abbf220981d7ae046e45e0c79c77",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "ab83da2924a0ec26d3ee8b0f071177b7893bbf8d48162eecd6cddcf4e9378487",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 3
+        },
+        "required": 3,
+        "total": 12
+      },
+      "head_sha": "1679f375e6528b767a747fffcfcb43d793e824dc",
+      "manifest_id": "qm1-slopsearx-pr743-source",
+      "merge_commit_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+      "merged_at": "2026-10-09T17:06:02-04:00",
+      "pr_number": 743,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 15,
+      "snapshot_id": "snap-955bb3a6cfc9218d72a6eade",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "1204bdaf313f6aa0da4a68dcf2d2b65c8985893c592de82530c10ef906b2805a",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/selector-resource-observations.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "c19598a6643b7d298ac38cdc6a3e571d25da997a5391bc8b8c6a06dc38da29d7",
+          "old_path": null,
+          "path": "scripts/coverage_jev_execution.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "dad19604330bff39ca309dbb4617454aacce53f0192ee30dcef7b398aea10c74",
+          "old_path": null,
+          "path": "tests/test_coverage_jev_resource_observations.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr744": {
+      "base_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+      "case_id": "qm1-slopsearx-pr744",
+      "change_base_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "5e7fda27f8c4bf49ad5478d6b5bb330d0c5e8dde0e14b662d668df4c4081b1df",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 20,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 18
+        },
+        "required": 18,
+        "total": 47
+      },
+      "head_sha": "6c9686985a4bc9a4c0c8673d316ad1ad564fbbda",
+      "manifest_id": "qm1-slopsearx-pr744-source",
+      "merge_commit_sha": "bc5e04302fa5d4dc133b858907cdc217e75eadfa",
+      "merged_at": "2026-10-09T18:30:41-04:00",
+      "pr_number": 744,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 66,
+      "snapshot_id": "snap-4c5a3a2fca03b98c928610cb",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "8aaec8e9a7810468b63650e9ff5915412633c685531a6799738ccf6ef66c78fa",
+          "old_path": null,
+          "path": "docs/experiments/coverage-resource-evidence.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "ec9f06c34d5f9c1632d9120df3037bf000b761d5444c54b972a75b718d32ffd9",
+          "old_path": null,
+          "path": "scripts/coverage_grade_closure.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "43408f89ae49c0746d35334520fc8b73e8829b1cbb39f8a35881a76b838ce0c2",
+          "old_path": null,
+          "path": "scripts/coverage_live_acquire.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "cffc325c467837ca0ebd0c5e33b83b66d1f889076eee2ce3db4b614d3511d424",
+          "old_path": null,
+          "path": "scripts/coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "84ecd32f337c6b04a9bb16d6a574b7e4d662f9d1d14c95aa60c98be1bd08d7d5",
+          "old_path": null,
+          "path": "scripts/coverage_source_capture.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "76cf9de6b5ef245da4cc08ad3e3f25cbd5ce817b9930abd9b864e28af176afa5",
+          "old_path": null,
+          "path": "scripts/coverage_stage_orchestration.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "554a4cc632ce56381732ec12c773768cafc27d99d2990362d580b7ffdf3700f4",
+          "old_path": null,
+          "path": "tests/test_coverage_grade_closure.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "87b13277d3041b76584099ffdd38104174df0befb956ddf04169635dbf189ea3",
+          "old_path": null,
+          "path": "tests/test_coverage_live_acquire.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6567d97d173c9cc5f766f46e254ba3a01459e8aab0e201f5bd69907966080c09",
+          "old_path": null,
+          "path": "tests/test_coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "81ac7b98af55b4834d90d21c8f96c2fe5c930261eb729b0181345defd4ed395c",
+          "old_path": null,
+          "path": "tests/test_coverage_source_capture.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "da205c1b2adc680293910d1c20aeef0010910d3ccd721d2c50ecf3b1f8e1da80",
+          "old_path": null,
+          "path": "tests/test_coverage_stage_orchestration.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr745": {
+      "base_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+      "case_id": "qm1-slopsearx-pr745",
+      "change_base_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "4e822818f2b15e6e3344fddb5a00fa8563a5cb911b981367e1db526286eee5db",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 8
+        },
+        "required": 0,
+        "total": 8
+      },
+      "head_sha": "1db229364205e35acc97442456f56a4c19a38050",
+      "manifest_id": "qm1-slopsearx-pr745-source",
+      "merge_commit_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+      "merged_at": "2026-10-09T18:22:39-04:00",
+      "pr_number": 745,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 17,
+      "snapshot_id": "snap-4f6697039622e7fb738d608a",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "28d5d8eb2bf106e67cac23ef6b853ebe747a5b57d7fbe5b25d2f3cc97f4f86ae",
+          "old_path": null,
+          "path": ".github/workflows/ci.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "058705e9741996ff1050bb092f04215dd4ba7956cb043591e3c5eba0c3b815b6",
+          "old_path": null,
+          "path": ".github/workflows/docker.yml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "971c0b0b413c92c99c0f324f0fc0fd2a2ec5bc3d7cc610cc74a84f609259ba7d",
+          "old_path": null,
+          "path": "scripts/configure_ci_dockerhub_mirror.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b354df35aaa43574ef565436d21308bb5c585230279c4c6b218eb36a2b464102",
+          "old_path": null,
+          "path": "tests/test_ci_dockerhub_mirror.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr746": {
+      "base_sha": "bc5e04302fa5d4dc133b858907cdc217e75eadfa",
+      "case_id": "qm1-slopsearx-pr746",
+      "change_base_sha": "6c9686985a4bc9a4c0c8673d316ad1ad564fbbda",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "2430ac164880254738deb839f8b0a4d8d241a1c61b1296d28b5b573cba5c3dd0",
+      "gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 2,
+          "context_truncated": 3,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 2,
+        "total": 14
+      },
+      "head_sha": "b85c6370e842522f78e32260d38cdc0c770744c4",
+      "manifest_id": "qm1-slopsearx-pr746-source",
+      "merge_commit_sha": "de1c4cbb2196233d941262cc5809ffa3bcec324a",
+      "merged_at": "2026-10-09T18:40:59-04:00",
+      "pr_number": 746,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 32,
+      "snapshot_id": "snap-bceab3ec0aed95bd97b3d257",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "d0af826281553a4de396dbd6ec81b2d68447b687582dd22242e496ddcc0f5a80",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "fee0d1222f952d3c7f0b52db6090d0a507afe4881ffb1c7bf22bf0de2493fc1d",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/selector-resource-collection.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "384afcda3f84ce1713fcec0a11ac2245011852ec53b0034fd3a8ae05b693bd20",
+          "old_path": null,
+          "path": "scripts/coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "0a8a772fa7d870e5c04faabf4c1dd2d2a199fe2a35a1bc0e1c188c1d43e8a489",
+          "old_path": null,
+          "path": "scripts/coverage_stage_orchestration.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a877bfbfcd75108847127af0e6b630634c4d35b95e51d2b1ce78ca55a153c29e",
+          "old_path": null,
+          "path": "tests/test_coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f86998efaf78e3b55bee4c21400d465f233b0ca7d3a3be542e478632f9822661",
+          "old_path": null,
+          "path": "tests/test_coverage_stage_orchestration.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr747": {
+      "base_sha": "de1c4cbb2196233d941262cc5809ffa3bcec324a",
+      "case_id": "qm1-slopsearx-pr747",
+      "change_base_sha": "8f5778a62f0b67d36626f764a47f864e39362f11",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "bd5451dbe2eb5e66f084f744c9ad104b11154651847dceb99df122d45127324d",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 4,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 5
+        },
+        "required": 5,
+        "total": 18
+      },
+      "head_sha": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+      "manifest_id": "qm1-slopsearx-pr747-source",
+      "merge_commit_sha": "317784b5aa14a880ae65e931248143054e4b7926",
+      "merged_at": "2026-10-09T18:52:27-04:00",
+      "pr_number": 747,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 45,
+      "snapshot_id": "snap-80c637b61a314baa4c35387b",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "9f1e2944d1146768e63cc18240bed577d2107ff8369c59ab8341c6a9d8c23739",
+          "old_path": null,
+          "path": "docs/experiments/coverage-resource-evidence.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e55d47fe3c69f64365549467bde6606aff20668bfe0c7c65d90ae3b18d3b4560",
+          "old_path": null,
+          "path": "scripts/configure_ci_dockerhub_mirror.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8c680244d8112a7d0b9f6a6ccb41650348fbf2e5f80446643b6aa1f17e8ef1f4",
+          "old_path": null,
+          "path": "scripts/coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b9f9e8144da4007d2c09d2bd7340444e64f892e5612067470302d045c0ec0d6a",
+          "old_path": null,
+          "path": "scripts/coverage_stage_orchestration.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3e3ac22eec9ba907ad2da34d064b7735fb6aca73787c24c8b22afd83c6f1144a",
+          "old_path": null,
+          "path": "tests/test_ci_dockerhub_mirror.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6834ce7b9c5ae99bba0a0bffd4c462b0ab2a4ecbebd71cbe5dd649bc48015b31",
+          "old_path": null,
+          "path": "tests/test_coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "78487d41630d9f47738d180d54f019a3ac9f8e79b74e9bfd8c68e8edc0104e8f",
+          "old_path": null,
+          "path": "tests/test_coverage_stage_orchestration.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr748": {
+      "base_sha": "317784b5aa14a880ae65e931248143054e4b7926",
+      "case_id": "qm1-slopsearx-pr748",
+      "change_base_sha": "317784b5aa14a880ae65e931248143054e4b7926",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "ad9263391f8b463b312072a216cd61f0dc4e71aa0ba06cef8a608b44c31c9446",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 5,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 14
+        },
+        "required": 14,
+        "total": 28
+      },
+      "head_sha": "0c2f260110b5dcb7b35226f024a381682988aa07",
+      "manifest_id": "qm1-slopsearx-pr748-source",
+      "merge_commit_sha": "31e39043cd60cb6d85ef3c6a2d4d84f601c484e1",
+      "merged_at": "2026-10-09T19:05:16-04:00",
+      "pr_number": 748,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 37,
+      "snapshot_id": "snap-59fd40449bb0d001ff81dc9e",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "889ac61a185e603be4d3b2d954adbd5a1fc19304a542185b11d3ea5323fa37f7",
+          "old_path": null,
+          "path": "scripts/coverage_answer_execution.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "0865c90221ba64bbc8dde021c3d754d9e1100d9e6291818713d9916ca6b59a48",
+          "old_path": null,
+          "path": "scripts/coverage_execution_controls.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "2c55478383219cd6251c4672a53fbb474076a51b0a1ce9b6fc023e148b55ac06",
+          "old_path": null,
+          "path": "scripts/coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "4dd4606c2b9acc81c60811f71cdcc7788dc959710acbf89265039c8782f210e9",
+          "old_path": null,
+          "path": "scripts/coverage_source_capture.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3663f2d69596a9d71ce735bc1039f4b90abd687ec39818867810c60bf38cb30c",
+          "old_path": null,
+          "path": "tests/test_coverage_answer_execution.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "82c6302265599b6378912092d73356c078472bf593269e66050569d11f82eedb",
+          "old_path": null,
+          "path": "tests/test_coverage_resource_evidence.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr752": {
+      "base_sha": "b3a97c45a9d8ff8b570618ca64a6023593f5b282",
+      "case_id": "qm1-slopsearx-pr752",
+      "change_base_sha": "b3a97c45a9d8ff8b570618ca64a6023593f5b282",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "69d1ec292b530ec4b2ac9cf5155b8cfd9bc8bb7f1eac5d0a7e131ea2e9732f94",
+      "gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 2,
+          "context_truncated": 6,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 8
+        },
+        "required": 10,
+        "total": 25
+      },
+      "head_sha": "e9c0ea7e26ce68b3b58afe12bbaee837b1e46d54",
+      "manifest_id": "qm1-slopsearx-pr752-source",
+      "merge_commit_sha": "461bd991715cb2e7971d16d063e8a261fe13eb04",
+      "merged_at": "2026-10-09T20:42:01-04:00",
+      "pr_number": 752,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 40,
+      "snapshot_id": "snap-bb1c4048ca856142f0814e6f",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "5513eee86fee0823a387d57b86e3ee6c861806a01a0d9cc17aac719cc12b4cbb",
+          "old_path": null,
+          "path": "scripts/coverage_live_acquire.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "2673bc988e90cc0d3f82c03a3a631f71615d576e84ce96bff274c2467a8a8981",
+          "old_path": null,
+          "path": "scripts/coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "ad22e8aff2d4d5624dc9721e59bed0ab2b4f8d1910df8babf6909acddbf9be1c",
+          "old_path": null,
+          "path": "scripts/coverage_study_acquire.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "8551bba8ba5e8a632dcf900e92161583948846232b1a5859785bca1832961c8f",
+          "old_path": null,
+          "path": "tests/test_coverage_live_acquire.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "48cee765c9180ce65db07b7370fb2aebdf44acccb5c2b86c432830c1b6fa4b10",
+          "old_path": null,
+          "path": "tests/test_coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "7bc279df72f4cb38a27b4e1eb90d9218a8c6cfdfc750d4b212f7474e5156f35f",
+          "old_path": null,
+          "path": "tests/test_coverage_study_acquire.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr753": {
+      "base_sha": "461bd991715cb2e7971d16d063e8a261fe13eb04",
+      "case_id": "qm1-slopsearx-pr753",
+      "change_base_sha": "461bd991715cb2e7971d16d063e8a261fe13eb04",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "48e1dd009f8071a0818a6c2312e063ee0356ca8b976db934a248b83ac982c783",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 6,
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 11
+        },
+        "required": 11,
+        "total": 26
+      },
+      "head_sha": "10d44dcc234327eee6a5e8d677da9ab8357703f5",
+      "manifest_id": "qm1-slopsearx-pr753-source",
+      "merge_commit_sha": "ab7504862b407d8bb4583e5a582b10c3568339a2",
+      "merged_at": "2026-10-09T21:14:33-04:00",
+      "pr_number": 753,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 30,
+      "snapshot_id": "snap-a2e4f89b6fea8214ba951f57",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "added",
+          "diff_sha256": "23cff2263479e702ca927f7b5803105183732f3b266fc356636b35f5aaaa1c65",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/explicit-ca-trust.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "83694baf1c8e798d8df1171651e05ed26e4169fe6a10d99b88ffef852dc8c784",
+          "old_path": null,
+          "path": "scripts/coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b0f86b1f8bd6901ea6fc815d405e8824f0a7e4d3c1058c4ff71f1529b1a5a89d",
+          "old_path": null,
+          "path": "scripts/coverage_source_capture.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "74b8ebea18b80efeeadd4038e5880eb4e26fbe470988f9a2e0ce7eefdd3b843f",
+          "old_path": null,
+          "path": "tests/test_coverage_resource_evidence.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "457f723481219271bff1d832c17e7c083838f0f690b3e5aac0f8dc573f3f4633",
+          "old_path": null,
+          "path": "tests/test_coverage_source_capture.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr756": {
+      "base_sha": "a05b8b78c44b393320893223a3cab4414c26f562",
+      "case_id": "qm1-slopsearx-pr756",
+      "change_base_sha": "a05b8b78c44b393320893223a3cab4414c26f562",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "a7c4b4229b49ba708f955a9a9c783029e0b2eee69168c38e1c5929f411f13122",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 2,
+          "not_bound_by_context_selection": 4,
+          "window_count_limit": 5
+        },
+        "required": 5,
+        "total": 11
+      },
+      "head_sha": "6dfbcf3e1aba7216c767dcb609d26f3bda953822",
+      "manifest_id": "qm1-slopsearx-pr756-source",
+      "merge_commit_sha": "a2539461c1ba66879c73d12df93e5aea7e00c5ef",
+      "merged_at": "2026-10-10T00:07:01-04:00",
+      "pr_number": 756,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 41,
+      "snapshot_id": "snap-4d99ba69637904666943a214",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "4a1b03263809464f9c016ec07a7d57b748b9c002f6b6521a948be6f00b00473b",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/operator-runner.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a8086f8796fbdd4ffba8db789fce57c4a4210b3dd5fe4e66d054ce976b4d1240",
+          "old_path": null,
+          "path": "pyproject.toml"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "2e183ba1a87f222f99e441820eacc3d87a0d19581e38042bb876f58c14afc30b",
+          "old_path": null,
+          "path": "scripts/coverage_operator_launcher.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "4cd825fb0abfdf11a5d9943150ff8f1e67e5d4bcf5e8cef09e2440f7ff758407",
+          "old_path": null,
+          "path": "scripts/coverage_operator_runner.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "3e049335f3cfba88bf5afd0590fa5702d6a9a2c00800aea7389b6cca824e2899",
+          "old_path": null,
+          "path": "scripts/coverage_runtime_environment.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "6be0e9999f94535b792b4d951b6148a334033c81ba79c01402b66794d08e24b0",
+          "old_path": null,
+          "path": "tests/test_coverage_operator_runner.py"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "03ad4fc7ac3347a03506a825d4ae050511563b069a513ff02ae7ca4e5d54d47f",
+          "old_path": null,
+          "path": "tests/test_coverage_runtime_environment.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "af30ecd1d325d37d1ec1bfb3031c6647046266dda2791f9df4a816274c9abb3a",
+          "old_path": null,
+          "path": "uv.lock"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr757": {
+      "base_sha": "a2539461c1ba66879c73d12df93e5aea7e00c5ef",
+      "case_id": "qm1-slopsearx-pr757",
+      "change_base_sha": "a2539461c1ba66879c73d12df93e5aea7e00c5ef",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "216a5f4ccb9fe649b43579439c8a4a93550ecfcb01d98fa3145cf48a9040069d",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9,
+          "window_count_limit": 1
+        },
+        "required": 1,
+        "total": 10
+      },
+      "head_sha": "59b15962037724718a6c41f57b6a17b87e35a5b1",
+      "manifest_id": "qm1-slopsearx-pr757-source",
+      "merge_commit_sha": "1f3df526e4f7193301d784b2545e5820752f49ca",
+      "merged_at": "2026-10-10T01:10:09-04:00",
+      "pr_number": 757,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 19,
+      "snapshot_id": "snap-8e123b98b4e3ed38e66b764a",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "9887cc896b2d9e4b0ce0665da097fb67b30136b62054863a3dffd100dba39c18",
+          "old_path": null,
+          "path": "scripts/coverage_operator_launcher.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a671622e65fdea302f0a65efc795f2d40e580b30de6b624428efd6c8cd72aaeb",
+          "old_path": null,
+          "path": "scripts/coverage_runtime_environment.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "c41b8128f2f91879430625acab7f364e90a9cd5627a23232175ef83fff186108",
+          "old_path": null,
+          "path": "tests/test_coverage_runtime_environment.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr759": {
+      "base_sha": "8c69cde94436782bde13efa018c2f428f5a6881d",
+      "case_id": "qm1-slopsearx-pr759",
+      "change_base_sha": "8c69cde94436782bde13efa018c2f428f5a6881d",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "09b287afc2f5310adc0c47392161cdad2384cecfac78babeff37ff62bc981cba",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9
+        },
+        "required": 0,
+        "total": 9
+      },
+      "head_sha": "6fbd0675091420397b6757e7e87816305e9f5b58",
+      "manifest_id": "qm1-slopsearx-pr759-source",
+      "merge_commit_sha": "032c56c673ea87da6885f2cfc19c699979a0a77f",
+      "merged_at": "2026-10-10T09:25:24-04:00",
+      "pr_number": 759,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 18,
+      "snapshot_id": "snap-d5a43f5d4c64a1bc7b9701eb",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "42b8a6c2dbcdcae4bae16092a6b3fd36fb647ca6ab3517bb067d8fe9643a634a",
+          "old_path": null,
+          "path": "docs/MCP_SERVER.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "24f686528999c113bbdf8bcc5105eac2cfbef9667e2680ae16a291f67bddcffc",
+          "old_path": null,
+          "path": "docs/experiments/EXP-107-gateway-structured-results.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "d365083606e85904e3d9249863de2c66c3a1cef72f239fbf6944773954448989",
+          "old_path": null,
+          "path": "slopsearx/mcp/gateway.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "1f71c1e973ffffba1151e159be7754aeea996b25cf005e6f7282916cf2c7ee07",
+          "old_path": null,
+          "path": "tests/test_mcp_gateway.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr770": {
+      "base_sha": "282cf846e0f834aa55487f948ce66c1b8426a954",
+      "case_id": "qm1-slopsearx-pr770",
+      "change_base_sha": "dfcb164abdf8eef711ce6a447ef78c42ec696021",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "87dd36d16efe4d3accfed985f4834a5da172cf7181b70f1d3e5b9d2eaf0f8232",
+      "gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 3,
+          "context_truncated": 1,
+          "diff_truncated": 3,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 6,
+        "total": 16
+      },
+      "head_sha": "5359f410a87f0d3275366e3d6bde8b68aa8557c7",
+      "manifest_id": "qm1-slopsearx-pr770-source",
+      "merge_commit_sha": "3d8a21457776dd03451b3e736218b7fbea69bc89",
+      "merged_at": "2026-10-11T00:32:44-04:00",
+      "pr_number": 770,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 98,
+      "snapshot_id": "snap-930458eba9d270f546e83939",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "306637809a3d65b0b05bac309b1b3b536ecced59f4bd6a6fe7c20a2222a43456",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "93c6ca4ef7d54c11b59c77357d1ff8ae3f4914f89afd1603354a6ce804241e13",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/capture-fetch-boundary-review.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "df5cf4a7c0c223217ef7a224824da50c81742dd91460f095da783a4eab5c4eeb",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/operator-runner.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "6c2783ada8b4ac778459ee8efef9ba30e442291c33aba1dbb6e1db6fbfd4da75",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "c79dbba116b55226a50d5255bc5aa6578f62626d2a4ef99f4e7de2ff09e2845c",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/candidate-runtime-identity.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5201c008cf011a244c64d492f79e726db9ff7f2db212ec985d1ef249dbeff375",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/cohorts.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "320c60d3605335f32b195958f5b8d28ae93790f0aca3d8532365a9c951f4a442",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/confirmation/acquisition-plan.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a7eadc75bd78e51de5bda67287cd72e00c29251246de8cb5d9b646293c524e95",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/confirmation/answer-assessment-plan-shell.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "4706366aca03f2ee280ec4553059c5bb773c108f3c30981954f94b15e0929243",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/confirmation/capture-plan.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "cfb457a67d0443e7a71f9c98a84f4f91031652e71adf447b737d20c3e51c0e56",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/confirmation/initial-registration.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "50f4d5bf6a49daa73d4f985a8a248f9e1d7edf7225ac3b9388795274bf5aa594",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/confirmation/reference-manifest-shell.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "f333ae1f326a359c37e06331fc1a13d06046def3f7ebdcf619671a77cb89584a",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/confirmation/source-capture-late-placeholder.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e34d8119d472f05b86ba9f7bc13cf6b022a4f938a90abf10dbfc8863d35edb11",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/confirmation/task-input-late-placeholder.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "226428eca81020c2f1d442155b42b6b0f4e4bef2eb2beb1f44fda5a034409400",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/current-qualified-source-closure.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "fd848d6bbd8e04e7c0cbf5a14d5efb750e9ca961a9b160c7e82f5969e49399d4",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/designated-w0-preflight.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "60ec2cecb8a9b3b62949ef5f76a63996a0b982fc2f7d9c4fa8f768cbdc295f87",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/development/acquisition-plan.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e23fdf7b17bfc62e880b369932e5702c1eb80adf1c302491891a1375ec6af555",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/development/answer-assessment-plan-shell.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "e0e370bea907b21ce24c0b67443657a018a849a8aca18d020b9322fe71e7f811",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/development/capture-plan.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "57611648d43e6703cd5514ace3dd339e4d7cf5ede637418493f11ace3473aee4",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/development/initial-registration.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "fe4126741daa8580cf4599c9b30f52995c4797c63f4fddb5dbe25338b6651539",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/development/reference-manifest-shell.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "d64eb0d4d3817c1a5ee0736ae0834adb8dbf17737bd97fa72ca13ab53a74b3e5",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/development/source-capture-late-placeholder.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "272394dffc8027c0e2f08c457f16e4d552a85d40e46499416bc5b39817bc0504",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/development/task-input-late-placeholder.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "017568da177da2fd48a1ca54b5b0925e9cf12cba6bbd5a6cd50c42a0a1bd4dea",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/protocol.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "aafa493b1069eceb4effd99755d8f8b0104b6e133553641001906b98a8e37cb6",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/registration-inventory.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5c098bc33750b368b4a669977f20a508ea61408d3fbaae03daf7a986288e13af",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/registration-provenance.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "daa491a29af5bc5bc51a14b98dc8d87d84d366430226614ebefa127f3bdab4af",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/review-blockers.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a9c211227c26746843cb04dc10a0e900f1a7b8574dbf3c0f28b72dcb1f059525",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/selector-input-map-contract-proposal.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "0f7af634a3f95e0c265f5f7dd63511b76d67810eee0d72795b1b0d498bbfbaf3",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/selector-readiness-inputs.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "ab5cf68fea07c96dec11021d8e0b3f525952cd48e6d29974975ba3059611d645",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/source-and-environment-provenance.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "902383c754e41b83444198a71af03da084b4dce33197c8a951455ffec23cc6a0",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/static-material-review.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "370fe03dc621435ad0c087592cb302d5e27c4f447f93c8876040050ecb4e4152",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/target-host-preflight.json"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr772": {
+      "base_sha": "e011f264bc4a16dfab535b4dfd492c014ce0519f",
+      "case_id": "qm1-slopsearx-pr772",
+      "change_base_sha": "e011f264bc4a16dfab535b4dfd492c014ce0519f",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "b143a92c760ad804ca5668b2670d9e5751f0c050443bba4dad86ed82c0f9c7c3",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 8
+        },
+        "required": 0,
+        "total": 8
+      },
+      "head_sha": "54936ae739577df2a18cc3d47e877ad6cff95272",
+      "manifest_id": "qm1-slopsearx-pr772-source",
+      "merge_commit_sha": "0e486ff95ff086906f309d1c1077a0a5ec2ba94c",
+      "merged_at": "2026-10-11T00:21:22-04:00",
+      "pr_number": 772,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 29,
+      "snapshot_id": "snap-4f472bc41e33b7e68287e108",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "1e8b3de95f596a244dd8a3ab64e3f1331bb20882ace1c5667c4c9bcd96843088",
+          "old_path": null,
+          "path": ".github/pr-review-publisher-policy.json"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "9f79199a17ae931f4bfe1d27d05cc28bcc8b8a8a8026150448968eec1c0ef4ec",
+          "old_path": null,
+          "path": ".github/workflows/droid-review.yml"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "5e5372aadda98290f5a4ae6f706dbc70a25c1400e3bcb5b4975de391eca697c0",
+          "old_path": null,
+          "path": "README.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "408376abcf02ae8941e28292d06bad5d313b42fd43608b8df5caa795109d8d18",
+          "old_path": null,
+          "path": "docs/code-review.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "918cd4c956ac6b19296428e3f3dc101f1bed8fc4acc04055e9f5f44d1497d297",
+          "old_path": null,
+          "path": "tests/test_disabled_review_workflows.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr773": {
+      "base_sha": "0e486ff95ff086906f309d1c1077a0a5ec2ba94c",
+      "case_id": "qm1-slopsearx-pr773",
+      "change_base_sha": "e011f264bc4a16dfab535b4dfd492c014ce0519f",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "ee1b22898c1a1745af17098c9d8301d5f2379ee444a2c654d12830b90fed96ea",
+      "gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 1,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 1,
+        "total": 10
+      },
+      "head_sha": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
+      "manifest_id": "qm1-slopsearx-pr773-source",
+      "merge_commit_sha": "282cf846e0f834aa55487f948ce66c1b8426a954",
+      "merged_at": "2026-10-11T00:23:14-04:00",
+      "pr_number": 773,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 11,
+      "snapshot_id": "snap-b5321a0b540ed960929d2ae2",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "ba221ebf9a1d993f6d474ec417ddc5326e49b74884a80596fa2dd6ffcdd555ca",
+          "old_path": null,
+          "path": "scripts/coverage_operator_handoff.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "a0e59b248144c3751d0f62acb83e75114a691b8007a80b9c687d173093f3aa84",
+          "old_path": null,
+          "path": "tests/test_coverage_operator_handoff.py"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr776": {
+      "base_sha": "8d5875a8d99345db598cbee54d598cc8e0207022",
+      "case_id": "qm1-slopsearx-pr776",
+      "change_base_sha": "3d8a21457776dd03451b3e736218b7fbea69bc89",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "47b6ba70ae34f0716bef2caba288afdeeb533cc35f4e7fb51dc6c454eee975a2",
+      "gap_counts": {
+        "by_reason": {
+          "not_bound_by_context_selection": 9
+        },
+        "required": 0,
+        "total": 9
+      },
+      "head_sha": "e7263302a5fc405394e881df6a181f41c52f1c13",
+      "manifest_id": "qm1-slopsearx-pr776-source",
+      "merge_commit_sha": "e3f2305ca8b52c50070bf23e8b2eec3e2e0eed37",
+      "merged_at": "2026-10-11T00:55:12-04:00",
+      "pr_number": 776,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 12,
+      "snapshot_id": "snap-527add3aef4f22c52ae3b9c3",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "fe5bc1472248a846af8515c86ced9859b3e0aae18e80c7fdb649b0deb99f9ebb",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "77766c9e9c5f4e2f4b234247aec2c9eda5f9ffc5909f0f703d0cf1de2a8d7c30",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/startup-refusal-2026-10-11/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5446c5db970ea4c760bf77bc91f41693c41832b85d31024b20e23b93637bed2c",
+          "old_path": null,
+          "path": "docs/experiments/evidence/coverage-first-study/startup-refusal-2026-10-11/result.json"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr780": {
+      "base_sha": "0f6aa187bdfa4220d9875f49ee0ae2e2a741d0e2",
+      "case_id": "qm1-slopsearx-pr780",
+      "change_base_sha": "0f6aa187bdfa4220d9875f49ee0ae2e2a741d0e2",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "d556705948e632600f806b7191b7122b857298e9eeebb2ed4c9f0691814ed4ea",
+      "gap_counts": {
+        "by_reason": {
+          "changed_hunk_exceeds_window_limit": 5,
+          "context_truncated": 5,
+          "diff_truncated": 4,
+          "not_bound_by_context_selection": 9
+        },
+        "required": 9,
+        "total": 23
+      },
+      "head_sha": "0c335c2dbd1874813be6705c85ecf8974e60f0f9",
+      "manifest_id": "qm1-slopsearx-pr780-source",
+      "merge_commit_sha": "178bc43bad357a7d9bb2177415cd75807bbb7c3d",
+      "merged_at": "2026-10-11T12:57:04-04:00",
+      "pr_number": 780,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 62,
+      "snapshot_id": "snap-a23d9b2de6c35decc9abca0b",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "72c893248e2f1a9000a835549da6857cd4624e31ad5b682d67dae2c088a01ad8",
+          "old_path": null,
+          "path": "docs/experiments/EXP-108-gateway-catalog-pagination.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "f926e385d30add866ef4b0a2f60c518a99afb30810293a4585abc031134b94fb",
+          "old_path": null,
+          "path": "docs/experiments/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "f11089428a7d4852bcccc176ed4860e2594691d6bc3cae1008e720add0b2dd78",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/README.md"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "74cd29d0c9ac3d5c3d6a6d8e4f19467f38d98941e39d5d083ec954e15c0c345a",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/SHA256SUMS"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "7dece198d761990acfc1dbb452d6a393a0b3436c699bc3dd57bc6aa3b6995a99",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/automated-and-runner-review-records.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "843fb8cbf2672ae7e240ae37d1527adb200afed7117effb9fb32df41eedd6ab2",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/candidate-patch.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "bbb016898fb255fadb8f7bfd8e7ec9f5105c87979b41d2b0d16902970f08360b",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/candidate.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "8c3add424c752ea418958f8a9301278ed4791ff76d515a51edb572df227dd584",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/cycle-accounting.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b3ef1c805f0a66a9772b2f76ceda30073d8f15c731dc2a95ff3bdd0036e4becd",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/delivery-gate.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "0a7a459a11b4b98bfa32c21f85d35874a402af01f98c2862010b7d22ff1513b0",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/environment.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5d9256a1fc4d319f91650a9ce73c5b4c76e83f0860b0710e938b716bca5ccb68",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/final-candidate-patch.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "5ef209e0f15e9e2ba7a1bd2622f7abde82aca7e5d7ed1c4cce875857d3d8d5e1",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/final-ci-summary.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "839b0af82ef74f91f51dc430504fca2fb9b80e5218e5d999e88e73ca0cc6793a",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/first-ci-failure.log.txt"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "b6b37fc4c0545b5479de77f5b388da5f287852fa4fd901c7220a1ac377bfa9d0",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/readiness-setup.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "2ed4134e6757d77466a844dfab5e766e12565bfb6033ecfa9365991b05f02a7e",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/runner-review.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "50ecbfe6dd042dedc7302092ccc3977681e88d2b3a58d96fac25abb6a300ed51",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/sdk-fixture-corrected.log.txt"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "cfe9cdaeab990796decf4ad899b87951cf2c732cc4b69492ccb64189e58365cb",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/sdk-fixture-hooks.log.txt"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "a0e8d18206619651cf47df6b571e30dfa38475ce5e36c0a6f5f7f1b04d5ae4c8",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/start-timestamp-correction.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "db971b3e170e02bb31fc47eafe6a4736c6396c5146fa558a70dd6b16c4779efb",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/unrelated-hook-patch.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "8e183d939e96d12f03dadce517e5cf64300bf7e7a270096c9a9a93fbcb8df5bc",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/validation.json"
+        },
+        {
+          "change": "added",
+          "diff_sha256": "10f1b66e8d4adb94583b312844bb50dc8f0ee941dbe2b3e522fc9aff6e7b34ae",
+          "old_path": null,
+          "path": "docs/experiments/evidence/EXP-108/verified-merge.json"
+        }
+      ]
+    },
+    "qm1-slopsearx-pr874": {
+      "base_sha": "730c37a5f48b9830088594582cefb4c2f10a35e8",
+      "case_id": "qm1-slopsearx-pr874",
+      "change_base_sha": "326dc1f05a6dc7a6d0d1406301e0ce58e2b5fb82",
+      "comparison_mode": "PR_MERGE_BASE",
+      "evidence_metadata_sha256": "79a0f80f793360d48738442ffb5c560ad7761e0715da9c1e3fd7828f408402bc",
+      "gap_counts": {
+        "by_reason": {
+          "context_truncated": 14,
+          "not_bound_by_context_selection": 6,
+          "window_count_limit": 10
+        },
+        "required": 10,
+        "total": 30
+      },
+      "head_sha": "9ab07ac9dbfdcd6d25bc19c472ea4230519bc0ef",
+      "manifest_id": "qm1-slopsearx-pr874-source",
+      "merge_commit_sha": "d207d4496129d496fe8a74b040ebe1a71151b6f9",
+      "merged_at": "2026-10-16T09:08:17-04:00",
+      "pr_number": 874,
+      "profile": {
+        "profile_id": "slopsearx",
+        "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+        "version": "slopsearx-production-v8-static-review-boundaries"
+      },
+      "repository": {
+        "name": "SlopSearX",
+        "owner": "magnus919"
+      },
+      "schema_version": "qm1-source-manifest.v1",
+      "snapshot_evidence_count": 57,
+      "snapshot_id": "snap-9de90200af9b40d01c7fb0ea",
+      "snapshot_profile_hash": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "snapshot_profile_version": "slopsearx-production-v8-static-review-boundaries",
+      "units": [
+        {
+          "change": "modified",
+          "diff_sha256": "31eab25d8df5c2234a5d5b008bfb5cf4815e3e4240c358095aa4228bd66b7eb6",
+          "old_path": null,
+          "path": "docs/DATE_FILTERS.md"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "39660cda23f8771bbbc789e035c9b4c7f94020abbebc7b7a8410a73ec0bab82e",
+          "old_path": null,
+          "path": "slopsearx/formatter.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "cdfae382d4d7665492121a407b13b0366e6656e90ab455d1ad4963749c1ee4c8",
+          "old_path": null,
+          "path": "slopsearx/mcp/tools.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e55439c691aa008609c0631c7fe00f2af2a6d728af62220a715795200b4e13ee",
+          "old_path": null,
+          "path": "slopsearx/server.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "7a31a73f0d3988317bf7ab7a2368d5bd531e268bbecccf22717304aa094fb99e",
+          "old_path": null,
+          "path": "slopsearx/service.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "54546c4e9591c508874fdf50fb16366d69607dbcf4031f2d87bed7bbaa4d98ab",
+          "old_path": null,
+          "path": "tests/test_filter_semantics.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "3743994c4b2c377f025333477c31606beaf409aa634a5f85b1404091e789d2e5",
+          "old_path": null,
+          "path": "tests/test_mcp_enforcement.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "e86c28158b07f446a763ed6092046ba8292bc69884217215d61ad05d7cf859de",
+          "old_path": null,
+          "path": "tests/test_mcp_tools.py"
+        },
+        {
+          "change": "modified",
+          "diff_sha256": "b1d02df1b12cc7788b78fbee291de79d2ad960d667c94df2cac3d9f343687f4c",
+          "old_path": null,
+          "path": "tests/test_server.py"
+        }
+      ]
+    }
+  },
+  "schema_version": "qm1-source-manifests.v1"
+}
