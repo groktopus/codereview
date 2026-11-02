@@ -395,6 +395,121 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  quality-scorecard:
+    name: Quality scorecard (empty pilot + seeded gate regression)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install the hash-locked development/test set
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
+      - name: Generate the scorecard for the fixed pilot subset with checked-in empty inputs
+        run: |
+          set -euo pipefail
+          python scripts/generate_quality_scorecard.py \
+            --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
+            --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
+            --labels examples/evaluation/qm2-labeling-pilot-v1/labels.json \
+            --output quality-scorecard.json \
+            --json > quality-scorecard.stdout.json
+          cmp quality-scorecard.json quality-scorecard.stdout.json
+          python - <<'PY'
+          import json
+
+          scorecard = json.load(open("quality-scorecard.json", encoding="utf-8"))
+          assert scorecard["data_state"]["state"] == "MISSING_DATA", scorecard["data_state"]
+          assert scorecard["claims"]["accuracy"] is None
+          assert scorecard["claims"]["quality_claim"] is False
+          for arm in ("harness", "droid"):
+              summary = scorecard["arms"][arm]
+              assert summary["status"] == "missing", summary["status"]
+              assert summary["candidate_findings"] is None
+              assert summary["precision"]["lower_bound"]["value"] is None
+              assert summary["recall"]["lower_bound"]["value"] is None
+              assert summary["abstention"]["adjudicated_abstentions"] is None
+              assert summary["duplicates"]["correlated_duplicates_excluded"] is None
+              assert summary["unadjudicated"]["findings_without_final_adjudication"] is None
+              assert summary["approve_with_known_defect"]["cases"] is None
+          assert scorecard["completion"]["completed_of_expected"]["value"] is None
+          print("scorecard: empty pilot reported MISSING_DATA with null metrics")
+          PY
+      - name: Prove missing/empty data does not fail the gate
+        run: |
+          set -euo pipefail
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline quality-scorecard.json \
+            --current quality-scorecard.json \
+            --json > quality-scorecard-missing-gate.json
+          python - <<'PY'
+          import json
+
+          gate = json.load(open("quality-scorecard-missing-gate.json", encoding="utf-8"))
+          assert gate["status"] == "MISSING_DATA", gate
+          assert gate["regressions"] == [], gate
+          print("gate: empty data is MISSING_DATA, not failure or zero")
+          PY
+      - name: Prove the gate rejects a seeded injected regression
+        run: |
+          set -euo pipefail
+          python scripts/generate_quality_scorecard.py \
+            --corpus tests/fixtures/quality_scorecard/corpus.json \
+            --predictions tests/fixtures/quality_scorecard/predictions-baseline.json \
+            --labels tests/fixtures/quality_scorecard/labels.json \
+            --output seeded-baseline-scorecard.json \
+            --json > /dev/null
+          python scripts/generate_quality_scorecard.py \
+            --corpus tests/fixtures/quality_scorecard/corpus.json \
+            --predictions tests/fixtures/quality_scorecard/predictions-regressed.json \
+            --labels tests/fixtures/quality_scorecard/labels-regressed.json \
+            --output seeded-regressed-scorecard.json \
+            --json > /dev/null
+          set +e
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline seeded-baseline-scorecard.json \
+            --current seeded-regressed-scorecard.json \
+            --json > seeded-gate.json
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected seeded regression gate to exit 1, got $status"
+            cat seeded-gate.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+
+          gate = json.load(open("seeded-gate.json", encoding="utf-8"))
+          assert gate["status"] == "FAIL", gate
+          assert "recall_lower_bound:harness" in gate["regressions"], gate
+          assert "precision_lower_bound:harness" in gate["regressions"], gate
+          assert "approve_with_known_defect:harness" in gate["regressions"], gate
+          print("gate: seeded injected regression FAILS as expected")
+          PY
+      - name: Run focused scorecard and evaluation tests
+        run: python -m pytest -q tests/test_quality_scorecard.py tests/test_evaluation.py tests/test_frozen_corpus.py
+      - name: Retain the scorecard and gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-review-quality-scorecard-${{ github.run_id }}
+          path: |
+            quality-scorecard.json
+            quality-scorecard.stdout.json
+            quality-scorecard-missing-gate.json
+            seeded-baseline-scorecard.json
+            seeded-regressed-scorecard.json
+            seeded-gate.json
+          if-no-files-found: warn
+          retention-days: 7
+
   frozen-pr464-prepare:
     name: Frozen PR-464 provider-free prepare integration
     runs-on: ubuntu-latest

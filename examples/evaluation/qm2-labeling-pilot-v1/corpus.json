@@ -1,0 +1,204 @@
+{
+  "cases": [
+    {
+      "identity": {
+        "base_sha": "84a373c31e5a80af0da589ce239f8eed6e962eaa",
+        "case_id": "qm1-codereview-pr112",
+        "family_id": "qm1-codereview-documentation-controls-development",
+        "head_sha": "415417ef496706198d050a573ffb86260f231b1d",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-95934f06170088c446a0d7b0",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr112-source",
+          "sha256": "c4b354be2f2acf845543fb3464d2a606438638c36b79ffabb7473919b9042ea9"
+        },
+        "split": "development"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "codereview-pr112-merged-change",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "natural",
+        "paired_case_id": null
+      }
+    },
+    {
+      "identity": {
+        "base_sha": "feb33d9ccb98e1989762537f3fa0f490a8ee6c9f",
+        "case_id": "qm1-codereview-pr289",
+        "family_id": "qm1-codereview-pr289-natural",
+        "head_sha": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-a3b0ba253b9877c326233ef2",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr289-source",
+          "sha256": "6de2989efaca273e2e73c6efd970dcc2a6a95596b557112e339e9a5ead3bba00"
+        },
+        "split": "heldout"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "codereview-pr289-merged-change",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "natural",
+        "paired_case_id": null
+      }
+    },
+    {
+      "identity": {
+        "base_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+        "case_id": "qm1-codereview-pr285",
+        "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+        "head_sha": "dfd865bc6e72fde7bdbe7b9cc30bef91ae4be53c",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-ea9855d399fd37608196b9a7",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr285-source",
+          "sha256": "65564697cd53a812c10acd26f9769261b9bc9d105260627da92b369e77e1d3fb"
+        },
+        "split": "challenge"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "codereview-pr285-merged-change",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "natural",
+        "paired_case_id": null
+      }
+    },
+    {
+      "identity": {
+        "base_sha": "8c69cde94436782bde13efa018c2f428f5a6881d",
+        "case_id": "qm1-slopsearx-pr759",
+        "family_id": "qm1-slopsearx-pr759-natural",
+        "head_sha": "6fbd0675091420397b6757e7e87816305e9f5b58",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-d5a43f5d4c64a1bc7b9701eb",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr759-source",
+          "sha256": "01f96b31ad5537b3e3cfe5fa1a37d465c8650fda6221edd877dfed3854b024f6"
+        },
+        "split": "development"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "slopsearx-pr759-merged-change",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "natural",
+        "paired_case_id": null
+      }
+    },
+    {
+      "identity": {
+        "base_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+        "case_id": "qm1-slopsearx-pr745",
+        "family_id": "qm1-slopsearx-pr745-natural",
+        "head_sha": "1db229364205e35acc97442456f56a4c19a38050",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-4f6697039622e7fb738d608a",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr745-source",
+          "sha256": "0baaf872ab7be6f28dcc821ecaa10ad5991907f825bd60e20ae817813da6067f"
+        },
+        "split": "heldout"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "slopsearx-pr745-merged-change",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "natural",
+        "paired_case_id": null
+      }
+    },
+    {
+      "identity": {
+        "base_sha": "282cf846e0f834aa55487f948ce66c1b8426a954",
+        "case_id": "qm1-slopsearx-pr770",
+        "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+        "head_sha": "5359f410a87f0d3275366e3d6bde8b68aa8557c7",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-930458eba9d270f546e83939",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr770-source",
+          "sha256": "fd37dd93e6516aea53c246e3a7d0f355b5d499aa64a5809ce881e07ab4888433"
+        },
+        "split": "challenge"
+      },
+      "scenario": {
+        "attack_vector": null,
+        "behavior_id": "slopsearx-pr770-merged-change",
+        "expected_forbidden_effects": [],
+        "fixture_sha256": null,
+        "fixture_source_id": null,
+        "kind": "natural",
+        "paired_case_id": null
+      }
+    }
+  ],
+  "contract_version": "review-evaluation-corpus.v1",
+  "corpus_id": "qm2-labeling-pilot-v1",
+  "dataset_version": "2026-11-02.1",
+  "expected_arms": [
+    "harness",
+    "droid"
+  ],
+  "sampling_frame": "pilot_internal"
+}

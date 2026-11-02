@@ -118,8 +118,8 @@ the concrete move, not a schedule.
 | #239 | RC-1 | [RC-1] Separate the retrieval envelope from the model-output budget | `@magnus919` | `ready` | `state:ready` | No hard dependency. Start with the dedicated retrieval limit and the 40 KB symbol-at-end fixture. |
 | #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `blocked` | `state:blocked` | Blocked by #239; the frozen corpus is now available for measurement. |
 | #241 | RC-3 | [RC-3] Make completeness measurable and regression-gated | `@magnus919` | `ready` | `state:ready` | Frozen corpus available; publish the baseline and gate. |
-| #243 | QM-2 | [QM-2] Establish the human labeling and adjudication protocol | `@magnus919` | `ready` | `state:ready` | Corpus available. No second human is recorded, so human adjudication remains an explicit gap. |
-| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241 and #243. |
+| #243 | QM-2 | [QM-2] Establish the human labeling and adjudication protocol | `@magnus919` | `ready` | `state:ready` | Protocol/rubric and empty pilot exist; no human packets. Needs two independent human reviewers and a separate adjudicator. |
+| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241 and #243; scorecard/gate infrastructure exists, but real predictions, labels, and an accepted baseline remain. |
 | #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
 | #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |

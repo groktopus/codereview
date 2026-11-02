@@ -37,6 +37,47 @@ Finding labels and run findings use stable IDs plus evidence references. A revie
 
 Human precision uses only explicitly matched and rejected predictions from complete adjudicated human packets. Abstentions, correlated duplicates, and unadjudicated predictions have separate counts. Recall eligibility is only for known material labels classified `INTRODUCED` or `REEXPOSED`; `PRE_EXISTING` and `UNKNOWN` introducedness are excluded and counted separately. The report includes a corpus-wide recall lower and upper bound over all expected cases: confirmed exact-ID matches form the lower bound, while missing, noncompleted, or not-fully-adjudicated outputs leave the relevant unobserved labels unresolved for the upper bound. It also reports definitively unmatched labels only when the run completed and every emitted finding has a final non-abstained adjudication. A separate `completed_run_recall_conditional` rate is restricted to complete human labels and completed runs with full finding adjudication; its denominator is explicit and its conditional scope is part of the field name. No metric drops failed or incomplete runs silently. Every rate includes numerator and denominator. A zero denominator yields `value: null` and an explicit reason. The tool also counts `APPROVE` dispositions paired with known introduced material findings; that count is descriptive and does not declare a gate.
 
+## QM-2 labeling protocol and QM-3 scorecard
+
+The human labeling protocol is versioned separately in
+[QUALITY-LABELING-PROTOCOL.md](QUALITY-LABELING-PROTOCOL.md). It defines the
+four-level severity rubric (`blocking`, `material`, `non-blocking`, `nit`) and
+its materiality projection, introducedness, evidence requirements, abstention,
+independent/adjudicated packets, `reviewer_kind` rules, provenance, and
+relabeling. The v1 labels contract forbids a `model_teacher` packet from being
+`adjudicated`; a teacher packet is screening evidence only and cannot satisfy
+the human-adjudication criterion. The fixed pilot subset in
+[examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)
+has empty labels and predictions and therefore reports missing data.
+
+[QUALITY-SCORECARD.md](QUALITY-SCORECARD.md) documents the deterministic
+scorecard and regression gate:
+
+```sh
+python3 scripts/generate_quality_scorecard.py \
+  --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
+  --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
+  --labels examples/evaluation/qm2-labeling-pilot-v1/labels.json \
+  --output quality-scorecard.json \
+  --json
+
+python3 scripts/check_quality_scorecard_gate.py \
+  --baseline quality-scorecard.json \
+  --current quality-scorecard.json \
+  --json
+```
+
+The scorecard reports completion, per-arm missing status, precision and recall
+lower/upper bounds with denominators, abstention, duplicates, unadjudicated
+findings, `APPROVE`-with-known-defect counts, evaluator revision, and input
+hashes. Missing labels produce `PARTIAL`; wholly missing data produces
+`MISSING_DATA`; missing arms and missing runs never become zero rates.
+`APPROVE`-with-known-defect is null when any run is missing. The gate exits `0`
+for `PASS`/`MISSING_DATA`, `1` for a regression (including an arm present in the
+baseline but absent or partial now, or partial label coverage), and `2` for an
+invalid or schema-invalid scorecard. It is not a release gate and no accepted
+baseline exists yet.
+
 ## Model-only cross-audit (companion contract; outside toolkit v1 metrics)
 
 A label-free advisory run is valid input to the evaluation process; an empty `packets` list produces undefined human precision/recall and no release-gate claim. The separate `review-cross-model-comparison.v1` contract lives in `schemas/review-cross-model-comparison.v1.schema.json` and is implemented by `pr_review_harness.cross_model`. JSON Schema checks structure only; Python semantic validation in `validate_cross_model_comparison` (also run by the CLI) is required and normative for role/status provenance, pairings, and exact corpus coverage. It binds every case to the exact validated corpus identity, and every writer, Jev, and auditor role to its own run ID, provider/model/runtime, prompt/rubric revisions, exact request hash, response hash, and local artifact IDs. Their request hashes are expected to differ: the writer sees source/context, Jev sees bounded writer candidates, and the auditor sees Jev claims and the frozen snapshot. Do not confuse shared snapshot identity with identical request bytes.
