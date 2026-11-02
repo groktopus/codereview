@@ -237,6 +237,17 @@ documented, active in CI, and visible, but a merge is only procedurally blocked
 until that setting exists. Branch protection is not enabled; the checks are not
 yet required.
 
+## Bootstrap exception for GA-2 enforcement
+
+The first pull request that adds the `decision_records` field and the
+`Decision record links` workflow cannot be validated by them: `pull_request_target`
+runs the base-branch workflow, whose receipt schema predates the field, and the
+new check is not on the base branch. That bootstrap PR must still carry a valid
+GA-1 receipt under the base schema, is independently reviewed, and is the only
+merge exempt from citing `decision_records`. Every later pull request that
+changes a safety-invariant path is checked. This exception does not authorize a
+second unreceipted safety change.
+
 ## Bootstrap, retention, and caps
 
 - The bootstrap merge is the only acknowledged exception; it must still carry a

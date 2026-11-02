@@ -138,3 +138,7 @@ the accepted production decisions are the records above.
    itself protected, so it also needs an accepted record cited in the receipt.
 6. Keep a record's Status and the table row consistent; the structural check
    rejects a mismatch, and the diff check reads both.
+
+## Bootstrap
+
+The first PR adding the decision-record-links check is exempt from citing a record because the base-branch receipt schema predates the field. It is independently reviewed and still carries a GA-1 receipt; every later safety-invariant change is enforced.
