@@ -259,7 +259,12 @@ def test_target_contract_allowlist_keeps_slop_contracts_closed():
     assert TARGET_CONTRACTS[TARGET] == frozenset({"legacy-v14", "bounded-production-v16", "bounded-production-v17"})
     assert TARGET_CONTRACTS[CODEREVIEW_TARGET] == frozenset({"codereview-native-v1"})
     assert set(CONTRACTS) == {"legacy-v14", "bounded-production-v16", "bounded-production-v17"}
-    assert set(ALL_CONTRACTS) == {"legacy-v14", "bounded-production-v16", "bounded-production-v17", "codereview-native-v1"}
+    assert set(ALL_CONTRACTS) == {
+        "legacy-v14",
+        "bounded-production-v16",
+        "bounded-production-v17",
+        "codereview-native-v1",
+    }
     assert CONTRACTS == {
         "legacy-v14": {
             "profile_path": V14_PROFILE,
@@ -344,16 +349,18 @@ def test_codereview_rejects_selector_tampering_even_if_profile_hash_is_rebound(
         },
     )
     (profiles / "targets.json").write_text(
-        json.dumps({
-            "contract_version": "target-profile-bindings.v1",
-            "targets": {
-                CODEREVIEW_TARGET: {
-                    "profile_path": "profiles/codereview-native-v1-candidate.json",
-                    "profile_sha256": hashlib.sha256(profile_path.read_bytes()).hexdigest(),
-                    "profile_version": "codereview-native-v1-candidate",
-                }
-            },
-        }),
+        json.dumps(
+            {
+                "contract_version": "target-profile-bindings.v1",
+                "targets": {
+                    CODEREVIEW_TARGET: {
+                        "profile_path": "profiles/codereview-native-v1-candidate.json",
+                        "profile_sha256": hashlib.sha256(profile_path.read_bytes()).hexdigest(),
+                        "profile_version": "codereview-native-v1-candidate",
+                    }
+                },
+            }
+        ),
         encoding="utf-8",
     )
 

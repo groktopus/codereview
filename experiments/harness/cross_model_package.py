@@ -22,8 +22,12 @@ PACKAGE_REVISION = "cross-model-package.v1"
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}\Z")
 _DIMENSIONS = (
-    "observation_support", "consequence_support", "rule_connection_support",
-    "materiality", "missing_context", "introducedness",
+    "observation_support",
+    "consequence_support",
+    "rule_connection_support",
+    "materiality",
+    "missing_context",
+    "introducedness",
 )
 _WRITER_FIELDS = ("title", "observation", "consequence", "rule_or_contract", "evidence_refs")
 _SHADOW_FILES = {
@@ -61,18 +65,25 @@ def _sha(raw: bytes) -> str:
 
 def _validate_capture_packet_inventory(capture_root: Path, capture: dict[str, Any]) -> dict[str, str]:
     inventory = capture.get("case_packet_inventory")
-    if (not isinstance(inventory, dict) or set(inventory) != {"schema", "packets"}
-            or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
-            or not isinstance(inventory.get("packets"), list)
-            or not 1 <= len(inventory["packets"]) <= 128):
+    if (
+        not isinstance(inventory, dict)
+        or set(inventory) != {"schema", "packets"}
+        or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
+        or not isinstance(inventory.get("packets"), list)
+        or not 1 <= len(inventory["packets"]) <= 128
+    ):
         _fail("writer_capture_packet_inventory_invalid")
     expected: dict[str, str] = {}
     for row in inventory["packets"]:
-        if (not isinstance(row, dict) or set(row) != {"path", "sha256"}
-                or not isinstance(row.get("path"), str)
-                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\.json", row["path"])
-                or not isinstance(row.get("sha256"), str) or not _SHA.fullmatch(row["sha256"])
-                or row["path"] in expected):
+        if (
+            not isinstance(row, dict)
+            or set(row) != {"path", "sha256"}
+            or not isinstance(row.get("path"), str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\.json", row["path"])
+            or not isinstance(row.get("sha256"), str)
+            or not _SHA.fullmatch(row["sha256"])
+            or row["path"] in expected
+        ):
             _fail("writer_capture_packet_inventory_invalid")
         expected[row["path"]] = row["sha256"]
     packet_dir = capture_root / "case-packets"
@@ -251,16 +262,38 @@ _MODEL_TEACHER_IDENTITIES = {
     },
 }
 _MODEL_TEACHER_MANIFEST_FIELDS = {
-    "schema", "corpus_id", "dataset_version", "case_id", "repository", "base_sha", "head_sha",
-    "snapshot_id", "snapshot_sha256", "profile_version", "profile_sha256", "evidence_index_sha256",
-    "historical_checks_sha256", "check_evidence_sha256", "plan_path", "plan_sha256", "corpus_path",
-    "corpus_sha256", "reviewer_kind", "evaluation_status", "gold_labels", "accuracy_claims", "interpretation",
+    "schema",
+    "corpus_id",
+    "dataset_version",
+    "case_id",
+    "repository",
+    "base_sha",
+    "head_sha",
+    "snapshot_id",
+    "snapshot_sha256",
+    "profile_version",
+    "profile_sha256",
+    "evidence_index_sha256",
+    "historical_checks_sha256",
+    "check_evidence_sha256",
+    "plan_path",
+    "plan_sha256",
+    "corpus_path",
+    "corpus_sha256",
+    "reviewer_kind",
+    "evaluation_status",
+    "gold_labels",
+    "accuracy_claims",
+    "interpretation",
 }
 
 
 def validate_model_teacher_packet_identity(
-    corpus_value: dict[str, Any], packet: dict[str, Any], manifest_value: dict[str, Any],
-    plan_value: dict[str, Any], plan_sha256: str,
+    corpus_value: dict[str, Any],
+    packet: dict[str, Any],
+    manifest_value: dict[str, Any],
+    plan_value: dict[str, Any],
+    plan_sha256: str,
 ) -> None:
     """Require the PR-464 packet to match its frozen, explicitly non-gold manifest."""
     corpus = validate_corpus(corpus_value)
@@ -291,10 +324,15 @@ def validate_model_teacher_packet_identity(
         or any(
             manifest.get(manifest_key) != plan_case.get(plan_key)
             for manifest_key, plan_key in (
-                ("case_id", "case_id"), ("repository", "repository"), ("base_sha", "base_sha"),
-                ("head_sha", "head_sha"), ("snapshot_id", "snapshot_id"),
-                ("snapshot_sha256", "snapshot_sha256"), ("profile_version", "profile_version"),
-                ("profile_sha256", "profile_file_sha256"), ("evidence_index_sha256", "evidence_index_sha256"),
+                ("case_id", "case_id"),
+                ("repository", "repository"),
+                ("base_sha", "base_sha"),
+                ("head_sha", "head_sha"),
+                ("snapshot_id", "snapshot_id"),
+                ("snapshot_sha256", "snapshot_sha256"),
+                ("profile_version", "profile_version"),
+                ("profile_sha256", "profile_file_sha256"),
+                ("evidence_index_sha256", "evidence_index_sha256"),
                 ("historical_checks_sha256", "historical_checks_sha256"),
                 ("check_evidence_sha256", "check_evidence_sha256"),
             )
@@ -331,9 +369,15 @@ def validate_model_teacher_packet_identity(
 
 
 def build_cross_model_package(
-    *, corpus_value: dict[str, Any], case_packet_path: Path, capture_root: Path,
-    shadow_root: Path, output_dir: Path, identity_manifest_value: dict[str, Any] | None = None,
-    identity_plan_value: dict[str, Any] | None = None, identity_plan_sha256: str | None = None,
+    *,
+    corpus_value: dict[str, Any],
+    case_packet_path: Path,
+    capture_root: Path,
+    shadow_root: Path,
+    output_dir: Path,
+    identity_manifest_value: dict[str, Any] | None = None,
+    identity_plan_value: dict[str, Any] | None = None,
+    identity_plan_sha256: str | None = None,
     writer_validation_limits: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Verify exact writer/audit captures, emit v2 comparison and sanitized report."""
@@ -359,7 +403,11 @@ def build_cross_model_package(
         if identity_manifest_value is None or identity_plan_value is None or identity_plan_sha256 is None:
             _fail("evaluation_identity_manifest_required")
         validate_model_teacher_packet_identity(
-            corpus, packet, identity_manifest_value, identity_plan_value, identity_plan_sha256,
+            corpus,
+            packet,
+            identity_manifest_value,
+            identity_plan_value,
+            identity_plan_sha256,
         )
     case_id = _expect_id(packet.get("case_id"), "case_packet_identity_invalid")
     matching = [item for item in corpus["cases"] if item["identity"]["case_id"] == case_id]
@@ -378,7 +426,18 @@ def build_cross_model_package(
     ):
         _fail("case_snapshot_corpus_mismatch")
     if (
-        set(capture) != {"contract_version", "case_id", "snapshot_id", "snapshot_hash", "source_task", "provider", "calls", "private_artifacts", "case_packet_inventory"}
+        set(capture)
+        != {
+            "contract_version",
+            "case_id",
+            "snapshot_id",
+            "snapshot_hash",
+            "source_task",
+            "provider",
+            "calls",
+            "private_artifacts",
+            "case_packet_inventory",
+        }
         or capture.get("contract_version") != "model-only-shadow-case.v1"
         or capture.get("case_id") != packet.get("writer_run", {}).get("run_id")
         or capture.get("snapshot_id") != snapshot["snapshot_id"]
@@ -401,7 +460,9 @@ def build_cross_model_package(
     snapshot_copy, snapshot_copy_raw = _json(private_dir / "snapshot.json", 1_000_000)
     if packet_copy != packet or packet_copy_raw != _shadow_canonical(packet) or snapshot_copy != snapshot:
         _fail("shadow_packet_join_mismatch")
-    if _sha(packet_copy_raw) != shadow.get("case_packet_sha256") or _sha(snapshot_copy_raw) != shadow.get("snapshot_artifact_sha256"):
+    if _sha(packet_copy_raw) != shadow.get("case_packet_sha256") or _sha(snapshot_copy_raw) != shadow.get(
+        "snapshot_artifact_sha256"
+    ):
         _fail("shadow_snapshot_hash_mismatch")
     snapshot_payload = {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}}
     if _sha(_shadow_canonical(snapshot_payload)) != snapshot.get("snapshot_hash"):
@@ -418,8 +479,21 @@ def build_cross_model_package(
     by_capture_call: dict[str, dict[str, Any]] = {}
     for receipt in capture_calls:
         if not isinstance(receipt, dict) or set(receipt) != {
-            "call_id", "case_id", "run_id", "snapshot_id", "snapshot_hash", "task_id", "attempt", "provider", "status",
-            "request_artifact_id", "request_sha256", "response_artifact_id", "response_sha256", "response_envelope_sha256", "content_transform",
+            "call_id",
+            "case_id",
+            "run_id",
+            "snapshot_id",
+            "snapshot_hash",
+            "task_id",
+            "attempt",
+            "provider",
+            "status",
+            "request_artifact_id",
+            "request_sha256",
+            "response_artifact_id",
+            "response_sha256",
+            "response_envelope_sha256",
+            "content_transform",
         }:
             _fail("writer_capture_call_invalid")
         call_id = _expect_id(receipt.get("call_id"), "writer_capture_call_invalid")
@@ -469,7 +543,11 @@ def build_cross_model_package(
         if _sha(request_raw) != call["request_sha256"]:
             _fail("writer_request_hash_mismatch")
         request_user = _provider_content(request_raw)
-        if set(request_user) != {"task", "evidence"} or request_user["task"] != source_task or request_user["evidence"] != source_evidence:
+        if (
+            set(request_user) != {"task", "evidence"}
+            or request_user["task"] != source_task
+            or request_user["evidence"] != source_evidence
+        ):
             _fail("writer_request_task_binding_mismatch")
         writer_artifacts[call["request_artifact_id"]] = request_path
         if call.get("response_sha256") is None:
@@ -480,7 +558,9 @@ def build_cross_model_package(
         if _sha(response_raw) != call["response_sha256"]:
             _fail("writer_response_hash_mismatch")
         try:
-            writer_payload = json.loads(response_raw.decode("utf-8"), object_pairs_hook=_unique, parse_constant=_reject_constant)
+            writer_payload = json.loads(
+                response_raw.decode("utf-8"), object_pairs_hook=_unique, parse_constant=_reject_constant
+            )
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
             _fail("writer_response_invalid")
         candidates = writer_payload.get("finding_candidates") if isinstance(writer_payload, dict) else None
@@ -488,11 +568,14 @@ def build_cross_model_package(
             _fail("writer_response_contract_invalid")
         source_version = writer_payload.get("contract_version", SPECIALIST_V1)
         task_units = source_task.get("unit_ids")
-        valid_unit_ids = set(task_units) if isinstance(task_units, list) and all(
-            isinstance(unit_id, str) for unit_id in task_units
-        ) else None
+        valid_unit_ids = (
+            set(task_units)
+            if isinstance(task_units, list) and all(isinstance(unit_id, str) for unit_id in task_units)
+            else None
+        )
         valid_evidence_ids = {
-            item.get("evidence_id") for item in source_evidence
+            item.get("evidence_id")
+            for item in source_evidence
             if isinstance(item, dict) and isinstance(item.get("evidence_id"), str)
         }
         accepted_index = 0
@@ -550,8 +633,12 @@ def build_cross_model_package(
 
     source_user = _provider_content(source["request"])
     expected_source_case = {
-        "case_id": case_id, "snapshot_id": snapshot["snapshot_id"], "snapshot_hash": snapshot["snapshot_hash"],
-        "base_sha": snapshot["base_sha"], "head_sha": snapshot["head_sha"], "profile_id": packet["profile_id"],
+        "case_id": case_id,
+        "snapshot_id": snapshot["snapshot_id"],
+        "snapshot_hash": snapshot["snapshot_hash"],
+        "base_sha": snapshot["base_sha"],
+        "head_sha": snapshot["head_sha"],
+        "profile_id": packet["profile_id"],
         "profile_hash": snapshot["profile_hash"],
     }
     if (
@@ -562,7 +649,10 @@ def build_cross_model_package(
     ):
         _fail("source_auditor_blinding_contract_failed")
     source_output, _ = _json(private_dir / _SHADOW_PATHS["source-auditor-response"], 4 * 1024 * 1024)
-    if source_output.get("contract_version") != "shadow-source-audit.v1" or source_output.get("status") != source_role["status"]:
+    if (
+        source_output.get("contract_version") != "shadow-source-audit.v1"
+        or source_output.get("status") != source_role["status"]
+    ):
         _fail("source_response_contract_invalid")
     source_records = source_output.get("records")
     if not isinstance(source_records, list) or (source_role["status"] == "abstained") != (len(source_records) == 0):
@@ -582,8 +672,14 @@ def build_cross_model_package(
     claim_user = _provider_content(claim["request"])
     if set(claim_user) != {"case", "writer_claim", "jev_classification", "evidence"}:
         _fail("claim_auditor_request_contract_invalid")
-    expected_claim_case = {"case_id": case_id, "snapshot_id": snapshot["snapshot_id"], "snapshot_hash": snapshot["snapshot_hash"]}
-    expected_claim_evidence = [item for item in packet["source_evidence"] if item["evidence_id"] in candidate["evidence_refs"]]
+    expected_claim_case = {
+        "case_id": case_id,
+        "snapshot_id": snapshot["snapshot_id"],
+        "snapshot_hash": snapshot["snapshot_hash"],
+    }
+    expected_claim_evidence = [
+        item for item in packet["source_evidence"] if item["evidence_id"] in candidate["evidence_refs"]
+    ]
     if (
         claim_user["writer_claim"] != candidate
         or claim_user["case"] != expected_claim_case
@@ -606,12 +702,15 @@ def build_cross_model_package(
         | {
             "line": None,
             "side": (
-                "BASE" if item["source_revision"] == snapshot["base_sha"]
-                else "HEAD" if item["source_revision"] == snapshot["head_sha"]
+                "BASE"
+                if item["source_revision"] == snapshot["base_sha"]
+                else "HEAD"
+                if item["source_revision"] == snapshot["head_sha"]
                 else None
             ),
         }
-        for item in packet["source_evidence"] if item["evidence_id"] in candidate["evidence_refs"]
+        for item in packet["source_evidence"]
+        if item["evidence_id"] in candidate["evidence_refs"]
     ]
     if (
         not isinstance(cited_evidence, list)
@@ -652,31 +751,51 @@ def build_cross_model_package(
                 _fail("jev_answer_binding_invalid")
             probs = answer["probabilities"]
             if (
-                any(isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1 for value in probs.values())
+                any(
+                    isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1
+                    for value in probs.values()
+                )
                 or abs(sum(probs.values()) - 1) > 0.02
                 or probs[answer["choice"]] < max(probs.values()) - 1e-6
             ):
                 _fail("jev_answer_binding_invalid")
-            expected_row = {"record_id": expected_id, "status": "ANSWERED", "choice": answer["choice"], "evidence_refs": cited_refs}
+            expected_row = {
+                "record_id": expected_id,
+                "status": "ANSWERED",
+                "choice": answer["choice"],
+                "evidence_refs": cited_refs,
+            }
             expected_answer_statuses.append("ANSWERED")
             choices.append(answer["choice"])
         else:
             if dimension != "introducedness":
                 _fail("jev_question_missing")
-            expected_row = {"record_id": expected_id, "status": "NOT_SHOWN", "choice": None, "evidence_refs": cited_refs}
+            expected_row = {
+                "record_id": expected_id,
+                "status": "NOT_SHOWN",
+                "choice": None,
+                "evidence_refs": cited_refs,
+            }
             expected_answer_statuses.append("NOT_SHOWN")
         if item != expected_row:
             _fail("jev_classification_response_mismatch")
         jev_records.append({"role": "jev", "record_id": expected_id})
-        claim_records.append({"role": "claim_auditor", "record_id": f"{candidate['candidate_id']}:claim_auditor:{dimension}"})
+        claim_records.append(
+            {"role": "claim_auditor", "record_id": f"{candidate['candidate_id']}:claim_auditor:{dimension}"}
+        )
     if set(answers) - set(questions):
         _fail("jev_unbound_answer")
-    expected_jev_status = "abstained" if not choices or all(choice in {"UNCERTAIN", "UNKNOWN"} for choice in choices) else "completed"
+    expected_jev_status = (
+        "abstained" if not choices or all(choice in {"UNCERTAIN", "UNKNOWN"} for choice in choices) else "completed"
+    )
     if jev_role["status"] != expected_jev_status:
         _fail("jev_role_status_mismatch")
 
     claim_output, _ = _json(private_dir / _SHADOW_PATHS["claim-auditor-response"], 4 * 1024 * 1024)
-    if claim_output.get("contract_version") != "shadow-claim-audit.v1" or claim_output.get("status") != claim_role["status"]:
+    if (
+        claim_output.get("contract_version") != "shadow-claim-audit.v1"
+        or claim_output.get("status") != claim_role["status"]
+    ):
         _fail("claim_response_contract_invalid")
     raw_relations = claim_output.get("relations")
     if not isinstance(raw_relations, list) or (claim_role["status"] == "abstained") != (len(raw_relations) == 0):
@@ -685,45 +804,69 @@ def build_cross_model_package(
     for index, relation in enumerate(raw_relations):
         if not isinstance(relation, dict) or relation.get("dimension") not in _DIMENSIONS:
             _fail("claim_relation_invalid")
-        assertions.append({
-            "assertion_id": _expect_id(relation.get("assertion_id"), "claim_relation_invalid"),
-            "pair": "jev_claim_auditor",
-            "relation": relation.get("relation"),
-            "reporter_role": "claim_auditor",
-            "reporter_run_id": claim_role["run_id"],
-            "reporter_call_id": claim["call_id"],
-            "response_artifact_id": claim["call"]["response_artifact_id"],
-            "json_pointer": f"/relations/{index}",
-            "left_record_id": relation.get("left_record_id"),
-            "right_record_id": relation.get("right_record_id"),
-        })
-    records = ([{"role": "writer", "record_id": candidate["candidate_id"]}]
-               + jev_records + claim_records
-               + [{"role": "source_auditor", "record_id": _expect_id(row.get("record_id"), "source_record_invalid")} for row in source_records])
+        assertions.append(
+            {
+                "assertion_id": _expect_id(relation.get("assertion_id"), "claim_relation_invalid"),
+                "pair": "jev_claim_auditor",
+                "relation": relation.get("relation"),
+                "reporter_role": "claim_auditor",
+                "reporter_run_id": claim_role["run_id"],
+                "reporter_call_id": claim["call_id"],
+                "response_artifact_id": claim["call"]["response_artifact_id"],
+                "json_pointer": f"/relations/{index}",
+                "left_record_id": relation.get("left_record_id"),
+                "right_record_id": relation.get("right_record_id"),
+            }
+        )
+    records = (
+        [{"role": "writer", "record_id": candidate["candidate_id"]}]
+        + jev_records
+        + claim_records
+        + [
+            {"role": "source_auditor", "record_id": _expect_id(row.get("record_id"), "source_record_invalid")}
+            for row in source_records
+        ]
+    )
 
     writer_identity = capture.get("provider", {})
     if not isinstance(writer_identity, dict):
         _fail("writer_provider_identity_missing")
     runs = []
-    runs.append({
-        "role": "writer", "status": writer["status"], "run_id": writer["run_id"],
-        "provider_id": writer_identity.get("provider_id"), "model_id": writer_identity.get("model_id"),
-        "runtime_id": writer_identity.get("adapter_version"), "prompt_revision": writer["prompt_revision"],
-        "rubric_revision": writer["rubric_revision"], "calls": writer_calls,
-        "calls_manifest_sha256": calls_manifest_sha256(writer_calls),
-    })
+    runs.append(
+        {
+            "role": "writer",
+            "status": writer["status"],
+            "run_id": writer["run_id"],
+            "provider_id": writer_identity.get("provider_id"),
+            "model_id": writer_identity.get("model_id"),
+            "runtime_id": writer_identity.get("adapter_version"),
+            "prompt_revision": writer["prompt_revision"],
+            "rubric_revision": writer["rubric_revision"],
+            "calls": writer_calls,
+            "calls_manifest_sha256": calls_manifest_sha256(writer_calls),
+        }
+    )
     runs.extend(_role_for_v2(shadow["roles"][role]) for role in ("jev", "source_auditor", "claim_auditor"))
     if shadow["roles"].get("writer") != writer:
         _fail("shadow_writer_copy_mismatch")
     comparison = {
         "contract_version": CONTRACT_VERSION,
-        "comparison_id": "pkg-" + _sha(_canonical([
-            case_id, _sha(packet_raw), _sha(_read(shadow_root / "shadow-audit-manifest.json", 4_000_000)),
-        ]))[:24],
+        "comparison_id": "pkg-"
+        + _sha(
+            _canonical(
+                [
+                    case_id,
+                    _sha(packet_raw),
+                    _sha(_read(shadow_root / "shadow-audit-manifest.json", 4_000_000)),
+                ]
+            )
+        )[:24],
         "corpus_id": corpus["corpus_id"],
         "dataset_version": corpus["dataset_version"],
         "procedure": {"revision": PACKAGE_REVISION, "frozen_sha256": _sha(Path(__file__).read_bytes())},
-        "cases": [{"case_id": case_id, "identity": identity, "runs": runs, "records": records, "assertions": assertions}],
+        "cases": [
+            {"case_id": case_id, "identity": identity, "runs": runs, "records": records, "assertions": assertions}
+        ],
     }
     one_case_corpus = dict(corpus)
     one_case_corpus["cases"] = [matching[0]]

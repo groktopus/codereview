@@ -174,6 +174,7 @@ def test_pr_comparison_assessment_binds_merge_base_as_base_evidence():
     candidate = {**_candidate(), "evidence_refs": ["ev-base", "ev-current", "ev-head"]}
     base_evidence = {**_evidence("ev-base", "BASE"), "source_revision": "c" * 40}
     current_base_evidence = _evidence("ev-current", "BASE")
+
     class FakeTransport:
         def __call__(self, raw, _deadline, _cap):
             _parse_request(raw)
@@ -582,7 +583,7 @@ def test_actual_prepared_request_over_native_cap_fails_without_truncation_or_tra
     refs = []
     for index in range(3):
         evidence_id = f"ev-large-{index}"
-        content = (chr(ord("a") + index) * 23_000)
+        content = chr(ord("a") + index) * 23_000
         evidence.append(_evidence(evidence_id, "HEAD", content))
         refs.append(evidence_id)
     candidate["evidence_refs"] = refs

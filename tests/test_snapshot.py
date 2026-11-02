@@ -187,14 +187,27 @@ def test_pr_snapshot_excludes_unrelated_changes_on_ahead_base_tip(tmp_path):
         (2, "+refs/heads/main:refs/pr/base"),
     ):
         subprocess.run(
-            ["git", "-C", str(store), "fetch", "--no-tags", "--filter=blob:none", f"--depth={depth}", "origin", refspec],
+            [
+                "git",
+                "-C",
+                str(store),
+                "fetch",
+                "--no-tags",
+                "--filter=blob:none",
+                f"--depth={depth}",
+                "origin",
+                refspec,
+            ],
             check=True,
             capture_output=True,
             timeout=30,
         )
     filtered_snapshot = collect_snapshot(str(store), current_base, pr_head, profile, limits, pr_diff=True)
     assert {item["path"] for item in filtered_snapshot["inventory"]} == set(by_path)
-    assert filtered_snapshot["evidence"][filtered_snapshot["trusted_context_refs"][0]]["content"] == "current trusted policy\n"
+    assert (
+        filtered_snapshot["evidence"][filtered_snapshot["trusted_context_refs"][0]]["content"]
+        == "current trusted policy\n"
+    )
 
 
 def test_disabled_context_revision_metadata_preserves_legacy_snapshot_identity(repo):
@@ -220,7 +233,9 @@ def test_context_revision_metadata_rejects_non_boolean_before_git_reads(repo, mo
     monkeypatch.setattr("pr_review_harness.snapshot._sha", lambda *_args: pytest.fail("Git resolution started"))
     with pytest.raises(SnapshotError, match="profile context_revision_metadata must be boolean"):
         collect_snapshot(
-            str(path), base, head,
+            str(path),
+            base,
+            head,
             {"version": "context-identity-v1", "context_revision_metadata": value},
             {"max_context_bytes": 100_000},
         )
@@ -235,11 +250,7 @@ def test_profile_context_records_bounded_exact_head_blob_relation(repo):
         "trusted_policy_paths": ["AGENTS.md"],
     }
     snap = collect_snapshot(str(path), base, head, profile, {"max_context_bytes": 100_000})
-    contexts = {
-        item["path"]: item
-        for item in snap["evidence"].values()
-        if item["source_kind"] == "profile_context"
-    }
+    contexts = {item["path"]: item for item in snap["evidence"].values() if item["source_kind"] == "profile_context"}
     assert contexts["AGENTS.md"]["head_relation"] == "UNCHANGED"
     assert contexts["AGENTS.md"]["head_object_id"] == contexts["AGENTS.md"]["source_object_id"]
     assert contexts["app.py"]["head_relation"] == "CHANGED"
@@ -276,14 +287,20 @@ def test_snapshot_context_budget_is_separate_with_legacy_fallback(repo):
     }
     legacy = collect_snapshot(str(path), base, head, profile, {"max_context_bytes": 8_000})
     explicit = collect_snapshot(
-        str(path), base, head, profile,
+        str(path),
+        base,
+        head,
+        profile,
         {"max_context_bytes": 20_000, "max_snapshot_context_bytes": 8_000},
     )
     assert explicit["snapshot_hash"] == legacy["snapshot_hash"]
     assert explicit["evidence"] == legacy["evidence"]
 
     tiny_capture = collect_snapshot(
-        str(path), base, head, profile,
+        str(path),
+        base,
+        head,
+        profile,
         {"max_context_bytes": 20_000, "max_snapshot_context_bytes": 1},
     )
     assert tiny_capture["snapshot_hash"] != explicit["snapshot_hash"]
@@ -294,7 +311,9 @@ def test_snapshot_context_budget_rejects_invalid_optional_values(repo, value):
     path, base, head = repo
     with pytest.raises(SnapshotError, match="snapshot context byte limit"):
         collect_snapshot(
-            str(path), base, head,
+            str(path),
+            base,
+            head,
             {"version": "pilot-v1", "context_paths": []},
             {"max_context_bytes": 10_000, "max_snapshot_context_bytes": value},
         )
@@ -446,8 +465,7 @@ def test_context_selection_v3_preserves_v1_v2_oversized_window_behavior(tmp_path
         snapshot = collect_snapshot(str(repo), base, head, profile, {"max_context_bytes": 200_000})
         unit = next(row for row in snapshot["inventory"] if row["path"] == "engines/exa.py")
         assert not any(
-            snapshot["evidence"][eid]["source_kind"] == "source_window"
-            for eid in unit["review_context_evidence_ids"]
+            snapshot["evidence"][eid]["source_kind"] == "source_window" for eid in unit["review_context_evidence_ids"]
         )
         assert any(
             gap["path"] == "engines/exa.py" and gap["reason"] == "changed_hunk_exceeds_window_limit"
@@ -510,15 +528,14 @@ def test_context_selection_v3_reports_scan_limit_and_oversized_single_line(tmp_p
         if snapshot["evidence"][eid]["source_kind"] == "source_window"
     ]
     scan_gap = next(
-        gap
-        for gap in snapshot["gaps"]
-        if gap["path"] == "engines/exa.py" and gap["reason"] == "window_scan_limit"
+        gap for gap in snapshot["gaps"] if gap["path"] == "engines/exa.py" and gap["reason"] == "window_scan_limit"
     )
     assert scan_gap["line_ranges"][0][0] == max(item["line_end"] for item in windows) + 1
     assert scan_gap["line_ranges"][0][1] == 445
-    assert "".join(item["content"] for item in sorted(windows, key=lambda row: row["line_start"])).encode() == lines[
-        : sum(len(item["content"].encode()) for item in windows)
-    ]
+    assert (
+        "".join(item["content"] for item in sorted(windows, key=lambda row: row["line_start"])).encode()
+        == lines[: sum(len(item["content"].encode()) for item in windows)]
+    )
 
     single_line = tmp_path / "single-line"
     base, head = _simple_commits(
@@ -530,8 +547,7 @@ def test_context_selection_v3_reports_scan_limit_and_oversized_single_line(tmp_p
     snapshot = collect_snapshot(str(single_line), base, head, profile, {"max_context_bytes": 200_000})
     unit = next(row for row in snapshot["inventory"] if row["path"] == "engines/exa.py")
     assert not any(
-        snapshot["evidence"][eid]["source_kind"] == "source_window"
-        for eid in unit["review_context_evidence_ids"]
+        snapshot["evidence"][eid]["source_kind"] == "source_window" for eid in unit["review_context_evidence_ids"]
     )
     oversized_gap = next(
         gap
@@ -567,17 +583,14 @@ def test_context_selection_v3_preserves_scan_tail_gap_after_early_exhaustion(tmp
     ]
     assert windows
     scan_gap = next(
-        gap
-        for gap in snapshot["gaps"]
-        if gap["path"] == "engines/exa.py" and gap["reason"] == "window_scan_limit"
+        gap for gap in snapshot["gaps"] if gap["path"] == "engines/exa.py" and gap["reason"] == "window_scan_limit"
     )
     assert scan_gap["line_ranges"][0] == [244, 445]
     expected_exhaustion_reason = (
         "window_count_limit" if exhaustion == "window_count" else "context_selection_budget_exhausted"
     )
     assert any(
-        gap["path"] == "engines/exa.py" and gap["reason"] == expected_exhaustion_reason
-        for gap in snapshot["gaps"]
+        gap["path"] == "engines/exa.py" and gap["reason"] == expected_exhaustion_reason for gap in snapshot["gaps"]
     )
     preceding_gap = next(
         gap
@@ -609,9 +622,7 @@ def test_context_selection_v3_does_not_treat_truncated_carriage_return_as_comple
     ]
     assert not windows
     scan_gap = next(
-        gap
-        for gap in snapshot["gaps"]
-        if gap["path"] == "engines/exa.py" and gap["reason"] == "window_scan_limit"
+        gap for gap in snapshot["gaps"] if gap["path"] == "engines/exa.py" and gap["reason"] == "window_scan_limit"
     )
     assert scan_gap["line_ranges"] == [[1, 2]]
 
@@ -636,7 +647,10 @@ def test_context_selection_v3_hashes_valid_multibyte_utf8_windows_by_raw_bytes(t
     assert len(windows) == 3
     assert all(len(item["content"].encode("utf-8")) <= 14 for item in windows)
     assert all(item["content_hash"] == hashlib.sha256(item["content"].encode("utf-8")).hexdigest() for item in windows)
-    assert b"".join(item["content"].encode("utf-8") for item in sorted(windows, key=lambda row: row["line_start"])) == content
+    assert (
+        b"".join(item["content"].encode("utf-8") for item in sorted(windows, key=lambda row: row["line_start"]))
+        == content
+    )
 
 
 def test_context_selection_v3_reports_invalid_utf8_line_without_claiming_exact_window(tmp_path):
@@ -683,10 +697,15 @@ def test_context_selection_v3_binds_base_and_head_windows_and_ignores_binary_lin
     for side, revision in (("BASE", base), ("HEAD", head)):
         side_windows = [item for item in windows if item["source_side"] == side]
         assert side_windows and all(item["source_revision"] == revision for item in side_windows)
-        assert all(item["source_object_id"] == git(repo, "rev-parse", f"{revision}:adapter.py") for item in side_windows)
+        assert all(
+            item["source_object_id"] == git(repo, "rev-parse", f"{revision}:adapter.py") for item in side_windows
+        )
         assert all(item["trust"] == "untrusted_pr_content" for item in side_windows)
         expected = old if side == "BASE" else new
-        assert "".join(item["content"] for item in sorted(side_windows, key=lambda row: row["line_start"])).encode() == expected
+        assert (
+            "".join(item["content"] for item in sorted(side_windows, key=lambda row: row["line_start"])).encode()
+            == expected
+        )
 
     binary_repo = tmp_path / "binary"
     base, head = _simple_commits(

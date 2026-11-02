@@ -50,7 +50,9 @@ def _comparison_guards() -> tuple[object, object, object, object, object]:
         node
         for node in tree.body
         if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id in {"markers", "target_marker_state"} for target in node.targets)
+        and any(
+            isinstance(target, ast.Name) and target.id in {"markers", "target_marker_state"} for target in node.targets
+        )
     ]
     assert len(marker_assignments) == 2
     aggregate = ast.FunctionDef(
@@ -169,7 +171,7 @@ def test_workflow_pins_sources_builds_both_wheels_and_checks_complete_module_ide
     assert '"module_counts_per_runtime"' in text
     assert "source_modules != installed_modules" in text
     assert '"git", "-C", str(source), "rev-parse", "HEAD^"' in text
-    assert "parent != os.environ[\"BASELINE_PARENT_SHA\"]" in text
+    assert 'parent != os.environ["BASELINE_PARENT_SHA"]' in text
     assert 'changed_paths != ["src/pr_review_harness/external_effect_observer.py"]' in text
     assert "added_lines != [" in text and "removed_lines" in text
     assert '    "invalid_review_request": "invalid_review_request",' in text
@@ -235,9 +237,7 @@ def test_workflow_is_read_only_secretless_and_always_retains_bounded_receipts():
         and isinstance(node.args[0], ast.List)
         and all(isinstance(item, ast.Constant) and isinstance(item.value, str) for item in node.args[0].elts)
     ]
-    assert ["ip", "link", "set", "lo", "up"] in [
-        [item.value for item in command.elts] for command in loopback_commands
-    ]
+    assert ["ip", "link", "set", "lo", "up"] in [[item.value for item in command.elts] for command in loopback_commands]
     assert "if: always()" in text
     assert "timeout-minutes: 10" in text
     for receipt in ("identity.json", "baseline.json", "candidate.json", "comparison.json"):

@@ -73,12 +73,12 @@ def select(
     )
 
     manifest, manifest_raw, packets = shadow_runner._packet_candidates(capture_root)
-    _require(manifest.get("snapshot_id") == plan["case"].get("snapshot_id")
-             and manifest.get("snapshot_hash") == plan["case"].get("snapshot_sha256"),
-             "selection_capture_identity_invalid")
-    ordered, _budget = shadow_runner._task_order(
-        plan_path, packets, manifest=manifest, include_budget=True
+    _require(
+        manifest.get("snapshot_id") == plan["case"].get("snapshot_id")
+        and manifest.get("snapshot_hash") == plan["case"].get("snapshot_sha256"),
+        "selection_capture_identity_invalid",
     )
+    ordered, _budget = shadow_runner._task_order(plan_path, packets, manifest=manifest, include_budget=True)
     packet_rows = []
     for row in ordered:
         _candidate_id, _path, packet, packet_raw = row
@@ -88,8 +88,7 @@ def select(
         except Exception:
             raise SelectionError("selection_packet_identity_invalid") from None
         _require(packet.get("writer_candidate") is None, "selection_candidate_present")
-        _require(packet.get("writer_run", {}).get("status") == "completed",
-                 "selection_writer_run_incomplete")
+        _require(packet.get("writer_run", {}).get("status") == "completed", "selection_writer_run_incomplete")
         packet_rows.append((row, hashlib.sha256(packet_raw).hexdigest()))
 
     writer = _read_json(writer_receipt_path)
@@ -120,11 +119,13 @@ def select(
     _require(set(observed_calls) == set(expected_tasks), "selection_writer_tasks_invalid")
     for task_id, request in expected_tasks.items():
         call = observed_calls[task_id]
-        _require(call.get("request_sha256") == request.get("input_sha256")
-                 and call.get("request_bytes") == request.get("input_bytes")
-                 and isinstance(call.get("response_sha256"), str)
-                 and SHA256.fullmatch(call["response_sha256"]) is not None,
-                 "selection_writer_request_mismatch")
+        _require(
+            call.get("request_sha256") == request.get("input_sha256")
+            and call.get("request_bytes") == request.get("input_bytes")
+            and isinstance(call.get("response_sha256"), str)
+            and SHA256.fullmatch(call["response_sha256"]) is not None,
+            "selection_writer_request_mismatch",
+        )
 
     outcome_rows = outcomes.get("tasks")
     _require(
@@ -133,13 +134,15 @@ def select(
         and outcomes.get("capture_manifest_sha256") == manifest_sha
         and outcomes.get("returned_candidate_count_total") == 0
         and outcomes.get("packet_candidate_count_total") == 0
-        and outcomes.get("outcome_counts") == {
+        and outcomes.get("outcome_counts")
+        == {
             "zero_findings_returned": 10,
             "parse_failure": 0,
             "candidate_reconciliation_or_filtering": 0,
             "candidates_preserved_in_packets": 0,
         }
-        and isinstance(outcome_rows, list) and len(outcome_rows) == 10,
+        and isinstance(outcome_rows, list)
+        and len(outcome_rows) == 10,
         "selection_writer_outcomes_invalid",
     )
     observed_task_hashes = set()
@@ -163,7 +166,8 @@ def select(
         writer_calls_for_packet = row[2]["writer_run"].get("calls")
         receipt_call = observed_calls[task_id]
         _require(
-            isinstance(writer_calls_for_packet, list) and len(writer_calls_for_packet) == 1
+            isinstance(writer_calls_for_packet, list)
+            and len(writer_calls_for_packet) == 1
             and writer_calls_for_packet[0].get("request_sha256") == receipt_call["request_sha256"]
             and writer_calls_for_packet[0].get("response_sha256") == receipt_call["response_sha256"],
             "selection_packet_writer_call_mismatch",
@@ -187,9 +191,7 @@ def select(
         "capture_manifest_sha256": manifest_sha,
         "plan_sha256": plan_sha,
         "snapshot_sha256": plan["case"]["snapshot_sha256"],
-        "selected_task_sha256": hashlib.sha256(
-            selected[2]["source_task"]["task_id"].encode("utf-8")
-        ).hexdigest(),
+        "selected_task_sha256": hashlib.sha256(selected[2]["source_task"]["task_id"].encode("utf-8")).hexdigest(),
         "writer_calls": 10,
         "audit_provider_calls": 0,
         "publication_enabled": False,
@@ -206,8 +208,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--writer-outcomes", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        result = select(args.capture_root, args.plan, args.preflight,
-                        args.writer_receipt, args.writer_outcomes)
+        result = select(args.capture_root, args.plan, args.preflight, args.writer_receipt, args.writer_outcomes)
     except (OSError, KeyError, TypeError, ValueError, RecursionError) as exc:
         code = str(exc) if isinstance(exc, SelectionError) else "selection_input_invalid"
         print(json.dumps({"ok": False, "error_code": code}, separators=(",", ":")), file=sys.stderr)

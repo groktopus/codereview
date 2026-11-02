@@ -56,7 +56,10 @@ def _project() -> dict[str, object]:
 
 
 def _exported_names() -> list[str]:
-    return [check_dev_lock.normalise_name(requirement.name) for requirement in check_dev_lock.parse_requirements(REQUIREMENTS)]
+    return [
+        check_dev_lock.normalise_name(requirement.name)
+        for requirement in check_dev_lock.parse_requirements(REQUIREMENTS)
+    ]
 
 
 def test_runtime_dependency_set_is_empty_in_project_metadata():
@@ -114,7 +117,9 @@ def test_uv_lock_records_the_dev_extra_and_no_runtime_dependencies():
     optional = {spec["name"] for spec in project["optional-dependencies"]["dev"]}
     assert {check_dev_lock.normalise_name(name) for name in optional} == DIRECT_DEV_REQUIREMENTS
     for name in _exported_names():
-        assert any(check_dev_lock.normalise_name(package) == name for package in packages), f"{name} missing from uv.lock"
+        assert any(check_dev_lock.normalise_name(package) == name for package in packages), (
+            f"{name} missing from uv.lock"
+        )
 
 
 def test_built_wheel_declares_no_runtime_requirements(tmp_path: Path):

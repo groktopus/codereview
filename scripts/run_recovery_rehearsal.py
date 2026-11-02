@@ -259,7 +259,9 @@ def _validate_profile_drift_rejection(
     return error_code
 
 
-def _profile_drift_row(error_code: str, *, calls_before: int, calls_after: int, checkpoint_sha256: str) -> dict[str, Any]:
+def _profile_drift_row(
+    error_code: str, *, calls_before: int, calls_after: int, checkpoint_sha256: str
+) -> dict[str, Any]:
     """Build evidence from counts captured around the rejected attempt only."""
     return {
         "scenario": "profile_drift",

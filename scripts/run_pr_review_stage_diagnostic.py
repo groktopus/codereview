@@ -11,11 +11,22 @@ from pathlib import Path
 from typing import Any, Callable
 
 STAGES = {
-    "profile_configuration", "limits_validation", "provider_configuration",
-    "historical_checks_load", "historical_checks_validation", "snapshot_collection",
-    "planning", "task_preparation", "request_evidence_selection", "request_serialization",
-    "historical_snapshot_binding", "review_option_validation", "run_identity_validation",
-    "review_pipeline_unclassified", "configuration_setup", "cli_preflight_unclassified",
+    "profile_configuration",
+    "limits_validation",
+    "provider_configuration",
+    "historical_checks_load",
+    "historical_checks_validation",
+    "snapshot_collection",
+    "planning",
+    "task_preparation",
+    "request_evidence_selection",
+    "request_serialization",
+    "historical_snapshot_binding",
+    "review_option_validation",
+    "run_identity_validation",
+    "review_pipeline_unclassified",
+    "configuration_setup",
+    "cli_preflight_unclassified",
 }
 
 
@@ -36,6 +47,7 @@ class StageTracker:
                 if self.failed_stage is None and stage in STAGES:
                     self.failed_stage = stage
                 raise
+
         return tracked
 
 
@@ -49,14 +61,21 @@ def _write_stage(path: Path, exit_code: int, stage: str) -> None:
     parent_info = parent.lstat()
     if (
         parent.parent != runner_temp
-        or not stat.S_ISDIR(parent_info.st_mode) or stat.S_IMODE(parent_info.st_mode) != 0o700
-        or parent.is_symlink() or target.exists() or target.is_symlink()
+        or not stat.S_ISDIR(parent_info.st_mode)
+        or stat.S_IMODE(parent_info.st_mode) != 0o700
+        or parent.is_symlink()
+        or target.exists()
+        or target.is_symlink()
     ):
         raise StageReceiptError("stage_receipt_path_invalid")
-    payload = json.dumps(
-        {"schema": "pr-review-prepare-stage-diagnostic.v1", "stage": stage, "exit_code": exit_code},
-        sort_keys=True, separators=(",", ":"),
-    ).encode("ascii") + b"\n"
+    payload = (
+        json.dumps(
+            {"schema": "pr-review-prepare-stage-diagnostic.v1", "stage": stage, "exit_code": exit_code},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("ascii")
+        + b"\n"
+    )
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
@@ -76,9 +95,7 @@ def _install_tracking(tracker: StageTracker) -> tuple[Any, Any, Callable[[], Non
     original_load_json = cli._load_json
 
     def tracked_load_json(path: str, label: str) -> Any:
-        stage = {"profile": "profile_configuration", "limits": "limits_validation"}.get(
-            label, "configuration_setup"
-        )
+        stage = {"profile": "profile_configuration", "limits": "limits_validation"}.get(label, "configuration_setup")
         try:
             return original_load_json(path, label)
         except BaseException:
@@ -117,16 +134,20 @@ def _install_tracking(tracker: StageTracker) -> tuple[Any, Any, Callable[[], Non
         (cli, "_load_historical_checks", tracker.wrap("historical_checks_load", cli._load_historical_checks)),
         (cli, "_validate_historical_checks", tracked_validate_checks),
         (cli, "collect_snapshot", tracker.wrap("snapshot_collection", cli.collect_snapshot)),
-        (cli, "_rebind_snapshot_evidence_references", tracker.wrap(
-            "historical_snapshot_binding", cli._rebind_snapshot_evidence_references
-        )),
+        (
+            cli,
+            "_rebind_snapshot_evidence_references",
+            tracker.wrap("historical_snapshot_binding", cli._rebind_snapshot_evidence_references),
+        ),
         (checks, "ingest_check_runs", tracked_ingest),
         (planner, "plan_review", tracker.wrap("planning", planner.plan_review)),
         (engine, "prepare_plan_tasks", tracker.wrap("task_preparation", engine.prepare_plan_tasks)),
         (engine, "_evidence_for", tracker.wrap("request_evidence_selection", engine._evidence_for)),
-        (providers.OpenAIProvider, "serialize_review_request", tracker.wrap(
-            "request_serialization", providers.OpenAIProvider.serialize_review_request
-        )),
+        (
+            providers.OpenAIProvider,
+            "serialize_review_request",
+            tracker.wrap("request_serialization", providers.OpenAIProvider.serialize_review_request),
+        ),
         (cli, "_claim_assessment_cap", tracker.wrap("review_option_validation", cli._claim_assessment_cap)),
         (cli, "_validate_run_id", tracker.wrap("run_identity_validation", cli._validate_run_id)),
         (cli, "_run_one", tracker.wrap("review_pipeline_unclassified", cli._run_one)),
@@ -151,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
         stage_path = Path(arguments[1]) if arguments[0] == "--stage-output" else None
         if stage_path is None or separator != 2 or len(arguments) <= separator + 1:
             raise StageReceiptError("stage_arguments_invalid")
-        cli_argv = arguments[separator + 1:]
+        cli_argv = arguments[separator + 1 :]
     except (ValueError, IndexError):
         print('{"error":"diagnostic_wrapper_invalid_arguments","exit_code":2}')
         return 2

@@ -47,8 +47,12 @@ def _read_regular(path: Path, cap: int) -> bytes:
         fd = os.open(path, flags)
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
-                    or opened.st_ino != before.st_ino or opened.st_size > cap):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size > cap
+            ):
                 raise SealedSourceIntegrationError("operator_input_invalid")
             chunks = bytearray()
             while len(chunks) <= cap:
@@ -76,8 +80,11 @@ def _json_object(raw: bytes, code: str) -> dict[str, Any]:
         return result
 
     try:
-        value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique,
-                           parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("constant")))
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=unique,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("constant")),
+        )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
         raise SealedSourceIntegrationError(code) from None
     if not isinstance(value, dict):
@@ -96,30 +103,40 @@ def _private_artifact_dir(path: Path) -> Path:
         private_info = (path / "private").lstat()
     except OSError:
         raise SealedSourceIntegrationError("sealed_source_directory_unavailable") from None
-    if (not stat.S_ISDIR(private_info.st_mode) or stat.S_ISLNK(private_info.st_mode)
-            or stat.S_IMODE(private_info.st_mode) != 0o700):
+    if (
+        not stat.S_ISDIR(private_info.st_mode)
+        or stat.S_ISLNK(private_info.st_mode)
+        or stat.S_IMODE(private_info.st_mode) != 0o700
+    ):
         raise SealedSourceIntegrationError("sealed_source_directory_invalid")
     return path
 
 
 def _sanitized_receipt(
-    result: Mapping[str, Any], *, jev_external_calls: int, jev_transport_invocations: int,
+    result: Mapping[str, Any],
+    *,
+    jev_external_calls: int,
+    jev_transport_invocations: int,
     jev_dispatch_state: str,
 ) -> dict[str, Any]:
     advisory = result.get("advisory_source_record_decision")
     if not isinstance(advisory, dict):
         raise SealedSourceIntegrationError("advisory_result_invalid")
-    if (result.get("terminal_state") != "incomplete"
-            or result.get("terminal_reason") != "no_writer_candidate"
-            or result.get("disposition") != "not_set"
-            or result.get("writer_comparison") != "not_applicable"):
+    if (
+        result.get("terminal_state") != "incomplete"
+        or result.get("terminal_reason") != "no_writer_candidate"
+        or result.get("disposition") != "not_set"
+        or result.get("writer_comparison") != "not_applicable"
+    ):
         raise SealedSourceIntegrationError("no_candidate_result_contract_invalid")
     if jev_external_calls not in (0, 1) or advisory.get("retries") != 0:
         raise SealedSourceIntegrationError("provider_call_budget_invalid")
-    if (jev_transport_invocations not in (0, 1)
-            or jev_external_calls > jev_transport_invocations
-            or (jev_external_calls == 1) != (jev_dispatch_state == "http_attempted")
-            or advisory.get("transport_invocations") != 1 + jev_transport_invocations):
+    if (
+        jev_transport_invocations not in (0, 1)
+        or jev_external_calls > jev_transport_invocations
+        or (jev_external_calls == 1) != (jev_dispatch_state == "http_attempted")
+        or advisory.get("transport_invocations") != 1 + jev_transport_invocations
+    ):
         raise SealedSourceIntegrationError("provider_call_accounting_invalid")
     return {
         "contract_version": "pr464-sealed-source-record-jev-receipt.v1",
@@ -159,9 +176,11 @@ def _sanitized_receipt(
 
 def _private_advisory_summary(receipt: Mapping[str, Any], advisory_choice: Any) -> dict[str, Any]:
     """Project only bounded, hash-bound advisory state into a private summary."""
-    if (receipt.get("case_id") != "PR-464"
-            or receipt.get("snapshot_id") != "snap-e20deb18f2ac6cb39c6ebafd"
-            or receipt.get("snapshot_sha256") != "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"):
+    if (
+        receipt.get("case_id") != "PR-464"
+        or receipt.get("snapshot_id") != "snap-e20deb18f2ac6cb39c6ebafd"
+        or receipt.get("snapshot_sha256") != "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
+    ):
         raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
     plan_hash = receipt.get("plan_sha256")
     record_hash = receipt.get("selected_record_id_sha256")
@@ -171,20 +190,35 @@ def _private_advisory_summary(receipt: Mapping[str, Any], advisory_choice: Any) 
     source_request_hash = receipt.get("source_record_replay_request_sha256")
     source_response_hash = receipt.get("source_response_sha256")
     jev_request_hash, jev_response_hash = receipt.get("jev_request_sha256"), receipt.get("jev_response_sha256")
-    if (not isinstance(source_request_hash, str) or not _SHA256.fullmatch(source_request_hash)
-            or (source_response_hash is not None and
-                (not isinstance(source_response_hash, str) or not _SHA256.fullmatch(source_response_hash)))
-            or (jev_request_hash is not None and
-                (not isinstance(jev_request_hash, str) or not _SHA256.fullmatch(jev_request_hash)))
-            or (jev_response_hash is not None and
-                (not isinstance(jev_response_hash, str) or not _SHA256.fullmatch(jev_response_hash)))):
+    if (
+        not isinstance(source_request_hash, str)
+        or not _SHA256.fullmatch(source_request_hash)
+        or (
+            source_response_hash is not None
+            and (not isinstance(source_response_hash, str) or not _SHA256.fullmatch(source_response_hash))
+        )
+        or (
+            jev_request_hash is not None
+            and (not isinstance(jev_request_hash, str) or not _SHA256.fullmatch(jev_request_hash))
+        )
+        or (
+            jev_response_hash is not None
+            and (not isinstance(jev_response_hash, str) or not _SHA256.fullmatch(jev_response_hash))
+        )
+    ):
         raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
-    if (not isinstance(source_status, str) or source_status not in {"completed", "abstained", "failed"}
-            or isinstance(record_count, bool) or not isinstance(record_count, int) or record_count < 0):
+    if (
+        not isinstance(source_status, str)
+        or source_status not in {"completed", "abstained", "failed"}
+        or isinstance(record_count, bool)
+        or not isinstance(record_count, int)
+        or record_count < 0
+    ):
         raise SealedSourceIntegrationError("advisory_summary_state_invalid")
     if source_status == "completed":
-        if (record_count < 1 or (record_hash is not None
-                and (not isinstance(record_hash, str) or not _SHA256.fullmatch(record_hash)))):
+        if record_count < 1 or (
+            record_hash is not None and (not isinstance(record_hash, str) or not _SHA256.fullmatch(record_hash))
+        ):
             raise SealedSourceIntegrationError("advisory_summary_state_invalid")
     elif source_status == "abstained":
         if record_count != 0 or record_hash is not None:
@@ -198,17 +232,22 @@ def _private_advisory_summary(receipt: Mapping[str, Any], advisory_choice: Any) 
     if not isinstance(jev_status, str):
         raise SealedSourceIntegrationError("advisory_summary_state_invalid")
     if jev_status == "completed":
-        if (record_hash is None or not isinstance(choice, str) or choice not in _ADVISORY_CHOICES
-                or jev_request_hash is None or jev_response_hash is None):
+        if (
+            record_hash is None
+            or not isinstance(choice, str)
+            or choice not in _ADVISORY_CHOICES
+            or jev_request_hash is None
+            or jev_response_hash is None
+        ):
             raise SealedSourceIntegrationError("advisory_summary_state_invalid")
     elif jev_status in {"abstained", "not_run", "failed"}:
         if choice is not None:
             raise SealedSourceIntegrationError("advisory_summary_state_invalid")
-        if (record_hash is None and (jev_status != "not_run" or jev_response_hash is not None)):
+        if record_hash is None and (jev_status != "not_run" or jev_response_hash is not None):
             raise SealedSourceIntegrationError("advisory_summary_state_invalid")
-        if (record_hash is None and source_status != "completed" and jev_request_hash is not None):
+        if record_hash is None and source_status != "completed" and jev_request_hash is not None:
             raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
-        if (record_hash is not None and jev_request_hash is None):
+        if record_hash is not None and jev_request_hash is None:
             raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
         if jev_status == "abstained" and (record_hash is None or jev_response_hash is None):
             raise SealedSourceIntegrationError("advisory_summary_state_invalid")
@@ -269,9 +308,11 @@ def run_private_artifact_decision(
 ) -> dict[str, Any]:
     """Verify private source artifacts, make at most one Jev call, and write a hash-only receipt."""
     artifact_dir = _private_artifact_dir(artifact_dir)
-    if (not isinstance(jev_config, Mapping)
-            or set(jev_config) != {"kind", "endpoint", "model", "api_key_env"}
-            or jev_config.get("kind") != "typesafe"):
+    if (
+        not isinstance(jev_config, Mapping)
+        or set(jev_config) != {"kind", "endpoint", "model", "api_key_env"}
+        or jev_config.get("kind") != "typesafe"
+    ):
         raise SealedSourceIntegrationError("jev_config_invalid")
     paths = {artifact_id: artifact_dir / relative for artifact_id, relative in ARTIFACTS.items()}
     manifest = _json_object(_read_regular(paths["shadow-audit-manifest"], 64_000), "shadow_manifest_invalid")
@@ -302,6 +343,7 @@ def run_private_artifact_decision(
                 if transport.last_dispatch_state == "http_attempted":
                     external_calls.append(None)
     else:
+
         def bounded_transport(raw: bytes, timeout: float, response_cap: int) -> bytes:
             if calls:
                 raise SealedSourceIntegrationError("jev_call_limit_exceeded")
@@ -318,7 +360,9 @@ def run_private_artifact_decision(
         require_frozen_pr464=True,
     )
     receipt = _sanitized_receipt(
-        result, jev_external_calls=len(external_calls), jev_transport_invocations=len(calls),
+        result,
+        jev_external_calls=len(external_calls),
+        jev_transport_invocations=len(calls),
         jev_dispatch_state=dispatch_state[0],
     )
     advisory_summary = None
@@ -346,18 +390,27 @@ def _read_jev_config(path: Path) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--artifacts", type=Path, required=True, help="private 0700 source-only audit artifact directory")
-    parser.add_argument("--jev-config", type=Path, required=True, help="trusted TypeSafe decision.json; no literal credentials")
+    parser.add_argument(
+        "--artifacts", type=Path, required=True, help="private 0700 source-only audit artifact directory"
+    )
+    parser.add_argument(
+        "--jev-config", type=Path, required=True, help="trusted TypeSafe decision.json; no literal credentials"
+    )
     parser.add_argument("--output-dir", type=Path, required=True, help="new private directory for sanitized receipt")
     parser.add_argument("--live", action="store_true", help="authorize at most one bounded Jev provider call")
-    parser.add_argument("--write-private-advisory-summary", action="store_true",
-                        help="also write a bounded private advisory summary; it is not uploaded by the workflow")
+    parser.add_argument(
+        "--write-private-advisory-summary",
+        action="store_true",
+        help="also write a bounded private advisory summary; it is not uploaded by the workflow",
+    )
     args = parser.parse_args(argv)
     if not args.live:
         parser.error("provider dispatch requires --live after reviewing the frozen PR464 artifacts")
     try:
         receipt = run_private_artifact_decision(
-            args.artifacts, _read_jev_config(args.jev_config), args.output_dir,
+            args.artifacts,
+            _read_jev_config(args.jev_config),
+            args.output_dir,
             write_advisory_summary=args.write_private_advisory_summary,
         )
     except (OSError, ValueError, SourceRecordTransportError) as exc:

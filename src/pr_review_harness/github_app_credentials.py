@@ -172,7 +172,12 @@ class GitHubAppPublisherCredentialProvider:
                 encoded = encoded.decode("ascii")
             except UnicodeDecodeError:
                 raise _safe_error("github_app_signer_unavailable") from None
-        if not isinstance(encoded, str) or not encoded or len(encoded) > _MAX_TOKEN_BYTES or any(c.isspace() for c in encoded):
+        if (
+            not isinstance(encoded, str)
+            or not encoded
+            or len(encoded) > _MAX_TOKEN_BYTES
+            or any(c.isspace() for c in encoded)
+        ):
             raise _safe_error("github_app_signer_unavailable")
         return encoded
 
@@ -415,8 +420,5 @@ class GitHubAppPublisherCredentialProvider:
     ) -> None:
         returned_permissions = response.get("permissions")
         expected_permissions = {**permissions, "metadata": "read"}
-        if (
-            not isinstance(returned_permissions, dict)
-            or returned_permissions != expected_permissions
-        ):
+        if not isinstance(returned_permissions, dict) or returned_permissions != expected_permissions:
             raise _safe_error("github_app_token_scope_mismatch")

@@ -46,7 +46,7 @@ def test_context_followup_v3_workflow_upload_is_bounded_and_sanitized():
     upload_start = text.index("- name: Upload only the sanitized summary and manifest")
     assert cleanup_start < upload_start
     cleanup = text[cleanup_start:upload_start]
-    assert "private = path / \"private\"" in cleanup
+    assert 'private = path / "private"' in cleanup
     assert "shutil.rmtree(private)" in cleanup
     assert "shutil.rmtree(path)" not in cleanup
     upload = text.split("- name: Upload only the sanitized summary and manifest", maxsplit=1)[1]

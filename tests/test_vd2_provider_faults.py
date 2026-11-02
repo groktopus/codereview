@@ -20,14 +20,18 @@ FAULT_CASES = (
     ("VD2-PROVIDER-5XX", "normal", 503, b'{"error":"unavailable"}', "http_status_503"),
     ("VD2-PROVIDER-MALFORMED", "normal", 200, b"{not-json", "malformed_provider_response"),
     ("VD2-PROVIDER-TRUNCATED", "truncated", 200, b'{"choices":[]}', "malformed_provider_response"),
-    ("VD2-PROVIDER-DUPLICATE", "normal", 200, json.dumps({"choices": [{}, {}]}).encode(), "malformed_provider_response"),
+    (
+        "VD2-PROVIDER-DUPLICATE",
+        "normal",
+        200,
+        json.dumps({"choices": [{}, {}]}).encode(),
+        "malformed_provider_response",
+    ),
 )
 
 
 @pytest.mark.parametrize("case_id,mode,status,body,error_code", FAULT_CASES, ids=[row[0] for row in FAULT_CASES])
-def test_provider_transport_fault_matrix_is_typed_and_makes_one_request(
-    case_id, mode, status, body, error_code
-):
+def test_provider_transport_fault_matrix_is_typed_and_makes_one_request(case_id, mode, status, body, error_code):
     seen = []
 
     class Handler(BaseHTTPRequestHandler):

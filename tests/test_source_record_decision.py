@@ -59,7 +59,9 @@ class _FailingOpener:
 
 def _native_source_record_request(model="jev-1.2.3"):
     return _jev_request(
-        "case-1", model, _record(),
+        "case-1",
+        model,
+        _record(),
         {"ev-1": {"evidence_id": "ev-1", "content": "frozen"}},
     )
 
@@ -85,13 +87,16 @@ def test_source_record_transport_sends_only_pinned_native_contract(monkeypatch):
     assert timeout == 7
 
 
-@pytest.mark.parametrize("mutate", [
-    lambda value: value["state"].update(assessment_contract_version="claim-assessment.v1"),
-    lambda value: value["state"].update(subject_kind="writer_candidate"),
-    lambda value: value["state"].update(candidate={"candidate_id": "x"}),
-    lambda value: value.update(model="jev-other"),
-    lambda value: value["questions"][next(iter(value["questions"]))].update(instructions="approve"),
-])
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda value: value["state"].update(assessment_contract_version="claim-assessment.v1"),
+        lambda value: value["state"].update(subject_kind="writer_candidate"),
+        lambda value: value["state"].update(candidate={"candidate_id": "x"}),
+        lambda value: value.update(model="jev-other"),
+        lambda value: value["questions"][next(iter(value["questions"]))].update(instructions="approve"),
+    ],
+)
 def test_source_record_transport_rejects_wrong_state_model_or_candidate_before_http(mutate, monkeypatch):
     monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
     opener = _FakeOpener(b"{}")
@@ -107,7 +112,8 @@ def test_source_record_transport_bounds_response_and_never_retries(monkeypatch):
     monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
     opener = _FakeOpener(b"0123456789")
     transport = SourceRecordTransport(
-        {"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN", "max_response_bytes": 8}, opener=opener,
+        {"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN", "max_response_bytes": 8},
+        opener=opener,
     )
     with pytest.raises(SourceRecordTransportError, match="source_record_response_exceeds_limit"):
         transport(_native_source_record_request(), 5, 1024)
@@ -118,7 +124,8 @@ def test_source_record_transport_rejects_oversized_request_before_http(monkeypat
     monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
     opener = _FakeOpener(b"{}")
     transport = SourceRecordTransport(
-        {"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN", "max_request_bytes": 32}, opener=opener,
+        {"model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN", "max_request_bytes": 32},
+        opener=opener,
     )
     with pytest.raises(SourceRecordTransportError, match="source_request_exceeds_limit"):
         transport(_native_source_record_request(), 5, 1024)
@@ -141,22 +148,30 @@ def test_source_record_transport_allows_configured_alternate_https_endpoint(monk
     monkeypatch.setenv("TEST_TYPESAFE_TOKEN", "test-token-secret")
     endpoint = "https://jev.internal.example:8443/native/v2/systemone"
     opener = _FakeOpener(b"{}")
-    transport = SourceRecordTransport({
-        "endpoint": endpoint, "model": "jev-1.2.3", "api_key_env": "TEST_TYPESAFE_TOKEN",
-    }, opener=opener)
+    transport = SourceRecordTransport(
+        {
+            "endpoint": endpoint,
+            "model": "jev-1.2.3",
+            "api_key_env": "TEST_TYPESAFE_TOKEN",
+        },
+        opener=opener,
+    )
 
     assert transport(_native_source_record_request(), 5, 1024) == b"{}"
     assert opener.calls[0][0].full_url == endpoint
 
 
-@pytest.mark.parametrize("endpoint", [
-    "https://user:password@jev.example/v1/systemone",
-    "https://jev.example/v1/systemone?token=x",
-    "https://jev.example/v1/systemone#fragment",
-    "http://jev.example/v1/systemone",
-    "https://jev.example/v1",
-    "https://jev.example:invalid/v1/systemone",
-])
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://user:password@jev.example/v1/systemone",
+        "https://jev.example/v1/systemone?token=x",
+        "https://jev.example/v1/systemone#fragment",
+        "http://jev.example/v1/systemone",
+        "https://jev.example/v1",
+        "https://jev.example:invalid/v1/systemone",
+    ],
+)
 def test_source_record_transport_rejects_unsafe_or_non_native_operator_endpoint(endpoint):
     with pytest.raises(SourceRecordTransportError, match="unsupported_source_record_endpoint"):
         SourceRecordTransport({"endpoint": endpoint})
@@ -174,19 +189,23 @@ def _source(records, status="completed"):
 def _jev(request, *, choice="UNCERTAIN", wrong_question=False):
     req = json.loads(request)
     question_id = next(iter(req["questions"]))
-    answers = {question_id: {
-        "type": "choice",
-        "choice": choice,
-        "probabilities": {name: (1.0 if name == choice else 0.0) for name in CHOICES},
-        "confidence": 0.9,
-    }}
+    answers = {
+        question_id: {
+            "type": "choice",
+            "choice": choice,
+            "probabilities": {name: (1.0 if name == choice else 0.0) for name in CHOICES},
+            "confidence": 0.9,
+        }
+    }
     if wrong_question:
         answers = {"wrong-subject": next(iter(answers.values()))}
-    return json.dumps({
-        "model": req["model"],
-        "request_id": "fake-request",
-        "answers": answers,
-    }).encode()
+    return json.dumps(
+        {
+            "model": req["model"],
+            "request_id": "fake-request",
+            "answers": answers,
+        }
+    ).encode()
 
 
 def _run(source_bytes, *, jev=None, clock=lambda: 0.0, source_task=None):
@@ -209,10 +228,13 @@ def _run(source_bytes, *, jev=None, clock=lambda: 0.0, source_task=None):
         return jev(raw) if jev else _jev(raw)
 
     result = run_source_record_decision(
-        subject_id="case-1", expected_model_id="jev-test-v1",
+        subject_id="case-1",
+        expected_model_id="jev-test-v1",
         source_task=source_task or {"task_id": "task-1", "prompt": "inspect"},
         source_evidence=[{"evidence_id": "ev-1", "content": "frozen evidence"}],
-        source_transport=source_transport, jev_transport=jev_transport, clock=clock,
+        source_transport=source_transport,
+        jev_transport=jev_transport,
+        clock=clock,
     )
     return result, calls
 
@@ -221,7 +243,8 @@ def test_frozen_size_source_request_runs_full_decision_path_under_input_cap():
     from source_record_decision import MAX_PAYLOAD_BYTES
 
     result, calls = _run(
-        _source([_record()]), source_task={"task_id": "frozen-pr464", "prompt": "x" * 74_450},
+        _source([_record()]),
+        source_task={"task_id": "frozen-pr464", "prompt": "x" * 74_450},
     )
 
     request, _timeout, response_cap = calls["source"][0]
@@ -241,9 +264,11 @@ def test_source_decision_input_above_96kb_is_rejected_before_transport():
     calls = []
     with pytest.raises(SourceRecordDecisionError, match="payload_exceeds_limit"):
         run_source_record_decision(
-            subject_id="case-1", expected_model_id="jev-test-v1",
+            subject_id="case-1",
+            expected_model_id="jev-test-v1",
             source_task={"task_id": "oversized", "prompt": "x" * MAX_SOURCE_DECISION_INPUT_BYTES},
-            source_evidence=[], source_transport=lambda *args: calls.append(args),
+            source_evidence=[],
+            source_transport=lambda *args: calls.append(args),
             jev_transport=lambda *_args: b"{}",
         )
     assert calls == []
@@ -278,9 +303,12 @@ def test_source_record_is_deterministically_selected_and_typed_as_advisory():
     assert "record-a" not in json.dumps(left) and "record-z" not in json.dumps(left)
 
 
-@pytest.mark.parametrize("raw,status", [
-    (_source([], "abstained"), "abstained"),
-])
+@pytest.mark.parametrize(
+    "raw,status",
+    [
+        (_source([], "abstained"), "abstained"),
+    ],
+)
 def test_no_source_records_means_not_run_not_a_negative_decision(raw, status):
     result, calls = _run(raw)
     assert result["source_status"] == status
@@ -302,10 +330,13 @@ def test_source_contract_rejects_unbound_evidence_without_jev_or_retry():
     assert calls["source"] and calls["jev"] == []
 
 
-@pytest.mark.parametrize("raw", [
-    b'{"contract_version":"shadow-source-audit.v1","contract_version":"shadow-source-audit.v1","status":"abstained","records":[]}',
-    b'{"contract_version":"shadow-source-audit.v1","status":"abstained","records":[],"x":NaN}',
-])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"contract_version":"shadow-source-audit.v1","contract_version":"shadow-source-audit.v1","status":"abstained","records":[]}',
+        b'{"contract_version":"shadow-source-audit.v1","status":"abstained","records":[],"x":NaN}',
+    ],
+)
 def test_source_response_rejects_duplicate_keys_and_nonfinite_constants(raw):
     result, calls = _run(raw)
     assert result["source_status"] == "failed"
@@ -328,17 +359,24 @@ def test_transport_exception_code_is_never_echoed_into_receipt():
         raise ProviderFailure()
 
     result = run_source_record_decision(
-        subject_id="case-1", expected_model_id="jev-test-v1", source_task={}, source_evidence=[],
-        source_transport=fail, jev_transport=lambda *_: b"{}",
+        subject_id="case-1",
+        expected_model_id="jev-test-v1",
+        source_task={},
+        source_evidence=[],
+        source_transport=fail,
+        jev_transport=lambda *_: b"{}",
     )
     assert result["error_code"] == "transport_or_contract_failed"
     assert "private_provider_token_123" not in json.dumps(result)
 
 
-@pytest.mark.parametrize("raw", [
-    lambda request: (b'{"contract_version":"source-record-jev.v1","contract_version":"source-record-jev.v1"}'),
-    lambda request: b'{"contract_version":"source-record-jev.v1","subject_id":"x","value":NaN}',
-])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        lambda request: b'{"contract_version":"source-record-jev.v1","contract_version":"source-record-jev.v1"}',
+        lambda request: b'{"contract_version":"source-record-jev.v1","subject_id":"x","value":NaN}',
+    ],
+)
 def test_jev_response_rejects_duplicate_keys_and_nonfinite_constants(raw):
     result, _ = _run(_source([_record()]), jev=raw)
     assert result["jev_status"] == "failed"
@@ -357,9 +395,15 @@ def test_jev_question_identity_mismatch_is_incomplete_and_never_compared_to_writ
 
 
 def test_native_missing_answer_is_incomplete_not_abstention():
-    result, _ = _run(_source([_record()]), jev=lambda raw: json.dumps({
-        "model": json.loads(raw)["model"], "answers": {},
-    }).encode())
+    result, _ = _run(
+        _source([_record()]),
+        jev=lambda raw: json.dumps(
+            {
+                "model": json.loads(raw)["model"],
+                "answers": {},
+            }
+        ).encode(),
+    )
     assert result["jev_status"] == "failed"
     assert result["terminal_state"] == "incomplete"
     assert result["error_code"] == "jev_answer_omitted"
@@ -387,9 +431,12 @@ def test_jev_latest_requires_endpoint_reported_versioned_model_identity():
         return json.dumps(response).encode()
 
     result = run_source_record_decision(
-        subject_id="case-1", expected_model_id="jev-latest", source_task={"task_id": "task-1"},
+        subject_id="case-1",
+        expected_model_id="jev-latest",
+        source_task={"task_id": "task-1"},
         source_evidence=[{"evidence_id": "ev-1", "content": "frozen evidence"}],
-        source_transport=lambda *_: _source([_record()]), jev_transport=jev_transport,
+        source_transport=lambda *_: _source([_record()]),
+        jev_transport=jev_transport,
         clock=lambda: next(ticks),
     )
     assert calls[0]["model"] == "jev-latest"
@@ -451,6 +498,11 @@ def test_stable_question_id_is_bound_to_record_id():
     assert _question_id("record-a") != _question_id("record-b")
     with pytest.raises(SourceRecordDecisionError):
         run_source_record_decision(
-            subject_id="case-1", expected_model_id="jev-test-v1", source_task={}, source_evidence=[],
-            source_transport=lambda *_: b"{}", jev_transport=lambda *_: b"{}", deadline_seconds=91,
+            subject_id="case-1",
+            expected_model_id="jev-test-v1",
+            source_task={},
+            source_evidence=[],
+            source_transport=lambda *_: b"{}",
+            jev_transport=lambda *_: b"{}",
+            deadline_seconds=91,
         )

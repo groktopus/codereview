@@ -14,7 +14,10 @@ SCRIPT = ROOT / "scripts/materialize_seeded_writer_synth_001.py"
 def _run(fixture: Path, target: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--fixture-dir", str(fixture), "--target-dir", str(target)],
-        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
     )
 
 
@@ -29,12 +32,15 @@ def test_materialization_is_deterministic_and_contains_only_review_inputs(tmp_pa
     assert one["payload_sha256"] == "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
     assert one["changed_path"] == "auth.py"
     assert one["base_sha"] != one["head_sha"]
-    assert hashlib.sha256((tmp_path / "first" / "auth.py").read_bytes()).hexdigest() == hashlib.sha256(
-        (FIXTURE / "head/auth.py").read_bytes()
-    ).hexdigest()
+    assert (
+        hashlib.sha256((tmp_path / "first" / "auth.py").read_bytes()).hexdigest()
+        == hashlib.sha256((FIXTURE / "head/auth.py").read_bytes()).hexdigest()
+    )
     tracked = subprocess.run(
         ["git", "-C", str(tmp_path / "first"), "ls-tree", "-r", "--name-only", one["head_sha"]],
-        check=True, text=True, stdout=subprocess.PIPE,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
     ).stdout.splitlines()
     assert tracked == ["auth.py", "caller.py", "contract.md"]
     assert "truth" not in first.stdout.lower()
@@ -51,6 +57,7 @@ def test_materializer_rejects_tampering_and_extra_files(tmp_path: Path):
             (changed / path.name).write_bytes(path.read_bytes())
         elif path.is_dir():
             import shutil
+
             shutil.copytree(path, changed / path.name)
     (changed / "caller.py").write_bytes((changed / "caller.py").read_bytes() + b"# changed\n")
     result = _run(changed, tmp_path / "tampered-target")
@@ -78,6 +85,7 @@ def test_materializer_rejects_symlinks_and_nonempty_target(tmp_path: Path):
             (linked / path.name).write_bytes(path.read_bytes())
         elif path.is_dir():
             import shutil
+
             shutil.copytree(path, linked / path.name)
     (linked / "caller.py").unlink()
     (linked / "caller.py").symlink_to(FIXTURE / "caller.py")

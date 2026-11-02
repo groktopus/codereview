@@ -250,7 +250,7 @@ def test_retrieval_fits_complete_ipc_envelope_and_rebinds_multibyte_content(tmp_
 
     monkeypatch.setattr(evidence_module, "datetime", FrozenDatetime)
     repo, base, head = repository(tmp_path)
-    payload = ("π and 漢字\n" * 5000)
+    payload = "π and 漢字\n" * 5000
     (repo / "AGENTS.md").write_text(payload, encoding="utf-8")
     git(repo, "add", "AGENTS.md")
     git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-m", "large trusted context")
@@ -299,11 +299,14 @@ def test_retrieval_fits_complete_ipc_envelope_and_rebinds_multibyte_content(tmp_
     assert len(raw) == evidence["captured_bytes"] < len(payload.encode("utf-8"))
     assert evidence["truncated"] is True
     assert evidence["content_hash"] == hashlib.sha256(raw).hexdigest()
-    expected_id = "ev-" + hashlib.sha256(
-        ipc_canonical(
-            {"snapshot_id": "snap-test", "revision": base, "path": "AGENTS.md", "hash": evidence["content_hash"]}
-        )
-    ).hexdigest()[:24]
+    expected_id = (
+        "ev-"
+        + hashlib.sha256(
+            ipc_canonical(
+                {"snapshot_id": "snap-test", "revision": base, "path": "AGENTS.md", "hash": evidence["content_hash"]}
+            )
+        ).hexdigest()[:24]
+    )
     assert evidence["evidence_id"] == expected_id
     assert evidence["source_url"].endswith(f"#L1-L{max(len(evidence['content'].splitlines()), 1)}")
 

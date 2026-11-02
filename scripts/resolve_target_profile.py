@@ -85,7 +85,10 @@ def resolve_target_profile(target_repository: str, *, root: Path = ROOT) -> dict
 
     map_raw = _read_regular_file(root / "profiles" / "targets.json", MAX_MAP_BYTES, "profile_map_unavailable")
     profile_map = _parse_json(map_raw, "profile_map_invalid")
-    if set(profile_map) != {"contract_version", "targets"} or profile_map.get("contract_version") != "target-profile-bindings.v1":
+    if (
+        set(profile_map) != {"contract_version", "targets"}
+        or profile_map.get("contract_version") != "target-profile-bindings.v1"
+    ):
         raise ProfileBindingError("profile_map_invalid")
     targets = profile_map.get("targets")
     if not isinstance(targets, dict):
@@ -160,7 +163,10 @@ def main(argv: list[str] | None = None) -> int:
         _write_binding_artifact(args.binding_artifact, binding)
         _write_github_outputs(args.github_output, binding)
     except ProfileBindingError as exc:
-        print(json.dumps({"status": "REJECTED", "error": exc.code}, sort_keys=True, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps({"status": "REJECTED", "error": exc.code}, sort_keys=True, separators=(",", ":")),
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps({"status": "RESOLVED", **binding}, sort_keys=True, separators=(",", ":")))
     return 0

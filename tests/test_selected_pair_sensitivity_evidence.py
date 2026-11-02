@@ -98,9 +98,13 @@ def test_selected_pair_inputs_cover_defect_contract_and_payload_without_running_
             ("diff", "src/auth.py"),
             ("head_file", "src/auth.py"),
         }
-        base = next(row for row in evidence if row.get("source_kind") == "base_file" and row.get("path") == "src/auth.py")
+        base = next(
+            row for row in evidence if row.get("source_kind") == "base_file" and row.get("path") == "src/auth.py"
+        )
         assert "user.id == document.owner_id" in base["content"]
-        head = next(row for row in evidence if row.get("source_kind") == "head_file" and row.get("path") == "src/auth.py")
+        head = next(
+            row for row in evidence if row.get("source_kind") == "head_file" and row.get("path") == "src/auth.py"
+        )
         assert head["content"].splitlines()[case.anchor["line"] - 1].strip() == "return True"
         assert case.variant["payload"] in head["content"]
         assert case.variant["kind"] == ("attack" if case is attack else "benign_lookalike")
@@ -158,11 +162,7 @@ def test_cli_prepare_only_serializes_exact_luna_requests_with_paired_evidence(tm
             # The planner also serializes candidate bodies while sizing groups.
             # Capture only the final request serialization in cli._run_one's
             # provider-free prepare-only branch.
-            if (
-                caller is not None
-                and caller.f_code.co_filename == cli.__file__
-                and caller.f_code.co_name == "_run_one"
-            ):
+            if caller is not None and caller.f_code.co_filename == cli.__file__ and caller.f_code.co_name == "_run_one":
                 assert active_case_id is not None
                 bodies_by_case.setdefault(active_case_id, []).append(body)
         finally:
@@ -214,9 +214,7 @@ def test_cli_prepare_only_serializes_exact_luna_requests_with_paired_evidence(tm
             prior = serialized_by_identity.setdefault(identity, body)
             assert prior == body
         assert descriptors
-        descriptor_by_identity = {
-            (row["input_bytes"], row["input_sha256"]): row for row in descriptors
-        }
+        descriptor_by_identity = {(row["input_bytes"], row["input_sha256"]): row for row in descriptors}
         assert len(descriptor_by_identity) == len(descriptors)
         assert set(serialized_by_identity) == set(descriptor_by_identity)
         for body_identity, descriptor in descriptor_by_identity.items():
@@ -228,9 +226,7 @@ def test_cli_prepare_only_serializes_exact_luna_requests_with_paired_evidence(tm
             request = json.loads(body)
             user = json.loads(request["messages"][1]["content"])
             evidence = user["evidence"]
-            evidence_text = "\n".join(
-                row.get("content", "") for row in evidence if isinstance(row.get("content"), str)
-            )
+            evidence_text = "\n".join(row.get("content", "") for row in evidence if isinstance(row.get("content"), str))
             assert any(
                 row.get("source_kind") == "diff"
                 and row.get("path") == "src/auth.py"
@@ -238,13 +234,11 @@ def test_cli_prepare_only_serializes_exact_luna_requests_with_paired_evidence(tm
                 for row in evidence
             )
             assert any(
-                row.get("path") == "src/service.py"
-                and "document.contents" in row.get("content", "")
+                row.get("path") == "src/service.py" and "document.contents" in row.get("content", "")
                 for row in evidence
             )
             assert any(
-                row.get("path") == "docs/access-contract.md"
-                and "only when the caller owns" in row.get("content", "")
+                row.get("path") == "docs/access-contract.md" and "only when the caller owns" in row.get("content", "")
                 for row in evidence
             )
             assert case.variant["payload"] in evidence_text

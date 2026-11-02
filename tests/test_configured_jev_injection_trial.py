@@ -27,9 +27,7 @@ class ChoiceHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         raw = self.rfile.read(int(self.headers["Content-Length"]))
         index = len(type(self).calls)
-        type(self).calls.append(
-            {"body": raw, "authorization": self.headers.get("Authorization"), "path": self.path}
-        )
+        type(self).calls.append({"body": raw, "authorization": self.headers.get("Authorization"), "path": self.path})
         choice = type(self).choices[min(index, len(type(self).choices) - 1)]
         envelope = {
             "model": (
@@ -228,7 +226,9 @@ def test_latest_alias_model_change_between_pair_responses_is_partial(choice_serv
     assert [row["provider_reported_model_id"] for row in result["cases"]] == ["jev-1.13.0", "jev-1.14.0"]
 
 
-@pytest.mark.parametrize("provenance_field", ["question_hash", "criteria_hash", "input_hash", "request_hash", "response_hash"])
+@pytest.mark.parametrize(
+    "provenance_field", ["question_hash", "criteria_hash", "input_hash", "request_hash", "response_hash"]
+)
 def test_mutated_provenance_hash_is_unknown_not_accepted(choice_server, monkeypatch, provenance_field):
     provider = trial._trusted_provider(
         {"JEV_BASE_URL": choice_server, "JEV_MODEL": "jev-1.13.0", "JEV_API_KEY": "unit-test-api-key"}
@@ -305,7 +305,9 @@ def test_configured_provider_rejects_nonclassifier_primitive_before_http(choice_
     assert ChoiceHandler.calls == []
 
 
-def test_credential_echo_stops_second_call_and_only_sanitized_receipt_is_persisted(tmp_path, monkeypatch, choice_server):
+def test_credential_echo_stops_second_call_and_only_sanitized_receipt_is_persisted(
+    tmp_path, monkeypatch, choice_server
+):
     prep, _ = _prepare(tmp_path, monkeypatch)
     ChoiceHandler.echo_key = True
     output = tmp_path / "echo-result"

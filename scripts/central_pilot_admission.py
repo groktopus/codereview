@@ -74,8 +74,11 @@ def _event_binding(raw: bytes, pr_number: int) -> tuple[str, str, str, int, int]
     event = _object(raw, "event_json_invalid")
     repository = event.get("repository")
     run = event.get("workflow_run")
-    if (not isinstance(repository, dict) or not isinstance(repository.get("full_name"), str)
-            or repository["full_name"].casefold() != CALLER.casefold()):
+    if (
+        not isinstance(repository, dict)
+        or not isinstance(repository.get("full_name"), str)
+        or repository["full_name"].casefold() != CALLER.casefold()
+    ):
         raise AdmissionError("dispatch_repository_mismatch")
     if not isinstance(run, dict) or run.get("event") != "workflow_dispatch":
         raise AdmissionError("dispatch_origin_invalid")
@@ -83,10 +86,20 @@ def _event_binding(raw: bytes, pr_number: int) -> tuple[str, str, str, int, int]
     attempt = run.get("run_attempt")
     workflow_id = run.get("workflow_id")
     repository_id = repository.get("id") if isinstance(repository, dict) else None
-    if (isinstance(run_id, bool) or not isinstance(run_id, int) or run_id < 1
-            or isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1
-            or isinstance(workflow_id, bool) or not isinstance(workflow_id, int) or workflow_id < 1
-            or isinstance(repository_id, bool) or not isinstance(repository_id, int) or repository_id < 1):
+    if (
+        isinstance(run_id, bool)
+        or not isinstance(run_id, int)
+        or run_id < 1
+        or isinstance(attempt, bool)
+        or not isinstance(attempt, int)
+        or attempt < 1
+        or isinstance(workflow_id, bool)
+        or not isinstance(workflow_id, int)
+        or workflow_id < 1
+        or isinstance(repository_id, bool)
+        or not isinstance(repository_id, int)
+        or repository_id < 1
+    ):
         raise AdmissionError("dispatch_run_identity_invalid")
     # Actions' workflow-run API omits the ref suffix from `path`; `head_branch`
     # supplies the branch binding. This exact bare path is verified against the
@@ -102,10 +115,15 @@ def _event_binding(raw: bytes, pr_number: int) -> tuple[str, str, str, int, int]
 
 
 def _api_json(transport: Any, url: str, token: str) -> tuple[bytes, fetch.HttpResponse]:
-    response = transport.get(url, headers={
-        "Accept": "application/vnd.github+json", "Authorization": f"Bearer {token}",
-        "X-GitHub-Api-Version": fetch.API_VERSION,
-    }, limit=intake.MAX_API_BYTES)
+    response = transport.get(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": fetch.API_VERSION,
+        },
+        limit=intake.MAX_API_BYTES,
+    )
     if len(response.body) > intake.MAX_API_BYTES or response.status != 200:
         raise AdmissionError("read_only_api_response_invalid")
     return response.body, response
@@ -117,8 +135,9 @@ def _validate_token(token: Any) -> str:
     return token
 
 
-def discover_pr_number(*, event_bytes: bytes, token: str, transport: Any,
-                       api_base: str = "https://api.github.com") -> int:
+def discover_pr_number(
+    *, event_bytes: bytes, token: str, transport: Any, api_base: str = "https://api.github.com"
+) -> int:
     """Derive the PR only from one exact run/attempt artifact name.
 
     This is a selector only. ``verify_candidate`` re-fetches the run and
@@ -134,16 +153,20 @@ def discover_pr_number(*, event_bytes: bytes, token: str, transport: Any,
     if not isinstance(rows, list) or listing.get("total_count") != len(rows) or len(rows) > 100:
         raise AdmissionError("recovery_artifact_listing_incomplete")
     pattern = re.compile(rf"^pr-review-([1-9][0-9]{{0,8}})-{run_id}-{attempt}$")
-    numbers = [int(match.group(1)) for row in rows if isinstance(row, dict)
-               and isinstance(row.get("name"), str)
-               if (match := pattern.fullmatch(row["name"])) is not None]
+    numbers = [
+        int(match.group(1))
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("name"), str)
+        if (match := pattern.fullmatch(row["name"])) is not None
+    ]
     if len(numbers) != 1:
         raise AdmissionError("recovery_artifact_not_unique")
     return numbers[0]
 
 
-def manual_event_for_existing_run(*, run_id: str, attempt: str, token: str,
-                                  transport: Any, api_base: str = "https://api.github.com") -> bytes:
+def manual_event_for_existing_run(
+    *, run_id: str, attempt: str, token: str, transport: Any, api_base: str = "https://api.github.com"
+) -> bytes:
     """Construct a manual-rehearsal input from a read-only source attempt lookup."""
     token = _validate_token(token)
     if not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
@@ -155,44 +178,77 @@ def manual_event_for_existing_run(*, run_id: str, attempt: str, token: str,
     raw, _ = _api_json(transport, url, token)
     run = intake._parse_json(raw, "source_run_invalid")
     repo = run.get("repository")
-    if (isinstance(run.get("id"), bool) or not isinstance(run.get("id"), int)
-            or str(run["id"]) != run_id or isinstance(run.get("run_attempt"), bool)
-            or run.get("run_attempt") != int(attempt) or not isinstance(repo, dict)
-            or not isinstance(repo.get("id"), int) or isinstance(repo.get("id"), bool)
-            or not isinstance(repo.get("full_name"), str) or repo["full_name"].casefold() != CALLER.casefold()
-            or not isinstance(run.get("workflow_id"), int) or isinstance(run.get("workflow_id"), bool)):
+    if (
+        isinstance(run.get("id"), bool)
+        or not isinstance(run.get("id"), int)
+        or str(run["id"]) != run_id
+        or isinstance(run.get("run_attempt"), bool)
+        or run.get("run_attempt") != int(attempt)
+        or not isinstance(repo, dict)
+        or not isinstance(repo.get("id"), int)
+        or isinstance(repo.get("id"), bool)
+        or not isinstance(repo.get("full_name"), str)
+        or repo["full_name"].casefold() != CALLER.casefold()
+        or not isinstance(run.get("workflow_id"), int)
+        or isinstance(run.get("workflow_id"), bool)
+    ):
         raise AdmissionError("manual_source_run_binding_mismatch")
-    event = {"repository": {"id": repo["id"], "full_name": repo["full_name"]}, "workflow_run": {
-        key: run[key] for key in ("id", "run_attempt", "workflow_id", "event", "path", "head_branch", "head_sha")
-        if key in run
-    }}
+    event = {
+        "repository": {"id": repo["id"], "full_name": repo["full_name"]},
+        "workflow_run": {
+            key: run[key]
+            for key in ("id", "run_attempt", "workflow_id", "event", "path", "head_branch", "head_sha")
+            if key in run
+        },
+    }
     return (json.dumps(event, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
-def _validate_source_run(raw: bytes, *, run_id: str, attempt: str, caller_sha: str,
-                         workflow_id: int, repository_id: int) -> dict[str, Any]:
+def _validate_source_run(
+    raw: bytes, *, run_id: str, attempt: str, caller_sha: str, workflow_id: int, repository_id: int
+) -> dict[str, Any]:
     run = intake._parse_json(raw, "source_run_invalid")
     repo = run.get("repository")
-    if (isinstance(run.get("id"), bool) or not isinstance(run.get("id"), int) or run.get("id", 0) < 1
-            or str(run["id"]) != run_id or isinstance(run.get("run_attempt"), bool)
-            or run.get("run_attempt") != int(attempt)
-            or isinstance(run.get("workflow_id"), bool) or not isinstance(run.get("workflow_id"), int)
-            or isinstance(run.get("workflow_id"), int) and run["workflow_id"] < 1
-            or isinstance(repo, dict) and (isinstance(repo.get("id"), bool)
-                                           or not isinstance(repo.get("id"), int)
-                                           or repo.get("id", 0) < 1)
-            or run.get("event") != "workflow_dispatch" or run.get("path") != CALLER_PATH
-            or run.get("head_branch") != "main" or run.get("head_sha") != caller_sha
-            or not isinstance(repo, dict) or not isinstance(repo.get("full_name"), str)
-            or repo["full_name"].casefold() != CALLER.casefold() or repo.get("id") != repository_id
-            or run.get("workflow_id") != workflow_id
-            or run.get("status") != "completed" or run.get("conclusion") != "success"):
+    if (
+        isinstance(run.get("id"), bool)
+        or not isinstance(run.get("id"), int)
+        or run.get("id", 0) < 1
+        or str(run["id"]) != run_id
+        or isinstance(run.get("run_attempt"), bool)
+        or run.get("run_attempt") != int(attempt)
+        or isinstance(run.get("workflow_id"), bool)
+        or not isinstance(run.get("workflow_id"), int)
+        or isinstance(run.get("workflow_id"), int)
+        and run["workflow_id"] < 1
+        or isinstance(repo, dict)
+        and (isinstance(repo.get("id"), bool) or not isinstance(repo.get("id"), int) or repo.get("id", 0) < 1)
+        or run.get("event") != "workflow_dispatch"
+        or run.get("path") != CALLER_PATH
+        or run.get("head_branch") != "main"
+        or run.get("head_sha") != caller_sha
+        or not isinstance(repo, dict)
+        or not isinstance(repo.get("full_name"), str)
+        or repo["full_name"].casefold() != CALLER.casefold()
+        or repo.get("id") != repository_id
+        or run.get("workflow_id") != workflow_id
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "success"
+    ):
         raise AdmissionError("source_run_binding_mismatch")
     refs = run.get("referenced_workflows")
     expected_called_ref = f"{CALLER}/{REUSABLE_PATH}@{REUSABLE_SHA}"
-    matches = [item for item in refs if isinstance(item, dict)
-               and item.get("path") == expected_called_ref and item.get("sha") == REUSABLE_SHA
-               and item.get("ref") in {None, REUSABLE_SHA}] if isinstance(refs, list) else []
+    matches = (
+        [
+            item
+            for item in refs
+            if isinstance(item, dict)
+            and item.get("path") == expected_called_ref
+            and item.get("sha") == REUSABLE_SHA
+            and item.get("ref") in {None, REUSABLE_SHA}
+        ]
+        if isinstance(refs, list)
+        else []
+    )
     if len(matches) != 1:
         raise AdmissionError("reusable_workflow_binding_mismatch")
     return run
@@ -203,14 +259,23 @@ def _validate_current_pr(raw: bytes, number: int) -> dict[str, Any]:
     base = pr.get("base")
     head = pr.get("head")
     base_repo = base.get("repo") if isinstance(base, dict) else None
-    if (isinstance(pr.get("number"), bool) or not isinstance(pr.get("number"), int)
-            or pr.get("number") != number or pr.get("state") != "open" or pr.get("draft") is not False
-            or not isinstance(base, dict) or base.get("ref") != BASE_REF
-            or not isinstance(base_repo, dict) or not isinstance(base_repo.get("full_name"), str)
-            or base_repo["full_name"].casefold() != TARGET.casefold()
-            or not isinstance(head, dict) or not isinstance(base.get("sha"), str)
-            or not SHA1.fullmatch(base["sha"]) or not isinstance(head.get("sha"), str)
-            or not SHA1.fullmatch(head["sha"])):
+    if (
+        isinstance(pr.get("number"), bool)
+        or not isinstance(pr.get("number"), int)
+        or pr.get("number") != number
+        or pr.get("state") != "open"
+        or pr.get("draft") is not False
+        or not isinstance(base, dict)
+        or base.get("ref") != BASE_REF
+        or not isinstance(base_repo, dict)
+        or not isinstance(base_repo.get("full_name"), str)
+        or base_repo["full_name"].casefold() != TARGET.casefold()
+        or not isinstance(head, dict)
+        or not isinstance(base.get("sha"), str)
+        or not SHA1.fullmatch(base["sha"])
+        or not isinstance(head.get("sha"), str)
+        or not SHA1.fullmatch(head["sha"])
+    ):
         raise AdmissionError("target_pr_not_current_open_candidate")
     return {"number": number, "base_sha": base["sha"], "head_sha": head["sha"]}
 
@@ -283,8 +348,14 @@ def _validate_review_contract_binding(raw: bytes, identity: dict[str, Any]) -> d
     }
 
 
-def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str,
-                     transport: Any, api_base: str = "https://api.github.com") -> dict[str, Any]:
+def verify_candidate(
+    *,
+    event_bytes: bytes,
+    pull_request_number: int,
+    token: str,
+    transport: Any,
+    api_base: str = "https://api.github.com",
+) -> dict[str, Any]:
     """Verify one dispatch run, its retained artifact and current target PR.
 
     ``transport`` must implement GET only. No default network client is provided,
@@ -298,14 +369,23 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
     target_url = f"{base}/{fetch._repo_path(TARGET)}/pulls/{pull_request_number}"
     artifacts_url = f"{base}/{repo_path}/actions/runs/{run_id}/artifacts?per_page=100"
     run_raw, _ = _api_json(transport, run_url, token)
-    run = _validate_source_run(run_raw, run_id=run_id, attempt=attempt, caller_sha=caller_sha,
-                               workflow_id=workflow_id, repository_id=repository_id)
+    run = _validate_source_run(
+        run_raw,
+        run_id=run_id,
+        attempt=attempt,
+        caller_sha=caller_sha,
+        workflow_id=workflow_id,
+        repository_id=repository_id,
+    )
     pr_raw, _ = _api_json(transport, target_url, token)
     pr = _validate_current_pr(pr_raw, pull_request_number)
     artifacts_raw, _ = _api_json(transport, artifacts_url, token)
 
-    identity_hint = {"pull_request_number": pull_request_number, "workflow_run_id": run_id,
-                     "workflow_run_attempt": attempt}
+    identity_hint = {
+        "pull_request_number": pull_request_number,
+        "workflow_run_id": run_id,
+        "workflow_run_attempt": attempt,
+    }
     try:
         artifact = intake._select_artifact(artifacts_raw, identity_hint, run)
     except manifests.ManifestError as error:
@@ -326,13 +406,21 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
     except manifests.ManifestError as error:
         raise AdmissionError(str(error)) from None
     expected = {
-        "workflow_repository": CALLER, "workflow_run_id": run_id, "workflow_run_attempt": attempt,
-        "workflow_run_head_sha": caller_sha, "run_workflow_ref": manifests.CENTRAL_PILOT_CALLER_REF,
+        "workflow_repository": CALLER,
+        "workflow_run_id": run_id,
+        "workflow_run_attempt": attempt,
+        "workflow_run_head_sha": caller_sha,
+        "run_workflow_ref": manifests.CENTRAL_PILOT_CALLER_REF,
         "called_workflow_ref": f"{CALLER}/{REUSABLE_PATH}@{REUSABLE_SHA}",
-        "called_workflow_sha": REUSABLE_SHA, "called_workflow_repository": CALLER,
-        "called_workflow_file_path": REUSABLE_PATH, "target_repository": TARGET,
-        "pull_request_number": pull_request_number, "base_sha": pr["base_sha"], "head_sha": pr["head_sha"],
-        "harness_repository": CALLER, "harness_sha": REUSABLE_SHA,
+        "called_workflow_sha": REUSABLE_SHA,
+        "called_workflow_repository": CALLER,
+        "called_workflow_file_path": REUSABLE_PATH,
+        "target_repository": TARGET,
+        "pull_request_number": pull_request_number,
+        "base_sha": pr["base_sha"],
+        "head_sha": pr["head_sha"],
+        "harness_repository": CALLER,
+        "harness_sha": REUSABLE_SHA,
     }
     if any(identity.get(key) != value for key, value in expected.items()):
         raise AdmissionError("recovery_trusted_identity_mismatch")
@@ -354,14 +442,19 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
         except manifests.ManifestError as error:
             raise AdmissionError(str(error)) from None
     receipt = {
-        "schema_version": "central-pilot-candidate-receipt.v1", "status": "CONSISTENCY_VALIDATED",
-        "source_run_id": run_id, "source_run_attempt": attempt,
-        "caller_repository": CALLER, "caller_workflow_sha256": hashlib.sha256(caller_sha.encode()).hexdigest(),
+        "schema_version": "central-pilot-candidate-receipt.v1",
+        "status": "CONSISTENCY_VALIDATED",
+        "source_run_id": run_id,
+        "source_run_attempt": attempt,
+        "caller_repository": CALLER,
+        "caller_workflow_sha256": hashlib.sha256(caller_sha.encode()).hexdigest(),
         "reusable_workflow_sha256": hashlib.sha256(REUSABLE_SHA.encode()).hexdigest(),
-        "target_repository": TARGET, "pull_request_number": pull_request_number,
+        "target_repository": TARGET,
+        "pull_request_number": pull_request_number,
         "base_sha256": hashlib.sha256(pr["base_sha"].encode()).hexdigest(),
         "head_sha256": hashlib.sha256(pr["head_sha"].encode()).hexdigest(),
-        "artifact_id": artifact["id"], "artifact_sha256": hashlib.sha256(archive).hexdigest(),
+        "artifact_id": artifact["id"],
+        "artifact_sha256": hashlib.sha256(archive).hexdigest(),
         "manifest_sha256": hashlib.sha256(files[manifests.MANIFEST_NAME]).hexdigest(),
         "recovery_inputs_sha256": manifest_doc["recovery_inputs"]["packet_sha256"],
         **contract_binding,
@@ -370,9 +463,17 @@ def verify_candidate(*, event_bytes: bytes, pull_request_number: int, token: str
     return receipt
 
 
-def run_canary(*, event_name: str, event_bytes: bytes | None, run_id: str | None,
-               attempt: str | None, token: str, transport: Any, receipt_path: Path,
-               api_base: str = "https://api.github.com") -> dict[str, Any]:
+def run_canary(
+    *,
+    event_name: str,
+    event_bytes: bytes | None,
+    run_id: str | None,
+    attempt: str | None,
+    token: str,
+    transport: Any,
+    receipt_path: Path,
+    api_base: str = "https://api.github.com",
+) -> dict[str, Any]:
     """Run a hosted trigger or a separately labeled manual rehearsal."""
     if event_name == "workflow_run":
         if event_bytes is None or run_id is not None or attempt is not None:
@@ -384,7 +485,11 @@ def run_canary(*, event_name: str, event_bytes: bytes | None, run_id: str | None
         if event_bytes is not None or run_id is None or attempt is None:
             raise AdmissionError("manual_rehearsal_inputs_invalid")
         event = manual_event_for_existing_run(
-            run_id=run_id, attempt=attempt, token=token, transport=transport, api_base=api_base,
+            run_id=run_id,
+            attempt=attempt,
+            token=token,
+            transport=transport,
+            api_base=api_base,
         )
         trigger_mode = "manual_rehearsal"
         trigger_evidence = "NOT_ESTABLISHED_BY_MANUAL_REHEARSAL"
@@ -392,8 +497,11 @@ def run_canary(*, event_name: str, event_bytes: bytes | None, run_id: str | None
         raise AdmissionError("trigger_mode_invalid")
     pr_number = discover_pr_number(event_bytes=event, token=token, transport=transport, api_base=api_base)
     receipt = verify_candidate(
-        event_bytes=event, pull_request_number=pr_number, token=token,
-        transport=transport, api_base=api_base,
+        event_bytes=event,
+        pull_request_number=pr_number,
+        token=token,
+        transport=transport,
+        api_base=api_base,
     )
     receipt.update({"trigger_mode": trigger_mode, "workflow_run_trigger_evidence": trigger_evidence})
     raw = (json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n").encode()
@@ -431,12 +539,20 @@ def main(argv: list[str] | None = None) -> int:
                 raise AdmissionError("manual_rehearsal_inputs_invalid")
             event_bytes = None
         receipt = run_canary(
-            event_name=args.event_name, event_bytes=event_bytes, run_id=args.run_id,
-            attempt=args.attempt, token=token, transport=fetch.UrllibTransport(),
+            event_name=args.event_name,
+            event_bytes=event_bytes,
+            run_id=args.run_id,
+            attempt=args.attempt,
+            token=token,
+            transport=fetch.UrllibTransport(),
             receipt_path=args.receipt_output,
         )
     except (AdmissionError, fetch.FetchError, intake.ManifestError, OSError, TypeError, KeyError) as error:
-        code = str(error) if isinstance(error, (AdmissionError, fetch.FetchError, intake.ManifestError)) else "admission_failed"
+        code = (
+            str(error)
+            if isinstance(error, (AdmissionError, fetch.FetchError, intake.ManifestError))
+            else "admission_failed"
+        )
         print(json.dumps({"error": code}, separators=(",", ":")), file=sys.stderr)
         return 2
     print(json.dumps(receipt, sort_keys=True, separators=(",", ":")))

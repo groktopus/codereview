@@ -78,11 +78,14 @@ def test_no_effect_archive_uses_its_exact_filename_and_receipt_parser():
             zipped.writestr(filename, receipt.to_bytes())
         return stream.getvalue()
 
-    assert _read_receipt_archive(
-        archive("no-effect-receipt.json"),
-        expected_filename="no-effect-receipt.json",
-        expected_type=NoEffectReceipt,
-    ) == receipt.to_bytes()
+    assert (
+        _read_receipt_archive(
+            archive("no-effect-receipt.json"),
+            expected_filename="no-effect-receipt.json",
+            expected_type=NoEffectReceipt,
+        )
+        == receipt.to_bytes()
+    )
     with pytest.raises(GitHubPublicationError, match="receipt_archive_member_invalid"):
         _read_receipt_archive(
             archive("attempt-receipt.json"),
@@ -131,9 +134,10 @@ def test_historical_content_blob_accepts_wrapped_base64_and_rejects_bad_api_iden
         Provider(),
         transport=FakeTransport(lambda *_: response(value)),
     )
-    assert adapter._historical_content_blob(
-        ".github/pr-review-publisher-policy.json", "f" * 40, 5, 64
-    ) == (content, blob_sha)
+    assert adapter._historical_content_blob(".github/pr-review-publisher-policy.json", "f" * 40, 5, 64) == (
+        content,
+        blob_sha,
+    )
 
     invalid_values = [
         metadata(sha="d" * 40),
@@ -143,9 +147,7 @@ def test_historical_content_blob_accepts_wrapped_base64_and_rejects_bad_api_iden
     for invalid in invalid_values:
         adapter.transport = FakeTransport(lambda *_args, value=invalid: response(value))
         with pytest.raises(GitHubPublicationError):
-            adapter._historical_content_blob(
-                ".github/pr-review-publisher-policy.json", "f" * 40, 5, 64
-            )
+            adapter._historical_content_blob(".github/pr-review-publisher-policy.json", "f" * 40, 5, 64)
 
 
 def test_historical_exception_accepts_bound_v3_policy_without_requiring_v4():
@@ -300,23 +302,27 @@ def test_v4_created_floor_is_sent_to_api_and_old_returned_rows_fail_closed():
         return response({"total_count": 1, "workflow_runs": [run]})
 
     adapter = GitHubActionsPublicationAdapter(policy, Provider(), transport=FakeTransport(responder))
-    rows, count, complete = adapter._publisher_runs(slot, ScanLimits(max_runs=20, max_pages=2, max_reviews=100, deadline_seconds=10))
+    rows, count, complete = adapter._publisher_runs(
+        slot, ScanLimits(max_runs=20, max_pages=2, max_reviews=100, deadline_seconds=10)
+    )
     assert rows == [run] and count == 1 and complete
     assert observed_query[0]["created"] == [">=2026-10-01T00:00:00Z"]
 
     old_run = dict(run, created_at="2026-09-30T23:59:59Z")
     adapter.transport = FakeTransport(
-        lambda _method, url, _body: response(
-            {
-                "number": 44,
-                "state": "open",
-                "base": {"sha": "b" * 40, "repo": {"id": policy.repository_id}},
-                "head": {"sha": "a" * 40},
-                "created_at": "2026-10-01T00:00:00Z",
-            }
+        lambda _method, url, _body: (
+            response(
+                {
+                    "number": 44,
+                    "state": "open",
+                    "base": {"sha": "b" * 40, "repo": {"id": policy.repository_id}},
+                    "head": {"sha": "a" * 40},
+                    "created_at": "2026-10-01T00:00:00Z",
+                }
+            )
+            if urlsplit(url).path.endswith("/pulls/44")
+            else response({"total_count": 1, "workflow_runs": [old_run]})
         )
-        if urlsplit(url).path.endswith("/pulls/44")
-        else response({"total_count": 1, "workflow_runs": [old_run]})
     )
     with pytest.raises(GitHubPublicationError, match="publisher_run_before_authenticated_floor"):
         adapter._publisher_runs(slot, ScanLimits(max_runs=20, max_pages=2, max_reviews=100, deadline_seconds=10))
@@ -346,11 +352,23 @@ def test_skipped_publisher_run_accepts_only_exact_zero_step_job(job_name):
 @pytest.mark.parametrize(
     "jobs_payload",
     [
-        {"total_count": True, "jobs": [{"name": "publisher", "status": "completed", "conclusion": "skipped", "steps": []}]},
-        {"total_count": 1, "jobs": [{"name": "publisher", "status": "in_progress", "conclusion": "skipped", "steps": []}]},
+        {
+            "total_count": True,
+            "jobs": [{"name": "publisher", "status": "completed", "conclusion": "skipped", "steps": []}],
+        },
+        {
+            "total_count": 1,
+            "jobs": [{"name": "publisher", "status": "in_progress", "conclusion": "skipped", "steps": []}],
+        },
         {"total_count": 1, "jobs": [{"name": "publisher", "status": "completed", "conclusion": "skipped"}]},
-        {"total_count": 1, "jobs": [{"name": "unexpected-job", "status": "completed", "conclusion": "skipped", "steps": []}]},
-        {"total_count": 2, "jobs": [{"name": "publisher", "status": "completed", "conclusion": "skipped", "steps": []}, {}]},
+        {
+            "total_count": 1,
+            "jobs": [{"name": "unexpected-job", "status": "completed", "conclusion": "skipped", "steps": []}],
+        },
+        {
+            "total_count": 2,
+            "jobs": [{"name": "publisher", "status": "completed", "conclusion": "skipped", "steps": []}, {}],
+        },
     ],
 )
 def test_skipped_publisher_run_rejects_unproven_job_shape(jobs_payload):
@@ -361,9 +379,7 @@ def test_skipped_publisher_run_rejects_unproven_job_shape(jobs_payload):
         transport=FakeTransport(lambda *_: response(jobs_payload)),
     )
     with pytest.raises(GitHubPublicationError):
-        adapter._verify_skipped_publisher_run(
-            {"id": 900001, "run_attempt": 1, "conclusion": "skipped"}, 10
-        )
+        adapter._verify_skipped_publisher_run({"id": 900001, "run_attempt": 1, "conclusion": "skipped"}, 10)
 
 
 def test_v4_early_identity_failure_reports_no_ack_as_unknown_without_write(tmp_path):
@@ -637,7 +653,9 @@ def test_history_reader_binds_no_effect_receipt_to_run_commit_policy_not_current
                 if path.endswith("/actions/runs/900001/artifacts"):
                     return response({"total_count": 1, "artifacts": [metadata]})
                 if path.endswith("/actions/artifacts/55/zip"):
-                    return HTTPResponse(302, {"location": "https://downloads.example.test/no-effect?sig=ephemeral"}, b"")
+                    return HTTPResponse(
+                        302, {"location": "https://downloads.example.test/no-effect?sig=ephemeral"}, b""
+                    )
                 if path.endswith("/contents/.github/pr-review-publisher-policy.json"):
                     if missing_policy:
                         return response({"message": "Not Found"}, status=404)
@@ -661,9 +679,7 @@ def test_history_reader_binds_no_effect_receipt_to_run_commit_policy_not_current
         transport = Transport(lambda *_: None)
         transport.responder = transport.respond
         adapter = GitHubActionsPublicationAdapter(policy, Provider(), transport=transport)
-        return adapter._receipt_for_publisher_run(
-            EffectSlot(8123, "owner/repo", 44, "a" * 40), run_record, 20
-        )
+        return adapter._receipt_for_publisher_run(EffectSlot(8123, "owner/repo", 44, "a" * 40), run_record, 20)
 
     # Policy A remains valid on its run commit after today's policy has changed to B.
     assert read_receipt() == expected

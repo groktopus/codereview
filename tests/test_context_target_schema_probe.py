@@ -91,10 +91,16 @@ def test_probe_requests_differ_only_at_target_schema_and_fit_the_fixed_cap(monke
         "deadline_seconds": 30,
     }
     task, evidence = _fixture()
+
     def archived_control(_root, source_task, source_evidence, source_limits, model):
         system, user, schema = provider._review_parts(source_task, source_evidence)
         legacy = copy.deepcopy(schema)
-        pairs = sorted({(choice["kind"], choice["value"]) for choice in validate_context_target_manifest(source_task["context_target_manifest"])})
+        pairs = sorted(
+            {
+                (choice["kind"], choice["value"])
+                for choice in validate_context_target_manifest(source_task["context_target_manifest"])
+            }
+        )
         target = legacy["schema"]["properties"]["context_gap_proposals"]["items"]["properties"]
         target["target"] = {
             "type": "object",

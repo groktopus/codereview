@@ -87,15 +87,14 @@ def test_manifest_is_finite_and_uses_only_allowlisted_captured_paths():
     assert bound["source_sha"] == "b" * 40
     assert bound["source_object_id"] == "c" * 40
     assert validate_context_target_choice(manifest, {**proposal, "evidence_kind": "configuration"}) is None
-    assert validate_context_target_choice(
-        manifest, {**proposal, "target": {"kind": "unit", "value": "engines/exa.py"}}
-    ) is None
+    assert (
+        validate_context_target_choice(manifest, {**proposal, "target": {"kind": "unit", "value": "engines/exa.py"}})
+        is None
+    )
 
 
 def test_manifest_hash_rejects_any_choice_or_revision_tampering():
-    manifest = build_context_target_manifest(
-        {"task_id": "task-1"}, _snapshot(), _profile()
-    )
+    manifest = build_context_target_manifest({"task_id": "task-1"}, _snapshot(), _profile())
     tampered = copy.deepcopy(manifest)
     tampered["choices"][0]["value"] = "engines/other.py"
     with pytest.raises(ValueError, match="manifest_hash"):
@@ -151,9 +150,7 @@ def test_provider_v4_schema_enumerates_opt_in_targets_but_default_stays_legacy()
         "unit_ids": ["unit-test"],
         "evidence_ids": ["ev-1"],
         "request_input_contract": "specialist-input.v2",
-        "unit_evidence_bindings": [
-            {"unit_id": "unit-test", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}
-        ],
+        "unit_evidence_bindings": [{"unit_id": "unit-test", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}],
         "context_target_manifest": build_context_target_manifest(
             {"task_id": "task-1", "unit_ids": ["unit-test"]}, _snapshot(), _profile()
         ),
@@ -213,9 +210,7 @@ def test_empty_target_manifest_uses_valid_uninhabitable_gap_schema():
         "unit_ids": ["unit-test"],
         "evidence_ids": ["ev-1"],
         "request_input_contract": "specialist-input.v2",
-        "unit_evidence_bindings": [
-            {"unit_id": "unit-test", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}
-        ],
+        "unit_evidence_bindings": [{"unit_id": "unit-test", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}],
         "context_target_manifest": build_context_target_manifest(
             {"task_id": "task-empty", "unit_ids": ["unit-test"]}, snapshot, _profile()
         ),

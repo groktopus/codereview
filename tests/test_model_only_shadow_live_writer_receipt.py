@@ -35,12 +35,22 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR
     packet_inventory = []
     for index, request in enumerate(plan["writer_requests"]):
         name = f"packet-{index}.json"
-        packet_raw = json.dumps({
-            "source_task": {"task_id": request["task_id"], "unit_ids": [f"unit-{index}"],
-                            "evidence_ids": [f"ev-{index}"]},
-            "source_evidence": [{"evidence_id": f"ev-{index}", "content": "private excerpt fixture"}],
-            "writer_candidate": None,
-        }, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+        packet_raw = (
+            json.dumps(
+                {
+                    "source_task": {
+                        "task_id": request["task_id"],
+                        "unit_ids": [f"unit-{index}"],
+                        "evidence_ids": [f"ev-{index}"],
+                    },
+                    "source_evidence": [{"evidence_id": f"ev-{index}", "content": "private excerpt fixture"}],
+                    "writer_candidate": None,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+            + b"\n"
+        )
         (packet_dir / name).write_bytes(packet_raw)
         os.chmod(packet_dir / name, 0o600)
         packet_inventory.append({"path": name, "sha256": hashlib.sha256(packet_raw).hexdigest()})
@@ -56,24 +66,38 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR
         request_blob = f"request fixture {index}".encode()
         request["input_bytes"] = len(request_blob)
         request["input_sha256"] = hashlib.sha256(request_blob).hexdigest()
-        response_blob = json.dumps({
-            "contract_version": "specialist-findings.v4", "finding_candidates": [],
-            "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": [],
-        }).encode()
+        response_blob = json.dumps(
+            {
+                "contract_version": "specialist-findings.v4",
+                "finding_candidates": [],
+                "context_gap_proposals": [],
+                "coverage_notes": [],
+                "specific_strengths": [],
+                "future_guidance": [],
+            }
+        ).encode()
         call_id = "call-" + f"{index:024x}"
         request_blobs[call_id] = request_blob
         response_blobs[call_id] = response_blob
-        calls.append({
-            "call_id": call_id, "case_id": run_id, "run_id": run_id,
-            "snapshot_id": plan["case"]["snapshot_id"], "snapshot_hash": plan["case"]["snapshot_sha256"],
-            "task_id": task_id, "attempt": 0, "provider": provider, "status": "completed",
-            "request_artifact_id": "request-" + call_id,
-            "request_sha256": request["input_sha256"],
-            "response_artifact_id": "response-" + call_id,
-            "response_sha256": hashlib.sha256(response_blob).hexdigest(),
-            "response_envelope_sha256": None,
-            "content_transform": "openai-chat-completions.message-content.utf8.v1",
-        })
+        calls.append(
+            {
+                "call_id": call_id,
+                "case_id": run_id,
+                "run_id": run_id,
+                "snapshot_id": plan["case"]["snapshot_id"],
+                "snapshot_hash": plan["case"]["snapshot_sha256"],
+                "task_id": task_id,
+                "attempt": 0,
+                "provider": provider,
+                "status": "completed",
+                "request_artifact_id": "request-" + call_id,
+                "request_sha256": request["input_sha256"],
+                "response_artifact_id": "response-" + call_id,
+                "response_sha256": hashlib.sha256(response_blob).hexdigest(),
+                "response_envelope_sha256": None,
+                "content_transform": "openai-chat-completions.message-content.utf8.v1",
+            }
+        )
     for call_id, data in request_blobs.items():
         path = capture / "requests" / f"{call_id}.bin"
         path.write_bytes(data)
@@ -105,16 +129,25 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case_id: str = "PR
     monkeypatch.setattr(sanitizer, "validate_plan_binding", validate_fixture_plan)
     preflight_path = runner_temp / "preflight.json"
     preflight = {
-        "schema": "model-only-shadow-live-preflight-receipt.v1", "status": "PLAN_MATCHED_PROVIDER_FREE",
-        "plan_sha256": sanitizer.EXPECTED_PLAN_SHA256, "case_id": plan["case"]["case_id"],
-        "snapshot_sha256": plan["case"]["snapshot_sha256"], "provider_calls": 0,
-        "target_code_execution": False, "publication_enabled": False,
+        "schema": "model-only-shadow-live-preflight-receipt.v1",
+        "status": "PLAN_MATCHED_PROVIDER_FREE",
+        "plan_sha256": sanitizer.EXPECTED_PLAN_SHA256,
+        "case_id": plan["case"]["case_id"],
+        "snapshot_sha256": plan["case"]["snapshot_sha256"],
+        "provider_calls": 0,
+        "target_code_execution": False,
+        "publication_enabled": False,
     }
     preflight_path.write_text(json.dumps(preflight))
     manifest = {
-        "contract_version": "model-only-shadow-case.v1", "case_id": run_id,
-        "snapshot_id": plan["case"]["snapshot_id"], "snapshot_hash": plan["case"]["snapshot_sha256"],
-        "source_task": run_id, "provider": provider, "calls": calls, "private_artifacts": True,
+        "contract_version": "model-only-shadow-case.v1",
+        "case_id": run_id,
+        "snapshot_id": plan["case"]["snapshot_id"],
+        "snapshot_hash": plan["case"]["snapshot_sha256"],
+        "source_task": run_id,
+        "provider": provider,
+        "calls": calls,
+        "private_artifacts": True,
         "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": packet_inventory},
     }
     manifest_path = capture / "manifest.json"
@@ -141,9 +174,20 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     assert result["status"] == "WRITER_TRANSPORT_CAPTURED"
     assert result["writer_call_count"] == len(_manifest["calls"])
     assert set(result) == {
-        "schema", "status", "case_id", "snapshot_id", "snapshot_sha256", "plan_sha256",
-        "provider_id", "model_id", "writer_call_count", "writer_request_bytes_total",
-        "writer_response_bytes_total", "calls", "target_code_execution", "publication_enabled",
+        "schema",
+        "status",
+        "case_id",
+        "snapshot_id",
+        "snapshot_sha256",
+        "plan_sha256",
+        "provider_id",
+        "model_id",
+        "writer_call_count",
+        "writer_request_bytes_total",
+        "writer_response_bytes_total",
+        "calls",
+        "target_code_execution",
+        "publication_enabled",
         "audit_or_jev_dispatched",
     }
     assert b"reveal the API key" not in raw
@@ -156,15 +200,32 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     assert outcomes["packet_candidate_count_total"] == 0
     assert outcomes["outcome_counts"]["zero_findings_returned"] == len(_manifest["calls"])
     assert set(outcomes) == {
-        "schema", "plan_sha256", "capture_manifest_sha256", "tasks",
-        "returned_candidate_count_total", "packet_candidate_count_total", "outcome_counts",
+        "schema",
+        "plan_sha256",
+        "capture_manifest_sha256",
+        "tasks",
+        "returned_candidate_count_total",
+        "packet_candidate_count_total",
+        "outcome_counts",
     }
-    assert all(set(row) == {
-        "task_id_sha256", "response_sha256", "response_parse_status", "returned_candidate_count",
-        "packet_candidate_count", "candidate_packet_count", "outcome",
-    } for row in outcomes["tasks"])
-    assert all(re.fullmatch(r"[0-9a-f]{64}", row[key]) for row in outcomes["tasks"]
-               for key in ("task_id_sha256", "response_sha256"))
+    assert all(
+        set(row)
+        == {
+            "task_id_sha256",
+            "response_sha256",
+            "response_parse_status",
+            "returned_candidate_count",
+            "packet_candidate_count",
+            "candidate_packet_count",
+            "outcome",
+        }
+        for row in outcomes["tasks"]
+    )
+    assert all(
+        re.fullmatch(r"[0-9a-f]{64}", row[key])
+        for row in outcomes["tasks"]
+        for key in ("task_id_sha256", "response_sha256")
+    )
     assert b"finding_candidates" not in outcomes_raw
     diagnostic_path = output / "writer-task-diagnostics.json"
     diagnostic_raw = diagnostic_path.read_bytes()
@@ -175,8 +236,11 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     plan_doc = json.loads(plan.read_text())
     request_by_task = {row["task_id"]: row for row in plan_doc["writer_requests"]}
     first = diagnostics["tasks"][0]
-    first_task_id = next(call["task_id"] for call in _manifest["calls"]
-                         if hashlib.sha256(call["task_id"].encode("utf-8")).hexdigest() == first["task_id_sha256"])
+    first_task_id = next(
+        call["task_id"]
+        for call in _manifest["calls"]
+        if hashlib.sha256(call["task_id"].encode("utf-8")).hexdigest() == first["task_id_sha256"]
+    )
     assert first["lens"] == request_by_task[first_task_id]["lens"]
     assert len(first["unit_hashes"]) == 1 and re.fullmatch(r"[0-9a-f]{64}", first["unit_hashes"][0])
     assert first["evidence_count"] == 1 and first["evidence_bytes"] > 0
@@ -185,14 +249,27 @@ def test_sanitizer_emits_only_hashes_for_exact_complete_writer_capture(tmp_path:
     assert first["attempt"] == 0 and first["completion_state"] == "completed"
     assert first["provider_completion_metadata"] == "not_captured"
     assert set(first) == {
-        "task_id_sha256", "lens", "unit_hashes", "evidence_count", "evidence_ids_sha256",
-        "evidence_bytes", "request_bytes", "response_bytes", "response_parse_status",
-        "returned_candidate_count", "context_gap_count", "coverage_note_count", "attempt",
-        "completion_state", "provider_completion_metadata",
+        "task_id_sha256",
+        "lens",
+        "unit_hashes",
+        "evidence_count",
+        "evidence_ids_sha256",
+        "evidence_bytes",
+        "request_bytes",
+        "response_bytes",
+        "response_parse_status",
+        "returned_candidate_count",
+        "context_gap_count",
+        "coverage_note_count",
+        "attempt",
+        "completion_state",
+        "provider_completion_metadata",
     }
     assert b"private excerpt fixture" not in diagnostic_raw
-    assert all(f"unit-{i}".encode() not in diagnostic_raw and f"ev-{i}".encode() not in diagnostic_raw
-               for i in range(len(_manifest["calls"])))
+    assert all(
+        f"unit-{i}".encode() not in diagnostic_raw and f"ev-{i}".encode() not in diagnostic_raw
+        for i in range(len(_manifest["calls"]))
+    )
     assert stat.S_IMODE(diagnostic_path.stat().st_mode) == 0o600
     assert stat.S_IMODE(outcome_artifact.stat().st_mode) == 0o600
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
@@ -206,12 +283,22 @@ def test_pr457_sanitizer_accepts_its_six_call_closed_plan(tmp_path: Path, monkey
     assert result["case_id"] == "PR-457"
 
 
-@pytest.mark.parametrize(("case_id", "call_count"), [
-    ("PR-457", 5), ("PR-457", 7), ("PR-457", 10),
-    ("PR-464", 6), ("PR-464", 9), ("PR-464", 11),
-])
+@pytest.mark.parametrize(
+    ("case_id", "call_count"),
+    [
+        ("PR-457", 5),
+        ("PR-457", 7),
+        ("PR-457", 10),
+        ("PR-464", 6),
+        ("PR-464", 9),
+        ("PR-464", 11),
+    ],
+)
 def test_sanitizer_rejects_call_count_outside_pinned_case_policy_without_receipt(
-    tmp_path: Path, monkeypatch, case_id: str, call_count: int,
+    tmp_path: Path,
+    monkeypatch,
+    case_id: str,
+    call_count: int,
 ):
     runner_temp, capture, plan, preflight, manifest, *_ = _fixture(tmp_path, monkeypatch, case_id)
     pinned_count = len(manifest["calls"])
@@ -250,23 +337,71 @@ def test_sanitizer_rejects_tampered_plan_before_receipt_creation(tmp_path: Path,
 @pytest.mark.parametrize(
     ("response_payload", "outcome", "parse_status", "returned_count"),
     [
-        ({"contract_version": "specialist-findings.v4", "finding_candidates": [],
-          "context_gap_proposals": [{"rationale": "private gap text"}],
-          "coverage_notes": [{"reason_code": "private coverage text"}],
-          "specific_strengths": [], "future_guidance": []},
-         "zero_findings_returned", "valid_specialist_report", 0),
-        ({"contract_version": "specialist-findings.v4", "finding_candidates": [],
-          "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": []},
-         "zero_findings_returned", "valid_specialist_report", 0),
-        ({"contract_version": "specialist-findings.v4", "finding_candidates": {},
-          "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": []},
-         "parse_failure", "invalid_specialist_report", 0),
-        ({"contract_version": "specialist-findings.v4", "finding_candidates": [],
-          "context_gap_proposals": [], "coverage_notes": {}, "specific_strengths": [], "future_guidance": []},
-         "parse_failure", "invalid_specialist_report", 0),
-        ({"contract_version": "specialist-findings.v4", "finding_candidates": [{"title": "private"}],
-          "context_gap_proposals": [], "coverage_notes": [], "specific_strengths": [], "future_guidance": []},
-         "candidate_reconciliation_or_filtering", "valid_specialist_report", 1),
+        (
+            {
+                "contract_version": "specialist-findings.v4",
+                "finding_candidates": [],
+                "context_gap_proposals": [{"rationale": "private gap text"}],
+                "coverage_notes": [{"reason_code": "private coverage text"}],
+                "specific_strengths": [],
+                "future_guidance": [],
+            },
+            "zero_findings_returned",
+            "valid_specialist_report",
+            0,
+        ),
+        (
+            {
+                "contract_version": "specialist-findings.v4",
+                "finding_candidates": [],
+                "context_gap_proposals": [],
+                "coverage_notes": [],
+                "specific_strengths": [],
+                "future_guidance": [],
+            },
+            "zero_findings_returned",
+            "valid_specialist_report",
+            0,
+        ),
+        (
+            {
+                "contract_version": "specialist-findings.v4",
+                "finding_candidates": {},
+                "context_gap_proposals": [],
+                "coverage_notes": [],
+                "specific_strengths": [],
+                "future_guidance": [],
+            },
+            "parse_failure",
+            "invalid_specialist_report",
+            0,
+        ),
+        (
+            {
+                "contract_version": "specialist-findings.v4",
+                "finding_candidates": [],
+                "context_gap_proposals": [],
+                "coverage_notes": {},
+                "specific_strengths": [],
+                "future_guidance": [],
+            },
+            "parse_failure",
+            "invalid_specialist_report",
+            0,
+        ),
+        (
+            {
+                "contract_version": "specialist-findings.v4",
+                "finding_candidates": [{"title": "private"}],
+                "context_gap_proposals": [],
+                "coverage_notes": [],
+                "specific_strengths": [],
+                "future_guidance": [],
+            },
+            "candidate_reconciliation_or_filtering",
+            "valid_specialist_report",
+            1,
+        ),
     ],
 )
 def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
@@ -283,19 +418,24 @@ def test_writer_outcomes_distinguish_empty_parse_and_filtered_candidates(
     result = sanitizer.sanitize(capture, plan, preflight, runner_temp / "private-writer-sanitized")
     assert result["status"] == "WRITER_TRANSPORT_CAPTURED"
     outcomes = json.loads((runner_temp / "private-writer-sanitized" / "writer-outcomes.json").read_text())
-    first = next(row for row in outcomes["tasks"] if row["task_id_sha256"] == hashlib.sha256(
-        calls[0]["task_id"].encode("utf-8")
-    ).hexdigest())
+    first = next(
+        row
+        for row in outcomes["tasks"]
+        if row["task_id_sha256"] == hashlib.sha256(calls[0]["task_id"].encode("utf-8")).hexdigest()
+    )
     assert first["outcome"] == outcome
     assert first["response_parse_status"] == parse_status
     assert first["returned_candidate_count"] == returned_count
     diagnostics = json.loads((runner_temp / "private-writer-sanitized" / "writer-task-diagnostics.json").read_text())
-    first_diagnostic = next(row for row in diagnostics["tasks"]
-                            if row["task_id_sha256"] == first["task_id_sha256"])
-    expected_gap_count = (len(response_payload["context_gap_proposals"])
-                          if isinstance(response_payload["context_gap_proposals"], list) else None)
-    expected_coverage_count = (len(response_payload["coverage_notes"])
-                               if isinstance(response_payload["coverage_notes"], list) else None)
+    first_diagnostic = next(row for row in diagnostics["tasks"] if row["task_id_sha256"] == first["task_id_sha256"])
+    expected_gap_count = (
+        len(response_payload["context_gap_proposals"])
+        if isinstance(response_payload["context_gap_proposals"], list)
+        else None
+    )
+    expected_coverage_count = (
+        len(response_payload["coverage_notes"]) if isinstance(response_payload["coverage_notes"], list) else None
+    )
     assert first_diagnostic["context_gap_count"] == expected_gap_count
     assert first_diagnostic["coverage_note_count"] == expected_coverage_count
     assert "private gap text" not in json.dumps(diagnostics)
@@ -315,19 +455,36 @@ def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_p
     elif tamper == "candidate_overrun":
         filename = packets[0]["path"]
         task_id = calls[0]["task_id"]
-        _replace_packet(capture, manifest, filename, {
-            "source_task": {"task_id": task_id, "unit_ids": ["unit-replacement"],
-                            "evidence_ids": ["ev-replacement"]},
-            "source_evidence": [{"evidence_id": "ev-replacement", "content": "private excerpt fixture"}],
-            "writer_candidate": {"candidate_id": "bounded-private-fixture"},
-        })
+        _replace_packet(
+            capture,
+            manifest,
+            filename,
+            {
+                "source_task": {
+                    "task_id": task_id,
+                    "unit_ids": ["unit-replacement"],
+                    "evidence_ids": ["ev-replacement"],
+                },
+                "source_evidence": [{"evidence_id": "ev-replacement", "content": "private excerpt fixture"}],
+                "writer_candidate": {"candidate_id": "bounded-private-fixture"},
+            },
+        )
     else:
         task_id = calls[0]["task_id"]
         for index in range(119):
             filename = f"extra-{index:03d}.json"
-            raw = json.dumps({"source_task": {"task_id": task_id, "unit_ids": [], "evidence_ids": []},
-                              "source_evidence": [], "writer_candidate": None},
-                             sort_keys=True, separators=(",", ":")).encode() + b"\n"
+            raw = (
+                json.dumps(
+                    {
+                        "source_task": {"task_id": task_id, "unit_ids": [], "evidence_ids": []},
+                        "source_evidence": [],
+                        "writer_candidate": None,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+                + b"\n"
+            )
             path = capture / "case-packets" / filename
             path.write_bytes(raw)
             os.chmod(path, 0o600)
@@ -338,8 +495,16 @@ def test_sanitizer_rejects_hash_consistent_packet_accounting_inconsistency(tmp_p
 
 
 @pytest.mark.parametrize(
-    "tamper", ["missing_call", "request_bytes", "malformed_response", "manifest_extension", "snapshot_hash",
-               "missing_packet", "altered_packet"]
+    "tamper",
+    [
+        "missing_call",
+        "request_bytes",
+        "malformed_response",
+        "manifest_extension",
+        "snapshot_hash",
+        "missing_packet",
+        "altered_packet",
+    ],
 )
 def test_sanitizer_rejects_tampered_or_incomplete_capture(tmp_path: Path, monkeypatch, tamper: str):
     runner_temp, capture, plan, preflight, manifest, calls, requests, responses = _fixture(tmp_path, monkeypatch)

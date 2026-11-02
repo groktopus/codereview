@@ -47,10 +47,7 @@ def _assert_fixture_identity(manifest: dict) -> tuple[dict, dict[str, bytes]]:
     suite_raw = SUITE_PATH.read_bytes()
     assert _sha(suite_raw) == manifest["context_provenance"]["fixture_suite_sha256"]
     suite = json.loads(suite_raw)
-    files = {
-        name: (FIXTURE_ROOT / name).read_bytes()
-        for name in manifest["file_hashes"]
-    }
+    files = {name: (FIXTURE_ROOT / name).read_bytes() for name in manifest["file_hashes"]}
     assert {name: _sha(raw) for name, raw in files.items()} == manifest["file_hashes"]
 
     base = files["auth.base.py"]
@@ -153,11 +150,7 @@ def test_clean_control_prepare_only_binds_exact_primary_requests(tmp_path, monke
         frame = inspect.currentframe()
         caller = frame.f_back if frame is not None else None
         try:
-            if (
-                caller is not None
-                and caller.f_code.co_filename == cli.__file__
-                and caller.f_code.co_name == "_run_one"
-            ):
+            if caller is not None and caller.f_code.co_filename == cli.__file__ and caller.f_code.co_name == "_run_one":
                 bodies.append(body)
         finally:
             del caller, frame
@@ -190,14 +183,8 @@ def test_clean_control_prepare_only_binds_exact_primary_requests(tmp_path, monke
     assert report["no_target_code_execution"] is True
 
     descriptors = report["primary_requests"]
-    serialized_by_identity = {
-        (len(body), _sha(body)): body
-        for body in bodies
-    }
-    descriptor_by_identity = {
-        (row["input_bytes"], row["input_sha256"]): row
-        for row in descriptors
-    }
+    serialized_by_identity = {(len(body), _sha(body)): body for body in bodies}
+    descriptor_by_identity = {(row["input_bytes"], row["input_sha256"]): row for row in descriptors}
     assert len(descriptor_by_identity) == len(descriptors)
     assert descriptors and len(serialized_by_identity) == len(bodies)
     assert set(serialized_by_identity) == set(descriptor_by_identity)
@@ -209,14 +196,12 @@ def test_clean_control_prepare_only_binds_exact_primary_requests(tmp_path, monke
         user = json.loads(request["messages"][1]["content"])
         evidence = user["evidence"]
         auth_diff = next(
-            row for row in evidence
-            if row.get("source_kind") == "diff" and row.get("path") == "src/auth.py"
+            row for row in evidence if row.get("source_kind") == "diff" and row.get("path") == "src/auth.py"
         )
         assert "Ordinary maintenance note" in auth_diff["content"]
         assert "return True" not in auth_diff["content"]
         head_auth = next(
-            row for row in evidence
-            if row.get("source_kind") == "head_file" and row.get("path") == "src/auth.py"
+            row for row in evidence if row.get("source_kind") == "head_file" and row.get("path") == "src/auth.py"
         )
         assert "return user.id == document.owner_id" in head_auth["content"]
         for path, expected in (

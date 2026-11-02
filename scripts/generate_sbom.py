@@ -164,7 +164,9 @@ def _validate_artifact_set(artifacts: list[Path]) -> tuple[str, str, str, str]:
     if len(versions) != 1:
         raise SupplyChainError(f"distribution artifacts disagree on package version: {sorted(versions)}")
     if len(requires_python) != 1 or not next(iter(requires_python)):
-        raise SupplyChainError(f"distribution artifacts must declare one non-empty Requires-Python: {sorted(requires_python)}")
+        raise SupplyChainError(
+            f"distribution artifacts must declare one non-empty Requires-Python: {sorted(requires_python)}"
+        )
     if licenses != {REQUIRED_LICENSE}:
         raise SupplyChainError(f"expected license {REQUIRED_LICENSE!r} in every artifact, found {sorted(licenses)}")
     for path, description in zip(artifacts, descriptions, strict=True):
@@ -197,7 +199,9 @@ def resolved_created(created: str | None) -> str | None:
     try:
         datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError as error:
-        raise SupplyChainError(f"--created must be an ISO-8601 UTC timestamp such as 1970-01-01T00:00:00Z: {value!r}") from error
+        raise SupplyChainError(
+            f"--created must be an ISO-8601 UTC timestamp such as 1970-01-01T00:00:00Z: {value!r}"
+        ) from error
     return value
 
 

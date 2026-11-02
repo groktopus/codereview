@@ -25,8 +25,11 @@ def _read(path: Path, maximum: int) -> tuple[dict, bytes]:
         fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
-                    or opened.st_size > maximum):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+                or opened.st_size > maximum
+            ):
                 raise ValueError("prepared_input_invalid")
             raw = bytearray()
             while len(raw) <= maximum:
@@ -41,8 +44,11 @@ def _read(path: Path, maximum: int) -> tuple[dict, bytes]:
     if len(raw) > maximum:
         raise ValueError("prepared_input_invalid")
     try:
-        value = json.loads(bytes(raw).decode("utf-8"), object_pairs_hook=_pairs,
-                           parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("invalid_constant")))
+        value = json.loads(
+            bytes(raw).decode("utf-8"),
+            object_pairs_hook=_pairs,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("invalid_constant")),
+        )
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError):
         raise ValueError("prepared_input_invalid") from None
     if not isinstance(value, dict):
@@ -75,8 +81,10 @@ def prepare(prepared_path: Path, output_dir: Path, source_sha: str) -> dict:
         raise ValueError("runner_temp_permissions_invalid")
     prepared, prepared_raw = _read(prepared_path, 4_000_000)
     plan, receipt = create_plan(
-        prepared, source_sha=source_sha,
-        module_inventory=installed_module_inventory(), prepared_raw=prepared_raw,
+        prepared,
+        source_sha=source_sha,
+        module_inventory=installed_module_inventory(),
+        prepared_raw=prepared_raw,
     )
     plan_path = output_dir / "pr457-current-source-plan.json"
     receipt_path = output_dir / "pr457-current-source-receipt.json"
@@ -103,7 +111,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-sha", required=True)
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(prepare(args.prepared, args.output_dir, args.source_sha), sort_keys=True, separators=(",", ":")))
+        print(
+            json.dumps(prepare(args.prepared, args.output_dir, args.source_sha), sort_keys=True, separators=(",", ":"))
+        )
     except (OSError, ValueError, CurrentSourceCaptureError) as exc:
         code = str(exc) if isinstance(exc, CurrentSourceCaptureError) else "current_source_prepare_invalid"
         print(json.dumps({"ok": False, "error_code": code}, separators=(",", ":")), file=sys.stderr)

@@ -51,8 +51,12 @@ def _read_json(path: Path, limit: int) -> dict[str, Any]:
         fd = os.open(path, flags)
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
-                    or opened.st_ino != before.st_ino or opened.st_size > limit):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size > limit
+            ):
                 raise ValueError("input_unavailable")
             chunks = bytearray()
             while len(chunks) <= limit:
@@ -69,7 +73,8 @@ def _read_json(path: Path, limit: int) -> dict[str, Any]:
         raise ValueError("input_exceeds_limit")
     try:
         value = json.loads(
-            raw.decode("utf-8"), object_pairs_hook=_pairs,
+            raw.decode("utf-8"),
+            object_pairs_hook=_pairs,
             parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("invalid_constant")),
         )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):

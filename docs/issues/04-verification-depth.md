@@ -74,3 +74,11 @@
 - **Verification:** `ruff format --check`, expanded `ruff check`, type-check job; a seeded violation failing CI.
 - **Depends on:** CA-4.
 - **Non-goals:** reformatting history or blocking urgent fixes on style.
+- **Status (2026-11-02):** PARTIAL. `ruff format` is canonical and checked in CI
+  for every maintained Python file; the sha256-pinned historical compatibility
+  fixtures are excluded because reformatting them would break VD-3 evidence.
+  A pre-commit configuration matches the CI lint/format gates, and the
+  function-length complexity guard enforces a checked 150-line baseline with a
+  growth ratchet. The lint rule set is still `E4/E7/E9/F/I`; expanding it and
+  adopting a typed core beyond the existing strict `.pyi` boundary checks
+  remain open VD-4 work.

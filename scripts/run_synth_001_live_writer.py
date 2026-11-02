@@ -66,15 +66,35 @@ def _prepare(work: Path, repo: Path, materialization: dict[str, str]) -> tuple[P
         env.pop(key, None)
     env["PYTHONPATH"] = str(ROOT / "src")
     command = [
-        sys.executable, "-m", "pr_review_harness", "review", "--repo", str(repo),
-        "--base", materialization["base_sha"], "--head", materialization["head_sha"],
-        "--profile", str(PROFILE_PATH), "--provider-config", str(PROVIDER_PATH),
-        "--limits", str(LIMITS_PATH), "--prepare-only", "--json",
+        sys.executable,
+        "-m",
+        "pr_review_harness",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        materialization["base_sha"],
+        "--head",
+        materialization["head_sha"],
+        "--profile",
+        str(PROFILE_PATH),
+        "--provider-config",
+        str(PROVIDER_PATH),
+        "--limits",
+        str(LIMITS_PATH),
+        "--prepare-only",
+        "--json",
     ]
     try:
         completed = subprocess.run(
-            command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45, check=False,
+            command,
+            cwd=ROOT,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=45,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         raise RunnerError("prepare_failed") from None
@@ -84,8 +104,9 @@ def _prepare(work: Path, repo: Path, materialization: dict[str, str]) -> tuple[P
     return materialization_path, prepared_path
 
 
-def validate_receipt_bundle(bundle_path: Path, materialization_path: Path, prepared_path: Path,
-                            verification_path: Path, repo: Path) -> dict[str, Any]:
+def validate_receipt_bundle(
+    bundle_path: Path, materialization_path: Path, prepared_path: Path, verification_path: Path, repo: Path
+) -> dict[str, Any]:
     """Verify artifact hashes and the canonical repository path before any consumer uses them."""
     try:
         bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
@@ -132,8 +153,14 @@ def run_preflight() -> dict[str, Any]:
     materialization = materialize(FIXTURE, repo)
     materialization_path, prepared_path = _prepare(work, repo, materialization)
     verification = verify(
-        materialization_path, prepared_path, repo, FIXTURE,
-        PROFILE_PATH, LIMITS_PATH, PROVIDER_PATH, ROOT,
+        materialization_path,
+        prepared_path,
+        repo,
+        FIXTURE,
+        PROFILE_PATH,
+        LIMITS_PATH,
+        PROVIDER_PATH,
+        ROOT,
     )
     repo_hash = hashlib.sha256(os.fsencode(str(repo.resolve(strict=True)))).hexdigest()
     if verification.get("repository_path_sha256") != repo_hash:
@@ -141,17 +168,23 @@ def run_preflight() -> dict[str, Any]:
     verification_path = work / "verification.json"
     verification_path.write_bytes(_canonical(verification) + b"\n")
     prepared = json.loads(prepared_path.read_text(encoding="utf-8"))
-    if (prepared.get("status") != "PREPARED_ONLY" or prepared.get("no_provider_calls") is not True
-            or prepared.get("no_target_code_execution") is not True):
+    if (
+        prepared.get("status") != "PREPARED_ONLY"
+        or prepared.get("no_provider_calls") is not True
+        or prepared.get("no_target_code_execution") is not True
+    ):
         raise RunnerError("prepared_receipt_mismatch")
     requests = prepared.get("primary_requests")
     if not isinstance(requests, list) or len(requests) != 1:
         raise RunnerError("prepared_request_cardinality_mismatch")
     request = requests[0]
-    if (request.get("input_sha256") != REQUEST_SHA256 or request.get("input_bytes") != REQUEST_BYTES
-            or request.get("lens") != "correctness"
-            or request.get("output_bytes_cap") != OUTPUT_BYTES_CAP
-            or request.get("output_tokens_cap") != OUTPUT_TOKENS_CAP):
+    if (
+        request.get("input_sha256") != REQUEST_SHA256
+        or request.get("input_bytes") != REQUEST_BYTES
+        or request.get("lens") != "correctness"
+        or request.get("output_bytes_cap") != OUTPUT_BYTES_CAP
+        or request.get("output_tokens_cap") != OUTPUT_TOKENS_CAP
+    ):
         raise RunnerError("prepared_request_mismatch")
     bundle = {
         "schema": "synth-001-live-preflight-bundle.v1",
@@ -181,8 +214,10 @@ def run_preflight() -> dict[str, Any]:
     bundle_path = work / "live-preflight-bundle.json"
     bundle_path.write_bytes(_canonical(bundle) + b"\n")
     validated = validate_receipt_bundle(bundle_path, materialization_path, prepared_path, verification_path, repo)
-    if verify(materialization_path, prepared_path, repo, FIXTURE,
-               PROFILE_PATH, LIMITS_PATH, PROVIDER_PATH, ROOT) != verification:
+    if (
+        verify(materialization_path, prepared_path, repo, FIXTURE, PROFILE_PATH, LIMITS_PATH, PROVIDER_PATH, ROOT)
+        != verification
+    ):
         raise RunnerError("verification_receipt_mismatch")
     return {
         "schema": "synth-001-live-writer-preflight.v1",
@@ -208,8 +243,14 @@ def main(argv: list[str] | None = None) -> int:
         result = run_preflight()
     except Exception as exc:
         code = str(exc) if isinstance(exc, RunnerError) else "preflight_failed"
-        print(json.dumps({"schema": "synth-001-live-writer-preflight.v1", "status": "REJECTED", "error": code},
-                         sort_keys=True, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps(
+                {"schema": "synth-001-live-writer-preflight.v1", "status": "REJECTED", "error": code},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0

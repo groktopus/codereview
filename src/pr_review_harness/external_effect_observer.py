@@ -161,19 +161,29 @@ def preflight(*, timeout_seconds: float = 15.0, deadline: float | None = None) -
         return {"status": "UNSUPPORTED", "reason": "linux_required", "source_sha256": _source_sha256(deadline=deadline)}
     executable = shutil.which("strace")
     if not executable:
-        return {"status": "UNSUPPORTED", "reason": "strace_unavailable", "source_sha256": _source_sha256(deadline=deadline)}
+        return {
+            "status": "UNSUPPORTED",
+            "reason": "strace_unavailable",
+            "source_sha256": _source_sha256(deadline=deadline),
+        }
     source_hash = _source_sha256(deadline=deadline)
     binary_hash = _hash_file(executable, deadline=deadline)
     if source_hash is None or binary_hash is None:
         return {"status": "UNKNOWN", "reason": "observer_identity_unavailable"}
+
     def remaining() -> float:
         if deadline is None:
             return timeout_seconds
         return max(0.0, min(timeout_seconds, deadline - time.monotonic()))
-    version_probe = _bounded_process([executable, "--version"], timeout=min(5, remaining()), env={"PATH": os.environ.get("PATH", "")})
+
+    version_probe = _bounded_process(
+        [executable, "--version"], timeout=min(5, remaining()), env={"PATH": os.environ.get("PATH", "")}
+    )
     if version_probe is None or remaining() <= 0:
         return {"status": "UNKNOWN", "reason": "strace_version_probe_failed", "source_sha256": source_hash}
-    help_probe = _bounded_process([executable, "--help"], timeout=min(5, remaining()), env={"PATH": os.environ.get("PATH", "")})
+    help_probe = _bounded_process(
+        [executable, "--help"], timeout=min(5, remaining()), env={"PATH": os.environ.get("PATH", "")}
+    )
     if version_probe is None or help_probe is None:
         return {"status": "UNKNOWN", "reason": "strace_version_probe_failed", "source_sha256": source_hash}
     version_rc, version_stdout, _ = version_probe
@@ -260,7 +270,11 @@ def _path_evidence(args: str, cwd: Path) -> dict[str, Any] | None:
             raise ValueError("strace_path_truncated")
         lexical = os.path.normpath(decoded if decoded.startswith("/") else str(cwd / decoded))
         cwd_text = os.path.normpath(str(cwd))
-        scope = "case_workdir" if lexical == cwd_text or lexical.startswith(cwd_text.rstrip(os.sep) + os.sep) else "outside_case_workdir"
+        scope = (
+            "case_workdir"
+            if lexical == cwd_text or lexical.startswith(cwd_text.rstrip(os.sep) + os.sep)
+            else "outside_case_workdir"
+        )
     except (OSError, ValueError, SyntaxError, RecursionError, TypeError, IndexError):
         scope = "unknown"
     return {
@@ -294,12 +308,27 @@ def _parse_line(line: str, cwd: Path) -> dict[str, Any] | None:
     if end_match:
         pid = next((value for value in end_match.groups()[:3] if value is not None), None)
         if end_match.group(5):
-            return {"pid": int(pid) if pid else None, "operation": "process_termination", "outcome": "EXITED", "exit_code": int(end_match.group(5))}
-        return {"pid": int(pid) if pid else None, "operation": "process_termination", "outcome": "KILLED", "signal": end_match.group(6)}
+            return {
+                "pid": int(pid) if pid else None,
+                "operation": "process_termination",
+                "outcome": "EXITED",
+                "exit_code": int(end_match.group(5)),
+            }
+        return {
+            "pid": int(pid) if pid else None,
+            "operation": "process_termination",
+            "outcome": "KILLED",
+            "signal": end_match.group(6),
+        }
     signal_match = _SIGNAL_RE.match(line)
     if signal_match:
         pid = next((value for value in signal_match.groups()[:3] if value is not None), None)
-        return {"pid": int(pid) if pid else None, "operation": "signal_delivery", "signal": signal_match.group(4), "outcome": "OBSERVED"}
+        return {
+            "pid": int(pid) if pid else None,
+            "operation": "signal_delivery",
+            "signal": signal_match.group(4),
+            "outcome": "OBSERVED",
+        }
     resumed = _RESUMED_RE.match(line)
     if resumed:
         prefix_pid = next((value for value in resumed.groups()[:3] if value is not None), None)
@@ -308,7 +337,18 @@ def _parse_line(line: str, cwd: Path) -> dict[str, Any] | None:
         outcome = _outcome(fragment, syscall)
         if outcome is None:
             raise ValueError("trace_resumed_outcome_unavailable")
-        return {"pid": int(prefix_pid) if prefix_pid else None, "syscall": syscall, "operation": "resumed_syscall", "trace_state": "RESUMED", "outcome": outcome[0], "result_class": "positive" if outcome[1] and outcome[1] > 0 else "zero_or_nonpositive" if outcome[1] is not None else "nonreturning"}
+        return {
+            "pid": int(prefix_pid) if prefix_pid else None,
+            "syscall": syscall,
+            "operation": "resumed_syscall",
+            "trace_state": "RESUMED",
+            "outcome": outcome[0],
+            "result_class": "positive"
+            if outcome[1] and outcome[1] > 0
+            else "zero_or_nonpositive"
+            if outcome[1] is not None
+            else "nonreturning",
+        }
     match = _SYSCALL_RE.match(line)
     if not match:
         raise ValueError("trace_line_unrecognized")
@@ -397,11 +437,7 @@ def observe_cli(
     cannot establish absence of effects beyond the observed channels.
     """
     trace_cap = TRACE_MAX_BYTES if trace_max_bytes is None else trace_max_bytes
-    if (
-        isinstance(trace_cap, bool)
-        or not isinstance(trace_cap, int)
-        or not 0 < trace_cap <= TRACE_MAX_BYTES
-    ):
+    if isinstance(trace_cap, bool) or not isinstance(trace_cap, int) or not 0 < trace_cap <= TRACE_MAX_BYTES:
         return {
             "invocation": {"run_status": "INVALID_TRACE_CAP", "exit_code": None},
             "observer": {
@@ -448,11 +484,23 @@ def observe_cli(
         "events": [],
     }
     if identity.get("status") != "AVAILABLE":
-        return {"invocation": {"run_status": "OBSERVER_UNAVAILABLE", "exit_code": None}, "observer": {**base, "reason": identity.get("reason", "observer_unavailable")}, "cli_result": None}
+        return {
+            "invocation": {"run_status": "OBSERVER_UNAVAILABLE", "exit_code": None},
+            "observer": {**base, "reason": identity.get("reason", "observer_unavailable")},
+            "cli_result": None,
+        }
     if not command or len(command) > 256 or any(not isinstance(item, str) or "\x00" in item for item in command):
-        return {"invocation": {"run_status": "INVALID_COMMAND", "exit_code": None}, "observer": {**base, "reason": "command_invalid"}, "cli_result": None}
+        return {
+            "invocation": {"run_status": "INVALID_COMMAND", "exit_code": None},
+            "observer": {**base, "reason": "command_invalid"},
+            "cli_result": None,
+        }
     if time.monotonic() >= deadline:
-        return {"invocation": {"run_status": "OBSERVER_UNAVAILABLE", "exit_code": None}, "observer": {**base, "reason": "observer_deadline_exhausted"}, "cli_result": None}
+        return {
+            "invocation": {"run_status": "OBSERVER_UNAVAILABLE", "exit_code": None},
+            "observer": {**base, "reason": "observer_deadline_exhausted"},
+            "cli_result": None,
+        }
 
     trace_read, trace_write = os.pipe()
     os.set_blocking(trace_read, False)
@@ -489,7 +537,10 @@ def observe_cli(
     except OSError:
         os.close(trace_read)
         os.close(trace_write)
-        return {"invocation": {"run_status": "OBSERVER_SPAWN_FAILED", "exit_code": None}, "observer": {**base, "reason": "strace_spawn_failed"}}
+        return {
+            "invocation": {"run_status": "OBSERVER_SPAWN_FAILED", "exit_code": None},
+            "observer": {**base, "reason": "strace_spawn_failed"},
+        }
     selector = None
     normal_exit = False
     try:
@@ -758,7 +809,11 @@ def observe_cli(
             "root_exec_pid": root_exec_pid,
             "coverage": "SCOPED_COMPLETE" if complete else "INCOMPLETE",
             "channel_state": "OBSERVED_SCOPED" if events else "NO_SYSCALL_EVENTS_IN_SCOPE" if complete else "UNKNOWN",
-            "reason": None if complete else "run_timeout" if timed_out else incomplete or "root_exec_or_trace_incomplete",
+            "reason": None
+            if complete
+            else "run_timeout"
+            if timed_out
+            else incomplete or "root_exec_or_trace_incomplete",
         }
         normal_exit = True
         return {"invocation": invocation, "observer": observer, "cli_result": cli_result}
@@ -794,7 +849,6 @@ def observe_cli(
                 os.close(fd)
             except OSError:
                 pass
-
 
 
 def _terminate_group(process: subprocess.Popen[bytes]) -> None:

@@ -123,9 +123,7 @@ class RequestMeasurementWithoutNetworkTests(unittest.TestCase):
             "unit_ids": ["u1"],
             "evidence_ids": ["ev-1", "policy-1"],
             "request_input_contract": "specialist-input.v2",
-            "unit_evidence_bindings": [
-                {"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}
-            ],
+            "unit_evidence_bindings": [{"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["ev-1"]}],
         }
         evidence = [{"evidence_id": "ev-1", "path": "src/a.py"}, {"evidence_id": "policy-1", "path": "AGENTS.md"}]
         limits = {
@@ -226,9 +224,7 @@ class RequestMeasurementWithoutNetworkTests(unittest.TestCase):
             "context_gap_followup_for": "parent:gap:0",
             "context_followup": metadata,
             "request_input_contract": "specialist-input.v2",
-            "unit_evidence_bindings": [
-                {"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["ev-local"]}
-            ],
+            "unit_evidence_bindings": [{"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["ev-local"]}],
         }
         evidence = [
             {"evidence_id": "ev-local", "path": "src/a.py"},
@@ -942,7 +938,9 @@ class ProviderTransportPolicyTests(unittest.TestCase):
                     factory("http://localhost.provider.example.invalid/v1")
 
     def test_remote_https_is_accepted_for_both_provider_families(self):
-        self.assertEqual(self._openai("https://provider.example.invalid/v1").base_url, "https://provider.example.invalid/v1")
+        self.assertEqual(
+            self._openai("https://provider.example.invalid/v1").base_url, "https://provider.example.invalid/v1"
+        )
         self.assertEqual(
             self._decision("https://decision.example.invalid/v1/systemone").endpoint,
             "https://decision.example.invalid/v1/systemone",
@@ -963,9 +961,7 @@ class ProviderTransportPolicyTests(unittest.TestCase):
         for factory in (self._openai, self._decision):
             for endpoint in cases:
                 with self.subTest(factory=factory.__name__, endpoint=endpoint):
-                    with self.assertRaisesRegex(
-                        ProviderError, "endpoint_must_not_contain_credentials_or_query"
-                    ):
+                    with self.assertRaisesRegex(ProviderError, "endpoint_must_not_contain_credentials_or_query"):
                         factory(endpoint)
 
     def test_malformed_port_is_rejected(self):

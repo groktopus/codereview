@@ -71,9 +71,14 @@ def _runtime_snapshot(row: dict) -> tuple[dict, list[dict], str]:
             "content": "synthetic fixture evidence",
         }
     }
-    base = {"snapshot_id": row["snapshot_id"], "snapshot_hash": "9" * 64,
-            "base_sha": row["base_sha"], "head_sha": row["head_sha"],
-            "profile_version": "test-profile", "evidence": evidence}
+    base = {
+        "snapshot_id": row["snapshot_id"],
+        "snapshot_hash": "9" * 64,
+        "base_sha": row["base_sha"],
+        "head_sha": row["head_sha"],
+        "profile_version": "test-profile",
+        "evidence": evidence,
+    }
     index, index_hash = trial._cli_evidence_index_projection(base)
     return base, index, index_hash
 
@@ -361,9 +366,7 @@ def test_current_coverage_projection_preserves_engine_native_claim_reconciliatio
     assert row["reconciliation_state"] == ("AGREES" if complete else "PARTIAL")
     assert row["state"] == ("COMPLETE" if complete else "PARTIAL")
     assert row["evidence_ref_count"] == 2
-    assert row["evidence_refs_sha256"] == _hash(
-        ["candidate-evidence-001", "primary-evidence-001"]
-    )
+    assert row["evidence_refs_sha256"] == _hash(["candidate-evidence-001", "primary-evidence-001"])
     assert "candidate-evidence-001" not in json.dumps(projected)
     assert "lens" not in row
 
@@ -851,10 +854,13 @@ def test_provider_free_current_preparation_binds_exact_requests_and_strips_inher
     monkeypatch.setattr(
         trial,
         "_expected_cli_snapshot_projection",
-        lambda **kwargs: _runtime_snapshot(next(
-            row for row in plan["cases"]
-            if row["base_sha"] == kwargs["base_sha"] and row["head_sha"] == kwargs["head_sha"]
-        )),
+        lambda **kwargs: _runtime_snapshot(
+            next(
+                row
+                for row in plan["cases"]
+                if row["base_sha"] == kwargs["base_sha"] and row["head_sha"] == kwargs["head_sha"]
+            )
+        ),
     )
     monkeypatch.setattr(
         trial,
@@ -952,15 +958,21 @@ def test_provider_free_current_preparation_rejects_exact_request_descriptor_drif
     monkeypatch.setattr(
         trial,
         "_expected_cli_snapshot_projection",
-        lambda **kwargs: _runtime_snapshot(next(
-            row for row in plan["cases"]
-            if row["base_sha"] == kwargs["base_sha"] and row["head_sha"] == kwargs["head_sha"]
-        )),
+        lambda **kwargs: _runtime_snapshot(
+            next(
+                row
+                for row in plan["cases"]
+                if row["base_sha"] == kwargs["base_sha"] and row["head_sha"] == kwargs["head_sha"]
+            )
+        ),
     )
     monkeypatch.setattr(
         trial,
         "_runtime_provenance",
-        lambda *_args: {"cli_path": str(cli), "source_fingerprint": {"file_hashes": {"src/pr_review_harness/x.py": "8" * 64}}},
+        lambda *_args: {
+            "cli_path": str(cli),
+            "source_fingerprint": {"file_hashes": {"src/pr_review_harness/x.py": "8" * 64}},
+        },
     )
     monkeypatch.setattr(
         trial,
@@ -1021,8 +1033,14 @@ def test_current_run_receipt_rechecks_exact_plan_and_request_bindings(tmp_path, 
             {
                 key: row[key]
                 for key in (
-                    "case_id", "role", "base_sha", "head_sha", "snapshot_id",
-                    "profile_sha256", "limits_sha256", "provider_identity_sha256",
+                    "case_id",
+                    "role",
+                    "base_sha",
+                    "head_sha",
+                    "snapshot_id",
+                    "profile_sha256",
+                    "limits_sha256",
+                    "provider_identity_sha256",
                 )
             }
             | {
@@ -1064,7 +1082,9 @@ def test_current_run_receipt_rechecks_exact_plan_and_request_bindings(tmp_path, 
     frozen = {"repositories": {case_id: tmp_path for case_id in trial.PREPARED_CASE_IDS}}
     root = tmp_path / "repo"
     root.mkdir()
-    monkeypatch.setattr(trial, "_prepared_plan", lambda *_args, **_kwargs: (plan, tmp_path / "profile", tmp_path / "limits", frozen))
+    monkeypatch.setattr(
+        trial, "_prepared_plan", lambda *_args, **_kwargs: (plan, tmp_path / "profile", tmp_path / "limits", frozen)
+    )
     seen = {}
 
     def fake_run(**kwargs):
@@ -1107,11 +1127,15 @@ def test_current_run_receipt_rechecks_exact_plan_and_request_bindings(tmp_path, 
 
 def test_current_workflow_is_opt_in_source_main_only_and_keeps_legacy_workflow_unchanged():
     legacy = ROOT / ".github/workflows/prepared-selected-model-provider-trial.yml"
-    legacy_before = __import__("subprocess").run(
-        ["git", "show", "HEAD:.github/workflows/prepared-selected-model-provider-trial.yml"],
-        check=True,
-        capture_output=True,
-    ).stdout
+    legacy_before = (
+        __import__("subprocess")
+        .run(
+            ["git", "show", "HEAD:.github/workflows/prepared-selected-model-provider-trial.yml"],
+            check=True,
+            capture_output=True,
+        )
+        .stdout
+    )
     assert legacy.read_bytes() == legacy_before
 
     workflow = (ROOT / ".github/workflows/selected-current-source-paired-trial.yml").read_text(encoding="utf-8")
@@ -1125,7 +1149,9 @@ def test_current_workflow_is_opt_in_source_main_only_and_keeps_legacy_workflow_u
     prepare_step = workflow.index("Prepare and validate the exact current-source requests")
     provider_step = workflow.index("Run the selected current-source trial with private temporary configs")
     assert prepare_step < provider_step
-    provider = workflow[provider_step : workflow.index("- name: Remove only the private provider configs", provider_step)]
+    provider = workflow[
+        provider_step : workflow.index("- name: Remove only the private provider configs", provider_step)
+    ]
     assert provider.count("secrets.") == 6
     assert "--run-provider-trial" in provider
     assert "--observe-effects" in provider

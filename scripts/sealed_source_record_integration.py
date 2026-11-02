@@ -193,18 +193,25 @@ def run_sealed_no_candidate_decision(
 
     source_role = roles.get("source_auditor") if isinstance(roles, dict) else None
     calls = source_role.get("calls") if isinstance(source_role, dict) else None
-    if (not isinstance(source_role, dict) or source_role.get("status") not in {"completed", "abstained"}
-            or not isinstance(calls, list) or len(calls) != 1 or not isinstance(calls[0], dict)):
+    if (
+        not isinstance(source_role, dict)
+        or source_role.get("status") not in {"completed", "abstained"}
+        or not isinstance(calls, list)
+        or len(calls) != 1
+        or not isinstance(calls[0], dict)
+    ):
         raise SealedSourceIntegrationError("source_audit_not_sealed")
     call = calls[0]
     if require_frozen_pr464 and call.get("dispatch_state") != "http_attempted":
         raise SealedSourceIntegrationError("source_provider_call_not_observed")
     response_raw = _artifact(paths, "source-auditor-response", 64_000)
     request_raw = _artifact(paths, "source-auditor-request", MAX_SOURCE_AUDITOR_REQUEST_BYTES)
-    if (call.get("response_artifact_id") != "source-auditor-response"
-            or call.get("request_artifact_id") != "source-auditor-request"
-            or call.get("response_sha256") != _sha(response_raw)
-            or call.get("request_sha256") != _sha(request_raw)):
+    if (
+        call.get("response_artifact_id") != "source-auditor-response"
+        or call.get("request_artifact_id") != "source-auditor-request"
+        or call.get("response_sha256") != _sha(response_raw)
+        or call.get("request_sha256") != _sha(request_raw)
+    ):
         raise SealedSourceIntegrationError("source_call_binding_invalid")
     seal = _decode(_artifact(paths, "source-audit-seal", 64_000))
     expected_seal = {
@@ -239,9 +246,11 @@ def run_sealed_no_candidate_decision(
 
     def replay_sealed_source(raw_request: bytes, _timeout: float, _cap: int) -> bytes:
         source_input = _decode(raw_request)
-        if (source_input.get("subject_id") != packet["case_id"]
-                or source_input.get("task") != packet["source_task"]
-                or source_input.get("evidence") != packet["source_evidence"]):
+        if (
+            source_input.get("subject_id") != packet["case_id"]
+            or source_input.get("task") != packet["source_task"]
+            or source_input.get("evidence") != packet["source_evidence"]
+        ):
             raise SealedSourceIntegrationError("source_replay_packet_binding_invalid")
         return response_raw
 

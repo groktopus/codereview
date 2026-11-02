@@ -32,11 +32,17 @@ from experiments.harness.evaluation import EvaluationError  # noqa: E402
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", type=Path, required=True, help="fixed, validated evaluation corpus")
-    parser.add_argument("--identity-manifest", type=Path, help="frozen packet identity manifest for model_teacher corpora")
+    parser.add_argument(
+        "--identity-manifest", type=Path, help="frozen packet identity manifest for model_teacher corpora"
+    )
     parser.add_argument("--capture-root", type=Path, required=True, help="private writer capture directory")
-    parser.add_argument("--case-packet", type=Path, required=True, help="one case packet inside capture-root/case-packets")
+    parser.add_argument(
+        "--case-packet", type=Path, required=True, help="one case packet inside capture-root/case-packets"
+    )
     parser.add_argument("--shadow-root", type=Path, required=True, help="one private shadow-audit output directory")
-    parser.add_argument("--output-dir", type=Path, required=True, help="new directory for sanitized v2 input and report")
+    parser.add_argument(
+        "--output-dir", type=Path, required=True, help="new directory for sanitized v2 input and report"
+    )
     parser.add_argument("--json", action="store_true", required=True, help="emit only sanitized status JSON")
     args = parser.parse_args(argv)
     try:
@@ -54,8 +60,10 @@ def main(argv: list[str] | None = None) -> int:
             identity_manifest, _ = _json(manifest_path, 1_000_000)
         if plan_relative is not None:
             expected_corpus_path = corpus_path_for(corpus.get("corpus_id"))
-            if (not isinstance(expected_corpus_path, str)
-                    or args.corpus.resolve() != (ROOT / expected_corpus_path).resolve()):
+            if (
+                not isinstance(expected_corpus_path, str)
+                or args.corpus.resolve() != (ROOT / expected_corpus_path).resolve()
+            ):
                 raise EvaluationError("evaluation_identity_corpus_path_mismatch")
             plan_path = ROOT / plan_relative
             if not plan_path.is_file():
@@ -67,7 +75,9 @@ def main(argv: list[str] | None = None) -> int:
             # Keep the module-tree-pinned in-package identity gate unchanged.
             # PR-457 is validated here before entering the generic packager.
             if corpus.get("corpus_id") not in {
-                "model-only-shadow-pr464-v1", "model-only-shadow-pr464-v2", "model-only-shadow-pr464-v3",
+                "model-only-shadow-pr464-v1",
+                "model-only-shadow-pr464-v2",
+                "model-only-shadow-pr464-v3",
             }:
                 identity_manifest = None
                 identity_plan = None
@@ -92,16 +102,24 @@ def main(argv: list[str] | None = None) -> int:
         print('{"ok":false,"error_code":"package_input_invalid"}')
         return 2
     report = result["report"]
-    print(json.dumps({
-        "ok": True,
-        "comparison_id": report["comparison_id"],
-        "case_count": len(report["cases"]),
-        "verified_artifact_count": report["artifact_verification"]["status_counts"]["VERIFIED"],
-        "verified_structured_relation_count": report["assertion_verification"]["verified_structured_relation_count"],
-        "claims": report["claims"],
-        "comparison_path": str(args.output_dir / "comparison-v2.json"),
-        "report_path": str(args.output_dir / "comparison-report.json"),
-    }, sort_keys=True, separators=(",", ":")))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "comparison_id": report["comparison_id"],
+                "case_count": len(report["cases"]),
+                "verified_artifact_count": report["artifact_verification"]["status_counts"]["VERIFIED"],
+                "verified_structured_relation_count": report["assertion_verification"][
+                    "verified_structured_relation_count"
+                ],
+                "claims": report["claims"],
+                "comparison_path": str(args.output_dir / "comparison-v2.json"),
+                "report_path": str(args.output_dir / "comparison-report.json"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 

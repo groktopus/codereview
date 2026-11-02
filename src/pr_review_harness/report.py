@@ -203,7 +203,9 @@ def render_report(result: ReviewResult) -> str:
         if metrics_line:
             lines.append(metrics_line)
     if freshness_basis == "HISTORICAL_SNAPSHOT":
-        lines.append("Historical snapshot freshness compares the fixed revisions only; it does not check the pull request's current state.")
+        lines.append(
+            "Historical snapshot freshness compares the fixed revisions only; it does not check the pull request's current state."
+        )
     names = (
         ("Blockers", "blockers"),
         ("Suggested improvements", "suggested_improvements"),
@@ -285,7 +287,9 @@ def render_report(result: ReviewResult) -> str:
                     f"  Specialist reported partial coverage: {', '.join(safe(reason) for reason in reasons)}."
                 )
         if len(unresolved) > 8:
-            lines.append(f"- {len(unresolved) - 8} more unresolved obligations are listed in the full coverage ledger below.")
+            lines.append(
+                f"- {len(unresolved) - 8} more unresolved obligations are listed in the full coverage ledger below."
+            )
     for entry in result.get("not_applicable", []):
         line = f"- {safe(entry.get('obligation_id'))}: NOT_APPLICABLE ({safe(entry.get('reason'))})"
         rationale = entry.get("profile_rationale")
@@ -303,11 +307,7 @@ def render_report(result: ReviewResult) -> str:
             f"{unresolved_findings} unverified claims remain in the durable result and are not presented as recommendations."
         )
     evidence_ids = sorted(
-        {
-            evidence_id
-            for row in coverage_rows
-            for evidence_id in string_values(row.get("evidence_refs"))
-        }
+        {evidence_id for row in coverage_rows for evidence_id in string_values(row.get("evidence_refs"))}
     )
     evidence_labels = {evidence_id: f"E{index:04d}" for index, evidence_id in enumerate(evidence_ids, start=1)}
     lines.extend(
@@ -323,9 +323,7 @@ def render_report(result: ReviewResult) -> str:
     for row in coverage_rows:
         row_evidence_ids = string_values(row.get("evidence_refs"))
         evidence_refs = ", ".join(
-            evidence_labels[evidence_id]
-            for evidence_id in row_evidence_ids
-            if evidence_id in evidence_labels
+            evidence_labels[evidence_id] for evidence_id in row_evidence_ids if evidence_id in evidence_labels
         )
         cells = (
             safe(row.get("required", True)),

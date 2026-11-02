@@ -94,7 +94,10 @@ def make_repo(
     index_status = index_status or dict(record_status)
     for record_id, status in record_status.items():
         title = f"Test record {record_id.lstrip('0')}"
-        write(tmp_path / "docs" / "adr" / f"{record_id}-test-record-{record_id.lstrip('0')}.md", record_text(record_id, title, status))
+        write(
+            tmp_path / "docs" / "adr" / f"{record_id}-test-record-{record_id.lstrip('0')}.md",
+            record_text(record_id, title, status),
+        )
     index = INDEX
     for record_id, status in index_status.items():
         for previous in ("Accepted", "Proposed"):
@@ -453,7 +456,7 @@ def test_api_invalid_payload_fails_closed(
     assert status == links.EXIT_CHANGED_FILES
     assert codes(report) == {"CHANGED_FILES_API_INVALID"}
 
-    monkeypatch.setattr(links, "_request_page", lambda url, token: b"[{\"no_filename\": 1}]")
+    monkeypatch.setattr(links, "_request_page", lambda url, token: b'[{"no_filename": 1}]')
     status, report = api_run(harness, monkeypatch, capsys)
     assert status == links.EXIT_CHANGED_FILES
     assert codes(report) == {"CHANGED_FILES_API_INVALID"}
@@ -514,7 +517,9 @@ def test_event_without_number_or_repository_fails_closed(
     del payload["pull_request"]["number"]
     harness.event_path.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setenv("GITHUB_TOKEN", "ghs_test_token")
-    assert links.main(["--event", str(harness.event_path), "--repo-root", str(harness.root), "--json"]) == links.EXIT_EVENT
+    assert (
+        links.main(["--event", str(harness.event_path), "--repo-root", str(harness.root), "--json"]) == links.EXIT_EVENT
+    )
     assert codes(report_json(capsys)) == {"EVENT_NUMBER_UNKNOWN"}
 
 
@@ -629,9 +634,7 @@ def test_failure_codes_map_to_stable_exit_codes() -> None:
     assert sorted(set(links.CODE_EXITS.values())) == [2, 3, 4, 5, 6, 7]
 
 
-def test_summary_is_deterministic_and_never_contains_the_token(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_summary_is_deterministic_and_never_contains_the_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     harness = Harness(tmp_path)
     harness.set_files(["src/safety.py"])
     monkeypatch.setenv("GITHUB_TOKEN", "ghs_super_secret")
@@ -671,7 +674,9 @@ def test_glob_semantics() -> None:
     assert links.pattern_matches("src/globbed/**/*.py", "src/globbed/a.py")
     assert links.pattern_matches("src/globbed/**/*.py", "src/globbed/deep/a.py")
     assert not links.pattern_matches("src/globbed/**/*.py", "src/globbed/a.txt")
-    assert links.pattern_matches(".github/workflows/decision-record-*.yml", ".github/workflows/decision-record-links.yml")
+    assert links.pattern_matches(
+        ".github/workflows/decision-record-*.yml", ".github/workflows/decision-record-links.yml"
+    )
     assert links.pattern_matches("docs/", "docs/adr/README.md")
     assert not links.pattern_matches("src/safety.py", "src/safety.pyc")
 
@@ -693,4 +698,4 @@ def test_checker_uses_no_shell_and_no_eval() -> None:
     source = (ROOT / "scripts/check_decision_record_links.py").read_text(encoding="utf-8")
     for forbidden in ("shell=True", "os.system", "eval(", "exec(", "os.popen", "requests.", "http.client"):
         assert forbidden not in source
-    assert 'subprocess.run(command, capture_output=True' in source
+    assert "subprocess.run(command, capture_output=True" in source

@@ -86,9 +86,12 @@ class PriceEntry:
         self.output_price = output_price
 
     def as_dict(self) -> dict[str, Any]:
-        return {"provider_id": self.provider_id, "model_id": self.model_id,
-                "input_price_microunits_per_million_tokens": self.input_price,
-                "output_price_microunits_per_million_tokens": self.output_price}
+        return {
+            "provider_id": self.provider_id,
+            "model_id": self.model_id,
+            "input_price_microunits_per_million_tokens": self.input_price,
+            "output_price_microunits_per_million_tokens": self.output_price,
+        }
 
 
 class PriceTable:
@@ -101,23 +104,32 @@ class PriceTable:
         self.currency = currency
         self.entries = tuple(entries)
         canonical = json.dumps(
-            {"schema": PRICE_TABLE_SCHEMA, "revision": revision, "currency": currency,
-             "providers": [entry.as_dict() for entry in self.entries]},
-            sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False,
+            {
+                "schema": PRICE_TABLE_SCHEMA,
+                "revision": revision,
+                "currency": currency,
+                "providers": [entry.as_dict() for entry in self.entries],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
         ).encode("utf-8")
         self.entries_sha256 = hashlib.sha256(canonical).hexdigest()
 
     def lookup(self, provider_id: str | None, model_id: str | None) -> PriceEntry | None:
         if not isinstance(provider_id, str) or not isinstance(model_id, str):
             return None
-        return next(
-            (row for row in self.entries if row.provider_id == provider_id and row.model_id == model_id), None
-        )
+        return next((row for row in self.entries if row.provider_id == provider_id and row.model_id == model_id), None)
 
     def identity(self) -> dict[str, str]:
         """Stable binding for resume checks and run identity."""
-        return {"schema": PRICE_TABLE_SCHEMA, "revision": self.revision, "currency": self.currency,
-                "sha256": self.entries_sha256}
+        return {
+            "schema": PRICE_TABLE_SCHEMA,
+            "revision": self.revision,
+            "currency": self.currency,
+            "sha256": self.entries_sha256,
+        }
 
     def estimate(self, provider_id: str | None, model_id: str | None, usage: Any) -> dict[str, Any] | None:
         """Estimate observed usage, or ``None`` when it cannot be established."""
@@ -126,14 +138,21 @@ class PriceTable:
         if entry is None or tokens is None:
             return None
         input_tokens, output_tokens = tokens
-        return {"microunits": _token_cost(entry.input_price, input_tokens)
-                + _token_cost(entry.output_price, output_tokens),
-                "known": True, "basis": PRICE_TABLE_BASIS, "currency": self.currency,
-                "price_table_revision": self.revision}
+        return {
+            "microunits": _token_cost(entry.input_price, input_tokens) + _token_cost(entry.output_price, output_tokens),
+            "known": True,
+            "basis": PRICE_TABLE_BASIS,
+            "currency": self.currency,
+            "price_table_revision": self.revision,
+        }
 
     def bound_call(
-        self, provider_id: str | None, model_id: str | None, input_bytes: Any,
-        max_output_tokens: Any = None, max_output_bytes: Any = None,
+        self,
+        provider_id: str | None,
+        model_id: str | None,
+        input_bytes: Any,
+        max_output_tokens: Any = None,
+        max_output_bytes: Any = None,
     ) -> dict[str, Any] | None:
         """Conservative ceiling for one call; input tokens never exceed UTF-8 bytes."""
         entry = self.lookup(provider_id, model_id)
@@ -147,9 +166,14 @@ class PriceTable:
         if output_cap is None:
             return None
         microunits = _token_cost(entry.input_price, input_bytes) + _token_cost(entry.output_price, output_cap)
-        return {"max_cost_microunits": microunits, "estimated_cost_microunits": microunits,
-                "reservation_kind": "price_table_bound", "basis": PRICE_TABLE_BASIS,
-                "currency": self.currency, "price_table_revision": self.revision}
+        return {
+            "max_cost_microunits": microunits,
+            "estimated_cost_microunits": microunits,
+            "reservation_kind": "price_table_bound",
+            "basis": PRICE_TABLE_BASIS,
+            "currency": self.currency,
+            "price_table_revision": self.revision,
+        }
 
 
 def _valid_token(value: Any) -> bool:
@@ -178,10 +202,18 @@ def provider_price_identity(target: Any) -> tuple[str | None, str | None]:
         identity = identity()
     provider_id = model_id = None
     if isinstance(identity, Mapping):
-        provider_id = next((identity[key] for key in ("provider_id", "kind")
-                            if isinstance(identity.get(key), str) and identity[key]), None)
-        model_id = next((identity[key] for key in ("model_id", "model", "configured_model_id")
-                         if isinstance(identity.get(key), str) and identity[key]), None)
+        provider_id = next(
+            (identity[key] for key in ("provider_id", "kind") if isinstance(identity.get(key), str) and identity[key]),
+            None,
+        )
+        model_id = next(
+            (
+                identity[key]
+                for key in ("model_id", "model", "configured_model_id")
+                if isinstance(identity.get(key), str) and identity[key]
+            ),
+            None,
+        )
     if model_id is None:
         value = getattr(target, "model", None)
         model_id = value if isinstance(value, str) and value else None
@@ -212,8 +244,11 @@ def price_table_from_document(document: Any) -> PriceTable:
     if not isinstance(currency, str) or not _CURRENCY.fullmatch(currency):
         raise PriceTableError("price table currency is invalid")
     providers = document.get("providers")
-    if (not isinstance(providers, list) or not 1 <= len(providers) <= MAX_PRICE_TABLE_ENTRIES
-            or any(not isinstance(entry, Mapping) for entry in providers)):
+    if (
+        not isinstance(providers, list)
+        or not 1 <= len(providers) <= MAX_PRICE_TABLE_ENTRIES
+        or any(not isinstance(entry, Mapping) for entry in providers)
+    ):
         raise PriceTableError("price table providers are invalid")
     entries: list[PriceEntry] = []
     seen: set[tuple[str, str]] = set()
@@ -225,13 +260,20 @@ def price_table_from_document(document: Any) -> PriceTable:
         if (provider_id, model_id) in seen:
             raise PriceTableError("price table provider entries are duplicated")
         seen.add((provider_id, model_id))
-        entries.append(PriceEntry(
-            provider_id, model_id,
-            _price(raw.get("input_price_microunits_per_million_tokens"),
-                   f"providers[{index}].input_price_microunits_per_million_tokens"),
-            _price(raw.get("output_price_microunits_per_million_tokens"),
-                   f"providers[{index}].output_price_microunits_per_million_tokens"),
-        ))
+        entries.append(
+            PriceEntry(
+                provider_id,
+                model_id,
+                _price(
+                    raw.get("input_price_microunits_per_million_tokens"),
+                    f"providers[{index}].input_price_microunits_per_million_tokens",
+                ),
+                _price(
+                    raw.get("output_price_microunits_per_million_tokens"),
+                    f"providers[{index}].output_price_microunits_per_million_tokens",
+                ),
+            )
+        )
     return PriceTable(revision=revision, currency=currency, entries=entries)
 
 

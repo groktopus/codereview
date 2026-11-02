@@ -75,9 +75,7 @@ def _correctness_task(snapshot: dict) -> dict:
     return next(
         task
         for task in plan["tasks"]
-        if task["task_kind"] == "SPECIALIST_FINDINGS"
-        and task["lens"] == "correctness"
-        and doc_unit in task["unit_ids"]
+        if task["task_kind"] == "SPECIALIST_FINDINGS" and task["lens"] == "correctness" and doc_unit in task["unit_ids"]
     )
 
 
@@ -143,6 +141,6 @@ def test_missing_stale_or_truncated_head_implementation_stays_required(tmp_path)
         snapshot = deepcopy(original)
         mutate(snapshot["evidence"])
         task = _correctness_task(snapshot)
-        assert any(
-            context_id.startswith("missing-head-context-") for context_id in task["required_context_ids"]
-        ), "invalid HEAD implementation evidence must remain an explicit required-context gap"
+        assert any(context_id.startswith("missing-head-context-") for context_id in task["required_context_ids"]), (
+            "invalid HEAD implementation evidence must remain an explicit required-context gap"
+        )

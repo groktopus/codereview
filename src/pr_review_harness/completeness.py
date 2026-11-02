@@ -411,8 +411,7 @@ def taxonomy_document() -> dict[str, Any]:
         "complete_reason_codes": sorted(COMPLETE_REASON_CODES),
         "provider_codes": dict(sorted(PROVIDER_CODE_MAP.items())),
         "provider_dynamic_rules": [
-            {"pattern": pattern.pattern, "canonical_code": canonical}
-            for pattern, canonical in _PROVIDER_DYNAMIC_RULES
+            {"pattern": pattern.pattern, "canonical_code": canonical} for pattern, canonical in _PROVIDER_DYNAMIC_RULES
         ],
         "reasons": [
             {
@@ -449,11 +448,7 @@ def classify_reason(reason_code: Any) -> str:
     # mapping is exact, so only fall back to a case-insensitive lookup when the
     # legacy table has a unique match.
     folded = reason_code.casefold()
-    matches = {
-        canonical
-        for legacy, canonical in _LEGACY_TO_CANONICAL.items()
-        if legacy.casefold() == folded
-    }
+    matches = {canonical for legacy, canonical in _LEGACY_TO_CANONICAL.items() if legacy.casefold() == folded}
     if len(matches) == 1:
         return matches.pop()
     return _classify_family(reason_code)
@@ -473,6 +468,7 @@ def _classify_family(reason_code: str) -> str:
         if pattern.fullmatch(reason_code):
             return canonical
     return "UNCLASSIFIED_REASON"
+
 
 def _coverage_state(row: Mapping[str, Any]) -> str:
     state = row.get("state")
@@ -544,8 +540,7 @@ def build_completeness_summary(
                 "share_of_required": _share(bucket["obligations"], required_total),
                 "states": dict(bucket["states"]),
                 "legacy_codes": [
-                    {"code": code, "obligations": count}
-                    for code, count in sorted(bucket["legacy_codes"].items())
+                    {"code": code, "obligations": count} for code, count in sorted(bucket["legacy_codes"].items())
                 ],
             }
         )
@@ -627,13 +622,9 @@ def summary_is_consistent(result: Mapping[str, Any], summary: Mapping[str, Any])
         return False
     if any(not isinstance(item, Mapping) for item in stored_distribution):
         return False
-    normalized = [
-        (item.get("canonical_code"), item.get("obligations"))
-        for item in stored_distribution
-    ]
+    normalized = [(item.get("canonical_code"), item.get("obligations")) for item in stored_distribution]
     expected = [
-        (item.get("canonical_code"), item.get("obligations"))
-        for item in summary.get("reason_distribution", [])
+        (item.get("canonical_code"), item.get("obligations")) for item in summary.get("reason_distribution", [])
     ]
     return normalized == expected
 
@@ -794,8 +785,7 @@ def compare_to_baseline(
                     {
                         "code": "PARTIAL_OBLIGATION_REGRESSION",
                         "message": (
-                            f"obligation {obligation!r} regressed from PARTIAL to "
-                            f"{current_states.get(obligation)!r}"
+                            f"obligation {obligation!r} regressed from PARTIAL to {current_states.get(obligation)!r}"
                         ),
                     }
                 )
@@ -859,8 +849,7 @@ def compare_to_baseline(
                     (
                         candidate
                         for candidate in result.get("coverage_ledger", [])
-                        if isinstance(candidate, Mapping)
-                        and str(candidate.get("obligation_id", "")) == obligation_id
+                        if isinstance(candidate, Mapping) and str(candidate.get("obligation_id", "")) == obligation_id
                     ),
                     {},
                 )
@@ -883,8 +872,7 @@ def compare_to_baseline(
             {
                 "code": "UNCLASSIFIED_REASON_INCREASE",
                 "message": (
-                    f"unclassified incomplete obligations increased by {increase} "
-                    f"(allowed {unclassified_limit})"
+                    f"unclassified incomplete obligations increased by {increase} (allowed {unclassified_limit})"
                 ),
             }
         )
@@ -928,10 +916,12 @@ def render_summary_text(summary: Mapping[str, Any]) -> str:
         )
     ratio = summary.get("complete_ratio")
     percent = f"{float(ratio) * 100:.1f}%" if isinstance(ratio, (int, float)) else "UNKNOWN"
-    reasons = "; ".join(
-        f"{item['canonical_code']} {item['obligations']}"
-        for item in summary.get("reason_distribution", [])[:8]
-    ) or "none"
+    reasons = (
+        "; ".join(
+            f"{item['canonical_code']} {item['obligations']}" for item in summary.get("reason_distribution", [])[:8]
+        )
+        or "none"
+    )
     return (
         f"Completeness ({taxonomy}): {summary.get('complete')}/{required} required complete "
         f"({percent}); {summary.get('partial')} partial, {summary.get('not_started')} not started, "
@@ -1052,12 +1042,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 results,
                 corpus={"name": args.corpus_name, "provenance": args.corpus_provenance},
                 thresholds={
-                    "min_completion_ratio": args.min_completion_ratio
-                    if args.min_completion_ratio is not None
-                    else 0.0,
-                    "max_completion_drop": args.max_completion_drop
-                    if args.max_completion_drop is not None
-                    else 0.0,
+                    "min_completion_ratio": args.min_completion_ratio if args.min_completion_ratio is not None else 0.0,
+                    "max_completion_drop": args.max_completion_drop if args.max_completion_drop is not None else 0.0,
                     "max_unclassified_increase": args.max_unclassified_increase
                     if args.max_unclassified_increase is not None
                     else 0,
@@ -1067,11 +1053,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"completeness gate: cannot build baseline: {exc}", file=sys.stderr)
             return 2
         Path(args.write_baseline).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.write_baseline).write_text(
-            json.dumps(baseline, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        Path(args.write_baseline).write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         if args.json:
-            print(json.dumps({"status": "BASELINE_WRITTEN", "path": args.write_baseline, "cases": sorted(baseline["cases"])}))
+            print(
+                json.dumps(
+                    {"status": "BASELINE_WRITTEN", "path": args.write_baseline, "cases": sorted(baseline["cases"])}
+                )
+            )
         elif not args.quiet:
             print(f"completeness baseline written: {args.write_baseline} ({len(baseline['cases'])} case(s))")
         return 0

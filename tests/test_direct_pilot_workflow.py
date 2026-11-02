@@ -413,8 +413,8 @@ def test_direct_diagnostic_uses_same_config_helper_and_bounded_review_command():
     assert 'env GITHUB_REPOSITORY="$TARGET_REPOSITORY" pr-review review' in reusable_command
     assert '--event-file "$PR_EVENT_PATH"' in reusable_command
     assert "PROFILE: profiles/slopsearx.json" in direct_review
-    assert 'MAX_CLAIM_ASSESSMENTS: ${{ steps.resolve-profile.outputs.max_claim_assessments }}' in reusable_review
-    assert 'EXPECTED_LIMITS_SHA256: ${{ steps.resolve-profile.outputs.limits_sha256 }}' in reusable_review
+    assert "MAX_CLAIM_ASSESSMENTS: ${{ steps.resolve-profile.outputs.max_claim_assessments }}" in reusable_review
+    assert "EXPECTED_LIMITS_SHA256: ${{ steps.resolve-profile.outputs.limits_sha256 }}" in reusable_review
     assert "REVIEW_CONTRACT: ${{ inputs.review_contract }}" in reusable
     assert "default: legacy-v14" in reusable
     assert "--mode AUTO" in direct_review

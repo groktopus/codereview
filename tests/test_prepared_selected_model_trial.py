@@ -33,9 +33,7 @@ def prepared_inputs(tmp_path):
     for case_id in CASE_IDS:
         case = frozen["cases"][case_id]
         repo = plan_path.parent / case["repository_path"]
-        snapshots[case_id] = collect_snapshot(
-            str(repo), case["base_sha"], case["head_sha"], profile, limits
-        )
+        snapshots[case_id] = collect_snapshot(str(repo), case["base_sha"], case["head_sha"], profile, limits)
     cli = tmp_path / "installed-pr-review"
     cli.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     cli.chmod(0o755)
@@ -63,9 +61,7 @@ def prepared_inputs(tmp_path):
 
 
 def _runtime(monkeypatch, cli: Path):
-    source_fingerprint = {
-        "file_hashes": {"src/pr_review_harness/selected_model_trial.py": "a" * 64}
-    }
+    source_fingerprint = {"file_hashes": {"src/pr_review_harness/selected_model_trial.py": "a" * 64}}
 
     class Matrix:
         def source_fingerprint(self):
@@ -84,7 +80,11 @@ def _runtime(monkeypatch, cli: Path):
 
 
 def _fake_invoker(
-    plan, calls, *, snapshots=None, wrong_prepare_case: str | None = None,
+    plan,
+    calls,
+    *,
+    snapshots=None,
+    wrong_prepare_case: str | None = None,
     clean_result_factory=None,
 ):
     cases = {row["case_id"]: row for row in plan["cases"]}
@@ -159,9 +159,7 @@ def _fake_invoker(
     return invoke
 
 
-def _run(
-    prepared_inputs, monkeypatch, invoke, *, env=None, output_name="trial-output", plan_path=None, version="v1"
-):
+def _run(prepared_inputs, monkeypatch, invoke, *, env=None, output_name="trial-output", plan_path=None, version="v1"):
     _runtime(monkeypatch, prepared_inputs["cli"])
     monkeypatch.setattr(trial, "MATRIX_TIMEOUT_SECONDS", 940)
     return trial.run_provider_trial(
@@ -200,13 +198,19 @@ def _clean_claim_result(prepared_inputs):
     claim = selected_trial_tests._assessment_row(candidate_id)
     claim["evidence_refs"] = [evidence_id]
     claim.update(
-        snapshot_id=snapshot["snapshot_id"], snapshot_hash=snapshot["snapshot_hash"],
-        profile_hash=profile_hash, base_sha=case["base_sha"], head_sha=case["head_sha"],
+        snapshot_id=snapshot["snapshot_id"],
+        snapshot_hash=snapshot["snapshot_hash"],
+        profile_hash=profile_hash,
+        base_sha=case["base_sha"],
+        head_sha=case["head_sha"],
     )
     claim["provenance"].update(
-        snapshot_id=snapshot["snapshot_id"], snapshot_hash=snapshot["snapshot_hash"],
-        profile_id=profile_id, profile_hash=profile_hash,
-        base_sha=case["base_sha"], head_sha=case["head_sha"],
+        snapshot_id=snapshot["snapshot_id"],
+        snapshot_hash=snapshot["snapshot_hash"],
+        profile_id=profile_id,
+        profile_hash=profile_hash,
+        base_sha=case["base_sha"],
+        head_sha=case["head_sha"],
     )
     for assessment in claim["assessments"].values():
         assessment["evidence_refs"] = [evidence_id]
@@ -222,23 +226,27 @@ def _clean_claim_result(prepared_inputs):
         "ledger": {
             "request_hash": request_hash,
             "identity": {"snapshot_id": snapshot["snapshot_id"], "profile_version": profile_id},
-            "candidate_records": [{
-                "candidate_id": candidate_id,
-                "finding_id": "clean-finding-1",
-                "snapshot_id": snapshot["snapshot_id"],
-                "validation_state": "VALID",
-                "raw": candidate,
-            }],
+            "candidate_records": [
+                {
+                    "candidate_id": candidate_id,
+                    "finding_id": "clean-finding-1",
+                    "snapshot_id": snapshot["snapshot_id"],
+                    "validation_state": "VALID",
+                    "raw": candidate,
+                }
+            ],
         },
-        "findings": [{
-            "candidate_id": candidate_id,
-            "status": "NEEDS_EVIDENCE",
-            "blocking_class": "UNRESOLVED",
-            "observation": candidate["observation"],
-            "consequence": candidate["consequence"],
-            "rule_or_contract": candidate["rule_or_contract"],
-            "evidence_refs": [evidence_id],
-        }],
+        "findings": [
+            {
+                "candidate_id": candidate_id,
+                "status": "NEEDS_EVIDENCE",
+                "blocking_class": "UNRESOLVED",
+                "observation": candidate["observation"],
+                "consequence": candidate["consequence"],
+                "rule_or_contract": candidate["rule_or_contract"],
+                "evidence_refs": [evidence_id],
+            }
+        ],
         "claim_assessments": [claim],
         "evidence_index": {evidence_id: {"path": unit["path"]}},
     }
@@ -265,7 +273,9 @@ def test_prepared_plan_rechecks_all_case_descriptors_before_any_review(prepared_
     assert len(prepare_indices) == len(CASE_IDS) == 3
     assert len(review_indices) == len(CASE_IDS) == 3
     assert max(prepare_indices) < min(review_indices)
-    assert [calls[index]["command"][calls[index]["command"].index("--run-id") + 1] for index in prepare_indices] == list(CASE_IDS)
+    assert [
+        calls[index]["command"][calls[index]["command"].index("--run-id") + 1] for index in prepare_indices
+    ] == list(CASE_IDS)
     assert all(not calls[index]["env_has_credentials"] for index in prepare_indices)
     assert all(calls[index]["env_has_credentials"] for index in review_indices)
     profile_paths = {
@@ -294,7 +304,9 @@ def test_prepared_plan_rechecks_all_case_descriptors_before_any_review(prepared_
 def test_clean_control_claim_binds_to_its_real_changed_unit_and_snapshot(prepared_inputs, monkeypatch):
     calls = []
     invoke = _fake_invoker(
-        prepared_inputs["plan"], calls, snapshots=prepared_inputs["snapshots"],
+        prepared_inputs["plan"],
+        calls,
+        snapshots=prepared_inputs["snapshots"],
         clean_result_factory=lambda: _clean_claim_result(prepared_inputs),
     )
     result = _run(prepared_inputs, monkeypatch, invoke, output_name="clean-claim-binding")
@@ -352,7 +364,9 @@ def test_v2_export_reports_classifier_disabled_by_contract(prepared_inputs, monk
 def test_second_prepared_descriptor_mismatch_stops_before_any_review(prepared_inputs, monkeypatch):
     calls = []
     invoke = _fake_invoker(
-        prepared_inputs["plan"], calls, snapshots=prepared_inputs["snapshots"],
+        prepared_inputs["plan"],
+        calls,
+        snapshots=prepared_inputs["snapshots"],
         wrong_prepare_case=CASE_IDS[1],
     )
 
@@ -369,7 +383,12 @@ def test_tampered_frozen_inputs_fail_before_any_installed_cli_invocation(prepare
     calls = []
 
     with pytest.raises(trial.SelectedTrialError):
-        _run(prepared_inputs, monkeypatch, _fake_invoker(prepared_inputs["plan"], calls, snapshots=prepared_inputs["snapshots"]), output_name="tampered-plan")
+        _run(
+            prepared_inputs,
+            monkeypatch,
+            _fake_invoker(prepared_inputs["plan"], calls, snapshots=prepared_inputs["snapshots"]),
+            output_name="tampered-plan",
+        )
 
     assert calls == []
 
@@ -379,8 +398,13 @@ def test_operator_environment_config_mismatch_stops_before_preflight_or_review(p
     calls = []
 
     with pytest.raises(trial.SelectedTrialError):
-        _run(prepared_inputs, monkeypatch, _fake_invoker(prepared_inputs["plan"], calls, snapshots=prepared_inputs["snapshots"]), env=env,
-             output_name="operator-config-mismatch")
+        _run(
+            prepared_inputs,
+            monkeypatch,
+            _fake_invoker(prepared_inputs["plan"], calls, snapshots=prepared_inputs["snapshots"]),
+            env=env,
+            output_name="operator-config-mismatch",
+        )
 
     assert calls == []
 
@@ -389,25 +413,18 @@ def test_operator_environment_config_mismatch_stops_before_preflight_or_review(p
     "mutation",
     ["source_inventory", "frozen_config_bytes", "repo_head", "repo_dirty", "construction_oracle", "fixture_hash"],
 )
-def test_tampered_prepared_provenance_fails_before_any_invocation(
-    prepared_inputs, monkeypatch, mutation
-):
+def test_tampered_prepared_provenance_fails_before_any_invocation(prepared_inputs, monkeypatch, mutation):
     plan = json.loads(prepared_inputs["plan_path"].read_bytes())
     plan_path = prepared_inputs["plan_path"].with_name(f"tampered-{mutation}.json")
     if mutation == "source_inventory":
-        plan["implementation_identity"]["file_hashes"].pop(
-            "src/pr_review_harness/providers.py"
-        )
+        plan["implementation_identity"]["file_hashes"].pop("src/pr_review_harness/providers.py")
     elif mutation == "frozen_config_bytes":
         config_path = prepared_inputs["primary"]
         config_path.write_bytes(config_path.read_bytes() + b" ")
     elif mutation == "repo_head":
         plan["frozen_inputs"]["cases"][CASE_IDS[0]]["head_sha"] = "f" * 40
     elif mutation == "repo_dirty":
-        repo = (
-            prepared_inputs["plan_path"].parent
-            / plan["frozen_inputs"]["cases"][CASE_IDS[0]]["repository_path"]
-        )
+        repo = prepared_inputs["plan_path"].parent / plan["frozen_inputs"]["cases"][CASE_IDS[0]]["repository_path"]
         (repo / "untracked-provenance-tamper.txt").write_text("tampered", encoding="utf-8")
     elif mutation == "construction_oracle":
         plan["construction_oracle"]["clean_control"]["expected_material_candidate"] = True

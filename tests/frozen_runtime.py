@@ -52,7 +52,10 @@ def _load_pins() -> dict[str, str]:
         manifest = json.loads(PIN_MANIFEST.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         raise AssertionError("historical compatibility pin manifest is unavailable or invalid") from None
-    if manifest.get("schema") != "pr-review-historical-pins.v1" or manifest.get("historical_revision") != HISTORICAL_REVISION:
+    if (
+        manifest.get("schema") != "pr-review-historical-pins.v1"
+        or manifest.get("historical_revision") != HISTORICAL_REVISION
+    ):
         raise AssertionError("historical compatibility pin manifest schema or revision is invalid")
     pins = manifest.get("pins")
     if not isinstance(pins, dict):
@@ -69,6 +72,8 @@ def assert_frozen_runtime_pin(name: str, path: Path) -> None:
             f"historical compatibility mismatch: module {path.name!r} at revision {HISTORICAL_REVISION}; "
             f"expected {expected!r}, got {actual}. Historical pins are immutable; preserve prior evidence and use a reviewed migration rather than editing a fixture."
         )
+
+
 _MODULE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\.py\Z")
 
 
@@ -169,14 +174,9 @@ def _frozen_runtime_root_and_hashes(tmp_path: Path, *, verify: bool = True) -> t
     files = sorted(module_dir.glob("*.py"), key=lambda path: path.name)
     if tuple(path.name for path in files) != tuple(sorted(module_names)):
         raise AssertionError("frozen runtime source inventory changed")
-    module_hashes = {
-        f"pr_review_harness/{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in files
-    }
+    module_hashes = {f"pr_review_harness/{path.name}": hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
     model_tree = hashlib.sha256(
-        json.dumps(
-            module_hashes, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode("utf-8")
+        json.dumps(module_hashes, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()
     synth_digest = hashlib.sha256()
     for path in files:

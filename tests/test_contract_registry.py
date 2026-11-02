@@ -57,16 +57,12 @@ V13_PROFILE = json.loads((ROOT / "profiles/slopsearx-v13-static-assessment-candi
 TRIAL_PROFILE = json.loads((ROOT / "docs/real-case-trial-v1/profiles/PR-457.json").read_text())
 V6_LIMITS = {
     key: value
-    for key, value in json.loads(
-        (ROOT / "docs/historical-functional-review-pr466-v6/limits.json").read_text()
-    ).items()
+    for key, value in json.loads((ROOT / "docs/historical-functional-review-pr466-v6/limits.json").read_text()).items()
     if key != "schema_version"
 }
 V5_LIMITS = {
     key: value
-    for key, value in json.loads(
-        (ROOT / "docs/historical-functional-review-pr466-v5/limits.json").read_text()
-    ).items()
+    for key, value in json.loads((ROOT / "docs/historical-functional-review-pr466-v5/limits.json").read_text()).items()
     if key != "schema_version"
 }
 
@@ -143,7 +139,10 @@ def test_registry_loader_validates_statuses_references_and_pinned_digests():
         assert entry["owner"]
         if entry["status"] == "deprecated":
             assert entry["deprecation"]["replacement_path"]
-            assert entry["deprecation"]["compatibility_window"]["starts"] <= entry["deprecation"]["compatibility_window"]["ends"]
+            assert (
+                entry["deprecation"]["compatibility_window"]["starts"]
+                <= entry["deprecation"]["compatibility_window"]["ends"]
+            )
         if entry["status"] == "archived":
             assert entry["archived"]["archival_note"]
             assert entry["archived"]["evidence_paths"]
@@ -157,9 +156,7 @@ def test_every_profile_and_limits_file_is_registered_and_labeled():
         if entry["kind"] in {"review-profile", "review-profile-template", "review-limits"}
     }
     files = {
-        path.relative_to(ROOT).as_posix()
-        for path in (ROOT / "profiles").glob("*.json")
-        if path.name != "targets.json"
+        path.relative_to(ROOT).as_posix() for path in (ROOT / "profiles").glob("*.json") if path.name != "targets.json"
     }
     assert files <= registered, f"unlabeled profile/limits files: {sorted(files - registered)}"
 
@@ -210,9 +207,13 @@ def test_registry_rejects_malformed_manipulation():
 def test_registry_source_digest_mismatch_is_rejected(tmp_path: Path):
     registry = load_registry(REGISTRY_PATH)
     (tmp_path / "profiles").mkdir()
-    profile = next(entry for entry in registry["contracts"] if entry["kind"] == "review-profile" and entry["status"] == "supported")
+    profile = next(
+        entry for entry in registry["contracts"] if entry["kind"] == "review-profile" and entry["status"] == "supported"
+    )
     (tmp_path / profile["source_path"]).write_text("{}", encoding="utf-8")
-    limits = next(entry for entry in registry["contracts"] if entry["kind"] == "review-limits" and entry["status"] == "supported")
+    limits = next(
+        entry for entry in registry["contracts"] if entry["kind"] == "review-limits" and entry["status"] == "supported"
+    )
     (tmp_path / limits["source_path"]).write_bytes((ROOT / limits["source_path"]).read_bytes())
     with pytest.raises(ContractRegistryError, match="registry_source_mismatch"):
         validate_registry(registry, root=tmp_path)
@@ -225,7 +226,9 @@ def test_registry_source_digest_mismatch_is_rejected(tmp_path: Path):
 def test_exactly_one_review_contract_profile_and_limits_set_is_supported():
     registry = load_registry(REGISTRY_PATH)
     supported = {
-        kind: [entry["name"] for entry in _entries(registry) if entry["kind"] == kind and entry["status"] == "supported"]
+        kind: [
+            entry["name"] for entry in _entries(registry) if entry["kind"] == kind and entry["status"] == "supported"
+        ]
         for kind in ("review-contract", "review-profile", "review-limits")
     }
     assert supported == {
@@ -565,9 +568,7 @@ def test_historical_v6_limits_need_explicit_archived_opt_in():
     registry = load_registry()
     with pytest.raises(ContractRegistryError, match="contract_archived"):
         effective_contract_set(registry, V14_PROFILE, V6_LIMITS, max_claim_assessments=1)
-    result = effective_contract_set(
-        registry, V14_PROFILE, V6_LIMITS, max_claim_assessments=1, allow_archived=True
-    )
+    result = effective_contract_set(registry, V14_PROFILE, V6_LIMITS, max_claim_assessments=1, allow_archived=True)
     assert result["registration"] == "registered"
     assert result["limits"]["status"] == "archived"
 

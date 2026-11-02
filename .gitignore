@@ -12,3 +12,8 @@ decision.local.json
 build/
 dist/
 .coverage
+
+# Complexity guard reports written by CI/local checks
+complexity-report.json
+complexity-report.md
+complexity-seeded.json

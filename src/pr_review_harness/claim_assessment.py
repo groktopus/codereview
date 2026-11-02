@@ -537,9 +537,8 @@ class ClaimAssessmentAdapter:
         """Validate exact prepared bytes and their metadata without transport use."""
         if (
             not isinstance(prepared, PreparedClaimAssessment)
-            or prepared.contract_version not in {
-                CONTRACT_VERSION, PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION
-            }
+            or prepared.contract_version
+            not in {CONTRACT_VERSION, PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION}
             or not isinstance(prepared.request_bytes, bytes)
             or len(prepared.request_bytes) > _MAX_REQUEST_BYTES
             or not isinstance(prepared.request_hash, str)
@@ -621,7 +620,9 @@ class ClaimAssessmentAdapter:
         if prepared.contract_version == CONTRACT_VERSION:
             if prepared.primary_assessment_hash is not None:
                 raise ClaimAssessmentError("invalid_prepared_assessment")
-        elif prepared.contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION and "primary_assessment" not in state:
+        elif (
+            prepared.contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION and "primary_assessment" not in state
+        ):
             if (
                 set(state) != {"assessment_identity", "candidate", "cited_evidence", "assessment_contract_version"}
                 or state.get("assessment_contract_version") != PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION
@@ -733,7 +734,8 @@ class ClaimAssessmentAdapter:
         """Quote the exact prepared request and separate wire response from IPC output bounds."""
         if (
             not isinstance(prepared, PreparedClaimAssessment)
-            or prepared.contract_version not in {PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION}
+            or prepared.contract_version
+            not in {PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION}
             or not isinstance(limits, Mapping)
         ):
             raise ClaimAssessmentError("invalid_prepared_assessment")
@@ -793,12 +795,18 @@ class ClaimAssessmentAdapter:
         input_cap, _output_cap, _deadline_seconds = _limits(limits)
         extra_refs = _primary_reference_ids(primary_assessment) if primary_assessment is not None else []
         state, has_revision_pair, cited_refs = _candidate_state(candidate, evidence, identity, extra_refs)
-        contract_version = PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION if "change_base_sha" in identity else CONTRACT_VERSION
+        contract_version = (
+            PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION if "change_base_sha" in identity else CONTRACT_VERSION
+        )
         primary_hash = None
         if primary_assessment is not None:
             normalized = _validate_primary_assessment(primary_assessment, set(cited_refs))
             primary_hash = _sha(_canonical(normalized))
-            state["assessment_contract_version"] = contract_version if contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION else PRIMARY_ASSESSMENT_CONTRACT_VERSION
+            state["assessment_contract_version"] = (
+                contract_version
+                if contract_version == PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION
+                else PRIMARY_ASSESSMENT_CONTRACT_VERSION
+            )
             state["candidate"]["evidence_refs"] = list(candidate["evidence_refs"])
             state["primary_assessment"] = normalized
             contract_version = state["assessment_contract_version"]
@@ -810,8 +818,13 @@ class ClaimAssessmentAdapter:
         identity_record = {
             key: identity[key]
             for key in (
-                "snapshot_id", "snapshot_hash", "profile_id", "profile_hash", "base_sha", "head_sha",
-                *(('change_base_sha',) if "change_base_sha" in identity else ()),
+                "snapshot_id",
+                "snapshot_hash",
+                "profile_id",
+                "profile_hash",
+                "base_sha",
+                "head_sha",
+                *(("change_base_sha",) if "change_base_sha" in identity else ()),
             )
         }
         state["assessment_identity"] = identity_record
@@ -929,7 +942,10 @@ class ClaimAssessmentAdapter:
 
         actual_model = envelope.get("model")
         model_valid = isinstance(actual_model, str) and bool(actual_model.strip()) and len(actual_model) <= 256
-        if prepared.contract_version in {PRIMARY_ASSESSMENT_CONTRACT_VERSION, PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION}:
+        if prepared.contract_version in {
+            PRIMARY_ASSESSMENT_CONTRACT_VERSION,
+            PR_COMPARISON_ASSESSMENT_CONTRACT_VERSION,
+        }:
             provenance.pop("provider_model_id", None)
             model_valid = bool(
                 model_valid

@@ -28,7 +28,9 @@ SDIST = "pr_review_harness-1.2.3.tar.gz"
 CREATED = "2025-11-02T09:00:00Z"
 
 
-def _metadata(*, license_expression: str = "MIT", requires: tuple[str, ...] = (), requires_python: str = ">=3.11") -> str:
+def _metadata(
+    *, license_expression: str = "MIT", requires: tuple[str, ...] = (), requires_python: str = ">=3.11"
+) -> str:
     lines = [
         "Metadata-Version: 2.4",
         f"Name: {PACKAGE}",
@@ -36,7 +38,7 @@ def _metadata(*, license_expression: str = "MIT", requires: tuple[str, ...] = ()
         f"License-Expression: {license_expression}",
         f"Requires-Python: {requires_python}",
         "Summary: fixture",
-        'Provides-Extra: dev',
+        "Provides-Extra: dev",
         'Requires-Dist: pytest>=8; extra == "dev"',
         *(f"Requires-Dist: {item}" for item in requires),
     ]
@@ -216,7 +218,9 @@ def test_provenance_is_deterministic(tmp_path: Path) -> None:
     assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
 
 
-def test_provenance_cli_derives_builder_identity_from_the_workflow_ref(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_provenance_cli_derives_builder_identity_from_the_workflow_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     dist = _dist(tmp_path)
     for name in ("GITHUB_REPOSITORY", "GITHUB_SHA", "GITHUB_REF", "GITHUB_WORKFLOW_REF", "GITHUB_RUN_ID"):
         monkeypatch.delenv(name, raising=False)
@@ -305,14 +309,13 @@ def test_verifier_require_signed_fails_for_unsigned_provenance(tmp_path: Path) -
 
 def test_verifier_does_not_accept_a_forged_signed_claim(tmp_path: Path) -> None:
     import json
+
     dist, sbom_path, provenance_path, checksums = _evidence(tmp_path)
     document = json.loads(provenance_path.read_text(encoding="utf-8"))
     document["signing"] = {"status": "signed", "signature": "deadbeef", "certificate": None, "tool": None}
     provenance_path.write_text(json.dumps(document), encoding="utf-8")
     checksums = _checksums(dist)
-    result = verifier.verify(
-        dist, sbom=sbom_path, provenance=provenance_path, checksums=checksums, require_signed=True
-    )
+    result = verifier.verify(dist, sbom=sbom_path, provenance=provenance_path, checksums=checksums, require_signed=True)
     assert result["status"] == "FAIL"
     assert any("signature verification is not implemented" in failure for failure in result["failures"])
 
@@ -364,7 +367,9 @@ def test_reproducibility_rejects_different_artifact_content(tmp_path: Path) -> N
     assert reproducibility.main(["--compare", str(first), str(second)]) == 1
 
 
-def test_reproducibility_build_mode_uses_two_source_copies_and_keeps_the_first_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_reproducibility_build_mode_uses_two_source_copies_and_keeps_the_first_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     template = _dist(tmp_path, "template")
     fake_python = tmp_path / "fake-python"
     fake_python.write_text(

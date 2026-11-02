@@ -36,14 +36,20 @@ def _schema_source() -> dict[str, Any]:
                 "contract_version": {"type": "string", "enum": ["shadow-source-audit.v1"]},
                 "status": {"type": "string", "enum": ["completed", "abstained"]},
                 "records": {
-                    "type": "array", "maxItems": 100,
+                    "type": "array",
+                    "maxItems": 100,
                     "items": {
-                        "type": "object", "additionalProperties": False,
+                        "type": "object",
+                        "additionalProperties": False,
                         "required": ["record_id", "summary", "evidence_refs"],
                         "properties": {
                             "record_id": {"type": "string", "minLength": 1, "maxLength": 256},
                             "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
-                            "evidence_refs": {"type": "array", "maxItems": 128, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+                            "evidence_refs": {
+                                "type": "array",
+                                "maxItems": 128,
+                                "items": {"type": "string", "minLength": 1, "maxLength": 256},
+                            },
                         },
                     },
                 },
@@ -74,9 +80,15 @@ def serialize_source_audit_request(
 def _canonical_json_value(value: Any) -> Any:
     """Round-trip JSON values with recursively sorted object keys."""
     try:
-        return json.loads(json.dumps(
-            value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False,
-        ))
+        return json.loads(
+            json.dumps(
+                value,
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        )
     except (TypeError, ValueError, RecursionError):
         raise SourceAuditRequestError("source_request_value_invalid") from None
 
@@ -95,8 +107,11 @@ def serialize_canonical_source_audit_request(
     return provider._serialize_request_body(
         _SOURCE_SYSTEM,
         source_audit_user(
-            case_id, snapshot, profile_id,
-            _canonical_json_value(task), _canonical_json_value(evidence),
+            case_id,
+            snapshot,
+            profile_id,
+            _canonical_json_value(task),
+            _canonical_json_value(evidence),
         ),
         _schema_source(),
         limits,

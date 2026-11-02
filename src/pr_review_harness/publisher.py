@@ -644,9 +644,7 @@ def preview_publication(result: dict, config: dict, rendered_review: str | None 
         "review_event": review_event,
         "result_hash": result["result_hash"],
         "review_body_hash": hashlib.sha256(body.encode("utf-8")).hexdigest(),
-        "idempotency_key": effect_idempotency_key(
-            result, rendered_review=body, publication_mode=publication_mode
-        ),
+        "idempotency_key": effect_idempotency_key(result, rendered_review=body, publication_mode=publication_mode),
         "merge": False,
         "review_payload": {
             "commit_id": head,

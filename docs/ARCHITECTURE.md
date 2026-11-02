@@ -109,12 +109,13 @@ measured with `find src -name '*.py' -exec wc -l {} + | tail -1`.
 | Base `7d550b6` (before) | 48 | 40,686 |
 | Consolidated on CA-2 + OE-1 + SE-3 | 39 | 30,030 |
 | After OE-2 cost model | 40 | 30,870 |
-| Delta vs base | −8 | −9,816 (−24.13%) |
+| After VD-4 canonical formatting | 40 | 31,725 |
+| Delta vs base | −8 | −8,961 (−22.02%) |
 
 CA-2's 25% outcome was measured at merge. A documented 500-line post-CA-2
-feature budget (see [ADR 0001](adr/0001-post-ca2-feature-budget.md)) keeps new
-features from silently erasing it; the current effective ceiling is 31,014
-lines and 144 remain. The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
+feature budget plus a one-time 855-line VD-4 formatter allowance (see
+[ADR 0001](adr/0001-post-ca2-feature-budget.md)) keeps new features from silently
+erasing it; the current effective ceiling is 31,869 lines and 144 remain. The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
 orchestrator, two are internal stages of it, and one is the guarded publication
 executor. The installed wheel contains no module from `experiments/`.
 
@@ -133,6 +134,8 @@ fixtures keep validating against the same bytes they always described.
 ```sh
 PYTHONPATH=src python -m pytest -q                 # full suite, including archive tests
 ruff check src scripts tests experiments           # lint
+ruff format --check src scripts tests experiments  # canonical formatting
+python scripts/check_complexity.py                 # function-length baseline
 rg -n "def run_" src                               # orchestrator inventory
 python -m build --wheel --outdir dist && unzip -l dist/*.whl  # wheel inventory: no experiments/
 ```

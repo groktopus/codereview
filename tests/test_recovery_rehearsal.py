@@ -141,9 +141,7 @@ def test_run_cli_accepts_only_exact_preflight_error_mirror_and_keeps_drift_guard
     payload = json.dumps({"error": error_code, "exit_code": 2}, sort_keys=True, separators=(",", ":")) + "\n"
     cli = tmp_path / "preflight-error"
     cli.write_text(
-        f"#!{sys.executable}\nimport sys\n"
-        f"sys.stdout.write({payload!r}); sys.stderr.write({payload!r})\n"
-        "sys.exit(2)\n",
+        f"#!{sys.executable}\nimport sys\nsys.stdout.write({payload!r}); sys.stderr.write({payload!r})\nsys.exit(2)\n",
         encoding="utf-8",
     )
     cli.chmod(0o700)
@@ -159,13 +157,16 @@ def test_run_cli_accepts_only_exact_preflight_error_mirror_and_keeps_drift_guard
     checkpoint = tmp_path / "checkpoint.json"
     checkpoint.write_bytes(b'{"disposition":"INCOMPLETE"}\n')
     digest = rehearsal._hash_file(checkpoint)
-    assert rehearsal._validate_profile_drift_rejection(
-        result,
-        checkpoint_path=checkpoint,
-        checkpoint_sha256=digest,
-        calls_before=2,
-        calls_after=2,
-    ) == error_code
+    assert (
+        rehearsal._validate_profile_drift_rejection(
+            result,
+            checkpoint_path=checkpoint,
+            checkpoint_sha256=digest,
+            calls_before=2,
+            calls_after=2,
+        )
+        == error_code
+    )
     assert rehearsal._hash_file(checkpoint) == digest
 
 
@@ -173,18 +174,33 @@ def test_run_cli_accepts_only_exact_preflight_error_mirror_and_keeps_drift_guard
     ("stdout", "stderr", "expected_exit"),
     [
         pytest.param('{"status":"ok"}\n', '{"status":"ok"}\n', 0, id="success-still-rejects-stderr"),
-        pytest.param('{"error":"resume_state_invalid","exit_code":2}\n', "MUST_NOT_LEAK_SECRET\n", 2,
-                     id="arbitrary-secret-stderr"),
-        pytest.param('{"error":"resume_state_invalid","exit_code":2}\n',
-                     '{"error":"preflight_rejected","exit_code":2}\n', 2, id="mismatched-error"),
-        pytest.param('{"error":"resume_state_invalid","exit_code":2}\n',
-                     '{"error":"resume_state_invalid","exit_code":2}\nextra\n', 2, id="extra-stderr"),
+        pytest.param(
+            '{"error":"resume_state_invalid","exit_code":2}\n',
+            "MUST_NOT_LEAK_SECRET\n",
+            2,
+            id="arbitrary-secret-stderr",
+        ),
+        pytest.param(
+            '{"error":"resume_state_invalid","exit_code":2}\n',
+            '{"error":"preflight_rejected","exit_code":2}\n',
+            2,
+            id="mismatched-error",
+        ),
+        pytest.param(
+            '{"error":"resume_state_invalid","exit_code":2}\n',
+            '{"error":"resume_state_invalid","exit_code":2}\nextra\n',
+            2,
+            id="extra-stderr",
+        ),
         *[
             pytest.param(payload, payload, 2, id=case)
             for case, payload in [
                 ("extra-field", '{"error":"resume_state_invalid","exit_code":2,"extra":true}\n'),
-                ("secret-diagnostic", '{"diagnostic_artifact_path":"MUST_NOT_LEAK_SECRET",'
-                                      '"error":"resume_state_invalid","exit_code":2}\n'),
+                (
+                    "secret-diagnostic",
+                    '{"diagnostic_artifact_path":"MUST_NOT_LEAK_SECRET",'
+                    '"error":"resume_state_invalid","exit_code":2}\n',
+                ),
                 ("wrong-exit-code", '{"error":"resume_state_invalid","exit_code":1}\n'),
                 ("bool-exit-code", '{"error":"resume_state_invalid","exit_code":true}\n'),
                 ("float-exit-code", '{"error":"resume_state_invalid","exit_code":2.0}\n'),
@@ -192,8 +208,7 @@ def test_run_cli_accepts_only_exact_preflight_error_mirror_and_keeps_drift_guard
                 ("unsafe-error", '{"error":"MUST_NOT_LEAK_SECRET text","exit_code":2}\n'),
                 ("multiline-json", '{\n"error":"resume_state_invalid",\n"exit_code":2\n}\n'),
                 ("extra-json-line", '{"error":"resume_state_invalid","exit_code":2}\n{}\n'),
-                ("duplicate-key", '{"error":"preflight_rejected","error":"resume_state_invalid",'
-                                  '"exit_code":2}\n'),
+                ("duplicate-key", '{"error":"preflight_rejected","error":"resume_state_invalid","exit_code":2}\n'),
                 ("no-final-newline", '{"error":"resume_state_invalid","exit_code":2}'),
             ]
         ],
@@ -280,6 +295,8 @@ def test_profile_drift_summary_uses_counts_captured_before_later_resume_calls():
     assert len(observed_calls) > drift_calls_after
     assert row["fake_provider_calls_before"] == 2
     assert row["fake_provider_calls_after"] == 2
+
+
 @pytest.mark.skipif(os.name != "posix", reason="isolated process-group behavior is POSIX-specific")
 def test_run_cli_stops_pipe_holding_descendant_after_parent_exits(tmp_path):
     cli = tmp_path / "parent-exits"

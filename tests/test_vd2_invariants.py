@@ -181,7 +181,10 @@ def test_generated_reducer_never_clears_an_accepted_blocker():
             "freshness": rng.choice(["CURRENT", "STALE", "UNKNOWN"]),
             "budget": {"budget_breaches": rng.choice([[], [{"reason": "synthetic"}]])},
         }
-        assert _reduce(result, allow_empty_approve=rng.choice([True, False]), policy_valid=rng.choice([True, False])) == "REQUEST_CHANGES"
+        assert (
+            _reduce(result, allow_empty_approve=rng.choice([True, False]), policy_valid=rng.choice([True, False]))
+            == "REQUEST_CHANGES"
+        )
         consolidated = consolidate_findings([dict(blocker, finding_id=f"blocker-{generated_cases}")])
         assert len(consolidated) == 1
         assert consolidated[0]["status"] == "ACCEPTED"
@@ -190,8 +193,16 @@ def test_generated_reducer_never_clears_an_accepted_blocker():
     assert generated_cases == 100
 
 
-@pytest.mark.parametrize("freshness", ["CURRENT", "STALE", "UNKNOWN", None, "FUTURE_STATE"], ids=["current", "stale", "unknown", "missing", "unrecognized"])
-@pytest.mark.parametrize("coverage", ["COMPLETE", "PARTIAL", "UNKNOWN", "FUTURE_STATE"], ids=["complete", "partial", "unknown", "unrecognized"])
+@pytest.mark.parametrize(
+    "freshness",
+    ["CURRENT", "STALE", "UNKNOWN", None, "FUTURE_STATE"],
+    ids=["current", "stale", "unknown", "missing", "unrecognized"],
+)
+@pytest.mark.parametrize(
+    "coverage",
+    ["COMPLETE", "PARTIAL", "UNKNOWN", "FUTURE_STATE"],
+    ids=["complete", "partial", "unknown", "unrecognized"],
+)
 def test_stale_or_unknown_evidence_never_reduces_to_approval(freshness, coverage):
     result = {"findings": [], "freshness": freshness, "coverage_state": coverage, "budget": {}}
     # The sole approving pair is explicitly current + complete. Every stale,

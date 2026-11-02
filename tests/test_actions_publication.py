@@ -177,13 +177,15 @@ def test_platform_bound_actions_token_flows_through_real_adapter_and_checks_effe
 
     def responder(method, url, payload):
         posts.append((method, url, payload))
-        return response({
-            "id": 1234,
-            "commit_id": HEAD,
-            "state": "COMMENTED",
-            "body": body,
-            "user": {"login": actor},
-        })
+        return response(
+            {
+                "id": 1234,
+                "commit_id": HEAD,
+                "state": "COMMENTED",
+                "body": body,
+                "user": {"login": actor},
+            }
+        )
 
     client = GitHubActionsPublicationAdapter(policy, provider, transport=FakeTransport(responder))
     observed = client.submit_review({"commit_id": HEAD, "event": "COMMENT", "body": body}, EFFECT, 4.0)
@@ -219,13 +221,17 @@ def test_platform_bound_actions_token_mismatched_effect_actor_is_not_confirmed_o
     client = GitHubActionsPublicationAdapter(
         policy,
         provider,
-        transport=FakeTransport(lambda *_: response({
-            "id": 1234,
-            "commit_id": HEAD,
-            "state": "COMMENTED",
-            "body": body,
-            "user": {"login": "unexpected-actor"},
-        })),
+        transport=FakeTransport(
+            lambda *_: response(
+                {
+                    "id": 1234,
+                    "commit_id": HEAD,
+                    "state": "COMMENTED",
+                    "body": body,
+                    "user": {"login": "unexpected-actor"},
+                }
+            )
+        ),
     )
 
     with pytest.raises(GitHubPublicationError, match="review_post_response_identity_mismatch"):
@@ -598,6 +604,7 @@ def test_authenticated_api_location_mode_downloads_without_host_allowlist_or_red
             b"",
         )
     )
+
     def download(url, *, timeout_seconds, max_response_bytes):
         transport.download_calls.append((url, timeout_seconds, max_response_bytes))
         return download_response
@@ -631,6 +638,7 @@ def test_authenticated_api_location_mode_accepts_public_unlisted_host_and_keeps_
             b"",
         )
     )
+
     def download(url, *, timeout_seconds, max_response_bytes):
         transport.download_calls.append((url, timeout_seconds, max_response_bytes))
         return HTTPResponse(200, {}, archive)
@@ -1081,7 +1089,7 @@ def test_publisher_deduplicates_exact_marker_from_real_adapter_history():
     effect_key = _stateless_effect_key(
         slot, request["result_hash"], request["review_body_hash"], request["disposition"]
     )
-    marked_body = f'{result["rendered_review"]}\n\n<!-- pr-review-harness:{effect_key} -->'
+    marked_body = f"{result['rendered_review']}\n\n<!-- pr-review-harness:{effect_key} -->"
     current_policy = make_policy(publisher_run_id=900002)
     current_run = RunIdentity(
         repository_id=8123,

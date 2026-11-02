@@ -44,10 +44,7 @@ def _digits(value: Any) -> str:
 
 
 def build_receipt(env: dict[str, str]) -> dict[str, Any]:
-    stages = {
-        name: _choice(env.get(variable, ""), OUTCOMES)
-        for name, variable in STAGE_ENV.items()
-    }
+    stages = {name: _choice(env.get(variable, ""), OUTCOMES) for name, variable in STAGE_ENV.items()}
     writer = stages["writer"]
     writer_sanitize = stages["writer_sanitize"]
     audit = stages["shadow_audit"]
@@ -55,17 +52,18 @@ def build_receipt(env: dict[str, str]) -> dict[str, Any]:
     writer_upload = stages["writer_artifact_upload"]
     audit_upload = stages["audit_artifact_upload"]
     source_accounting = _choice(env.get("STATUS_SOURCE_HTTP_ATTEMPTS", ""), {"0", "1", "unknown"})
-    if (stages["source_accounting_sanitize"] != "success"
-            or stages["source_accounting_upload"] != "success"):
+    if stages["source_accounting_sanitize"] != "success" or stages["source_accounting_upload"] != "success":
         source_accounting = "unknown"
     writer_calls = (
-        "not_started" if writer == "skipped"
+        "not_started"
+        if writer == "skipped"
         else "accounted_by_sanitized_receipt"
         if writer_sanitize == "success" and writer_upload == "success"
         else "unknown"
     )
     audit_calls = (
-        "not_started" if audit == "skipped"
+        "not_started"
+        if audit == "skipped"
         else "accounted_by_sanitized_receipt"
         if audit_sanitize == "success" and audit_upload == "success"
         else "unknown"
@@ -105,14 +103,17 @@ def _output_path(path: Path) -> None:
             fd = os.open(
                 "workflow-status.json",
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-                0o600, dir_fd=status_fd,
+                0o600,
+                dir_fd=status_fd,
             )
             try:
                 if not stat.S_ISREG(os.fstat(fd).st_mode):
                     raise ValueError("status_output_not_regular")
                 os.fchmod(fd, 0o600)
-                data = (json.dumps(build_receipt(dict(os.environ)), sort_keys=True,
-                                   separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+                data = (
+                    json.dumps(build_receipt(dict(os.environ)), sort_keys=True, separators=(",", ":"), allow_nan=False)
+                    + "\n"
+                ).encode("utf-8")
                 with os.fdopen(fd, "wb", closefd=False) as stream:
                     stream.write(data)
                     stream.flush()

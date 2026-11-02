@@ -43,9 +43,7 @@ def _task_and_evidence():
         "unit_ids": ["u1"],
         "evidence_ids": ["ev-local", "ev-shared"],
         "request_input_contract": "specialist-input.v2",
-        "unit_evidence_bindings": [
-            {"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["ev-local"]}
-        ],
+        "unit_evidence_bindings": [{"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["ev-local"]}],
     }
     evidence = [
         {"evidence_id": "ev-local", "path": "src/a.py", "content": "local evidence"},
@@ -82,7 +80,9 @@ def test_schema_enumerates_exact_current_request_ids_and_keeps_optional_arrays_e
 
     expected = ["ev-local", "ev-shared"]
     assert properties["finding_candidates"]["items"]["properties"]["evidence_refs"]["items"]["enum"] == expected
-    assert properties["context_gap_proposals"]["items"]["properties"]["related_evidence_ids"]["items"]["enum"] == expected
+    assert (
+        properties["context_gap_proposals"]["items"]["properties"]["related_evidence_ids"]["items"]["enum"] == expected
+    )
     assert properties["coverage_notes"]["items"]["properties"]["evidence_refs"]["items"]["enum"] == expected
     for name in ("specific_strengths", "future_guidance"):
         assert properties[name]["items"]["properties"]["evidence_refs"]["items"]["enum"] == expected
@@ -135,14 +135,17 @@ def test_empty_task_evidence_has_no_nonempty_citation_value():
         "unit_ids": ["u1"],
         "evidence_ids": [],
         "request_input_contract": "specialist-input.v2",
-        "unit_evidence_bindings": [
-            {"unit_id": "u1", "binding_status": "UNKNOWN", "evidence_ids": []}
-        ],
+        "unit_evidence_bindings": [{"unit_id": "u1", "binding_status": "UNKNOWN", "evidence_ids": []}],
     }
     _system, _user, response_schema = _provider()._review_parts(task, [])
-    item_schema = response_schema["schema"]["properties"]["coverage_notes"]["items"]["properties"]["evidence_refs"]["items"]
+    item_schema = response_schema["schema"]["properties"]["coverage_notes"]["items"]["properties"]["evidence_refs"][
+        "items"
+    ]
     assert item_schema == {"type": "string", "minLength": 1, "maxLength": 0}
-    assert response_schema["schema"]["properties"]["coverage_notes"]["items"]["properties"]["evidence_refs"]["type"] == "array"
+    assert (
+        response_schema["schema"]["properties"]["coverage_notes"]["items"]["properties"]["evidence_refs"]["type"]
+        == "array"
+    )
     jsonschema = pytest.importorskip("jsonschema")
     validator = jsonschema.Draft202012Validator(item_schema)
     assert not validator.is_valid("")

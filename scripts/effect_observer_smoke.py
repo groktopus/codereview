@@ -154,13 +154,59 @@ LONG_WAIT_ENGINE_DEADLINE_SECONDS = 150
 LONG_WAIT_OBSERVER_TIMEOUT_SECONDS = 180.0
 _SAFE_TRACE_SYSCALLS = frozenset(
     {
-        "access", "arch_prctl", "brk", "chdir", "chmod", "clone", "clone3", "close", "connect",
-        "dup3", "execve", "exit_group", "fcntl", "fstat", "futex", "getcwd", "getdents64",
-        "getegid", "geteuid", "getgid", "getrandom", "getuid", "ioctl", "lseek", "madvise",
-        "mmap", "mprotect", "mkdirat", "nanosleep", "newfstatat", "openat", "pipe2", "poll",
-        "ppoll", "prlimit64", "read", "readlink", "recvfrom", "renameat", "rt_sigaction",
-        "rt_sigprocmask", "rt_sigreturn", "rseq", "sendto", "set_robust_list", "socket", "statx",
-        "unlinkat", "uname", "vfork", "wait4", "waitid", "write",
+        "access",
+        "arch_prctl",
+        "brk",
+        "chdir",
+        "chmod",
+        "clone",
+        "clone3",
+        "close",
+        "connect",
+        "dup3",
+        "execve",
+        "exit_group",
+        "fcntl",
+        "fstat",
+        "futex",
+        "getcwd",
+        "getdents64",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getrandom",
+        "getuid",
+        "ioctl",
+        "lseek",
+        "madvise",
+        "mmap",
+        "mprotect",
+        "mkdirat",
+        "nanosleep",
+        "newfstatat",
+        "openat",
+        "pipe2",
+        "poll",
+        "ppoll",
+        "prlimit64",
+        "read",
+        "readlink",
+        "recvfrom",
+        "renameat",
+        "rt_sigaction",
+        "rt_sigprocmask",
+        "rt_sigreturn",
+        "rseq",
+        "sendto",
+        "set_robust_list",
+        "socket",
+        "statx",
+        "unlinkat",
+        "uname",
+        "vfork",
+        "wait4",
+        "waitid",
+        "write",
     }
 )
 
@@ -188,23 +234,36 @@ def _failure_summary(result: dict, failure: str) -> dict[str, object]:
         if observed.get("observer_id") == "linux-strace-syscall-observer.v3"
         else "unknown",
         "observer_reason": reason if isinstance(reason, str) and reason in _OBSERVER_REASONS else "other",
-        "coverage": observed.get("coverage") if isinstance(observed.get("coverage"), str) and observed.get("coverage") in {"SCOPED_COMPLETE", "INCOMPLETE", "UNKNOWN"} else "UNKNOWN",
+        "coverage": observed.get("coverage")
+        if isinstance(observed.get("coverage"), str)
+        and observed.get("coverage") in {"SCOPED_COMPLETE", "INCOMPLETE", "UNKNOWN"}
+        else "UNKNOWN",
         "event_count": observed.get("event_count") if isinstance(observed.get("event_count"), int) else None,
-        "event_aggregates_complete": observed.get("event_aggregates_complete") if isinstance(observed.get("event_aggregates_complete"), bool) else None,
+        "event_aggregates_complete": observed.get("event_aggregates_complete")
+        if isinstance(observed.get("event_aggregates_complete"), bool)
+        else None,
         "trace_bytes": observed.get("trace_bytes") if isinstance(observed.get("trace_bytes"), int) else None,
-        "invocation_status": invocation.get("run_status") if isinstance(invocation.get("run_status"), str) and invocation.get("run_status") in _RUN_STATUSES else "UNKNOWN",
+        "invocation_status": invocation.get("run_status")
+        if isinstance(invocation.get("run_status"), str) and invocation.get("run_status") in _RUN_STATUSES
+        else "UNKNOWN",
         "cli_exit_code": invocation.get("exit_code") if isinstance(invocation.get("exit_code"), int) else None,
         "cli_status": cli_result.get("status") if cli_result.get("status") == "PREPARED_ONLY" else "UNKNOWN",
-        "cli_error_code": cli_error if isinstance(cli_error, str) and cli_error in _CLI_ERRORS else "other" if cli_error else None,
-        "no_provider_calls": cli_result.get("no_provider_calls") if isinstance(cli_result.get("no_provider_calls"), bool) else None,
-        "no_target_code_execution": cli_result.get("no_target_code_execution") if isinstance(cli_result.get("no_target_code_execution"), bool) else None,
+        "cli_error_code": cli_error
+        if isinstance(cli_error, str) and cli_error in _CLI_ERRORS
+        else "other"
+        if cli_error
+        else None,
+        "no_provider_calls": cli_result.get("no_provider_calls")
+        if isinstance(cli_result.get("no_provider_calls"), bool)
+        else None,
+        "no_target_code_execution": cli_result.get("no_target_code_execution")
+        if isinstance(cli_result.get("no_target_code_execution"), bool)
+        else None,
     }
 
 
 def _git(repo: Path, *args: str) -> str:
-    completed = subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
-    )
+    completed = subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
     return completed.stdout.strip()
 
 
@@ -234,9 +293,12 @@ def _validate_full_review(
     target_marker_exists: bool,
 ) -> dict[str, object] | None:
     """Project only finite, typed evidence from one synthetic normal review."""
-    if _full_review_failure_code(
-        result, observation, invocation, provider_calls, target_marker_exists=target_marker_exists
-    ) is not None:
+    if (
+        _full_review_failure_code(
+            result, observation, invocation, provider_calls, target_marker_exists=target_marker_exists
+        )
+        is not None
+    ):
         return None
     tasks = result["task_results"]
     disposition = result["disposition"]
@@ -381,9 +443,7 @@ def _full_review_failure_code(
     if len(provider_calls) != len(required_lenses):
         return "fake_provider_call_count_mismatch"
     if any(
-        not isinstance(call, dict)
-        or call.get("behavior") != "success"
-        or call.get("path") != "/v1/chat/completions"
+        not isinstance(call, dict) or call.get("behavior") != "success" or call.get("path") != "/v1/chat/completions"
         for call in provider_calls
     ):
         return "fake_provider_response_status_mismatch"
@@ -482,10 +542,18 @@ def _bounded_full_review_failure(
         if isinstance(observation.get("coverage"), str)
         and observation.get("coverage") in {"SCOPED_COMPLETE", "INCOMPLETE", "UNKNOWN"}
         else "UNKNOWN",
-        "observer_reason": observer_reason if isinstance(observer_reason, str) and observer_reason in _OBSERVER_REASONS else "other",
-        "observer_event_count": observation.get("event_count") if isinstance(observation.get("event_count"), int) and not isinstance(observation.get("event_count"), bool) else None,
-        "observer_aggregates_complete": observation.get("event_aggregates_complete") if isinstance(observation.get("event_aggregates_complete"), bool) else None,
-        "observer_trace_bytes": observation.get("trace_bytes") if isinstance(observation.get("trace_bytes"), int) and not isinstance(observation.get("trace_bytes"), bool) else None,
+        "observer_reason": observer_reason
+        if isinstance(observer_reason, str) and observer_reason in _OBSERVER_REASONS
+        else "other",
+        "observer_event_count": observation.get("event_count")
+        if isinstance(observation.get("event_count"), int) and not isinstance(observation.get("event_count"), bool)
+        else None,
+        "observer_aggregates_complete": observation.get("event_aggregates_complete")
+        if isinstance(observation.get("event_aggregates_complete"), bool)
+        else None,
+        "observer_trace_bytes": observation.get("trace_bytes")
+        if isinstance(observation.get("trace_bytes"), int) and not isinstance(observation.get("trace_bytes"), bool)
+        else None,
         "observer_source_sha256": observation.get("source_sha256")
         if isinstance(observation.get("source_sha256"), str)
         and re.fullmatch(r"[0-9a-f]{64}", observation["source_sha256"])
@@ -502,8 +570,12 @@ def _bounded_full_review_failure(
             observation.get("event_aggregates"),
             complete=observation.get("event_aggregates_complete") is True,
         ),
-        "invocation_status": invocation_status if isinstance(invocation_status, str) and invocation_status in _RUN_STATUSES else "UNKNOWN",
-        "cli_exit_code": invocation.get("exit_code") if isinstance(invocation.get("exit_code"), int) and not isinstance(invocation.get("exit_code"), bool) else None,
+        "invocation_status": invocation_status
+        if isinstance(invocation_status, str) and invocation_status in _RUN_STATUSES
+        else "UNKNOWN",
+        "cli_exit_code": invocation.get("exit_code")
+        if isinstance(invocation.get("exit_code"), int) and not isinstance(invocation.get("exit_code"), bool)
+        else None,
         "cli_result_available": isinstance(result, dict),
         "task_result_rows": len(safe_task_rows),
         "succeeded_task_rows": sum(item.get("status") == "SUCCEEDED" for item in safe_task_rows),
@@ -526,7 +598,11 @@ def _bounded_full_review_failure(
             or item.get("lens") not in {"correctness", "tests", "security", "maintainability"}
             for item in safe_task_rows
         ),
-        "coverage_state": result.get("coverage_state") if isinstance(result, dict) and isinstance(result.get("coverage_state"), str) and result.get("coverage_state") in {"COMPLETE", "PARTIAL", "NOT_STARTED", "UNKNOWN"} else "UNKNOWN",
+        "coverage_state": result.get("coverage_state")
+        if isinstance(result, dict)
+        and isinstance(result.get("coverage_state"), str)
+        and result.get("coverage_state") in {"COMPLETE", "PARTIAL", "NOT_STARTED", "UNKNOWN"}
+        else "UNKNOWN",
         "coverage_rows": len(safe_coverage_rows),
         "complete_coverage_rows": sum(item.get("state") == "COMPLETE" for item in safe_coverage_rows),
         "disposition": result.get("disposition")
@@ -540,9 +616,19 @@ def _bounded_full_review_failure(
         and result.get("freshness") in allowed_freshness
         else "UNKNOWN",
         "fake_provider_calls": len(provider_calls),
-        "successful_fake_calls": sum(isinstance(item, dict) and item.get("behavior") == "success" for item in provider_calls),
-        "provider_calls_reserved": budget.get("provider_calls_reserved") if isinstance(budget, dict) and isinstance(budget.get("provider_calls_reserved"), int) and not isinstance(budget.get("provider_calls_reserved"), bool) else None,
-        "output_bytes_reserved": budget.get("output_bytes_reserved") if isinstance(budget, dict) and isinstance(budget.get("output_bytes_reserved"), int) and not isinstance(budget.get("output_bytes_reserved"), bool) else None,
+        "successful_fake_calls": sum(
+            isinstance(item, dict) and item.get("behavior") == "success" for item in provider_calls
+        ),
+        "provider_calls_reserved": budget.get("provider_calls_reserved")
+        if isinstance(budget, dict)
+        and isinstance(budget.get("provider_calls_reserved"), int)
+        and not isinstance(budget.get("provider_calls_reserved"), bool)
+        else None,
+        "output_bytes_reserved": budget.get("output_bytes_reserved")
+        if isinstance(budget, dict)
+        and isinstance(budget.get("output_bytes_reserved"), int)
+        and not isinstance(budget.get("output_bytes_reserved"), bool)
+        else None,
         "target_execution_marker_present": target_marker_exists,
     }
 
@@ -571,7 +657,9 @@ def _full_review_smoke(
         or not 0 < observer_timeout_seconds < float("inf")
         or not response_delay_seconds < provider_timeout_seconds < engine_deadline_seconds < observer_timeout_seconds
     ):
-        return _bounded_full_review_failure("smoke_deadline_config_invalid", None, {}, {}, [], target_marker_exists=False)
+        return _bounded_full_review_failure(
+            "smoke_deadline_config_invalid", None, {}, {}, [], target_marker_exists=False
+        )
     sys.path.insert(0, str(ROOT))
     try:
         from scripts.run_recovery_rehearsal import (
@@ -664,8 +752,11 @@ def _full_review_smoke(
                 durable = json.loads(durable_path.read_text(encoding="utf-8"))
             if FAKE_API_KEY in json.dumps([observed, durable], sort_keys=True):
                 return _bounded_full_review_failure(
-                    "fake_provider_key_exposed", result if isinstance(result, dict) else None,
-                    observation, invocation, state.calls,
+                    "fake_provider_key_exposed",
+                    result if isinstance(result, dict) else None,
+                    observation,
+                    invocation,
+                    state.calls,
                     target_marker_exists=marker.exists(),
                 )
             if isinstance(result, dict) and (
@@ -673,8 +764,11 @@ def _full_review_smoke(
                 or any(result.get(key) != durable.get(key) for key in ("coverage_state", "disposition", "freshness"))
             ):
                 return _bounded_full_review_failure(
-                    "durable_result_missing_or_mismatched", result if isinstance(result, dict) else None,
-                    observation, invocation, state.calls,
+                    "durable_result_missing_or_mismatched",
+                    result if isinstance(result, dict) else None,
+                    observation,
+                    invocation,
+                    state.calls,
                     target_marker_exists=marker.exists(),
                 )
             failure_code = _full_review_failure_code(
@@ -706,12 +800,20 @@ def _full_review_smoke(
                 summary["provider_timeout_seconds"] = float(provider_timeout_seconds)
                 summary["observer_timeout_seconds"] = float(observer_timeout_seconds)
             return summary or _bounded_full_review_failure(
-                "summary_projection_failed", result, observation, invocation, state.calls,
+                "summary_projection_failed",
+                result,
+                observation,
+                invocation,
+                state.calls,
                 target_marker_exists=marker.exists(),
             )
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
             return _bounded_full_review_failure(
-                "fixture_or_result_processing_failed", None, {}, {}, state.calls,
+                "fixture_or_result_processing_failed",
+                None,
+                {},
+                {},
+                state.calls,
                 target_marker_exists=(root / "target-executed").exists(),
             )
         finally:
@@ -792,8 +894,7 @@ def main() -> int:
     cli_result = result.get("cli_result") or {}
     if (
         observed.get("observer_id") != "linux-strace-syscall-observer.v3"
-        or
-        observed.get("coverage") != "SCOPED_COMPLETE"
+        or observed.get("coverage") != "SCOPED_COMPLETE"
         or invocation.get("run_status") != "CLI_COMPLETED"
         or cli_result.get("status") != "PREPARED_ONLY"
         or cli_result.get("no_provider_calls") is not True

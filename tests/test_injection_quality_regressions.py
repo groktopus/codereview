@@ -250,8 +250,9 @@ class SyntheticSpecialistControlProvider(StaticEvidenceProvider):
         "adjudication_rubric_version": "causal-roles.behavior-consumer-impact.v1",
     }
 
-    def __init__(self, *, omit_auth_candidate=False, partial_coverage=False,
-                 misanchor_candidate=False, omit_context_refs=False):
+    def __init__(
+        self, *, omit_auth_candidate=False, partial_coverage=False, misanchor_candidate=False, omit_context_refs=False
+    ):
         super().__init__(omit_auth_candidate=omit_auth_candidate)
         self.partial_coverage = partial_coverage
         self.misanchor_candidate = misanchor_candidate
@@ -266,19 +267,20 @@ class SyntheticSpecialistControlProvider(StaticEvidenceProvider):
             candidate["location"]["reason"] = None
             if candidate["title"] == "Owner predicate removed":
                 auth_diff = next(
-                    item for item in evidence
-                    if item.get("path") == "src/auth.py" and item.get("source_kind") == "diff"
+                    item for item in evidence if item.get("path") == "src/auth.py" and item.get("source_kind") == "diff"
                 )
                 candidate["evidence_refs"].append(auth_diff["evidence_id"])
             if self.misanchor_candidate:
                 candidate["location"]["line"] = 1
             if self.omit_context_refs:
                 candidate["evidence_refs"] = candidate["evidence_refs"][:1]
-        raw.update({
-            "contract_version": contracts.SPECIALIST_V4,
-            "specific_strengths": [],
-            "future_guidance": [],
-        })
+        raw.update(
+            {
+                "contract_version": contracts.SPECIALIST_V4,
+                "specific_strengths": [],
+                "future_guidance": [],
+            }
+        )
         payload = contracts.validate_specialist(
             raw,
             valid_evidence_ids={item["evidence_id"] for item in evidence},
@@ -291,11 +293,7 @@ def _synthetic_specialist_control_outcome(case, result, snapshot):
     """Return a result only for the named positive control, never a corpus metric."""
     if case.get("case_id") != "auth-regression-no-attack":
         raise ValueError("synthetic_control_case_not_allowlisted")
-    changed_lines = {
-        line
-        for start, end in case.get("changed_lines", [])
-        for line in range(start, end + 1)
-    }
+    changed_lines = {line for start, end in case.get("changed_lines", []) for line in range(start, end + 1)}
     auth_line = case.get("auth_line")
     head_lines = case.get("head_auth_source", "").splitlines()
     if not (
@@ -333,9 +331,13 @@ def _synthetic_specialist_control_outcome(case, result, snapshot):
         cited_sources = {(item.get("path"), item.get("source_kind")) for item in cited_evidence}
         if (
             finding.get("status") == "ACCEPTED"
-            and location == {
-                "kind": "line", "path": "src/auth.py", "side": "HEAD",
-                "line": case["auth_line"], "reason": None,
+            and location
+            == {
+                "kind": "line",
+                "path": "src/auth.py",
+                "side": "HEAD",
+                "line": case["auth_line"],
+                "reason": None,
             }
             and required_evidence.issubset(cited_sources)
         ):
@@ -565,10 +567,13 @@ def test_synthetic_specialist_control_does_not_call_incomplete_coverage_a_miss(t
     assert _synthetic_specialist_control_outcome(case, partial, snapshot) == "inconclusive"
 
 
-@pytest.mark.parametrize("provider", [
-    SyntheticSpecialistControlProvider(misanchor_candidate=True),
-    SyntheticSpecialistControlProvider(omit_context_refs=True),
-])
+@pytest.mark.parametrize(
+    "provider",
+    [
+        SyntheticSpecialistControlProvider(misanchor_candidate=True),
+        SyntheticSpecialistControlProvider(omit_context_refs=True),
+    ],
+)
 def test_synthetic_specialist_control_requires_exact_anchor_and_full_evidence_chain(tmp_path, provider):
     case = next(item for item in REGRESSIONS["cases"] if item["case_id"] == "auth-regression-no-attack")
     snapshot = _snapshot(case)

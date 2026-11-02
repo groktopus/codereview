@@ -30,8 +30,11 @@ def project(source: Path, output: Path, case_id: str) -> dict[str, object]:
         fd = os.open(source, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
-                    or opened.st_size > 16_384):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+                or opened.st_size > 16_384
+            ):
                 raise ReceiptError("package_summary_invalid")
             raw = os.read(fd, 16_385)
             if len(raw) > 16_384 or len(raw) != opened.st_size:
@@ -45,27 +48,38 @@ def project(source: Path, output: Path, case_id: str) -> dict[str, object]:
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
         raise ReceiptError("package_summary_invalid") from None
     if not isinstance(summary, dict) or set(summary) != {
-        "ok", "comparison_id", "case_count", "verified_artifact_count",
-        "verified_structured_relation_count", "claims", "comparison_path", "report_path",
+        "ok",
+        "comparison_id",
+        "case_count",
+        "verified_artifact_count",
+        "verified_structured_relation_count",
+        "claims",
+        "comparison_path",
+        "report_path",
     }:
         raise ReceiptError("package_summary_invalid")
-    if (case_id not in {"PR-457", "PR-464"}
-            or summary.get("ok") is not True
-            or not isinstance(summary.get("comparison_id"), str)
-            or not HASH_ID.fullmatch(summary["comparison_id"])
-            or summary.get("case_count") != 1
-            or isinstance(summary.get("case_count"), bool)
-            or summary.get("verified_artifact_count") != 8
-            or isinstance(summary.get("verified_artifact_count"), bool)
-            or isinstance(summary.get("verified_structured_relation_count"), bool)
-            or not isinstance(summary.get("verified_structured_relation_count"), int)
-            or not 0 <= summary["verified_structured_relation_count"] <= 128
-            or summary.get("claims") != {
-                "accuracy": None, "ground_truth": None,
-                "calibration": None, "correctness": None,
-            }
-            or not isinstance(summary.get("comparison_path"), str)
-            or not isinstance(summary.get("report_path"), str)):
+    if (
+        case_id not in {"PR-457", "PR-464"}
+        or summary.get("ok") is not True
+        or not isinstance(summary.get("comparison_id"), str)
+        or not HASH_ID.fullmatch(summary["comparison_id"])
+        or summary.get("case_count") != 1
+        or isinstance(summary.get("case_count"), bool)
+        or summary.get("verified_artifact_count") != 8
+        or isinstance(summary.get("verified_artifact_count"), bool)
+        or isinstance(summary.get("verified_structured_relation_count"), bool)
+        or not isinstance(summary.get("verified_structured_relation_count"), int)
+        or not 0 <= summary["verified_structured_relation_count"] <= 128
+        or summary.get("claims")
+        != {
+            "accuracy": None,
+            "ground_truth": None,
+            "calibration": None,
+            "correctness": None,
+        }
+        or not isinstance(summary.get("comparison_path"), str)
+        or not isinstance(summary.get("report_path"), str)
+    ):
         raise ReceiptError("package_summary_invalid")
     receipt = {
         "schema": "model-only-shadow-cross-model-package-receipt.v1",

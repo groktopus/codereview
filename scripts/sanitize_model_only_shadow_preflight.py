@@ -14,26 +14,66 @@ from typing import Any
 
 SUMMARY_KEYS = {"cases", "schema", "status"}
 CASE_KEYS = {
-    "case_id", "checks_sha256", "evidence_index_sha256", "immutable_patch_sha256",
-    "primary_calls", "primary_descriptor_sha256", "primary_serialized_input_bytes",
-    "profile_sha256", "scope_count", "scope_sha256", "snapshot_hash", "status",
+    "case_id",
+    "checks_sha256",
+    "evidence_index_sha256",
+    "immutable_patch_sha256",
+    "primary_calls",
+    "primary_descriptor_sha256",
+    "primary_serialized_input_bytes",
+    "profile_sha256",
+    "scope_count",
+    "scope_sha256",
+    "snapshot_hash",
+    "status",
 }
 MANIFEST_KEYS = {
-    "baseline_plan_sha256", "call_cap_per_case", "call_cap_total_selected_cases",
-    "candidate_adjudication_followup_summary_and_jev_demand", "case_cleanup_reserve_seconds",
-    "case_wall_seconds_including_setup", "cases", "cost", "current_pr_state_checked",
-    "elapsed_seconds", "engine_deadline_seconds", "fixed_case_manifest_sha256",
-    "frozen_plan_manifest_sha256", "historical_only", "input_contract", "limits_version",
-    "matrix_elapsed_seconds", "matrix_finalization_reserve_seconds",
-    "matrix_wall_seconds_including_workflow_setup", "max_claim_assessments_per_case",
-    "max_input_bytes_per_primary_task", "max_primary_concurrent_scopes", "max_retries_per_task",
-    "max_snapshot_context_bytes", "mode", "output_byte_cap_per_case", "planned_scope_obligation_count",
-    "primary_output_token_cap_per_call", "primary_request_demand", "primary_response_byte_cap_per_call",
-    "provider_calls", "provider_execution_state", "publication_enabled", "runner_revision",
-    "runtime_module_proof", "runtime_module_tree_sha256", "runtime_provenance_version",
-    "runtime_revision", "runtime_wheel_sha256", "schema", "serialized_artifact_caps",
-    "serialized_bytes_per_case_total", "serialized_primary_context_cap_per_case",
-    "shared_task_response_reservation_cap_per_call", "status", "target_code_execution",
+    "baseline_plan_sha256",
+    "call_cap_per_case",
+    "call_cap_total_selected_cases",
+    "candidate_adjudication_followup_summary_and_jev_demand",
+    "case_cleanup_reserve_seconds",
+    "case_wall_seconds_including_setup",
+    "cases",
+    "cost",
+    "current_pr_state_checked",
+    "elapsed_seconds",
+    "engine_deadline_seconds",
+    "fixed_case_manifest_sha256",
+    "frozen_plan_manifest_sha256",
+    "historical_only",
+    "input_contract",
+    "limits_version",
+    "matrix_elapsed_seconds",
+    "matrix_finalization_reserve_seconds",
+    "matrix_wall_seconds_including_workflow_setup",
+    "max_claim_assessments_per_case",
+    "max_input_bytes_per_primary_task",
+    "max_primary_concurrent_scopes",
+    "max_retries_per_task",
+    "max_snapshot_context_bytes",
+    "mode",
+    "output_byte_cap_per_case",
+    "planned_scope_obligation_count",
+    "primary_output_token_cap_per_call",
+    "primary_request_demand",
+    "primary_response_byte_cap_per_call",
+    "provider_calls",
+    "provider_execution_state",
+    "publication_enabled",
+    "runner_revision",
+    "runtime_module_proof",
+    "runtime_module_tree_sha256",
+    "runtime_provenance_version",
+    "runtime_revision",
+    "runtime_wheel_sha256",
+    "schema",
+    "serialized_artifact_caps",
+    "serialized_bytes_per_case_total",
+    "serialized_primary_context_cap_per_case",
+    "shared_task_response_reservation_cap_per_call",
+    "status",
+    "target_code_execution",
     "workflow_matrix_started_epoch",
 }
 MANIFEST_CASE_KEYS = CASE_KEYS | {"primary_request_receipts"}
@@ -63,8 +103,12 @@ def _read_json(path: Path, limit: int) -> tuple[dict[str, Any], bytes]:
         fd = os.open(path, flags)
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
-                    or opened.st_ino != before.st_ino or opened.st_size > limit):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size > limit
+            ):
                 raise ReceiptError("input_unavailable")
             chunks = bytearray()
             while len(chunks) <= limit:
@@ -81,7 +125,8 @@ def _read_json(path: Path, limit: int) -> tuple[dict[str, Any], bytes]:
         raise ReceiptError("input_exceeds_limit")
     try:
         value = json.loads(
-            raw.decode("utf-8"), object_pairs_hook=_pairs,
+            raw.decode("utf-8"),
+            object_pairs_hook=_pairs,
             parse_constant=lambda _value: (_ for _ in ()).throw(ReceiptError("invalid_constant")),
         )
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ReceiptError):
@@ -105,8 +150,13 @@ def _case_summary(row: dict[str, Any]) -> dict[str, Any]:
     if row.get("snapshot_hash") != "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663":
         raise ReceiptError("case_snapshot_mismatch")
     for field in (
-        "checks_sha256", "evidence_index_sha256", "immutable_patch_sha256",
-        "primary_descriptor_sha256", "profile_sha256", "scope_sha256", "snapshot_hash",
+        "checks_sha256",
+        "evidence_index_sha256",
+        "immutable_patch_sha256",
+        "primary_descriptor_sha256",
+        "profile_sha256",
+        "scope_sha256",
+        "snapshot_hash",
     ):
         _hash(row.get(field), "case_hash_invalid")
     for field in ("primary_calls", "primary_serialized_input_bytes", "scope_count"):
@@ -200,7 +250,11 @@ def main(argv: list[str] | None = None) -> int:
         error = str(exc) if isinstance(exc, ReceiptError) else "receipt_write_failed"
         print(json.dumps({"ok": False, "error_code": error}, separators=(",", ":")))
         return 2
-    print(json.dumps({"ok": True, "case_id": output["case"]["case_id"], "status": output["status"]}, separators=(",", ":")))
+    print(
+        json.dumps(
+            {"ok": True, "case_id": output["case"]["case_id"], "status": output["status"]}, separators=(",", ":")
+        )
+    )
     return 0
 
 

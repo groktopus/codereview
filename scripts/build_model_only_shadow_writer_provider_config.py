@@ -49,7 +49,8 @@ def build(plan_path: Path, output_dir: Path, environ: dict[str, str] | None = No
         case_for_plan_path(plan_path, ROOT)
         plan_bytes = plan_path.read_bytes()
         plan = json.loads(
-            plan_bytes.decode("utf-8"), object_pairs_hook=_pairs,
+            plan_bytes.decode("utf-8"),
+            object_pairs_hook=_pairs,
             parse_constant=lambda _value: (_ for _ in ()).throw(ConfigBuildError("plan_json_invalid")),
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError, ConfigBuildError):
@@ -61,17 +62,26 @@ def build(plan_path: Path, output_dir: Path, environ: dict[str, str] | None = No
     identity = plan.get("provider_identity") if isinstance(plan, dict) else None
     runtime = plan.get("runtime") if isinstance(plan, dict) else None
     if (
-        not isinstance(identity, dict) or identity.get("status") != "PLANNED_NOT_OBSERVED_SECRET_VALUES_OPAQUE"
+        not isinstance(identity, dict)
+        or identity.get("status") != "PLANNED_NOT_OBSERVED_SECRET_VALUES_OPAQUE"
         or identity.get("writer_credential_env") != "LLM_API_KEY"
-        or base_url != identity.get("writer_base_url") or model != identity.get("writer_model")
-        or not isinstance(runtime, dict) or not SHA256.fullmatch(str(runtime.get("writer_provider_config_sha256")))
+        or base_url != identity.get("writer_base_url")
+        or model != identity.get("writer_model")
+        or not isinstance(runtime, dict)
+        or not SHA256.fullmatch(str(runtime.get("writer_provider_config_sha256")))
     ):
         raise ConfigBuildError("writer_provider_identity_mismatch")
     config = {
-        "kind": "openai_compatible", "provider_id": identity["writer_provider_id"],
-        "base_url": base_url, "model": model, "api_key_env": "LLM_API_KEY",
-        "timeout_seconds": 90, "max_request_bytes": 128000, "max_response_bytes": 32768,
-        "max_output_tokens": 1800, "max_output_items": 100,
+        "kind": "openai_compatible",
+        "provider_id": identity["writer_provider_id"],
+        "base_url": base_url,
+        "model": model,
+        "api_key_env": "LLM_API_KEY",
+        "timeout_seconds": 90,
+        "max_request_bytes": 128000,
+        "max_response_bytes": 32768,
+        "max_output_tokens": 1800,
+        "max_output_items": 100,
     }
     config_bytes = (json.dumps(config, indent=2, allow_nan=False) + "\n").encode("utf-8")
     digest = hashlib.sha256(config_bytes).hexdigest()

@@ -100,12 +100,9 @@ def test_manifest_content_hashes_and_counts_match_checked_in_files() -> None:
     assert manifest["source_manifests_sha256"] == hashlib.sha256(SOURCES_PATH.read_bytes()).hexdigest()
     cases = manifest["cases"]
     assert manifest["counts"]["total"] == len(corpus["cases"]) == len(cases)
-    assert manifest["counts"]["by_repository"] == dict(
-        sorted(Counter(case["repository"] for case in cases).items())
-    )
+    assert manifest["counts"]["by_repository"] == dict(sorted(Counter(case["repository"] for case in cases).items()))
     assert manifest["counts"]["by_split"] == {
-        split: sum(1 for case in cases if case["split"] == split)
-        for split in ("development", "heldout", "challenge")
+        split: sum(1 for case in cases if case["split"] == split) for split in ("development", "heldout", "challenge")
     }
     assert manifest["counts"]["by_family"] == dict(sorted(Counter(case["family_id"] for case in cases).items()))
     assert sum(manifest["counts"]["by_repository_split"].values()) == len(cases)
@@ -150,8 +147,17 @@ def test_evidence_status_definitions_match_case_labels() -> None:
             assert gaps["total"] == 0, case["case_id"]
         elif status == "bounded":
             assert gaps["total"] > 0, case["case_id"]
-            assert set(gaps["by_reason"]) <= {"window_count_limit", "changed_hunk_exceeds_window_limit", "not_bound_by_context_selection", "context_truncated"}, case["case_id"]
+            assert set(gaps["by_reason"]) <= {
+                "window_count_limit",
+                "changed_hunk_exceeds_window_limit",
+                "not_bound_by_context_selection",
+                "context_truncated",
+            }, case["case_id"]
         else:
             assert status == "incomplete", case["case_id"]
             assert gaps["required"] > 0, case["case_id"]
-            assert set(gaps["by_reason"]) & {"diff_truncated", "context_selection_budget_exhausted", "changed_source_unavailable"}, case["case_id"]
+            assert set(gaps["by_reason"]) & {
+                "diff_truncated",
+                "context_selection_budget_exhausted",
+                "changed_source_unavailable",
+            }, case["case_id"]

@@ -60,13 +60,15 @@ def test_gate_enforces_the_declared_critical_modules_and_targets():
 
 
 def test_gate_measures_overall_and_each_module_from_coverage_json():
-    report = _report(**{
-        "github.py": (90, 100),
-        "publisher.py": (80, 100),
-        "checks.py": (95, 100),
-        "actions_publication.py": (85, 100),
-        "cli.py": (70, 100),
-    })
+    report = _report(
+        **{
+            "github.py": (90, 100),
+            "publisher.py": (80, 100),
+            "checks.py": (95, 100),
+            "actions_publication.py": (85, 100),
+            "cli.py": (70, 100),
+        }
+    )
     measured = gate.collect_measurements(report)
     assert measured["overall"]["percent"] == pytest.approx(84.0)
     assert measured["github.py"]["percent"] == pytest.approx(90.0)
@@ -75,13 +77,17 @@ def test_gate_measures_overall_and_each_module_from_coverage_json():
 
 
 def test_gate_fails_exactly_the_modules_below_their_floor():
-    measured = gate.collect_measurements(_report(**{
-        "github.py": (89, 100),
-        "publisher.py": (80, 100),
-        "checks.py": (95, 100),
-        "actions_publication.py": (85, 100),
-        "cli.py": (70, 100),
-    }))
+    measured = gate.collect_measurements(
+        _report(
+            **{
+                "github.py": (89, 100),
+                "publisher.py": (80, 100),
+                "checks.py": (95, 100),
+                "actions_publication.py": (85, 100),
+                "cli.py": (70, 100),
+            }
+        )
+    )
     floors = {
         "overall": 50.0,
         "github.py": 90.0,
@@ -104,13 +110,17 @@ def test_gate_fails_a_missing_critical_module_instead_of_skipping_it():
 
 
 def test_gate_summary_renders_a_row_per_module_with_targets_and_status():
-    measured = gate.collect_measurements(_report(**{
-        "github.py": (61, 100),
-        "publisher.py": (71, 100),
-        "checks.py": (74, 100),
-        "actions_publication.py": (78, 100),
-        "cli.py": (76, 100),
-    }))
+    measured = gate.collect_measurements(
+        _report(
+            **{
+                "github.py": (61, 100),
+                "publisher.py": (71, 100),
+                "checks.py": (74, 100),
+                "actions_publication.py": (78, 100),
+                "cli.py": (76, 100),
+            }
+        )
+    )
     rows = gate.evaluate(measured, {"overall": 85.0, "github.py": 61.0})
     table = gate.render_markdown(rows)
     assert "| `overall` |" in table

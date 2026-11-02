@@ -29,11 +29,7 @@ def test_release_workflow_is_triggered_by_a_tag_or_an_existing_tag_dispatch() ->
 
 def _job_permission_lines(job: str) -> set[str]:
     block = job.split("permissions:\n", 1)[1].split("steps:", 1)[0]
-    return {
-        line.strip()
-        for line in block.splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    }
+    return {line.strip() for line in block.splitlines() if line.strip() and not line.strip().startswith("#")}
 
 
 def test_release_workflow_permissions_are_least_privilege() -> None:
@@ -80,7 +76,7 @@ def test_release_workflow_never_creates_a_tag_and_refuses_missing_or_existing_re
     assert "--verify-tag" in text
     assert "refs/tags/${RELEASE_TAG}^{commit}" in text
     assert "release already exists" in text
-    assert "gh api \"repos/${GH_REPO}/git/ref/tags/${RELEASE_TAG}\"" in text
+    assert 'gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_TAG}"' in text
     assert "pull_request_target:" not in text
     assert "compare/${RELEASE_TAG}...${DEFAULT_BRANCH}" in text
 
@@ -100,6 +96,7 @@ def test_release_workflow_builds_checksums_and_attaches_artifacts_and_notes() ->
     ):
         assert token in text
     import re
+
     asset = re.search(r"^\s+dist/RELEASE-NOTES\.md \\$", text, re.MULTILINE)
     assert asset is not None, "RELEASE-NOTES.md must be a positional release asset"
     assert asset.start() < text.index("--notes-file dist/RELEASE-NOTES.md")
@@ -108,8 +105,8 @@ def test_release_workflow_builds_checksums_and_attaches_artifacts_and_notes() ->
 def test_release_workflow_generates_and_publishes_supply_chain_evidence() -> None:
     text = _workflow()
     for token in (
-        'SOURCE_DATE_EPOCH=${epoch}',
-        "--source-date-epoch \"$SOURCE_DATE_EPOCH\"",
+        "SOURCE_DATE_EPOCH=${epoch}",
+        '--source-date-epoch "$SOURCE_DATE_EPOCH"',
         "scripts/generate_sbom.py",
         "scripts/generate_provenance.py",
         "scripts/verify_release_artifacts.py",
@@ -158,7 +155,7 @@ def test_release_workflow_verifies_evidence_in_both_build_and_publish() -> None:
     publish_job = text.split("  publish:\n", 1)[1]
     assert "verify_release_artifacts.py" in build_job
     assert "verify_release_artifacts.py" in publish_job
-    assert "--source-revision \"$SOURCE_REVISION\"" in build_job
+    assert '--source-revision "$SOURCE_REVISION"' in build_job
 
 
 def test_verification_workflow_runs_the_reproducibility_and_supply_chain_checks() -> None:

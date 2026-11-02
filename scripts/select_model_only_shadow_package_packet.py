@@ -38,9 +38,11 @@ def _read(path: Path, limit: int) -> tuple[dict[str, Any], bytes]:
         fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode)
-                    or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
-                    or opened.st_size > limit):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+                or opened.st_size > limit
+            ):
                 raise SelectionError("selection_input_invalid")
             chunks = bytearray()
             while len(chunks) <= limit:
@@ -49,8 +51,12 @@ def _read(path: Path, limit: int) -> tuple[dict[str, Any], bytes]:
                     break
                 chunks.extend(block)
             after = os.fstat(fd)
-            if (len(chunks) > limit or len(chunks) != opened.st_size
-                    or before.st_size != after.st_size or after.st_size != len(chunks)):
+            if (
+                len(chunks) > limit
+                or len(chunks) != opened.st_size
+                or before.st_size != after.st_size
+                or after.st_size != len(chunks)
+            ):
                 raise SelectionError("selection_input_invalid")
             raw = bytes(chunks)
         finally:
@@ -69,21 +75,27 @@ def _read(path: Path, limit: int) -> tuple[dict[str, Any], bytes]:
 def select(capture_root: Path, audit_receipt_path: Path, case_id: str) -> dict[str, object]:
     manifest, manifest_raw = _read(capture_root / "manifest.json", 256_000)
     receipt, _receipt_raw = _read(audit_receipt_path, 64_000)
-    if (case_id not in {"PR-457", "PR-464"}
-            or receipt.get("schema") != "model-only-shadow-audit-receipt.v1"
-            or receipt.get("case_id") != case_id):
+    if (
+        case_id not in {"PR-457", "PR-464"}
+        or receipt.get("schema") != "model-only-shadow-audit-receipt.v1"
+        or receipt.get("case_id") != case_id
+    ):
         raise SelectionError("selection_receipt_identity_invalid")
     if receipt.get("terminal_state") != "completed":
         return {"eligible": False, "reason": "audit_not_completed"}
-    if (not isinstance(receipt.get("candidate_packet_count"), int)
-            or isinstance(receipt.get("candidate_packet_count"), bool)
-            or receipt["candidate_packet_count"] < 1
-            or receipt.get("reason") not in {"one_candidate_selected", "bounded_single_candidate_selection"}
-            or not isinstance(receipt.get("selected_candidate_sha256"), str)
-            or not HASH.fullmatch(receipt["selected_candidate_sha256"])):
+    if (
+        not isinstance(receipt.get("candidate_packet_count"), int)
+        or isinstance(receipt.get("candidate_packet_count"), bool)
+        or receipt["candidate_packet_count"] < 1
+        or receipt.get("reason") not in {"one_candidate_selected", "bounded_single_candidate_selection"}
+        or not isinstance(receipt.get("selected_candidate_sha256"), str)
+        or not HASH.fullmatch(receipt["selected_candidate_sha256"])
+    ):
         raise SelectionError("completed_receipt_candidate_invalid")
-    if (not isinstance(receipt.get("capture_manifest_sha256"), str)
-            or receipt["capture_manifest_sha256"] != hashlib.sha256(manifest_raw).hexdigest()):
+    if (
+        not isinstance(receipt.get("capture_manifest_sha256"), str)
+        or receipt["capture_manifest_sha256"] != hashlib.sha256(manifest_raw).hexdigest()
+    ):
         raise SelectionError("selection_capture_binding_invalid")
     roles = receipt.get("roles")
     if not isinstance(roles, dict) or set(roles) != ROLES or any(state != "completed" for state in roles.values()):

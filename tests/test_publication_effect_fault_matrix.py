@@ -58,40 +58,94 @@ class FaultCase:
 
 FAULT_MATRIX = (
     FaultCase(
-        "SE4-FM-01", "receipt acknowledged before POST", "CONFIRMED", None, 1, 1,
-        "publisher operator", "verify durable receipt readback precedes the single review POST",
+        "SE4-FM-01",
+        "receipt acknowledged before POST",
+        "CONFIRMED",
+        None,
+        1,
+        1,
+        "publisher operator",
+        "verify durable receipt readback precedes the single review POST",
     ),
     FaultCase(
-        "SE4-FM-02", "ambiguous submit without matching history", "UNKNOWN", "submit_response_ambiguous", 1, 1,
-        "publication operator", "inspect bounded review history for the exact effect marker; never resubmit automatically",
+        "SE4-FM-02",
+        "ambiguous submit without matching history",
+        "UNKNOWN",
+        "submit_response_ambiguous",
+        1,
+        1,
+        "publication operator",
+        "inspect bounded review history for the exact effect marker; never resubmit automatically",
     ),
     FaultCase(
-        "SE4-FM-03", "duplicate reviews for the same slot", "CONFLICT", "multiple_reviews_for_slot", 0, 0,
-        "publication operator", "compare both same-slot reviews and resolve duplicate/conflicting effects manually",
+        "SE4-FM-03",
+        "duplicate reviews for the same slot",
+        "CONFLICT",
+        "multiple_reviews_for_slot",
+        0,
+        0,
+        "publication operator",
+        "compare both same-slot reviews and resolve duplicate/conflicting effects manually",
     ),
     FaultCase(
-        "SE4-FM-04", "timeout after accepted POST", "CONFIRMED", "confirmed_after_ambiguous_response", 1, 1,
-        "publication operator", "retain the exact matching review-history observation; do not retry",
+        "SE4-FM-04",
+        "timeout after accepted POST",
+        "CONFIRMED",
+        "confirmed_after_ambiguous_response",
+        1,
+        1,
+        "publication operator",
+        "retain the exact matching review-history observation; do not retry",
     ),
     FaultCase(
-        "SE4-FM-05", "history pagination unavailable", "UNKNOWN", "github_history_unavailable", 0, 0,
-        "publication operator", "restore complete bounded history evidence before considering a new attempt",
+        "SE4-FM-05",
+        "history pagination unavailable",
+        "UNKNOWN",
+        "github_history_unavailable",
+        0,
+        0,
+        "publication operator",
+        "restore complete bounded history evidence before considering a new attempt",
     ),
     FaultCase(
-        "SE4-FM-06", "stale head after receipt acknowledgement", "STALE", "head_sha_changed_after_receipt", 0, 1,
-        "source reviewer", "reanalyze the current head and create a new review result; do not reuse this receipt",
+        "SE4-FM-06",
+        "stale head after receipt acknowledgement",
+        "STALE",
+        "head_sha_changed_after_receipt",
+        0,
+        1,
+        "source reviewer",
+        "reanalyze the current head and create a new review result; do not reuse this receipt",
     ),
     FaultCase(
-        "SE4-FM-07", "tampered result artifact", "REJECTED", "review result hash is invalid", 0, 0,
-        "source workflow owner", "preserve the rejected artifact and regenerate it from the trusted producer",
+        "SE4-FM-07",
+        "tampered result artifact",
+        "REJECTED",
+        "review result hash is invalid",
+        0,
+        0,
+        "source workflow owner",
+        "preserve the rejected artifact and regenerate it from the trusted producer",
     ),
     FaultCase(
-        "SE4-FM-08", "wrong publisher actor", "REJECTED", "publisher actor is outside authorization scope", 0, 0,
-        "publisher policy owner", "verify the trusted actor identity and policy binding; do not broaden actor scope",
+        "SE4-FM-08",
+        "wrong publisher actor",
+        "REJECTED",
+        "publisher actor is outside authorization scope",
+        0,
+        0,
+        "publisher policy owner",
+        "verify the trusted actor identity and policy binding; do not broaden actor scope",
     ),
     FaultCase(
-        "SE4-FM-09", "insufficient publisher scope", "UNKNOWN", "publisher_credential_invalid", 0, 0,
-        "publisher workflow owner", "verify the declared minimum permissions and effective capability before any authorized retry",
+        "SE4-FM-09",
+        "insufficient publisher scope",
+        "UNKNOWN",
+        "publisher_credential_invalid",
+        0,
+        0,
+        "publisher workflow owner",
+        "verify the declared minimum permissions and effective capability before any authorized retry",
     ),
 )
 
@@ -177,9 +231,13 @@ def test_se4_publication_effect_fault_matrix(case: FaultCase):
     if case.case_id == "SE4-FM-07":
         result["report_sections"]["future_guidance"].append("tampered after hashing")
 
-    admission = None if case.case_id == "SE4-FM-07" else _admission(
-        result,
-        actor="unexpected-reviewer[bot]" if case.case_id == "SE4-FM-08" else WRITER,
+    admission = (
+        None
+        if case.case_id == "SE4-FM-07"
+        else _admission(
+            result,
+            actor="unexpected-reviewer[bot]" if case.case_id == "SE4-FM-08" else WRITER,
+        )
     )
     events: list[str] = []
     post_count = 0
@@ -318,7 +376,9 @@ def test_se4_declared_permissions_are_read_only_by_default_and_writer_scope_is_m
         "contents": "read",
         "pull-requests": "read",
     }
-    assert active["jobs"]["publication-disabled"]["if"] == "${{ false && vars.PR_REVIEW_PUBLICATION_ENABLED == 'true' }}"
+    assert (
+        active["jobs"]["publication-disabled"]["if"] == "${{ false && vars.PR_REVIEW_PUBLICATION_ENABLED == 'true' }}"
+    )
     assert active["jobs"]["publication-disabled"]["permissions"] == {}
 
     writer_template = yaml.load(

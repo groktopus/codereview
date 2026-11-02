@@ -283,7 +283,7 @@ def test_timestamp_must_be_iso8601(tmp_path: Path) -> None:
 
 
 def test_other_fenced_blocks_are_ignored(tmp_path: Path) -> None:
-    body = "```json\n{\"not\": \"a receipt\"}\n```\n\n" + body_with(receipt())
+    body = '```json\n{"not": "a receipt"}\n```\n\n' + body_with(receipt())
     assert run_cli(tmp_path, event(body)) == 0
 
 
@@ -331,9 +331,7 @@ def test_decision_record_reference_forms_are_accepted(tmp_path: Path) -> None:
 
 
 def test_decision_records_must_be_a_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    assert (
-        run_cli(tmp_path, event(body_with(receipt(decision_records="0002"))), "--json") == receipt_check.EXIT_FIELD
-    )
+    assert run_cli(tmp_path, event(body_with(receipt(decision_records="0002"))), "--json") == receipt_check.EXIT_FIELD
     report = json.loads(capsys.readouterr().out)
     assert {failure["code"] for failure in report["failures"]} == {"FIELD_TYPE"}
 

@@ -332,7 +332,9 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
         raise SnapshotError("PR diff mode must be boolean")
     base_sha, head_sha = _sha(repo, base), _sha(repo, head)
     if pr_diff:
-        merge_bases = [row.decode("ascii", "strict") for row in _git(repo, "merge-base", "--all", base_sha, head_sha).splitlines()]
+        merge_bases = [
+            row.decode("ascii", "strict") for row in _git(repo, "merge-base", "--all", base_sha, head_sha).splitlines()
+        ]
         if len(merge_bases) != 1 or not re.fullmatch(r"[0-9a-f]{40,64}", merge_bases[0]):
             raise SnapshotError("PR comparison requires one unique merge base")
         change_base_sha = merge_bases[0]
@@ -1184,17 +1186,20 @@ def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dic
                                 f"missing-dependency-context-{projection_key}"
                             )
                     continue
-                evidence_id = "ev-dependency-" + _json_hash(
-                    {
-                        "snapshot": snapshot_id,
-                        "binding": binding_id,
-                        "side": side,
-                        "revision": revision,
-                        "manifest_oid": manifest_oid,
-                        "lock_oid": lock_oid,
-                        "content_hash": projection["content_hash"],
-                    }
-                )[:24]
+                evidence_id = (
+                    "ev-dependency-"
+                    + _json_hash(
+                        {
+                            "snapshot": snapshot_id,
+                            "binding": binding_id,
+                            "side": side,
+                            "revision": revision,
+                            "manifest_oid": manifest_oid,
+                            "lock_oid": lock_oid,
+                            "content_hash": projection["content_hash"],
+                        }
+                    )[:24]
+                )
                 evidence[evidence_id] = {
                     "evidence_id": evidence_id,
                     "path": binding["manifest_path"],

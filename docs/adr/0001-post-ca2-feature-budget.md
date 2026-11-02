@@ -27,16 +27,48 @@ Keep `required_reduction: 0.25` as the CA-2 outcome and add an explicit
 current_src_lines <= base_src_lines * (1 - required_reduction) + feature_budget
 ```
 
-i.e. 31,014 lines at this budget. Every source addition must update the recorded
+i.e. 31,014 lines at this budget before the VD-4 formatter addendum below. Every source addition must update the recorded
 measurement; the test asserts the live count and reduction match the manifest.
 Unused budget is not permission to grow without review.
+
+## VD-4 formatter normalization addendum (2026-11-03)
+
+VD-4 adopts `ruff format` at the existing 120-column line length as the
+canonical formatter. Formatting is behavior-preserving but changes physical line
+counts: wrapping long signatures and calls took `src/pr_review_harness` from
+30,870 to 31,725 lines (+855). The source-line guard measures physical lines, so
+leaving the manifest at the pre-format count would fail CI for a whitespace-only
+change.
+
+The recorded measurement is therefore re-baselined to 31,725 lines
+(−22.02%, still short of the one-time 25% outcome). The owner approved a
+one-time formatting allowance of up to 900 lines; because the measured delta is
+exactly 855 lines, the manifest records
+`formatting_normalization_allowance_lines: 855` as a **one-time formatter
+allowance, not feature headroom**. The 500-line feature budget is unchanged and
+remains a separate allowance. The gate becomes:
+
+```
+current_src_lines <= base_src_lines * (1 - required_reduction)
+                     + feature_budget + formatting_normalization_allowance
+```
+
+i.e. 31,869 lines. After normalization, 144 physical lines remain against that
+ceiling; the unused feature budget was also 144 lines before formatting and is
+not renewed or enlarged by this addendum. Further feature growth still requires
+a new decision record or real reduction elsewhere.
+
+This addendum records a measurement change required by VD-4. The owner approved
+the one-time formatting allowance and the observation-revision refresh; the
+allowance does not relabel the CA-2 result.
 
 ## Consequences
 
 - OE-2 can ship without deleting working code or falsifying the CA-2 result.
 - The original 25% outcome remains recorded and is not relabeled as met.
-- Remaining headroom is visible (144 lines at 30,870); further features require
-  a new decision record or real reduction elsewhere.
+- Remaining headroom is visible (144 lines at 31,725 against the 31,869
+  effective ceiling); further features require a new decision record or real
+  reduction elsewhere.
 - The budget is one-time for this migration period, not a permanent growth
   allowance.
 

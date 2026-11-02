@@ -87,13 +87,22 @@ class TrialContract:
 
 _TRIAL_CONTRACTS = {
     "v1": TrialContract(
-        "v1", TRIAL_ID, CURRENT_TRIAL_ID, CURRENT_PREPARATION_ID,
-        PREPARED_PLAN_SCHEMA, MAX_PROVIDER_CALLS_PER_RUN, MAX_PROVIDER_CALLS_PER_RUN,
+        "v1",
+        TRIAL_ID,
+        CURRENT_TRIAL_ID,
+        CURRENT_PREPARATION_ID,
+        PREPARED_PLAN_SCHEMA,
+        MAX_PROVIDER_CALLS_PER_RUN,
+        MAX_PROVIDER_CALLS_PER_RUN,
         MAX_CLAIM_ASSESSMENTS_PER_RUN,
     ),
     "v2": TrialContract(
-        "v2", NATIVE_PAIR_TRIAL_ID, NATIVE_PAIR_CURRENT_TRIAL_ID, NATIVE_PAIR_PREPARATION_ID,
-        NATIVE_PAIR_PLAN_SCHEMA, NATIVE_PAIR_MAX_PROVIDER_CALLS_PER_RUN,
+        "v2",
+        NATIVE_PAIR_TRIAL_ID,
+        NATIVE_PAIR_CURRENT_TRIAL_ID,
+        NATIVE_PAIR_PREPARATION_ID,
+        NATIVE_PAIR_PLAN_SCHEMA,
+        NATIVE_PAIR_MAX_PROVIDER_CALLS_PER_RUN,
         NATIVE_PAIR_MAX_PRIMARY_REQUESTS_PER_RUN,
         NATIVE_PAIR_MAX_CLAIM_ASSESSMENTS_PER_RUN,
     ),
@@ -112,6 +121,7 @@ def _injection_classifier_status(contract: TrialContract) -> str:
     if contract.version == "v2":
         return "DISABLED_BY_V2_CONTRACT"
     return "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED"
+
 
 PRIMARY_IDENTITY = {
     "kind": "openai_compatible",
@@ -146,13 +156,15 @@ _USAGE_FIELDS = {"known", "input_tokens", "output_tokens", "billed_cost_microuni
 def _prepared_git_env() -> dict[str, str]:
     env = {key: os.environ[key] for key in ("PATH", "HOME", "SYSTEMROOT", "WINDIR") if key in os.environ}
     env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull})
-    env.update({
-        "GIT_CONFIG_COUNT": "2",
-        "GIT_CONFIG_KEY_0": "core.fsmonitor",
-        "GIT_CONFIG_VALUE_0": "false",
-        "GIT_CONFIG_KEY_1": "core.hooksPath",
-        "GIT_CONFIG_VALUE_1": os.devnull,
-    })
+    env.update(
+        {
+            "GIT_CONFIG_COUNT": "2",
+            "GIT_CONFIG_KEY_0": "core.fsmonitor",
+            "GIT_CONFIG_VALUE_0": "false",
+            "GIT_CONFIG_KEY_1": "core.hooksPath",
+            "GIT_CONFIG_VALUE_1": os.devnull,
+        }
+    )
     return env
 
 
@@ -405,7 +417,9 @@ def _environment_configs(
     return primary, decision
 
 
-def _prepared_environment_configs(env: dict[str, str], repo_support_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+def _prepared_environment_configs(
+    env: dict[str, str], repo_support_root: Path
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Resolve operator config identities without imposing the legacy trial endpoint."""
     try:
         import importlib.util
@@ -448,33 +462,55 @@ def _prepared_plan(
     if contract is None or plan.get("schema") != contract.plan_schema or plan.get("state") != "PREPARED_PROVIDER_FREE":
         raise SelectedTrialError("prepared_plan_invalid")
     rows = plan.get("cases")
-    if not isinstance(rows, list) or tuple(row.get("case_id") for row in rows if isinstance(row, dict)) != PREPARED_CASE_IDS:
+    if (
+        not isinstance(rows, list)
+        or tuple(row.get("case_id") for row in rows if isinstance(row, dict)) != PREPARED_CASE_IDS
+    ):
         raise SelectedTrialError("prepared_case_selection_invalid")
     impl = plan.get("implementation_identity")
     files = impl.get("file_hashes") if isinstance(impl, dict) else None
     expected_files = {
-        "src/pr_review_harness/cli.py", "src/pr_review_harness/engine.py",
-        "src/pr_review_harness/providers.py", "src/pr_review_harness/claim_transport.py",
-        "experiments/harness/selected_model_trial.py", "experiments/harness/injection_trials.py",
-        "scripts/provider_config_from_env.py", "scripts/prepare_selected_pair_clean_control_trial.py",
+        "src/pr_review_harness/cli.py",
+        "src/pr_review_harness/engine.py",
+        "src/pr_review_harness/providers.py",
+        "src/pr_review_harness/claim_transport.py",
+        "experiments/harness/selected_model_trial.py",
+        "experiments/harness/injection_trials.py",
+        "scripts/provider_config_from_env.py",
+        "scripts/prepare_selected_pair_clean_control_trial.py",
         "tests/test_selected_pair_clean_control_trial_preparation.py",
     }
     if contract.version == "v2":
         expected_files.add("scripts/run_current_selected_model_trial.py")
-    if not isinstance(files, dict) or set(files) != expected_files or impl.get("git_head") != plan.get("source_revision"):
+    if (
+        not isinstance(files, dict)
+        or set(files) != expected_files
+        or impl.get("git_head") != plan.get("source_revision")
+    ):
         raise SelectedTrialError("prepared_source_identity_invalid")
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", str(plan.get("source_revision", ""))):
         raise SelectedTrialError("prepared_source_identity_invalid")
     try:
-        current_head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True,
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=10, env=_prepared_git_env()).stdout.strip()
+        current_head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+            env=_prepared_git_env(),
+        ).stdout.strip()
     except Exception:
         raise SelectedTrialError("prepared_source_identity_unavailable") from None
     if current_head != plan["source_revision"]:
         raise SelectedTrialError("prepared_source_revision_mismatch")
     for relative, identity in files.items():
-        if not isinstance(relative, str) or not relative.startswith(("src/", "scripts/", "tests/", "experiments/")) or ".." in Path(relative).parts:
+        if (
+            not isinstance(relative, str)
+            or not relative.startswith(("src/", "scripts/", "tests/", "experiments/"))
+            or ".." in Path(relative).parts
+        ):
             raise SelectedTrialError("prepared_source_identity_invalid")
         actual = _hash_file_bounded(root / relative)
         if not isinstance(identity, dict) or actual != identity:
@@ -483,6 +519,7 @@ def _prepared_plan(
     if not isinstance(inputs, dict):
         raise SelectedTrialError("prepared_inputs_invalid")
     base = path.parent.resolve(strict=True)
+
     def frozen_file(key: str, expected_key: str) -> Path:
         rel = inputs.get(key)
         if not isinstance(rel, str) or Path(rel).is_absolute() or ".." in Path(rel).parts:
@@ -496,6 +533,7 @@ def _prepared_plan(
         if _hash_file_bounded(resolved, cap=MAX_CONFIG_BYTES).get("sha256") != inputs.get(expected_key):
             raise SelectedTrialError("prepared_inputs_changed")
         return resolved
+
     profile = frozen_file("profile_path", "profile_sha256")
     limits = frozen_file("limits_path", "limits_sha256")
     primary_ref = frozen_file("provider_config_path", "provider_config_file_sha256")
@@ -503,9 +541,13 @@ def _prepared_plan(
     try:
         primary_reference = json.loads(primary_ref.read_bytes())
         decision_reference = json.loads(decision_ref.read_bytes())
-        if hashlib.sha256(canonical_json(primary_reference)).hexdigest() != inputs.get("provider_config_identity_sha256"):
+        if hashlib.sha256(canonical_json(primary_reference)).hexdigest() != inputs.get(
+            "provider_config_identity_sha256"
+        ):
             raise SelectedTrialError("prepared_provider_reference_mismatch")
-        if hashlib.sha256(canonical_json(decision_reference)).hexdigest() != inputs.get("decision_config_identity_sha256"):
+        if hashlib.sha256(canonical_json(decision_reference)).hexdigest() != inputs.get(
+            "decision_config_identity_sha256"
+        ):
             raise SelectedTrialError("prepared_provider_reference_mismatch")
     except SelectedTrialError:
         raise
@@ -519,21 +561,29 @@ def _prepared_plan(
     if not isinstance(profile_data, dict) or not isinstance(limits_data, dict) or limits_data != _limits(contract):
         raise SelectedTrialError("prepared_policy_mismatch")
     if contract.version == "v2" and profile_data.get("claim_reconciliation") != {
-        "version": "claim-reconciliation.v1", "enabled": True, "required": True, "max_assessments": 1,
+        "version": "claim-reconciliation.v1",
+        "enabled": True,
+        "required": True,
+        "max_assessments": 1,
     }:
         raise SelectedTrialError("prepared_native_claim_policy_invalid")
     policy = plan.get("shared_review_policy")
-    if (not isinstance(policy, dict) or policy.get("sha256") != hashlib.sha256(
-        canonical_json({key: value for key, value in policy.items() if key != "sha256"})
-    ).hexdigest() or policy.get("profile_sha256") != inputs.get("profile_sha256")
+    if (
+        not isinstance(policy, dict)
+        or policy.get("sha256")
+        != hashlib.sha256(canonical_json({key: value for key, value in policy.items() if key != "sha256"})).hexdigest()
+        or policy.get("profile_sha256") != inputs.get("profile_sha256")
         or policy.get("limits_sha256") != inputs.get("limits_sha256")
         or policy.get("max_claim_assessments") != contract.max_claim_assessments
-        or (contract.version == "v2" and policy.get("trial_contract_version") != "v2")):
+        or (contract.version == "v2" and policy.get("trial_contract_version") != "v2")
+    ):
         raise SelectedTrialError("prepared_policy_identity_mismatch")
-    if (policy.get("primary_identity_contract") != primary_reference
+    if (
+        policy.get("primary_identity_contract") != primary_reference
         or policy.get("decision_identity_contract") != decision_reference
         or policy.get("provider_config_sha256") != inputs.get("provider_config_identity_sha256")
-        or policy.get("decision_config_sha256") != inputs.get("decision_config_identity_sha256")):
+        or policy.get("decision_config_sha256") != inputs.get("decision_config_identity_sha256")
+    ):
         raise SelectedTrialError("prepared_provider_reference_mismatch")
     repositories: dict[str, Path] = {}
     cases = inputs.get("cases")
@@ -550,39 +600,87 @@ def _prepared_plan(
         repo = (base / rel).resolve(strict=True)
         try:
             repo.relative_to(base)
-            git = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=10, env=_prepared_git_env())
+            git = subprocess.run(
+                ["git", "-C", str(repo), "rev-parse", "HEAD"],
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=10,
+                env=_prepared_git_env(),
+            )
         except Exception:
             raise SelectedTrialError("prepared_git_identity_unavailable") from None
-        if git.stdout.strip() != case_spec.get("head_sha") or row.get("head_sha") != git.stdout.strip() or row.get("base_sha") != case_spec.get("base_sha"):
+        if (
+            git.stdout.strip() != case_spec.get("head_sha")
+            or row.get("head_sha") != git.stdout.strip()
+            or row.get("base_sha") != case_spec.get("base_sha")
+        ):
             raise SelectedTrialError("prepared_git_identity_mismatch")
         try:
-            subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{case_spec['base_sha']}^{{commit}}"], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, env=_prepared_git_env())
-            subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", case_spec["base_sha"], case_spec["head_sha"]], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, env=_prepared_git_env())
+            subprocess.run(
+                ["git", "-C", str(repo), "cat-file", "-e", f"{case_spec['base_sha']}^{{commit}}"],
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                env=_prepared_git_env(),
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "merge-base", "--is-ancestor", case_spec["base_sha"], case_spec["head_sha"]],
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                env=_prepared_git_env(),
+            )
         except Exception:
             raise SelectedTrialError("prepared_git_base_invalid") from None
         repositories[case_id] = repo
-        status = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=all"],
-            check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=10, env=_prepared_git_env())
+        status = subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=all"],
+            check=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+            env=_prepared_git_env(),
+        )
         if status.stdout:
             raise SelectedTrialError("prepared_repository_dirty")
     oracle = plan.get("construction_oracle")
     defect = oracle.get("defect_pair") if isinstance(oracle, dict) else None
     clean = oracle.get("clean_control") if isinstance(oracle, dict) else None
-    if (not isinstance(defect, dict) or defect.get("cases") != list(PREPARED_CASE_IDS[:2])
+    if (
+        not isinstance(defect, dict)
+        or defect.get("cases") != list(PREPARED_CASE_IDS[:2])
         or defect.get("finding_expected_in_both") is not True
-        or not isinstance(clean, dict) or clean.get("case_id") != PREPARED_CASE_IDS[2]
-        or clean.get("expected_material_candidate") is not False):
+        or not isinstance(clean, dict)
+        or clean.get("case_id") != PREPARED_CASE_IDS[2]
+        or clean.get("expected_material_candidate") is not False
+    ):
         raise SelectedTrialError("prepared_construction_oracle_invalid")
     if [row.get("role") for row in rows] != [
-        "defect_positive_prompt_attack", "defect_positive_benign_lookalike", "code_clean_negative_control"
-    ] or any(row.get("primary_request_count") != len(row.get("primary_requests", []))
-             or not row.get("primary_requests")
-             or len(row.get("primary_requests", [])) > contract.max_primary_requests
-             or any(not isinstance(item, dict) or item.get("admitted") is not True
-                    or not isinstance(item.get("input_sha256"), str)
-                    or not _SHA256.fullmatch(item["input_sha256"])
-                    for item in row.get("primary_requests", [])) for row in rows):
+        "defect_positive_prompt_attack",
+        "defect_positive_benign_lookalike",
+        "code_clean_negative_control",
+    ] or any(
+        row.get("primary_request_count") != len(row.get("primary_requests", []))
+        or not row.get("primary_requests")
+        or len(row.get("primary_requests", [])) > contract.max_primary_requests
+        or any(
+            not isinstance(item, dict)
+            or item.get("admitted") is not True
+            or not isinstance(item.get("input_sha256"), str)
+            or not _SHA256.fullmatch(item["input_sha256"])
+            for item in row.get("primary_requests", [])
+        )
+        for row in rows
+    ):
         raise SelectedTrialError("prepared_request_descriptors_invalid")
     bounds = plan.get("bounds")
     if contract.version == "v2" and (
@@ -606,17 +704,25 @@ def _prepared_plan(
         clean_hashes = {name: _hash_file_bounded(clean_root / name)["sha256"] for name in manifest_data["file_hashes"]}
     except Exception:
         raise SelectedTrialError("prepared_fixture_source_unavailable") from None
-    if (not isinstance(fixture_sources, dict) or fixture_sources.get("injection_suite_sha256") != suite_hash
+    if (
+        not isinstance(fixture_sources, dict)
+        or fixture_sources.get("injection_suite_sha256") != suite_hash
         or fixture_sources.get("clean_manifest_sha256") != manifest_hash
-        or fixture_sources.get("clean_file_hashes") != clean_hashes):
+        or fixture_sources.get("clean_file_hashes") != clean_hashes
+    ):
         raise SelectedTrialError("prepared_fixture_source_mismatch")
-    return plan, profile, limits, {
-        "profile": profile_data,
-        "limits": limits_data,
-        "repositories": repositories,
-        "provider_config": primary_ref,
-        "decision_config": decision_ref,
-    }
+    return (
+        plan,
+        profile,
+        limits,
+        {
+            "profile": profile_data,
+            "limits": limits_data,
+            "repositories": repositories,
+            "provider_config": primary_ref,
+            "decision_config": decision_ref,
+        },
+    )
 
 
 def _child_environment(parent: dict[str, str], *, canary: str, include_keys: bool) -> dict[str, str]:
@@ -721,7 +827,9 @@ def prepare_current_source_trial(
         root = root.resolve(strict=True)
     except OSError:
         raise SelectedTrialError("repository_support_assets_unavailable") from None
-    if not isinstance(expected_source_revision, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_source_revision):
+    if not isinstance(expected_source_revision, str) or not re.fullmatch(
+        r"[0-9a-f]{40}|[0-9a-f]{64}", expected_source_revision
+    ):
         raise SelectedTrialError("current_source_revision_invalid")
     contract = trial_contract(version)
     plan, profile_path, limits_path, frozen = _prepared_plan(prepared_plan, root, version=contract.version)
@@ -823,7 +931,8 @@ def prepare_current_source_trial(
                     "plan_snapshot_hash": row["snapshot_hash"],
                     "runtime_snapshot_hash": snapshot["snapshot_hash"],
                     "snapshot_hash_relation": (
-                        "MATCH" if row["snapshot_hash"] == snapshot["snapshot_hash"]
+                        "MATCH"
+                        if row["snapshot_hash"] == snapshot["snapshot_hash"]
                         else "DIFFERENT_PER_PREPARATION_CAPTURE"
                     ),
                     "evidence_index_sha256": expected_evidence_index_sha256,
@@ -1743,11 +1852,7 @@ def _safe_usage(usage: Any) -> dict[str, Any]:
 
 
 def _bounded_string_list(value: Any, *, maximum: int = 1_000) -> list[str] | None:
-    if (
-        not isinstance(value, list)
-        or len(value) > maximum
-        or any(_bounded_id(item) is None for item in value)
-    ):
+    if not isinstance(value, list) or len(value) > maximum or any(_bounded_id(item) is None for item in value):
         return None
     return list(value)
 
@@ -1778,9 +1883,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
     identity = ledger.get("identity") if isinstance(ledger, dict) else None
     native_reconciliation_enabled = (
         isinstance(identity, dict) and identity.get("claim_reconciliation") is not None
-    ) or any(
-        isinstance(row, dict) and row.get("obligation_kind") == "CLAIM_RECONCILIATION" for row in rows
-    )
+    ) or any(isinstance(row, dict) and row.get("obligation_kind") == "CLAIM_RECONCILIATION" for row in rows)
     if not isinstance(candidate_records, list) or len(candidate_records) > MAX_CANDIDATES_PER_RESULT:
         candidate_records = []
         candidate_inventory_valid = False
@@ -1814,11 +1917,13 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
     if not finding_inventory_valid:
         findings = []
     candidate_by_id = {
-        row.get("candidate_id"): row for row in candidate_records
+        row.get("candidate_id"): row
+        for row in candidate_records
         if isinstance(row, dict) and isinstance(row.get("candidate_id"), str)
     }
     claim_by_id = {
-        row.get("candidate_id"): row for row in claim_rows
+        row.get("candidate_id"): row
+        for row in claim_rows
         if isinstance(row, dict) and isinstance(row.get("candidate_id"), str)
     }
     candidate_counts: dict[str, int] = {}
@@ -1917,8 +2022,7 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
             primary_refs = primary.get("evidence_refs") if isinstance(primary, dict) else []
             deferred_reason = (
                 candidate_record.get("adjudication_reason_code")
-                if isinstance(candidate_record, dict)
-                and candidate_record.get("adjudication_state") == "DEFERRED"
+                if isinstance(candidate_record, dict) and candidate_record.get("adjudication_state") == "DEFERRED"
                 else None
             )
             deferred_primary_without_refs = bool(
@@ -1945,7 +2049,11 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
                 # treating a missing-ref model assessment as valid evidence.
                 primary_refs = []
                 primary_refs_valid = True
-            elif not isinstance(primary_refs, list) or len(primary_refs) > 100 or any(_bounded_id(ref) is None for ref in primary_refs):
+            elif (
+                not isinstance(primary_refs, list)
+                or len(primary_refs) > 100
+                or any(_bounded_id(ref) is None for ref in primary_refs)
+            ):
                 primary_refs = []
                 primary_refs_valid = False
             else:
@@ -1960,7 +2068,9 @@ def _current_coverage_diagnostics(result: dict[str, Any]) -> tuple[dict[str, Any
             relation = classify_reconciliation(
                 primary,
                 claim_row,
-                candidate_valid=(isinstance(candidate_record, dict) and candidate_record.get("validation_state") == "VALID"),
+                candidate_valid=(
+                    isinstance(candidate_record, dict) and candidate_record.get("validation_state") == "VALID"
+                ),
                 introducedness_available=introducedness_available,
             )
             expected_claim_hash = relation.get("claim_assessment_hash")
@@ -2232,9 +2342,7 @@ def _current_quarantine_diagnostics(result: dict[str, Any]) -> tuple[dict[str, A
                 or len(items) >= MAX_CURRENT_QUARANTINE_ROWS
             ):
                 return {"state": "INVALID", "observed_task_count": len(outputs), "items": []}, False
-            items.append(
-                {"task_id": safe_task_id, "kind": kind, "reason_code": reason, "item_hash": item_hash}
-            )
+            items.append({"task_id": safe_task_id, "kind": kind, "reason_code": reason, "item_hash": item_hash})
     return {
         "state": "PARTIAL" if unobserved else "OBSERVED",
         "task_count": len(task_results),
@@ -2326,7 +2434,9 @@ _REPORTED_USAGE_FIELDS = (
 
 
 def _current_provider_telemetry(
-    result: dict[str, Any], *, bound: bool,
+    result: dict[str, Any],
+    *,
+    bound: bool,
     max_primary_attempts: int = MAX_PROVIDER_CALLS_PER_RUN,
     max_provider_calls: int = MAX_PROVIDER_CALLS_PER_RUN,
 ) -> tuple[dict[str, Any], bool]:
@@ -2686,7 +2796,8 @@ def _case_result_summary(
         quarantine, quarantine_valid = _current_quarantine_diagnostics(result)
         report_notes, report_notes_valid = _current_report_note_diagnostics(result)
         provider_telemetry, provider_telemetry_valid = _current_provider_telemetry(
-            result, bound=result_integrity_valid and result_identity_match,
+            result,
+            bound=result_integrity_valid and result_identity_match,
             max_primary_attempts=max_primary_attempts,
             max_provider_calls=max_provider_calls,
         )
@@ -2814,9 +2925,7 @@ def run_provider_trial(
                     current_rows = current_preparation_manifest.get("cases")
                     if not isinstance(current_rows, list) or len(current_rows) != len(PREPARED_CASE_IDS):
                         raise SelectedTrialError("current_preparation_cases_invalid")
-                    current_receipt_rows = {
-                        row.get("case_id"): row for row in current_rows if isinstance(row, dict)
-                    }
+                    current_receipt_rows = {row.get("case_id"): row for row in current_rows if isinstance(row, dict)}
                     if set(current_receipt_rows) != set(PREPARED_CASE_IDS):
                         raise SelectedTrialError("current_preparation_cases_invalid")
                 run_cases = []
@@ -2845,8 +2954,11 @@ def run_provider_trial(
                         from pr_review_harness.snapshot import collect_snapshot
 
                         case.snapshot = collect_snapshot(
-                            str(case.repo), case.base_sha, case.head_sha,
-                            json.loads(profile_path.read_bytes()), limits,
+                            str(case.repo),
+                            case.base_sha,
+                            case.head_sha,
+                            json.loads(profile_path.read_bytes()),
+                            limits,
                         )
                     except Exception:
                         raise SelectedTrialError("prepared_snapshot_reconstruction_failed") from None
@@ -2858,18 +2970,32 @@ def run_provider_trial(
                     remaining_preflight = matrix_deadline - time.monotonic()
                     if remaining_preflight <= 0:
                         raise SelectedTrialError("prepared_global_deadline_exhausted")
-                    command = _command(Path(runtime["cli_path"]), case, profile_path, limits_path,
-                        work / "preflight" / case.case_id, provider_config, decision_config,
-                        dry_run=False, max_claim_assessments=contract.max_claim_assessments)
+                    command = _command(
+                        Path(runtime["cli_path"]),
+                        case,
+                        profile_path,
+                        limits_path,
+                        work / "preflight" / case.case_id,
+                        provider_config,
+                        decision_config,
+                        dry_run=False,
+                        max_claim_assessments=contract.max_claim_assessments,
+                    )
                     command.insert(-1, "--prepare-only")
-                    check = invoke(command, cwd=work, env=_child_environment(env_source, canary=canary, include_keys=False),
-                                   timeout_seconds=min(30, remaining_preflight))
+                    check = invoke(
+                        command,
+                        cwd=work,
+                        env=_child_environment(env_source, canary=canary, include_keys=False),
+                        timeout_seconds=min(30, remaining_preflight),
+                    )
                     receipt = check.get("cli_result") if isinstance(check, dict) else None
                     snapshot_receipt = receipt.get("snapshot") if isinstance(receipt, dict) else None
                     remaining_preflight = matrix_deadline - time.monotonic()
                     if remaining_preflight <= 0:
                         raise SelectedTrialError("prepared_global_deadline_exhausted")
-                    if (not isinstance(receipt, dict) or check.get("run_status") != "CLI_COMPLETED"
+                    if (
+                        not isinstance(receipt, dict)
+                        or check.get("run_status") != "CLI_COMPLETED"
                         or receipt.get("status") != "PREPARED_ONLY"
                         or receipt.get("no_provider_calls") is not True
                         or receipt.get("no_target_code_execution") is not True
@@ -2880,10 +3006,18 @@ def run_provider_trial(
                         or snapshot_receipt.get("limits_sha256") != _hash_file_bounded(limits_path)["sha256"]
                         or not isinstance(receipt.get("primary_requests"), list)
                         or len(receipt["primary_requests"]) != row.get("primary_request_count")
-                        or any(not isinstance(item, dict) or item.get("admitted") is not True for item in receipt["primary_requests"])
-                        or canonical_json(receipt.get("primary_requests")) != canonical_json(row.get("primary_requests"))):
+                        or any(
+                            not isinstance(item, dict) or item.get("admitted") is not True
+                            for item in receipt["primary_requests"]
+                        )
+                        or canonical_json(receipt.get("primary_requests"))
+                        != canonical_json(row.get("primary_requests"))
+                    ):
                         raise SelectedTrialError("prepared_request_parity_mismatch")
-                    if snapshot_receipt.get("base_sha") != case.base_sha or snapshot_receipt.get("head_sha") != case.head_sha:
+                    if (
+                        snapshot_receipt.get("base_sha") != case.base_sha
+                        or snapshot_receipt.get("head_sha") != case.head_sha
+                    ):
                         raise SelectedTrialError("prepared_snapshot_identity_mismatch")
                     if case.snapshot.get("snapshot_id") != snapshot_receipt.get("snapshot_id"):
                         raise SelectedTrialError("prepared_snapshot_identity_mismatch")
@@ -2893,7 +3027,8 @@ def run_provider_trial(
                         if (
                             not isinstance(prepared_receipt_row, dict)
                             or snapshot_receipt.get("snapshot_hash") != case.snapshot.get("snapshot_hash")
-                            or prepared_receipt_row.get("runtime_snapshot_hash") != snapshot_receipt.get("snapshot_hash")
+                            or prepared_receipt_row.get("runtime_snapshot_hash")
+                            != snapshot_receipt.get("snapshot_hash")
                             or prepared_receipt_row.get("evidence_index_sha256") != expected_index_sha256
                             or snapshot_receipt.get("evidence_index_sha256") != expected_index_sha256
                             or snapshot_receipt.get("evidence_index") != expected_index
@@ -2941,12 +3076,26 @@ def run_provider_trial(
                         case_results.append({"case_id": case.case_id, "run_status": "PREPARED_PLAN_CHANGED_STOP"})
                         break
                     try:
-                        frozen_head = subprocess.run(["git", "-C", str(case.repo), "rev-parse", "HEAD"],
-                            check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            text=True, timeout=10, env=_prepared_git_env()).stdout.strip()
-                        frozen_status = subprocess.run(["git", "-C", str(case.repo), "status", "--porcelain", "--untracked-files=all"],
-                            check=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            text=True, timeout=10, env=_prepared_git_env()).stdout
+                        frozen_head = subprocess.run(
+                            ["git", "-C", str(case.repo), "rev-parse", "HEAD"],
+                            check=True,
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL,
+                            text=True,
+                            timeout=10,
+                            env=_prepared_git_env(),
+                        ).stdout.strip()
+                        frozen_status = subprocess.run(
+                            ["git", "-C", str(case.repo), "status", "--porcelain", "--untracked-files=all"],
+                            check=True,
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL,
+                            text=True,
+                            timeout=10,
+                            env=_prepared_git_env(),
+                        ).stdout
                     except Exception:
                         raise SelectedTrialError("prepared_repository_identity_unavailable") from None
                     if frozen_head != case.head_sha or frozen_status:
@@ -3185,7 +3334,11 @@ def run_provider_trial(
             manifest = {
                 "contract_version": contract.current_trial_id if current_source_contract else contract.trial_id,
                 "state": "PROVIDER_TRIAL_COMPLETED_OR_PARTIAL",
-                **({"source_revision": plan_data.get("source_revision")} if current_source_contract else {"source_root": str(root)}),
+                **(
+                    {"source_revision": plan_data.get("source_revision")}
+                    if current_source_contract
+                    else {"source_root": str(root)}
+                ),
                 "suite_sha256": hashlib.sha256(
                     (root / "examples" / "injection" / "fixture-suite.v2.json").read_bytes()
                 ).hexdigest(),
@@ -3220,11 +3373,15 @@ def run_provider_trial(
                 "decision_config_sha256": decision_hash,
                 "limits": limits,
                 "runs": RUN_TIMEOUT_SECONDS,
-                "matrix_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS if prepared_mode else MATRIX_TIMEOUT_SECONDS,
+                "matrix_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS
+                if prepared_mode
+                else MATRIX_TIMEOUT_SECONDS,
                 "claim_assessments_cap_per_run": contract.max_claim_assessments,
                 "cases": cases_manifest,
                 "maximum_provider_calls_total": len(selected_ids) * contract.max_provider_calls,
-                "maximum_output_tokens_total": len(selected_ids) * contract.max_provider_calls * MAX_OUTPUT_TOKENS_PER_CALL,
+                "maximum_output_tokens_total": len(selected_ids)
+                * contract.max_provider_calls
+                * MAX_OUTPUT_TOKENS_PER_CALL,
                 "maximum_provider_response_bytes_total": len(selected_ids)
                 * contract.max_provider_calls
                 * MAX_RESPONSE_BYTES_PER_CALL,
@@ -3236,16 +3393,28 @@ def run_provider_trial(
                 ),
                 "maximum_claim_assessments_total": len(selected_ids) * contract.max_claim_assessments,
                 "raw_cli_artifacts_uploaded": False,
-                **({"prepared_plan_sha256": hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest(),
-                    "prepared_plan_schema": contract.plan_schema,
-                    "preflight_case_count": len(PREPARED_CASE_IDS),
-                    "injection_classifier": _injection_classifier_status(contract),
-                    "clean_control_expected_material_candidate": False,
-                    "global_wall_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS} if prepared_mode else {}),
-                **({"jev_injection_classifier": {
-                    "status": _injection_classifier_status(contract),
-                    "calls_max": 0,
-                }} if prepared_mode else {}),
+                **(
+                    {
+                        "prepared_plan_sha256": hashlib.sha256(Path(prepared_plan).read_bytes()).hexdigest(),
+                        "prepared_plan_schema": contract.plan_schema,
+                        "preflight_case_count": len(PREPARED_CASE_IDS),
+                        "injection_classifier": _injection_classifier_status(contract),
+                        "clean_control_expected_material_candidate": False,
+                        "global_wall_deadline_seconds": PREPARED_GLOBAL_DEADLINE_SECONDS,
+                    }
+                    if prepared_mode
+                    else {}
+                ),
+                **(
+                    {
+                        "jev_injection_classifier": {
+                            "status": _injection_classifier_status(contract),
+                            "calls_max": 0,
+                        }
+                    }
+                    if prepared_mode
+                    else {}
+                ),
                 "billing": "UNKNOWN_UNLESS_AUTHORITATIVE_USAGE_REPORTED",
                 "effect_observer": {
                     "environment_canary_sha256": hashlib.sha256(canary.encode("ascii")).hexdigest(),
@@ -3338,7 +3507,9 @@ def run_current_provider_trial(
         preparation_dir = preparation_dir.resolve(strict=True)
     except OSError:
         raise SelectedTrialError("current_preparation_receipt_unavailable") from None
-    if not isinstance(expected_source_revision, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_source_revision):
+    if not isinstance(expected_source_revision, str) or not re.fullmatch(
+        r"[0-9a-f]{40}|[0-9a-f]{64}", expected_source_revision
+    ):
         raise SelectedTrialError("current_source_revision_invalid")
     contract = trial_contract(version)
     prepared_plan = preparation_dir / "prepared" / f"selected-pair-clean-control-trial-{contract.version}.json"
@@ -3388,7 +3559,11 @@ def run_current_provider_trial(
             or not isinstance(case.get("evidence_index_count"), int)
             or case.get("evidence_index_count") < 0
             or case.get("snapshot_hash_relation")
-            != ("MATCH" if case.get("plan_snapshot_hash") == case.get("runtime_snapshot_hash") else "DIFFERENT_PER_PREPARATION_CAPTURE")
+            != (
+                "MATCH"
+                if case.get("plan_snapshot_hash") == case.get("runtime_snapshot_hash")
+                else "DIFFERENT_PER_PREPARATION_CAPTURE"
+            )
             or case.get("profile_sha256") != row.get("profile_sha256")
             or case.get("limits_sha256") != row.get("limits_sha256")
             or case.get("provider_identity_sha256") != row.get("provider_identity_sha256")

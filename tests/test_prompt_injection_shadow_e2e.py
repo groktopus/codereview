@@ -26,13 +26,21 @@ from pr_review_harness.providers import OpenAIProvider  # noqa: E402
 CHALLENGE = json.loads((ROOT / "examples/injection/shadow-challenge-v1.json").read_text())
 SUITE = json.loads((ROOT / "examples/injection/fixture-suite.v2.json").read_text())
 DIMENSIONS = (
-    "observation_support", "consequence_support", "rule_connection_support",
-    "materiality", "missing_context", "introducedness",
+    "observation_support",
+    "consequence_support",
+    "rule_connection_support",
+    "materiality",
+    "missing_context",
+    "introducedness",
 )
 LIMITS = {
-    "max_input_bytes_per_task": 64_000, "max_output_bytes_per_task": 64_000,
-    "max_output_tokens": 1_800, "max_provider_calls": 3, "max_retries": 0,
-    "total_provider_deadline_seconds": 9, "deadline_seconds": 3,
+    "max_input_bytes_per_task": 64_000,
+    "max_output_bytes_per_task": 64_000,
+    "max_output_tokens": 1_800,
+    "max_provider_calls": 3,
+    "max_retries": 0,
+    "total_provider_deadline_seconds": 9,
+    "deadline_seconds": 3,
 }
 SECRET_SENTINEL = "synthetic-credential-must-not-enter-a-model-request"
 
@@ -58,18 +66,28 @@ class _Response:
 
 
 def _openai_response(content: bytes, model: str) -> bytes:
-    return json.dumps({
-        "id": "synthetic-response", "model": model,
-        "choices": [{"finish_reason": "stop", "message": {"content": content.decode()}}],
-    }, separators=(",", ":")).encode()
+    return json.dumps(
+        {
+            "id": "synthetic-response",
+            "model": model,
+            "choices": [{"finish_reason": "stop", "message": {"content": content.decode()}}],
+        },
+        separators=(",", ":"),
+    ).encode()
 
 
 def _provider(monkeypatch, model: str, answer):
-    provider = OpenAIProvider({
-        "kind": "openai-compatible", "base_url": "https://provider.invalid/v1",
-        "model": model, "api_key_env": "INJECTION_E2E_TOKEN", "timeout_seconds": 2,
-        "max_response_bytes": 64_000, "max_request_bytes": 64_000,
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai-compatible",
+            "base_url": "https://provider.invalid/v1",
+            "model": model,
+            "api_key_env": "INJECTION_E2E_TOKEN",
+            "timeout_seconds": 2,
+            "max_response_bytes": 64_000,
+            "max_request_bytes": 64_000,
+        }
+    )
     monkeypatch.setenv("INJECTION_E2E_TOKEN", SECRET_SENTINEL)
     if not hasattr(monkeypatch, "_injection_routes"):
         monkeypatch._injection_routes = {}
@@ -91,44 +109,75 @@ def _provider(monkeypatch, model: str, answer):
 def _writer_content(case_id: str) -> bytes:
     report = {
         "contract_version": "specialist-findings.v4",
-        "finding_candidates": [{
-            "unit_id": "unit-auth", "location": {
-                "kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 2, "reason": None,
-            },
-            "title": "Owner check removed",
-            "observation": "The changed authorization helper returns true for every caller.",
-            "consequence": "A caller may read a document owned by another user.",
-            "rule_or_contract": "Only the document owner may read it.",
-            "severity": "high", "reasoning_kind": "observed", "evidence_refs": ["ev-auth"],
-            "introducedness": "INTRODUCED",
-        }],
+        "finding_candidates": [
+            {
+                "unit_id": "unit-auth",
+                "location": {
+                    "kind": "line",
+                    "path": "src/auth.py",
+                    "side": "HEAD",
+                    "line": 2,
+                    "reason": None,
+                },
+                "title": "Owner check removed",
+                "observation": "The changed authorization helper returns true for every caller.",
+                "consequence": "A caller may read a document owned by another user.",
+                "rule_or_contract": "Only the document owner may read it.",
+                "severity": "high",
+                "reasoning_kind": "observed",
+                "evidence_refs": ["ev-auth"],
+                "introducedness": "INTRODUCED",
+            }
+        ],
         "context_gap_proposals": [],
-        "coverage_notes": [{
-            "unit_id": "unit-auth", "state": "COVERED", "reason_code": "source_reviewed",
-            "evidence_refs": ["ev-auth"], "coverage_basis": "STATIC_REVIEW",
-        }],
-        "specific_strengths": [], "future_guidance": [],
+        "coverage_notes": [
+            {
+                "unit_id": "unit-auth",
+                "state": "COVERED",
+                "reason_code": "source_reviewed",
+                "evidence_refs": ["ev-auth"],
+                "coverage_basis": "STATIC_REVIEW",
+            }
+        ],
+        "specific_strengths": [],
+        "future_guidance": [],
     }
     return json.dumps(report, separators=(",", ":")).encode()
 
 
 def _source_audit(_user) -> bytes:
-    return json.dumps({
-        "contract_version": "shadow-source-audit.v1", "status": "completed",
-        "records": [{"record_id": "source-1", "summary": "The source evidence shows an unconditional allow.",
-                     "evidence_refs": ["ev-auth"]}],
-    }, separators=(",", ":")).encode()
+    return json.dumps(
+        {
+            "contract_version": "shadow-source-audit.v1",
+            "status": "completed",
+            "records": [
+                {
+                    "record_id": "source-1",
+                    "summary": "The source evidence shows an unconditional allow.",
+                    "evidence_refs": ["ev-auth"],
+                }
+            ],
+        },
+        separators=(",", ":"),
+    ).encode()
 
 
 def _claim_audit(user) -> bytes:
     candidate_id = user["writer_claim"]["candidate_id"]
-    rows = [{
-        "assertion_id": f"{candidate_id}:{dimension}", "dimension": dimension, "relation": "MATCH",
-        "left_record_id": f"{candidate_id}:jev:{dimension}",
-        "right_record_id": f"{candidate_id}:claim_auditor:{dimension}", "evidence_refs": ["ev-auth"],
-    } for dimension in DIMENSIONS]
-    return json.dumps({"contract_version": "shadow-claim-audit.v1", "status": "completed", "relations": rows},
-                      separators=(",", ":")).encode()
+    rows = [
+        {
+            "assertion_id": f"{candidate_id}:{dimension}",
+            "dimension": dimension,
+            "relation": "MATCH",
+            "left_record_id": f"{candidate_id}:jev:{dimension}",
+            "right_record_id": f"{candidate_id}:claim_auditor:{dimension}",
+            "evidence_refs": ["ev-auth"],
+        }
+        for dimension in DIMENSIONS
+    ]
+    return json.dumps(
+        {"contract_version": "shadow-claim-audit.v1", "status": "completed", "relations": rows}, separators=(",", ":")
+    ).encode()
 
 
 def _jev_response(raw: bytes, *, choice: str = "SUPPORTED") -> bytes:
@@ -138,11 +187,14 @@ def _jev_response(raw: bytes, *, choice: str = "SUPPORTED") -> bytes:
         choices = list(question["criteria"])
         selected = choice if choice in choices else choices[0]
         answers[question_id] = {
-            "type": "choice", "choice": selected,
-            "probabilities": {option: float(option == selected) for option in choices}, "confidence": 0.8,
+            "type": "choice",
+            "choice": selected,
+            "probabilities": {option: float(option == selected) for option in choices},
+            "confidence": 0.8,
         }
-    return json.dumps({"model": "jev-1.13.0", "request_id": "synthetic-jev", "answers": answers},
-                      separators=(",", ":")).encode()
+    return json.dumps(
+        {"model": "jev-1.13.0", "request_id": "synthetic-jev", "answers": answers}, separators=(",", ":")
+    ).encode()
 
 
 def _challenge_case(case_id: str):
@@ -150,62 +202,122 @@ def _challenge_case(case_id: str):
     source = SUITE["head_auth_source"] + variant["payload"]
     content_hash = hashlib.sha256(source.encode()).hexdigest()
     evidence = {
-        "evidence_id": "ev-auth", "content": source, "content_hash": content_hash,
-        "path": "src/auth.py", "source_kind": "head_file", "trust": "untrusted_pr_content",
-        "source_revision": "b" * 40, "snapshot_id": f"snap-{case_id}", "line": 2,
+        "evidence_id": "ev-auth",
+        "content": source,
+        "content_hash": content_hash,
+        "path": "src/auth.py",
+        "source_kind": "head_file",
+        "trust": "untrusted_pr_content",
+        "source_revision": "b" * 40,
+        "snapshot_id": f"snap-{case_id}",
+        "line": 2,
     }
     snapshot_body = {
-        "repository": "synthetic/authz", "repository_url": "https://example.invalid/synthetic/authz",
-        "base_sha": "a" * 40, "head_sha": "b" * 40, "profile_version": "profile-v1",
-        "profile_hash": "c" * 64, "inventory": {}, "evidence": {"ev-auth": evidence},
-        "gaps": [], "trusted_context_refs": [],
+        "repository": "synthetic/authz",
+        "repository_url": "https://example.invalid/synthetic/authz",
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+        "profile_version": "profile-v1",
+        "profile_hash": "c" * 64,
+        "inventory": {},
+        "evidence": {"ev-auth": evidence},
+        "gaps": [],
+        "trusted_context_refs": [],
     }
     snapshot = {
-        "snapshot_id": evidence["snapshot_id"], **snapshot_body,
+        "snapshot_id": evidence["snapshot_id"],
+        **snapshot_body,
         "snapshot_hash": snapshot_module._json_hash(snapshot_body),
     }
     return variant, evidence, snapshot
 
 
-def _packet_from_writer(case_id: str, evidence: dict, snapshot: dict, writer_result: dict,
-                       writer_provider: OpenAIProvider) -> dict:
+def _packet_from_writer(
+    case_id: str, evidence: dict, snapshot: dict, writer_result: dict, writer_provider: OpenAIProvider
+) -> dict:
     generated = writer_result["payload"]["finding_candidates"][0]
     candidate = {
-        "candidate_id": "claim-auth", "title": generated["title"],
-        "observation": generated["observation"], "consequence": generated["consequence"],
-        "rule_or_contract": generated["rule_or_contract"], "evidence_refs": generated["evidence_refs"],
+        "candidate_id": "claim-auth",
+        "title": generated["title"],
+        "observation": generated["observation"],
+        "consequence": generated["consequence"],
+        "rule_or_contract": generated["rule_or_contract"],
+        "evidence_refs": generated["evidence_refs"],
     }
     receipt = writer_result["capture_receipt"]
-    calls = [{key: receipt[key] for key in (
-        "call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id",
-    )}]
-    calls_hash = hashlib.sha256(json.dumps(calls, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+    calls = [
+        {
+            key: receipt[key]
+            for key in (
+                "call_id",
+                "request_sha256",
+                "request_artifact_id",
+                "response_sha256",
+                "response_artifact_id",
+            )
+        }
+    ]
+    calls_hash = hashlib.sha256(
+        json.dumps(calls, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    ).hexdigest()
     identity = writer_provider.identity
     return {
-        "contract_version": "model-only-shadow-case.v1", "case_id": case_id,
+        "contract_version": "model-only-shadow-case.v1",
+        "case_id": case_id,
         "snapshot": snapshot,
         "source_task": {"summary": "Review the changed authorization helper for access-control regressions."},
-        "source_evidence": [{key: evidence[key] for key in (
-            "evidence_id", "content", "content_hash", "source_kind", "trust", "source_revision",
-            "snapshot_id", "path", "line",
-        )}],
+        "source_evidence": [
+            {
+                key: evidence[key]
+                for key in (
+                    "evidence_id",
+                    "content",
+                    "content_hash",
+                    "source_kind",
+                    "trust",
+                    "source_revision",
+                    "snapshot_id",
+                    "path",
+                    "line",
+                )
+            }
+        ],
         "writer_run": {
-            "role": "writer", "status": "completed", "run_id": f"writer-{case_id}",
-            "provider_id": identity["provider_id"], "model_id": identity["model_id"],
-            "runtime_id": "fake-http-v1", "prompt_revision": "synthetic-writer.v1",
-            "rubric_revision": "specialist-findings.v4", "calls": calls,
+            "role": "writer",
+            "status": "completed",
+            "run_id": f"writer-{case_id}",
+            "provider_id": identity["provider_id"],
+            "model_id": identity["model_id"],
+            "runtime_id": "fake-http-v1",
+            "prompt_revision": "synthetic-writer.v1",
+            "rubric_revision": "specialist-findings.v4",
+            "calls": calls,
             "calls_manifest_sha256": calls_hash,
         },
-        "writer_candidate": candidate, "profile_id": "profile-v1",
+        "writer_candidate": candidate,
+        "profile_id": "profile-v1",
     }
 
 
-def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "SUPPORTED", jev_body=None,
-              package_capture: bool = False):
-    effects = {name: 0 for name in (
-        "publication_calls", "github_write_calls", "target_execution_calls",
-        "tool_dispatch_requests", "secret_value_leaks",
-    )}
+def _run_case(
+    monkeypatch,
+    tmp_path: Path,
+    case_id: str,
+    *,
+    jev_choice: str = "SUPPORTED",
+    jev_body=None,
+    package_capture: bool = False,
+):
+    effects = {
+        name: 0
+        for name in (
+            "publication_calls",
+            "github_write_calls",
+            "target_execution_calls",
+            "tool_dispatch_requests",
+            "secret_value_leaks",
+        )
+    }
 
     def forbid_process(*_args, **_kwargs):
         effects["target_execution_calls"] += 1
@@ -219,6 +331,7 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
         def observed(*_args, **_kwargs):
             effects[counter] += 1
             pytest.fail(f"synthetic shadow audit attempted forbidden effect: {counter}")
+
         return observed
 
     monkeypatch.setattr(publisher_module, "publish_review", forbid_effect("publication_calls"))
@@ -235,6 +348,7 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
     monkeypatch.setattr(github_module.GitHubPRAdapter, "_api_output", observe_github_api)
     variant, evidence, snapshot = _challenge_case(case_id)
     observed = {"writer": [], "source": [], "jev": [], "claim": []}
+
     def writer(user):
         observed["writer"].append(user)
         return _writer_content(case_id)
@@ -250,32 +364,49 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
     writer_provider = _provider(monkeypatch, f"writer-{case_id}", writer)
     source_provider = _provider(monkeypatch, f"source-{case_id}", source)
     claim_provider = _provider(monkeypatch, f"claim-{case_id}", claim)
-    evidence_for_writer = [dict(evidence)] if package_capture else [{
-        "evidence_id": evidence["evidence_id"], "content": evidence["content"],
-        "path": evidence["path"], "line": evidence["line"],
-    }]
+    evidence_for_writer = (
+        [dict(evidence)]
+        if package_capture
+        else [
+            {
+                "evidence_id": evidence["evidence_id"],
+                "content": evidence["content"],
+                "path": evidence["path"],
+                "line": evidence["line"],
+            }
+        ]
+    )
     task = {"task_id": f"task-{case_id}", "unit_ids": ["unit-auth"], "summary": "Review authorization."}
     captured = []
     capture_root = tmp_path / f"capture-{case_id}" if package_capture else None
     corpus_case_id = f"synthetic-{case_id}"
-    profile = {"profile_id": "synthetic-profile", "version": "synthetic-profile-v1",
-               "required_lenses": ["correctness"]}
+    profile = {"profile_id": "synthetic-profile", "version": "synthetic-profile-v1", "required_lenses": ["correctness"]}
     if package_capture:
         # This synthetic package's Jev projection uses content-level evidence;
         # keep line attribution on the writer finding's candidate location.
         evidence["line"] = None
         evidence_for_writer = [dict(evidence)]
         snapshot["profile_version"] = profile["version"]
-        snapshot["profile_hash"] = hashlib.sha256(json.dumps(
-            profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
-        ).encode()).hexdigest()
+        snapshot["profile_hash"] = hashlib.sha256(
+            json.dumps(
+                profile,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode()
+        ).hexdigest()
         snapshot_body = {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}}
         snapshot["snapshot_hash"] = snapshot_module._json_hash(snapshot_body)
         evidence["snapshot_id"] = snapshot["snapshot_id"]
         capture = PrivateShadowCapture(
-            capture_root, case_id=f"writer-{case_id}", corpus_case_id=corpus_case_id,
-            snapshot=snapshot, source_task=f"writer-{case_id}", provider=writer_provider,
-            request_byte_limit=64_000, response_byte_limit=64_000,
+            capture_root,
+            case_id=f"writer-{case_id}",
+            corpus_case_id=corpus_case_id,
+            snapshot=snapshot,
+            source_task=f"writer-{case_id}",
+            provider=writer_provider,
+            request_byte_limit=64_000,
+            response_byte_limit=64_000,
         )
         capture.export_source_tasks([{"task": task, "evidence": evidence_for_writer}], profile_id=profile["profile_id"])
         capture_spec = capture.begin_call(run_id=f"writer-{case_id}", task_id=task["task_id"], attempt=1)
@@ -286,43 +417,63 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
         if package_capture:
             return write_provider_exchange(capture_spec, request, response, status, envelope_hash, transform)
         return {
-            "call_id": f"writer-call-{case_id}", "request_sha256": hashlib.sha256(request).hexdigest(),
+            "call_id": f"writer-call-{case_id}",
+            "request_sha256": hashlib.sha256(request).hexdigest(),
             "request_artifact_id": f"writer-request-{case_id}",
             "response_sha256": hashlib.sha256(response).hexdigest() if response else None,
             "response_artifact_id": f"writer-response-{case_id}" if response else None,
             "status": status,
         }
 
-    writer_result = writer_provider.review_with_capture(task, evidence_for_writer, LIMITS,
-                                                        {"case_id": case_id}, capture_exchange)
+    writer_result = writer_provider.review_with_capture(
+        task, evidence_for_writer, LIMITS, {"case_id": case_id}, capture_exchange
+    )
     package_packet_path = None
     if package_capture:
         receipt = capture.reconcile(capture_spec)
         assert receipt and receipt["status"] == "completed"
         raw_candidate = writer_result["payload"]["finding_candidates"][0]
         candidate_fields = {
-            "unit_id", "location", "title", "observation", "consequence", "rule_or_contract",
-            "severity", "reasoning_kind", "evidence_refs", "introducedness",
+            "unit_id",
+            "location",
+            "title",
+            "observation",
+            "consequence",
+            "rule_or_contract",
+            "severity",
+            "reasoning_kind",
+            "evidence_refs",
+            "introducedness",
         }
         normalized = validate_candidate(
-            {key: raw_candidate[key] for key in candidate_fields}, SPECIALIST_V4, {"unit-auth"},
+            {key: raw_candidate[key] for key in candidate_fields},
+            SPECIALIST_V4,
+            {"unit-auth"},
         )
-        candidate_id = hashlib.sha256(json.dumps(
-            {"task_id": task["task_id"], "index": 0, "raw": normalized},
-            sort_keys=True, separators=(",", ":"), ensure_ascii=True,
-        ).encode()).hexdigest()[:24]
+        candidate_id = hashlib.sha256(
+            json.dumps(
+                {"task_id": task["task_id"], "index": 0, "raw": normalized},
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode()
+        ).hexdigest()[:24]
         engine_result = {
-            "snapshot_id": snapshot["snapshot_id"], "run_id": f"writer-{case_id}",
+            "snapshot_id": snapshot["snapshot_id"],
+            "run_id": f"writer-{case_id}",
             "findings": [{"assessment_records": [{"candidate_id": candidate_id, "task_id": task["task_id"]}]}],
-            "task_results": {task["task_id"]: {
-                "status": "SUCCEEDED",
-                "payload": {**writer_result["payload"], "finding_candidates": [normalized]},
-            }},
+            "task_results": {
+                task["task_id"]: {
+                    "status": "SUCCEEDED",
+                    "payload": {**writer_result["payload"], "finding_candidates": [normalized]},
+                }
+            },
         }
         package_packet_path = capture.export_case_packets(engine_result, profile=profile)[0]
         packet = json.loads(package_packet_path.read_text())
     else:
         packet = _packet_from_writer(case_id, evidence, snapshot, writer_result, writer_provider)
+
     def jev_transport(raw, _deadline, _cap):
         observed["jev"].append(raw)
         seal = json.loads((tmp_path / case_id / "private/source-audit-seal.json").read_text())
@@ -336,11 +487,13 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
         jev_transport.last_dispatch_state = "http_attempted"
 
     order = []
+
     def before_dispatch(role, raw):
         order.append(role)
         if SECRET_SENTINEL.encode() in raw:
             effects["secret_value_leaks"] += 1
         assert SECRET_SENTINEL.encode() not in raw
+
     result = run_shadow_audit(
         packet,
         source_provider=source_provider,
@@ -361,9 +514,20 @@ def _run_case(monkeypatch, tmp_path: Path, case_id: str, *, jev_choice: str = "S
             effects["tool_dispatch_requests"] += 1
     assert effects == {name: 0 for name in effects}
     if package_capture:
-        return result, observed, order, packet, captured, variant, effects, {
-            "capture_root": capture_root, "packet_path": package_packet_path, "profile": profile,
-        }
+        return (
+            result,
+            observed,
+            order,
+            packet,
+            captured,
+            variant,
+            effects,
+            {
+                "capture_root": capture_root,
+                "packet_path": package_packet_path,
+                "profile": profile,
+            },
+        )
     return result, observed, order, packet, captured, variant, effects
 
 
@@ -403,29 +567,38 @@ def test_synthetic_control_attack_and_benign_run_writer_to_sealed_audit_to_claim
     assert "source-1" not in json.dumps(claim_user)
     assert all(row["status"] in {"ANSWERED", "NOT_SHOWN"} for row in claim_user["jev_classification"].values())
     expected_choices = {
-        "observation_support": "SUPPORTED", "consequence_support": "SUPPORTED",
-        "rule_connection_support": "SUPPORTED", "materiality": "MATERIAL",
+        "observation_support": "SUPPORTED",
+        "consequence_support": "SUPPORTED",
+        "rule_connection_support": "SUPPORTED",
+        "materiality": "MATERIAL",
         "missing_context": "MISSING_CONTEXT_IDENTIFIED",
     }
-    assert {dimension: row["choice"] for dimension, row in claim_user["jev_classification"].items()
-            if row["status"] == "ANSWERED"} == expected_choices
+    assert {
+        dimension: row["choice"]
+        for dimension, row in claim_user["jev_classification"].items()
+        if row["status"] == "ANSWERED"
+    } == expected_choices
     assert claim_user["evidence"][0]["evidence_id"] == "ev-auth"
     assert claim_user["evidence"][0]["content_hash"] == packet["source_evidence"][0]["content_hash"]
     assert claim_user["evidence"][0]["content"] == packet["source_evidence"][0]["content"]
     assert result["manifest"]["roles"]["jev"]["status"] == "completed"
     assert result["manifest"]["roles"]["claim_auditor"]["status"] == "completed"
 
-    all_requests = [captured[0][0], *[
-        (tmp_path / case_id / "private" / name).read_bytes()
-        for name in ("source-auditor.request.json", "jev.request.json", "claim-auditor.request.json")
-    ]]
+    all_requests = [
+        captured[0][0],
+        *[
+            (tmp_path / case_id / "private" / name).read_bytes()
+            for name in ("source-auditor.request.json", "jev.request.json", "claim-auditor.request.json")
+        ],
+    ]
     assert all(SECRET_SENTINEL.encode() not in request for request in all_requests)
     fake_provider_requests = monkeypatch._injection_wire
     assert len(fake_provider_requests) == 3
     assert all(url == "https://provider.invalid/v1/chat/completions" for url, _body in fake_provider_requests)
     assert all(SECRET_SENTINEL.encode() not in body for _url, body in fake_provider_requests)
-    assert all("\"tools\"" not in body.decode() and "\"tool_choice\"" not in body.decode()
-               for _url, body in fake_provider_requests)
+    assert all(
+        '"tools"' not in body.decode() and '"tool_choice"' not in body.decode() for _url, body in fake_provider_requests
+    )
     assert CHALLENGE["effects"]["publication_enabled"] is False
     assert CHALLENGE["effects"]["github_writes_enabled"] is False
     assert CHALLENGE["effects"]["target_execution_enabled"] is False
@@ -435,7 +608,10 @@ def test_synthetic_control_attack_and_benign_run_writer_to_sealed_audit_to_claim
 
 def test_synthetic_jev_abstention_still_reaches_claim_auditor(monkeypatch, tmp_path):
     result, observed, order, packet, _captured, _variant, effects = _run_case(
-        monkeypatch, tmp_path, "code-comment-attack", jev_choice="UNCERTAIN",
+        monkeypatch,
+        tmp_path,
+        "code-comment-attack",
+        jev_choice="UNCERTAIN",
     )
 
     assert order == ["source_auditor", "jev", "claim_auditor"]
@@ -458,7 +634,10 @@ def test_synthetic_jev_failure_stops_before_claim_auditor(monkeypatch, tmp_path,
         raise RuntimeError("synthetic transport failure")
 
     result, observed, order, _packet, _captured, _variant, effects = _run_case(
-        monkeypatch, tmp_path, "control", jev_body=fail,
+        monkeypatch,
+        tmp_path,
+        "control",
+        jev_body=fail,
     )
 
     assert order == ["source_auditor", "jev"]
@@ -476,7 +655,9 @@ def test_empty_typed_jev_assessments_fail_closed_before_claim_auditor(monkeypatc
 
     monkeypatch.setattr(ClaimAssessmentAdapter, "assess_prepared", empty_assessments)
     result, observed, order, _packet, _captured, _variant, effects = _run_case(
-        monkeypatch, tmp_path, "control",
+        monkeypatch,
+        tmp_path,
+        "control",
     )
 
     assert order == ["source_auditor", "jev"]
@@ -490,7 +671,10 @@ def test_empty_typed_jev_assessments_fail_closed_before_claim_auditor(monkeypatc
 @pytest.mark.parametrize("case_id", ["code-comment-attack", "code-comment-benign"])
 def test_provider_free_candidate_capture_audit_and_deterministic_package(monkeypatch, tmp_path, case_id):
     result, observed, order, packet, captured, variant, effects, integration = _run_case(
-        monkeypatch, tmp_path, case_id, package_capture=True,
+        monkeypatch,
+        tmp_path,
+        case_id,
+        package_capture=True,
     )
     corpus = deepcopy(json.loads((ROOT / "examples/evaluation/corpus.json").read_text()))
     corpus["corpus_id"] = "synthetic-code-comment-injection-pair"
@@ -515,14 +699,20 @@ def test_provider_free_candidate_capture_audit_and_deterministic_package(monkeyp
     # The package verifier intentionally compares one case at a time. Label the
     # corpus scenario synthetic; attack and benign-lookalike payloads are still
     # run as separate test counterfactuals above this deterministic packaging.
-    corpus["cases"] = [{
-        "identity": identity,
-        "scenario": {
-            "kind": "synthetic", "behavior_id": "synthetic-code-comment-fixture",
-            "attack_vector": None, "paired_case_id": None, "fixture_source_id": None,
-            "fixture_sha256": None, "expected_forbidden_effects": [],
-        },
-    }]
+    corpus["cases"] = [
+        {
+            "identity": identity,
+            "scenario": {
+                "kind": "synthetic",
+                "behavior_id": "synthetic-code-comment-fixture",
+                "attack_vector": None,
+                "paired_case_id": None,
+                "fixture_source_id": None,
+                "fixture_sha256": None,
+                "expected_forbidden_effects": [],
+            },
+        }
+    ]
 
     assert captured[0][2] == "completed"
     assert order == ["source_auditor", "jev", "claim_auditor"]

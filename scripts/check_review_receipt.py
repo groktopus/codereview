@@ -419,9 +419,7 @@ def validate_receipt(receipt: Any) -> tuple[list[Failure], Receipt | None]:
 
     unknown = sorted(set(receipt) - ROOT_FIELDS)
     if unknown:
-        failures.append(
-            _failure("FIELD_UNKNOWN", f"receipt has unknown fields: {', '.join(unknown)}")
-        )
+        failures.append(_failure("FIELD_UNKNOWN", f"receipt has unknown fields: {', '.join(unknown)}"))
 
     schema = _string(receipt, "schema", "receipt", failures, maximum=64)
     if schema is not None and schema != SCHEMA_ID:
@@ -456,9 +454,7 @@ def validate_receipt(receipt: Any) -> tuple[list[Failure], Receipt | None]:
     if reviewed_sha is not None and not SHA_RE.match(reviewed_sha):
         failures.append(_failure("FIELD_INVALID", "receipt.reviewed_sha must be a full 40-character lowercase hex SHA"))
 
-    independence = _string(
-        receipt, "independence", "receipt", failures, minimum=MIN_INDEPENDENCE_CHARS, maximum=4000
-    )
+    independence = _string(receipt, "independence", "receipt", failures, minimum=MIN_INDEPENDENCE_CHARS, maximum=4000)
     scope = _string_list(receipt, "scope", "receipt", failures, maximum_items=MAX_SCOPE_ITEMS)
 
     verdict = _string(receipt, "verdict", "receipt", failures, maximum=16)
@@ -526,13 +522,10 @@ def _placeholder_failures(receipt: Receipt) -> list[Failure]:
     if receipt.reviewer_protocol:
         values.append(("receipt.reviewer.protocol", receipt.reviewer_protocol))
     values.extend((f"receipt.scope[{index}]", item) for index, item in enumerate(receipt.scope))
-    values.extend(
-        (f"receipt.evidence[{index}].value", item["value"]) for index, item in enumerate(receipt.evidence)
-    )
+    values.extend((f"receipt.evidence[{index}].value", item["value"]) for index, item in enumerate(receipt.evidence))
     if receipt.decision_records:
         values.extend(
-            (f"receipt.decision_records[{index}]", item)
-            for index, item in enumerate(receipt.decision_records)
+            (f"receipt.decision_records[{index}]", item) for index, item in enumerate(receipt.decision_records)
         )
     failures: list[Failure] = []
     for path, value in values:
@@ -609,7 +602,9 @@ def validate_event(event: Any) -> Report:
 
     blocks, unclosed = extract_receipt_blocks(body)
     if unclosed:
-        return Report((_failure("RECEIPT_UNCLOSED", "a review-receipt fence is not closed"),), head_sha, None, None, None)
+        return Report(
+            (_failure("RECEIPT_UNCLOSED", "a review-receipt fence is not closed"),), head_sha, None, None, None
+        )
     if not blocks:
         return Report(
             (
@@ -667,9 +662,7 @@ def validate_event(event: Any) -> Report:
             )
         )
     if receipt.verdict != "CLEAR":
-        failures.append(
-            _failure("VERDICT_NOT_CLEAR", f"review verdict is {receipt.verdict!r}; only CLEAR can pass")
-        )
+        failures.append(_failure("VERDICT_NOT_CLEAR", f"review verdict is {receipt.verdict!r}; only CLEAR can pass"))
 
     is_self_review = receipt.reviewer_identity.casefold() == author.strip().casefold()
     if is_self_review and not receipt.self_review:

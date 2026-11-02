@@ -146,7 +146,9 @@ def test_missing_or_phantom_or_malformed_records_fail_closed(tmp_path: Path) -> 
 
 
 def test_placeholder_owner_and_impossible_date_fail(tmp_path: Path) -> None:
-    write(tmp_path / "docs" / "adr" / "0001-test-record.md", RECORD.format(status="Accepted").replace("Test owner", "TBD"))
+    write(
+        tmp_path / "docs" / "adr" / "0001-test-record.md", RECORD.format(status="Accepted").replace("Test owner", "TBD")
+    )
     write(tmp_path / "docs" / "adr" / "README.md", INDEX.format(status="Accepted").replace("Test owner", "TBD"))
     write(tmp_path / "docs" / "adr" / "safety-invariants.json", json.dumps(MANIFEST))
     write(tmp_path / "src" / "example.py", "# example\n")

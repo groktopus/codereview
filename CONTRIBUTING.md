@@ -13,12 +13,63 @@ python -m pip install --no-deps --no-build-isolation -e .
 python scripts/check_dev_lock.py   # uv lock --check + byte-identical export diff
 ```
 
-Run `python -m pytest -q` for the full suite and `ruff check .` before submitting
-a change. Keep historical compatibility checks separately selectable with
+Run `python -m pytest -q` for the full suite before submitting a change. Keep
+historical compatibility checks separately selectable with
 `python -m pytest -m compatibility`. Do not hand-edit either lockfile; if a
 reviewed change alters `pyproject.toml`, regenerate both with the commands in
 the support matrix. Runtime dependencies must stay empty; see the
 [public API and internal-module policy](docs/PUBLIC-API.md).
+
+### Formatting, lint, and complexity (VD-4)
+
+`ruff format` is the canonical formatter at the configured 120-column line
+length. CI runs:
+
+```sh
+ruff check .
+ruff format --check .
+python scripts/check_complexity.py
+```
+
+Run the same commands locally before opening a pull request; to apply the
+formatter, run `ruff format .`. The formatter deliberately skips the sha256-pinned
+historical compatibility fixtures under `tests/fixtures/frozen-runtime-7d550b6/`
+and `tests/fixtures/*-base.py`. Those files are immutable evidence (VD-3);
+reformatting them would break their pins. Everything else, including `src/`,
+`scripts/`, `experiments/`, and `tests/`, is formatted.
+
+Install the [pre-commit](https://pre-commit.com/) hooks to run the same gates on
+every commit:
+
+```sh
+pre-commit install
+pre-commit run --all-files
+```
+
+[`.pre-commit-config.yaml`](.pre-commit-config.yaml) pins `ruff-pre-commit` to
+the exact lint/format release in `requirements-dev.lock`, runs `ruff check --fix`
+plus `ruff format`, and runs the complexity guard. `--fix` is a pre-commit
+convenience; the resulting tree still has to pass the non-fixing CI checks.
+
+The complexity guard is a ratchet, not a refactoring mandate. It measures each
+function's physical span and fails any function over 150 lines that is not in
+the explicit checked-in baseline
+([`scripts/complexity-baseline.v1.json`](scripts/complexity-baseline.v1.json)).
+A baselined function may not grow past its recorded length. If it shrinks to
+the threshold or below, it is no longer an offender, so the entry fails as stale
+until it is removed or the baseline is deliberately regenerated; a removed or
+renamed entry fails the same way. Use `--diff-base <revision>` to check only functions touched since
+a revision (useful before opening a pull request), and
+`--update-baseline` only as a reviewed maintenance action when a legitimate
+refactor or rename changes the offender set. The immutable historical fixtures
+are excluded from the scan for the same reason they are excluded from
+formatting.
+
+**Remaining VD-4 work:** the lint rule set is still the original
+`E4/E7/E9/F/I` selection; expanding to `B`, `SIM`, `UP`, `C4`, and `RUF` is a
+separate reviewed change. Type checking remains limited to the strict
+`.pyi` boundary contracts in `pyproject.toml`; repository-wide `mypy` adoption
+is not part of this change and remains open VD-4 work.
 
 ## Merge review evidence (GA-1)
 

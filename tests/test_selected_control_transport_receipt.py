@@ -61,7 +61,8 @@ def _retained_cardinality_arm(transport: str, state: str = "COMPLETE"):
         "configured_transport": transport,
         "state": state,
         "trace_attribution": {
-            "state": source["state"], "trace_bytes": source["trace_bytes"],
+            "state": source["state"],
+            "trace_bytes": source["trace_bytes"],
             "newline_terminated_line_bytes": source["trace_newline_terminated_line_bytes"],
             "unattributed_or_partial_bytes": source["trace_unattributed_or_partial_bytes"],
             "parsed_line_count": source["trace_parsed_line_count"],
@@ -168,14 +169,17 @@ def _valid_receipt(tmp_path: Path):
     historical_root = frozen_runtime.build_frozen_runtime_root(tmp_path / "receipt-source")
     source_modules = {
         "pr_review_harness/" + path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted((historical_root / "src/pr_review_harness").glob("*.py")) if path.is_file()
+        for path in sorted((historical_root / "src/pr_review_harness").glob("*.py"))
+        if path.is_file()
     }
     return {
         "contract_version": "selected-control-transport-pair.v1",
         "pair_state": "INCOMPLETE",
         "reason": "PAIR_DEADLINE_EXHAUSTED",
         "diagnostic_head_sha": "a" * 40,
-        "diagnostic_script_sha256": hashlib.sha256((ROOT / "scripts/selected_control_trace_attribution.py").read_bytes()).hexdigest(),
+        "diagnostic_script_sha256": hashlib.sha256(
+            (ROOT / "scripts/selected_control_trace_attribution.py").read_bytes()
+        ).hexdigest(),
         "diagnostic_script_differs_from_head": False,
         "runtime_source_commit": "a" * 40,
         "runtime_tree_sha256": "1" * 64,
@@ -196,8 +200,12 @@ def _valid_receipt(tmp_path: Path):
         "syscall_scope": ["%process", "%file", "socket", "connect", "bind", "listen", "accept", "accept4", "shutdown"],
         "trace_cap_bytes": 1_048_576,
         "limits": {
-            "max_provider_calls": 9, "max_retries_per_task": 0, "max_input_bytes_per_task": 64_000,
-            "max_output_bytes_per_task": 32_768, "deadline_seconds": 270, "max_claim_assessments_per_run": 4,
+            "max_provider_calls": 9,
+            "max_retries_per_task": 0,
+            "max_input_bytes_per_task": 64_000,
+            "max_output_bytes_per_task": 32_768,
+            "deadline_seconds": 270,
+            "max_claim_assessments_per_run": 4,
         },
         "observer_timeout_seconds_per_arm": 300,
         "pair_deadline_seconds": 660,
@@ -230,7 +238,10 @@ def _validate(tmp_path, value):
 def _current_source_identity():
     return subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-        check=True, capture_output=True, text=True, timeout=3,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=3,
     ).stdout.strip()
 
 
@@ -238,7 +249,8 @@ def _current_source_modules():
     source_dir = ROOT / "src/pr_review_harness"
     return {
         "pr_review_harness/" + path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(source_dir.glob("*.py")) if path.is_file() and not path.is_symlink()
+        for path in sorted(source_dir.glob("*.py"))
+        if path.is_file() and not path.is_symlink()
     }
 
 
@@ -307,13 +319,16 @@ def test_v2_receipt_rejects_source_inventory_above_bounded_count(tmp_path):
         receipt_validator.validate_receipt(path, source_root, "a" * 40)
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda row: row["runtime_module_hashes"].pop(next(iter(row["runtime_module_hashes"]))),
-    lambda row: row["runtime_module_hashes"].update({"pr_review_harness/extra.py": "a" * 64}),
-    lambda row: row["runtime_module_hashes"].update({next(iter(row["runtime_module_hashes"])): "a" * 64}),
-    lambda row: row.update(runtime_module_count=row["runtime_module_count"] + 1),
-    lambda row: row.update(runtime_source_commit="b" * 40),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda row: row["runtime_module_hashes"].pop(next(iter(row["runtime_module_hashes"]))),
+        lambda row: row["runtime_module_hashes"].update({"pr_review_harness/extra.py": "a" * 64}),
+        lambda row: row["runtime_module_hashes"].update({next(iter(row["runtime_module_hashes"])): "a" * 64}),
+        lambda row: row.update(runtime_module_count=row["runtime_module_count"] + 1),
+        lambda row: row.update(runtime_source_commit="b" * 40),
+    ],
+)
 def test_v2_receipt_rejects_incomplete_or_unbound_module_inventory(tmp_path, mutation):
     row = _valid_receipt(tmp_path)
     row["contract_version"] = "selected-control-transport-pair.v2"
@@ -346,21 +361,25 @@ def test_receipt_validator_accepts_source_bound_complete_pair(tmp_path):
         "https_trace_bytes": trace_bytes,
         "trace_bytes_delta_https_minus_http": 0,
         "trace_bytes_by_syscall_delta_https_minus_http": {
-            key: 0
-            for key in row["arms"][0]["trace_attribution"]["bytes_by_syscall"]
+            key: 0 for key in row["arms"][0]["trace_attribution"]["bytes_by_syscall"]
         },
     }
     assert _validate(tmp_path, row)["pair_state"] == "COMPLETE"
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda arm: arm.update(observer_coverage="INCOMPLETE", observer_reason="trace_byte_cap_exceeded"),
-    lambda arm: arm.update(primary_task_statuses=[{**task, "status": "INCOMPLETE"} for task in arm["primary_task_statuses"]]),
-    lambda arm: arm.update(coverage_state="PARTIAL"),
-    lambda arm: arm.update(claim_assessment_statuses=["PARTIAL"]),
-    lambda arm: arm.update(native_advisory_status="FAILED"),
-    lambda arm: arm.update(cli_result_present=False),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda arm: arm.update(observer_coverage="INCOMPLETE", observer_reason="trace_byte_cap_exceeded"),
+        lambda arm: arm.update(
+            primary_task_statuses=[{**task, "status": "INCOMPLETE"} for task in arm["primary_task_statuses"]]
+        ),
+        lambda arm: arm.update(coverage_state="PARTIAL"),
+        lambda arm: arm.update(claim_assessment_statuses=["PARTIAL"]),
+        lambda arm: arm.update(native_advisory_status="FAILED"),
+        lambda arm: arm.update(cli_result_present=False),
+    ],
+)
 def test_complete_pair_rejected_when_actual_completion_criteria_are_incomplete(tmp_path, mutation):
     row = _valid_receipt(tmp_path)
     row["pair_state"] = "COMPLETE"
@@ -386,13 +405,16 @@ def test_complete_pair_rejected_when_actual_completion_criteria_are_incomplete(t
         _validate(tmp_path, row)
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda row: row["comparison"].update(request_response_body_hashes_match=False),
-    lambda row: row["comparison"].update(input_identity_match=False),
-    lambda row: row["comparison"].update(trace_bytes_delta_https_minus_http=1),
-    lambda row: row["arms"][1]["transport_payload_hashes"]["native_claim"].update(request_sha256="0" * 64),
-    lambda row: row["arms"][1].update(snapshot_hash="0" * 64),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda row: row["comparison"].update(request_response_body_hashes_match=False),
+        lambda row: row["comparison"].update(input_identity_match=False),
+        lambda row: row["comparison"].update(trace_bytes_delta_https_minus_http=1),
+        lambda row: row["arms"][1]["transport_payload_hashes"]["native_claim"].update(request_sha256="0" * 64),
+        lambda row: row["arms"][1].update(snapshot_hash="0" * 64),
+    ],
+)
 def test_receipt_validator_never_accepts_complete_claim_with_mismatched_pair_evidence(tmp_path, mutation):
     row = _valid_receipt(tmp_path)
     row["pair_state"] = "COMPLETE"
@@ -417,13 +439,19 @@ def test_receipt_validator_never_accepts_complete_claim_with_mismatched_pair_evi
         _validate(tmp_path, row)
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda row: row.update(unreviewed_field="could contain arbitrary data"),
-    lambda row: row.update(runtime_source_commit="b" * 40),
-    lambda row: row.update(diagnostic_script_differs_from_head=True),
-    lambda row: row["arms"][1].update(secret="unexpected"),
-    lambda row: (row["arms"][0].update(state="INCOMPLETE"), row["arms"].__setitem__(1, _arm("HTTPS_LOOPBACK_FAKE", "COMPLETE"))),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda row: row.update(unreviewed_field="could contain arbitrary data"),
+        lambda row: row.update(runtime_source_commit="b" * 40),
+        lambda row: row.update(diagnostic_script_differs_from_head=True),
+        lambda row: row["arms"][1].update(secret="unexpected"),
+        lambda row: (
+            row["arms"][0].update(state="INCOMPLETE"),
+            row["arms"].__setitem__(1, _arm("HTTPS_LOOPBACK_FAKE", "COMPLETE")),
+        ),
+    ],
+)
 def test_receipt_validator_rejects_unknown_fields_and_source_or_pair_mismatch(tmp_path, mutation):
     row = _valid_receipt(tmp_path)
     mutation(row)
@@ -474,11 +502,16 @@ def test_not_observed_failure_receipt_is_bounded_and_does_not_infer_provider_cal
         "PROBE_OUTCOME": "skipped",
         "VALIDATION_EXIT_CODE": "1",
     }
-    (artifact_dir / "validation-status.json").write_text(json.dumps({
-        "contract_version": "transport-receipt-validation.v1",
-        "status": "REJECTED",
-        "rejection_code": "receipt_file_invalid",
-    }), encoding="utf-8")
+    (artifact_dir / "validation-status.json").write_text(
+        json.dumps(
+            {
+                "contract_version": "transport-receipt-validation.v1",
+                "status": "REJECTED",
+                "rejection_code": "receipt_file_invalid",
+            }
+        ),
+        encoding="utf-8",
+    )
     subprocess.run([sys.executable, "-c", source], check=True, env=env, timeout=5)
     receipt_path = artifact_dir / "transport-pair.json"
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -565,9 +598,7 @@ def test_only_accepted_diagnostic_and_successful_probe_can_mark_receipt_accepted
         "status": "ACCEPTED",
         "rejection_code": None,
     }
-    completed, outputs, receipt, _ = _run_safe_step(
-        tmp_path, json.dumps(status).encode(), validation_exit="0"
-    )
+    completed, outputs, receipt, _ = _run_safe_step(tmp_path, json.dumps(status).encode(), validation_exit="0")
     assert completed.returncode == 0
     assert outputs.splitlines() == ["safe=true", "accepted=true"]
     assert receipt is None
@@ -591,13 +622,23 @@ def test_validator_machine_diagnostic_is_finite_and_legacy_stdout_stays_generic(
 
 def test_unknown_validator_exception_is_sanitized_in_machine_diagnostic(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(
-        receipt_validator, "validate_receipt",
+        receipt_validator,
+        "validate_receipt",
         lambda *_args: (_ for _ in ()).throw(ValueError("sensitive exception payload")),
     )
-    assert receipt_validator.main([
-        str(tmp_path / "unused"), "--source-root", str(ROOT), "--expected-sha", "a" * 40,
-        "--diagnostic-json",
-    ]) == 1
+    assert (
+        receipt_validator.main(
+            [
+                str(tmp_path / "unused"),
+                "--source-root",
+                str(ROOT),
+                "--expected-sha",
+                "a" * 40,
+                "--diagnostic-json",
+            ]
+        )
+        == 1
+    )
     emitted = capsys.readouterr().out
     assert "sensitive" not in emitted
     assert json.loads(emitted)["rejection_code"] == "validator_internal_unknown"
@@ -671,16 +712,25 @@ def test_actual_installed_cli_transport_emitter_roundtrips_through_strict_valida
     script = ROOT / "scripts/selected_control_trace_attribution.py"
     completed = subprocess.run(
         [sys.executable, str(script), "--cli", cli, "--workdir", str(tmp_path), "--transport-pair"],
-        capture_output=True, timeout=660, check=False,
+        capture_output=True,
+        timeout=660,
+        check=False,
     )
     emitted = json.loads(completed.stdout)
     assert emitted.get("contract_version") == "selected-control-transport-pair.v2"
     assert emitted.get("pair_state") in {"COMPLETE", "INCOMPLETE"}
-    source_identity = subprocess.run(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        timeout=3, check=True,
-    ).stdout.decode("ascii").strip()
+    source_identity = (
+        subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+            check=True,
+        )
+        .stdout.decode("ascii")
+        .strip()
+    )
     assert re.fullmatch(r"[0-9a-f]{40}", source_identity)
     assert emitted.get("diagnostic_head_sha") == source_identity
     receipt_path = tmp_path / "transport-pair.json"
@@ -689,10 +739,16 @@ def test_actual_installed_cli_transport_emitter_roundtrips_through_strict_valida
         [
             sys.executable,
             str(ROOT / "scripts/validate_selected_control_transport_receipt.py"),
-            str(receipt_path), "--source-root", str(ROOT), "--expected-sha",
-            source_identity, "--diagnostic-json",
+            str(receipt_path),
+            "--source-root",
+            str(ROOT),
+            "--expected-sha",
+            source_identity,
+            "--diagnostic-json",
         ],
-        capture_output=True, timeout=5, check=False,
+        capture_output=True,
+        timeout=5,
+        check=False,
     )
     assert len(validation.stdout) <= 512
     result = json.loads(validation.stdout)
@@ -703,13 +759,18 @@ def test_actual_installed_cli_transport_emitter_roundtrips_through_strict_valida
     }, result.get("rejection_code")
     assert validation.returncode == 0
     assert completed.returncode == (0 if emitted["pair_state"] == "COMPLETE" else 2)
-    print(json.dumps({
-        "contract_version": "transport-roundtrip-regression.v1",
-        "trusted_source_sha": source_identity,
-        "validated_pair_state": emitted["pair_state"],
-        "emitter_cli_exit": completed.returncode,
-        "receipt_validation": result["status"],
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "contract_version": "transport-roundtrip-regression.v1",
+                "trusted_source_sha": source_identity,
+                "validated_pair_state": emitted["pair_state"],
+                "emitter_cli_exit": completed.returncode,
+                "receipt_validation": result["status"],
+            },
+            sort_keys=True,
+        )
+    )
 
 
 def test_workflow_always_uploads_safe_fallback_then_fails_when_receipt_was_rejected():
@@ -720,13 +781,15 @@ def test_workflow_always_uploads_safe_fallback_then_fails_when_receipt_was_rejec
     gate_block = workflow[gate_index:]
     assert "if: always() && steps.safe.outputs.safe == 'true'" in upload_block
     assert "if: always()" in gate_block
-    assert "RECEIPT_ACCEPTED" in gate_block and 'exit 1' in gate_block
+    assert "RECEIPT_ACCEPTED" in gate_block and "exit 1" in gate_block
     assert "PAIR_RECEIPT_REJECTED" in workflow and "VALIDATOR_OUTPUT_UNKNOWN" in workflow
     script = re.search(r"(?ms)        run: \|\n(?P<body>.*)$", gate_block)
     assert script is not None
     completed = subprocess.run(
         ["bash", "-c", textwrap.dedent(script.group("body"))],
-        env={**os.environ, "RECEIPT_ACCEPTED": "false"}, capture_output=True, timeout=5,
+        env={**os.environ, "RECEIPT_ACCEPTED": "false"},
+        capture_output=True,
+        timeout=5,
     )
     assert completed.returncode == 1
 
@@ -738,14 +801,16 @@ def test_workflow_reason_codes_match_the_validator_closed_allowlist():
     assert block is not None
     tree = ast.parse(textwrap.dedent(block.group("body")))
     assignment = next(
-        node for node in tree.body
-        if isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "validation_codes" for target in node.targets
-        )
+        node
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "validation_codes" for target in node.targets)
     )
     workflow_codes = ast.literal_eval(assignment.value)
     assert workflow_codes == receipt_validator.VALIDATION_DIAGNOSTIC_CODES | {
-        "receipt_json_invalid", "receipt_encoding_invalid", "receipt_io_error",
+        "receipt_json_invalid",
+        "receipt_encoding_invalid",
+        "receipt_io_error",
         "validator_internal_unknown",
     }
 
@@ -762,5 +827,8 @@ def test_secretless_ci_runs_opt_in_roundtrip_against_the_built_wheel():
     assert "--require-hashes --no-deps -r requirements-dev.lock" in job
     assert 'pip install --no-deps "$ROUNDTRIP_DIST"/*.whl' in job
     assert "RUN_INSTALLED_LOOPBACK_TRANSPORT_VALIDATOR_TEST: '1'" in job
-    assert "tests/test_selected_control_transport_receipt.py::test_actual_installed_cli_transport_emitter_roundtrips_through_strict_validator" in job
+    assert (
+        "tests/test_selected_control_transport_receipt.py::test_actual_installed_cli_transport_emitter_roundtrips_through_strict_validator"
+        in job
+    )
     assert "secrets." not in job and "GITHUB_TOKEN" not in job

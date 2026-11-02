@@ -19,9 +19,7 @@ from .source_audit import SOURCE_AUDIT_SERIALIZER_CANONICAL
 PLAN_SCHEMA = "pr457-current-source-capture-plan.v3"
 RECEIPT_SCHEMA = "pr457-current-source-capture-receipt.v3"
 SOURCE_AUDIT_SERIALIZER = SOURCE_AUDIT_SERIALIZER_CANONICAL
-SOURCE_WORKFLOW_REF = (
-    "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
-)
+SOURCE_WORKFLOW_REF = "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
 PLAN_FILENAME = "pr457-current-source-plan.json"
 RECEIPT_FILENAME = "pr457-current-source-receipt.json"
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -139,9 +137,11 @@ def installed_module_inventory() -> dict[str, str]:
                     descriptor = os.open(path, flags)
                     try:
                         opened = os.fstat(descriptor)
-                        if (not stat.S_ISREG(opened.st_mode)
-                                or (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino)
-                                or opened.st_size != info.st_size):
+                        if (
+                            not stat.S_ISREG(opened.st_mode)
+                            or (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino)
+                            or opened.st_size != info.st_size
+                        ):
                             raise CurrentSourceCaptureError("runtime_inventory_changed")
                         raw = bytearray()
                         while len(raw) <= MAX_RUNTIME_FILE_BYTES:
@@ -171,11 +171,20 @@ def module_inventory_sha256(inventory: dict[str, str]) -> str:
 
 
 def _validate_inventory_shape(inventory: Any) -> None:
-    if (not isinstance(inventory, dict) or not inventory or len(inventory) > MAX_RUNTIME_FILES
-            or any(not isinstance(path, str) or not path.startswith("pr_review_harness/")
-                   or len(path) > 240 or ".." in Path(path).parts
-                   or not isinstance(digest, str) or not SHA256.fullmatch(digest)
-                   for path, digest in inventory.items())):
+    if (
+        not isinstance(inventory, dict)
+        or not inventory
+        or len(inventory) > MAX_RUNTIME_FILES
+        or any(
+            not isinstance(path, str)
+            or not path.startswith("pr_review_harness/")
+            or len(path) > 240
+            or ".." in Path(path).parts
+            or not isinstance(digest, str)
+            or not SHA256.fullmatch(digest)
+            for path, digest in inventory.items()
+        )
+    ):
         raise CurrentSourceCaptureError("runtime_inventory_invalid")
     if len(_canonical(inventory)) > 100_000:
         raise CurrentSourceCaptureError("runtime_inventory_limit_exceeded")
@@ -189,29 +198,54 @@ def _requests(prepared: dict[str, Any]) -> list[dict[str, Any]]:
     result = []
     seen: set[str] = set()
     fields = {
-        "admitted", "context_omissions", "evidence_bindings", "evidence_ids", "input_bytes", "input_sha256",
-        "lens", "obligation_ids", "output_bytes_cap", "output_tokens_cap", "request_input_contract",
-        "required_context_ids", "required_context_omissions", "task_id", "unit_evidence_bindings", "unit_ids",
+        "admitted",
+        "context_omissions",
+        "evidence_bindings",
+        "evidence_ids",
+        "input_bytes",
+        "input_sha256",
+        "lens",
+        "obligation_ids",
+        "output_bytes_cap",
+        "output_tokens_cap",
+        "request_input_contract",
+        "required_context_ids",
+        "required_context_omissions",
+        "task_id",
+        "unit_evidence_bindings",
+        "unit_ids",
     }
     for row in rows:
         if not isinstance(row, dict) or set(row) != fields:
             raise CurrentSourceCaptureError("prepared_request_shape_invalid")
         task_id = row["task_id"]
         size = row["input_bytes"]
-        if (not isinstance(task_id, str) or task_id in seen or task_id not in expected
-                or row.get("lens") != expected[task_id]
-                or isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= LIMITS["writer_max_request_bytes"]
-                or not isinstance(row.get("input_sha256"), str) or not SHA256.fullmatch(row["input_sha256"])
-                or row.get("admitted") is not True
-                or row.get("output_bytes_cap") != LIMITS["writer_max_response_bytes"]
-                or row.get("output_tokens_cap") != LIMITS["writer_max_output_tokens"]):
+        if (
+            not isinstance(task_id, str)
+            or task_id in seen
+            or task_id not in expected
+            or row.get("lens") != expected[task_id]
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or not 1 <= size <= LIMITS["writer_max_request_bytes"]
+            or not isinstance(row.get("input_sha256"), str)
+            or not SHA256.fullmatch(row["input_sha256"])
+            or row.get("admitted") is not True
+            or row.get("output_bytes_cap") != LIMITS["writer_max_response_bytes"]
+            or row.get("output_tokens_cap") != LIMITS["writer_max_output_tokens"]
+        ):
             raise CurrentSourceCaptureError("prepared_request_invalid")
         seen.add(task_id)
-        result.append({
-            "task_id": task_id, "lens": row["lens"], "input_bytes": size,
-            "input_sha256": row["input_sha256"],
-            "output_bytes_cap": row["output_bytes_cap"], "output_tokens_cap": row["output_tokens_cap"],
-        })
+        result.append(
+            {
+                "task_id": task_id,
+                "lens": row["lens"],
+                "input_bytes": size,
+                "input_sha256": row["input_sha256"],
+                "output_bytes_cap": row["output_bytes_cap"],
+                "output_tokens_cap": row["output_tokens_cap"],
+            }
+        )
     if seen != set(expected):
         raise CurrentSourceCaptureError("prepared_task_inventory_mismatch")
     return sorted(result, key=lambda row: list(expected).index(row["task_id"]))
@@ -222,11 +256,15 @@ def _source_audit_requests(prepared: dict[str, Any]) -> list[dict[str, Any]]:
     preflight = capacity.get("source_audit_preflight") if isinstance(capacity, dict) else None
     rows = preflight.get("requests") if isinstance(preflight, dict) else None
     expected = _read_static_tasks()
-    if (not isinstance(preflight, dict)
-            or preflight.get("source_audit_serializer") != SOURCE_AUDIT_SERIALIZER
-            or preflight.get("active_input_limit_bytes") != LIMITS["audit_max_input_bytes_per_call"]
-            or preflight.get("status") != "ADMITTED" or preflight.get("request_count") != len(expected)
-            or not isinstance(rows, list) or len(rows) != len(expected)):
+    if (
+        not isinstance(preflight, dict)
+        or preflight.get("source_audit_serializer") != SOURCE_AUDIT_SERIALIZER
+        or preflight.get("active_input_limit_bytes") != LIMITS["audit_max_input_bytes_per_call"]
+        or preflight.get("status") != "ADMITTED"
+        or preflight.get("request_count") != len(expected)
+        or not isinstance(rows, list)
+        or len(rows) != len(expected)
+    ):
         raise CurrentSourceCaptureError("source_audit_preflight_missing")
     result = []
     seen: set[str] = set()
@@ -234,10 +272,19 @@ def _source_audit_requests(prepared: dict[str, Any]) -> list[dict[str, Any]]:
         size = row.get("input_bytes") if isinstance(row, dict) else None
         task_id = row.get("task_id") if isinstance(row, dict) else None
         digest = row.get("input_sha256") if isinstance(row, dict) else None
-        if (not isinstance(row, dict) or set(row) != {"task_id", "input_bytes", "input_sha256", "admitted"}
-                or not isinstance(task_id, str) or task_id not in expected or task_id in seen
-                or isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= LIMITS["audit_max_input_bytes_per_call"]
-                or not isinstance(digest, str) or not SHA256.fullmatch(digest) or row.get("admitted") is not True):
+        if (
+            not isinstance(row, dict)
+            or set(row) != {"task_id", "input_bytes", "input_sha256", "admitted"}
+            or not isinstance(task_id, str)
+            or task_id not in expected
+            or task_id in seen
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or not 1 <= size <= LIMITS["audit_max_input_bytes_per_call"]
+            or not isinstance(digest, str)
+            or not SHA256.fullmatch(digest)
+            or row.get("admitted") is not True
+        ):
             raise CurrentSourceCaptureError("source_audit_request_invalid")
         seen.add(task_id)
         result.append({"task_id": task_id, "input_bytes": size, "input_sha256": digest})
@@ -257,8 +304,12 @@ def _deterministic_check_tasks(prepared: dict[str, Any]) -> list[dict[str, Any]]
     obligations = scope.get("coverage_obligations") if isinstance(scope, dict) else None
     check_results = checks.get("check_results") if isinstance(checks, dict) else None
     evidence_index = snapshot.get("evidence_index") if isinstance(snapshot, dict) else None
-    if (not isinstance(scopes, list) or not isinstance(obligations, list)
-            or not isinstance(check_results, dict) or not isinstance(evidence_index, list)):
+    if (
+        not isinstance(scopes, list)
+        or not isinstance(obligations, list)
+        or not isinstance(check_results, dict)
+        or not isinstance(evidence_index, list)
+    ):
         raise CurrentSourceCaptureError("prepared_check_scope_missing")
     obligation_by_id = {}
     for row in obligations:
@@ -281,14 +332,14 @@ def _deterministic_check_tasks(prepared: dict[str, Any]) -> list[dict[str, Any]]
     if len(scopes) != len(TASK_LENSES) + len(CHECK_BINDINGS) or len(rows) != len(CHECK_BINDINGS):
         raise CurrentSourceCaptureError("prepared_check_task_inventory_mismatch")
     scope_ids = [row.get("task_id") if isinstance(row, dict) else None for row in scopes]
-    if (any(not isinstance(task_id, str) for task_id in scope_ids)
-            or len(set(scope_ids)) != len(scope_ids)):
+    if any(not isinstance(task_id, str) for task_id in scope_ids) or len(set(scope_ids)) != len(scope_ids):
         raise CurrentSourceCaptureError("prepared_task_scope_inventory_invalid")
     # The planner records logical specialist task IDs in scope, while request
     # serialization pins the engine's chunk-qualified IDs. Bind only the
     # known single-chunk form; do not accept arbitrary suffixes or extra tasks.
     specialist_scopes = {
-        row.get("task_id"): row for row in scopes
+        row.get("task_id"): row
+        for row in scopes
         if isinstance(row, dict) and row.get("task_kind") == "SPECIALIST_FINDINGS"
     }
     request_to_scope = {}
@@ -298,32 +349,39 @@ def _deterministic_check_tasks(prepared: dict[str, Any]) -> list[dict[str, Any]]
             raise CurrentSourceCaptureError("static_task_inventory_invalid")
         request_to_scope[task_id] = match.group(1)
     expected_scope_ids = set(request_to_scope.values())
-    if (len(specialist_scopes) != len(TASK_LENSES)
-            or set(specialist_scopes) != expected_scope_ids
-            or any(specialist_scopes[request_to_scope[task_id]].get("lens") != lens
-                   for task_id, lens in TASK_LENSES.items())):
+    if (
+        len(specialist_scopes) != len(TASK_LENSES)
+        or set(specialist_scopes) != expected_scope_ids
+        or any(
+            specialist_scopes[request_to_scope[task_id]].get("lens") != lens for task_id, lens in TASK_LENSES.items()
+        )
+    ):
         raise CurrentSourceCaptureError("prepared_primary_task_scope_mismatch")
-    request_by_id = {
-        row.get("task_id"): row for row in prepared.get("primary_requests", [])
-        if isinstance(row, dict)
-    }
+    request_by_id = {row.get("task_id"): row for row in prepared.get("primary_requests", []) if isinstance(row, dict)}
     for request_id, scope_id in request_to_scope.items():
         request = request_by_id.get(request_id)
         planned_scope = specialist_scopes[scope_id]
-        if (not isinstance(request, dict)
-                or request.get("unit_ids") != planned_scope.get("unit_ids")
-                or request.get("obligation_ids") != planned_scope.get("obligation_ids")
-                or not isinstance(request.get("evidence_ids"), list)
-                or not isinstance(planned_scope.get("evidence_ids"), list)
-                or sorted(request["evidence_ids"]) != sorted(planned_scope["evidence_ids"])):
+        if (
+            not isinstance(request, dict)
+            or request.get("unit_ids") != planned_scope.get("unit_ids")
+            or request.get("obligation_ids") != planned_scope.get("obligation_ids")
+            or not isinstance(request.get("evidence_ids"), list)
+            or not isinstance(planned_scope.get("evidence_ids"), list)
+            or sorted(request["evidence_ids"]) != sorted(planned_scope["evidence_ids"])
+        ):
             raise CurrentSourceCaptureError("prepared_primary_scope_binding_mismatch")
     result = []
     seen: set[str] = set()
     for row in rows:
         task_id = row.get("task_id")
         obligation_ids = row.get("obligation_ids")
-        if (not isinstance(task_id, str) or task_id in seen or not isinstance(obligation_ids, list)
-                or len(obligation_ids) != 1 or not isinstance(obligation_ids[0], str)):
+        if (
+            not isinstance(task_id, str)
+            or task_id in seen
+            or not isinstance(obligation_ids, list)
+            or len(obligation_ids) != 1
+            or not isinstance(obligation_ids[0], str)
+        ):
             raise CurrentSourceCaptureError("prepared_check_task_invalid")
         obligation_id = obligation_ids[0]
         configured = CHECK_BINDINGS.get(obligation_id)
@@ -331,18 +389,25 @@ def _deterministic_check_tasks(prepared: dict[str, Any]) -> list[dict[str, Any]]
         if configured is None or not isinstance(obligation, dict):
             raise CurrentSourceCaptureError("prepared_check_obligation_mismatch")
         check_id, binding_id = configured
-        if (obligation.get("obligation_kind") != "PROJECT_CHECK" or obligation.get("required") is not True
-                or obligation.get("check_binding_id") != binding_id
-                or row.get("lens") != "project_specific"
-                or row.get("unit_ids") != obligation.get("scope_unit_ids")
-                or row.get("evidence_ids") != [] or row.get("required_context_ids") != []):
+        if (
+            obligation.get("obligation_kind") != "PROJECT_CHECK"
+            or obligation.get("required") is not True
+            or obligation.get("check_binding_id") != binding_id
+            or row.get("lens") != "project_specific"
+            or row.get("unit_ids") != obligation.get("scope_unit_ids")
+            or row.get("evidence_ids") != []
+            or row.get("required_context_ids") != []
+        ):
             raise CurrentSourceCaptureError("prepared_check_scope_mismatch")
         current_source_input_hash = row.get("current_source_input_hash")
         if not isinstance(current_source_input_hash, str) or not SHA256.fullmatch(current_source_input_hash):
             raise CurrentSourceCaptureError("prepared_check_input_hash_missing")
-        expected_task_id = "task-" + hashlib.sha256(
-            _canonical({"snapshot": snapshot["snapshot_id"], "obligation": obligation_id})
-        ).hexdigest()[:16]
+        expected_task_id = (
+            "task-"
+            + hashlib.sha256(
+                _canonical({"snapshot": snapshot["snapshot_id"], "obligation": obligation_id})
+            ).hexdigest()[:16]
+        )
         if task_id != expected_task_id:
             raise CurrentSourceCaptureError("prepared_check_task_identity_mismatch")
         check_result = check_results.get(binding_id)
@@ -354,39 +419,57 @@ def _deterministic_check_tasks(prepared: dict[str, Any]) -> list[dict[str, Any]]
             if not isinstance(evidence_id, str):
                 raise CurrentSourceCaptureError("prepared_check_evidence_mismatch")
             evidence = evidence_by_id.get(evidence_id)
-            if (not isinstance(evidence, dict)
-                    or evidence.get("source_kind") != "github_check_run"
-                    or evidence.get("trust") != "generated_result"
-                    or not isinstance(evidence.get("content_hash"), str)
-                    or not SHA256.fullmatch(evidence["content_hash"])
-                    or evidence_id != "check-" + evidence["content_hash"][:24]):
+            if (
+                not isinstance(evidence, dict)
+                or evidence.get("source_kind") != "github_check_run"
+                or evidence.get("trust") != "generated_result"
+                or not isinstance(evidence.get("content_hash"), str)
+                or not SHA256.fullmatch(evidence["content_hash"])
+                or evidence_id != "check-" + evidence["content_hash"][:24]
+            ):
                 raise CurrentSourceCaptureError("prepared_check_evidence_mismatch")
         elif check_result.get("outcome") in {"PASS", "FINDINGS"}:
             raise CurrentSourceCaptureError("prepared_check_evidence_missing")
-        result.append({
-            "task_id": task_id, "task_kind": "DETERMINISTIC_CHECK", "lens": "project_specific",
-            "obligation_id": obligation_id, "check_id": check_id, "check_binding_id": binding_id,
-            "unit_ids": list(row["unit_ids"]), "evidence_ids": [],
-            "expected_outcome": check_result["outcome"], "expected_evidence_id": evidence_id,
-            "expected_input_hash": current_source_input_hash,
-        })
+        result.append(
+            {
+                "task_id": task_id,
+                "task_kind": "DETERMINISTIC_CHECK",
+                "lens": "project_specific",
+                "obligation_id": obligation_id,
+                "check_id": check_id,
+                "check_binding_id": binding_id,
+                "unit_ids": list(row["unit_ids"]),
+                "evidence_ids": [],
+                "expected_outcome": check_result["outcome"],
+                "expected_evidence_id": evidence_id,
+                "expected_input_hash": current_source_input_hash,
+            }
+        )
         seen.add(task_id)
     if {row["obligation_id"] for row in result} != set(CHECK_BINDINGS):
         raise CurrentSourceCaptureError("prepared_check_task_inventory_mismatch")
     return sorted(result, key=lambda row: row["obligation_id"])
 
 
-def create_plan(prepared: dict[str, Any], *, source_sha: str, module_inventory: dict[str, str], prepared_raw: bytes) -> tuple[dict[str, Any], dict[str, Any]]:
+def create_plan(
+    prepared: dict[str, Any], *, source_sha: str, module_inventory: dict[str, str], prepared_raw: bytes
+) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(source_sha, str) or not SHA40.fullmatch(source_sha):
         raise CurrentSourceCaptureError("source_revision_invalid")
-    if (not isinstance(prepared, dict) or prepared.get("status") != "PREPARED_ONLY"
-            or prepared.get("no_provider_calls") is not True
-            or prepared.get("no_target_code_execution") is not True
-            or prepared.get("disposition") is not None):
+    if (
+        not isinstance(prepared, dict)
+        or prepared.get("status") != "PREPARED_ONLY"
+        or prepared.get("no_provider_calls") is not True
+        or prepared.get("no_target_code_execution") is not True
+        or prepared.get("disposition") is not None
+    ):
         raise CurrentSourceCaptureError("prepared_state_invalid")
     try:
-        parsed_raw = json.loads(prepared_raw.decode("utf-8"), object_pairs_hook=_unique_pairs,
-                                parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("invalid_constant")))
+        parsed_raw = json.loads(
+            prepared_raw.decode("utf-8"),
+            object_pairs_hook=_unique_pairs,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("invalid_constant")),
+        )
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError):
         raise CurrentSourceCaptureError("prepared_input_invalid") from None
     if parsed_raw != prepared:
@@ -397,10 +480,13 @@ def create_plan(prepared: dict[str, Any], *, source_sha: str, module_inventory: 
     if not isinstance(snapshot, dict) or not isinstance(checks, dict) or not isinstance(scope, dict):
         raise CurrentSourceCaptureError("prepared_identity_missing")
     expected_snapshot = {
-        "base_sha": TARGET["base_sha"], "head_sha": TARGET["head_sha"],
-        "snapshot_id": TARGET["snapshot_id"], "snapshot_hash": TARGET["snapshot_sha256"],
+        "base_sha": TARGET["base_sha"],
+        "head_sha": TARGET["head_sha"],
+        "snapshot_id": TARGET["snapshot_id"],
+        "snapshot_hash": TARGET["snapshot_sha256"],
         "evidence_index_sha256": TARGET["evidence_index_sha256"],
-        "profile_version": TARGET["profile_version"], "profile_file_sha256": TARGET["profile_file_sha256"],
+        "profile_version": TARGET["profile_version"],
+        "profile_file_sha256": TARGET["profile_file_sha256"],
         "provider_identity_sha256": None,
     }
     identity_sha = snapshot.get("provider_identity_sha256")
@@ -411,43 +497,70 @@ def create_plan(prepared: dict[str, Any], *, source_sha: str, module_inventory: 
         raise CurrentSourceCaptureError("prepared_snapshot_mismatch")
     hist = checks.get("historical_check_identity")
     obligations = scope.get("coverage_obligations")
-    if (checks.get("check_evidence_hash") != TARGET["check_evidence_sha256"]
-            or not isinstance(hist, dict) or hist.get("check_document_sha256") != TARGET["historical_checks_sha256"]
-            or not isinstance(obligations, list) or len(obligations) != TARGET["scope_obligations"]):
+    if (
+        checks.get("check_evidence_hash") != TARGET["check_evidence_sha256"]
+        or not isinstance(hist, dict)
+        or hist.get("check_document_sha256") != TARGET["historical_checks_sha256"]
+        or not isinstance(obligations, list)
+        or len(obligations) != TARGET["scope_obligations"]
+    ):
         raise CurrentSourceCaptureError("prepared_checks_or_scope_mismatch")
     requests = _requests(prepared)
     source_requests = _source_audit_requests(prepared)
     check_tasks = _deterministic_check_tasks(prepared)
     capacity = prepared["capacity"]
-    if (capacity.get("exact_primary_call_demand") != len(requests)
-            or capacity.get("exact_primary_serialized_input_bytes") != sum(row["input_bytes"] for row in requests)
-            or capacity.get("configured_max_provider_calls") != LIMITS["writer_max_provider_calls"]
-            or capacity.get("configured_max_input_bytes_per_task") != LIMITS["writer_max_request_bytes"]):
+    if (
+        capacity.get("exact_primary_call_demand") != len(requests)
+        or capacity.get("exact_primary_serialized_input_bytes") != sum(row["input_bytes"] for row in requests)
+        or capacity.get("configured_max_provider_calls") != LIMITS["writer_max_provider_calls"]
+        or capacity.get("configured_max_input_bytes_per_task") != LIMITS["writer_max_request_bytes"]
+    ):
         raise CurrentSourceCaptureError("prepared_capacity_mismatch")
     _validate_inventory_shape(module_inventory)
     plan = {
-        "schema": PLAN_SCHEMA, "source_sha": source_sha, "target": TARGET,
+        "schema": PLAN_SCHEMA,
+        "source_sha": source_sha,
+        "target": TARGET,
         "provider_identity_sha256": identity_sha,
         "source_audit_serializer": SOURCE_AUDIT_SERIALIZER,
-        "runtime": {"fingerprint_kind": "installed_source_resource_files.v1",
-                    "module_count": len(module_inventory), "module_inventory_sha256": module_inventory_sha256(module_inventory),
-                    "module_sha256": module_inventory},
-        "limits": LIMITS, "writer_requests": requests, "source_audit_requests": source_requests,
+        "runtime": {
+            "fingerprint_kind": "installed_source_resource_files.v1",
+            "module_count": len(module_inventory),
+            "module_inventory_sha256": module_inventory_sha256(module_inventory),
+            "module_sha256": module_inventory,
+        },
+        "limits": LIMITS,
+        "writer_requests": requests,
+        "source_audit_requests": source_requests,
         "deterministic_check_tasks": check_tasks,
     }
     receipt = {
-        "schema": RECEIPT_SCHEMA, "source_sha": source_sha,
-        "plan_sha256": _sha(_canonical(plan)), "prepared_sha256": _sha(prepared_raw),
+        "schema": RECEIPT_SCHEMA,
+        "source_sha": source_sha,
+        "plan_sha256": _sha(_canonical(plan)),
+        "prepared_sha256": _sha(prepared_raw),
         "provider_identity_sha256": expected_snapshot["provider_identity_sha256"],
-        "provider_calls": 0, "target_code_execution": False, "publication_enabled": False,
+        "provider_calls": 0,
+        "target_code_execution": False,
+        "publication_enabled": False,
     }
     return plan, receipt
 
 
-def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory: dict[str, str]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+def validate_plan(
+    plan: Any, receipt: Any, *, source_sha: str, module_inventory: dict[str, str]
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     if not isinstance(plan, dict) or set(plan) != {
-        "schema", "source_sha", "target", "provider_identity_sha256", "runtime", "limits", "writer_requests",
-        "source_audit_serializer", "source_audit_requests", "deterministic_check_tasks",
+        "schema",
+        "source_sha",
+        "target",
+        "provider_identity_sha256",
+        "runtime",
+        "limits",
+        "writer_requests",
+        "source_audit_serializer",
+        "source_audit_requests",
+        "deterministic_check_tasks",
     }:
         raise CurrentSourceCaptureError("plan_shape_invalid")
     if plan.get("schema") != PLAN_SCHEMA or plan.get("source_sha") != source_sha or not SHA40.fullmatch(source_sha):
@@ -462,11 +575,14 @@ def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory:
     if plan.get("provider_identity_sha256") != expected_identity:
         raise CurrentSourceCaptureError("plan_provider_identity_mismatch")
     runtime = plan.get("runtime")
-    if (not isinstance(runtime, dict) or set(runtime) != {"fingerprint_kind", "module_count", "module_inventory_sha256", "module_sha256"}
-            or runtime.get("fingerprint_kind") != "installed_source_resource_files.v1"
-            or runtime.get("module_sha256") != module_inventory
-            or runtime.get("module_count") != len(module_inventory)
-            or runtime.get("module_inventory_sha256") != module_inventory_sha256(module_inventory)):
+    if (
+        not isinstance(runtime, dict)
+        or set(runtime) != {"fingerprint_kind", "module_count", "module_inventory_sha256", "module_sha256"}
+        or runtime.get("fingerprint_kind") != "installed_source_resource_files.v1"
+        or runtime.get("module_sha256") != module_inventory
+        or runtime.get("module_count") != len(module_inventory)
+        or runtime.get("module_inventory_sha256") != module_inventory_sha256(module_inventory)
+    ):
         raise CurrentSourceCaptureError("plan_runtime_mismatch")
     request_rows = plan.get("writer_requests")
     if not isinstance(request_rows, list) or len(request_rows) != LIMITS["writer_exact_call_count"]:
@@ -475,17 +591,29 @@ def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory:
     expected = _read_static_tasks()
     for row in request_rows:
         if not isinstance(row, dict) or set(row) != {
-            "task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap",
+            "task_id",
+            "lens",
+            "input_bytes",
+            "input_sha256",
+            "output_bytes_cap",
+            "output_tokens_cap",
         }:
             raise CurrentSourceCaptureError("plan_request_shape_invalid")
         task_id = row.get("task_id")
         size = row.get("input_bytes")
-        if (not isinstance(task_id, str) or task_id in pins or task_id not in expected
-                or row.get("lens") != expected[task_id]
-                or isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= LIMITS["writer_max_request_bytes"]
-                or not isinstance(row.get("input_sha256"), str) or not SHA256.fullmatch(row["input_sha256"])
-                or row.get("output_bytes_cap") != LIMITS["writer_max_response_bytes"]
-                or row.get("output_tokens_cap") != LIMITS["writer_max_output_tokens"]):
+        if (
+            not isinstance(task_id, str)
+            or task_id in pins
+            or task_id not in expected
+            or row.get("lens") != expected[task_id]
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or not 1 <= size <= LIMITS["writer_max_request_bytes"]
+            or not isinstance(row.get("input_sha256"), str)
+            or not SHA256.fullmatch(row["input_sha256"])
+            or row.get("output_bytes_cap") != LIMITS["writer_max_response_bytes"]
+            or row.get("output_tokens_cap") != LIMITS["writer_max_output_tokens"]
+        ):
             raise CurrentSourceCaptureError("plan_request_invalid")
         pins[task_id] = dict(row)
     if set(pins) != set(expected):
@@ -498,19 +626,43 @@ def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory:
         if not isinstance(row, dict) or set(row) != {"task_id", "input_bytes", "input_sha256"}:
             raise CurrentSourceCaptureError("plan_source_audit_shape_invalid")
         task_id, size, digest = row["task_id"], row["input_bytes"], row["input_sha256"]
-        if (not isinstance(task_id, str) or task_id not in expected or task_id in source_pins
-                or isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= LIMITS["audit_max_input_bytes_per_call"]
-                or not isinstance(digest, str) or not SHA256.fullmatch(digest)):
+        if (
+            not isinstance(task_id, str)
+            or task_id not in expected
+            or task_id in source_pins
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or not 1 <= size <= LIMITS["audit_max_input_bytes_per_call"]
+            or not isinstance(digest, str)
+            or not SHA256.fullmatch(digest)
+        ):
             raise CurrentSourceCaptureError("plan_source_audit_invalid")
         source_pins[task_id] = dict(row)
     if set(source_pins) != set(expected):
         raise CurrentSourceCaptureError("plan_source_audit_inventory_mismatch")
     check_tasks = plan.get("deterministic_check_tasks")
-    if (not isinstance(check_tasks, list) or len(check_tasks) != len(CHECK_BINDINGS)
-            or any(not isinstance(row, dict) or set(row) != {
-                "task_id", "task_kind", "lens", "obligation_id", "check_id", "check_binding_id",
-                "unit_ids", "evidence_ids", "expected_outcome", "expected_evidence_id", "expected_input_hash",
-            } for row in check_tasks)):
+    if (
+        not isinstance(check_tasks, list)
+        or len(check_tasks) != len(CHECK_BINDINGS)
+        or any(
+            not isinstance(row, dict)
+            or set(row)
+            != {
+                "task_id",
+                "task_kind",
+                "lens",
+                "obligation_id",
+                "check_id",
+                "check_binding_id",
+                "unit_ids",
+                "evidence_ids",
+                "expected_outcome",
+                "expected_evidence_id",
+                "expected_input_hash",
+            }
+            for row in check_tasks
+        )
+    ):
         raise CurrentSourceCaptureError("plan_check_task_inventory_invalid")
     check_ids = set()
     for row in check_tasks:
@@ -519,23 +671,36 @@ def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory:
         if not isinstance(task_id, str) or not isinstance(obligation_id, str):
             raise CurrentSourceCaptureError("plan_check_task_invalid")
         configured = CHECK_BINDINGS.get(obligation_id)
-        expected_task_id = "task-" + hashlib.sha256(
-            _canonical({"snapshot": TARGET["snapshot_id"], "obligation": obligation_id})
-        ).hexdigest()[:16]
-        if (configured is None or row.get("task_kind") != "DETERMINISTIC_CHECK"
-                or task_id != expected_task_id or task_id in pins
-                or row.get("check_id") != configured[0] or row.get("check_binding_id") != configured[1]
-                or row.get("lens") != "project_specific" or row.get("evidence_ids") != []
-                or row.get("unit_ids") != list(CHECK_SCOPE_UNITS)
-                or any(not isinstance(unit, str) for unit in row["unit_ids"])
-                or len(set(row["unit_ids"])) != len(row["unit_ids"])
-                or not isinstance(row.get("expected_outcome"), str)
-                or row.get("expected_outcome") not in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}
-                or not isinstance(row.get("expected_input_hash"), str)
-                or not SHA256.fullmatch(row["expected_input_hash"])
-                or (row.get("expected_evidence_id") is not None and
-                    (not isinstance(row["expected_evidence_id"], str)
-                     or not re.fullmatch(r"check-[0-9a-f]{24}", row["expected_evidence_id"])))):
+        expected_task_id = (
+            "task-"
+            + hashlib.sha256(_canonical({"snapshot": TARGET["snapshot_id"], "obligation": obligation_id})).hexdigest()[
+                :16
+            ]
+        )
+        if (
+            configured is None
+            or row.get("task_kind") != "DETERMINISTIC_CHECK"
+            or task_id != expected_task_id
+            or task_id in pins
+            or row.get("check_id") != configured[0]
+            or row.get("check_binding_id") != configured[1]
+            or row.get("lens") != "project_specific"
+            or row.get("evidence_ids") != []
+            or row.get("unit_ids") != list(CHECK_SCOPE_UNITS)
+            or any(not isinstance(unit, str) for unit in row["unit_ids"])
+            or len(set(row["unit_ids"])) != len(row["unit_ids"])
+            or not isinstance(row.get("expected_outcome"), str)
+            or row.get("expected_outcome") not in {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}
+            or not isinstance(row.get("expected_input_hash"), str)
+            or not SHA256.fullmatch(row["expected_input_hash"])
+            or (
+                row.get("expected_evidence_id") is not None
+                and (
+                    not isinstance(row["expected_evidence_id"], str)
+                    or not re.fullmatch(r"check-[0-9a-f]{24}", row["expected_evidence_id"])
+                )
+            )
+        ):
             raise CurrentSourceCaptureError("plan_check_task_invalid")
         if row["expected_outcome"] in {"PASS", "FINDINGS"} and row["expected_evidence_id"] is None:
             raise CurrentSourceCaptureError("plan_check_evidence_missing")
@@ -545,23 +710,38 @@ def validate_plan(plan: Any, receipt: Any, *, source_sha: str, module_inventory:
     if check_ids != set(CHECK_BINDINGS):
         raise CurrentSourceCaptureError("plan_check_task_inventory_mismatch")
     if not isinstance(receipt, dict) or set(receipt) != {
-        "schema", "source_sha", "plan_sha256", "prepared_sha256", "provider_identity_sha256",
-        "provider_calls", "target_code_execution", "publication_enabled",
+        "schema",
+        "source_sha",
+        "plan_sha256",
+        "prepared_sha256",
+        "provider_identity_sha256",
+        "provider_calls",
+        "target_code_execution",
+        "publication_enabled",
     }:
         raise CurrentSourceCaptureError("receipt_shape_invalid")
     provider_calls = receipt.get("provider_calls")
-    if (receipt.get("schema") != RECEIPT_SCHEMA or receipt.get("source_sha") != source_sha
-            or receipt.get("plan_sha256") != _sha(_canonical(plan))
-            or not isinstance(receipt.get("prepared_sha256"), str) or not SHA256.fullmatch(receipt["prepared_sha256"])
-            or receipt.get("provider_identity_sha256") != expected_identity
-            or isinstance(provider_calls, bool) or not isinstance(provider_calls, int) or provider_calls != 0
-            or receipt.get("target_code_execution") is not False
-            or receipt.get("publication_enabled") is not False):
+    if (
+        receipt.get("schema") != RECEIPT_SCHEMA
+        or receipt.get("source_sha") != source_sha
+        or receipt.get("plan_sha256") != _sha(_canonical(plan))
+        or not isinstance(receipt.get("prepared_sha256"), str)
+        or not SHA256.fullmatch(receipt["prepared_sha256"])
+        or receipt.get("provider_identity_sha256") != expected_identity
+        or isinstance(provider_calls, bool)
+        or not isinstance(provider_calls, int)
+        or provider_calls != 0
+        or receipt.get("target_code_execution") is not False
+        or receipt.get("publication_enabled") is not False
+    ):
         raise CurrentSourceCaptureError("receipt_binding_invalid")
-    return pins, {"case_id": "PR-457", "snapshot_id": TARGET["snapshot_id"],
-                  "snapshot_sha256": TARGET["snapshot_sha256"],
-                  "audit_max_input_bytes_per_call": LIMITS["audit_max_input_bytes_per_call"],
-                  "source_audit_serializer": SOURCE_AUDIT_SERIALIZER,
-                  "provider_identity_sha256": expected_identity,
-                  "source_audit_requests": source_pins,
-                  "deterministic_check_tasks": {row["task_id"]: row for row in check_tasks}}
+    return pins, {
+        "case_id": "PR-457",
+        "snapshot_id": TARGET["snapshot_id"],
+        "snapshot_sha256": TARGET["snapshot_sha256"],
+        "audit_max_input_bytes_per_call": LIMITS["audit_max_input_bytes_per_call"],
+        "source_audit_serializer": SOURCE_AUDIT_SERIALIZER,
+        "provider_identity_sha256": expected_identity,
+        "source_audit_requests": source_pins,
+        "deterministic_check_tasks": {row["task_id"]: row for row in check_tasks},
+    }

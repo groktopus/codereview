@@ -167,10 +167,23 @@ def _read_stage_records(stage_file, forbidden=()):
     assert len(lines) <= 32
     records = [json.loads(line) for line in lines]
     allowed = {
-        "preload_loaded", "spawn_called", "spawn_threw", "child_spawn", "child_error",
-        "child_exit", "child_close", "stdout_data", "stdout_end", "stdout_close",
-        "timer_scheduled", "timer_fired", "timer_cleared", "before_exit", "process_exit",
-        "uncaught_exception", "unknown_stage",
+        "preload_loaded",
+        "spawn_called",
+        "spawn_threw",
+        "child_spawn",
+        "child_error",
+        "child_exit",
+        "child_close",
+        "stdout_data",
+        "stdout_end",
+        "stdout_close",
+        "timer_scheduled",
+        "timer_fired",
+        "timer_cleared",
+        "before_exit",
+        "process_exit",
+        "uncaught_exception",
+        "unknown_stage",
     }
     for record in records:
         assert {"stage", "elapsed_ms"} <= set(record)
@@ -180,9 +193,7 @@ def _read_stage_records(stage_file, forbidden=()):
         assert isinstance(elapsed, (int, float)) and not isinstance(elapsed, bool)
         assert math.isfinite(elapsed) and 0 <= elapsed <= 1e9
         assert all(
-            isinstance(record[key], int)
-            and not isinstance(record[key], bool)
-            and 0 <= record[key] <= 2147483647
+            isinstance(record[key], int) and not isinstance(record[key], bool) and 0 <= record[key] <= 2147483647
             for key in ("byte_count", "delay_ms")
             if key in record
         )
@@ -279,18 +290,37 @@ def test_node_action_passes_runtime_credentials_only_to_bounded_python_child(tmp
     except subprocess.TimeoutExpired:
         records = _read_stage_records(
             stage_file,
-            ("read-token", "runtime-token", "must-not-enter-python-child", "must-not-authorize-writer", env["CANARY_TEST_SENTINEL"]),
+            (
+                "read-token",
+                "runtime-token",
+                "must-not-enter-python-child",
+                "must-not-authorize-writer",
+                env["CANARY_TEST_SENTINEL"],
+            ),
         )
         raise AssertionError(f"outer_harness_process_timeout; sanitized_stage_records={records!r}") from None
     records = _read_stage_records(
         stage_file,
-        ("read-token", "runtime-token", "must-not-enter-python-child", "must-not-authorize-writer", env["CANARY_TEST_SENTINEL"]),
+        (
+            "read-token",
+            "runtime-token",
+            "must-not-enter-python-child",
+            "must-not-authorize-writer",
+            env["CANARY_TEST_SENTINEL"],
+        ),
     )
     assert records and records[0]["stage"] == "preload_loaded"
     stages = {record["stage"] for record in records}
     assert {
-        "spawn_called", "child_spawn", "stdout_data", "stdout_end", "child_exit",
-        "child_close", "timer_scheduled", "timer_cleared", "process_exit",
+        "spawn_called",
+        "child_spawn",
+        "stdout_data",
+        "stdout_end",
+        "child_exit",
+        "child_close",
+        "timer_scheduled",
+        "timer_cleared",
+        "process_exit",
     } <= stages
     assert completed.returncode == 0
     assert json.loads(completed.stdout) == {

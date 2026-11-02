@@ -11,9 +11,7 @@ from pr_review_harness.providers import OpenAIProvider
 
 
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, text=True, stdout=subprocess.PIPE
-    ).stdout.strip()
+    return subprocess.run(["git", "-C", str(repo), *args], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
 
 
 def _repo(tmp_path: Path) -> tuple[Path, str, str]:
@@ -122,10 +120,16 @@ def test_prepare_only_cli_returns_scope_and_exact_sizes_without_key_or_artifact(
     monkeypatch.delenv("PREPARE_ONLY_ABSENT_KEY", raising=False)
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     decision_config = tmp_path / "decision.json"
-    decision_config.write_text(json.dumps({
-        "kind": "typesafe", "endpoint": "https://api.typesafe.ai/v1/systemone",
-        "model": "jev-latest", "api_key_env": "JEV_API_KEY",
-    }))
+    decision_config.write_text(
+        json.dumps(
+            {
+                "kind": "typesafe",
+                "endpoint": "https://api.typesafe.ai/v1/systemone",
+                "model": "jev-latest",
+                "api_key_env": "JEV_API_KEY",
+            }
+        )
+    )
     output_dir = tmp_path / "out"
 
     class GuardedEnv(dict):
@@ -146,10 +150,25 @@ def test_prepare_only_cli_returns_scope_and_exact_sizes_without_key_or_artifact(
     monkeypatch.setattr("pr_review_harness.claim_transport._HTTP_OPENER", NoTransport())
     code = cli.main(
         [
-            "review", "--repo", str(repo), "--base", base, "--head", head,
-            "--profile", str(profile), "--provider-config", str(provider_config),
-            "--decision-config", str(decision_config), "--max-claim-assessments", "4",
-            "--output", str(output_dir), "--prepare-only", "--json",
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--provider-config",
+            str(provider_config),
+            "--decision-config",
+            str(decision_config),
+            "--max-claim-assessments",
+            "4",
+            "--output",
+            str(output_dir),
+            "--prepare-only",
+            "--json",
         ]
     )
     assert code == 0
@@ -160,15 +179,23 @@ def test_prepare_only_cli_returns_scope_and_exact_sizes_without_key_or_artifact(
     assert result["no_target_code_execution"] is True
     assert result["primary_requests"]
     assert all(request["admitted"] for request in result["primary_requests"])
-    assert all(request["input_bytes"] > 0 and len(request["input_sha256"]) == 64 for request in result["primary_requests"])
+    assert all(
+        request["input_bytes"] > 0 and len(request["input_sha256"]) == 64 for request in result["primary_requests"]
+    )
     capacity = result["capacity"]
     assert capacity["semantic_adjudication_supported_by_primary_provider"] is True
     assert capacity["candidate_count_for_semantic_adjudication"] == "UNKNOWN_UNTIL_PRIMARY_RESULTS"
-    assert capacity["candidate_adjudication_candidate_upper_bound_before_call_cap"] >= capacity["exact_primary_call_demand"]
+    assert (
+        capacity["candidate_adjudication_candidate_upper_bound_before_call_cap"]
+        >= capacity["exact_primary_call_demand"]
+    )
     assert capacity["remaining_global_call_slots_after_primary"] == max(
         0, capacity["configured_max_provider_calls"] - capacity["exact_primary_call_demand"]
     )
-    assert capacity["max_semantic_adjudication_calls_if_no_other_stage_uses_remaining_slots"] <= capacity["remaining_global_call_slots_after_primary"]
+    assert (
+        capacity["max_semantic_adjudication_calls_if_no_other_stage_uses_remaining_slots"]
+        <= capacity["remaining_global_call_slots_after_primary"]
+    )
     assert capacity["runtime_call_demand"] == "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION"
     assert capacity["fits_call_cap"] is None
     assert not output_dir.exists()
@@ -182,8 +209,12 @@ def test_codereview_profile_prepare_only_uses_required_native_claim_cap_without_
 
     def git(*args):
         return subprocess.run(
-            ["git", "-C", str(repo), *args], check=True, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10,
+            ["git", "-C", str(repo), *args],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
         ).stdout.strip()
 
     git("config", "user.email", "prepare@example.invalid")
@@ -206,8 +237,21 @@ def test_codereview_profile_prepare_only_uses_required_native_claim_cap_without_
         path.write_text(content, encoding="utf-8")
     git("add", ".")
     subprocess.run(
-        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "base"],
-        check=True, capture_output=True, timeout=10,
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "-m",
+            "base",
+        ],
+        check=True,
+        capture_output=True,
+        timeout=10,
     )
     base = git("rev-parse", "HEAD")
     (repo / "src/pr_review_harness/engine.py").write_text(
@@ -218,22 +262,47 @@ def test_codereview_profile_prepare_only_uses_required_native_claim_cap_without_
     )
     git("add", "src/pr_review_harness/engine.py", "tests/test_engine.py")
     subprocess.run(
-        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "head"],
-        check=True, capture_output=True, timeout=10,
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "-m",
+            "head",
+        ],
+        check=True,
+        capture_output=True,
+        timeout=10,
     )
     head = git("rev-parse", "HEAD")
 
     root = Path(__file__).parents[1]
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
-        "model": "provider-free-prepare-placeholder", "api_key_env": "CODE_REVIEW_PREPARE_ABSENT_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://example.invalid/v1",
+                "model": "provider-free-prepare-placeholder",
+                "api_key_env": "CODE_REVIEW_PREPARE_ABSENT_KEY",
+            }
+        )
+    )
     decision_config = tmp_path / "decision.json"
-    decision_config.write_text(json.dumps({
-        "kind": "typesafe", "endpoint": "https://decision-placeholder.example.invalid/v1/systemone",
-        "model": "jev-latest", "api_key_env": "CODE_REVIEW_JEV_ABSENT_KEY",
-    }))
+    decision_config.write_text(
+        json.dumps(
+            {
+                "kind": "typesafe",
+                "endpoint": "https://decision-placeholder.example.invalid/v1/systemone",
+                "model": "jev-latest",
+                "api_key_env": "CODE_REVIEW_JEV_ABSENT_KEY",
+            }
+        )
+    )
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("CODE_REVIEW_PREPARE_ABSENT_KEY", raising=False)
     monkeypatch.delenv("CODE_REVIEW_JEV_ABSENT_KEY", raising=False)
@@ -244,13 +313,29 @@ def test_codereview_profile_prepare_only_uses_required_native_claim_cap_without_
 
     monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", NoTransport())
     monkeypatch.setattr("pr_review_harness.claim_transport._HTTP_OPENER", NoTransport())
-    code = cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(root / "profiles/codereview-native-v1-candidate.json"),
-        "--provider-config", str(provider_config), "--decision-config", str(decision_config),
-        "--limits", str(root / "profiles/ordinary-review-limits-v3.json"),
-        "--max-claim-assessments", "4", "--prepare-only", "--json",
-    ])
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(root / "profiles/codereview-native-v1-candidate.json"),
+            "--provider-config",
+            str(provider_config),
+            "--decision-config",
+            str(decision_config),
+            "--limits",
+            str(root / "profiles/ordinary-review-limits-v3.json"),
+            "--max-claim-assessments",
+            "4",
+            "--prepare-only",
+            "--json",
+        ]
+    )
     assert code == 0
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == "PREPARED_ONLY"
@@ -262,16 +347,18 @@ def test_codereview_profile_prepare_only_uses_required_native_claim_cap_without_
     assert result["capacity"]["runtime_call_demand"] == "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION"
 
 
-def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windows(
-    tmp_path, monkeypatch, capsys
-):
+def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windows(tmp_path, monkeypatch, capsys):
     repo = tmp_path / "two-unit-repo"
     subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, timeout=10)
 
     def git(*args):
         return subprocess.run(
-            ["git", "-C", str(repo), *args], check=True, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10,
+            ["git", "-C", str(repo), *args],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
         ).stdout.strip()
 
     git("config", "user.email", "prepare-v2@example.invalid")
@@ -282,16 +369,42 @@ def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windo
     (repo / "src/b.py").write_text("def beta():\n    return 1\n")
     git("add", "AGENTS.md", "src/a.py", "src/b.py")
     subprocess.run(
-        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "base"],
-        check=True, capture_output=True, timeout=10,
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "-m",
+            "base",
+        ],
+        check=True,
+        capture_output=True,
+        timeout=10,
     )
     base = git("rev-parse", "HEAD")
     (repo / "src/a.py").write_text("def alpha():\n    return 2\n")
     (repo / "src/b.py").write_text("def beta():\n    return 2\n")
     git("add", "src/a.py", "src/b.py")
     subprocess.run(
-        ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "change"],
-        check=True, capture_output=True, timeout=10,
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "-m",
+            "change",
+        ],
+        check=True,
+        capture_output=True,
+        timeout=10,
     )
     head = git("rev-parse", "HEAD")
 
@@ -324,10 +437,16 @@ def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windo
     profile_path = tmp_path / "profile-v2.json"
     profile_path.write_text(json.dumps(profile_data))
     provider_config = tmp_path / "provider-v2.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
-        "model": "prepare-v2-test-model", "api_key_env": "PREPARE_V2_ABSENT_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "prepare-v2-test-model",
+                "api_key_env": "PREPARE_V2_ABSENT_KEY",
+            }
+        )
+    )
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("PREPARE_V2_ABSENT_KEY", raising=False)
 
@@ -348,11 +467,23 @@ def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windo
 
     monkeypatch.setattr("pr_review_harness.providers._HTTP_OPENER", NoTransport())
     monkeypatch.setattr("pr_review_harness.claim_transport._HTTP_OPENER", NoTransport())
-    code = cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile_path), "--provider-config", str(provider_config),
-        "--prepare-only", "--json",
-    ])
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile_path),
+            "--provider-config",
+            str(provider_config),
+            "--prepare-only",
+            "--json",
+        ]
+    )
     assert code == 0
     report = json.loads(capsys.readouterr().out)
     assert report["status"] == "PREPARED_ONLY"
@@ -362,14 +493,12 @@ def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windo
     from pr_review_harness.snapshot import collect_snapshot
 
     snapshot = collect_snapshot(str(repo), base, head, profile_data, cli._limits())
-    inventory_by_unit = {
-        row["unit_id"]: set(row["evidence_ids"])
-        for row in snapshot["inventory"]
-    }
+    inventory_by_unit = {row["unit_id"]: set(row["evidence_ids"]) for row in snapshot["inventory"]}
     assert len(inventory_by_unit) == 2
     evidence_index = {row["evidence_id"]: row for row in report["snapshot"]["evidence_index"]}
     policy_ids = {
-        evidence_id for evidence_id, row in evidence_index.items()
+        evidence_id
+        for evidence_id, row in evidence_index.items()
         if row["path"] == "AGENTS.md" and row["source_kind"] == "profile_context"
     }
     assert len(policy_ids) == 1
@@ -398,8 +527,7 @@ def test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windo
             assert bound_ids <= wire_evidence_ids
             assert all(evidence_index[evidence_id]["path"] in {"src/a.py", "src/b.py"} for evidence_id in bound_ids)
         seen_windows.update(
-            row["evidence_id"] for row in user_payload["evidence"]
-            if row.get("source_kind") == "source_window"
+            row["evidence_id"] for row in user_payload["evidence"] if row.get("source_kind") == "source_window"
         )
     assert seen_windows
     assert {evidence_index[evidence_id]["path"] for evidence_id in seen_windows} == {"src/a.py", "src/b.py"}
@@ -410,19 +538,39 @@ def test_prepare_only_preserves_unadmitted_obligations(tmp_path, monkeypatch, ca
     profile = tmp_path / "profile.json"
     profile.write_text(json.dumps({"version": "prepare-cap-v1", "required_lenses": ["correctness", "tests"]}))
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
-        "model": "prepare-test-model", "api_key_env": "UNREAD_TEST_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "prepare-test-model",
+                "api_key_env": "UNREAD_TEST_KEY",
+            }
+        )
+    )
     limits = tmp_path / "limits.json"
     limits.write_text(json.dumps({"max_provider_calls": 12, "max_input_bytes_per_task": 1}))
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("UNREAD_TEST_KEY", raising=False)
-    code = cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile), "--provider-config", str(provider_config),
-        "--limits", str(limits), "--prepare-only", "--json",
-    ])
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--provider-config",
+            str(provider_config),
+            "--limits",
+            str(limits),
+            "--prepare-only",
+            "--json",
+        ]
+    )
     assert code == 0
     report = json.loads(capsys.readouterr().out)
     assert report["primary_requests"] == []
@@ -431,18 +579,22 @@ def test_prepare_only_preserves_unadmitted_obligations(tmp_path, monkeypatch, ca
     assert report["capacity"]["fits_call_cap"] is None
 
 
-def test_prepare_only_uses_lower_adapter_cap_and_never_admits_rejected_request(
-    tmp_path, monkeypatch, capsys
-):
+def test_prepare_only_uses_lower_adapter_cap_and_never_admits_rejected_request(tmp_path, monkeypatch, capsys):
     repo, base, head = _repo(tmp_path)
     profile = tmp_path / "profile.json"
     profile.write_text(json.dumps({"version": "adapter-cap-v1", "required_lenses": ["correctness"]}))
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
-        "model": "prepare-test-model", "api_key_env": "ADAPTER_CAP_ABSENT_KEY",
-        "max_request_bytes": 1,
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "prepare-test-model",
+                "api_key_env": "ADAPTER_CAP_ABSENT_KEY",
+                "max_request_bytes": 1,
+            }
+        )
+    )
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.setenv("ADAPTER_CAP_ABSENT_KEY", "synthetic-secret-must-not-be-read")
     monkeypatch.setenv("JEV_API_KEY", "synthetic-jev-secret-must-not-be-read")
@@ -470,12 +622,27 @@ def test_prepare_only_uses_lower_adapter_cap_and_never_admits_rejected_request(
     limits.write_text(json.dumps({"max_input_bytes_per_task": 64_000}))
     output_dir = tmp_path / "out"
 
-    code = cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile), "--provider-config", str(provider_config),
-        "--limits", str(limits), "--prepare-only", "--json",
-        "--output", str(output_dir),
-    ])
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--provider-config",
+            str(provider_config),
+            "--limits",
+            str(limits),
+            "--prepare-only",
+            "--json",
+            "--output",
+            str(output_dir),
+        ]
+    )
     assert code == 0
     report = json.loads(capsys.readouterr().out)
     assert report["primary_requests"] == []
@@ -493,24 +660,48 @@ def test_separate_snapshot_cap_preserves_exact_requests_and_inference_headroom(t
     profile = tmp_path / "profile.json"
     profile.write_text(json.dumps({"version": "split-budget-v1", "required_lenses": ["correctness"]}))
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
-        "model": "prepare-test-model", "api_key_env": "SPLIT_BUDGET_ABSENT_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "prepare-test-model",
+                "api_key_env": "SPLIT_BUDGET_ABSENT_KEY",
+            }
+        )
+    )
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("SPLIT_BUDGET_ABSENT_KEY", raising=False)
     reports = []
     for inference_budget in (8_000_000, 10_000_000):
         limits = tmp_path / f"limits-{inference_budget}.json"
-        limits.write_text(json.dumps({
-            "max_context_bytes": inference_budget,
-            "max_snapshot_context_bytes": 100_000,
-        }))
-        code = cli.main([
-            "review", "--repo", str(repo), "--base", base, "--head", head,
-            "--profile", str(profile), "--provider-config", str(provider_config),
-            "--limits", str(limits), "--prepare-only", "--json",
-        ])
+        limits.write_text(
+            json.dumps(
+                {
+                    "max_context_bytes": inference_budget,
+                    "max_snapshot_context_bytes": 100_000,
+                }
+            )
+        )
+        code = cli.main(
+            [
+                "review",
+                "--repo",
+                str(repo),
+                "--base",
+                base,
+                "--head",
+                head,
+                "--profile",
+                str(profile),
+                "--provider-config",
+                str(provider_config),
+                "--limits",
+                str(limits),
+                "--prepare-only",
+                "--json",
+            ]
+        )
         assert code == 0
         reports.append(json.loads(capsys.readouterr().out))
 
@@ -531,18 +722,38 @@ def test_prepare_only_marks_known_primary_call_cap_excess(tmp_path, monkeypatch,
     profile = tmp_path / "profile.json"
     profile.write_text(json.dumps({"version": "prepare-cap-v1", "required_lenses": ["correctness", "tests"]}))
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
-        "model": "prepare-test-model", "api_key_env": "UNREAD_TEST_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "prepare-test-model",
+                "api_key_env": "UNREAD_TEST_KEY",
+            }
+        )
+    )
     limits = tmp_path / "limits.json"
     limits.write_text(json.dumps({"max_provider_calls": 1}))
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
-    code = cli.main([
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile), "--provider-config", str(provider_config),
-        "--limits", str(limits), "--prepare-only", "--json",
-    ])
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--profile",
+            str(profile),
+            "--provider-config",
+            str(provider_config),
+            "--limits",
+            str(limits),
+            "--prepare-only",
+            "--json",
+        ]
+    )
     assert code == 0
     report = json.loads(capsys.readouterr().out)
     assert report["capacity"]["exact_primary_call_demand"] > report["capacity"]["configured_max_provider_calls"]
@@ -555,15 +766,31 @@ def test_prepare_only_rejects_event_and_dry_run_combinations(tmp_path, monkeypat
     profile = tmp_path / "profile.json"
     profile.write_text(json.dumps({"version": "prepare-reject-v1"}))
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": "https://provider.example.invalid/v1",
-        "model": "prepare-test-model", "api_key_env": "UNREAD_TEST_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://provider.example.invalid/v1",
+                "model": "prepare-test-model",
+                "api_key_env": "UNREAD_TEST_KEY",
+            }
+        )
+    )
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(tmp_path / "event.json"))
     common = [
-        "review", "--repo", str(repo), "--base", base, "--head", head,
-        "--profile", str(profile), "--provider-config", str(provider_config),
-        "--prepare-only", "--json",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile),
+        "--provider-config",
+        str(provider_config),
+        "--prepare-only",
+        "--json",
     ]
     assert cli.main(common) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "preflight_rejected"
@@ -586,8 +813,16 @@ def test_prepare_wrapper_normalizes_only_pinned_check_names_and_preserves_cancel
         "base_sha": "a" * 40,
         "head_sha": "b" * 40,
         "selected_runs": [
-            {"id": 1, "name": name, "app_id": 15368, "status": "completed", "conclusion": "cancelled",
-             "head_sha": "b" * 40, "completed_at": "2026-09-21T20:53:05Z", "url": "https://example.invalid/job"}
+            {
+                "id": 1,
+                "name": name,
+                "app_id": 15368,
+                "status": "completed",
+                "conclusion": "cancelled",
+                "head_sha": "b" * 40,
+                "completed_at": "2026-09-21T20:53:05Z",
+                "url": "https://example.invalid/job",
+            }
             for name in ("portal-contract", "portal-browser")
         ],
     }
@@ -599,6 +834,7 @@ def test_prepare_wrapper_normalizes_only_pinned_check_names_and_preserves_cancel
     assert all(run["conclusion"] == "cancelled" for run in normalized["runs"])
     source["selected_runs"].append({"id": 2, "name": "unrelated", "app_id": 15368})
     import pytest
+
     with pytest.raises(ValueError, match="required_check_capture_names_mismatch"):
         module.normalize_checks(source, "magnus919/SlopSearX", 457, "a" * 40, "b" * 40, destination)
 
@@ -616,11 +852,17 @@ def test_prepare_wrapper_subprocess_output_and_deadline_are_bounded():
     spec.loader.exec_module(module)
     with pytest.raises(RuntimeError, match="subprocess_output_limit_exceeded"):
         module._bounded_run(
-            [sys.executable, "-c", "print('x' * 10000)"], env={"PATH": os.environ.get("PATH", "")},
-            timeout=5, stdout_cap=100, stderr_cap=100,
+            [sys.executable, "-c", "print('x' * 10000)"],
+            env={"PATH": os.environ.get("PATH", "")},
+            timeout=5,
+            stdout_cap=100,
+            stderr_cap=100,
         )
     with pytest.raises(RuntimeError, match="subprocess_deadline_exceeded"):
         module._bounded_run(
-            [sys.executable, "-c", "import time; time.sleep(2)"], env={"PATH": os.environ.get("PATH", "")},
-            timeout=0.05, stdout_cap=100, stderr_cap=100,
+            [sys.executable, "-c", "import time; time.sleep(2)"],
+            env={"PATH": os.environ.get("PATH", "")},
+            timeout=0.05,
+            stdout_cap=100,
+            stderr_cap=100,
         )

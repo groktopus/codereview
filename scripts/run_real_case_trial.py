@@ -56,8 +56,11 @@ CONTEXT_FOLLOWUP_V3_PLAN_PATH = ROOT / "docs" / "real-case-trial-context-followu
 CONTEXT_FOLLOWUP_V3_PLAN_SHA256 = "fccc745fade50066d12a2173af987b13d548ac214861f8e99b3a8d3078694857"
 CONTEXT_FOLLOWUP_V3_SELECTOR = "specialist-input-v2-context-followup-v3"
 INPUT_CONTRACTS = (
-    "specialist-input-v1", "specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR,
-    CONTEXT_FOLLOWUP_V2_SELECTOR, CONTEXT_FOLLOWUP_V3_SELECTOR,
+    "specialist-input-v1",
+    "specialist-input-v2",
+    CONTEXT_FOLLOWUP_SELECTOR,
+    CONTEXT_FOLLOWUP_V2_SELECTOR,
+    CONTEXT_FOLLOWUP_V3_SELECTOR,
 )
 RUNTIME_MODULE_INVENTORY = (
     "__init__.py",
@@ -318,12 +321,28 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
         parent_plan = read_context_followup_v2_plan()
         plan = read_context_followup_v3_plan()
         fields = {
-            "schema", "status", "experiment_id", "input_contract", "dynamic_followup_contract",
-            "dynamic_followup_projection", "response_contract", "runtime_revision", "runtime_module_tree_sha256",
-            "runtime_module_file_count", "primary_parent_plan_sha256", "primary_input_parent_plan_sha256",
-            "primary_requests_total", "primary_serialized_input_bytes_total", "required_obligations_total",
-            "max_claim_assessments_per_case", "max_retries_per_task", "limits", "selectors", "cases",
-            "interpretation", "projection_limitations",
+            "schema",
+            "status",
+            "experiment_id",
+            "input_contract",
+            "dynamic_followup_contract",
+            "dynamic_followup_projection",
+            "response_contract",
+            "runtime_revision",
+            "runtime_module_tree_sha256",
+            "runtime_module_file_count",
+            "primary_parent_plan_sha256",
+            "primary_input_parent_plan_sha256",
+            "primary_requests_total",
+            "primary_serialized_input_bytes_total",
+            "required_obligations_total",
+            "max_claim_assessments_per_case",
+            "max_retries_per_task",
+            "limits",
+            "selectors",
+            "cases",
+            "interpretation",
+            "projection_limitations",
         }
         if set(plan) != fields:
             raise TrialError("context_followup_v3_plan_manifest_shape_invalid")
@@ -348,14 +367,16 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
             or plan.get("limits") != parent_plan.get("limits")
             or plan.get("selectors") != ["staged-pr464", "full-three-case"]
             or plan.get("cases") != parent_plan.get("cases")
-            or plan.get("interpretation") != (
+            or plan.get("interpretation")
+            != (
                 "The exact primary descriptors, scope, byte counts, obligations, and limits are inherited from the "
                 "frozen context-followup-v2 plan. This selector adds only the direct-Python "
                 "context-followup-observation.v3 projection. The provider-free prepare workflow and synthetic "
                 "projection check do not establish provider delivery, live context handoff, review quality, semantic "
                 "accuracy, cost, adoption, or production readiness."
             )
-            or plan.get("projection_limitations") != [
+            or plan.get("projection_limitations")
+            != [
                 "The candidate preparation preserves only exact primary request hashes, identities, and binding metadata; "
                 "it does not retain serialized request bodies or raw source.",
                 "The v3 projection can report persisted handoff bindings; it does not prove provider delivery, model "
@@ -366,27 +387,47 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
         ):
             raise TrialError("context_followup_v3_plan_manifest_identity_mismatch")
         document = dict(parent_document)
-        document.update({
-            "experiment_selector": CONTEXT_FOLLOWUP_V3_SELECTOR,
-            "context_followup_plan_sha256": CONTEXT_FOLLOWUP_V3_PLAN_SHA256,
-            "context_followup_runtime_revision": CONTEXT_FOLLOWUP_V2_RUNTIME_SHA,
-            "context_followup_module_tree_sha256": CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256,
-            "dynamic_followup_contract": "context-followup.v1",
-            "dynamic_followup_projection": "context-followup-observation.v3",
-        })
+        document.update(
+            {
+                "experiment_selector": CONTEXT_FOLLOWUP_V3_SELECTOR,
+                "context_followup_plan_sha256": CONTEXT_FOLLOWUP_V3_PLAN_SHA256,
+                "context_followup_runtime_revision": CONTEXT_FOLLOWUP_V2_RUNTIME_SHA,
+                "context_followup_module_tree_sha256": CONTEXT_FOLLOWUP_V2_MODULE_TREE_SHA256,
+                "dynamic_followup_contract": "context-followup.v1",
+                "dynamic_followup_projection": "context-followup-observation.v3",
+            }
+        )
         return document, parent_cases
     if input_contract == CONTEXT_FOLLOWUP_V2_SELECTOR:
         v2_document, v2_cases = load_locked_cases("specialist-input-v2")
         plan = read_context_followup_v2_plan()
         fields = {
-            "schema", "status", "experiment_id", "input_contract", "dynamic_followup_contract",
-            "dynamic_followup_projection", "response_contract", "runtime_revision", "runtime_module_tree_sha256",
-            "runtime_module_file_count", "primary_parent_plan_sha256", "runtime_module_map_proof_sha256",
-            "primary_receipt_comparison_proof_sha256", "primary_prepare_proof_sha256",
-            "local_prepare_input_proof_sha256", "local_preparation_wheel_sha256", "cases",
-            "primary_requests_total", "primary_serialized_input_bytes_total", "required_obligations_total",
-            "max_claim_assessments_per_case", "max_retries_per_task", "limits", "selectors",
-            "interpretation", "projection_limitations",
+            "schema",
+            "status",
+            "experiment_id",
+            "input_contract",
+            "dynamic_followup_contract",
+            "dynamic_followup_projection",
+            "response_contract",
+            "runtime_revision",
+            "runtime_module_tree_sha256",
+            "runtime_module_file_count",
+            "primary_parent_plan_sha256",
+            "runtime_module_map_proof_sha256",
+            "primary_receipt_comparison_proof_sha256",
+            "primary_prepare_proof_sha256",
+            "local_prepare_input_proof_sha256",
+            "local_preparation_wheel_sha256",
+            "cases",
+            "primary_requests_total",
+            "primary_serialized_input_bytes_total",
+            "required_obligations_total",
+            "max_claim_assessments_per_case",
+            "max_retries_per_task",
+            "limits",
+            "selectors",
+            "interpretation",
+            "projection_limitations",
         }
         if set(plan) != fields:
             raise TrialError("context_followup_v2_plan_manifest_shape_invalid")
@@ -414,7 +455,8 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
             or plan.get("max_retries_per_task") != 0
             or plan.get("limits") != limits_for(64)
             or plan.get("selectors") != ["staged-pr464", "full-three-case"]
-            or plan.get("interpretation") != (
+            or plan.get("interpretation")
+            != (
                 "This is a new context-followup-v2 selector with a new runtime and bounded closure-diagnostic projection. "
                 "Its primary specialist-input.v2 descriptors, scope, and limits are inherited exactly from the frozen v2 "
                 "parent plan. The local proof is provider-free preparation only; it does not establish provider behavior, "
@@ -472,13 +514,28 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
         v2_document, v2_cases = load_locked_cases("specialist-input-v2")
         plan = read_context_followup_plan()
         fields = {
-            "schema", "status", "experiment_id", "input_contract", "dynamic_followup_contract",
-            "response_contract", "runtime_revision", "runtime_module_tree_sha256", "runtime_module_file_count",
-            "primary_parent_plan_sha256", "prior_provider_free_primary_identity_proof_sha256",
-            "prior_installed_module_proof_sha256", "cases", "primary_requests_total",
-            "primary_serialized_input_bytes_total", "required_obligations_total",
-            "max_claim_assessments_per_case", "max_retries_per_task", "limits", "selectors",
-            "interpretation", "projection_limitations",
+            "schema",
+            "status",
+            "experiment_id",
+            "input_contract",
+            "dynamic_followup_contract",
+            "response_contract",
+            "runtime_revision",
+            "runtime_module_tree_sha256",
+            "runtime_module_file_count",
+            "primary_parent_plan_sha256",
+            "prior_provider_free_primary_identity_proof_sha256",
+            "prior_installed_module_proof_sha256",
+            "cases",
+            "primary_requests_total",
+            "primary_serialized_input_bytes_total",
+            "required_obligations_total",
+            "max_claim_assessments_per_case",
+            "max_retries_per_task",
+            "limits",
+            "selectors",
+            "interpretation",
+            "projection_limitations",
         }
         if set(plan) != fields:
             raise TrialError("context_followup_plan_manifest_shape_invalid")
@@ -502,7 +559,8 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
             or plan.get("max_retries_per_task") != 0
             or plan.get("limits") != limits_for(64)
             or plan.get("selectors") != ["staged-pr464", "full-three-case"]
-            or plan.get("interpretation") != (
+            or plan.get("interpretation")
+            != (
                 "Fixed primary input identity is inherited from and must match the frozen specialist-input.v2 plan exactly. "
                 "The runtime source and dynamic follow-up contract are new. This plan is not hosted prepare evidence and "
                 "makes no provider, coverage, quality, accuracy, adoption, or production-readiness claim."
@@ -549,12 +607,26 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
         raise TrialError("v2_plan_manifest_hash_mismatch")
     plan = read_v2_plan()
     plan_fields = {
-        "schema", "input_contract", "response_contract", "status", "runtime_revision",
-        "runtime_module_tree_sha256", "runtime_module_file_count", "local_preparation_wheel_sha256",
-        "preparation_manifest_sha256", "independent_preparation_verification_sha256",
-        "case_input_manifest_v1_sha256", "limits", "max_claim_assessments_per_case",
-        "max_retries_per_task", "selectors", "cases", "required_obligations_total",
-        "primary_requests_total", "primary_serialized_input_bytes_total", "interpretation",
+        "schema",
+        "input_contract",
+        "response_contract",
+        "status",
+        "runtime_revision",
+        "runtime_module_tree_sha256",
+        "runtime_module_file_count",
+        "local_preparation_wheel_sha256",
+        "preparation_manifest_sha256",
+        "independent_preparation_verification_sha256",
+        "case_input_manifest_v1_sha256",
+        "limits",
+        "max_claim_assessments_per_case",
+        "max_retries_per_task",
+        "selectors",
+        "cases",
+        "required_obligations_total",
+        "primary_requests_total",
+        "primary_serialized_input_bytes_total",
+        "interpretation",
         "projection_limitations",
     }
     if set(plan) != plan_fields:
@@ -589,10 +661,22 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
     merged: list[dict[str, Any]] = []
     for v1_case, v2_case in zip(v1_cases, v2_cases, strict=True):
         case_fields = {
-            "case_id", "base_sha", "head_sha", "mode", "profile_sha256", "checks_sha256",
-            "snapshot_hash", "evidence_index_sha256", "scope_count", "scope_sha256",
-            "v1_primary_requests", "v1_primary_bytes", "primary_request_count",
-            "primary_serialized_input_bytes", "primary_descriptor_sha256", "evidence_index",
+            "case_id",
+            "base_sha",
+            "head_sha",
+            "mode",
+            "profile_sha256",
+            "checks_sha256",
+            "snapshot_hash",
+            "evidence_index_sha256",
+            "scope_count",
+            "scope_sha256",
+            "v1_primary_requests",
+            "v1_primary_bytes",
+            "primary_request_count",
+            "primary_serialized_input_bytes",
+            "primary_descriptor_sha256",
+            "evidence_index",
             "primary_requests",
         }
         if not isinstance(v2_case, dict) or set(v2_case) != case_fields:
@@ -614,7 +698,13 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
         if not isinstance(evidence_index, dict) or not isinstance(descriptors, list):
             raise TrialError("v2_request_plan_invalid")
         evidence_fields = {
-            "evidence_id", "path", "source_revision", "content_hash", "source_kind", "trust", "content_bytes"
+            "evidence_id",
+            "path",
+            "source_revision",
+            "content_hash",
+            "source_kind",
+            "trust",
+            "content_bytes",
         }
         for evidence_id, evidence in evidence_index.items():
             if (
@@ -629,9 +719,21 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
                 raise TrialError("v2_evidence_index_shape_invalid")
         full_descriptors: list[dict[str, Any]] = []
         request_fields = {
-            "task_id", "lens", "unit_ids", "obligation_ids", "evidence_ids", "required_context_ids",
-            "context_omissions", "required_context_omissions", "input_bytes", "input_sha256", "admitted",
-            "output_bytes_cap", "output_tokens_cap", "request_input_contract", "unit_evidence_bindings",
+            "task_id",
+            "lens",
+            "unit_ids",
+            "obligation_ids",
+            "evidence_ids",
+            "required_context_ids",
+            "context_omissions",
+            "required_context_omissions",
+            "input_bytes",
+            "input_sha256",
+            "admitted",
+            "output_bytes_cap",
+            "output_tokens_cap",
+            "request_input_contract",
+            "unit_evidence_bindings",
         }
         for descriptor in descriptors:
             if not isinstance(descriptor, dict) or set(descriptor) != request_fields:
@@ -639,7 +741,10 @@ def load_locked_cases(input_contract: str = "specialist-input-v1") -> tuple[dict
             evidence_ids = descriptor.get("evidence_ids")
             if (
                 not isinstance(evidence_ids, list)
-                or any(not isinstance(evidence_id, str) or evidence_id not in evidence_index for evidence_id in evidence_ids)
+                or any(
+                    not isinstance(evidence_id, str) or evidence_id not in evidence_index
+                    for evidence_id in evidence_ids
+                )
                 or len(evidence_ids) != len(set(evidence_ids))
             ):
                 raise TrialError("v2_request_evidence_index_invalid")
@@ -828,7 +933,10 @@ def runtime_identity(input_contract: str = "specialist-input-v1") -> tuple[str, 
 
 def _uses_v2_primary(input_contract: str) -> bool:
     return input_contract in {
-        "specialist-input-v2", CONTEXT_FOLLOWUP_SELECTOR, CONTEXT_FOLLOWUP_V2_SELECTOR, CONTEXT_FOLLOWUP_V3_SELECTOR,
+        "specialist-input-v2",
+        CONTEXT_FOLLOWUP_SELECTOR,
+        CONTEXT_FOLLOWUP_V2_SELECTOR,
+        CONTEXT_FOLLOWUP_V3_SELECTOR,
     }
 
 
@@ -865,7 +973,11 @@ def _manifest_schema(input_contract: str) -> str:
         return "historical-real-case-trial-manifest.context-followup.v2"
     if _is_context_followup_experiment(input_contract):
         return "historical-real-case-trial-manifest.context-followup.v1"
-    return "historical-real-case-trial-manifest.v2" if _uses_v2_primary(input_contract) else "historical-real-case-trial-manifest.v1"
+    return (
+        "historical-real-case-trial-manifest.v2"
+        if _uses_v2_primary(input_contract)
+        else "historical-real-case-trial-manifest.v1"
+    )
 
 
 def _plan_identity(input_contract: str) -> str:
@@ -912,9 +1024,7 @@ def _experiment_identity_fields(input_contract: str) -> dict[str, Any]:
     return {"input_contract": "specialist-input-v2"} if input_contract == "specialist-input-v2" else {}
 
 
-def verify_runtime(
-    cli: Path, runtime_source: Path, input_contract: str = "specialist-input-v1"
-) -> dict[str, Any]:
+def verify_runtime(cli: Path, runtime_source: Path, input_contract: str = "specialist-input-v1") -> dict[str, Any]:
     expected_revision, expected_tree = runtime_identity(input_contract)
     if not runtime_source.is_dir() or not re.fullmatch(r"[0-9a-f]{40}", expected_revision):
         raise TrialError("trusted_runtime_source_unavailable")
@@ -923,7 +1033,10 @@ def verify_runtime(
     except ModuleNotFoundError:
         from scripts.prepare_real_case_batch import installed_module_proof
 
-    if git_command(["--no-lazy-fetch", "-C", str(runtime_source), "rev-parse", "HEAD"], timeout=10) != expected_revision:
+    if (
+        git_command(["--no-lazy-fetch", "-C", str(runtime_source), "rev-parse", "HEAD"], timeout=10)
+        != expected_revision
+    ):
         raise TrialError("trusted_runtime_revision_mismatch")
     proof = installed_module_proof(cli, runtime_source)
     if proof.get("module_file_count") != 28 or proof.get("module_tree_sha256") != expected_tree:
@@ -1289,9 +1402,7 @@ def validate_prepare(case: dict[str, Any], prepared: dict[str, Any], overall_max
         raise TrialError("prepared_primary_descriptor_mismatch")
 
 
-def validate_prepare_v2(
-    case: dict[str, Any], prepared: dict[str, Any], overall_max_bytes: int, call_cap: int
-) -> None:
+def validate_prepare_v2(case: dict[str, Any], prepared: dict[str, Any], overall_max_bytes: int, call_cap: int) -> None:
     """Require the exact frozen specialist-input.v2 descriptors before inference."""
     value = prepared.get("value")
     if not isinstance(value, dict):
@@ -1401,33 +1512,53 @@ def validate_prepare_v2(
 
 _FOLLOWUP_TASK_STATUSES = frozenset({"SUCCEEDED", "FAILED", "TIMED_OUT", "SKIPPED", "INTERRUPTED_UNKNOWN", "INVALID"})
 _FOLLOWUP_COVERAGE_STATES = frozenset({"COMPLETE", "PARTIAL", "NOT_STARTED"})
-_FOLLOWUP_SETTLEMENT_STATUSES = frozenset({"SUCCEEDED", "FAILED", "TIMED_OUT", "INVALID", "INTERRUPTED_UNKNOWN", "NOT_RUN"})
-_FOLLOWUP_LENSES = frozenset({"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"})
+_FOLLOWUP_SETTLEMENT_STATUSES = frozenset(
+    {"SUCCEEDED", "FAILED", "TIMED_OUT", "INVALID", "INTERRUPTED_UNKNOWN", "NOT_RUN"}
+)
+_FOLLOWUP_LENSES = frozenset(
+    {"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"}
+)
 _FOLLOWUP_TARGET_KINDS = frozenset({"unit", "path", "symbol"})
 _FOLLOWUP_LINK_STATES = frozenset({"PERSISTED_RECORDS_MATCH", "PERSISTED_RECORDS_MISMATCH", "UNKNOWN"})
 _FOLLOWUP_HANDOFF_STATES = frozenset({"VERIFIED", "MISMATCH", "UNKNOWN"})
 _FOLLOWUP_PROJECTION_MAX_IDS = 500
 _REQUIRED_CONTEXT_DIAGNOSTIC_MAX_ROWS = 200
 _REQUIRED_CONTEXT_FOLLOWUP_SOURCE_MAX_ROWS = 8
-_REQUIRED_CONTEXT_COVERAGE_REASONS = frozenset({
-    "CONTEXT_GAP_UNRESOLVED",
-    "VALID_RESULT",
-    "CHECK_RESULT_EVIDENCE_INVALID",
-    "REQUIRED_OUTPUT_QUARANTINED",
-    "REQUIRED_CONTEXT_NOT_COVERED",
-    "CHECK_RESULT_UNAVAILABLE",
-    "COVERAGE_NOTE_EVIDENCE_INVALID",
-    "PARTIAL_REVIEW_COVERAGE",
-    "COVERAGE_NOTE_MISSING",
-    "MISSING_RESULT",
-})
-_CLOSURE_NOTE_CODES = frozenset({
-    "NOTE_NOT_OBJECT", "STATE_NOT_COVERED", "BASIS_NOT_STATIC_REVIEW", "UNIT_OUT_OF_SCOPE",
-    "NO_RETRIEVED_EVIDENCE_REFERENCE", "REFERENCE_NOT_IN_TASK_INPUT", "MATCH", "NO_COVERAGE_NOTES", "UNKNOWN",
-})
-_CLOSURE_QUARANTINE_KINDS = frozenset({
-    "finding_candidates", "context_gap_proposals", "coverage_notes", "other_required_kind",
-})
+_REQUIRED_CONTEXT_COVERAGE_REASONS = frozenset(
+    {
+        "CONTEXT_GAP_UNRESOLVED",
+        "VALID_RESULT",
+        "CHECK_RESULT_EVIDENCE_INVALID",
+        "REQUIRED_OUTPUT_QUARANTINED",
+        "REQUIRED_CONTEXT_NOT_COVERED",
+        "CHECK_RESULT_UNAVAILABLE",
+        "COVERAGE_NOTE_EVIDENCE_INVALID",
+        "PARTIAL_REVIEW_COVERAGE",
+        "COVERAGE_NOTE_MISSING",
+        "MISSING_RESULT",
+    }
+)
+_CLOSURE_NOTE_CODES = frozenset(
+    {
+        "NOTE_NOT_OBJECT",
+        "STATE_NOT_COVERED",
+        "BASIS_NOT_STATIC_REVIEW",
+        "UNIT_OUT_OF_SCOPE",
+        "NO_RETRIEVED_EVIDENCE_REFERENCE",
+        "REFERENCE_NOT_IN_TASK_INPUT",
+        "MATCH",
+        "NO_COVERAGE_NOTES",
+        "UNKNOWN",
+    }
+)
+_CLOSURE_QUARANTINE_KINDS = frozenset(
+    {
+        "finding_candidates",
+        "context_gap_proposals",
+        "coverage_notes",
+        "other_required_kind",
+    }
+)
 
 
 def _bounded_object_hash(value: Any, max_bytes: int = 64_000) -> str | None:
@@ -1499,31 +1630,27 @@ def _project_required_context_closure_diagnostics(value: Any) -> dict[str, Any]:
         return unknown
 
     def count_ok(item: Any, maximum: int = 10_000) -> bool:
-        return item == "UNKNOWN" or (
-            isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= maximum
-        )
+        return item == "UNKNOWN" or (isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= maximum)
 
     note_counts = value.get("coverage_note_failure_counts")
     quarantine_counts = value.get("required_output_quarantine_by_kind")
-    if note_counts != "UNKNOWN" and (
-        not isinstance(note_counts, dict) or set(note_counts) != _CLOSURE_NOTE_CODES
-    ):
+    if note_counts != "UNKNOWN" and (not isinstance(note_counts, dict) or set(note_counts) != _CLOSURE_NOTE_CODES):
         return unknown
     if quarantine_counts != "UNKNOWN" and (
         not isinstance(quarantine_counts, dict) or set(quarantine_counts) != _CLOSURE_QUARANTINE_KINDS
     ):
         return unknown
     if (
-        isinstance(note_counts, dict) and not all(count_ok(item) for item in note_counts.values())
-    ) or (
-        isinstance(quarantine_counts, dict) and not all(count_ok(item) for item in quarantine_counts.values())
-    ) or (
-        not count_ok(value.get("coverage_note_count"))
-        or not count_ok(value.get("coverage_note_notes_examined_count"))
-        or not count_ok(value.get("coverage_note_notes_unexamined_after_match_count"))
-        or not count_ok(value.get("required_output_quarantine_count"))
-        or not count_ok(value.get("unresolved_context_gap_count"))
-        or not count_ok(value.get("unresolved_followup_gap_count"))
+        (isinstance(note_counts, dict) and not all(count_ok(item) for item in note_counts.values()))
+        or (isinstance(quarantine_counts, dict) and not all(count_ok(item) for item in quarantine_counts.values()))
+        or (
+            not count_ok(value.get("coverage_note_count"))
+            or not count_ok(value.get("coverage_note_notes_examined_count"))
+            or not count_ok(value.get("coverage_note_notes_unexamined_after_match_count"))
+            or not count_ok(value.get("required_output_quarantine_count"))
+            or not count_ok(value.get("unresolved_context_gap_count"))
+            or not count_ok(value.get("unresolved_followup_gap_count"))
+        )
     ):
         return unknown
     if state == "OBSERVED":
@@ -1551,9 +1678,7 @@ def _project_required_context_closure_diagnostics(value: Any) -> dict[str, Any]:
         ):
             return unknown
 
-        note_code_total = sum(
-            count for code, count in note_counts.items() if code != "NO_COVERAGE_NOTES"
-        )
+        note_code_total = sum(count for code, count in note_counts.items() if code != "NO_COVERAGE_NOTES")
         no_notes_sentinel = note_counts["NO_COVERAGE_NOTES"]
         if note_counts["UNKNOWN"] != 0 or note_counts["MATCH"] > 1:
             return unknown
@@ -1570,19 +1695,16 @@ def _project_required_context_closure_diagnostics(value: Any) -> dict[str, Any]:
             coherent_note_result = (
                 no_notes_sentinel == 0
                 and note_code_total == examined
-                and (
-                    note_result == "COVERED"
-                    and matches > 0
-                    or note_result == "NO_COVERING_NOTE"
-                    and matches == 0
-                )
+                and (note_result == "COVERED" and matches > 0 or note_result == "NO_COVERING_NOTE" and matches == 0)
             )
         if not coherent_note_result:
             return unknown
     return {
         **value,
         "coverage_note_failure_counts": dict(note_counts) if isinstance(note_counts, dict) else "UNKNOWN",
-        "required_output_quarantine_by_kind": dict(quarantine_counts) if isinstance(quarantine_counts, dict) else "UNKNOWN",
+        "required_output_quarantine_by_kind": dict(quarantine_counts)
+        if isinstance(quarantine_counts, dict)
+        else "UNKNOWN",
     }
 
 
@@ -1606,14 +1728,24 @@ def _project_context_followups(
     gaps = durable.get("context_gaps")
     coverage = durable.get("coverage_ledger")
     budget_state = ledger.get("budget")
-    if not all(isinstance(value, expected) for value, expected in (
-        (dynamic, list), (planned, dict), (outputs, dict), (gaps, list), (coverage, list), (budget_state, dict)
-    )):
+    if not all(
+        isinstance(value, expected)
+        for value, expected in (
+            (dynamic, list),
+            (planned, dict),
+            (outputs, dict),
+            (gaps, list),
+            (coverage, list),
+            (budget_state, dict),
+        )
+    ):
         return {"schema": schema, "projection_state": "UNKNOWN", "reason": "DYNAMIC_LEDGER_FIELDS_NOT_SHOWN"}
 
     tasks = [
-        item for item in dynamic
-        if isinstance(item, dict) and ("context_followup" in item or isinstance(item.get("context_gap_followup_for"), str))
+        item
+        for item in dynamic
+        if isinstance(item, dict)
+        and ("context_followup" in item or isinstance(item.get("context_gap_followup_for"), str))
     ]
     gap_task_count = sum(1 for item in gaps if isinstance(item, dict) and isinstance(item.get("followup_task_id"), str))
     reservation_map = budget_state.get("reservations")
@@ -1652,7 +1784,9 @@ def _project_context_followups(
         metadata_hash = _bounded_object_hash(metadata) if isinstance(metadata, dict) else None
         target = metadata.get("target") if isinstance(metadata, dict) else None
         target_kind = target.get("kind") if isinstance(target, dict) else None
-        target_hash = _bounded_object_hash(target.get("value")) if isinstance(target, dict) and "value" in target else None
+        target_hash = (
+            _bounded_object_hash(target.get("value")) if isinstance(target, dict) and "value" in target else None
+        )
         rationale_hash = _bounded_object_hash(metadata.get("rationale")) if isinstance(metadata, dict) else None
         retrieved_ids = metadata.get("retrieved_evidence_ids") if isinstance(metadata, dict) else None
         metadata_shape_valid = (
@@ -1661,12 +1795,18 @@ def _project_context_followups(
             and _safe_followup_id(metadata.get("proposal_id")) != "UNKNOWN"
             and _safe_followup_id(metadata.get("parent_task_id")) != "UNKNOWN"
             and _safe_followup_id(metadata.get("followup_obligation_id")) != "UNKNOWN"
-            and isinstance(metadata.get("required_lens"), str) and metadata.get("required_lens") in _FOLLOWUP_LENSES
-            and isinstance(target, dict) and set(target) == {"kind", "value"}
-            and isinstance(target_kind, str) and target_kind in _FOLLOWUP_TARGET_KINDS
-            and isinstance(target.get("value"), str) and target_hash is not None and rationale_hash is not None
+            and isinstance(metadata.get("required_lens"), str)
+            and metadata.get("required_lens") in _FOLLOWUP_LENSES
+            and isinstance(target, dict)
+            and set(target) == {"kind", "value"}
+            and isinstance(target_kind, str)
+            and target_kind in _FOLLOWUP_TARGET_KINDS
+            and isinstance(target.get("value"), str)
+            and target_hash is not None
+            and rationale_hash is not None
             and isinstance(metadata.get("rationale"), str)
-            and isinstance(retrieved_ids, list) and len(retrieved_ids) <= 100
+            and isinstance(retrieved_ids, list)
+            and len(retrieved_ids) <= 100
             and all(_safe_followup_id(value) != "UNKNOWN" for value in retrieved_ids)
             and len(set(retrieved_ids)) == len(retrieved_ids)
         )
@@ -1699,7 +1839,9 @@ def _project_context_followups(
             )
         )
         binding_hash = _bounded_object_hash(task_bindings) if bindings_valid else None
-        bindings_copies_present = all(isinstance(value, list) for value in (task_bindings, input_bindings, output_bindings))
+        bindings_copies_present = all(
+            isinstance(value, list) for value in (task_bindings, input_bindings, output_bindings)
+        )
         if bindings_valid and bindings_copies_present and task_bindings == input_bindings == output_bindings:
             unit_binding = "PERSISTED_RECORDS_MATCH"
         elif bindings_valid and bindings_copies_present:
@@ -1710,7 +1852,11 @@ def _project_context_followups(
             partial = True
 
         proposal_id = metadata.get("proposal_id") if isinstance(metadata, dict) else None
-        gap = gap_by_id.get(proposal_id) if isinstance(proposal_id, str) and proposal_id not in duplicate_gap_ids else None
+        gap = (
+            gap_by_id.get(proposal_id)
+            if isinstance(proposal_id, str) and proposal_id not in duplicate_gap_ids
+            else None
+        )
         task_gap_marker = task.get("context_gap_followup_for")
         gap_task_id = gap.get("followup_task_id") if isinstance(gap, dict) else None
         if (
@@ -1783,9 +1929,7 @@ def _project_context_followups(
             partial = True
         if include_closure_diagnostics:
             closure_raw = (
-                obligation.get("closure_diagnostics")
-                if obligation_binding == "PERSISTED_RECORDS_MATCH"
-                else None
+                obligation.get("closure_diagnostics") if obligation_binding == "PERSISTED_RECORDS_MATCH" else None
             )
             closure_diagnostics = _project_required_context_closure_diagnostics(closure_raw)
             if closure_diagnostics["state"] == "UNKNOWN":
@@ -1800,7 +1944,9 @@ def _project_context_followups(
         if not input_evidence_valid:
             partial = True
 
-        outcome_status = _safe_followup_enum(task_output.get("status") if isinstance(task_output, dict) else None, _FOLLOWUP_TASK_STATUSES)
+        outcome_status = _safe_followup_enum(
+            task_output.get("status") if isinstance(task_output, dict) else None, _FOLLOWUP_TASK_STATUSES
+        )
         if outcome_status == "UNKNOWN":
             partial = True
 
@@ -1840,7 +1986,11 @@ def _project_context_followups(
             )
             dynamic_obligations = ledger.get("dynamic_obligations")
             matching_dynamic_obligations = (
-                [item for item in dynamic_obligations if isinstance(item, dict) and item.get("obligation_id") == obligation_id]
+                [
+                    item
+                    for item in dynamic_obligations
+                    if isinstance(item, dict) and item.get("obligation_id") == obligation_id
+                ]
                 if isinstance(dynamic_obligations, list) and isinstance(obligation_id, str)
                 else []
             )
@@ -1868,15 +2018,27 @@ def _project_context_followups(
                         handoff_state = "MISMATCH"
                     elif contract_binding != "MATCH":
                         handoff_state = "UNKNOWN"
-                    elif retrieval_binding == "PERSISTED_IDS_MISMATCH" or gap_linkage == "PERSISTED_RECORDS_MISMATCH" or obligation_binding == "PERSISTED_RECORDS_MISMATCH":
+                    elif (
+                        retrieval_binding == "PERSISTED_IDS_MISMATCH"
+                        or gap_linkage == "PERSISTED_RECORDS_MISMATCH"
+                        or obligation_binding == "PERSISTED_RECORDS_MISMATCH"
+                    ):
                         handoff_state = "MISMATCH"
-                    elif retrieval_binding != "PERSISTED_IDS_MATCH" or gap_linkage != "PERSISTED_RECORDS_MATCH" or obligation_binding != "PERSISTED_RECORDS_MATCH":
+                    elif (
+                        retrieval_binding != "PERSISTED_IDS_MATCH"
+                        or gap_linkage != "PERSISTED_RECORDS_MATCH"
+                        or obligation_binding != "PERSISTED_RECORDS_MATCH"
+                    ):
                         handoff_state = "UNKNOWN"
                     else:
                         retrieved = set(metadata["retrieved_evidence_ids"])
                         constructed = set(constructed_evidence_ids)
                         result_inputs = set(result_input_evidence_ids)
-                        obligation_retrieved = dynamic_obligation.get("retrieved_evidence_ids") if isinstance(dynamic_obligation, dict) else None
+                        obligation_retrieved = (
+                            dynamic_obligation.get("retrieved_evidence_ids")
+                            if isinstance(dynamic_obligation, dict)
+                            else None
+                        )
                         obligation_fields_present = (
                             isinstance(dynamic_obligation, dict)
                             and isinstance(dynamic_obligation.get("obligation_id"), str)
@@ -1885,23 +2047,22 @@ def _project_context_followups(
                             and isinstance(dynamic_obligation.get("context_gap_id"), str)
                             and _bounded_followup_evidence_ids(obligation_retrieved)
                         )
-                        obligation_fields_mismatch = (
-                            isinstance(dynamic_obligation, dict)
-                            and (
-                                isinstance(dynamic_obligation.get("obligation_id"), str)
-                                and dynamic_obligation.get("obligation_id") != obligation_id
-                                or isinstance(dynamic_obligation.get("obligation_kind"), str)
-                                and dynamic_obligation.get("obligation_kind") != "REQUIRED_CONTEXT"
-                                or isinstance(dynamic_obligation.get("required"), bool)
-                                and dynamic_obligation.get("required") is not True
-                                or isinstance(dynamic_obligation.get("context_gap_id"), str)
-                                and dynamic_obligation.get("context_gap_id") != proposal_id
-                                or _bounded_followup_evidence_ids(obligation_retrieved)
-                                and obligation_retrieved != metadata["retrieved_evidence_ids"]
-                            )
+                        obligation_fields_mismatch = isinstance(dynamic_obligation, dict) and (
+                            isinstance(dynamic_obligation.get("obligation_id"), str)
+                            and dynamic_obligation.get("obligation_id") != obligation_id
+                            or isinstance(dynamic_obligation.get("obligation_kind"), str)
+                            and dynamic_obligation.get("obligation_kind") != "REQUIRED_CONTEXT"
+                            or isinstance(dynamic_obligation.get("required"), bool)
+                            and dynamic_obligation.get("required") is not True
+                            or isinstance(dynamic_obligation.get("context_gap_id"), str)
+                            and dynamic_obligation.get("context_gap_id") != proposal_id
+                            or _bounded_followup_evidence_ids(obligation_retrieved)
+                            and obligation_retrieved != metadata["retrieved_evidence_ids"]
                         )
                         entry_ids_valid = _bounded_followup_evidence_ids(retrieved_entry_ids)
-                        entry_result_status = retrieved_entry_result.get("status") if isinstance(retrieved_entry_result, dict) else None
+                        entry_result_status = (
+                            retrieved_entry_result.get("status") if isinstance(retrieved_entry_result, dict) else None
+                        )
                         gap_status = gap.get("retrieval_status") if isinstance(gap, dict) else None
                         source_statuses = (gap_status, entry_result_status)
                         source_status_mismatch = any(
@@ -1925,9 +2086,7 @@ def _project_context_followups(
                                 and retrieved.issubset(result_inputs)
                                 else "MISMATCH"
                             )
-                elif contract_binding == "MISMATCH" or (
-                    isinstance(result_task_id, str) and result_task_id != task_id
-                ):
+                elif contract_binding == "MISMATCH" or (isinstance(result_task_id, str) and result_task_id != task_id):
                     handoff_state = "MISMATCH"
             if metadata_validation != "VALID" or handoff_state != "VERIFIED":
                 partial = True
@@ -1942,7 +2101,11 @@ def _project_context_followups(
         if not (isinstance(http_status, int) and not isinstance(http_status, bool) and 100 <= http_status <= 599):
             http_status = "UNKNOWN"
 
-        reservation_keys = [key for key in reservation_map if isinstance(key, str) and isinstance(task_id, str) and key.startswith(task_id + ":review:")]
+        reservation_keys = [
+            key
+            for key in reservation_map
+            if isinstance(key, str) and isinstance(task_id, str) and key.startswith(task_id + ":review:")
+        ]
         reserved_calls = 0
         reservations_with_settlement = 0
         settlement_statuses: list[str] = []
@@ -1972,10 +2135,16 @@ def _project_context_followups(
             "proposal_id": _safe_followup_id(proposal_id),
             "parent_task_id": _safe_followup_id(metadata.get("parent_task_id") if isinstance(metadata, dict) else None),
             "followup_obligation_id": _safe_followup_id(obligation_id),
-            "contract_version": "context-followup.v1" if isinstance(metadata, dict) and metadata.get("contract_version") == "context-followup.v1" else "UNKNOWN",
+            "contract_version": "context-followup.v1"
+            if isinstance(metadata, dict) and metadata.get("contract_version") == "context-followup.v1"
+            else "UNKNOWN",
             "metadata_contract_validation": "NOT_ASSESSED",
-            "required_lens": _safe_followup_enum(metadata.get("required_lens") if isinstance(metadata, dict) else None, _FOLLOWUP_LENSES),
-            "target_kind": target_kind if isinstance(target_kind, str) and target_kind in _FOLLOWUP_TARGET_KINDS else "UNKNOWN",
+            "required_lens": _safe_followup_enum(
+                metadata.get("required_lens") if isinstance(metadata, dict) else None, _FOLLOWUP_LENSES
+            ),
+            "target_kind": target_kind
+            if isinstance(target_kind, str) and target_kind in _FOLLOWUP_TARGET_KINDS
+            else "UNKNOWN",
             "metadata_sha256": metadata_hash or "UNKNOWN",
             "target_value_sha256": target_hash or "UNKNOWN",
             "rationale_sha256": rationale_hash or "UNKNOWN",
@@ -1983,14 +2152,23 @@ def _project_context_followups(
             "unit_evidence_binding_sha256": binding_hash or "UNKNOWN",
             "persisted_unit_binding": unit_binding,
             "unit_binding_count": len(task_bindings) if bindings_valid else "UNKNOWN",
-            "unit_binding_evidence_count": sum(len(item["evidence_ids"]) for item in task_bindings) if bindings_valid else "UNKNOWN",
+            "unit_binding_evidence_count": sum(len(item["evidence_ids"]) for item in task_bindings)
+            if bindings_valid
+            else "UNKNOWN",
             "dispatched_input_evidence_count": len(input_evidence_ids) if input_evidence_valid else "UNKNOWN",
-            "dispatched_input_evidence_ids_sha256": _bounded_object_hash(input_evidence_ids) if input_evidence_valid else "UNKNOWN",
+            "dispatched_input_evidence_ids_sha256": _bounded_object_hash(input_evidence_ids)
+            if input_evidence_valid
+            else "UNKNOWN",
             "persisted_gap_task_binding": _safe_followup_enum(gap_linkage, _FOLLOWUP_LINK_STATES),
             "retrieved_evidence_count": len(retrieved_ids) if isinstance(retrieved_ids, list) else "UNKNOWN",
-            "retrieved_evidence_ids_sha256": _bounded_object_hash(retrieved_ids) if isinstance(retrieved_ids, list) else "UNKNOWN",
+            "retrieved_evidence_ids_sha256": _bounded_object_hash(retrieved_ids)
+            if isinstance(retrieved_ids, list)
+            else "UNKNOWN",
             "persisted_retrieval_binding": retrieval_binding,
-            "retrieval_status": _safe_followup_enum(gap.get("retrieval_status") if isinstance(gap, dict) else None, frozenset({"RESOLVED", "PARTIAL", "UNRESOLVED"})),
+            "retrieval_status": _safe_followup_enum(
+                gap.get("retrieval_status") if isinstance(gap, dict) else None,
+                frozenset({"RESOLVED", "PARTIAL", "UNRESOLVED"}),
+            ),
             "task_status": outcome_status,
             "persisted_obligation_binding": _safe_followup_enum(obligation_binding, _FOLLOWUP_LINK_STATES),
             "coverage_state": coverage_state,
@@ -1999,10 +2177,14 @@ def _project_context_followups(
             "adapter_http_status": http_status,
             "delivery_binding": "UNKNOWN",
             "provider_calls_reserved": reserved_calls if row_budget_valid else "UNKNOWN",
-            "provider_call_reservations_with_settlement": reservations_with_settlement if row_budget_valid else "UNKNOWN",
+            "provider_call_reservations_with_settlement": reservations_with_settlement
+            if row_budget_valid
+            else "UNKNOWN",
             "actual_provider_calls": "UNKNOWN",
             "reservation_count": len(reservation_keys) if row_budget_valid else "UNKNOWN",
-            "settlement_count": sum(1 for key in reservation_keys if key in settlement_map) if row_budget_valid else "UNKNOWN",
+            "settlement_count": sum(1 for key in reservation_keys if key in settlement_map)
+            if row_budget_valid
+            else "UNKNOWN",
             "settlement_statuses": sorted(set(settlement_statuses)) if row_budget_valid else ["UNKNOWN"],
         }
         if include_closure_diagnostics:
@@ -2021,7 +2203,8 @@ def _project_context_followups(
                         _bounded_object_hash(constructed_evidence_ids)
                         if _bounded_followup_evidence_ids(constructed_evidence_ids)
                         else "UNKNOWN"
-                    ) or "UNKNOWN",
+                    )
+                    or "UNKNOWN",
                     "task_result_input_evidence_count": (
                         len(result_input_evidence_ids)
                         if _bounded_followup_evidence_ids(result_input_evidence_ids)
@@ -2031,7 +2214,8 @@ def _project_context_followups(
                         _bounded_object_hash(result_input_evidence_ids)
                         if _bounded_followup_evidence_ids(result_input_evidence_ids)
                         else "UNKNOWN"
-                    ) or "UNKNOWN",
+                    )
+                    or "UNKNOWN",
                 }
             )
         rows.append(row)
@@ -2065,9 +2249,7 @@ def _project_context_followups(
     }
 
 
-def _project_required_context_coverage_diagnostic(
-    case_projection: dict[str, Any], durable: Any
-) -> dict[str, Any]:
+def _project_required_context_coverage_diagnostic(case_projection: dict[str, Any], durable: Any) -> dict[str, Any]:
     """Join case projection rows to the corresponding in-memory durable records."""
     unknown = {
         "schema": "required-context-coverage-diagnostic.v1",
@@ -2122,8 +2304,7 @@ def _project_required_context_coverage_diagnostic(
     )
 
     required_rows = [
-        row for row in coverage
-        if isinstance(row, dict) and row.get("obligation_kind") == "REQUIRED_CONTEXT"
+        row for row in coverage if isinstance(row, dict) and row.get("obligation_kind") == "REQUIRED_CONTEXT"
     ]
     known_obligation_kinds = {"CHANGED_UNIT_LENS", "PROJECT_CHECK", "REQUIRED_CONTEXT", "POLICY_LENS"}
     malformed_count = sum(
@@ -2132,7 +2313,9 @@ def _project_required_context_coverage_diagnostic(
         if not isinstance(row, dict) or row.get("obligation_kind") not in known_obligation_kinds
     )
     coverage_source_completeness = "COMPLETE" if coverage_source_is_complete else "UNKNOWN"
-    followup_projection = case_projection.get("context_followup_observations") if isinstance(case_projection, dict) else None
+    followup_projection = (
+        case_projection.get("context_followup_observations") if isinstance(case_projection, dict) else None
+    )
     followup_rows = (
         followup_projection.get("rows")
         if isinstance(followup_projection, dict)
@@ -2140,28 +2323,17 @@ def _project_required_context_coverage_diagnostic(
         else None
     )
     followup_projection_available = (
-        isinstance(followup_rows, list)
-        and len(followup_rows) <= _REQUIRED_CONTEXT_FOLLOWUP_SOURCE_MAX_ROWS
+        isinstance(followup_rows, list) and len(followup_rows) <= _REQUIRED_CONTEXT_FOLLOWUP_SOURCE_MAX_ROWS
     )
-    followup_state = (
-        followup_projection.get("projection_state")
-        if isinstance(followup_projection, dict)
-        else "UNKNOWN"
-    )
+    followup_state = followup_projection.get("projection_state") if isinstance(followup_projection, dict) else "UNKNOWN"
     observed_followups = (
-        followup_projection.get("observed_followup_task_count")
-        if isinstance(followup_projection, dict)
-        else None
+        followup_projection.get("observed_followup_task_count") if isinstance(followup_projection, dict) else None
     )
     projected_followups = (
-        followup_projection.get("projected_followup_task_count")
-        if isinstance(followup_projection, dict)
-        else None
+        followup_projection.get("projected_followup_task_count") if isinstance(followup_projection, dict) else None
     )
     omitted_followups = (
-        followup_projection.get("omitted_followup_task_count")
-        if isinstance(followup_projection, dict)
-        else None
+        followup_projection.get("omitted_followup_task_count") if isinstance(followup_projection, dict) else None
     )
     followup_counts_valid = (
         all(
@@ -2178,10 +2350,7 @@ def _project_required_context_coverage_diagnostic(
         and followup_counts_valid
         and omitted_followups == 0
         and followup_state in {"OBSERVED_WITH_LIMITATIONS", "NO_FOLLOWUP_TASKS_RECORDED"}
-        and (
-            followup_state != "NO_FOLLOWUP_TASKS_RECORDED"
-            or (observed_followups == 0 and projected_followups == 0)
-        )
+        and (followup_state != "NO_FOLLOWUP_TASKS_RECORDED" or (observed_followups == 0 and projected_followups == 0))
     )
     if not followup_projection_available:
         followup_rows = []
@@ -2227,14 +2396,16 @@ def _project_required_context_coverage_diagnostic(
         if not task_ids_valid:
             partial = True
 
-        same_obligation = [
-            row for row in followup_rows
-            if isinstance(row, dict) and row.get("followup_obligation_id") == obligation_id
-        ] if obligation_id != "UNKNOWN" else []
-        task_rows = [
-            row for row in followup_rows
-            if isinstance(row, dict) and row.get("task_id") in task_ids
-        ]
+        same_obligation = (
+            [
+                row
+                for row in followup_rows
+                if isinstance(row, dict) and row.get("followup_obligation_id") == obligation_id
+            ]
+            if obligation_id != "UNKNOWN"
+            else []
+        )
+        task_rows = [row for row in followup_rows if isinstance(row, dict) and row.get("task_id") in task_ids]
         task_row_ids = [row.get("task_id") for row in same_obligation if isinstance(row.get("task_id"), str)]
         if (
             obligation_id == "UNKNOWN"
@@ -2244,10 +2415,9 @@ def _project_required_context_coverage_diagnostic(
         ):
             followup_binding = "UNKNOWN"
         elif same_obligation:
-            if (
-                any(_safe_followup_id(row.get("task_id")) == "UNKNOWN" for row in same_obligation)
-                or len(task_row_ids) != len(set(task_row_ids))
-            ):
+            if any(_safe_followup_id(row.get("task_id")) == "UNKNOWN" for row in same_obligation) or len(
+                task_row_ids
+            ) != len(set(task_row_ids)):
                 followup_binding = "UNKNOWN"
             elif set(task_row_ids) != set(task_ids):
                 followup_binding = "MISMATCH"
@@ -2294,32 +2464,28 @@ def _project_required_context_coverage_diagnostic(
             for row in linked_rows
         ]
         if any(
-            row["task_id"] == "UNKNOWN"
-            or row["task_status"] == "UNKNOWN"
-            or row["handoff_binding"] == "UNKNOWN"
+            row["task_id"] == "UNKNOWN" or row["task_status"] == "UNKNOWN" or row["handoff_binding"] == "UNKNOWN"
             for row in linked_followups
         ):
             partial = True
 
-        rows.append({
-            "obligation_id": obligation_id,
-            "coverage_state": state,
-            "coverage_reason_code": reason_code,
-            "task_ids": task_ids if task_ids_valid else "UNKNOWN",
-            "followup_observation_binding": followup_binding,
-            "closure_observation_binding": closure_binding,
-            "linked_followups": linked_followups,
-            "closure_diagnostics": closure,
-        })
+        rows.append(
+            {
+                "obligation_id": obligation_id,
+                "coverage_state": state,
+                "coverage_reason_code": reason_code,
+                "task_ids": task_ids if task_ids_valid else "UNKNOWN",
+                "followup_observation_binding": followup_binding,
+                "closure_observation_binding": closure_binding,
+                "linked_followups": linked_followups,
+                "closure_diagnostics": closure,
+            }
+        )
 
     omitted = max(0, len(required_rows) - len(rows))
     return {
         "schema": "required-context-coverage-diagnostic.v1",
-        "projection_state": (
-            "PARTIAL" if partial
-            else "NOT_APPLICABLE" if not required_rows
-            else "OBSERVED"
-        ),
+        "projection_state": ("PARTIAL" if partial else "NOT_APPLICABLE" if not required_rows else "OBSERVED"),
         "case_id": safe_case_id,
         "base_sha": safe_base_sha,
         "head_sha": safe_head_sha,
@@ -2329,9 +2495,7 @@ def _project_required_context_coverage_diagnostic(
         "source_followup_projection_state": (
             followup_state
             if isinstance(followup_state, str)
-            and followup_state in {
-                "OBSERVED_WITH_LIMITATIONS", "PARTIAL", "NO_FOLLOWUP_TASKS_RECORDED", "UNKNOWN"
-            }
+            and followup_state in {"OBSERVED_WITH_LIMITATIONS", "PARTIAL", "NO_FOLLOWUP_TASKS_RECORDED", "UNKNOWN"}
             else "UNKNOWN"
         ),
         "followup_source_completeness": "COMPLETE" if followup_source_is_complete else "UNKNOWN",
@@ -2427,8 +2591,13 @@ def _scan(value: Any, secrets: list[str], limit: int = OUTPUT_CAP) -> bytes:
 
 
 def project_case(
-    case: dict[str, Any], durable: dict[str, Any], secrets: list[str], *, include_context_followups: bool = False,
-    include_closure_diagnostics: bool = False, include_context_handoff: bool = False,
+    case: dict[str, Any],
+    durable: dict[str, Any],
+    secrets: list[str],
+    *,
+    include_context_followups: bool = False,
+    include_closure_diagnostics: bool = False,
+    include_context_handoff: bool = False,
     include_required_context_coverage_diagnostic: bool = False,
 ) -> dict[str, Any]:
     findings = durable.get("findings")
@@ -2596,16 +2765,22 @@ def _project_claim(value: Any) -> dict[str, Any]:
         result["reason_code"] = reason_code if reason_code in _SAFE_CLAIM_REASON_CODES else "UNKNOWN"
     if "error_code" in value:
         error_code = value.get("error_code")
-        result["error_code"] = error_code if isinstance(error_code, str) and error_code in _SAFE_CLAIM_ERROR_CODES else "UNKNOWN"
+        result["error_code"] = (
+            error_code if isinstance(error_code, str) and error_code in _SAFE_CLAIM_ERROR_CODES else "UNKNOWN"
+        )
     assessments = value.get("assessments")
     dimensions, projection_complete = _project_claim_dimensions(assessments)
     result["dimensions"] = dimensions
     result["dimension_projection_status"] = "COMPLETE" if projection_complete and identity_valid else "PARTIAL"
-    if status == "COMPLETE" and isinstance(assessments, dict) and any(
-        not isinstance(item, dict)
-        or item.get("status") not in {"ANSWERED", "NOT_SHOWN"}
-        or (item.get("status") == "NOT_SHOWN" and dimension != "introducedness")
-        for dimension, item in assessments.items()
+    if (
+        status == "COMPLETE"
+        and isinstance(assessments, dict)
+        and any(
+            not isinstance(item, dict)
+            or item.get("status") not in {"ANSWERED", "NOT_SHOWN"}
+            or (item.get("status") == "NOT_SHOWN" and dimension != "introducedness")
+            for dimension, item in assessments.items()
+        )
     ):
         result["dimension_projection_status"] = "PARTIAL"
     if isinstance(value.get("projection_valid"), bool):
@@ -2636,6 +2811,8 @@ _CLAIM_DIMENSION_CHOICES = {
 _CLAIM_ANSWER_STATUSES = frozenset({"NOT_RUN", "NOT_SHOWN", "ANSWERED", "OMITTED", "INVALID", "FAILED"})
 _CLAIM_DIMENSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}\Z")
 _CLAIM_DIMENSION_HASH = re.compile(r"[0-9a-f]{64}\Z")
+
+
 def _project_claim_id(value: Any) -> str:
     return value if isinstance(value, str) and _CLAIM_DIMENSION_ID.fullmatch(value) else "UNKNOWN"
 
@@ -2727,14 +2904,15 @@ def _project_claim_dimensions(value: Any) -> tuple[dict[str, Any], bool]:
         if error_code is not None:
             safe_item["error_code"] = (
                 error_code
-                if isinstance(error_code, str)
-                and error_code in _SAFE_CLAIM_DIMENSION_ERROR_CODES
+                if isinstance(error_code, str) and error_code in _SAFE_CLAIM_DIMENSION_ERROR_CODES
                 else "UNKNOWN"
             )
         invalid_hash = item.get("invalid_answer_hash")
         if invalid_hash is not None:
             safe_item["invalid_answer_hash"] = (
-                invalid_hash if isinstance(invalid_hash, str) and _CLAIM_DIMENSION_HASH.fullmatch(invalid_hash) else None
+                invalid_hash
+                if isinstance(invalid_hash, str) and _CLAIM_DIMENSION_HASH.fullmatch(invalid_hash)
+                else None
             )
             if safe_item["invalid_answer_hash"] is None:
                 complete = False
@@ -2953,7 +3131,14 @@ def _project_gaps(
             continue
         item = {
             key: row[key]
-            for key in ("proposal_id", "status", "reason_code", "affected_obligation_ids", "affected_unit_ids", "required_lens")
+            for key in (
+                "proposal_id",
+                "status",
+                "reason_code",
+                "affected_obligation_ids",
+                "affected_unit_ids",
+                "required_lens",
+            )
             if key in row
         }
         proposal = row.get("proposal") if isinstance(row.get("proposal"), dict) else {}
@@ -2989,9 +3174,11 @@ def _project_gaps(
         ):
             retrieval_envelope_bytes = "UNKNOWN"
         evidence_ids = row.get("retrieved_evidence_ids")
-        evidence_count = len(evidence_ids) if isinstance(evidence_ids, list) and all(
-            isinstance(ref, str) for ref in evidence_ids
-        ) else "UNKNOWN"
+        evidence_count = (
+            len(evidence_ids)
+            if isinstance(evidence_ids, list) and all(isinstance(ref, str) for ref in evidence_ids)
+            else "UNKNOWN"
+        )
         followup_id = row.get("followup_task_id")
         followup_error = row.get("followup_error")
         followup_status = "NOT_SHOWN"
@@ -3276,7 +3463,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.input_contract == "specialist-input-v1":
             runtime = verify_runtime(args.cli.resolve(strict=True), args.runtime_source.resolve(strict=True))
         else:
-            runtime = verify_runtime(args.cli.resolve(strict=True), args.runtime_source.resolve(strict=True), args.input_contract)
+            runtime = verify_runtime(
+                args.cli.resolve(strict=True), args.runtime_source.resolve(strict=True), args.input_contract
+            )
         output = args.artifacts / "private"
         private_root = output
         output.mkdir(mode=0o700)
@@ -3308,8 +3497,12 @@ def main(argv: list[str] | None = None) -> int:
                 bare = args.target_bare.resolve(strict=True) if args.target_bare else case_dir / "objects.git"
                 stage = "target_object_acquisition"
                 object_record = acquire_bare_case(
-                    case, bare, case_deadline, matrix_deadline,
-                    source_bare=bare if args.target_bare else None, auxiliary_dir=case_dir,
+                    case,
+                    bare,
+                    case_deadline,
+                    matrix_deadline,
+                    source_bare=bare if args.target_bare else None,
+                    auxiliary_dir=case_dir,
                 )
                 limits_path = case_dir / "limits.json"
                 write_json(limits_path, limits_for(matrix_calls))
@@ -3317,8 +3510,17 @@ def main(argv: list[str] | None = None) -> int:
                 checks_path = INPUT_ROOT / case["checks_path"]
                 stage = "prepare_cli"
                 prep = run_cli(
-                    args.cli, case, bare, profile_path, checks_path, provider_path, decision_path,
-                    limits_path, case_dir / "prepared", True, effective_env,
+                    args.cli,
+                    case,
+                    bare,
+                    profile_path,
+                    checks_path,
+                    provider_path,
+                    decision_path,
+                    limits_path,
+                    case_dir / "prepared",
+                    True,
+                    effective_env,
                     _remaining(case_deadline, matrix_deadline),
                 )
                 validate_prepare_v2(case, prep, 8_000_000, matrix_calls)
@@ -3331,21 +3533,23 @@ def main(argv: list[str] | None = None) -> int:
                     "object_record": object_record,
                     "prep": prep,
                 }
-                preflight_rows.append({
-                    "case_id": case["case_id"],
-                    "status": "PREPARED_NOT_RUN",
-                    "scope_count": case["expected_scope_count"],
-                    "scope_sha256": case["expected_scope_sha256"],
-                    "primary_calls": case["expected_primary_count"],
-                    "primary_serialized_input_bytes": case["expected_primary_serialized_input_bytes"],
-                    "immutable_patch_sha256": object_record["patch_sha256"],
-                    "profile_sha256": case["profile_sha256"],
-                    "checks_sha256": case["checks_sha256"],
-                    "snapshot_hash": case["snapshot_hash"],
-                    "evidence_index_sha256": case["evidence_index_sha256"],
-                    "primary_descriptor_sha256": case["expected_primary_descriptor_sha256"],
-                    "primary_request_receipts": _primary_receipts_for_contract(prep, args.input_contract),
-                })
+                preflight_rows.append(
+                    {
+                        "case_id": case["case_id"],
+                        "status": "PREPARED_NOT_RUN",
+                        "scope_count": case["expected_scope_count"],
+                        "scope_sha256": case["expected_scope_sha256"],
+                        "primary_calls": case["expected_primary_count"],
+                        "primary_serialized_input_bytes": case["expected_primary_serialized_input_bytes"],
+                        "immutable_patch_sha256": object_record["patch_sha256"],
+                        "profile_sha256": case["profile_sha256"],
+                        "checks_sha256": case["checks_sha256"],
+                        "snapshot_hash": case["snapshot_hash"],
+                        "evidence_index_sha256": case["evidence_index_sha256"],
+                        "primary_descriptor_sha256": case["expected_primary_descriptor_sha256"],
+                        "primary_request_receipts": _primary_receipts_for_contract(prep, args.input_contract),
+                    }
+                )
                 active_case_id = None
             # No secret-bearing config or provider environment reaches the CLI
             # until every selected v2 case has matched its frozen request plan.
@@ -3501,7 +3705,7 @@ def main(argv: list[str] | None = None) -> int:
         if matrix_deadline - time.monotonic() <= MATRIX_CLEANUP_RESERVE_SECONDS:
             raise TrialError("matrix_deadline_exceeded")
         manifest = {
-        "schema": _manifest_schema(args.input_contract),
+            "schema": _manifest_schema(args.input_contract),
             "runtime_provenance_version": _runtime_provenance_version(args.input_contract),
             "limits_version": "historical-real-case-limits.v2",
             "frozen_plan_manifest_sha256": _plan_identity(args.input_contract),
@@ -3569,8 +3773,10 @@ def main(argv: list[str] | None = None) -> int:
                 primary_match = all(
                     isinstance(rows_by_id.get(case["case_id"]), dict)
                     and rows_by_id[case["case_id"]].get("primary_calls") == case["expected_primary_count"]
-                    and rows_by_id[case["case_id"]].get("primary_serialized_input_bytes") == case["expected_primary_serialized_input_bytes"]
-                    and rows_by_id[case["case_id"]].get("primary_descriptor_sha256") == case["expected_primary_descriptor_sha256"]
+                    and rows_by_id[case["case_id"]].get("primary_serialized_input_bytes")
+                    == case["expected_primary_serialized_input_bytes"]
+                    and rows_by_id[case["case_id"]].get("primary_descriptor_sha256")
+                    == case["expected_primary_descriptor_sha256"]
                     for case in cases
                 )
                 manifest["primary_input_identity"] = (
@@ -3582,8 +3788,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 manifest["primary_request_identity_totals"] = {
                     "requests": sum(case["expected_primary_count"] for case in cases) if primary_match else "UNKNOWN",
-                    "serialized_input_bytes": sum(case["expected_primary_serialized_input_bytes"] for case in cases) if primary_match else "UNKNOWN",
-                    "required_obligations": sum(case["expected_scope_count"] for case in cases) if primary_match else "UNKNOWN",
+                    "serialized_input_bytes": sum(case["expected_primary_serialized_input_bytes"] for case in cases)
+                    if primary_match
+                    else "UNKNOWN",
+                    "required_obligations": sum(case["expected_scope_count"] for case in cases)
+                    if primary_match
+                    else "UNKNOWN",
                 }
             manifest["serialized_artifact_caps"] = {
                 "manifest_json_bytes_max": V2_ARTIFACT_MANIFEST_CAP,
@@ -3597,7 +3807,8 @@ def main(argv: list[str] | None = None) -> int:
             "status": manifest["status"],
             "cases": [
                 {
-                    key: value for key, value in item.items()
+                    key: value
+                    for key, value in item.items()
                     if key != "projection"
                     and not (_uses_v2_primary(args.input_contract) and key == "primary_request_receipts")
                 }
@@ -3607,8 +3818,7 @@ def main(argv: list[str] | None = None) -> int:
         }
         _scan(summary, secrets, 128_000)
         if _uses_v2_primary(args.input_contract) and (
-            len(canonical(manifest)) > V2_ARTIFACT_MANIFEST_CAP
-            or len(canonical(summary)) > V2_ARTIFACT_SUMMARY_CAP
+            len(canonical(manifest)) > V2_ARTIFACT_MANIFEST_CAP or len(canonical(summary)) > V2_ARTIFACT_SUMMARY_CAP
         ):
             raise TrialError("sanitized_artifact_limit_exceeded")
         cleanup_private(output)

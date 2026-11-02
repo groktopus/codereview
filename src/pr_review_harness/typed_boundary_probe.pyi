@@ -1,4 +1,5 @@
 """Positive CI fixture binding real boundary functions to protocols."""
+
 from __future__ import annotations
 
 from .planner import plan_review

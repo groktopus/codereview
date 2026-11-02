@@ -102,7 +102,9 @@ def test_summary_keeps_zero_obligation_runs_explicit():
 
 
 def test_non_required_rows_alone_are_still_a_zero_obligation_denominator():
-    summary = build_completeness_summary([_row("unit:u0:lens:correctness", "PARTIAL", "PARTIAL_REVIEW_COVERAGE", required=False)])
+    summary = build_completeness_summary(
+        [_row("unit:u0:lens:correctness", "PARTIAL", "PARTIAL_REVIEW_COVERAGE", required=False)]
+    )
 
     assert summary["ledger_total"] == 1
     assert summary["non_required"] == 1

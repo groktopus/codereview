@@ -110,14 +110,36 @@ def _identity_digest(identity: dict[str, Any]) -> str:
 
 def _validate_run(run: Any, expected_role: str, seen_run_ids: set[str]) -> dict[str, Any]:
     fields = {
-        "role", "status", "run_id", "provider_id", "model_id", "runtime_id",
-        "prompt_revision", "rubric_revision", "input_sha256", "input_artifact_id", "output_sha256", "artifact_id",
+        "role",
+        "status",
+        "run_id",
+        "provider_id",
+        "model_id",
+        "runtime_id",
+        "prompt_revision",
+        "rubric_revision",
+        "input_sha256",
+        "input_artifact_id",
+        "output_sha256",
+        "artifact_id",
     }
     item = _exact(run, fields, "invalid_role_run")
     if item["role"] != expected_role or not isinstance(item["status"], str) or item["status"] not in RUN_STATUSES:
         _fail("invalid_role_or_run_status")
     if item["status"] == "not_run":
-        if any(item[key] is not None for key in ("run_id", "provider_id", "model_id", "runtime_id", "input_sha256", "input_artifact_id", "output_sha256", "artifact_id")):
+        if any(
+            item[key] is not None
+            for key in (
+                "run_id",
+                "provider_id",
+                "model_id",
+                "runtime_id",
+                "input_sha256",
+                "input_artifact_id",
+                "output_sha256",
+                "artifact_id",
+            )
+        ):
             _fail("not_run_has_execution_provenance")
         for key in ("prompt_revision", "rubric_revision"):
             if item[key] is not None:
@@ -213,11 +235,25 @@ def validate_cross_model_comparison(value: Any, corpus_value: Any) -> dict[str, 
             except UnicodeError:
                 _fail("invalid_anchor_path")
             parsed = PurePosixPath(path)
-            if not path or "\x00" in path or parsed.is_absolute() or any(part in {"", ".", ".."} for part in path.split("/")) or path.startswith("-"):
+            if (
+                not path
+                or "\x00" in path
+                or parsed.is_absolute()
+                or any(part in {"", ".", ".."} for part in path.split("/"))
+                or path.startswith("-")
+            ):
                 _fail("invalid_anchor_path")
-            if not isinstance(anchor["line_start"], int) or isinstance(anchor["line_start"], bool) or anchor["line_start"] < 1:
+            if (
+                not isinstance(anchor["line_start"], int)
+                or isinstance(anchor["line_start"], bool)
+                or anchor["line_start"] < 1
+            ):
                 _fail("invalid_anchor_lines")
-            if not isinstance(anchor["line_end"], int) or isinstance(anchor["line_end"], bool) or anchor["line_end"] < anchor["line_start"]:
+            if (
+                not isinstance(anchor["line_end"], int)
+                or isinstance(anchor["line_end"], bool)
+                or anchor["line_end"] < anchor["line_start"]
+            ):
                 _fail("invalid_anchor_lines")
 
         records = item["records"]
@@ -226,7 +262,11 @@ def validate_cross_model_comparison(value: Any, corpus_value: Any) -> dict[str, 
         record_ids: set[tuple[str, str]] = set()
         for record in records:
             record = _exact(record, {"role", "record_id", "record_kind", "anchor_ids"}, "invalid_record")
-            if record["role"] not in ROLES or not isinstance(record["record_kind"], str) or record["record_kind"] not in RECORD_KINDS:
+            if (
+                record["role"] not in ROLES
+                or not isinstance(record["record_kind"], str)
+                or record["record_kind"] not in RECORD_KINDS
+            ):
                 _fail("invalid_record_role")
             rid = _identifier(record["record_id"], "invalid_record_id")
             key = (record["role"], rid)
@@ -249,9 +289,18 @@ def validate_cross_model_comparison(value: Any, corpus_value: Any) -> dict[str, 
             _fail("invalid_units")
         unit_ids: set[tuple[str, str]] = set()
         for unit in units:
-            unit = _exact(unit, {"pair", "unit_id", "left", "right", "relation", "relation_reporter", "reporter_record_id"}, "invalid_comparison_unit")
+            unit = _exact(
+                unit,
+                {"pair", "unit_id", "left", "right", "relation", "relation_reporter", "reporter_record_id"},
+                "invalid_comparison_unit",
+            )
             pair = unit["pair"]
-            if not isinstance(pair, str) or pair not in PAIR_ROLES or not isinstance(unit["relation"], str) or unit["relation"] not in RELATIONS:
+            if (
+                not isinstance(pair, str)
+                or pair not in PAIR_ROLES
+                or not isinstance(unit["relation"], str)
+                or unit["relation"] not in RELATIONS
+            ):
                 _fail("invalid_pair_or_relation")
             left_role, right_role = PAIR_ROLES[pair]
             if unit["relation_reporter"] != right_role:
@@ -481,7 +530,19 @@ def _anchor_statuses(
         if source is None:
             path_state[path] = ("PATH_MISSING", [], 0)
             continue
-        diff = _git(root, "--no-pager", "diff", "--no-ext-diff", "--no-textconv", "--unified=0", identity["base_sha"], identity["head_sha"], "--", f":(literal){path}", deadline=deadline)
+        diff = _git(
+            root,
+            "--no-pager",
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--unified=0",
+            identity["base_sha"],
+            identity["head_sha"],
+            "--",
+            f":(literal){path}",
+            deadline=deadline,
+        )
         if diff == _GIT_CHECK_FAILED:
             path_state[path] = ("CHECK_FAILED", [], 0)
             continue
@@ -601,14 +662,16 @@ def compare_cross_model(
         else:
             status, observed_hash, bytes_read = "NOT_PROVIDED", None, 0
         artifact_status_by_id[artifact_id] = status
-        artifact_rows.append({
-            "artifact_id": artifact_id,
-            "role": role,
-            "kind": kind,
-            "status": status,
-            "declared_sha256": expected_hash,
-            "observed_sha256": observed_hash,
-        })
+        artifact_rows.append(
+            {
+                "artifact_id": artifact_id,
+                "role": role,
+                "kind": kind,
+                "status": status,
+                "declared_sha256": expected_hash,
+                "observed_sha256": observed_hash,
+            }
+        )
     role_counts = {role: Counter({status: 0 for status in sorted(RUN_STATUSES)}) for role in ROLES}
     pair_counts = {pair: Counter({status: 0 for status in sorted(RELATIONS)}) for pair in PAIR_ROLES}
     anchor_counts: Counter[str] = Counter({status: 0 for status in sorted(ANCHOR_STATUSES)})
@@ -661,23 +724,25 @@ def compare_cross_model(
         for unit in case["units"]:
             pair_counts[unit["pair"]][unit["relation"]] += 1
             total_units += 1
-        case_reports.append({
-            "case_id": case["case_id"],
-            "identity_sha256": _identity_digest(case["identity"]),
-            "roles": role_summary,
-            "anchors": anchor_rows,
-            "comparison_units": [
-                {
-                    "pair": u["pair"],
-                    "unit_id": u["unit_id"],
-                    "relation": u["relation"],
-                    "relation_reporter": u["relation_reporter"],
-                    "reporter_record_id": u["reporter_record_id"],
-                    "relation_provenance_status": "DECLARED_ONLY",
-                }
-                for u in case["units"]
-            ],
-        })
+        case_reports.append(
+            {
+                "case_id": case["case_id"],
+                "identity_sha256": _identity_digest(case["identity"]),
+                "roles": role_summary,
+                "anchors": anchor_rows,
+                "comparison_units": [
+                    {
+                        "pair": u["pair"],
+                        "unit_id": u["unit_id"],
+                        "relation": u["relation"],
+                        "relation_reporter": u["relation_reporter"],
+                        "reporter_record_id": u["reporter_record_id"],
+                        "relation_provenance_status": "DECLARED_ONLY",
+                    }
+                    for u in case["units"]
+                ],
+            }
+        )
     summary = {
         "contract_version": CROSS_MODEL_VERSION,
         "comparison_id": comparison["comparison_id"],
@@ -690,31 +755,47 @@ def compare_cross_model(
         "relation_semantics": "declared_reporter_relation_only; not verified in output bytes, factual support, or correctness",
         "claims": {"accuracy": None, "ground_truth": None, "calibration": None, "correctness": None},
         "role_run_counts": {
-            role: {"denominator": len(comparison["cases"]), "status_counts": dict(role_counts[role])}
-            for role in ROLES
+            role: {"denominator": len(comparison["cases"]), "status_counts": dict(role_counts[role])} for role in ROLES
         },
         "role_record_counts": {
             role: {
                 "case_denominator": len(comparison["cases"]),
-                "cases_with_records": sum(any(record["role"] == role for record in case["records"]) for case in comparison["cases"]),
-                "cases_with_zero_records": sum(not any(record["role"] == role for record in case["records"]) for case in comparison["cases"]),
-                "record_denominator": sum(record["role"] == role for case in comparison["cases"] for record in case["records"]),
+                "cases_with_records": sum(
+                    any(record["role"] == role for record in case["records"]) for case in comparison["cases"]
+                ),
+                "cases_with_zero_records": sum(
+                    not any(record["role"] == role for record in case["records"]) for case in comparison["cases"]
+                ),
+                "record_denominator": sum(
+                    record["role"] == role for case in comparison["cases"] for record in case["records"]
+                ),
                 "record_kind_counts": {
-                    kind: sum(record["role"] == role and record["record_kind"] == kind for case in comparison["cases"] for record in case["records"])
+                    kind: sum(
+                        record["role"] == role and record["record_kind"] == kind
+                        for case in comparison["cases"]
+                        for record in case["records"]
+                    )
                     for kind in sorted(RECORD_KINDS)
                 },
                 "candidate_or_decision_count": sum(
                     record["role"] == role and record["record_kind"] == ROLE_RECORD_KINDS[role]
-                    for case in comparison["cases"] for record in case["records"]
+                    for case in comparison["cases"]
+                    for record in case["records"]
                 ),
                 "candidate_or_decision_cases_with_zero": sum(
-                    not any(record["role"] == role and record["record_kind"] == ROLE_RECORD_KINDS[role] for record in case["records"])
+                    not any(
+                        record["role"] == role and record["record_kind"] == ROLE_RECORD_KINDS[role]
+                        for record in case["records"]
+                    )
                     for case in comparison["cases"]
                 ),
             }
             for role in ROLES
         },
-        "all_role_runs": {"denominator": total_roles, "status_counts": {status: sum(role_counts[r][status] for r in ROLES) for status in sorted(RUN_STATUSES)}},
+        "all_role_runs": {
+            "denominator": total_roles,
+            "status_counts": {status: sum(role_counts[r][status] for r in ROLES) for status in sorted(RUN_STATUSES)},
+        },
         "pair_comparison_counts": {
             pair: {"denominator": sum(pair_counts[pair].values()), "status_counts": dict(pair_counts[pair])}
             for pair in PAIR_ROLES
@@ -729,7 +810,16 @@ def compare_cross_model(
             "denominator": len(artifact_rows),
             "status_counts": {
                 status: sum(row["status"] == status for row in artifact_rows)
-                for status in ("VERIFIED", "HASH_MISMATCH", "NOT_PROVIDED", "UNREADABLE", "SYMLINK", "NOT_REGULAR", "TOO_LARGE", "CHECK_LIMIT")
+                for status in (
+                    "VERIFIED",
+                    "HASH_MISMATCH",
+                    "NOT_PROVIDED",
+                    "UNREADABLE",
+                    "SYMLINK",
+                    "NOT_REGULAR",
+                    "TOO_LARGE",
+                    "CHECK_LIMIT",
+                )
             },
             "checked_artifact_limit": MAX_ARTIFACTS_CHECKED,
             "checked_byte_limit": MAX_TOTAL_ARTIFACT_BYTES,
