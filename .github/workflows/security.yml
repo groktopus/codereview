@@ -176,5 +176,7 @@ jobs:
           # remains enabled with a match failing the job. Frozen public diff
           # evidence is excluded from TruffleHog because archive/decompressed
           # scanning flags public commit hashes as VirusTotal false positives;
-          # the credential-URL guard above still covers that evidence path.
-          extra_args: --no-verification --exclude-detectors=URI --exclude-paths=examples/evaluation/qm2-labeling-pilot-v1/evidence/
+          # the VirusTotal hash-reputation detector is disabled (it does not
+          # detect credentials), and the credential-URL guard above still
+          # covers that evidence path.
+          extra_args: --no-verification --exclude-detectors=URI,VirusTotal --exclude-paths=examples/evaluation/qm2-labeling-pilot-v1/evidence/
