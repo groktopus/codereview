@@ -7,15 +7,16 @@ fixtures are retained as evidence, not as supported releases.
 
 ## Reporting a vulnerability
 
-Use GitHub's private vulnerability reporting on this repository
-(Security -> Report a vulnerability). Do not open a public issue for a
-suspected vulnerability and do not include credentials, private repository
-content, or provider keys in a report.
+Private vulnerability reporting is not currently configured for this
+repository. Do not open a public issue containing exploit details or secrets.
+Contact the owner through their GitHub profile to request a private channel;
+if private reporting becomes enabled, use Security -> Report a vulnerability.
+Do not include credentials, private repository content, or provider keys in any
+report.
 
 Include the affected version/commit, a minimal reproduction, the impact, and
-whether the issue requires provider access or a target repository. If private
-reporting is unavailable, contact the repository owner through their GitHub
-profile and ask for a private channel.
+whether the issue requires provider access or a target repository. Until private reporting is enabled, the owner profile is the only
+non-public contact path.
 
 ## Response
 

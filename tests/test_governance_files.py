@@ -17,4 +17,4 @@ def test_security_contributing_and_ownership_are_linked():
     for target in ("SECURITY.md", "CONTRIBUTING.md", "docs/PROVENANCE.md"):
         assert f"]({target})" in readme
     assert (ROOT / "SECURITY.md").is_file()
-    assert "@groktopus" in (ROOT / ".github/CODEOWNERS").read_text(encoding="utf-8")
+    assert "@magnus919" in (ROOT / ".github/CODEOWNERS").read_text(encoding="utf-8")
