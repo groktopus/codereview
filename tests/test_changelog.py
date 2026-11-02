@@ -136,3 +136,9 @@ def test_cli_classify_is_scriptable_and_exits_nonzero_for_unknown_types() -> Non
     assert unknown.returncode == 1
     assert unknown.stdout.strip() == "unclassified"
 
+
+
+def test_version_key_uses_semver_prerelease_rules() -> None:
+    assert version_key("0.1.0-rc.10") > version_key("0.1.0-rc.9")
+    assert version_key("0.1.0-1") < version_key("0.1.0-alpha")
+    assert version_key("0.1.0-alpha") < version_key("0.1.0-alpha.1")
