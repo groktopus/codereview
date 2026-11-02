@@ -181,7 +181,7 @@ checked out or executed. The script is
 [`scripts/check_decision_record_links.py`](../scripts/check_decision_record_links.py).
 
 It fails closed when it cannot prove the requirement: no event, no changed-file
-list, an API error or more than 1,000 changed files, a missing or malformed
+list, an API error or 1,000 or more changed files, a missing or malformed
 manifest, a missing ADR index, a missing or unvalidated receipt, a missing
 `decision_records` list, or any cited record that is malformed, unindexed,
 absent from the base revision, or not `Accepted`.
@@ -252,7 +252,7 @@ yet required.
 - Caps: receipt ≤64 KB, event body ≤2 MB, scope/evidence ≤50 items each, most
   fields ≤4000 chars, reviewer identity ≤200, `post_merge_verification` ≥10
   chars, evidence values single-line, `decision_records` ≤10 items, changed-file
-  list ≤1,000 entries (a longer list fails closed).
+  list ≤1,000 entries (a longer list fails closed). The changed-file API cap is 999 entries; 1,000 fails closed.
 
 Even with both checks required, CI can and cannot do the following:
 
@@ -291,7 +291,7 @@ Even with both checks required, CI can and cannot do the following:
   the decision was wise or sufficient. The link check is structural: it proves
   the record exists, is indexed, and is accepted on the base revision.
 - That the GitHub changed-file list reflects every intended change beyond the
-  API response and its 1,000-entry cap. The check fails closed on an API error
+  API response and its 999-entry cap. The check fails closed on an API error
   or an oversized list instead of guessing.
 - Direct pushes, force pushes, or merges performed by automation that bypass
   the pull request body.

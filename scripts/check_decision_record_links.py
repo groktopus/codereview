@@ -589,9 +589,8 @@ def verify_decision_records(
             )
             continue
         record_id, named_path = resolved
-        if record_id in checked:
-            continue
-        checked.append(record_id)
+        if record_id not in checked:
+            checked.append(record_id)
 
         row = rows.get(record_id)
         if row is None:

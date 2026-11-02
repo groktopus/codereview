@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import glob
 import json
 import re
 from pathlib import Path
@@ -234,7 +235,16 @@ def _check_manifest(
             errors.append(f"{manifest_path.relative_to(root)}: invariant {invariant_id} has no paths")
         else:
             for relative in paths:
-                if not isinstance(relative, str) or not (root / relative).exists():
+                if not isinstance(relative, str):
+                    errors.append(
+                        f"{manifest_path.relative_to(root)}: invariant {invariant_id} names a non-string path"
+                    )
+                elif any(char in relative for char in "*?["):
+                    if not glob.glob(str(root / relative), recursive=True):
+                        errors.append(
+                            f"{manifest_path.relative_to(root)}: invariant {invariant_id} glob matches no path {relative!r}"
+                        )
+                elif not (root / relative).exists():
                     errors.append(
                         f"{manifest_path.relative_to(root)}: invariant {invariant_id} names missing path {relative!r}"
                     )
