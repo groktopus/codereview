@@ -174,8 +174,8 @@ python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
 ```
 
 The expected result is `Release verification: PASS (signed: no)`. The
-provenance is unsigned by design; `--require-signed` fails until a real
-signature exists.
+provenance is unsigned by design; `--require-signed` always fails today because
+signature verification is not implemented, even for a claimed signature.
 
 Also verify the tag and metadata against the checkout:
 

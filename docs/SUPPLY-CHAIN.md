@@ -10,8 +10,8 @@ and its assets exist; this document is not evidence that a release has been
 created.
 
 When a release is published, its assets are a wheel, a source distribution,
-`SHA256SUMS`, a CycloneDX SBOM, unsigned provenance, and the reproducibility
-report. It does not
+`SHA256SUMS`, a CycloneDX SBOM, unsigned provenance, the reproducibility
+report, and `RELEASE-NOTES.md`. It does not
 publish to PyPI, create tags, or sign artifacts. **No release asset carries a
 signature or a Sigstore/GitHub attestation.** Do not describe the provenance as
 signed, verified, or attested.
@@ -154,8 +154,9 @@ python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
 
 A passing result prints `Release verification: PASS (signed: no)`. The
 `signed: no` is expected: nothing in this release is signed. To make an unsigned
-release fail verification, pass `--require-signed`; that flag fails until a real
-signature is added.
+release fail verification, pass `--require-signed`; that flag always fails today
+because cryptographic signature verification is not implemented, even if a
+provenance merely claims a signature.
 
 Inspect the evidence directly:
 

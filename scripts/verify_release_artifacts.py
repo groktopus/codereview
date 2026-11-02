@@ -7,10 +7,10 @@ SHA-256 of every wheel and source distribution and compares it with
 the SBOM's package metadata (name, version, MIT license, zero runtime
 dependencies, Python requirement) against the distribution metadata itself.
 
-The provenance may be unsigned. This script reports ``signed: false`` and only
-fails on unsigned provenance when ``--require-signed`` is passed; it cannot
-cryptographically verify a signature, so a signed status is reported as
-present-but-unverified rather than as a passing signature check.
+The provenance may be unsigned. This script reports ``signed: false`` and does
+not cryptographically verify signatures. ``--require-signed`` therefore always
+fails until signature verification is implemented; a claimed signed status is
+reported as present-but-unverified, never as a passing signature check.
 """
 
 from __future__ import annotations
@@ -243,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--checksums", type=Path, help="SHA256SUMS asset")
     parser.add_argument("--source-revision", help="expected source commit recorded in provenance")
     parser.add_argument("--workflow-ref", help="expected workflow reference recorded in provenance")
-    parser.add_argument("--require-signed", action="store_true", help="fail when the provenance is unsigned")
+    parser.add_argument("--require-signed", action="store_true", help="always fail until cryptographic signature verification is implemented")
     parser.add_argument("--json", action="store_true", help="print the full result as JSON")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
