@@ -137,3 +137,15 @@ def test_corpus_has_controls_incomplete_case_and_no_labels() -> None:
     assert "| groktopus/codereview | 9 | 7 | 5 | 21 |" in report
     assert "| magnus919/SlopSearX | 9 | 6 | 5 | 20 |" in report
     assert "**41**" in report
+
+
+def test_evidence_status_definitions_match_case_labels() -> None:
+    manifest = _load(MANIFEST_PATH)
+    definitions = manifest["evidence_status_definition"]
+    assert set(definitions) == {"complete", "bounded", "incomplete"}
+    for case in manifest["cases"]:
+        gaps = case["snapshot_gap_counts"]["total"]
+        if case["evidence_completeness"] == "complete":
+            assert gaps == 0, case["case_id"]
+        else:
+            assert gaps > 0, case["case_id"]
