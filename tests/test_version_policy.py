@@ -6,11 +6,13 @@ import json
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from check_changelog import parse_changelog, release_for  # noqa: E402
 from check_version_policy import check_repository  # noqa: E402
 
 PACKAGE_NAME = "pr-review-harness"
@@ -69,6 +71,28 @@ def _commit_fixture(root: Path) -> None:
 
 def test_repository_release_metadata_is_consistent() -> None:
     assert check_repository(ROOT) == []
+
+
+def test_repository_version_has_attestation_notes() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project["version"] == "0.1.1"
+
+    releases, findings = parse_changelog(ROOT / "CHANGELOG.md")
+    assert findings == []
+    release = release_for(releases, "0.1.1")
+    assert release is not None
+    added = " ".join(text for _, text in release.categories.get("Added", []))
+    assert "attest-build-provenance" in added
+    assert "unsigned" in added.lower()
+
+    notes_path = ROOT / "docs/releases/0.1.1.md"
+    assert notes_path.is_file()
+    notes = notes_path.read_text(encoding="utf-8")
+    assert "gh attestation verify" in notes
+    assert "--repo groktopus/codereview" in notes
+    assert "v0.1.0" in notes and "remains unsigned" in notes.lower()
+    index = (ROOT / "docs/README.md").read_text(encoding="utf-8")
+    assert "(releases/0.1.1.md)" in index
 
 
 def test_temporary_repository_passes_all_checks(tmp_path: Path) -> None:
