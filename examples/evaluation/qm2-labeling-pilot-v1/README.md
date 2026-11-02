@@ -5,8 +5,9 @@ This directory is a fixed six-case subset of
 scorecard infrastructure. Case identities are copied unchanged from the frozen
 corpus; the subset contains both repositories and all three splits.
 
-It intentionally contains **no labels and no predictions**. Synthetic
-model-teacher adjudication is the owner-accepted quality method
+It now contains **one synthetic adjudicated packet per case** from a retained
+model-teacher run, and still has **no predictions**. Synthetic model-teacher
+adjudication is the owner-accepted quality method
 ([ADR 0010](../../../docs/adr/0010-synthetic-model-teacher-adjudication.md));
 human packets are optional:
 
@@ -14,20 +15,22 @@ human packets are optional:
 |---|---|
 | [`corpus.json`](corpus.json) | Valid `review-evaluation-corpus.v1` subset (6 cases). |
 | [`predictions.json`](predictions.json) | Valid `review-evaluation-predictions.v1` with an empty `runs` list. |
-| [`labels.json`](labels.json) | Valid `review-evaluation-labels.v1` with an empty `packets` list, rubric `qm2-labeling-rubric.v1`. |
+| [`labels.json`](labels.json) | Empty legacy label file retained for the empty pilot. |
+| [`labels-synthetic-v1.json`](labels-synthetic-v1.json) | Six validated `reviewer_kind: synthetic` adjudicated packets, rubric `qm2-labeling-rubric.v1`, bound to the retained teacher output hash. |
+| [`teacher-output-2026-11-02.json`](teacher-output-2026-11-02.json) | Retained raw teacher output; its SHA-256 is the `output_sha256` in every packet. |
 | [`manifest.json`](manifest.json) | Source-corpus hash, subset rule, content hashes, missing-data state, and relabeling policy. |
 
-The empty packets are not a clean review, a negative label, or zero findings.
-They mean that no synthetic adjudicated packet, human independent/adjudicated
-packet, or model-teacher screening run exists yet. The scorecard reports
-`MISSING_DATA` and null metrics in both label arms.
+The synthetic packets are model judgments, not human truth. With no predictions,
+the scorecard reports `MISSING_DATA` and null metrics while the synthetic label
+arm is `present` (6/6 cases); the human arm remains `missing`. This is label
+coverage, not a quality result.
 
-Do not add a synthetic packet unless an actual teacher run produced the retained
-output and its provider, model ID/revision, prompt revision, rubric revision, run
-ID, output hash, and timestamp are recorded with `synthetic: true`. The frozen
-corpus does not check in the reviewed diff bytes, so the first real run must
-materialize them from the recorded base/head identity. A `model_teacher`
-screening packet remains advisory and cannot be marked `adjudicated`.
+The retained run materialized the six diffs from the recorded repository/PR
+identities, labeled them with `deepseek-harness-subagent` under
+`qm2-synthetic-adjudication-prompt-v1`, and recorded provider, model, revisions,
+run ID, timestamp, and output hash. `model_teacher` remains advisory; these
+packets are `synthetic`, not human. Do not replace them without a new retained
+run and new hashes.
 
 See [the labeling protocol](../../../docs/QUALITY-LABELING-PROTOCOL.md) for the
 exact synthetic run and provenance fields, and

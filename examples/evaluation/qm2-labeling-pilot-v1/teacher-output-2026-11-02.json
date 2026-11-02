@@ -1,0 +1,169 @@
+{
+  "packets": [
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-codereview-pr112",
+      "finding_labels": [
+        {
+          "evidence_refs": [
+            "docs.experiments.model-only-shadow-hosted-runs-2026-09-28.md:13"
+          ],
+          "introducedness": "INTRODUCED",
+          "label_id": "pr112-ledger-third-run-artifact-ids",
+          "materiality": "NON_MATERIAL"
+        }
+      ],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:30:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "2026-11-02",
+        "output_sha256": "PENDING",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek-harness-subagent",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-codereview-pr289",
+      "finding_labels": [
+        {
+          "evidence_refs": [
+            "src.pr_review_harness.typed_contracts.pyi:1",
+            "docs.TYPED-BOUNDARIES.md:25"
+          ],
+          "introducedness": "INTRODUCED",
+          "label_id": "pr289-duplicated-record-contracts",
+          "materiality": "NON_MATERIAL"
+        }
+      ],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:30:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "2026-11-02",
+        "output_sha256": "PENDING",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek-harness-subagent",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-codereview-pr285",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:30:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "2026-11-02",
+        "output_sha256": "PENDING",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek-harness-subagent",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-slopsearx-pr759",
+      "finding_labels": [],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:30:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "2026-11-02",
+        "output_sha256": "PENDING",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek-harness-subagent",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-slopsearx-pr745",
+      "finding_labels": [
+        {
+          "evidence_refs": [
+            "scripts.configure_ci_dockerhub_mirror.py:39",
+            "scripts.configure_ci_dockerhub_mirror.py:164"
+          ],
+          "introducedness": "INTRODUCED",
+          "label_id": "pr745-mirror-form-canonicalization",
+          "materiality": "NON_MATERIAL"
+        }
+      ],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:30:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "2026-11-02",
+        "output_sha256": "PENDING",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek-harness-subagent",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    },
+    {
+      "adjudications": [],
+      "attack_outcomes": [],
+      "case_assessment": "NO_KNOWN_MATERIAL_DEFECTS",
+      "case_completeness": "COMPLETE",
+      "case_id": "qm1-slopsearx-pr770",
+      "finding_labels": [
+        {
+          "evidence_refs": [
+            "docs.experiments.evidence.coverage-first-study.registered-2026-10-11.static-material-review.md:5",
+            "docs.experiments.evidence.coverage-first-study.registered-2026-10-11.protocol.json:198"
+          ],
+          "introducedness": "INTRODUCED",
+          "label_id": "pr770-nonexistent-protocol-field",
+          "materiality": "NON_MATERIAL"
+        }
+      ],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T22:30:00Z",
+        "model_id": "deepseek-v4.1-flash-1017",
+        "model_revision": "2026-11-02",
+        "output_sha256": "PENDING",
+        "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+        "provider_id": "deepseek-harness-subagent",
+        "reviewer_kind": "synthetic",
+        "rubric_revision": "qm2-labeling-rubric.v1",
+        "run_id": "qm2-synthetic-pilot-2026-11-02",
+        "synthetic": true
+      }
+    }
+  ]
+}

@@ -54,5 +54,17 @@
     "dataset_version": "2026-11-02.1",
     "path": "examples/evaluation/frozen-corpus-v1/corpus.json",
     "sha256": "bd843ca82c17dce86144bb45415dbe6ea20d6db4a0b094e257f24c1568dec88a"
+  },
+  "synthetic_run": {
+    "label_file": "labels-synthetic-v1.json",
+    "label_file_sha256": "29bb00acbe3e9de97eba9a9cd1bdb083d253d3674e2b2e63bab6a21289d0ff4f",
+    "model_id": "deepseek-v4.1-flash-1017",
+    "packets": 6,
+    "prompt_revision": "qm2-synthetic-adjudication-prompt-v1",
+    "provider_id": "deepseek-harness-subagent",
+    "rubric_version": "qm2-labeling-rubric.v1",
+    "run_id": "qm2-synthetic-pilot-2026-11-02",
+    "teacher_output": "teacher-output-2026-11-02.json",
+    "teacher_output_sha256": "8c6479691ae5e5256f2575372c050942d735ded96709de6ee95f746385bc25d7"
   }
 }

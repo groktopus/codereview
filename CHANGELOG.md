@@ -10,6 +10,7 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Added
 
+- QM-2 synthetic pilot evidence: six validated synthetic adjudicated packets from a retained model-teacher run over the frozen pilot diffs, with provider/model/prompt/rubric/run/output-hash provenance and no human-truth claim.
 - Owner-accepted synthetic model-teacher adjudication ([ADR 0010](docs/adr/0010-synthetic-model-teacher-adjudication.md)): a `reviewer_kind: synthetic` labels extension with exact model/prompt/rubric/run/hash provenance, separate human and synthetic arms, and rejection of synthetic packets mislabelled as human. Human packets remain optional.
 - `review-evaluation-scorecard.v2` and `review-evaluation-scorecard-gate.v2`: per-evaluation-arm `human` and `synthetic` label arms, synthetic-only `COMPLETE` without human packets, synthetic metrics scoped as non-human, and arm-specific regression checks (`<metric>:<arm>:<label-arm>`).
 
