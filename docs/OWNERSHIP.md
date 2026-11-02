@@ -8,9 +8,9 @@ maintainer is unavailable. It does not create a second human owner, a second
 administrator, or an on-call rotation.
 
 The repository state and issue snapshot behind this record are dated
-2026-11-02 on branch base `a3599f6`. Counts and states can change; the checked
+2026-11-02 on branch base `5becb81`. Counts and states can change; the checked
 backlog snapshot is [`backlog-open-issues.json`](backlog-open-issues.json), and
-the proposed issue mapping is in [`BACKLOG.md`](BACKLOG.md).
+the applied issue mapping is in [`BACKLOG.md`](BACKLOG.md).
 
 ## Bus factor and authority
 
@@ -264,7 +264,7 @@ receipt bound to an old head is stale.
 
 ## Backlog triage
 
-Issue intake, states, labels, owners, closure-evidence rules, and the proposed
+Issue intake, states, labels, owners, closure-evidence rules, and the applied
 mapping for the current 16 open issues are in [BACKLOG.md](BACKLOG.md). The
 short version: every open issue must have an accountable owner and exactly one
 current state; an issue closes only with observable evidence for its exit
