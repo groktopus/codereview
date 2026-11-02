@@ -694,4 +694,3 @@ def test_checker_uses_no_shell_and_no_eval() -> None:
     for forbidden in ("shell=True", "os.system", "eval(", "exec(", "os.popen", "requests.", "http.client"):
         assert forbidden not in source
     assert 'subprocess.run(command, capture_output=True' in source
-
