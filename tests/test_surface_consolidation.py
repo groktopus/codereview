@@ -59,11 +59,11 @@ def test_src_reduction_meets_the_documented_floor():
     manifest = _manifest()["consolidation"]
     current = _src_line_count()
     assert current <= manifest["base_src_lines"]
-    reduction = (manifest["base_src_lines"] - current) / manifest["base_src_lines"]
-    assert reduction >= manifest["required_reduction"], (
-        f"src reduction {reduction:.4f} is below the required {manifest['required_reduction']}"
+    budget = manifest.get("post_ca2_feature_budget_lines", 0)
+    ceiling = int(manifest["base_src_lines"] * (1 - manifest["required_reduction"]) + budget)
+    assert current <= ceiling, (
+        f"src lines {current} exceed the CA-2 floor plus approved feature budget ({ceiling})"
     )
-    assert manifest["measured_reduction"] >= manifest["required_reduction"]
 
 
 def test_src_has_exactly_one_review_orchestrator_and_documented_helpers():

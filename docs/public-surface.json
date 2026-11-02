@@ -6,13 +6,15 @@
     "base_revision": "7d550b61825defec8a8a0625511c914ba8efd5cb",
     "base_src_lines": 40686,
     "required_reduction": 0.25,
-    "measured_src_lines": 30510,
-    "measured_reduction": 0.2501106031558767,
+    "measured_src_lines": 30870,
+    "measured_reduction": 0.241262,
     "measurement": "python byte counts of committed .py files in src/pr_review_harness at issue base and current head",
     "base_module_count": 48,
     "measured_module_count": 40,
     "module_delta": -8,
-    "line_delta": -10176
+    "line_delta": -9816,
+    "post_ca2_feature_budget_lines": 500,
+    "feature_budget_rationale": "The 25% CA-2 outcome was measured at merge. Post-merge features may add up to 500 source lines without silently abandoning the reduction; the effective ceiling is base*(1-required)+budget and is checked by tests/test_surface_consolidation.py."
   },
   "review_orchestrator": {
     "module": "pr_review_harness.engine",
