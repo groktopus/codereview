@@ -1,6 +1,6 @@
 # PR Review Harness
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting, [CONTRIBUTING.md](CONTRIBUTING.md) for development and review expectations, and [provenance](docs/PROVENANCE.md) for evidence/license boundaries. Licensed under MIT.
+See [SECURITY.md](SECURITY.md) for vulnerability reporting, [CONTRIBUTING.md](CONTRIBUTING.md) for development and review expectations, [review evidence](docs/REVIEW-EVIDENCE.md) for the merge-review receipt protocol, and [provenance](docs/PROVENANCE.md) for evidence/license boundaries. Licensed under MIT.
 
 A reusable, read-only code review CLI with deterministic planning, bounded specialist reviews, immutable Git evidence, reconciliation, and auditable reports. Its `publish` command currently validates and renders a read-only review preview; live publication is unavailable from this CLI and from the central `groktopus/codereview` workflow. A separately installed target-local route in `magnus919/SlopSearX` is reported active; that is a different surface with its own evidence limits. It is still an experimental candidate, not an established Droid replacement: the initial six-commit pilot produced incomplete reviews and exposed model-contract, context, and provider issues. Start with [status](docs/STATUS.md); also see the [current execution plan](docs/CURRENT-EXECUTION-PLAN.md) and [evidence status](docs/CURRENT-STATUS.md). The initial pilot remains documented in `docs/PILOT-RESULTS.md`.
 

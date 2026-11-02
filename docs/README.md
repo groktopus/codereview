@@ -53,6 +53,7 @@ implementation.
 | [Typed boundaries](TYPED-BOUNDARIES.md) | Stable record contracts, typed stage interfaces, and the strict-check scope and migration limits. |
 | [ADR 0001: post-CA-2 feature budget](adr/0001-post-ca2-feature-budget.md) | Bounded source-line exception preserving the one-time CA-2 reduction. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
+| [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields, receipt rules, CI check and exit codes, owner action, and enforcement limits. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |
 | [Provenance and evidence](PROVENANCE.md) | License/evidence boundary, retained snapshots, third-party content, and AI-assistance disclosure. |
 | [Cost model and ceilings](COST-MODEL.md) | Operator price tables, estimated vs billed cost, currency ceilings, and unknown-value rules. |
