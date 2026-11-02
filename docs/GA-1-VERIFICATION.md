@@ -17,7 +17,7 @@ The receipt SHA equals the merged head recorded by GitHub.
 |---|---|---|
 | #293 | GA-1 receipt protocol | CLEAR |
 | #295 | GA-2 decision records | CLEAR |
-| #297 | CA-4 typed boundaries | CLEAR |
+| #297 | GA-3 ownership/second review | CLEAR |
 | #298 | QM-1 frozen corpus | CLEAR |
 | #300 | GA-2 decision-link enforcement | CLEAR |
 | #302 | QM-2/QM-3 scorecard infrastructure | CLEAR |

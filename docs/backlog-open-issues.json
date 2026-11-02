@@ -21,5 +21,5 @@
     262,
     270
   ],
-  "notes": "Snapshot updated after closing #269 for GA-1 verification, excluding #269; 14 open issues. Update with the same query when the set changes."
+  "notes": "Snapshot excluding #269, which this PR closes; 14 open issues after merge. Update with the same query when the set changes."
 }
