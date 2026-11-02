@@ -10,6 +10,10 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Added
 
+- Frozen evaluation corpus v1: 41 real merged-PR cases across two public repositories, all three splits, with source manifests and no labels or quality claims (QM-1).
+
+### Added
+
 - Decision-record index and lightweight ADRs for architecture, transport, publication authorization, provider boundaries, evaluation gates, license, and release policy, with an executable index/field/status/safety-link check.
 - Release supply-chain evidence: a deterministic CycloneDX SBOM generated from the built wheel and sdist, explicitly unsigned build provenance, a two-build reproducibility check recorded per release, release-asset SHA-256 coverage, and consumer verification documentation in `docs/SUPPLY-CHAIN.md`.
 - A `Supply chain` CI job that runs the reproducibility check and SBOM/provenance verification on normal pushes and pull requests, plus release-workflow integration that publishes the evidence as release assets.

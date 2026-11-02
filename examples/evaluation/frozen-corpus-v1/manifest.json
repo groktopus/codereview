@@ -1035,7 +1035,7 @@
     }
   ],
   "contamination": {
-    "detail": "Both repositories are the harness's own public development repositories. Models and operators may have seen their code or PRs historically. Held-out means withheld from this curation's selection analysis, not proven unseen by every model or prompt.",
+    "detail": "`groktopus/codereview` is the harness's own public development repository; `magnus919/SlopSearX` is the separate public pilot target they share maintainership of. Models and operators may have seen their code or PRs historically. Held-out means withheld from this curation's selection analysis, not proven unseen by every model or prompt.",
     "mitigation": "No prompt, profile, threshold, or model was tuned against this corpus in QM-1. Held-out case results must be reported separately and must not drive prompt/profile tuning.",
     "risk": "nonzero"
   },
@@ -1100,6 +1100,11 @@
   },
   "created_at": "2026-11-02",
   "dataset_version": "2026-11-02.1",
+  "evidence_status_definition": {
+    "bounded": "Policy-capped context with the changed diff present; window/count limits may leave required obligation gaps, recorded in snapshot_gap_counts.",
+    "complete": "Every required obligation has an evidence row; no required snapshot gaps.",
+    "incomplete": "The changed diff or a required evidence projection is truncated/missing; results are not comparable to complete cases."
+  },
   "limitations": [
     "No human labels or adjudications; precision, recall, and severity are undefined.",
     "No model or provider was called; the corpus contains no predictions or quality claims.",

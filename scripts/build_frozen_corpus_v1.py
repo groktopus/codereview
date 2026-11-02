@@ -496,7 +496,8 @@ def build(slopsearx_repo: Path, codereview_repo: Path) -> dict[str, Any]:
         "contamination": {
             "risk": "nonzero",
             "detail": (
-                "Both repositories are the harness's own public development repositories. Models and "
+                "`groktopus/codereview` is the harness's own public development repository; "
+                "`magnus919/SlopSearX` is the separate public pilot target they share maintainership of. Models and "
                 "operators may have seen their code or PRs historically. Held-out means withheld from this "
                 "curation's selection analysis, not proven unseen by every model or prompt."
             ),
@@ -519,6 +520,11 @@ def build(slopsearx_repo: Path, codereview_repo: Path) -> dict[str, Any]:
                 "Purposive and fixed before snapshot collection. Families never cross splits. "
                 "No model output or review finding informed assignment."
             ),
+        },
+        "evidence_status_definition": {
+            "complete": "Every required obligation has an evidence row; no required snapshot gaps.",
+            "bounded": "Policy-capped context with the changed diff present; window/count limits may leave required obligation gaps, recorded in snapshot_gap_counts.",
+            "incomplete": "The changed diff or a required evidence projection is truncated/missing; results are not comparable to complete cases.",
         },
         "limitations": [
             "No human labels or adjudications; precision, recall, and severity are undefined.",
