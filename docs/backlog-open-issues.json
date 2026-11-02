@@ -1,7 +1,7 @@
 {
   "schema": "review-harness-backlog-snapshot.v1",
   "repository": "groktopus/codereview",
-  "captured_at": "2026-11-02T13:25:00Z",
+  "captured_at": "2026-11-02T18:26:36Z",
   "source": "gh issue list --repo groktopus/codereview --state open --limit 100",
   "state": "open",
   "total_filed": 33,
@@ -22,5 +22,5 @@
     269,
     270
   ],
-  "notes": "Read-only snapshot of 15 open issues at branch base e6b7e98, excluding #260 which this PR closes. Update this file with the same query when the open set changes; the ownership check compares it with docs/BACKLOG.md."
+  "notes": "Manual snapshot update at 2026-11-02 after the v0.1.0 release, excluding #260 which this PR closes; #269 and #270 remain open. Update this file with the same query when the open set changes; the ownership check compares it with docs/BACKLOG.md."
 }

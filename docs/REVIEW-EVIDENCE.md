@@ -220,16 +220,14 @@ identical output.
 
 ## Enforcement limits
 
-Both mechanisms are enforceable only after the repository owner completes one
-setting change. Without it, each workflow produces a failing check but GitHub
-does not prevent a merge:
+Both mechanisms are required status checks on `main`. The live protection
+settings are `Review receipt` and `Decision record links`, with
+`enforce_admins: false`, `strict: false`, and force pushes/deletions disabled.
+The administrator bypass is a deliberate sole-maintainer exception: the owner can
+merge their own PRs, while every non-admin merge requires both checks.
 
-> **Owner action:** in repository **Settings → Branches**, protect `main`,
-> enable **Require status checks to pass before merging**, and select
-> **Review receipt**, **Decision record links**, and the other required harness
-> jobs. Enable **Require branches to be up to date before merging** so the
-> checks run against the latest base. Optionally restrict force pushes and
-> deletions.
+The outstanding verification is not a setting: record a sample of merges with
+matching reviewed/merged SHAs and a blocked non-admin merge attempt.
 
 The owner deliberately did not enable branch protection in this change, so the
 current state is: the receipt protocol and the decision-record link check are
@@ -310,8 +308,8 @@ Even with both checks required, CI can and cannot do the following:
 Post-merge verification is therefore the compensating control: the merger
 records the merge commit and its required checks, and confirms the merged
 commit's parent is the reviewed head. It is a recorded procedure, not a CI
-gate. A future change can promote it to an automated post-merge check if the
-owner enables branch protection or a merge queue.
+gate. The owner could promote it to an automated post-merge check or a merge
+queue later.
 
 ## Related documents
 
