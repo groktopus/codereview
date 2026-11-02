@@ -70,10 +70,13 @@ python3 scripts/check_quality_scorecard_gate.py \
 The scorecard reports completion, per-arm missing status, precision and recall
 lower/upper bounds with denominators, abstention, duplicates, unadjudicated
 findings, `APPROVE`-with-known-defect counts, evaluator revision, and input
-hashes. Missing labels or arms produce null values and `MISSING_DATA`, never a
-zero rate. Accuracy is always `null`/`refused`. The gate exits `0` for
-`PASS`/`MISSING_DATA`, `1` for a seeded or observed regression, and `2` for an
-invalid input; it is not a release gate and no accepted baseline exists yet.
+hashes. Missing labels produce `PARTIAL`; wholly missing data produces
+`MISSING_DATA`; missing arms and missing runs never become zero rates.
+`APPROVE`-with-known-defect is null when any run is missing. The gate exits `0`
+for `PASS`/`MISSING_DATA`, `1` for a regression (including an arm present in the
+baseline but absent or partial now, or partial label coverage), and `2` for an
+invalid or schema-invalid scorecard. It is not a release gate and no accepted
+baseline exists yet.
 
 ## Model-only cross-audit (companion contract; outside toolkit v1 metrics)
 

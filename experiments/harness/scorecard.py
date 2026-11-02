@@ -638,6 +638,9 @@ def regression_gate(current: dict[str, Any], baseline: dict[str, Any]) -> dict[s
     for arm in arm_names:
         current_arm = current.get("arms", {}).get(arm)
         baseline_arm = baseline.get("arms", {}).get(arm)
+        if current_arm is None and baseline_arm is not None:
+            checks.append(_check(f"arm:{arm}", "FAIL", reason="arm_absent_since_baseline"))
+            continue
         if current_arm is None or baseline_arm is None:
             checks.append(_check(f"arm:{arm}", "NOT_EVALUATED", reason="arm_missing"))
             continue
@@ -704,12 +707,13 @@ def regression_gate(current: dict[str, Any], baseline: dict[str, Any]) -> dict[s
                 )
             )
 
+    current_state = current.get("data_state", {}).get("state")
+    baseline_state = baseline.get("data_state", {}).get("state")
+    if current_state == "PARTIAL" or baseline_state == "PARTIAL":
+        checks.append(_check("data_state", "FAIL", reason="partial_coverage"))
     failed = [check for check in checks if check["status"] == "FAIL"]
     evaluated = [check for check in checks if check["status"] in {"PASS", "FAIL"}]
-    missing_state = (
-        current.get("data_state", {}).get("state") == "MISSING_DATA"
-        or baseline.get("data_state", {}).get("state") == "MISSING_DATA"
-    )
+    missing_state = current_state == "MISSING_DATA" or baseline_state == "MISSING_DATA"
     if failed:
         status = "FAIL"
     elif missing_state or not evaluated:
@@ -718,6 +722,8 @@ def regression_gate(current: dict[str, Any], baseline: dict[str, Any]) -> dict[s
         status = "PASS"
     return {
         "contract_version": GATE_VERSION,
+        "current_data_state": current_state,
+        "baseline_data_state": baseline_state,
         "status": status,
         "checks": checks,
         "regressions": [check["id"] for check in failed],

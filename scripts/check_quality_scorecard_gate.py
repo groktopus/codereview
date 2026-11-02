@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -37,13 +38,32 @@ def _load(path: str, label: str):
     if len(data) > MAX_INPUT_BYTES:
         raise EvaluationError(f"{label}_too_large")
     result = parse_bounded_json(data, label)
-    if not isinstance(result, dict) or result.get("contract_version") is None:
-        raise EvaluationError("invalid_scorecard_schema")
-    if not isinstance(result.get("data_state"), dict) or not isinstance(result.get("arms"), dict):
-        raise EvaluationError("invalid_scorecard_schema")
-    if not isinstance(result.get("data_state", {}).get("state"), str):
-        raise EvaluationError("invalid_scorecard_schema")
+    _validate_scorecard(result)
     return result
+
+
+def _validate_scorecard(value: object) -> None:
+    if not isinstance(value, dict):
+        raise EvaluationError("invalid_scorecard_schema")
+    required = ("contract_version", "data_state", "arms", "completion", "claims", "input_hashes")
+    if any(key not in value for key in required):
+        raise EvaluationError("invalid_scorecard_schema")
+    data_state = value["data_state"]
+    if not isinstance(data_state, dict) or data_state.get("state") not in {"COMPLETE", "PARTIAL", "MISSING_DATA"}:
+        raise EvaluationError("invalid_scorecard_schema")
+    if not isinstance(data_state.get("reasons"), list):
+        raise EvaluationError("invalid_scorecard_schema")
+    arms = value["arms"]
+    if not isinstance(arms, dict) or any(
+        not isinstance(arm, dict) or arm.get("status") not in {"complete", "partial", "missing"}
+        for arm in arms.values()
+    ):
+        raise EvaluationError("invalid_scorecard_schema")
+    if not isinstance(value["completion"], dict) or not isinstance(value["claims"], dict):
+        raise EvaluationError("invalid_scorecard_schema")
+    hashes = value["input_hashes"]
+    if not isinstance(hashes, dict) or not isinstance(hashes.get("corpus"), str) or not re.fullmatch(r"[0-9a-f]{64}", hashes["corpus"]):
+        raise EvaluationError("invalid_scorecard_schema")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,6 +74,9 @@ def main(argv: list[str] | None = None) -> int:
         result = regression_gate(current, baseline)
     except EvaluationError as exc:
         print(json.dumps({"error": exc.code}, separators=(",", ":")))
+        return 2
+    except (AttributeError, KeyError, TypeError, ValueError):
+        print(json.dumps({"error": "invalid_scorecard_schema"}, separators=(",", ":")))
         return 2
     print(canonical_bytes(result).decode("utf-8"))
     return 1 if result["status"] == "FAIL" else 0
