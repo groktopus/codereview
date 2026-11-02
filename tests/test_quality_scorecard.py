@@ -28,6 +28,7 @@ from experiments.harness.scorecard import (
 
 ROOT = Path(__file__).resolve().parents[1]
 PILOT = ROOT / "examples/evaluation/qm2-labeling-pilot-v1"
+SYNTHETIC_LABELS = PILOT / "labels-synthetic-v1.json"
 FROZEN = ROOT / "examples/evaluation/frozen-corpus-v1/corpus.json"
 FIXTURE = ROOT / "tests/fixtures/quality_scorecard"
 
@@ -57,23 +58,31 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, capture_output=True, text=True, check=False)
 
 
-def test_labeling_pilot_is_valid_empty_and_derived_from_the_frozen_subset():
+def test_labeling_pilot_has_retained_synthetic_packets_and_frozen_subset():
     corpus = _load(PILOT / "corpus.json")
     predictions = _load(PILOT / "predictions.json")
-    labels = _load(PILOT / "labels.json")
+    labels = _load(SYNTHETIC_LABELS)
     manifest = _load(PILOT / "manifest.json")
     assert validate_corpus(corpus) == corpus
     assert validate_predictions(predictions, corpus) == predictions
     assert validate_labels(labels, corpus, predictions) == labels
     assert predictions["runs"] == []
-    assert labels["packets"] == []
+    assert len(labels["packets"]) == 6
+    assert {packet["reviewer"]["reviewer_kind"] for packet in labels["packets"]} == {"synthetic"}
+    assert {packet["label_role"] for packet in labels["packets"]} == {"adjudicated"}
     assert labels["rubric_version"] == "qm2-labeling-rubric.v1"
     assert manifest["content_hashes"]["corpus.json"] == _hash(PILOT / "corpus.json")
     assert manifest["content_hashes"]["predictions.json"] == _hash(PILOT / "predictions.json")
     assert manifest["content_hashes"]["labels.json"] == _hash(PILOT / "labels.json")
-    assert manifest["label_packet_state"]["state"] == "missing"
+    assert manifest["content_hashes"]["labels-synthetic-v1.json"] == _hash(SYNTHETIC_LABELS)
+    for relative, digest in manifest["content_hashes"].items():
+        assert digest == _hash(PILOT / relative)
+    assert manifest["label_packet_state"]["state"] == "present"
+    assert manifest["label_packet_state"]["label_source"] == "synthetic"
     assert manifest["label_packet_state"]["human_packets"] == 0
-    assert manifest["label_packet_state"]["synthetic_adjudicated_packets"] == 0
+    assert manifest["label_packet_state"]["synthetic_adjudicated_packets"] == 6
+    assert manifest["label_packet_state"]["synthetic_complete_packets"] == 5
+    assert manifest["label_packet_state"]["synthetic_incomplete_packets"] == 1
     assert manifest["label_packet_state"]["model_teacher_screening_packets"] == 0
     source = _load(FROZEN)
     source_by_id = {case["identity"]["case_id"]: case for case in source["cases"]}
@@ -87,13 +96,19 @@ def test_labeling_pilot_is_valid_empty_and_derived_from_the_frozen_subset():
     } == {"groktopus/codereview", "magnus919/SlopSearX"}
 
 
-def test_empty_labels_and_predictions_produce_missing_not_zero():
-    scorecard = _scorecard(PILOT / "corpus.json", PILOT / "predictions.json", PILOT / "labels.json")
+def test_synthetic_labels_and_empty_predictions_produce_missing_not_zero():
+    scorecard = _scorecard(PILOT / "corpus.json", PILOT / "predictions.json", SYNTHETIC_LABELS)
     assert scorecard["contract_version"] == SCORECARD_VERSION
     assert scorecard["evaluator_revision"] == EVALUATOR_REVISION
     assert scorecard["data_state"]["state"] == "MISSING_DATA"
-    assert "no_complete_adjudicated_human_or_synthetic_label_packets" in scorecard["data_state"]["reasons"]
     assert "no_prediction_runs" in scorecard["data_state"]["reasons"]
+    assert "partial_adjudicated_labels" in scorecard["data_state"]["reasons"]
+    label_state = scorecard["data_state"]["label_state"]
+    assert label_state["status"] == "partial"
+    assert label_state["arms"]["synthetic"]["status"] == "partial"
+    assert label_state["arms"]["synthetic"]["adjudicated_packets"] == 6
+    assert label_state["arms"]["synthetic"]["complete_adjudicated_packets"] == 5
+    assert label_state["arms"]["human"]["status"] == "missing"
     assert scorecard["missing_data"]["arms"] == ["droid", "harness"]
     assert scorecard["claims"]["accuracy"] is None
     assert scorecard["claims"]["quality_claim"] is False
@@ -182,8 +197,8 @@ def test_scorecard_publishes_bounds_counts_and_denominators():
     assert scorecard["input_hashes"]["corpus"] == _hash(FIXTURE / "corpus.json")
 
 
-def test_gate_reports_empty_pilot_as_missing_data_without_failure(tmp_path: Path):
-    scorecard = _scorecard(PILOT / "corpus.json", PILOT / "predictions.json", PILOT / "labels.json")
+def test_gate_reports_retained_pilot_as_missing_data_without_failure(tmp_path: Path):
+    scorecard = _scorecard(PILOT / "corpus.json", PILOT / "predictions.json", SYNTHETIC_LABELS)
     gate = regression_gate(scorecard, scorecard)
     assert gate["status"] == "MISSING_DATA"
     assert gate["regressions"] == []
@@ -324,7 +339,7 @@ def test_labels_contract_forbids_model_teacher_adjudication():
 def test_human_adjudication_remains_unmet_without_a_human_packet():
     corpus = _load(PILOT / "corpus.json")
     predictions = _load(PILOT / "predictions.json")
-    labels = _load(PILOT / "labels.json")
+    labels = _load(SYNTHETIC_LABELS)
     report = evaluate(corpus, predictions, labels)
     for metric in report["metrics"].values():
         assert metric["human_adjudication"]["complete_cases"] == 0

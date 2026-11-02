@@ -5,7 +5,7 @@
 - **Owner:** @magnus919
 - **Decision authority:** Repository owner, exercised through the direct instruction of 2026-11-02 ("use a SYNTHETIC quality approach, not human adjudication"); [AGENTS.md](../../AGENTS.md) records the standing user authority.
 - **Scope:** The accepted adjudication method for QM-2/QM-3 quality labels and scorecards: the `review-evaluation-labels.v1` reviewer kinds, the QM-2 labeling protocol, the QM-3 scorecard/regression-gate semantics, and the fixed `qm2-labeling-pilot-v1` subset.
-- **Evidence:** [QUALITY-LABELING-PROTOCOL.md](../QUALITY-LABELING-PROTOCOL.md); [QUALITY-SCORECARD.md](../QUALITY-SCORECARD.md); `experiments/harness/evaluation.py`; `experiments/harness/scorecard.py`; `tests/test_evaluation.py`; `tests/test_quality_scorecard.py`; `tests/fixtures/quality_scorecard/labels-synthetic.json`; [pilot manifest](../../examples/evaluation/qm2-labeling-pilot-v1/manifest.json).
+- **Evidence:** [QUALITY-LABELING-PROTOCOL.md](../QUALITY-LABELING-PROTOCOL.md); [QUALITY-SCORECARD.md](../QUALITY-SCORECARD.md); `experiments/harness/evaluation.py`; `experiments/harness/scorecard.py`; `tests/test_evaluation.py`; `tests/test_quality_scorecard.py`; `tests/test_qm2_synthetic_pilot.py`; `tests/fixtures/quality_scorecard/labels-synthetic.json`; [pilot manifest](../../examples/evaluation/qm2-labeling-pilot-v1/manifest.json); [retained synthetic labels](../../examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json).
 - **Reversal/expiry:** Supersede if the owner selects a different adjudication method, or if real synthetic packets and a baseline show the method is unusable. Revisit before any release or replacement claim.
 
 ## Context
@@ -65,20 +65,26 @@ model judgment recorded as synthetic output.
 - Model-teacher adjudication inherits model error, prompt sensitivity, and
   correlated failure with the reviewed arm. The provenance fields make those
   limits inspectable but do not remove them.
-- A real synthetic pilot is still missing: the checked-in pilot has zero
-  synthetic packets and zero predictions, and no synthetic scorecard baseline
-  exists. The method is accepted; it is not yet evidenced.
+- A retained six-packet synthetic pilot now exists
+  ([manifest](../../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)):
+  five complete cases are `NO_KNOWN_MATERIAL_DEFECTS` with empty findings, and
+  `qm1-slopsearx-pr770` is `INCOMPLETE`/`INCONCLUSIVE` because the frozen
+  manifest records incomplete evidence. No prediction runs, material finding
+  labels, or accepted synthetic baseline exist yet, so the method is only
+  partially evidenced and supports no quality claim.
 - Attack-effect and integrity metrics remain outside the synthetic arm, so an
   injection or effect claim still needs observer or human evidence.
 
 ## Confirmation
 
-`python3 -m pytest -q tests/test_quality_scorecard.py tests/test_evaluation.py`
+`python3 -m pytest -q tests/test_qm2_synthetic_pilot.py tests/test_quality_scorecard.py tests/test_evaluation.py`
 exercises synthetic packet validation, human/synthetic arm separation, a
-synthetic-only `COMPLETE` scorecard, and synthetic-arm regression gating.
-`scripts/check_quality_scorecard_gate.py` rejects a synthetic arm that
-disappears against a synthetic baseline. No confirmation exists yet for a real
-teacher run on the frozen corpus.
+synthetic-only `COMPLETE` scorecard, synthetic-arm regression gating, and the
+retained pilot's prompt/request/response/diff hashes, provenance fields, and
+incomplete-case state. `scripts/check_quality_scorecard_gate.py` rejects a
+synthetic arm that disappears against a synthetic baseline. The retained pilot
+confirms provenance and contract behavior, not quality or human agreement; no
+accepted baseline exists.
 
 ## Alternatives considered
 
@@ -94,3 +100,9 @@ teacher run on the frozen corpus.
   report its own forbidden-effect or integrity behavior as observed evidence.
 - **Require both human and synthetic arms.** Rejected: the owner made human
   packets optional; requiring them would recreate the original deadlock.
+
+## Pilot provenance note
+
+The checked-in six-packet pilot is a provenance-corrected normalization of a
+model output, not a fresh live provider call. Prompt, diffs, request, response
+bytes, and output hash are retained; transport logs are not.

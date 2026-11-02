@@ -2,11 +2,13 @@
 
 **Status:** owner-accepted protocol. Synthetic model-teacher adjudication is the
 accepted quality method ([ADR 0010](adr/0010-synthetic-model-teacher-adjudication.md));
-human packets are optional. **No synthetic packets, human packets, or predictions
-exist yet.** This document does not establish review quality, accuracy,
-calibration, or replacement readiness. Issue
+human packets are optional. **A retained six-packet synthetic pilot now exists**
+([manifest](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)): five
+cases are complete and `qm1-slopsearx-pr770` is incomplete, with no human
+packets and no prediction runs. This document does not establish review quality,
+accuracy, calibration, or replacement readiness. Issue
 [#243](https://github.com/groktopus/codereview/issues/243) remains open because
-the accepted method has no real pilot packet, prediction, or baseline evidence.
+the pilot has no prediction arm, one incomplete case, and no accepted baseline.
 
 **Rubric revision:** `qm2-labeling-rubric.v1`
 **Contract:** `review-evaluation-labels.v1` in
@@ -281,7 +283,9 @@ The contract accepts exactly these packet fields:
 ```
 
 The example is a shape, not a label. Do not copy it into the pilot corpus as if
-it were a human finding. The checked-in pilot labels file is deliberately empty.
+it were a human finding. The original [`labels.json`](../examples/evaluation/qm2-labeling-pilot-v1/labels.json)
+remains empty; the retained synthetic packets live in
+[`labels-synthetic-v1.json`](../examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json).
 
 A synthetic adjudicated packet has this reviewer shape instead of the human
 reviewer object (all other packet fields are unchanged):
@@ -304,92 +308,120 @@ reviewer object (all other packet fields are unchanged):
 This shape is also not a label. It becomes evidence only when an actual run
 produced the output whose hash it records.
 
-## Current pilot state and missing data
+## Current pilot state
 
 The fixed pilot subset is
 [examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json):
-six cases, both repositories, all three splits, identities copied unchanged from
-`frozen-corpus-v1`, and **zero synthetic packets, zero human packets, zero
-model-teacher screening packets, and zero predictions**. The empty files are
-valid contract inputs and score as `MISSING_DATA`, not as zero findings, zero
-precision, or a clean result.
+six cases, both repositories, all three splits, and identities copied unchanged
+from `frozen-corpus-v1`. A retained synthetic run is present:
 
-No synthetic packet is checked in. The frozen corpus records case identities,
-snapshots, and source-manifest hashes, but it does not check in the reviewed
-diff/source bytes, and no configured model-teacher run over the pilot has been
-retained. Producing a packet now would invent model output and provenance, so
-the pilot remains empty. The test-only fixture
+- `run_id`: `qm2-synthetic-pilot-2026-11-02`;
+- provider `deepseek`, model ID/revision `deepseek-v4.1-flash-1017`;
+- prompt revision `qm2-synthetic-adjudication-prompt-v1`, rubric
+  `qm2-labeling-rubric.v1`;
+- six synthetically adjudicated packets: five `COMPLETE` /
+  `NO_KNOWN_MATERIAL_DEFECTS` with empty `finding_labels`, and
+  `qm1-slopsearx-pr770` `INCOMPLETE` / `INCONCLUSIVE` because the frozen
+  manifest records `evidence_completeness: incomplete`;
+- zero human packets, zero model-teacher screening packets, and zero prediction
+  runs.
+
+The evidence is retained under
+[`examples/evaluation/qm2-labeling-pilot-v1/evidence/`](../examples/evaluation/qm2-labeling-pilot-v1/evidence/):
+the six exact diffs, `prompt.md`, `request.json`, and the raw
+`teacher-response.txt`. `request.json` binds the prompt SHA-256 and each case's
+diff SHA-256 and byte count. The six packets are in
+`labels-synthetic-v1.json`; `teacher-output-2026-11-02.json` records the same
+packets and adds `output_sha256`.
+
+`output_sha256` is the SHA-256 of the retained **raw response** file
+`teacher-response.txt`, not of `teacher-output-2026-11-02.json`. A response
+cannot contain the hash of a file that contains that hash, so the output record
+adds the digest only after the response bytes are fixed. Never hash the output
+record itself and copy that value into its own packets.
+
+The empty findings are conservative adjudications of bounded inputs, not a
+clean-review claim. The scorecard reports `MISSING_DATA`: there are no prediction
+runs, and the synthetic label arm is `partial` because one case is incomplete.
+The human label arm is `missing`. The test-only fixture
 [tests/fixtures/quality_scorecard/labels-synthetic.json](../tests/fixtures/quality_scorecard/labels-synthetic.json)
-exercises the contract and scorecard arithmetic; it is not a teacher run and is
-not evidence for QM-2.
+still exercises contract and scorecard arithmetic; it is not this pilot run.
 
-## Exact next synthetic run
+## Retained run and next run
 
-The next real step is one bounded teacher run over the six-case pilot, not a
-schema change. No synthetic-labeler script, teacher model identity, or
-`qm2-synthetic-adjudication-prompt.v1` prompt is checked in yet. All three must
-be authored, reviewed, and retained before the run; otherwise the run is not
-reproducible and no packet may be written.
+The first retained run is present. Its request, prompt, response, output, and
+labels are immutable inputs; a correction needs a new labels file and a new run
+identity.
 
-1. Materialize each frozen case's exact base/head content from its recorded
-   repository and snapshot identity (`frozen-corpus-v1` plus the case
-   `source_manifest`). Do not add evidence outside the frozen case.
-2. Once the teacher identity and prompt are recorded, run that teacher through
-   the existing trusted provider boundary with prompt revision
-   `qm2-synthetic-adjudication-prompt.v1` and rubric
-   `qm2-labeling-rubric.v1`. Retain the exact request and response bytes in the
-   controlled evidence store.
-3. For each case, emit one `labels-synthetic-v1.json` packet with
-   `reviewer_kind: synthetic`, `label_role: adjudicated`, `synthetic: true`, the
-   run ID, model identity, prompt/rubric revisions, timestamp, and the SHA-256 of
-   the retained response.
-4. Validate and score against the empty predictions, then against real
+1. **Freeze the case.** Use the exact corpus identity and the retained diff.
+   `request.json` binds each diff hash and byte count, and the frozen manifest
+   supplies the evidence-completeness status.
+2. **Run and retain the output.** Record `run_id`, model identity, prompt
+   revision, timestamp, and the raw response bytes before writing labels. The
+   response digest binds `teacher-response.txt`.
+3. **Emit one adjudicated packet per case** with evidence references on every
+   finding label and adjudication. An incomplete case stays `INCOMPLETE` and
+   `INCONCLUSIVE`; the contract rejects `NO_KNOWN_MATERIAL_DEFECTS` for it.
+4. **Validate and score** against the empty predictions, then against real
    predictions when they exist:
 
 ```sh
 python3 scripts/evaluate_reviews.py \
   --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
   --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
-  --labels path/to/labels-synthetic-v1.json \
+  --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
   --json
 
 python3 scripts/generate_quality_scorecard.py \
   --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
   --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
-  --labels path/to/labels-synthetic-v1.json \
+  --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
   --json
 ```
 
-The expected result is a label state whose `synthetic` arm is `present` and a
-human label arm reported as `missing`, not a quality or replacement claim.
-Predictions for the corpus are still absent, so each prediction arm's synthetic
-label block remains `missing` and the scorecard stays `MISSING_DATA` until real
-arm runs exist.
+The current result is a synthetic label arm that is `partial` (five complete of
+six) and a human arm that is `missing`. Predictions are absent, so each
+prediction arm has no synthetic precision or recall denominator and the
+scorecard stays `MISSING_DATA`. This is not a quality or replacement claim.
 
 ## What remains for QM-2
 
-- A real synthetic teacher run over at least one frozen case family with
-  retained request/response bytes and the required provenance.
-- A `labels-synthetic` packet set that validates against
-  `review-evaluation-labels.v1` with non-empty synthetic findings.
-- Real arm predictions so synthetic precision and recall have denominators.
-- A retained synthetic scorecard baseline.
+- Prediction runs for both arms so synthetic precision and recall have
+  denominators.
+- Resolution or replacement of the incomplete `qm1-slopsearx-pr770` case, or an
+  explicit decision to report it as an excluded incomplete case.
+- A synthetic run that adjudicates at least one material finding, so the pilot
+  exercises the finding-label and adjudication paths rather than only empty
+  finding lists.
+- A retained synthetic scorecard baseline with an owner-accepted gate.
 - Optional: human independent and adjudicated packets as a separate arm, with
   disagreement counts.
 
-Until the first four exist, QM-2 stays open. The owner decision and the contract
+Until those exist, QM-2 stays open. The owner decision and the contract
 are recorded; they are not evidence that the method produced usable labels.
 
 ## Validation
 
 ```sh
-python3 -m pytest -q tests/test_quality_scorecard.py tests/test_evaluation.py tests/test_frozen_corpus.py
+python3 -m pytest -q tests/test_qm2_synthetic_pilot.py tests/test_quality_scorecard.py tests/test_evaluation.py tests/test_frozen_corpus.py
+python3 scripts/evaluate_reviews.py \
+  --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
+  --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
+  --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
+  --json
 python3 scripts/generate_quality_scorecard.py \
   --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
   --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
-  --labels examples/evaluation/qm2-labeling-pilot-v1/labels.json \
+  --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
   --json
 ```
 
 See [QUALITY-SCORECARD.md](QUALITY-SCORECARD.md) for the scorecard fields and
 regression-gate behavior.
+
+## Retained pilot limitation
+
+The checked-in synthetic pilot is a provenance-corrected normalization of a
+model output from the harness teacher, not a fresh live provider call. Its
+prompt, diffs, request manifest, response bytes, and output hash are retained;
+transport logs are not. It supports no human-truth or quality claim.

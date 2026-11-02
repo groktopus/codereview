@@ -396,7 +396,7 @@ jobs:
           retention-days: 7
 
   quality-scorecard:
-    name: Quality scorecard (empty pilot + synthetic-only fixture + seeded gate regression)
+    name: Quality scorecard (retained synthetic pilot + seeded gate regression)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -411,13 +411,13 @@ jobs:
           set -euo pipefail
           python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
           python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
-      - name: Generate the scorecard for the fixed pilot subset with checked-in empty inputs
+      - name: Generate the scorecard for the retained synthetic pilot
         run: |
           set -euo pipefail
           python scripts/generate_quality_scorecard.py \
             --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
             --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
-            --labels examples/evaluation/qm2-labeling-pilot-v1/labels.json \
+            --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
             --output quality-scorecard.json \
             --json > quality-scorecard.stdout.json
           cmp quality-scorecard.json quality-scorecard.stdout.json
@@ -433,7 +433,9 @@ jobs:
           assert label_state["human_labels_required"] is False
           assert label_state["synthetic_is_human_truth"] is False
           assert label_state["arms"]["human"]["status"] == "missing"
-          assert label_state["arms"]["synthetic"]["status"] == "missing"
+          assert label_state["arms"]["synthetic"]["status"] == "partial"
+          assert label_state["arms"]["synthetic"]["packets"] == 6
+          assert label_state["arms"]["synthetic"]["complete_adjudicated_packets"] == 5
           for arm in ("harness", "droid"):
               summary = scorecard["arms"][arm]
               assert summary["status"] == "missing", summary["status"]
@@ -448,7 +450,7 @@ jobs:
                   assert block["unadjudicated"]["findings_without_final_adjudication"] is None
                   assert block["approve_with_known_defect"]["cases"] is None
           assert scorecard["completion"]["completed_of_expected"]["value"] is None
-          print("scorecard: empty pilot reported MISSING_DATA with null metrics in both label arms")
+          print("scorecard: retained synthetic pilot reported MISSING_DATA with no predictions; synthetic label arm partial 6/5")
           PY
       - name: Prove missing/empty data does not fail the gate
         run: |

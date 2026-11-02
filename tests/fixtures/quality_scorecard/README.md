@@ -16,7 +16,7 @@ they must never be reported as human adjudication or quality evidence.
 The `quality-scorecard` CI job generates scorecards from these fixtures, proves
 a synthetic-only scorecard is `COMPLETE` with a missing human arm, proves the
 gate exits `1` on an injected synthetic regression, and separately proves the
-checked-in empty pilot scorecard exits `0` as `MISSING_DATA`. The fixture
+checked-in retained-pilot scorecard exits `0` as `MISSING_DATA`. The fixture
 labels exist only to exercise deterministic arithmetic and contract validation;
 they do not reduce the QM-2 evidence gap, and the synthetic fixture is not a
 model-teacher run.
