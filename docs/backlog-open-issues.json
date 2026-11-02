@@ -9,7 +9,6 @@
     239,
     240,
     241,
-    242,
     243,
     244,
     245,
@@ -22,8 +21,7 @@
     261,
     262,
     269,
-    270,
-    271
+    270
   ],
   "notes": "Read-only snapshot of the 18 open issues at branch base a3599f6. Update this file with the same query when the open set changes; the ownership check compares it with docs/BACKLOG.md."
 }

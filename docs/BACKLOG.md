@@ -1,11 +1,10 @@
 # Backlog triage: states, labels, owners, and closure evidence (GA-3)
 
-Status: **proposed triage for issue
-[#271](https://github.com/groktopus/codereview/issues/271) (GA-3)**. This file
-defines the operating rules and maps the 18 issues that were open on
-2026-11-02. It is a checked-in proposal, not a GitHub mutation: the accountable
-owner or the coordinating root applies assignees and labels. The worker that
-prepared this file did not edit issues, labels, or boards.
+Status: **operating triage for GA-3**. This file defines the states, labels,
+owners, closure evidence, and the current open-issue map. The root applied the
+`state:*` labels and `@magnus919` assignee to every open issue on 2026-11-02;
+this table remains the checked-in board state and is refreshed when the open set
+changes.
 
 Source snapshot: [`backlog-open-issues.json`](backlog-open-issues.json), captured
 with `gh issue list --repo groktopus/codereview --state open` at branch base
@@ -58,7 +57,7 @@ may be a worker, but the assignee remains the accountable human.
 
 ## Owners
 
-- Accountable owner for all 18 open issues: `@magnus919`.
+- Accountable owner for all 16 open issues: `@magnus919`.
 - An implementing agent, when one is used, is a worker on a branch under the
   owner's direction. It is not the assignee and cannot close the issue.
 - If the owner is unavailable, do not reassign to an agent or to a placeholder.
@@ -107,7 +106,7 @@ The checker validates that the table below stays consistent with the open-issue
 snapshot and the filed-issue map. It cannot validate the truth of a closure
 record; a reviewer must do that.
 
-## Proposed mapping for the 18 open issues
+## Mapping for the 16 open issues
 
 Existing labels stay. "Labels to add" is the proposed state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
@@ -117,13 +116,12 @@ the concrete move, not a schedule.
 | Issue | ID | Title | Owner | State | Labels to add | Next action / blocker |
 |---|---|---|---|---|---|---|
 | #239 | RC-1 | [RC-1] Separate the retrieval envelope from the model-output budget | `@magnus919` | `ready` | `state:ready` | No hard dependency. Start with the dedicated retrieval limit and the 40 KB symbol-at-end fixture. |
-| #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `blocked` | `state:blocked` | Blocked by #239 and #242; the compiler needs the new envelope and the frozen corpus. |
-| #241 | RC-3 | [RC-3] Make completeness measurable and regression-gated | `@magnus919` | `ready` | `state:ready` | No hard dependency. Start the canonical taxonomy and summary; finalize the gate with #242. |
-| #242 | QM-1 | [QM-1] Build the frozen evaluation corpus v1 | `@magnus919` | `ready` | `state:ready` | No hard dependency. Corpus selection, identity, splits, and manifest are the critical path. |
-| #243 | QM-2 | [QM-2] Establish the human labeling and adjudication protocol | `@magnus919` | `blocked` | `state:blocked` | Blocked by #242; labels need cases. No second human is recorded, so the protocol must state that limit honestly. |
-| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241, #242, #243. |
-| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #242 and #243. |
-| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #242 and #243. |
+| #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `blocked` | `state:blocked` | Blocked by #239; the frozen corpus is now available for measurement. |
+| #241 | RC-3 | [RC-3] Make completeness measurable and regression-gated | `@magnus919` | `ready` | `state:ready` | Frozen corpus available; publish the baseline and gate. |
+| #243 | QM-2 | [QM-2] Establish the human labeling and adjudication protocol | `@magnus919` | `ready` | `state:ready` | Corpus available. No second human is recorded, so human adjudication remains an explicit gap. |
+| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241 and #243. |
+| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
+| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |
 | #253 | VD-3 | [VD-3] Isolate historical pins in a compatibility suite | `@magnus919` | `ready` | `state:ready` | Dependency #248 is closed. The compatibility marker exists; the refresh tool and manifest work remain. |
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |
@@ -133,11 +131,10 @@ the concrete move, not a schedule.
 | #262 | RS-4 | [RS-4] Lock dependencies and publish the package contract | `@magnus919` | `ready` | `state:ready` | Dependency #259 is closed. The package has no runtime dependencies; lock and publish the contract deliberately. |
 | #269 | GA-1 | [GA-1] Require recorded review evidence for every merge | `@magnus919` | `blocked` | `state:blocked` | Protocol and receipt check merged in PR #293, but branch protection does not require the check. Owner action: protect `main` and require `Review receipt` plus the other required jobs. |
 | #270 | GA-2 | [GA-2] Record decisions with named owners and evidence | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | PR #295 merged the ADR index and structural check. PR-diff enforcement is now active as the `Decision record links` check: read-only GitHub API changed-file list, and for a safety-invariant path a non-empty `decision_records` receipt list whose records are indexed and Accepted on the base revision. Exit criteria still need branch protection: owner action to mark `Review receipt` and `Decision record links` required on `main`, plus a sampled change traced to its record. |
-| #271 | GA-3 | [GA-3] Address ownership, bus factor, and backlog hygiene | `@magnus919` | `in-progress` | `state:in-progress` | This change prepares CODEOWNERS, OWNERSHIP.md, triage rules/templates, and the checker. After review/merge, close with the check output and the root's applied-assignee/label record. |
 <!-- backlog-table:end -->
 
-Summary: **8 `ready`, 6 `blocked`, 3 `awaiting-evidence`, 1 `in-progress`**;
-18 open issues, all with one proposed owner and one state.
+Summary: **8 `ready`, 5 `blocked`, 3 `awaiting-evidence`, 0 `in-progress`**;
+16 open issues, all with one owner and one state.
 
 ## Board and issue-template configuration
 
