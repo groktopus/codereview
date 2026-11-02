@@ -1,15 +1,14 @@
 # Review evidence receipts (GA-1) and decision-record links (GA-2)
 
-Status: **GA-1 is partially implemented
-([issue #269](https://github.com/groktopus/codereview/issues/269)) and the GA-2
-decision-record link check is active
-([issue #270](https://github.com/groktopus/codereview/issues/270))**. Both
-checks exist and fail closed in CI; neither is a GitHub review record, and
-neither is enforced by branch protection yet. Branch protection is absent, so
-the `Review receipt` and `Decision record links` checks are visible and recorded
-but are not yet *required* — a merge is blocked procedurally, not by GitHub.
-The owner action in [Enforcement limits](#enforcement-limits) is still
-outstanding, and issue #270 stays open until it is done.
+Status: **GA-1 and GA-2 enforcement are active** (issues
+[#269](https://github.com/groktopus/codereview/issues/269) and
+[#270](https://github.com/groktopus/codereview/issues/270)). Both checks exist,
+fail closed in CI, and are required status checks on `main`. Branch protection
+keeps an explicit administrator bypass for the sole maintainer (`enforce_admins:
+false`), so the owner can still merge their own PRs; the checks are mandatory for
+every non-admin merge. Neither check is a GitHub review record. The remaining
+verification is a recorded merge sample and a blocked non-admin merge attempt,
+not a settings change.
 
 Once the check is required, every merge into `main` must carry a review receipt
 bound to the exact reviewed head. The first merge that adds this workflow is an
@@ -229,11 +228,10 @@ merge their own PRs, while every non-admin merge requires both checks.
 The outstanding verification is not a setting: record a sample of merges with
 matching reviewed/merged SHAs and a blocked non-admin merge attempt.
 
-The owner deliberately did not enable branch protection in this change, so the
-current state is: the receipt protocol and the decision-record link check are
-documented, active in CI, and visible, but a merge is only procedurally blocked
-until that setting exists. Branch protection is not enabled; the checks are not
-yet required.
+Branch protection is enabled on `main` with `Review receipt` and
+`Decision record links` as required contexts, `enforce_admins: false`,
+`strict: false`, and force-push/deletion disabled. The administrator bypass is a
+deliberate sole-maintainer exception, not an absence of enforcement.
 
 ## Bootstrap exception for GA-2 enforcement
 
@@ -248,13 +246,10 @@ second unreceipted safety change.
 
 ## Bootstrap, retention, and caps
 
-- The bootstrap merge is the only acknowledged exception; it must still carry a
-  completed receipt in its body even though the check is absent. `pull_request_target`
-  runs the workflow from the default branch, so neither `Review receipt` nor
-  `Decision record links` can run on the pull request that first adds it. The
-  owner cannot select either check as required until it has run at least once on
-  `main`; bootstrap in two steps (merge the protocol and the workflows with
-  completed receipts, then mark the checks required).
+- The bootstrap merge is the only acknowledged exception; it still carried a
+  completed receipt. `pull_request_target` runs the workflow from the default
+  branch, so neither check could run on the pull request that first added it.
+  Both checks have since run on `main` and are required.
 - Both workflows retain the PASS/error summary in the job summary and log. They
   do **not** upload a signed or immutable receipt artifact; PR bodies remain
   editable and logs expire. Export the PR body and job logs together for audit.

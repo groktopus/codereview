@@ -107,8 +107,6 @@ Neither check judges whether the evidence is sufficient or the decision was
 wise. Both fail closed and are required status checks on `main`; an explicit
 administrator bypass remains for the sole maintainer. See
 [review evidence](../REVIEW-EVIDENCE.md#enforcement-limits).
-issue [#270](https://github.com/groktopus/codereview/issues/270) stays open until
-the owner marks the checks required.
 
 ## Legacy design ADRs (proposed, not rewritten)
 
