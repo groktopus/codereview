@@ -60,9 +60,9 @@ provider price and grant no authority to use one).
   `(provider_id, model_id)` rows, duplicate JSON keys, unknown fields, control
   characters, and non-finite numbers are rejected.
 
-Validation happens before provider construction/dispatch. CLI output uses the
-stable `price table configuration is invalid` diagnostic without echoing file
-contents.
+Validation happens before any provider dispatch (providers may be constructed
+first, but no request is sent). CLI output uses the stable `price table
+configuration is invalid` diagnostic without echoing file contents.
 
 ## 2. Estimating observed usage
 
@@ -127,10 +127,14 @@ Before the first provider dispatch, `quote_monetary_budget`:
 2. computes a conservative per-call bound from the exact serialized request
    bytes and the configured output cap (`max_output_tokens`, falling back to
    `max_output_bytes`);
-3. sums the bounds for planned provider calls and the optional advisory call;
+3. sums the bounds for planned primary/specialist provider calls; the optional
+   advisory is not part of this whole-run bound and is guarded at its own
+   reservation before its dispatch;
 4. refuses the run with `configured monetary budget is below the bounded
-   pre-dispatch estimate` when the sum exceeds the ceiling, before any provider
-   call or result artifact.
+   pre-dispatch estimate` when the sum exceeds the ceiling, before any
+   primary/specialist provider call or result artifact. A ceiling that passes
+   this check can still reject the advisory later; the ledger still prevents
+   total reservations from exceeding the ceiling.
 
 A per-call bound uses a true upper bound for input tokens: every token is
 represented by at least one UTF-8 byte, so serialized bytes ≥ token count. The
