@@ -27,13 +27,20 @@ pr_review_harness = ["contract_registry.json"]
 
 [project.optional-dependencies]
 github-app = ["PyJWT[crypto]>=2.10,<3"]
-dev = ["build>=1.2,<2", "pytest>=8", "pytest-cov>=5,<8", "ruff>=0.9", "setuptools>=68", "PyJWT[crypto]>=2.10,<3", "PyYAML>=6,<7", "jsonschema>=4.18,<5"]
+dev = ["build>=1.2,<2", "pytest>=8", "pytest-cov>=5,<8", "ruff>=0.9", "mypy==1.15.0", "setuptools>=68", "PyJWT[crypto]>=2.10,<3", "PyYAML>=6,<7", "jsonschema>=4.18,<5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
   "compatibility: historical compatibility checks against preserved revision pins",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/pr_review_harness/typed_contracts.pyi", "src/pr_review_harness/typed_boundary_probe.pyi"]
+follow_imports = "silent"
+warn_unused_ignores = true
 
 [tool.coverage.run]
 relative_files = true

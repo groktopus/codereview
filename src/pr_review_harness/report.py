@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, urlparse
+
+if TYPE_CHECKING:
+    from .review_state import ReviewResult
 
 from .completeness import (
     TAXONOMY_DOC,
@@ -58,7 +61,7 @@ def _render_run_metrics(summary: Any, safe: Any) -> str | None:
     )
 
 
-def render_report(result: dict) -> str:
+def render_report(result: ReviewResult) -> str:
     if not isinstance(result, dict):
         raise ValueError("result must be an object")
 

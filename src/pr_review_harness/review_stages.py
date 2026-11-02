@@ -15,7 +15,10 @@ partial evidence, blocker preservation, and no model control flow.
 from __future__ import annotations
 
 import functools
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .review_state import PreparedAttempt, ReviewResult, SnapshotEvidence, StageOutcome, TaskRecord
 
 from .contract_registry import ContractRegistryError, effective_contract_set, load_registry
 from .errors import defect_name, is_defect
@@ -54,7 +57,9 @@ def checkpoint_stage(state: RunState, terminal: bool = False) -> None:
 
 
 
-def review_input_size_stage(state: RunState, task: dict, evidence: list[dict]) -> int:
+def review_input_size_stage(
+    state: RunState, task: TaskRecord, evidence: list[SnapshotEvidence]
+) -> int:
     from .engine import _canonical
     measure = getattr(state.provider, "review_input_bytes", None)
     if callable(measure) and task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
@@ -269,7 +274,7 @@ def validated_check_evidence_stage(state: RunState, task: dict, payload: dict) -
 
 
 
-def start_attempt_stage(state: RunState, task: dict, attempt_index: int) -> dict:
+def start_attempt_stage(state: RunState, task: TaskRecord, attempt_index: int) -> PreparedAttempt:
     from .engine import (
         BudgetExhausted,
         EnginePreflightError,
@@ -448,7 +453,7 @@ def start_attempt_stage(state: RunState, task: dict, attempt_index: int) -> dict
 
 
 
-def finish_attempt_stage(state: RunState, prepared: dict) -> dict:
+def finish_attempt_stage(state: RunState, prepared: PreparedAttempt) -> StageOutcome:
     from .engine import (
         BudgetExhausted,
         IsolatedCallError,
@@ -627,7 +632,9 @@ def finish_attempt_stage(state: RunState, prepared: dict) -> dict:
 
 
 
-def record_task_outcome_stage(state: RunState, task: dict, outcome: dict, reservation_key: str | None = None) -> None:
+def record_task_outcome_stage(
+    state: RunState, task: TaskRecord, outcome: StageOutcome, reservation_key: str | None = None
+) -> None:
     from .engine import _now, review_contracts
     with state.state_lock:
         if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2:
@@ -659,7 +666,9 @@ def record_task_outcome_stage(state: RunState, task: dict, outcome: dict, reserv
 
 
 
-def run_followup_stage(state: RunState, task: dict, evidence: list[dict]) -> dict:
+def run_followup_stage(
+    state: RunState, task: TaskRecord, evidence: list[SnapshotEvidence]
+) -> StageOutcome:
     from .engine import _hash
     task_id = task["task_id"]
     state.evidence_cache[task_id] = evidence
@@ -3257,7 +3266,7 @@ def install_report_notes(state: RunState) -> None:
 
 
 
-def build_and_persist_result(state: RunState) -> None:
+def build_and_persist_result(state: RunState) -> ReviewResult:
     """Assemble result, disposition, and advisory assessment, then persist.
 
 Contract: result hash and ledger are written atomically; disposition is
@@ -3556,5 +3565,4 @@ reduced deterministically from preserved findings and coverage."""
     if state.private_capture is not None:
         state.private_capture.export_case_packets(state.result, profile=state.profile)
     _atomic_write(state.output_path, _canonical(state.saved) + b"\n")
-
-
+    return state.saved

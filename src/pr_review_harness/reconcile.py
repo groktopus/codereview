@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Any, cast
+
+from .review_state import FindingRecord
 
 
 def _canonical(value: Any) -> bytes:
@@ -16,7 +18,7 @@ def _norm(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
 
 
-def stable_candidate_id(snapshot_id: str, candidate: dict) -> str:
+def stable_candidate_id(snapshot_id: str, candidate: FindingRecord) -> str:
     location = candidate.get("location") if isinstance(candidate.get("location"), dict) else {}
     basis = {
         "snapshot_id": snapshot_id,
@@ -33,8 +35,11 @@ def stable_candidate_id(snapshot_id: str, candidate: dict) -> str:
 
 
 def validate_location(
-    candidate: dict, unit: dict | None, task_units: set[str], unit_map: dict
-) -> tuple[bool, dict, int | None, str | None]:
+    candidate: FindingRecord,
+    unit: dict[str, Any] | None,
+    task_units: set[str],
+    unit_map: dict[str, dict[str, Any]],
+) -> tuple[bool, dict[str, Any], int | None, str | None]:
     """Validate HEAD/BASE line or explicit file-level anchors against snapshot inventory."""
     raw = candidate.get("location", {})
     location = dict(raw) if isinstance(raw, dict) else {}
@@ -87,7 +92,7 @@ def validate_location(
     return bool(ok), location, line, uid
 
 
-def consolidate_findings(findings: list[dict]) -> list[dict]:
+def consolidate_findings(findings: list[FindingRecord]) -> list[FindingRecord]:
     """Merge exact duplicates; conflicting assessments become unresolved, never votes."""
     groups: dict[str, list[dict]] = {}
     for finding in findings:
@@ -106,9 +111,9 @@ def consolidate_findings(findings: list[dict]) -> list[dict]:
         key = hashlib.sha256(_canonical(basis)).hexdigest()
         groups.setdefault(key, []).append(finding)
 
-    result = []
+    result: list[FindingRecord] = []
     for key, members in groups.items():
-        canonical = dict(sorted(members, key=lambda item: item.get("finding_id", ""))[0])
+        canonical = cast(FindingRecord, dict(sorted(members, key=lambda item: item.get("finding_id", ""))[0]))
         assessments = [m.get("semantic_assessment") for m in members if isinstance(m.get("semantic_assessment"), dict)]
         outcomes = {a.get("outcome") for a in assessments}
         support_shapes = {
