@@ -63,7 +63,7 @@ python -m venv /tmp/pr-review-wheel
 /tmp/pr-review-wheel/bin/python scripts/package_smoke.py --cli /tmp/pr-review-wheel/bin/pr-review
 ```
 
-Release tags are cut only from green `main`, and the release workflow attaches the wheel, source distribution, and SHA-256 checksums to a GitHub Release. See the [versioning policy](docs/VERSIONING.md) and [release procedure](docs/RELEASING.md) before tagging.
+Release tags are cut only from green `main`. The release workflow attaches the wheel, source distribution, `SHA256SUMS`, a CycloneDX SBOM, unsigned provenance, the reproducibility report, and changelog-derived release notes to a GitHub Release; no package is published to PyPI. The prepared notes and verification commands for `0.1.0` are in [docs/releases/0.1.0.md](docs/releases/0.1.0.md). See the [versioning policy](docs/VERSIONING.md) and [release procedure](docs/RELEASING.md) before tagging.
 
 ## What is included
 

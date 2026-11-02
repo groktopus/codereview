@@ -101,12 +101,12 @@ def _checksums(dist: Path, *extra: Path) -> Path:
 def _provenance(dist: Path) -> dict[str, object]:
     return provenance.build_provenance(
         dist,
-        repository="grokopus/codereview",
+        repository="groktopus/codereview",
         source_revision="a" * 40,
         source_ref="refs/tags/v1.2.3",
-        workflow_ref="grokopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
+        workflow_ref="groktopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
         workflow_sha="b" * 40,
-        builder_id="https://github.com/grokopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
+        builder_id="https://github.com/groktopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
         builder_image="GitHub Actions ubuntu-latest",
         invocation_id="12345",
         python_version="3.13.7",
@@ -228,13 +228,13 @@ def test_provenance_cli_derives_builder_identity_from_the_workflow_ref(tmp_path:
             "--output",
             str(output),
             "--repository",
-            "grokopus/codereview",
+            "groktopus/codereview",
             "--source-revision",
             "a" * 40,
             "--source-ref",
             "refs/tags/v1.2.3",
             "--workflow-ref",
-            "grokopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
+            "groktopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
             "--workflow-sha",
             "b" * 40,
             "--build-command",
@@ -247,7 +247,7 @@ def test_provenance_cli_derives_builder_identity_from_the_workflow_ref(tmp_path:
     assert status == 0
     document = json.loads(output.read_text(encoding="utf-8"))
     assert document["predicate"]["runDetails"]["builder"]["id"] == (
-        "https://github.com/grokopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3"
+        "https://github.com/groktopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3"
     )
     assert document["signing"]["status"] == "unsigned"
 
@@ -272,7 +272,7 @@ def test_verifier_accepts_consistent_unsigned_release_evidence(tmp_path: Path) -
         provenance=provenance_path,
         checksums=checksums,
         source_revision="a" * 40,
-        workflow_ref="grokopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
+        workflow_ref="groktopus/codereview/.github/workflows/release.yml@refs/tags/v1.2.3",
     )
     assert result["status"] == "PASS"
     assert result["signed"] is False

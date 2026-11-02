@@ -32,7 +32,7 @@ SPEC_VERSION = "1.5"
 GENERATOR_NAME = "pr-review-harness-sbom"
 GENERATOR_VERSION = "1.0.0"
 REQUIRED_LICENSE = "MIT"
-SERIAL_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://github.com/grokopus/codereview/sbom")
+SERIAL_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://github.com/groktopus/codereview/sbom")
 WHEEL_SUFFIX = ".whl"
 SDIST_SUFFIX = ".tar.gz"
 
