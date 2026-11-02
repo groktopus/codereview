@@ -3,10 +3,14 @@
   "documents": [
     {
       "document": "docs/STATUS.md",
-      "evidence_revision": "6e18f8103daedd042027be9b27921e0416cbd05b",
+      "evidence_revision": "c026176bc10cb37ddcf1232b6089d684e2336770",
       "evidence_date": "2026-11-01",
-      "source_paths": ["src/pr_review_harness/cli.py"],
-      "evidence_links": ["../src/pr_review_harness/cli.py"]
+      "source_paths": [
+        "src/pr_review_harness/cli.py"
+      ],
+      "evidence_links": [
+        "../src/pr_review_harness/cli.py"
+      ]
     }
   ]
 }

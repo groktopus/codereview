@@ -372,6 +372,7 @@ class RunState:
     check_adapter: Any
     claim_assessor: Any
     max_claim_assessments: int
+    price_table: Any
     private_capture_dir: str | None
     private_capture_case_id: str | None
     private_capture_request_pins: dict[str, dict] | None
@@ -747,6 +748,7 @@ class RunState:
         private_capture_snapshot_pin: dict[str, Any] | None,
         private_capture_source_audit_max_bytes: int,
         allow_archived_contracts: bool = False,
+        price_table: Any = None,
     ) -> None:
         self.snapshot = snapshot
         self.plan = plan
@@ -762,6 +764,7 @@ class RunState:
         self.check_adapter = check_adapter
         self.claim_assessor = claim_assessor
         self.max_claim_assessments = max_claim_assessments
+        self.price_table = price_table
         self.private_capture_dir = private_capture_dir
         self.private_capture_case_id = private_capture_case_id
         self.private_capture_request_pins = private_capture_request_pins

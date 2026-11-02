@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .review_state import PreparedAttempt, ReviewResult, SnapshotEvidence, StageOutcome, TaskRecord
 
 from .contract_registry import ContractRegistryError, effective_contract_set, load_registry
+from .cost import PRICE_TABLE_BASIS, PRICE_TABLE_SCHEMA, provider_price_identity, validate_cost_ceiling
 from .errors import defect_name, is_defect
 from .review_state import RunState
 
@@ -105,6 +106,89 @@ def required_claim_deadline_floor_stage(state: RunState, ) -> float:
 
 
 
+def _apply_price_table_bound(state: RunState, target: Any, estimate: dict) -> dict:
+    """Return the estimate with an exact-row bound; an operator cap still wins."""
+    if estimate.get("reservation_kind") == "operator_bound" and estimate.get("max_cost_microunits") is not None:
+        return estimate
+    if state.price_table is None:
+        return estimate
+    provider_id, model_id = provider_price_identity(target)
+    bound = state.price_table.bound_call(
+        provider_id, model_id, estimate.get("input_bytes"),
+        estimate.get("max_output_tokens"), estimate.get("max_output_bytes"),
+    )
+    return estimate if bound is None else {**estimate, **bound}
+
+
+def _provider_reservations(state: RunState) -> list[tuple[str, dict]]:
+    reservations = state.budget.state.get("reservations", {})
+    return [
+        (key, row) for key, row in reservations.items()
+        if isinstance(row, dict) and row.get("provider_calls", 0) > 0
+    ]
+
+
+def _reservation_cost_target(state: RunState, key: str, reservation: dict) -> Any:
+    if reservation.get("kind") == "claim_assessment" or key.startswith("claim-assessment:"):
+        return state.claim_assessor
+    if key.startswith("system-one:"):
+        return state.decision_provider
+    return state.provider
+
+
+def _apply_price_table_costs(state: RunState) -> None:
+    """Fill settlement estimates from observed usage; never touch billed cost."""
+    table = state.price_table
+    if table is None:
+        return
+    settlements = state.budget.state.get("settlements", {})
+    for key, reservation in _provider_reservations(state):
+        settlement = settlements.get(key)
+        if not isinstance(settlement, dict):
+            continue
+        provider_id, model_id = provider_price_identity(_reservation_cost_target(state, key, reservation))
+        estimate = table.estimate(provider_id, model_id, settlement.get("usage"))
+        if estimate is not None:
+            settlement["estimated_cost_microunits"] = estimate["microunits"]
+            settlement["estimated_cost_basis"] = estimate["basis"]
+            settlement["estimated_cost_currency"] = estimate["currency"]
+            settlement["estimated_cost_price_table_revision"] = estimate["price_table_revision"]
+
+
+def _cost_summary(state: RunState) -> dict:
+    """Return the budget summary with additive, content-free cost context."""
+    summary = state.budget.summary()
+    summary["cost_billing_basis"] = "UNKNOWN"
+    provider_reservations = _provider_reservations(state)
+    limit = summary.get("cost_limit_microunits")
+    if limit is not None:
+        kinds = {row.get("reservation_kind") for _key, row in provider_reservations
+                 if row.get("max_cost_microunits") is not None}
+        summary["cost_ceiling_enforced_pre_dispatch"] = all(
+            row.get("max_cost_microunits") is not None for _key, row in provider_reservations
+        )
+        if isinstance(state.limits.get("max_cost_currency"), str):
+            summary["cost_ceiling_currency"] = state.limits["max_cost_currency"]
+        summary["cost_ceiling_basis"] = (
+            "PRICE_TABLE_BOUND" if kinds == {"price_table_bound"}
+            else "OPERATOR_BOUND" if kinds == {"operator_bound"}
+            else "MIXED" if kinds else "UNKNOWN"
+        )
+    table = state.price_table
+    if table is not None:
+        summary.update({
+            "cost_currency": table.currency,
+            "cost_price_table_schema": PRICE_TABLE_SCHEMA,
+            "cost_price_table_revision": table.revision,
+        })
+        settlements = state.budget.state.get("settlements", {})
+        bases = [settlements.get(key, {}).get("estimated_cost_basis")
+                 for key, _row in provider_reservations if isinstance(settlements.get(key), dict)]
+        if summary.get("cost_estimate_known") is True and bases and set(bases) == {PRICE_TABLE_BASIS}:
+            summary["cost_estimate_basis"] = PRICE_TABLE_BASIS
+    return summary
+
+
 def call_estimate_stage(
         state: RunState,
     target: Any,
@@ -141,7 +225,12 @@ def call_estimate_stage(
         float(estimate.get("deadline_seconds", quote_deadline)),
         quote_deadline,
     )
-    if state.limits.get("max_cost_microunits") is not None and estimate.get("reservation_kind") != "operator_bound":
+    if state.price_table is not None:
+        estimate = _apply_price_table_bound(state, target, estimate)
+    if state.limits.get("max_cost_microunits") is not None and (
+        estimate.get("reservation_kind") not in {"operator_bound", "price_table_bound"}
+        or estimate.get("max_cost_microunits") is None
+    ):
         raise ValueError(
             "configured monetary budget reservation is unsupported without an operator-bound per-call quote"
         )
@@ -915,6 +1004,10 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
         "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
         "core_contract_hash": _core_contract_hash(),
     }
+    if state.price_table is not None:
+        # A resumed run must be costed against the same operator table; the
+        # request hash therefore binds the revision and content digest.
+        state.request_basis["price_table"] = state.price_table.identity()
     if state.max_claim_assessments > 0:
         state.request_basis["claim_assessment"] = {
             "assessor_identity_hash": state.claim_assessor_identity_hash,
@@ -1293,31 +1386,46 @@ protected by a call floor and a deadline floor at every reservation."""
 
 
 def quote_monetary_budget(state: RunState) -> None:
-    """Reject a configured monetary budget unless every call is operator-bound."""
-    if state.limits.get("max_cost_microunits") is not None:
-        for state.planned_task in state.tasks:
-            if state.planned_task.get("task_kind") == "DETERMINISTIC_CHECK":
-                # Deterministic checks are bounded local work, not provider
-                # calls requiring a provider quote.
-                continue
-            state.target = state.check_adapter if state.planned_task.get("task_kind") == "DETERMINISTIC_CHECK" else state.provider
-            if state.target is None:
-                continue
-            state.evidence = state.evidence_cache[state.planned_task["task_id"]]
-            state.quote = state.call_estimate(
-                state.target,
-                state.planned_task.get("task_kind", "SPECIALIST_FINDINGS"),
-                state.planned_task,
-                state.evidence,
-                state.review_input_size(state.planned_task, state.evidence),
-            )
-            if state.quote.get("reservation_kind") != "operator_bound":
-                raise ValueError("configured monetary budget requires operator-bound per-call reservations")
-        if state.decision_provider is not None and callable(getattr(state.decision_provider, "assess", None)):
-            state.quote = state.call_estimate(state.decision_provider, "SYSTEM_ONE_ASSESSMENT", {}, [], 0)
-            if state.quote.get("reservation_kind") != "operator_bound":
-                raise ValueError("configured monetary budget requires operator-bound per-call reservations")
+    """Fail closed unless every planned provider call is bounded pre-dispatch.
 
+    The ceiling is denominated in microunits of ``max_cost_currency``.  A
+    price-table bound is accepted only when the table currency matches that
+    explicit ceiling currency; the harness never assumes USD.  The sum of the
+    conservative per-call bounds must fit inside the run ceiling before the
+    first dispatch, so an undersized ceiling refuses the run rather than
+    spending first and discovering the overrun later.
+    """
+
+    limit = state.limits.get("max_cost_microunits")
+    if limit is None:
+        return
+    if state.price_table is not None:
+        validate_cost_ceiling(state.price_table, state.limits)
+    total_bound = 0
+    for state.planned_task in state.tasks:
+        if state.planned_task.get("task_kind") == "DETERMINISTIC_CHECK":
+            # Deterministic checks are bounded local work, not provider
+            # calls requiring a provider quote.
+            continue
+        state.target = state.check_adapter if state.planned_task.get("task_kind") == "DETERMINISTIC_CHECK" else state.provider
+        if state.target is None:
+            continue
+        state.evidence = state.evidence_cache[state.planned_task["task_id"]]
+        state.quote = state.call_estimate(
+            state.target,
+            state.planned_task.get("task_kind", "SPECIALIST_FINDINGS"),
+            state.planned_task,
+            state.evidence,
+            state.review_input_size(state.planned_task, state.evidence),
+        )
+        if state.quote.get("provider_calls", 0):
+            total_bound += int(state.quote["max_cost_microunits"])
+    if state.decision_provider is not None and callable(getattr(state.decision_provider, "assess", None)):
+        state.quote = state.call_estimate(state.decision_provider, "SYSTEM_ONE_ASSESSMENT", {}, [], 0)
+        if state.quote.get("provider_calls", 0):
+            total_bound += int(state.quote["max_cost_microunits"])
+    if total_bound > int(limit):
+        raise ValueError("configured monetary budget is below the bounded pre-dispatch estimate")
 
 
 def install_attempt_lifecycle(state: RunState) -> None:
@@ -2644,7 +2752,7 @@ unknown or failed adjudication never becomes a clean approval."""
                     or not 0 < state.estimate["deadline_seconds"] <= state.deadline_cap
                 ):
                     raise ValueError("invalid_claim_assessment_quote")
-                state.estimate = {**state.estimate, "max_cost_microunits": None}
+                state.estimate = _apply_price_table_bound(state, state.claim_assessor, state.estimate)
                 # The process result has its own serialized IPC ceiling; the
                 # transport's raw response ceiling remains separately recorded.
                 state.raw_response_cap = state.estimate["provider_response_bytes"]
@@ -3539,7 +3647,8 @@ reduced deterministically from preserved findings and coverage."""
     # advisory call; finalize elapsed at the actual end of the run.
     state.result["run_elapsed_ms"] = _run_elapsed_ms(state.ledger)
     state.result["completed_at"] = _now()
-    state.result["budget"] = state.budget.summary()
+    _apply_price_table_costs(state)
+    state.result["budget"] = _cost_summary(state)
     # Emit the compact cross-run record after the final elapsed and budget
     # values exist.  This is additive: every existing result field is unchanged.
     from .metrics import build_run_summary

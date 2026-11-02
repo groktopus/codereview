@@ -154,11 +154,17 @@ Notes on the fields:
   for that stage, not wall-clock time. `call_elapsed_known` is the sample count.
   `run_elapsed_ms` is the only wall-clock latency in the record.
 - `cost.estimate` is only `known` when every provider settlement carried a
-  usable estimate. Without a versioned price table (OE-2), the usual value is
-  `{"microunits": null, "known": false, "basis": "UNKNOWN"}`. `billing` is
-  `UNKNOWN` unless an authoritative billed amount was reported.
-- `currency` is `null` until OE-2 defines the operator-supplied price-table
-  currency. Microunits are not silently assumed to be USD.
+  usable estimate. With an operator price table (OE-2) the basis is
+  `PRICE_TABLE_ESTIMATE` and the record adds `price_table_revision`; without
+  one the usual value is `{"microunits": null, "known": false, "basis":
+  "UNKNOWN"}`. `billing` is separate and remains `UNKNOWN` unless an
+  authoritative billed amount was reported. An estimate is never billing.
+- `currency` is the price table's declared currency when a table was used and
+  `null` otherwise. Microunits are not silently assumed to be USD.
+- The additive `cost.ceiling` member appears only for runs that configured a
+  currency ceiling; it reports the limit, its currency, and whether every
+  provider reservation was bounded before dispatch. See
+  [the cost model](COST-MODEL.md).
 
 Old results remain usable. When `run_summary` is absent or structurally
 invalid, the metrics layer rebuilds the record from the stored result's
@@ -326,6 +332,13 @@ were.
 `complete_for_all_runs` is `false`. There is no field that pretends to be the
 total estimate in that case.
 
+Costs are never summed across currencies. `cost.estimate.by_currency` carries
+one row per currency (with `null` as its own distinct group), and
+`cost.currency_mixed` is true with `microunits_total_known: null` when known
+estimates span more than one currency. `cost.estimate.price_table_revisions`
+lists the contributing table revisions. Billing remains a separate block and
+is `UNKNOWN` for every run in this repository's corpus.
+
 ## 3. Current gaps
 
 - **Aggregation covers persisted results.** A run that fails before the result
@@ -336,10 +349,13 @@ total estimate in that case.
   receipts existed have no stage latency and no token usage. They aggregate
   with explicit missing counts; the metrics layer does not infer them from
   elapsed time or task results.
-- **No price table yet.** OE-2 owns the versioned price table, currency, and a
-  pre-dispatch currency ceiling. Until then, estimates are only whatever the
-  provider settlement reported, and `currency` is `null`. Billing is `UNKNOWN`
-  for every run in this repository's corpus.
+- **Prices are operator-supplied and unverified.** OE-2 provides a versioned
+  price table, currency-labelled estimates, and a pre-dispatch currency
+  ceiling, but the harness never fetches or reconciles provider prices. A
+  stale table yields a stale estimate. Billing remains `UNKNOWN` for every run
+  in this repository's corpus because no authoritative billed amount exists
+  and the owner/billing policy is unratified. See
+  [the cost model](COST-MODEL.md).
 - **Percentiles are small-sample.** Nearest-rank `p95` over a handful of runs
   is a descriptive statistic, not a calibrated service-level estimate. The
   output always carries `n` so a reader can reject an overconfident trend.

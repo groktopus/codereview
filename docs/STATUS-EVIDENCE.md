@@ -11,7 +11,7 @@
 
 | Field | Value | Evidence | Evidence date |
 |---|---|---|---|
-| Current evidence revision | 431b3ec (full SHA in the evidence manifest) | [evidence manifest](../scripts/documentation-status-evidence.v1.json) | 2026-11-01 |
+| Current evidence revision | c026176 (full SHA in the evidence manifest) | [evidence manifest](../scripts/documentation-status-evidence.v1.json) | 2026-11-01 |
 | Last verified run | NOT RECORDED — no retained review-run-summary.v1 artifact is checked in; CI test execution is not a review run | [run summary schema](../schemas/review-run-summary.v1.schema.json) | not applicable |
 | Contract set | contract-registry.v1: 18 supported, 3 experimental, 17 deprecated, 6 archived | [contract registry](../src/pr_review_harness/contract_registry.json) | 2026-11-01 |
 | Publication decision | harness CLI (`pr-review publish`): UNAVAILABLE — preview only; central `groktopus/codereview` Actions route: HARD-DISABLED; target-local `magnus919/SlopSearX` route: REPORTED ENABLED (DISPOSITION) | [publication decisions](#publication-decisions) | 2026-09-29 / 2026-10-11 |
@@ -81,7 +81,7 @@ its freshness verdict verbatim and does not rewrite it.
 
 Checker findings:
 
-- STATUS_STALE (docs/STATUS.md:1): evidence revision 8223fd77e3e1 predates source 'src/pr_review_harness/cli.py' at d91cfe42185e; refresh the evidence or narrow source_paths to the documented claim
+- STATUS_STALE (docs/STATUS.md:1): evidence revision 8223fd77e3e1 predates source 'src/pr_review_harness/cli.py' at 4a320538562a; refresh the evidence or narrow source_paths to the documented claim
 
 ## Historical snapshots (immutable; not current)
 

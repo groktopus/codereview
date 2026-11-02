@@ -266,7 +266,18 @@
           "properties": {
             "microunits": { "$ref": "#/$defs/optionalCount" },
             "known": { "type": "boolean" },
-            "basis": { "enum": ["PROVIDER_REPORTED_ESTIMATE", "UNKNOWN"] }
+            "basis": { "enum": ["PROVIDER_REPORTED_ESTIMATE", "PRICE_TABLE_ESTIMATE", "UNKNOWN"] },
+            "price_table_revision": { "type": ["string", "null"], "maxLength": 128 }
+          }
+        },
+        "ceiling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["limit_microunits", "currency", "enforced_pre_dispatch"],
+          "properties": {
+            "limit_microunits": { "$ref": "#/$defs/count" },
+            "currency": { "type": ["string", "null"] },
+            "enforced_pre_dispatch": { "type": "boolean" }
           }
         },
         "billing": {

@@ -309,7 +309,10 @@ class BudgetLedger:
             if output_reserved + reservation["max_output_bytes"] > int(self.limits["max_output_bytes"]):
                 raise BudgetExhausted("OUTPUT_BYTE_BUDGET_EXHAUSTED")
             if self.limits.get("max_cost_microunits") is not None:
-                if reservation["max_cost_microunits"] is None or reservation["reservation_kind"] != "operator_bound":
+                if reservation["max_cost_microunits"] is None or reservation["reservation_kind"] not in {
+                    "operator_bound",
+                    "price_table_bound",
+                }:
                     raise BudgetExhausted("MONETARY_BOUND_UNAVAILABLE")
                 reserved_cost = sum(r.get("max_cost_microunits") or 0 for r in reservations)
                 if reserved_cost + reservation["max_cost_microunits"] > int(self.limits["max_cost_microunits"]):

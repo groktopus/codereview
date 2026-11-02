@@ -45,8 +45,29 @@ def _render_run_metrics(summary: Any, safe: Any) -> str | None:
 
     estimate = cost.get("estimate") if isinstance(cost.get("estimate"), dict) else {}
     billing = cost.get("billing") if isinstance(cost.get("billing"), dict) else {}
-    estimate_text = f"{estimate.get('microunits')} microunits" if estimate.get("known") else "UNKNOWN"
-    billing_text = f"{billing.get('microunits')} microunits" if billing.get("known") else "UNKNOWN"
+    currency = cost.get("currency") if isinstance(cost.get("currency"), str) else None
+    estimate_text = (
+        f"ESTIMATED {estimate.get('microunits')} microunits" + (f" {currency}" if currency else "")
+        if estimate.get("known")
+        else "UNKNOWN"
+    )
+    revision = estimate.get("price_table_revision")
+    estimate_basis = estimate.get("basis", "UNKNOWN")
+    if isinstance(revision, str) and revision:
+        estimate_basis = f"{estimate_basis} revision {revision}"
+    billing_text = (
+        f"{billing.get('microunits')} microunits" + (f" {currency}" if currency else "")
+        if billing.get("known")
+        else "UNKNOWN"
+    )
+    ceiling = cost.get("ceiling") if isinstance(cost.get("ceiling"), dict) else {}
+    ceiling_text = ""
+    if ceiling:
+        ceiling_currency = ceiling.get("currency") if isinstance(ceiling.get("currency"), str) else "UNKNOWN"
+        ceiling_text = (
+            f" ceiling {ceiling.get('limit_microunits')} microunits {ceiling_currency} "
+            f"enforced-pre-dispatch {ceiling.get('enforced_pre_dispatch') is True}"
+        )
     elapsed = latency.get("run_elapsed_ms")
     elapsed_text = f"{elapsed} ms" if isinstance(elapsed, (int, float)) and not isinstance(elapsed, bool) else "UNKNOWN"
     freshness = run.get("freshness") if isinstance(run.get("freshness"), dict) else {}
@@ -56,8 +77,8 @@ def _render_run_metrics(summary: Any, safe: Any) -> str | None:
         f"terminal {safe(run.get('terminal_state', 'UNKNOWN'))}; freshness {safe(freshness.get('state', 'UNKNOWN'))}; "
         f"calls {total('calls_reserved')} reserved/{total('calls_settled')} settled, {total('retries')} retries; "
         f"tokens {token_text('prompt_tokens')}, {token_text('completion_tokens')}, {token_text('total_tokens')}; "
-        f"run latency {elapsed_text}; cost estimate {estimate_text} (basis: {safe(estimate.get('basis', 'UNKNOWN'))}), "
-        f"billing {billing_text}."
+        f"run latency {elapsed_text}; cost estimate {estimate_text} (basis: {safe(estimate_basis)}), "
+        f"billing {billing_text}{ceiling_text}."
     )
 
 

@@ -36,6 +36,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from .completeness import SUMMARY_SCHEMA as COMPLETENESS_SUMMARY_SCHEMA
 from .completeness import TAXONOMY_VERSION
 from .completeness import summary_from_result as _completeness_summary_from_result
+from .cost import PRICE_TABLE_BASIS
 
 RUN_SUMMARY_SCHEMA = "review-run-summary.v1"
 RUN_METRICS_SCHEMA = "review-run-metrics.v1"
@@ -127,6 +128,28 @@ def _string(value: Any) -> str | None:
 
 # ---------------------------------------------------------------------------
 # Run-summary record
+
+
+def _cost_record(budget, currency, estimate_value, estimate_known, estimate_basis, billing_value, billing_known):
+    """Build the cost block; additive context never turns unknown into zero."""
+    estimate: dict[str, Any] = {"microunits": estimate_value, "known": estimate_known, "basis": estimate_basis}
+    revision = _string(budget.get("cost_price_table_revision"))
+    if estimate_basis == PRICE_TABLE_BASIS and revision is not None:
+        estimate["price_table_revision"] = revision
+    record: dict[str, Any] = {
+        "currency": currency,
+        "reserved_microunits": _nonnegative_int(budget.get("cost_reserved_microunits")),
+        "limit_microunits": _nonnegative_int(budget.get("cost_limit_microunits")),
+        "estimate": estimate,
+        "billing": {"microunits": billing_value, "known": billing_known,
+                    "basis": _BILLED_KNOWN if billing_known else _BASIS_UNKNOWN},
+    }
+    limit = record["limit_microunits"]
+    if limit is not None and "cost_ceiling_basis" in budget:
+        record["ceiling"] = {"limit_microunits": limit, "enforced_pre_dispatch":
+                             budget.get("cost_ceiling_enforced_pre_dispatch") is True,
+                             "currency": _string(budget.get("cost_ceiling_currency")) or currency}
+    return record
 
 
 def build_run_summary(result: Mapping[str, Any]) -> dict[str, Any]:
@@ -249,10 +272,18 @@ def build_run_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     estimate_value = _nonnegative_int(budget.get("cost_estimated_microunits"))
     if not estimate_known or estimate_value is None:
         estimate_known, estimate_value = False, None
+    estimate_basis = _string(budget.get("cost_estimate_basis"))
+    if not estimate_known:
+        estimate_basis = _BASIS_UNKNOWN
+    elif estimate_basis == PRICE_TABLE_BASIS:
+        estimate_basis = PRICE_TABLE_BASIS
+    elif estimate_basis is None:
+        estimate_basis = _ESTIMATE_KNOWN
     billing_known = budget.get("cost_billing_known") is True
     billing_value = _nonnegative_int(budget.get("cost_billed_microunits"))
     if not billing_known or billing_value is None:
         billing_known, billing_value = False, None
+    currency = _string(budget.get("cost_currency"))
 
     contracts = _mapping(result.get("effective_contracts"))
     freshness_details = _mapping(result.get("freshness_details"))
@@ -329,21 +360,7 @@ def build_run_summary(result: Mapping[str, Any]) -> dict[str, Any]:
             "run_elapsed_ms": _nonnegative_number(result.get("run_elapsed_ms")),
             "by_stage": latency_stages,
         },
-        "cost": {
-            "currency": None,
-            "reserved_microunits": _nonnegative_int(budget.get("cost_reserved_microunits")),
-            "limit_microunits": _nonnegative_int(budget.get("cost_limit_microunits")),
-            "estimate": {
-                "microunits": estimate_value,
-                "known": estimate_known,
-                "basis": _ESTIMATE_KNOWN if estimate_known else _BASIS_UNKNOWN,
-            },
-            "billing": {
-                "microunits": billing_value,
-                "known": billing_known,
-                "basis": _BILLED_KNOWN if billing_known else _BASIS_UNKNOWN,
-            },
-        },
+        "cost": _cost_record(budget, currency, estimate_value, estimate_known, estimate_basis, billing_value, billing_known),
     }
     return summary
 
@@ -742,20 +759,27 @@ def aggregate_run_summaries(
             "http_p95_run_stage_ms": _percentile(stage_http_values.get(stage, []), 0.95),
         }
 
-    estimate_values = []
+    estimate_values: list[tuple[str | None, int]] = []
     billing_values = []
     estimate_basis: dict[str, int] = {}
     billing_basis: dict[str, int] = {}
+    estimate_revisions: dict[str, int] = {}
     estimate_unknown = 0
     billing_unknown = 0
+    ceiling_runs = 0
+    ceiling_enforced = 0
     for summary in summaries:
         cost = _mapping(summary.get("cost"))
         estimate = _mapping(cost.get("estimate"))
         billing = _mapping(cost.get("billing"))
+        currency = _string(cost.get("currency"))
         basis = _string(estimate.get("basis")) or _BASIS_UNKNOWN
         estimate_basis[basis] = estimate_basis.get(basis, 0) + 1
+        revision = _string(estimate.get("price_table_revision"))
+        if revision is not None:
+            estimate_revisions[revision] = estimate_revisions.get(revision, 0) + 1
         if estimate.get("known") is True and _nonnegative_int(estimate.get("microunits")) is not None:
-            estimate_values.append(_nonnegative_int(estimate.get("microunits")))
+            estimate_values.append((currency, _nonnegative_int(estimate.get("microunits"))))
         else:
             estimate_unknown += 1
         billing_basis_value = _string(billing.get("basis")) or _BASIS_UNKNOWN
@@ -764,6 +788,11 @@ def aggregate_run_summaries(
             billing_values.append(_nonnegative_int(billing.get("microunits")))
         else:
             billing_unknown += 1
+        ceiling = _mapping(cost.get("ceiling"))
+        if ceiling:
+            ceiling_runs += 1
+            if ceiling.get("enforced_pre_dispatch") is True:
+                ceiling_enforced += 1
 
     profiles: dict[str, dict[str, Any]] = {}
     for summary in summaries:
@@ -888,29 +917,9 @@ def aggregate_run_summaries(
             },
             "by_stage": by_stage,
         },
-        "cost": {
-            "currency": None,
-            "estimate": {
-                "known_runs": len(estimate_values),
-                "unknown_runs": estimate_unknown,
-                "microunits_total_known": sum(estimate_values) if estimate_values else None,
-                "complete_for_all_runs": bool(included) and estimate_unknown == 0,
-                "basis_distribution": [
-                    {"basis": basis, "runs": count}
-                    for basis, count in sorted(estimate_basis.items(), key=lambda item: (-item[1], item[0]))
-                ],
-            },
-            "billing": {
-                "known_runs": len(billing_values),
-                "unknown_runs": billing_unknown,
-                "microunits_total_known": sum(billing_values) if billing_values else None,
-                "complete_for_all_runs": bool(included) and billing_unknown == 0,
-                "basis_distribution": [
-                    {"basis": basis, "runs": count}
-                    for basis, count in sorted(billing_basis.items(), key=lambda item: (-item[1], item[0]))
-                ],
-            },
-        },
+        "cost": _aggregate_cost(estimate_values, estimate_unknown, estimate_basis, estimate_revisions,
+                                  billing_values, billing_unknown, billing_basis, included,
+                                  ceiling_runs, ceiling_enforced),
         "profiles": profile_rows,
         "contracts": contract_rows,
         "missing_data": missing_data,
@@ -919,6 +928,41 @@ def aggregate_run_summaries(
 
 # ---------------------------------------------------------------------------
 # Rendering and export
+
+
+def _aggregate_cost(estimate_values, estimate_unknown, estimate_basis, estimate_revisions,
+                    billing_values, billing_unknown, billing_basis, included, ceiling_runs, ceiling_enforced):
+    """Aggregate cost without summing across currencies; null is its own group."""
+    groups: dict[str | None, dict[str, Any]] = {}
+    for currency, value in estimate_values:
+        row = groups.setdefault(currency, {"currency": currency, "known_runs": 0, "microunits_total_known": 0})
+        row["known_runs"] += 1
+        row["microunits_total_known"] += value
+    mixed = len(groups) > 1
+    def distribution(values):
+        return [{"basis": key, "runs": count} for key, count in sorted(values.items(), key=lambda item: (-item[1], item[0]))]
+    return {
+        "currency": next(iter(groups)) if len(groups) == 1 else None,
+        "currency_mixed": mixed,
+        "estimate": {
+            "known_runs": len(estimate_values), "unknown_runs": estimate_unknown,
+            "microunits_total_known": (
+                sum(value for _currency, value in estimate_values) if estimate_values and not mixed else None),
+            "complete_for_all_runs": bool(included) and estimate_unknown == 0,
+            "by_currency": sorted(groups.values(), key=lambda row: str(row["currency"])),
+            "basis_distribution": distribution(estimate_basis),
+            "price_table_revisions": [
+                {"revision": revision, "runs": count}
+                for revision, count in sorted(estimate_revisions.items(), key=lambda item: (-item[1], item[0]))],
+        },
+        "billing": {
+            "known_runs": len(billing_values), "unknown_runs": billing_unknown,
+            "microunits_total_known": sum(billing_values) if billing_values else None,
+            "complete_for_all_runs": bool(included) and billing_unknown == 0,
+            "basis_distribution": distribution(billing_basis),
+        },
+        "ceiling": {"runs_with_ceiling": ceiling_runs, "runs_enforced_pre_dispatch": ceiling_enforced},
+    }
 
 
 def _ratio_text(value: Any) -> str:
@@ -1042,7 +1086,9 @@ def render_stats_text(stats: Mapping[str, Any]) -> str:
         f"{_count(estimate.get('unknown_runs'))} runs (basis: {estimate_basis or 'none'}); "
         f"billing {billing.get('microunits_total_known') if billing.get('microunits_total_known') is not None else 'UNKNOWN'} "
         f"microunits known for {_count(billing.get('known_runs'))} runs, unknown for "
-        f"{_count(billing.get('unknown_runs'))} runs; currency UNKNOWN."
+        f"{_count(billing.get('unknown_runs'))} runs; currency "
+        f"{(cost.get('currency') if isinstance(cost.get('currency'), str) else 'UNKNOWN')}"
+        f"{' (mixed currencies; no cross-currency total)' if cost.get('currency_mixed') else ''}."
     )
 
     missing = _mapping(stats.get("missing_data"))
