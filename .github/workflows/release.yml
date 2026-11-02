@@ -3,7 +3,9 @@ name: Release
 # Build and publish a GitHub Release from an existing tag. This workflow never
 # creates a tag: the tag push is the trigger, and workflow_dispatch accepts only
 # an already-existing tag. It uses the repository-scoped GITHUB_TOKEN, reads no
-# repository secrets, and does not publish to PyPI.
+# repository secrets, and does not publish to PyPI. Release assets include the
+# wheel, sdist, SHA256SUMS, an unsigned CycloneDX SBOM, unsigned provenance, and
+# the retained reproducibility report; see docs/SUPPLY-CHAIN.md.
 on:
   push:
     tags:
@@ -26,7 +28,7 @@ jobs:
   build:
     name: Build and verify release artifacts
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -72,11 +74,67 @@ jobs:
               ;;
           esac
 
-      - name: Build wheel and source distribution
+      - name: Derive a deterministic build timestamp from the tagged commit
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          epoch="$(git show -s --format=%ct "refs/tags/${RELEASE_TAG}^{commit}")"
+          test -n "$epoch"
+          created="$(date -u -d "@${epoch}" +%Y-%m-%dT%H:%M:%SZ)"
+          {
+            echo "SOURCE_DATE_EPOCH=${epoch}"
+            echo "RELEASE_CREATED=${created}"
+          } >> "$GITHUB_ENV"
+
+      - name: Build twice with SOURCE_DATE_EPOCH and compare artifact hashes
         run: |
           set -euo pipefail
           python -m pip install 'build>=1.2,<2'
-          python -m build --wheel --sdist --outdir dist
+          # The report records byte-level and content-level results. The first
+          # build is the release set only when its content matches the second.
+          python scripts/check_reproducible_build.py \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --dist-out dist \
+            --json-out dist/REPRODUCIBILITY.json \
+            --summary dist/REPRODUCIBILITY.md \
+            --created "$RELEASE_CREATED"
+
+      - name: Generate a CycloneDX SBOM from the release artifacts
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          package_name="$(python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['name'])")"
+          echo "PACKAGE_NAME=${package_name}" >> "$GITHUB_ENV"
+          python scripts/generate_sbom.py \
+            --dist dist \
+            --output "dist/${package_name}-${RELEASE_TAG#v}.cdx.json" \
+            --created "$RELEASE_CREATED"
+
+      - name: Record unsigned build provenance
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          source_revision="$(git rev-parse HEAD)"
+          python scripts/generate_provenance.py \
+            --dist dist \
+            --output dist/provenance.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-revision "$source_revision" \
+            --source-ref "refs/tags/${RELEASE_TAG}" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF" \
+            --workflow-sha "$GITHUB_SHA" \
+            --invocation-id "$GITHUB_RUN_ID" \
+            --build-command "python scripts/check_reproducible_build.py --source-date-epoch ${SOURCE_DATE_EPOCH} --dist-out dist" \
+            --created "$RELEASE_CREATED" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH"
+          echo "SOURCE_REVISION=${source_revision}" >> "$GITHUB_ENV"
+
+      - name: Add the release notes to the asset set
+        run: |
+          set -euo pipefail
           mv release-notes.md dist/RELEASE-NOTES.md
 
       - name: Record and verify SHA-256 checksums
@@ -84,10 +142,27 @@ jobs:
           set -euo pipefail
           cd dist
           sha256sum ./*.whl ./*.tar.gz > SHA256SUMS
+          sha256sum ./*.cdx.json ./provenance.json ./REPRODUCIBILITY.json ./REPRODUCIBILITY.md ./RELEASE-NOTES.md >> SHA256SUMS
           cat SHA256SUMS
           sha256sum -c SHA256SUMS
 
-      - name: Retain the verified distributions and notes
+      - name: Verify SBOM, provenance, and checksums agree
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -n "${PACKAGE_NAME}"
+          sbom_asset="dist/${PACKAGE_NAME}-${RELEASE_TAG#v}.cdx.json"
+          test -f "$sbom_asset"
+          python scripts/verify_release_artifacts.py \
+            --dist dist \
+            --sbom "$sbom_asset" \
+            --provenance dist/provenance.json \
+            --checksums dist/SHA256SUMS \
+            --source-revision "$SOURCE_REVISION" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF"
+
+      - name: Retain the verified release evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-dist
@@ -104,7 +179,14 @@ jobs:
       # Only this job may create the release; the build job stays read-only.
       contents: write
     steps:
-      - name: Download the verified distributions
+      - name: Check out the release verification scripts at the tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download the verified distributions and evidence
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: release-dist
@@ -115,6 +197,17 @@ jobs:
           set -euo pipefail
           cd dist
           sha256sum -c SHA256SUMS
+
+      - name: Verify SBOM and provenance against the downloaded artifacts
+        run: |
+          set -euo pipefail
+          sbom_asset="$(find dist -maxdepth 1 -type f -name '*.cdx.json' -print -quit)"
+          test -n "$sbom_asset"
+          python scripts/verify_release_artifacts.py \
+            --dist dist \
+            --sbom "$sbom_asset" \
+            --provenance dist/provenance.json \
+            --checksums dist/SHA256SUMS
 
       - name: Refuse to overwrite an existing release and require the tag
         env:
@@ -131,7 +224,7 @@ jobs:
           # explicit and no release is attempted for a missing tag.
           gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_TAG}" >/dev/null
 
-      - name: Create the GitHub Release with artifacts and notes
+      - name: Create the GitHub Release with artifacts, evidence, and notes
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -139,10 +232,14 @@ jobs:
         run: |
           set -euo pipefail
           release_version="${RELEASE_TAG#v}"
+          mapfile -t EVIDENCE < <(find dist -maxdepth 1 -type f \( -name '*.cdx.json' -o -name 'provenance.json' -o -name 'REPRODUCIBILITY.json' -o -name 'REPRODUCIBILITY.md' \) -print | sort)
+          test "${#EVIDENCE[@]}" -ge 4
           gh release create "$RELEASE_TAG" \
             dist/*.whl \
             dist/*.tar.gz \
             dist/SHA256SUMS \
+            dist/RELEASE-NOTES.md \
+            "${EVIDENCE[@]}" \
             --repo "$GH_REPO" \
             --title "pr-review-harness ${release_version}" \
             --notes-file dist/RELEASE-NOTES.md \

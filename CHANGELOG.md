@@ -11,6 +11,9 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 ### Added
 
 - Decision-record index and lightweight ADRs for architecture, transport, publication authorization, provider boundaries, evaluation gates, license, and release policy, with an executable index/field/status/safety-link check.
+- Release supply-chain evidence: a deterministic CycloneDX SBOM generated from the built wheel and sdist, explicitly unsigned build provenance, a two-build reproducibility check recorded per release, release-asset SHA-256 coverage, and consumer verification documentation in `docs/SUPPLY-CHAIN.md`.
+- A `Supply chain` CI job that runs the reproducibility check and SBOM/provenance verification on normal pushes and pull requests, plus release-workflow integration that publishes the evidence as release assets.
+
 
 ## [0.1.0] - 2026-11-02
 

@@ -1,4 +1,4 @@
-"""RS-2: the release workflow stays tag-gated, pinned, and least-privilege."""
+"""RS-2/RS-3: the release workflow stays tag-gated, pinned, and least-privilege."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ def test_release_workflow_never_creates_a_tag_and_refuses_missing_or_existing_re
 def test_release_workflow_builds_checksums_and_attaches_artifacts_and_notes() -> None:
     text = _workflow()
     for token in (
-        "python -m build --wheel --sdist",
+        "scripts/check_reproducible_build.py",
         "sha256sum ./*.whl ./*.tar.gz > SHA256SUMS",
         "sha256sum -c SHA256SUMS",
         "dist/*.whl",
@@ -82,6 +82,57 @@ def test_release_workflow_builds_checksums_and_attaches_artifacts_and_notes() ->
         "scripts/check_version_policy.py",
     ):
         assert token in text
+    import re
+    asset = re.search(r"^\s+dist/RELEASE-NOTES\.md \\$", text, re.MULTILINE)
+    assert asset is not None, "RELEASE-NOTES.md must be a positional release asset"
+    assert asset.start() < text.index("--notes-file dist/RELEASE-NOTES.md")
+
+
+def test_release_workflow_generates_and_publishes_supply_chain_evidence() -> None:
+    text = _workflow()
+    for token in (
+        'SOURCE_DATE_EPOCH=${epoch}',
+        "--source-date-epoch \"$SOURCE_DATE_EPOCH\"",
+        "scripts/generate_sbom.py",
+        "scripts/generate_provenance.py",
+        "scripts/verify_release_artifacts.py",
+        "dist/REPRODUCIBILITY.json",
+        "dist/REPRODUCIBILITY.md",
+        "dist/provenance.json",
+        "*.cdx.json",
+        "--build-command",
+    ):
+        assert token in text
+    assert "id-token: write" not in text
+    assert "attestations: write" not in text
+    assert "signing" not in text.lower() or "unsigned" in text.lower()
+    # The publish step attaches the evidence as release assets, not only as a
+    # workflow artifact.
+    release_step = text.split("Create the GitHub Release", 1)[1]
+    assert '"${EVIDENCE[@]}"' in release_step
+    assert "provenance.json" in release_step
+    assert "*.cdx.json" in release_step
+
+
+def test_release_workflow_verifies_evidence_in_both_build_and_publish() -> None:
+    text = _workflow()
+    build_job = text.split("  build:\n", 1)[1].split("  publish:\n", 1)[0]
+    publish_job = text.split("  publish:\n", 1)[1]
+    assert "verify_release_artifacts.py" in build_job
+    assert "verify_release_artifacts.py" in publish_job
+    assert "--source-revision \"$SOURCE_REVISION\"" in build_job
+
+
+def test_verification_workflow_runs_the_reproducibility_and_supply_chain_checks() -> None:
+    text = (ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8")
+    job = text.split("  supply-chain:\n", 1)[1].split("\n  installed-wheel:", 1)[0]
+    assert "scripts/check_reproducible_build.py" in job
+    assert "--source-date-epoch" in job
+    assert "scripts/generate_sbom.py" in job
+    assert "scripts/generate_provenance.py" in job
+    assert "scripts/verify_release_artifacts.py" in job
+    assert "tests/test_supply_chain.py" in job
+    assert "actions/upload-artifact@" in job
 
 
 def test_release_actions_reuse_the_same_pins_as_the_verification_workflow() -> None:
