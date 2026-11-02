@@ -12,7 +12,9 @@
         "src/pr_review_harness/reconcile.py",
         "src/pr_review_harness/budget.py"
       ],
-      "records": ["0002"]
+      "records": [
+        "0002"
+      ]
     },
     {
       "id": "no-target-code-execution",
@@ -22,7 +24,9 @@
         "src/pr_review_harness/engine.py",
         ".github/workflows/pr-analysis.yml"
       ],
-      "records": ["0002"]
+      "records": [
+        "0002"
+      ]
     },
     {
       "id": "credential-transport",
@@ -31,7 +35,10 @@
         "src/pr_review_harness/providers.py",
         "src/pr_review_harness/claim_transport.py"
       ],
-      "records": ["0003", "0005"]
+      "records": [
+        "0003",
+        "0005"
+      ]
     },
     {
       "id": "external-effect-authorization",
@@ -43,7 +50,9 @@
         "src/pr_review_harness/actions_publication.py",
         ".github/workflows/pr-publish.yml"
       ],
-      "records": ["0004"]
+      "records": [
+        "0004"
+      ]
     },
     {
       "id": "configured-provider-boundary",
@@ -54,7 +63,10 @@
         "src/pr_review_harness/github_app_credentials.py",
         "src/pr_review_harness/actions_publication.py"
       ],
-      "records": ["0005", "0003"]
+      "records": [
+        "0005",
+        "0003"
+      ]
     },
     {
       "id": "surface-and-budget",
@@ -64,7 +76,10 @@
         "docs/public-surface.json",
         "tests/test_surface_consolidation.py"
       ],
-      "records": ["0001", "0002"]
+      "records": [
+        "0001",
+        "0002"
+      ]
     },
     {
       "id": "quality-claim-gate",
@@ -74,7 +89,25 @@
         "src/pr_review_harness/completeness.py",
         "src/pr_review_harness/report.py"
       ],
-      "records": ["0006"]
+      "records": [
+        "0006"
+      ]
+    },
+    {
+      "id": "review-evidence-enforcement",
+      "statement": "Review receipts and decision-record links are required on main; weakening their workflows, validators, or the safety manifest requires an accepted decision record.",
+      "paths": [
+        ".github/workflows/review-receipt.yml",
+        ".github/workflows/decision-record-links.yml",
+        "scripts/check_review_receipt.py",
+        "scripts/check_decision_record_links.py",
+        "scripts/check_decision_records.py",
+        "docs/adr/safety-invariants.json"
+      ],
+      "records": [
+        "0002",
+        "0009"
+      ]
     }
   ]
 }
