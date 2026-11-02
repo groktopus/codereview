@@ -18,8 +18,9 @@
     "human_packets": 0,
     "model_teacher_screening_packets": 0,
     "packet_version": "labels-pilot-v1",
-    "reason": "No human reviewer, independent packet, adjudicated packet, or deterministic model-teacher screening run exists for this pilot subset. Empty packets are intentional; they are not negative or clean labels.",
+    "reason": "No real synthetic model-teacher adjudication run exists for this pilot subset: the frozen corpus does not check in reviewed diff bytes and no teacher run has been retained. Human packets are optional. Empty packets are intentional; they are not negative or clean labels.",
     "state": "missing",
+    "synthetic_adjudicated_packets": 0,
     "unknown_provenance_packets": 0
   },
   "relabeling": {

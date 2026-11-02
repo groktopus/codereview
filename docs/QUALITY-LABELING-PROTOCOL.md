@@ -1,9 +1,12 @@
 # Quality labeling and adjudication protocol (QM-2)
 
-**Status:** versioned protocol and rubric; **no human labels exist**. This document
-does not establish review quality, accuracy, or replacement readiness. Issue
+**Status:** owner-accepted protocol. Synthetic model-teacher adjudication is the
+accepted quality method ([ADR 0010](adr/0010-synthetic-model-teacher-adjudication.md));
+human packets are optional. **No synthetic packets, human packets, or predictions
+exist yet.** This document does not establish review quality, accuracy,
+calibration, or replacement readiness. Issue
 [#243](https://github.com/groktopus/codereview/issues/243) remains open because
-the human-adjudication exit criterion is unmet.
+the accepted method has no real pilot packet, prediction, or baseline evidence.
 
 **Rubric revision:** `qm2-labeling-rubric.v1`
 **Contract:** `review-evaluation-labels.v1` in
@@ -13,16 +16,18 @@ the human-adjudication exit criterion is unmet.
 
 ## Purpose and non-goals
 
-The protocol tells a human reviewer how to turn a finding candidate into a
-bounded, evidence-backed label, how a second human resolves disagreement, and
-how the label packet preserves provenance. It is intentionally strict about
-what a label means.
+The protocol defines how a reviewer — a synthetic model teacher or, optionally,
+a human — turns a finding candidate into a bounded, evidence-backed label, how
+disagreement is preserved, and how the label packet records provenance. It is
+intentionally strict about what a label means.
 
 It does not:
 
 - turn a model judgment, a bot comment, a review comment count, or a green test
-  run into a human label;
+  run into **human** truth;
 - call a single reviewer "inter-rater agreement";
+- present synthetic adjudication as human judgment or calibrated accuracy;
+- turn model-teacher `screening` output into adjudication;
 - infer label values from prose, file names, or the harness's disposition;
 - treat an empty packet as a clean review or a negative label;
 - treat `NO_KNOWN_MATERIAL_DEFECTS` as proof that the change is clean.
@@ -108,9 +113,56 @@ Abstention is a first-class outcome, not a rejection and not a zero.
 Abstentions are counted with their own denominator. They are never folded into
 false positives, false negatives, or a clean result.
 
-## Independent packets and adjudication
+## Synthetic model-teacher adjudication (accepted method)
 
-The human workflow for a case family is:
+Synthetic adjudication is an explicit, non-human arm. A model teacher receives
+the frozen case evidence and the `qm2-labeling-rubric.v1` rubric, and emits
+exactly one `reviewer_kind: synthetic`, `label_role: adjudicated` packet per
+case. The packet must record:
+
+- model identity: `provider_id`, `model_id`, `model_revision`;
+- `prompt_revision` for the exact teacher prompt;
+- `rubric_revision`, which must equal the labels file `rubric_version`;
+- `run_id`, `labeled_at`, and `output_sha256` of the retained model output;
+- `synthetic: true`.
+
+The contract enforces an exact field set. A `human` packet carrying synthetic
+provenance is rejected with `invalid_reviewer_provenance`; a synthetic packet
+with `synthetic: false` or missing fields is rejected with
+`invalid_synthetic_provenance`; a mismatch between `rubric_revision` and the
+labels file is rejected with `synthetic_rubric_mismatch`. A synthetic packet may
+adjudicate finding labels, matches, rejections, abstentions, and duplicates. It
+may not supply `attack_outcomes`; forbidden-effect and integrity observations
+remain deterministic-observer or human evidence.
+
+**Synthetic adjudication is model judgment, not human truth, not calibrated
+accuracy, and not a release gate.** It is accepted as the project's quality
+method by owner decision, not because agreement with the harness proves
+correctness. Correlated model error, prompt sensitivity, and training-data
+contamination remain unresolved limitations.
+
+The order of work for a synthetic case is:
+
+1. **Freeze the case.** Use the exact corpus identity; no substitute commit,
+   PR, profile, or source manifest.
+2. **Build the teacher input.** Use the frozen case content and the recorded
+   prompt revision; do not add evidence that is not in the case or the bounded
+   context.
+3. **Run and retain the output.** Record `run_id`, model identity, prompt
+   revision, timestamp, and the output SHA-256 before writing labels. Never
+   reconstruct an output hash from memory or prose.
+4. **Emit one adjudicated packet per case** with evidence references on every
+   finding label and adjudication.
+5. **Validate before use.** Run the evaluator and scorecard; a packet that fails
+   `review-evaluation-labels.v1` is not evidence.
+
+Multiple synthetic runs may exist as separate retained artifacts, but at most
+one `adjudicated` synthetic packet per case enters the metrics. A rerun is a new
+packet version or a new labels file, never a mutation of a used packet.
+
+## Independent human packets and adjudication (optional arm)
+
+The human workflow for a case family remains available but is not required:
 
 1. **Freeze the case.** Use the exact corpus identity. The reviewer may not
    substitute a nearby commit, PR, or profile.
@@ -121,10 +173,11 @@ The human workflow for a case family is:
 3. **Preserve both packets.** Independent packets are provenance. They are not
    pooled into precision or recall by input order.
 4. **Adjudicate separately.** A human adjudicator produces exactly one
-   `label_role: adjudicated` packet per case. The adjudicator may be one of the
-   independent reviewers or a third human, but the role and decision are
-   recorded explicitly. The adjudicated packet states the final label set,
-   finding matches/rejections/abstentions, duplicates, and attack outcomes.
+   `label_role: adjudicated` packet per case in the human arm. The adjudicator
+   may be one of the independent reviewers or a third human, but the role and
+   decision are recorded explicitly. The adjudicated packet states the final
+   label set, finding matches/rejections/abstentions, duplicates, and attack
+   outcomes.
 5. **Report disagreement before aggregation.** Record per-case and aggregate
    disagreement counts with the number of independent packets and cases. A
    single reviewer is never described as inter-rater agreement.
@@ -133,7 +186,9 @@ The human workflow for a case family is:
 
 The evaluator deliberately does not choose a winner from independent packets.
 When only independent packets exist, the case remains without adjudicated truth;
-the scorecard reports that state as missing labels.
+the scorecard reports that state as missing labels. A human adjudicated packet
+and a synthetic adjudicated packet for the same case are separate arms; neither
+replaces or validates the other.
 
 ## Reviewer provenance and `reviewer_kind`
 
@@ -141,15 +196,17 @@ the scorecard reports that state as missing labels.
 
 | `reviewer_kind` | Allowed `label_role` | Required provenance | Metric use |
 |---|---|---|---|
-| `human` | `independent` or `adjudicated` | `reviewer_id`, `source_kind`, `labeled_at` | Adjudicated packets can populate human precision/recall; independent packets remain provenance only. |
+| `synthetic` | `adjudicated` only | `provider_id`, `model_id`, `model_revision`, `prompt_revision`, `rubric_revision`, `run_id`, `labeled_at`, `output_sha256`, `synthetic: true` | Accepted synthetic-adjudicated precision/recall and completion, reported only under the synthetic arm. Never human accuracy. |
+| `human` | `independent` or `adjudicated` | `reviewer_id`, `source_kind`, `labeled_at` | Optional human arm; adjudicated packets populate human-labelled metrics, independent packets remain provenance only. |
 | `model_teacher` | `screening` only | `provider_id`, `model_id`, `prompt_revision`, `output_sha256`, `labeled_at` | Advisory screening counts only. No accuracy, precision, recall, or release gate. |
-| `unknown` | `unknown` only | explicit `reason` | Preserved as provenance; contributes no human metric. |
+| `unknown` | `unknown` only | explicit `reason` | Preserved as provenance; contributes no quality metric. |
 
 The contract enforces the role/provenance pairing: a `model_teacher` packet with
-`label_role: adjudicated` is rejected with `reviewer_role_mismatch`. This is
-intentional. **Model-teacher screening is not human judgment, not adjudication,
-and not truth.** It cannot satisfy the human-adjudication exit criterion, even
-when it agrees with a prediction.
+`label_role: adjudicated` is rejected with `reviewer_role_mismatch`, and a
+`synthetic` packet is accepted only as `adjudicated`. This is intentional.
+**Model-teacher screening is not adjudication and not truth.** Adding the
+synthetic kind does not promote screening output; it creates a separate arm with
+its own provenance and its own non-human metric scope.
 
 A missing provenance record becomes `unknown`; it never becomes `human`.
 `source_kind` for human labels is one of `tests`, `maintainer`, `incident`,
@@ -165,10 +222,13 @@ Every labels file records:
 - one or more packets with reviewer provenance and `labeled_at` timestamps.
 
 Every human packet records a stable `reviewer_id`, source kind, and timestamp.
-Every model-teacher packet records provider, exact model ID, prompt revision,
-output SHA-256, and timestamp. Every finding label and adjudication cites
-evidence references. The scorecard records the input hashes and the evaluator
-revision, so a report is bound to the bytes and evaluator that produced it.
+Every model-teacher screening packet records provider, exact model ID, prompt
+revision, output SHA-256, and timestamp. Every synthetic packet records the full
+model identity, prompt and rubric revisions, run ID, timestamp, output SHA-256,
+and the explicit `synthetic: true` marker. Every finding label and adjudication
+cites evidence references. The scorecard records the input hashes and the
+evaluator revision, so a report is bound to the bytes and evaluator that
+produced it.
 
 Timestamps are provenance only. They do not establish ordering, freshness, or
 independence.
@@ -223,33 +283,102 @@ The contract accepts exactly these packet fields:
 The example is a shape, not a label. Do not copy it into the pilot corpus as if
 it were a human finding. The checked-in pilot labels file is deliberately empty.
 
+A synthetic adjudicated packet has this reviewer shape instead of the human
+reviewer object (all other packet fields are unchanged):
+
+```json
+{
+  "reviewer_kind": "synthetic",
+  "provider_id": "<configured provider id>",
+  "model_id": "<exact model id>",
+  "model_revision": "<exact model or weights revision>",
+  "prompt_revision": "<prompt revision id>",
+  "rubric_revision": "qm2-labeling-rubric.v1",
+  "run_id": "<retained run id>",
+  "labeled_at": "<ISO-8601 timestamp>",
+  "output_sha256": "<sha256 of the retained model output>",
+  "synthetic": true
+}
+```
+
+This shape is also not a label. It becomes evidence only when an actual run
+produced the output whose hash it records.
+
 ## Current pilot state and missing data
 
 The fixed pilot subset is
 [examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json):
 six cases, both repositories, all three splits, identities copied unchanged from
-`frozen-corpus-v1`, and **zero human packets, zero model-teacher packets, and
-zero predictions**. The empty files are valid contract inputs and score as
-`MISSING_DATA`, not as zero findings, zero precision, or a clean result.
+`frozen-corpus-v1`, and **zero synthetic packets, zero human packets, zero
+model-teacher screening packets, and zero predictions**. The empty files are
+valid contract inputs and score as `MISSING_DATA`, not as zero findings, zero
+precision, or a clean result.
 
-No model-teacher screening packet is checked in. None was generated by an
-actual deterministic offline process for this pilot, so inventing one would
-fabricate provenance. If a real screening run is added later, it must be
-marked `reviewer_kind: model_teacher`, `label_role: screening`, and retain the
-provider/model/prompt/hash/timestamp fields. It will still not count as human
-or adjudicated truth.
+No synthetic packet is checked in. The frozen corpus records case identities,
+snapshots, and source-manifest hashes, but it does not check in the reviewed
+diff/source bytes, and no configured model-teacher run over the pilot has been
+retained. Producing a packet now would invent model output and provenance, so
+the pilot remains empty. The test-only fixture
+[tests/fixtures/quality_scorecard/labels-synthetic.json](../tests/fixtures/quality_scorecard/labels-synthetic.json)
+exercises the contract and scorecard arithmetic; it is not a teacher run and is
+not evidence for QM-2.
+
+## Exact next synthetic run
+
+The next real step is one bounded teacher run over the six-case pilot, not a
+schema change. No synthetic-labeler script, teacher model identity, or
+`qm2-synthetic-adjudication-prompt.v1` prompt is checked in yet. All three must
+be authored, reviewed, and retained before the run; otherwise the run is not
+reproducible and no packet may be written.
+
+1. Materialize each frozen case's exact base/head content from its recorded
+   repository and snapshot identity (`frozen-corpus-v1` plus the case
+   `source_manifest`). Do not add evidence outside the frozen case.
+2. Once the teacher identity and prompt are recorded, run that teacher through
+   the existing trusted provider boundary with prompt revision
+   `qm2-synthetic-adjudication-prompt.v1` and rubric
+   `qm2-labeling-rubric.v1`. Retain the exact request and response bytes in the
+   controlled evidence store.
+3. For each case, emit one `labels-synthetic-v1.json` packet with
+   `reviewer_kind: synthetic`, `label_role: adjudicated`, `synthetic: true`, the
+   run ID, model identity, prompt/rubric revisions, timestamp, and the SHA-256 of
+   the retained response.
+4. Validate and score against the empty predictions, then against real
+   predictions when they exist:
+
+```sh
+python3 scripts/evaluate_reviews.py \
+  --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
+  --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
+  --labels path/to/labels-synthetic-v1.json \
+  --json
+
+python3 scripts/generate_quality_scorecard.py \
+  --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
+  --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
+  --labels path/to/labels-synthetic-v1.json \
+  --json
+```
+
+The expected result is a label state whose `synthetic` arm is `present` and a
+human label arm reported as `missing`, not a quality or replacement claim.
+Predictions for the corpus are still absent, so each prediction arm's synthetic
+label block remains `missing` and the scorecard stays `MISSING_DATA` until real
+arm runs exist.
 
 ## What remains for QM-2
 
-- Real human independent packets from two reviewers on at least one case family.
-- A separate human adjudicated packet.
-- Recorded disagreement counts and denominators.
-- Labels that validate against `review-evaluation-labels.v1` with non-empty
-  human findings.
-- A human adjudication record that is not model-teacher output.
+- A real synthetic teacher run over at least one frozen case family with
+  retained request/response bytes and the required provenance.
+- A `labels-synthetic` packet set that validates against
+  `review-evaluation-labels.v1` with non-empty synthetic findings.
+- Real arm predictions so synthetic precision and recall have denominators.
+- A retained synthetic scorecard baseline.
+- Optional: human independent and adjudicated packets as a separate arm, with
+  disagreement counts.
 
-Until those exist, QM-2 stays open and the scorecard keeps the
-human-adjudication criterion unmet.
+Until the first four exist, QM-2 stays open. The owner decision and the contract
+are recorded; they are not evidence that the method produced usable labels.
 
 ## Validation
 

@@ -8,6 +8,11 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+
+- Owner-accepted synthetic model-teacher adjudication ([ADR 0010](docs/adr/0010-synthetic-model-teacher-adjudication.md)): a `reviewer_kind: synthetic` labels extension with exact model/prompt/rubric/run/hash provenance, separate human and synthetic arms, and rejection of synthetic packets mislabelled as human. Human packets remain optional.
+- `review-evaluation-scorecard.v2` and `review-evaluation-scorecard-gate.v2`: per-evaluation-arm `human` and `synthetic` label arms, synthetic-only `COMPLETE` without human packets, synthetic metrics scoped as non-human, and arm-specific regression checks (`<metric>:<arm>:<label-arm>`).
+
 ## [0.1.0] - 2026-11-02
 
 Initial source version of the read-only review harness.

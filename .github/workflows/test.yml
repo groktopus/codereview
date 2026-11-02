@@ -396,7 +396,7 @@ jobs:
           retention-days: 7
 
   quality-scorecard:
-    name: Quality scorecard (empty pilot + seeded gate regression)
+    name: Quality scorecard (empty pilot + synthetic-only fixture + seeded gate regression)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -428,18 +428,27 @@ jobs:
           assert scorecard["data_state"]["state"] == "MISSING_DATA", scorecard["data_state"]
           assert scorecard["claims"]["accuracy"] is None
           assert scorecard["claims"]["quality_claim"] is False
+          label_state = scorecard["data_state"]["label_state"]
+          assert label_state["accepted_quality_method"] == "synthetic_model_teacher_adjudication"
+          assert label_state["human_labels_required"] is False
+          assert label_state["synthetic_is_human_truth"] is False
+          assert label_state["arms"]["human"]["status"] == "missing"
+          assert label_state["arms"]["synthetic"]["status"] == "missing"
           for arm in ("harness", "droid"):
               summary = scorecard["arms"][arm]
               assert summary["status"] == "missing", summary["status"]
               assert summary["candidate_findings"] is None
-              assert summary["precision"]["lower_bound"]["value"] is None
-              assert summary["recall"]["lower_bound"]["value"] is None
-              assert summary["abstention"]["adjudicated_abstentions"] is None
-              assert summary["duplicates"]["correlated_duplicates_excluded"] is None
-              assert summary["unadjudicated"]["findings_without_final_adjudication"] is None
-              assert summary["approve_with_known_defect"]["cases"] is None
+              for kind in ("human", "synthetic"):
+                  block = summary["label_arms"][kind]
+                  assert block["status"] == "missing"
+                  assert block["precision"]["lower_bound"]["value"] is None
+                  assert block["recall"]["lower_bound"]["value"] is None
+                  assert block["abstention"]["adjudicated_abstentions"] is None
+                  assert block["duplicates"]["correlated_duplicates_excluded"] is None
+                  assert block["unadjudicated"]["findings_without_final_adjudication"] is None
+                  assert block["approve_with_known_defect"]["cases"] is None
           assert scorecard["completion"]["completed_of_expected"]["value"] is None
-          print("scorecard: empty pilot reported MISSING_DATA with null metrics")
+          print("scorecard: empty pilot reported MISSING_DATA with null metrics in both label arms")
           PY
       - name: Prove missing/empty data does not fail the gate
         run: |
@@ -488,10 +497,73 @@ jobs:
 
           gate = json.load(open("seeded-gate.json", encoding="utf-8"))
           assert gate["status"] == "FAIL", gate
-          assert "recall_lower_bound:harness" in gate["regressions"], gate
-          assert "precision_lower_bound:harness" in gate["regressions"], gate
-          assert "approve_with_known_defect:harness" in gate["regressions"], gate
+          assert "recall_lower_bound:harness:human" in gate["regressions"], gate
+          assert "precision_lower_bound:harness:human" in gate["regressions"], gate
+          assert "approve_with_known_defect:harness:human" in gate["regressions"], gate
           print("gate: seeded injected regression FAILS as expected")
+          PY
+      - name: Prove a synthetic-only scorecard is COMPLETE without human packets
+        run: |
+          set -euo pipefail
+          python scripts/generate_quality_scorecard.py \
+            --corpus tests/fixtures/quality_scorecard/corpus.json \
+            --predictions tests/fixtures/quality_scorecard/predictions-baseline.json \
+            --labels tests/fixtures/quality_scorecard/labels-synthetic.json \
+            --output synthetic-only-scorecard.json \
+            --json > /dev/null
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline synthetic-only-scorecard.json \
+            --current synthetic-only-scorecard.json \
+            --json > synthetic-only-gate.json
+          python - <<'PY'
+          import json
+
+          scorecard = json.load(open("synthetic-only-scorecard.json", encoding="utf-8"))
+          assert scorecard["data_state"]["state"] == "COMPLETE", scorecard["data_state"]
+          label_state = scorecard["data_state"]["label_state"]
+          assert label_state["arms"]["human"]["status"] == "missing"
+          assert label_state["arms"]["synthetic"]["status"] == "present"
+          assert label_state["human_labels_required"] is False
+          assert scorecard["claims"]["accuracy"] is None
+          assert scorecard["claims"]["synthetic_is_human_truth"] is False
+          harness = scorecard["arms"]["harness"]["label_arms"]
+          assert harness["human"]["status"] == "missing_labels"
+          assert harness["synthetic"]["status"] == "present"
+          assert harness["synthetic"]["is_human_truth"] is False
+          assert harness["synthetic"]["precision"]["lower_bound"]["value"] == 1.0
+          assert harness["synthetic"]["recall"]["lower_bound"]["value"] == 1.0
+          accuracy = scorecard["arms"]["harness"]["accuracy"]
+          assert accuracy["status"] == "refused"
+          assert "synthetic_is_not_human_accuracy" in accuracy["reasons"]
+          gate = json.load(open("synthetic-only-gate.json", encoding="utf-8"))
+          assert gate["status"] == "PASS", gate
+          print("scorecard: synthetic-only arm COMPLETE, human arm optional and missing, no accuracy claim")
+          PY
+          python scripts/generate_quality_scorecard.py \
+            --corpus tests/fixtures/quality_scorecard/corpus.json \
+            --predictions tests/fixtures/quality_scorecard/predictions-regressed.json \
+            --labels tests/fixtures/quality_scorecard/labels-synthetic.json \
+            --output synthetic-regressed-scorecard.json \
+            --json > /dev/null
+          set +e
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline synthetic-only-scorecard.json \
+            --current synthetic-regressed-scorecard.json \
+            --json > synthetic-regressed-gate.json
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected synthetic regression gate to exit 1, got $status"
+            cat synthetic-regressed-gate.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+
+          gate = json.load(open("synthetic-regressed-gate.json", encoding="utf-8"))
+          assert gate["status"] == "FAIL", gate
+          assert "approve_with_known_defect:harness:synthetic" in gate["regressions"], gate
+          print("gate: synthetic-only regression FAILS as expected")
           PY
       - name: Run focused scorecard and evaluation tests
         run: python -m pytest -q tests/test_quality_scorecard.py tests/test_evaluation.py tests/test_frozen_corpus.py
@@ -503,6 +575,10 @@ jobs:
           path: |
             quality-scorecard.json
             quality-scorecard.stdout.json
+            synthetic-only-scorecard.json
+            synthetic-only-gate.json
+            synthetic-regressed-scorecard.json
+            synthetic-regressed-gate.json
             quality-scorecard-missing-gate.json
             seeded-baseline-scorecard.json
             seeded-regressed-scorecard.json

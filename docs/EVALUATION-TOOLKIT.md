@@ -24,31 +24,35 @@ Scenario metadata is optional for ordinary cases. When present, `kind` is `natur
 
 ## Labels and matching
 
-Every label packet records `reviewer_kind`: `human`, `model_teacher`, or `unknown`. Missing or unrecognized provenance is invalid; it is never defaulted to human. Packet role must agree with provenance:
+Every label packet records `reviewer_kind`: `synthetic`, `human`, `model_teacher`, or `unknown`. Missing or unrecognized provenance is invalid; it is never defaulted to human. Packet role must agree with provenance:
 
 - `independent` preserves one human reviewer's original packet. These packets remain visible in provenance counts but are not pooled into aggregate quality metrics.
-- `adjudicated` is the single final human packet used for human-adjudicated metrics. Multiple independent reviewers require a separately recorded adjudicated packet; input ordering never selects the winner.
+- `adjudicated` is the single final adjudicated packet per case in its arm. The accepted synthetic arm uses `reviewer_kind: synthetic`, `label_role: adjudicated`, and exact provenance: provider, model ID and revision, prompt revision, rubric revision, run ID, timestamp, output SHA-256, and `synthetic: true`. The optional human arm uses `reviewer_kind: human` and a human reviewer identity. The arms are separate and never merged.
 - `screening` is reserved for model teachers and is reported only as advisory screening counts. Provider, exact model ID, prompt revision, output hash, and timestamp are retained. There is no teacher accuracy field. Multiple screening packets remain provenance records; v1 does not align two models' findings or calculate pairwise agreement/disagreement.
-- `unknown` preserves labels whose reviewer provenance is unavailable and contributes no human metric.
+- `unknown` preserves labels whose reviewer provenance is unavailable and contributes no quality metric.
+
+The synthetic arm is accepted by owner decision ([ADR 0010](adr/0010-synthetic-model-teacher-adjudication.md)), not because model judgment is truth. Synthetic completion, precision, and recall are reported as synthetic-only and are never described as human accuracy or calibrated correctness. A human packet cannot carry synthetic provenance, and a synthetic packet cannot declare itself human.
 
 Each case assessment is `MATERIAL_DEFECTS_PRESENT`, `NO_KNOWN_MATERIAL_DEFECTS`, or `INCONCLUSIVE`. A completeness state is separately `COMPLETE`, `INCOMPLETE`, or `UNKNOWN`; an incomplete packet cannot assert that no material defects are known. “No known material defects” is a bounded label, not proof the change is clean.
 
-Finding labels and run findings use stable IDs plus evidence references. A reviewer must explicitly adjudicate a prediction finding as `MATCHED` to an existing label ID, `REJECTED`, `ABSTAINED`, or `DUPLICATE_OF` a prediction in the same arm. Duplicate findings are counted separately and excluded from precision; the metric never deduplicates by wording. Matched labels are unique per arm so a cluster of correlated predictions cannot inflate recall. Adjudication and label records require cited evidence references; the evidence store remains the source for interpreting those references.
+Finding labels and run findings use stable IDs plus evidence references. A reviewer must explicitly adjudicate a prediction finding as `MATCHED` to an existing label ID, `REJECTED`, `ABSTAINED`, or `DUPLICATE_OF` a prediction in the same arm. Duplicate findings are counted separately and excluded from precision; the metric never deduplicates by wording. Matched labels are unique per arm and label arm so a cluster of correlated predictions cannot inflate recall. Adjudication and label records require cited evidence references; the evidence store remains the source for interpreting those references. A synthetic packet may not supply attack outcomes; forbidden-effect and integrity observations remain deterministic-observer or human evidence.
 
-Human precision uses only explicitly matched and rejected predictions from complete adjudicated human packets. Abstentions, correlated duplicates, and unadjudicated predictions have separate counts. Recall eligibility is only for known material labels classified `INTRODUCED` or `REEXPOSED`; `PRE_EXISTING` and `UNKNOWN` introducedness are excluded and counted separately. The report includes a corpus-wide recall lower and upper bound over all expected cases: confirmed exact-ID matches form the lower bound, while missing, noncompleted, or not-fully-adjudicated outputs leave the relevant unobserved labels unresolved for the upper bound. It also reports definitively unmatched labels only when the run completed and every emitted finding has a final non-abstained adjudication. A separate `completed_run_recall_conditional` rate is restricted to complete human labels and completed runs with full finding adjudication; its denominator is explicit and its conditional scope is part of the field name. No metric drops failed or incomplete runs silently. Every rate includes numerator and denominator. A zero denominator yields `value: null` and an explicit reason. The tool also counts `APPROVE` dispositions paired with known introduced material findings; that count is descriptive and does not declare a gate.
+Precision uses only explicitly matched and rejected predictions from complete adjudicated packets in the named label arm. Abstentions, correlated duplicates, and unadjudicated predictions have separate counts. Recall eligibility is only for known material labels classified `INTRODUCED` or `REEXPOSED`; `PRE_EXISTING` and `UNKNOWN` introducedness are excluded and counted separately. The report includes a corpus-wide recall lower and upper bound over all expected cases: confirmed exact-ID matches form the lower bound, while missing, noncompleted, or not-fully-adjudicated outputs leave the relevant unobserved labels unresolved for the upper bound. It also reports definitively unmatched labels only when the run completed and every emitted finding has a final non-abstained adjudication. A separate `completed_run_recall_conditional` rate is restricted to complete labels of the named arm and completed runs with full finding adjudication; its denominator is explicit and its conditional scope is part of the field name. No metric drops failed or incomplete runs silently. Every rate includes numerator and denominator. A zero denominator yields `value: null` and an explicit reason. The tool also counts `APPROVE` dispositions paired with known introduced material findings; that count is descriptive and does not declare a gate.
 
 ## QM-2 labeling protocol and QM-3 scorecard
 
-The human labeling protocol is versioned separately in
+The labeling protocol is versioned separately in
 [QUALITY-LABELING-PROTOCOL.md](QUALITY-LABELING-PROTOCOL.md). It defines the
 four-level severity rubric (`blocking`, `material`, `non-blocking`, `nit`) and
 its materiality projection, introducedness, evidence requirements, abstention,
-independent/adjudicated packets, `reviewer_kind` rules, provenance, and
-relabeling. The v1 labels contract forbids a `model_teacher` packet from being
-`adjudicated`; a teacher packet is screening evidence only and cannot satisfy
-the human-adjudication criterion. The fixed pilot subset in
+synthetic adjudication, the optional human independent/adjudicated workflow,
+`reviewer_kind` rules, provenance, and relabeling. The contract forbids a
+`model_teacher` packet from being `adjudicated`; a screening packet remains
+advisory evidence only. Synthetic adjudication is a distinct, non-human arm.
+The fixed pilot subset in
 [examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)
-has empty labels and predictions and therefore reports missing data.
+has empty labels and predictions and therefore reports missing data; no real
+synthetic teacher run is checked in.
 
 [QUALITY-SCORECARD.md](QUALITY-SCORECARD.md) documents the deterministic
 scorecard and regression gate:
@@ -67,18 +71,19 @@ python3 scripts/check_quality_scorecard_gate.py \
   --json
 ```
 
-The scorecard reports completion, per-arm missing status, precision and recall
-lower/upper bounds with denominators, abstention, duplicates, unadjudicated
-findings, `APPROVE`-with-known-defect counts, evaluator revision, and input
-hashes. Missing labels produce `PARTIAL`; wholly missing data produces
-`MISSING_DATA`; missing arms and missing runs never become zero rates.
-`APPROVE`-with-known-defect is null when any run is missing. The gate exits `0`
-for `PASS`/`MISSING_DATA`, `1` for a regression (including an arm present in the
-baseline but absent or partial now, or partial label coverage), and `2` for an
-invalid or schema-invalid scorecard. It is not a release gate and no accepted
-baseline exists yet.
+The `review-evaluation-scorecard.v2` scorecard reports completion, per-arm
+missing status, and precision, recall, abstention, duplicates, unadjudicated
+findings, and `APPROVE`-with-known-defect counts separately for the `synthetic`
+and `human` label arms, with denominators, evaluator revision, and input hashes.
+A synthetic-only scorecard is `COMPLETE` without a human packet; a partial label
+arm produces `PARTIAL`; wholly missing data produces `MISSING_DATA`; missing
+arms and missing runs never become zero rates. `APPROVE`-with-known-defect is
+null when any run is missing. The gate exits `0` for `PASS`/`MISSING_DATA`, `1`
+for a regression (including an arm or label arm present in the baseline but
+absent or partial now), and `2` for an invalid or schema-invalid scorecard. It
+is not a release gate and no accepted baseline exists yet.
 
-## Model-only cross-audit (companion contract; outside toolkit v1 metrics)
+## Model-only cross-audit (companion contract; outside toolkit metrics)
 
 A label-free advisory run is valid input to the evaluation process; an empty `packets` list produces undefined human precision/recall and no release-gate claim. The separate `review-cross-model-comparison.v1` contract lives in `schemas/review-cross-model-comparison.v1.schema.json` and is implemented by `pr_review_harness.cross_model`. JSON Schema checks structure only; Python semantic validation in `validate_cross_model_comparison` (also run by the CLI) is required and normative for role/status provenance, pairings, and exact corpus coverage. It binds every case to the exact validated corpus identity, and every writer, Jev, and auditor role to its own run ID, provider/model/runtime, prompt/rubric revisions, exact request hash, response hash, and local artifact IDs. Their request hashes are expected to differ: the writer sees source/context, Jev sees bounded writer candidates, and the auditor sees Jev claims and the frozen snapshot. Do not confuse shared snapshot identity with identical request bytes.
 
@@ -122,6 +127,6 @@ precision, recall, or a quality claim.
 
 ## PR 464 discovery example
 
-`examples/evaluation/corpus.json` records SlopSearX PR 464 as a `development` / `pilot_internal` case with the recorded base/head pair, snapshot ID, profile hash, and source-manifest hash. `predictions.json` records only the observed Droid inline comment ID with unknown materiality/introducedness and an `incomplete` run status, because that captured comment is not a complete review result. `labels.json` intentionally contains no labels. The associated `docs/PR-464-EVIDENCE-ASSESSMENT.md` is a model-teacher source assessment, not human adjudication or held-out truth. The example therefore produces no human precision/recall and cannot support an accuracy or replacement claim.
+`examples/evaluation/corpus.json` records SlopSearX PR 464 as a `development` / `pilot_internal` case with the recorded base/head pair, snapshot ID, profile hash, and source-manifest hash. `predictions.json` records only the observed Droid inline comment ID with unknown materiality/introducedness and an `incomplete` run status, because that captured comment is not a complete review result. `labels.json` intentionally contains no labels. The associated `docs/PR-464-EVIDENCE-ASSESSMENT.md` is a model-teacher source assessment, not human adjudication or held-out truth. The example therefore produces no label-arm precision/recall (synthetic or human) and cannot support an accuracy or replacement claim.
 
 The original six-commit historical pilot is also distinct from these exact PR-specific base/head pairs. Do not relabel first-parent comparisons as exact PR comparisons. A bot comment is a claim to adjudicate, not a known defect. For the broader dataset requirements and adoption limits, see [design/EVALUATION.md](design/EVALUATION.md), [PRODUCTION-DELIVERY.md](PRODUCTION-DELIVERY.md), and [COMPARISON-DISCOVERY.md](COMPARISON-DISCOVERY.md).

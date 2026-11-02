@@ -40,6 +40,7 @@ them; the original rationale is retained.
 | 0007 | [License: MIT for original code and documentation](0007-license.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-01 | PR [#292](https://github.com/groktopus/codereview/pull/292); [LICENSE](../../LICENSE); [pyproject.toml](../../pyproject.toml) |
 | 0008 | [Release and version policy: SemVer plus independent contract versions](0008-release-version-policy.md) | Accepted | Repository maintainers (`@magnus919`) | 2026-11-02 | PR [#294](https://github.com/groktopus/codereview/pull/294); [VERSIONING.md](../VERSIONING.md); [RELEASING.md](../RELEASING.md) |
 | 0009 | [Ownership and second-review path](0009-ownership-and-second-review.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-02 | [issue #271](https://github.com/groktopus/codereview/issues/271), PR #297, CODEOWNERS, OWNERSHIP/BACKLOG |
+| 0010 | [Synthetic model-teacher adjudication for quality evaluation](0010-synthetic-model-teacher-adjudication.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-02 | [QUALITY-LABELING-PROTOCOL.md](../QUALITY-LABELING-PROTOCOL.md); [QUALITY-SCORECARD.md](../QUALITY-SCORECARD.md); `experiments/harness/evaluation.py`, `experiments/harness/scorecard.py`; synthetic-arm tests |
 
 
 The post-CA-2 budget (0001) is accepted as a one-time migration exception:

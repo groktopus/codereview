@@ -1,7 +1,7 @@
 # Theme: Quality measurement
 
 **Scorecard dimension:** Review quality evidence (current: F)
-**Target:** ≥40 labeled cases across two repositories with a held-out split, human-adjudicated severity and introducedness; precision/recall bounds published with denominators; an incumbent baseline on identical snapshots; every model or prompt change gated by a paired corpus comparison.
+**Target:** ≥40 labeled cases across two repositories with a held-out split, synthetic (and optionally human) adjudicated severity and introducedness; precision/recall bounds published with denominators and the label arm named; an incumbent baseline on identical snapshots; every model or prompt change gated by a paired corpus comparison.
 **Why:** the project's evidence discipline is unusually rigorous about what it *cannot* claim. That is necessary but not sufficient. Without labels, no threshold, model choice, prompt change, or cutover can be justified.
 
 ---
@@ -24,21 +24,22 @@
 
 ---
 
-## QM-2 — Establish the human labeling and adjudication protocol
+## QM-2 — Establish the labeling and adjudication protocol
 
 - **Priority:** P0
 - **Dimensions:** Quality evidence; Governance
-- **Problem:** Human labels are treated as permanently unavailable. Model-teacher packets exist as a concept but there is no operating protocol for producing defensible labels, resolving disagreement, or preventing model output from being counted as truth.
+- **Problem:** Human labels are unavailable in practice. Model-teacher packets exist as a concept but there was no operating protocol for producing bounded labels, retaining provenance, or preventing model output from being counted as human truth. The owner has decided that synthetic model-teacher adjudication is the accepted method ([ADR 0010](../adr/0010-synthetic-model-teacher-adjudication.md)).
 - **Scope:**
   - Define a severity rubric (blocking / material-non-blocking / nit), introducedness (`INTRODUCED`, `REEXPOSED`, `PRE_EXISTING`, `UNKNOWN`), and evidence requirements for each label.
-  - Specify labeling workflow: independent packets, a separate adjudicated packet, abstention rules, and inter-rater disagreement analysis.
-  - Keep `reviewer_kind` mandatory (`human`, `model_teacher`, `unknown`); never default unknown to human.
+  - Specify the synthetic workflow: frozen case, exact model identity, prompt/rubric revision, run ID, output hash, and one adjudicated synthetic packet per case.
+  - Preserve the optional human workflow: independent packets, a separate adjudicated packet, abstention rules, and inter-rater disagreement analysis, in its own arm.
+  - Keep `reviewer_kind` mandatory (`synthetic`, `human`, `model_teacher`, `unknown`); never default unknown to human, and reject synthetic packets declared human. Model-teacher `screening` remains non-adjudicative.
   - Record label provenance, rubric revision, and timestamp; support relabeling with a new packet version rather than mutation.
-  - Pilot the protocol on a small subset and measure agreement before scaling.
-- **Exit criteria:** A versioned rubric and protocol exist; at least one case family has independent packets plus an adjudicated packet; disagreement is reported; labels validate against `review-evaluation-labels.v1`.
-- **Verification:** label packet files; evaluator validation; a disagreement report with denominators.
+  - Pilot the protocol on a small subset and report synthetic coverage before scaling.
+- **Exit criteria:** A versioned rubric and protocol exist; at least one case family has a real synthetic adjudicated packet with retained provenance; labels validate against `review-evaluation-labels.v1`; the synthetic scorecard arm reports coverage and denominators. The owner decision alone does not satisfy the exit criterion.
+- **Verification:** label packet files; evaluator validation; a scorecard whose synthetic arm is `present` with input hashes and denominators.
 - **Depends on:** QM-1 (cases to label).
-- **Non-goals:** pretending a single reviewer is inter-rater agreement, or using model judgments as human labels.
+- **Non-goals:** presenting synthetic output as human truth or calibrated accuracy, using model-teacher screening as adjudication, or claiming QM-2 closed before a real synthetic packet and baseline exist.
 
 ---
 
@@ -49,41 +50,47 @@
 - **Problem:** The evaluator is offline and unexercised. Nothing prevents a prompt, model, or profile change from degrading quality silently.
 - **Scope:**
   - Add a CI job that evaluates the stored results for a fixed corpus subset, and a scheduled full-corpus run.
-  - Publish a scorecard per run: completion, precision/recall lower/upper bounds, abstention, duplicate and unadjudicated counts, `APPROVE`-with-known-defect count, and all denominators.
-  - Report missing arms as `missing`, never as zero findings.
+  - Publish a scorecard per run: separate synthetic and human label arms, completion, precision/recall lower/upper bounds, abstention, duplicate and unadjudicated counts, `APPROVE`-with-known-defect count, and all denominators.
+  - Report missing arms as `missing`, never as zero findings; report synthetic metrics as synthetic-only, never as human accuracy.
   - Compare against the previous accepted baseline; fail on owner-set regressions; keep statistical caveats explicit.
   - Store scorecards as artifacts with input hashes and the evaluator revision.
-- **Exit criteria:** The scorecard is produced automatically for every corpus run; the regression gate is active; each published number has a numerator and denominator; no single scalar is used as a release signal.
-- **Verification:** CI job and artifact; a seeded regression demonstrating the gate; a scorecard containing the required fields.
+- **Exit criteria:** The scorecard is produced automatically for every corpus run; the regression gate is active; each published number has a numerator, denominator, and label arm; no single scalar is used as a release signal.
+- **Verification:** CI job and artifact; a seeded regression demonstrating the gate; a scorecard containing the required fields and a synthetic-only `COMPLETE` case.
 - **Depends on:** QM-1, QM-2, RC-3.
-- **Non-goals:** converting model-teacher screening counts into accuracy.
+- **Non-goals:** converting model-teacher screening counts or synthetic adjudication into human accuracy.
 
 ---
 
-### QM-2/QM-3 infrastructure checkpoint — 2026-11-02
+### QM-2/QM-3 status checkpoint — 2026-11-02
 
-Infrastructure only; both issues remain **open**.
+Both issues remain **open**. The owner accepted synthetic model-teacher
+adjudication as the quality method; this checkpoint records that decision and the
+implemented contract, not closure.
 
 - QM-2: [labeling protocol and rubric](../QUALITY-LABELING-PROTOCOL.md)
-  (`qm2-labeling-rubric.v1`) and a fixed six-case, empty
+  (`qm2-labeling-rubric.v1`), `reviewer_kind: synthetic` with exact provenance,
+  and a fixed six-case, empty
   [pilot subset](../../examples/evaluation/qm2-labeling-pilot-v1/manifest.json).
-  The pilot has zero human packets, zero model-teacher packets, and no
-  predictions. The v1 contract forbids model-teacher adjudication.
-- QM-3: [scorecard and regression gate](../QUALITY-SCORECARD.md), a CI job that
-  runs the empty pilot, uploads the artifact, and proves a seeded regression
-  fails while empty data is `MISSING_DATA` rather than zero. The scorecard
-  never emits accuracy.
+  The pilot has zero synthetic packets, zero human packets, zero model-teacher
+  screening packets, and no predictions. The contract now accepts synthetic
+  adjudication and rejects synthetic packets mislabelled as human; this is not
+  evidence that a real teacher run produced usable labels.
+- QM-3: [scorecard and regression gate](../QUALITY-SCORECARD.md) v2, a CI job
+  that runs the empty pilot, proves a synthetic-only fixture scorecard is
+  `COMPLETE` with a missing human arm, and proves a seeded synthetic regression
+  fails. The scorecard never emits accuracy and reports the two label arms
+  separately.
 
-QM-2 exit criteria still unmet: at least one case family has two real
-independent human packets plus a separate human adjudicated packet; real
-disagreement counts exist; the non-empty packets validate against
-`review-evaluation-labels.v1`. No human reviewer is recorded, so this cannot be
-satisfied by model-teacher output.
+QM-2 exit criteria still unmet: there is no real synthetic adjudicated packet
+with retained model output, no non-empty packet set for a case family, and no
+synthetic scorecard baseline. The accepted method does not substitute for the
+missing evidence.
 
-QM-3 exit criteria still unmet: real predictions and human labels for the
-corpus, an owner-accepted baseline with owner-set tolerances, a scorecard from a
-real corpus run, and a scheduled full-corpus run. The RC-3 dependency is not
-closed. CI currently exercises the wiring, not quality.
+QM-3 exit criteria still unmet: real predictions and real synthetic (or
+optional human) labels for the corpus, an owner-accepted baseline with owner-set
+tolerances, a scorecard from a real corpus run, and a scheduled full-corpus run.
+The RC-3 dependency is not closed. CI currently exercises the wiring with test
+fixtures, not quality.
 
 ## QM-4 — Measure the incumbent on identical snapshots
 
