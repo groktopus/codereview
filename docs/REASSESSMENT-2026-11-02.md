@@ -19,7 +19,7 @@ keeping that document as the original evidence snapshot.
 | Architecture | **C+/B−** | Typed core boundaries, contract registry, staged pipeline, no runtime dependencies. | Oversized functions remain; `run_review` orchestration is still concentrated; module ownership is documented but not enforced by required review. |
 | Operational readiness | **C+/B−** | Hash-locked dependencies, install matrix, public API/support matrix, SBOM/provenance tooling, release workflow. | `v0.1.0` source release now exists with wheel/sdist, SBOM, checksums, and reproducibility report; provenance is unsigned and dependency review remains inactive (#261/#262). |
 | Documentation | **B+** | 180+ indexed documents, 1,200+ links with 0 broken, generated status evidence, ADR index, docs-truth checks. | Owner-reviewed status remains intentionally stale; some operational evidence is CI-defined but unexecuted. |
-| Governance | **C+/D+** | CODEOWNERS coverage 40/40, all issues owned/state-labeled, GA-3 closed, review receipts, decision-record enforcement. | Branch protection absent, so review checks are not required; bus factor 1; no second human (#269/#270). |
+| Governance | **C+/B−** | CODEOWNERS coverage 40/40, all issues owned/state-labeled, GA-3 closed, review receipts, decision-record enforcement, and branch protection requiring those two checks (admin bypass retained for the sole maintainer). | Branch protection is new and not yet exercised by a non-admin merge; bus factor 1; no second reviewer. |
 
 ## What changed since the original assessment
 
@@ -37,33 +37,27 @@ keeping that document as the original evidence snapshot.
 
 ## Why A− is not reached
 
-Eight dimensions remain below A−. Five of them cannot be closed by more harness
-code alone:
+Eight dimensions remain below A−. Three of them cannot be closed by more
+harness code alone:
 
 1. **Synthetic teacher run (QM-2/QM-3).** ADR 0010 accepts synthetic
    model-teacher adjudication and makes human packets optional, but no real
    synthetic teacher run, packets, or predictions exist yet. Without those,
    no precision/recall or accepted baseline can be published.
-2. **Branch protection (GA-1/GA-2).** `main` is unprotected; the review-receipt
-   and decision-record checks run and can fail, but an administrator merge can
-   bypass them.
-3. **Release publication (RS-2/RS-3).** No tag or release exists; publishing one
-   and deciding signed versus explicitly-unsigned provenance requires owner
-   authorization.
-4. **Provider-backed frozen receipts (RC-1).** A real receipt requires an
+2. **Provider-backed frozen receipts (RC-1).** A real receipt requires an
    authorized provider run against the frozen case; no such receipt exists yet.
-5. **Live canary (SE-4).** The live publication path is deliberately disabled;
+3. **Live canary (SE-4).** The live publication path is deliberately disabled;
    exercising it needs explicit publication authorization.
 
 The remaining code-evidence gaps are:
 
-6. **Completeness baseline (RC-3).** The taxonomy, summary, and fixture gate
+4. **Completeness baseline (RC-3).** The taxonomy, summary, and fixture gate
    are already active; only a frozen-corpus baseline from real review runs is
    missing, and it cannot be invented.
 Architecture (C+/B−) and documentation (B+) remain below A− for the structural
 and staleness reasons in the table; neither is blocked on external authority.
 
-7. **Mutation/static depth (VD-2/VD-4).** Mutation score is **not established**
+5. **Mutation/static depth (VD-2/VD-4).** Mutation score is **not established**
    (no retained scoped run); formatting and broad typing enforcement are not
    adopted. Neither closes without substantial test hardening.
 
@@ -82,5 +76,6 @@ The harness is materially stronger than the 2026-11-01 snapshot, and its
 evidence discipline and deterministic control plane are genuinely strong. It is
 not an A− codebase overall: effect safety still lacks an exercised canary,
 quality remains unmeasured even under the accepted synthetic method, the first
-release is unsigned, and merge governance still needs protected-branch evidence. Those are evidence and
+release is unsigned, and the new branch protection has not yet been exercised by
+a non-admin merge. Those are evidence and
 authorization gaps, not omissions that more code can close by itself.
