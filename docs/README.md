@@ -128,6 +128,7 @@ banner; evidence that already lived under `docs/experiments/` or a
 | Document | What it records |
 |---|---|
 | [Codebase assessment — PR Review Harness](CODEBASE-ASSESSMENT-2026-11-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
+| [Release notes — 0.1.0](releases/0.1.0.md) | Prepared release notes for the `0.1.0` source release: scope, verification commands, and the unsigned-provenance limit. Not evidence that a tag or GitHub Release exists. |
 | [Complete requirement audit — 2026-10-01](COMPLETE-REQUIREMENT-AUDIT-2026-10-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Local hard-termination recovery qualification — 2026-10-01](HARD-TERMINATION-LOCAL-RECOVERY-QUALIFICATION-2026-10-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [SlopSearX historical pilot — 2026-09-26](PILOT-RESULTS.md) | The initial 2026-09-26 SlopSearX pilot and its limitations. |

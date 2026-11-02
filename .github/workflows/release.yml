@@ -90,7 +90,7 @@ jobs:
       - name: Build twice with SOURCE_DATE_EPOCH and compare artifact hashes
         run: |
           set -euo pipefail
-          python -m pip install 'build>=1.2,<2'
+          python -m pip install 'build>=1.2,<2' 'setuptools>=77'
           # The report records byte-level and content-level results. The first
           # build is the release set only when its content matches the second.
           python scripts/check_reproducible_build.py \

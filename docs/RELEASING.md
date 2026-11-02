@@ -27,12 +27,19 @@ procedure as every later release.
    `## [<version>] - YYYY-MM-DD` heading, add a fresh empty `Unreleased`
    section, and put incompatible changes under `### Breaking`. Add the new
    compare/release link definitions at the bottom.
-4. If the release adds, deprecates, or removes a contract identity, update
+4. Write the prepared release notes at `docs/releases/<version>.md` and index the
+   file in [`docs/README.md`](README.md). The notes carry the release scope, the
+   verification commands, and the unsigned-provenance limit. The published
+   `RELEASE-NOTES.md` asset is **generated from the changelog section** by
+   `scripts/check_version_policy.py --notes-out`, so prepared prose notes become
+   the release body only if the workflow's `--notes-file` is pointed at them; that
+   is a separate workflow change, not part of the default procedure.
+5. If the release adds, deprecates, or removes a contract identity, update
    [`contract_registry.json`](../src/pr_review_harness/contract_registry.json),
    its schema if the registry shape changed, [`CONTRACT-REGISTRY.md`](CONTRACT-REGISTRY.md),
    and `scripts/release-policy.v1.json` when a new artifact schema or artifact
    identity is introduced.
-5. Run the local gates:
+6. Run the local gates:
 
 ```sh
 python3 -m pip install --require-hashes --no-deps -r requirements-dev.lock
@@ -47,7 +54,7 @@ python3 scripts/check_docs_index.py
 python3 scripts/check_relative_links.py
 ```
 
-6. Open a pull request, let the required checks pass, and merge it to `main`.
+7. Open a pull request, let the required checks pass, and merge it to `main`.
 
 ## Create the tag
 
@@ -164,7 +171,7 @@ Verify that the SBOM, provenance, and checksums agree with the downloaded
 artifacts, using the verification script from the same tag:
 
 ```sh
-git clone https://github.com/grokopus/codereview /tmp/pr-review-repo
+git clone https://github.com/groktopus/codereview /tmp/pr-review-repo
 git -C /tmp/pr-review-repo checkout v0.1.0
 python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
   --dist /tmp/pr-review-release \
@@ -172,7 +179,7 @@ python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
   --provenance /tmp/pr-review-release/provenance.json \
   --checksums /tmp/pr-review-release/SHA256SUMS \
   --source-revision "$(git -C /tmp/pr-review-repo rev-parse HEAD)" \
-  --workflow-ref "grokopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.0"
+  --workflow-ref "groktopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.0"
 ```
 
 The expected result is `Release verification: PASS (signed: no)`. The

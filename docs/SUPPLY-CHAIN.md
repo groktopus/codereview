@@ -142,7 +142,7 @@ Then check that the SBOM, provenance, and checksums agree with the actual files.
 Use the verification script from the repository at the same tag:
 
 ```sh
-git clone https://github.com/grokopus/codereview /tmp/pr-review-repo
+git clone https://github.com/groktopus/codereview /tmp/pr-review-repo
 git -C /tmp/pr-review-repo checkout v0.1.0
 python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
   --dist /tmp/pr-review-release \
@@ -150,7 +150,7 @@ python3 /tmp/pr-review-repo/scripts/verify_release_artifacts.py \
   --provenance /tmp/pr-review-release/provenance.json \
   --checksums /tmp/pr-review-release/SHA256SUMS \
   --source-revision "$(git -C /tmp/pr-review-repo rev-parse HEAD)" \
-  --workflow-ref "grokopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.0"
+  --workflow-ref "groktopus/codereview/.github/workflows/release.yml@refs/tags/v0.1.0"
 ```
 
 A passing result prints `Release verification: PASS (signed: no)`. The
