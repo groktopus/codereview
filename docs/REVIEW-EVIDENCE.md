@@ -219,8 +219,9 @@ identical output.
 
 ## Enforcement limits
 
-Both mechanisms are required status checks on `main`. The live protection
-settings are `Review receipt` and `Decision record links`, with
+Both mechanisms are required status checks on `main`. Branch protection uses
+**Require status checks to pass before merging** for `Review receipt` and
+`Decision record links`, with
 `enforce_admins: false`, `strict: false`, and force pushes/deletions disabled.
 The administrator bypass is a deliberate sole-maintainer exception: the owner can
 merge their own PRs, while every non-admin merge requires both checks.
