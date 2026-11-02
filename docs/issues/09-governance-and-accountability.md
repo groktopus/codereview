@@ -46,8 +46,9 @@
   check reads the changed-file list from the read-only GitHub API and requires
   indexed, `Accepted` records on the base revision when a safety-invariant path
   changes. Both checks are required on `main` with an administrator bypass for
-  the sole maintainer. The issue stays open only for the sampled safety change
-  traced to its record.
+  the sole maintainer. **Done:** PR #310 added `review-evidence-enforcement` to
+  the safety manifest and cited accepted records `0002` and `0009` in its
+  receipt; `Decision record links` matched the manifest change and passed.
 - **Depends on:** GA-1, DT-1.
 - **Non-goals:** documenting every small change.
 
