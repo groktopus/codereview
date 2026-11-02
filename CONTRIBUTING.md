@@ -98,7 +98,7 @@ repository settings, or a merge.
 New findings use the issue forms under
 [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). The
 [backlog triage rules](docs/BACKLOG.md) define the five open states, state
-labels, owners, closure-evidence rules, and the current proposed mapping. An
+labels, owners, closure-evidence rules, and the current mapping. An
 issue closes only with observable evidence for its exit criteria, not because a
 pull request merged.
 

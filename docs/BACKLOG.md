@@ -8,7 +8,7 @@ changes.
 
 Source snapshot: [`backlog-open-issues.json`](backlog-open-issues.json), captured
 with `gh issue list --repo groktopus/codereview --state open` at branch base
-`a3599f6`. The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
+`5becb81`. The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
 and exit criteria are in [issues/README.md](issues/README.md).
 
 ## Why this exists
@@ -18,7 +18,7 @@ assessment. Filing was the first step; it is not triage. Without a state, an
 owner, and a closure rule, "open" means only "not yet remembered." This document
 makes the current state inspectable and gives the owner one table to apply.
 
-It does not invent a team. Every proposed owner is `@magnus919`, the only
+It does not invent a team. Every owner is `@magnus919`, the only
 recorded accountable human. See [OWNERSHIP.md](OWNERSHIP.md) for the bus-factor
 statement and the limits of agent authority.
 
@@ -36,8 +36,8 @@ its state label; the closure record is the evidence.
 | `awaiting-evidence` | Implementation merged, but one or more exit criteria still lack observable evidence. | `state:awaiting-evidence` | The evidence is linked and checked (`done`), or the remaining work returns to `ready`. |
 | `done` | Closed because the exit criteria are met and linked. | none (closed) | Reopen with new evidence if the claim regresses. |
 
-`triage` is not a resting state for this snapshot: all 18 issues have a
-proposed state below. Use it for new intake until the owner has read the issue.
+`triage` is not a resting state for this snapshot: all 16 issues have a
+state below. Use it for new intake until the owner has read the issue.
 
 ## Labels
 
@@ -108,7 +108,7 @@ record; a reviewer must do that.
 
 ## Mapping for the 16 open issues
 
-Existing labels stay. "Labels to add" is the proposed state label; `kind:*` is
+Existing labels stay. "Labels to add" is the applied state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
 the concrete move, not a schedule.
 
@@ -157,10 +157,11 @@ Issue forms are file-based under `.github/ISSUE_TEMPLATE/`:
 A new issue is not "triaged" because a template was used. It is triaged when it
 has an owner, one state, and observable exit criteria.
 
-## Applying this proposal (owner/root action)
+## Applied state (owner/root action)
 
-The worker did not run these commands. The owner or coordinating root applies
-them only after reviewing this table.
+The root applied the `state:*` labels and `@magnus919` assignee to every open
+issue on 2026-11-02. The commands below are retained for new intake and for
+re-applying a state after a refresh.
 
 ```sh
 # Create the state labels once.
