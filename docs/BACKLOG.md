@@ -36,7 +36,7 @@ its state label; the closure record is the evidence.
 | `awaiting-evidence` | Implementation merged, but one or more exit criteria still lack observable evidence. | `state:awaiting-evidence` | The evidence is linked and checked (`done`), or the remaining work returns to `ready`. |
 | `done` | Closed because the exit criteria are met and linked. | none (closed) | Reopen with new evidence if the claim regresses. |
 
-`triage` is not a resting state for this snapshot: all 12 issues have a
+`triage` is not a resting state for this snapshot: all 11 issues have a
 state below. Use it for new intake until the owner has read the issue.
 
 ## Labels
@@ -57,7 +57,7 @@ may be a worker, but the assignee remains the accountable human.
 
 ## Owners
 
-- Accountable owner for all 12 open issues: `@magnus919`.
+- Accountable owner for all 11 open issues: `@magnus919`.
 - An implementing agent, when one is used, is a worker on a branch under the
   owner's direction. It is not the assignee and cannot close the issue.
 - If the owner is unavailable, do not reassign to an agent or to a placeholder.
@@ -106,7 +106,7 @@ The checker validates that the table below stays consistent with the open-issue
 snapshot and the filed-issue map. It cannot validate the truth of a closure
 record; a reviewer must do that.
 
-## Mapping for the 12 open issues
+## Mapping for the 11 open issues
 
 Existing labels stay. "Labels to add" is the applied state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
@@ -118,10 +118,9 @@ the concrete move, not a schedule.
 | #239 | RC-1 | [RC-1] Separate the retrieval envelope from the model-output budget | `@magnus919` | `ready` | `state:ready` | No hard dependency. Start with the dedicated retrieval limit and the 40 KB symbol-at-end fixture. |
 | #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `blocked` | `state:blocked` | Blocked by #239; the frozen corpus is now available for measurement. |
 | #241 | RC-3 | [RC-3] Make completeness measurable and regression-gated | `@magnus919` | `ready` | `state:ready` | Frozen corpus available; publish the baseline and gate. |
-| #243 | QM-2 | [QM-2] Establish the human labeling and adjudication protocol | `@magnus919` | `ready` | `state:ready` | Protocol, rubric, and a retained six-packet synthetic pilot exist; owner accepted synthetic model-teacher adjudication (ADR 0010) and human packets are optional. Needs prediction runs, resolution of the incomplete `qm1-slopsearx-pr770` case, and a run that adjudicates a material finding. |
-| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241 and #243; two-arm scorecard/gate infrastructure and a retained synthetic label set exist, but prediction runs, a complete label set, and an accepted baseline remain. |
-| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
-| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
+| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241; two-arm scorecard/gate infrastructure and a retained synthetic label set exist, but prediction runs and an accepted baseline remain. |
+| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (predictions and baseline). |
+| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (predictions and baseline). |
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |
 | #253 | VD-3 | [VD-3] Isolate historical pins in a compatibility suite | `@magnus919` | `ready` | `state:ready` | Dependency #248 is closed. The compatibility marker exists; the refresh tool and manifest work remain. |
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |
@@ -129,8 +128,8 @@ the concrete move, not a schedule.
 | #262 | RS-4 | [RS-4] Lock dependencies and publish the package contract | `@magnus919` | `ready` | `state:ready` | Dependency #259 is closed. The package has no runtime dependencies; lock and publish the contract deliberately. |
 <!-- backlog-table:end -->
 
-Summary: **8 `ready`, 4 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
-12 open issues, all with one owner and one state.
+Summary: **7 `ready`, 4 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
+11 open issues, all with one owner and one state.
 
 ## Board and issue-template configuration
 
