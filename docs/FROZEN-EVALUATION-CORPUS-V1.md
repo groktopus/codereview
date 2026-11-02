@@ -26,10 +26,10 @@ Dataset files live in [examples/evaluation/frozen-corpus-v1](../examples/evaluat
 The corpus declares the `risk_enriched_challenge` sampling frame because it is a
 purposive selection, not a random or prevalence sample. Five documentation-only
 cases are candidate zero-finding controls. Evidence status is defined as:
-**complete** (every required obligation evidenced, no required gaps), **bounded**
-(policy-capped context with the changed diff present; window/count limits may leave
-required gaps, recorded in `snapshot_gap_counts`), or **incomplete** (changed diff
-or required projection truncated/missing; not comparable to complete cases). Seven cases have incomplete snapshot
+**complete** (no snapshot gaps at all), **bounded** (at least one snapshot gap but
+the changed diff is present; includes non-required gaps and required window/count
+limits recorded in `snapshot_gap_counts`), or **incomplete** (changed diff or a
+required projection truncated/missing; not comparable to complete cases). Seven cases have incomplete snapshot
 evidence, including one with repeatedly truncated diffs. No label asserts that
 a control is clean or that an incomplete case has no defects.
 
@@ -100,7 +100,7 @@ collection; no model output, review finding, or quality label informed it.
 
 ## Contamination and limitations
 
-`groktopus/codereview` is the harness's own public development repository; `magnus919/SlopSearX` is the separate public pilot target they share maintainership of. Models and
+`groktopus/codereview` is the harness's own public development repository; `magnus919/SlopSearX` is the separate public pilot target; both share a maintainer. Models and
 operators may have seen them. `heldout` means withheld from this curation's
 selection analysis, not proven unseen by every model or prompt. No prompt,
 profile, threshold, or model was tuned against this corpus in QM-1.
