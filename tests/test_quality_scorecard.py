@@ -417,3 +417,40 @@ def test_gate_rejects_deeply_incomplete_scorecard(tmp_path: Path, mutator: str) 
     )
     assert result.returncode == 2
     assert json.loads(result.stdout)["error"] == "invalid_scorecard_schema"
+
+
+@pytest.mark.parametrize("mutator", ["claims", "complete_with_partial_labels"])
+def test_gate_rejects_contract_invalid_scorecard(tmp_path: Path, mutator: str) -> None:
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
+    malformed = deepcopy(baseline)
+    if mutator == "claims":
+        malformed["claims"].update({"quality_claim": True, "accuracy": 1.0, "release_gate": "PASS"})
+    else:
+        malformed["data_state"]["state"] = "COMPLETE"
+        malformed["data_state"]["label_state"]["status"] = "partial"
+    baseline_path = tmp_path / "baseline.json"
+    malformed_path = tmp_path / "malformed.json"
+    baseline_path.write_bytes(canonical_bytes(baseline) + b"\n")
+    malformed_path.write_bytes(canonical_bytes(malformed) + b"\n")
+    result = _run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/check_quality_scorecard_gate.py"),
+            "--baseline",
+            str(baseline_path),
+            "--current",
+            str(malformed_path),
+            "--json",
+        ]
+    )
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"] == "invalid_scorecard_schema"
+
+
+def test_partial_baseline_to_complete_current_passes() -> None:
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
+    current = deepcopy(baseline)
+    baseline["data_state"]["state"] = "PARTIAL"
+    gate = regression_gate(current, baseline)
+    assert gate["current_data_state"] == "COMPLETE"
+    assert gate["status"] in {"PASS", "MISSING_DATA"}

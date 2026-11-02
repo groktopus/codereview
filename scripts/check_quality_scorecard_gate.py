@@ -67,6 +67,19 @@ def _validate_scorecard(value: object) -> None:
         raise EvaluationError("invalid_scorecard_schema")
     if label_state["status"] not in {"missing", "partial", "present"}:
         raise EvaluationError("invalid_scorecard_schema")
+    if data_state["state"] == "COMPLETE" and (label_state["status"] != "present" or data_state["reasons"]):
+        raise EvaluationError("invalid_scorecard_schema")
+    if not isinstance(data_state.get("expected_cases"), int) or not isinstance(data_state.get("missing_arms"), list):
+        raise EvaluationError("invalid_scorecard_schema")
+    for key in (
+        "human_packets",
+        "adjudicated_human_packets",
+        "complete_adjudicated_human_packets",
+        "human_labeled_cases",
+        "complete_adjudicated_human_labeled_cases",
+    ):
+        if not isinstance(label_state.get(key), int):
+            raise EvaluationError("invalid_scorecard_schema")
     arms = value["arms"]
     if not isinstance(arms, dict) or any(
         not isinstance(arm, dict) or arm.get("status") not in {"complete", "partial", "missing"}
@@ -78,9 +91,18 @@ def _validate_scorecard(value: object) -> None:
         key not in completion for key in ("expected_cases", "expected_case_arms", "by_status", "completed_of_expected")
     ):
         raise EvaluationError("invalid_scorecard_schema")
+    if not isinstance(completion["expected_cases"], int) or not isinstance(completion["expected_case_arms"], int):
+        raise EvaluationError("invalid_scorecard_schema")
     claims = value["claims"]
     if not isinstance(claims, dict) or any(
         key not in claims for key in ("quality_claim", "release_gate", "accuracy", "model_teacher_is_truth")
+    ):
+        raise EvaluationError("invalid_scorecard_schema")
+    if (
+        claims["quality_claim"] is not False
+        or claims["release_gate"] is not None
+        or claims["accuracy"] is not None
+        or claims["model_teacher_is_truth"] is not False
     ):
         raise EvaluationError("invalid_scorecard_schema")
     hashes = value["input_hashes"]

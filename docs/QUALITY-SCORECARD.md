@@ -49,7 +49,7 @@ quality score. `claims.release_gate` is `null`, `claims.accuracy` is `null`, and
 | `splits` | The same per-arm shape scoped to each split. |
 | `missing_data` | Explicit missing-label, missing-run, and missing-arm state. |
 
-The gate treats `PARTIAL` coverage as a failure, fails an arm that existed in the
+The gate treats a current `PARTIAL` state as a failure (an improved `COMPLETE` current against a partial baseline is allowed), fails an arm that existed in the
 baseline but is now absent, and binds identity to the corpus input hash. It
 rejects schema-invalid scorecards with exit `2`.
 
