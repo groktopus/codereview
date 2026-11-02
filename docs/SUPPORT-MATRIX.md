@@ -113,7 +113,7 @@ CI runs the same commands in the mandatory `lock-freshness` job and installs the
 lock with `--require-hashes` in the tests, coverage, and compatibility jobs.
 The checker prefers the pinned `uv` installed in the current interpreter
 (`python -m uv`); when it is invoked outside the locked environment, pass
-`--uv /path/to/uv 0.13.6` or install `requirements-dev.lock` first. A mismatched
+`--uv /path/to/uv` (the file must report `0.13.6`) or install `requirements-dev.lock` first. A mismatched
 `uv` fails with that instruction instead of rewriting the lock.
 
 ## Dependency policy

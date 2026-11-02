@@ -579,7 +579,8 @@ jobs:
           python -m venv "$WHEEL_ENV"
           mapfile -t WHEELS < <(find "$DIST_DIR" -maxdepth 1 -type f -name '*.whl' -print)
           test "${#WHEELS[@]}" -eq 1
-          "$WHEEL_ENV/bin/python" -m pip install "${WHEELS[0]}" pytest
+          "$WHEEL_ENV/bin/python" -m pip install --require-hashes --no-deps -r requirements-dev.lock
+          "$WHEEL_ENV/bin/python" -m pip install --no-deps "${WHEELS[0]}"
           printf 'PR_REVIEW_PROTECTED_PUBLICATION_WHEEL=%s\n' "${WHEELS[0]}" >> "$GITHUB_ENV"
           "$WHEEL_ENV/bin/python" scripts/package_smoke.py --cli "$WHEEL_ENV/bin/pr-review"
       - name: Run protected publication safe-default tests against the built wheel
@@ -687,7 +688,8 @@ jobs:
         run: |
           set -euo pipefail
           python -m venv "$ROUNDTRIP_ENV"
-          "$ROUNDTRIP_ENV/bin/python" -m pip install "$ROUNDTRIP_DIST"/*.whl pytest
+          "$ROUNDTRIP_ENV/bin/python" -m pip install --require-hashes --no-deps -r requirements-dev.lock
+          "$ROUNDTRIP_ENV/bin/python" -m pip install --no-deps "$ROUNDTRIP_DIST"/*.whl
       - name: Run actual loopback emitter to strict validator roundtrip
         env:
           ROUNDTRIP_ENV: ${{ runner.temp }}/transport-roundtrip-venv
