@@ -326,15 +326,16 @@ not evidence for QM-2.
 ## Exact next synthetic run
 
 The next real step is one bounded teacher run over the six-case pilot, not a
-schema change. No synthetic-labeler script is checked in; the teacher invocation
-must be implemented and executed as a bounded offline step through the existing
-trusted provider boundary, and its bytes retained, before any packet is written.
+schema change. No synthetic-labeler script, teacher model identity, or
+`qm2-synthetic-adjudication-prompt.v1` prompt is checked in yet. All three must
+be authored, reviewed, and retained before the run; otherwise the run is not
+reproducible and no packet may be written.
 
 1. Materialize each frozen case's exact base/head content from its recorded
    repository and snapshot identity (`frozen-corpus-v1` plus the case
    `source_manifest`). Do not add evidence outside the frozen case.
-2. Run the configured teacher through the existing trusted provider boundary at
-   the recorded model identity, with prompt revision
+2. Once the teacher identity and prompt are recorded, run that teacher through
+   the existing trusted provider boundary with prompt revision
    `qm2-synthetic-adjudication-prompt.v1` and rubric
    `qm2-labeling-rubric.v1`. Retain the exact request and response bytes in the
    controlled evidence store.
@@ -359,10 +360,11 @@ python3 scripts/generate_quality_scorecard.py \
   --json
 ```
 
-The expected result is a `synthetic` arm with `COMPLETE` adjudication and a
-human arm reported as `missing`, not a quality or replacement claim. Predictions
-for the corpus are still absent, so the scorecard remains `MISSING_DATA` until
-real arm runs exist.
+The expected result is a label state whose `synthetic` arm is `present` and a
+human label arm reported as `missing`, not a quality or replacement claim.
+Predictions for the corpus are still absent, so each prediction arm's synthetic
+label block remains `missing` and the scorecard stays `MISSING_DATA` until real
+arm runs exist.
 
 ## What remains for QM-2
 
