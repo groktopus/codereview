@@ -144,8 +144,14 @@ def test_evidence_status_definitions_match_case_labels() -> None:
     definitions = manifest["evidence_status_definition"]
     assert set(definitions) == {"complete", "bounded", "incomplete"}
     for case in manifest["cases"]:
-        gaps = case["snapshot_gap_counts"]["total"]
-        if case["evidence_completeness"] == "complete":
-            assert gaps == 0, case["case_id"]
+        gaps = case["snapshot_gap_counts"]
+        status = case["evidence_completeness"]
+        if status == "complete":
+            assert gaps["total"] == 0, case["case_id"]
+        elif status == "bounded":
+            assert gaps["total"] > 0, case["case_id"]
+            assert set(gaps["by_reason"]) <= {"window_count_limit", "changed_hunk_exceeds_window_limit", "not_bound_by_context_selection", "context_truncated"}, case["case_id"]
         else:
-            assert gaps > 0, case["case_id"]
+            assert status == "incomplete", case["case_id"]
+            assert gaps["required"] > 0, case["case_id"]
+            assert set(gaps["by_reason"]) & {"diff_truncated", "context_selection_budget_exhausted"}, case["case_id"]

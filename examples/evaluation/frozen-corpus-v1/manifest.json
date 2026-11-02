@@ -1035,7 +1035,7 @@
     }
   ],
   "contamination": {
-    "detail": "`groktopus/codereview` is the harness's own public development repository; `magnus919/SlopSearX` is the separate public pilot target, and both share a maintainer. Models and operators may have seen their code or PRs historically. Held-out means withheld from this curation's selection analysis, not proven unseen by every model or prompt.",
+    "detail": "`groktopus/codereview` is the harness's own public development repository; `magnus919/SlopSearX` is the separate public pilot target; both share a maintainer. Models and operators may have seen their code or PRs historically. Held-out means withheld from this curation's selection analysis, not proven unseen by every model or prompt.",
     "mitigation": "No prompt, profile, threshold, or model was tuned against this corpus in QM-1. Held-out case results must be reported separately and must not drive prompt/profile tuning.",
     "risk": "nonzero"
   },
