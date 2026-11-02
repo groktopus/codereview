@@ -1,0 +1,41 @@
+name: Review receipt
+
+# Validates the merge-review receipt in the pull request body against
+# docs/REVIEW-EVIDENCE.md. pull_request_target runs this workflow definition
+# from the default branch, and the checkout below stays on the pull request
+# base revision, so no pull request code is checked out or executed. The job
+# only reads the event JSON and the trusted base script.
+#
+# Enabling this workflow is not enough on its own: repository settings must
+# mark the "Review receipt" check as required for the protected branch. See
+# docs/REVIEW-EVIDENCE.md for the owner action and the enforcement limits.
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-receipt-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review-receipt:
+    name: Review receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the pull request base revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Validate the review receipt
+        run: |
+          set -euo pipefail
+          python3 scripts/check_review_receipt.py 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
