@@ -144,3 +144,11 @@ def test_duplicate_module_map_entry_fails(tmp_path: Path) -> None:
     )
     errors = ownership.check(tmp_path)["errors"]
     assert any("appears in more than one group" in error for error in errors)
+
+
+def test_backlog_row_with_two_state_labels_fails(tmp_path: Path) -> None:
+    root = make_repo(tmp_path)
+    backlog = root / "docs" / "BACKLOG.md"
+    text = backlog.read_text().replace("`state:ready`", "`state:ready` `state:blocked`", 1)
+    backlog.write_text(text)
+    assert any("exactly one state label" in error for error in ownership.check(root)["errors"])

@@ -62,6 +62,7 @@ implementation.
 | [ADR 0006: evaluation gates](adr/0006-evaluation-gates.md) | Accepted no-claim rule; quality evidence and replacement readiness are not established. |
 | [ADR 0007: license](adr/0007-license.md) | Accepted: MIT for original code and documentation, with third-party terms excluded. |
 | [ADR 0008: release and version policy](adr/0008-release-version-policy.md) | Accepted: package SemVer plus independent contract versions, changelog, and tag-gated release. |
+| [ADR 0009: ownership and second review](adr/0009-ownership-and-second-review.md) | Accepted: path-specific ownership, agent second path, bus-factor-1 limits, and triage states. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
 | [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields, receipt rules, CI check and exit codes, owner action, and enforcement limits. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |

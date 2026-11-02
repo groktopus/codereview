@@ -331,11 +331,15 @@ def check(root: Path) -> dict[str, object]:
             errors.append(f"docs/BACKLOG.md: issue #{number} owner must be {REQUIRED_OWNER}")
         if row["state"] not in STATE_LABELS:
             errors.append(f"docs/BACKLOG.md: issue #{number} has invalid state {row['state']!r}")
-        elif f"`{STATE_LABELS[row['state']]}`" not in row["labels"]:
-            errors.append(
-                f"docs/BACKLOG.md: issue #{number} state {row['state']!r} needs label "
-                f"{STATE_LABELS[row['state']]!r}"
-            )
+        else:
+            tokens = re.findall(r"`(state:[a-z-]+)`", row["labels"])
+            if len(tokens) != 1:
+                errors.append(f"docs/BACKLOG.md: issue #{number} must list exactly one state label")
+            elif tokens[0] != STATE_LABELS[row["state"]]:
+                errors.append(
+                    f"docs/BACKLOG.md: issue #{number} state {row['state']!r} needs label "
+                    f"{STATE_LABELS[row['state']]!r}"
+                )
         if not row["title"]:
             errors.append(f"docs/BACKLOG.md: issue #{number} has no title")
         if not row["next"]:
