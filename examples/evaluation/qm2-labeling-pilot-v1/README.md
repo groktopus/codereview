@@ -34,7 +34,7 @@ byte count, the frozen evidence-completeness value, and the case identity. The
 retained response is retained byte-for-byte in
 [`evidence/teacher-response.txt`](evidence/teacher-response.txt). Because a
 response cannot contain the hash of the file that includes that hash,
-`output_sha256` is the SHA-256 of the retained **retained response** file, not of
+`output_sha256` is the SHA-256 of the retained response file, not of
 `teacher-output-2026-11-02.json`; the output record adds that digest to each
 packet after the response bytes are fixed.
 

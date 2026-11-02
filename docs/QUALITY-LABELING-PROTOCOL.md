@@ -334,7 +334,7 @@ diff SHA-256 and byte count. The six packets are in
 `labels-synthetic-v1.json`; `teacher-output-2026-11-02.json` records the same
 packets and adds `output_sha256`.
 
-`output_sha256` is the SHA-256 of the retained **raw response** file
+`output_sha256` is the SHA-256 of the retained **retained response** file
 `teacher-response.txt`, not of `teacher-output-2026-11-02.json`. A response
 cannot contain the hash of a file that contains that hash, so the output record
 adds the digest only after the response bytes are fixed. Never hash the output
@@ -357,7 +357,7 @@ identity.
    `request.json` binds each diff hash and byte count, and the frozen manifest
    supplies the evidence-completeness status.
 2. **Run and retain the output.** Record `run_id`, model identity, prompt
-   revision, timestamp, and the raw response bytes before writing labels. The
+   revision, timestamp, and the retained response bytes before writing labels. The
    response digest binds `teacher-response.txt`.
 3. **Emit one adjudicated packet per case** with evidence references on every
    finding label and adjudication. An incomplete case stays `INCOMPLETE` and
