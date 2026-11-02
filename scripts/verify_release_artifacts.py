@@ -141,8 +141,10 @@ def _provenance_result(provenance_path: Path, expected: dict[str, str], require_
         failures.append(f"provenance signing status is {signing.get('status')!r}, expected 'signed' or 'unsigned'")
     if signing.get("status") == "signed" and not signing.get("signature"):
         failures.append("provenance claims a signed status but has no signature value")
-    if require_signed and not signed:
-        failures.append("provenance is unsigned and --require-signed was requested")
+    if require_signed:
+        failures.append(
+            "cryptographic signature verification is not implemented; refusing to accept a claimed signature"
+        )
     if signed:
         notes.append("provenance declares a signature; this stdlib script does not cryptographically verify it")
     else:
@@ -186,6 +188,11 @@ def verify(
         missing = sorted(set(actual) - set(entries))
         if missing:
             checksum_failures.append(f"checksum file does not cover distribution artifacts: {missing}")
+        for label, path in (("SBOM", sbom), ("provenance", provenance)):
+            if path.resolve().parent != dist.resolve():
+                checksum_failures.append(f"{label} path is outside the checksummed dist directory")
+            elif path.name not in entries:
+                checksum_failures.append(f"checksum file does not cover the {label} asset")
         failures.extend(checksum_failures)
         checks.append({"check": "sha256sums", "status": "FAIL" if checksum_failures else "PASS"})
 
@@ -210,8 +217,6 @@ def verify(
         )
         recorded_revision = external.get("source", {}).get("revision")
         recorded_workflow = external.get("workflow", {}).get("ref")
-        if source_revision and recorded_revision != source_revision:
-            failures.append(f"provenance source revision {recorded_revision!r} != expected {source_revision!r}")
         identity_failures: list[str] = []
         if source_revision and recorded_revision != source_revision:
             identity_failures.append(f"provenance source revision {recorded_revision!r} != expected {source_revision!r}")

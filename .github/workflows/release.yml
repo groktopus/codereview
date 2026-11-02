@@ -238,6 +238,7 @@ jobs:
             dist/*.whl \
             dist/*.tar.gz \
             dist/SHA256SUMS \
+            dist/RELEASE-NOTES.md \
             "${EVIDENCE[@]}" \
             --repo "$GH_REPO" \
             --title "pr-review-harness ${release_version}" \

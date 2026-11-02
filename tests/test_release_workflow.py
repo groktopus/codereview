@@ -77,6 +77,7 @@ def test_release_workflow_builds_checksums_and_attaches_artifacts_and_notes() ->
         "dist/*.whl",
         "dist/*.tar.gz",
         "dist/SHA256SUMS",
+        "dist/RELEASE-NOTES.md",
         "--notes-file dist/RELEASE-NOTES.md",
         "--verify-tag",
         "scripts/check_version_policy.py",

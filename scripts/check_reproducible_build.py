@@ -198,6 +198,14 @@ def compare_build_dirs(first: Path, second: Path) -> dict[str, object]:
         else:
             non_determinism.append(f"{name}: archive bytes differ although members are identical")
 
+    if not artifacts:
+        return {
+            "artifacts": [],
+            "status": "NOT_REPRODUCIBLE",
+            "artifact_hashes_match": False,
+            "content_matches": False,
+            "non_determinism": ["no wheel or source distribution found in both directories"],
+        }
     artifact_hashes_match = all(bool(item["artifact_match"]) for item in artifacts)
     content_matches = all(bool(item["content_match"]) for item in artifacts)
     if artifact_hashes_match:

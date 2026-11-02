@@ -300,7 +300,21 @@ def test_verifier_require_signed_fails_for_unsigned_provenance(tmp_path: Path) -
         require_signed=True,
     )
     assert result["status"] == "FAIL"
-    assert any("--require-signed" in failure for failure in result["failures"])
+    assert any("signature verification is not implemented" in failure for failure in result["failures"])
+
+
+def test_verifier_does_not_accept_a_forged_signed_claim(tmp_path: Path) -> None:
+    import json
+    dist, sbom_path, provenance_path, checksums = _evidence(tmp_path)
+    document = json.loads(provenance_path.read_text(encoding="utf-8"))
+    document["signing"] = {"status": "signed", "signature": "deadbeef", "certificate": None, "tool": None}
+    provenance_path.write_text(json.dumps(document), encoding="utf-8")
+    checksums = _checksums(dist)
+    result = verifier.verify(
+        dist, sbom=sbom_path, provenance=provenance_path, checksums=checksums, require_signed=True
+    )
+    assert result["status"] == "FAIL"
+    assert any("signature verification is not implemented" in failure for failure in result["failures"])
 
 
 def test_verifier_rejects_a_source_revision_mismatch(tmp_path: Path) -> None:

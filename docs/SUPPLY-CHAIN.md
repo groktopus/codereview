@@ -100,8 +100,7 @@ The report has one of three statuses:
 
 The implementation-time run on Python 3.14 with `build` 1.6.1 and setuptools
 84.2.1 produced `CONTENT_REPRODUCIBLE`: the wheel was byte-for-byte identical,
-while the source distribution differed only in gzip-header and tar directory
-entry timestamps. setuptools does not clamp those timestamps to
+while the source distribution differed only in gzip-header and tar entry mtimes (including directory entries). setuptools does not clamp those timestamps to
 `SOURCE_DATE_EPOCH`; file contents were identical. This is recorded as
 non-determinism, not as bit-for-bit reproducibility. The status can change with
 the Python, `build`, setuptools, or zlib versions, which is why the report is
