@@ -53,8 +53,9 @@ These are intentionally not "accepted by implication" from a merged feature:
   selected; `docs/RELEASE-PLAN.md` states `openai/gpt-6-luna` **is the selected
   production inference model**, while `docs/TEST-MODEL-POLICY.md` says the
   production model is unselected. No dated owner decision resolves the conflict;
-  it is treated as unresolved rather than downgraded to a candidate.
-  in ADR 0005 and needs an owner decision plus model-specific quality evidence.
+  it is treated as unresolved rather than downgraded to a candidate. The
+  conflict is documented in ADR 0005 and needs an owner decision plus
+  model-specific quality evidence.
 - **Publication activation.** ADR 0004 keeps the CLI and central route
   disabled. Enabling a route needs a separate owner decision, the readiness
   gates, and an `UNKNOWN` reconciliation owner.

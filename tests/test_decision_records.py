@@ -154,3 +154,10 @@ def test_placeholder_owner_and_impossible_date_fail(tmp_path: Path) -> None:
         write(tmp_path / relative, "A safety invariant change needs a decision record. See docs/adr/README.md.\n")
     errors = records.check(tmp_path)["errors"]
     assert any("placeholder" in error for error in errors)
+
+
+def test_impossible_calendar_date_fails(tmp_path: Path) -> None:
+    make_repo(tmp_path)
+    path = tmp_path / "docs" / "adr" / "0001-test-record.md"
+    path.write_text(path.read_text().replace("2026-11-01", "2026-13-45"))
+    assert any("real calendar date" in error for error in records.check(tmp_path)["errors"])

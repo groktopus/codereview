@@ -101,10 +101,10 @@ def _check_record(record: dict[str, object], errors: list[str]) -> None:
             datetime.date.fromisoformat(date[:10])
         except ValueError:
             errors.append(f"{label}: Date is not a real calendar date: {date!r}")
-    for name in ("Owner", "Evidence"):
+    for name in ("Owner", "Evidence", "Decision authority"):
         value = _field_value(fields, name).strip().lower()
-        if value in {"tbd", "todo", "unknown", "n/a", "-"}:
-            errors.append(f"{label}: {name} is a placeholder, not evidence")
+        if value in {"tbd", "todo", "unknown", "none", "pending", "n/a", "-", "owner will decide"}:
+            errors.append(f"{label}: {name} is a placeholder, not recorded authority/evidence")
 
     if status == "Accepted":
         authority = _field_value(fields, "Decision authority").lower()
