@@ -12,6 +12,10 @@ the network, post a review, or approve anything. The event path is the only
 file it reads. Diagnostics are deterministic and every failure carries a stable
 code.
 
+``decision_records`` is optional here: GA-2 enforcement
+(``scripts/check_decision_record_links.py``) is what requires it when a pull
+request changes a path listed in ``docs/adr/safety-invariants.json``.
+
 Exit codes
 ----------
 0   receipt accepted (verdict CLEAR for the exact pull request head)
@@ -49,6 +53,7 @@ MAX_EVENT_BYTES = 2_000_000
 MAX_RECEIPT_BYTES = 64_000
 MAX_SCOPE_ITEMS = 50
 MAX_EVIDENCE_ITEMS = 50
+MAX_DECISION_RECORDS = 10
 MIN_INDEPENDENCE_CHARS = 20
 MIN_POST_MERGE_CHARS = 10
 
@@ -70,11 +75,17 @@ ROOT_FIELDS = {
     "reviewed_at",
     "self_review",
     "post_merge_verification",
+    "decision_records",
 }
 REVIEWER_FIELDS = {"identity", "kind", "protocol"}
 EVIDENCE_FIELDS = {"kind", "value"}
 REVIEWER_KINDS = {"human", "agent"}
 VERDICTS = {"CLEAR", "NOT CLEAR"}
+DECISION_RECORD_ID_RE = re.compile(r"\d{4}\Z")
+DECISION_RECORD_PATH_RE = re.compile(r"docs/adr/\d{4}-[a-z0-9][a-z0-9-]*\.md\Z")
+DECISION_RECORD_URL_RE = re.compile(
+    r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/blob/\S+/docs/adr/\d{4}-[a-z0-9][a-z0-9-]*\.md\Z"
+)
 
 EXIT_INTERNAL = 1
 EXIT_EVENT = 2
@@ -141,6 +152,7 @@ class Receipt:
     reviewed_at: str
     self_review: bool
     post_merge_verification: str
+    decision_records: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -150,6 +162,7 @@ class Report:
     reviewer_identity: str | None
     reviewed_sha: str | None
     verdict: str | None
+    decision_records: tuple[str, ...] | None = None
 
     @property
     def ok(self) -> bool:
@@ -168,6 +181,7 @@ class Report:
             "reviewed_sha": self.reviewed_sha,
             "reviewer_identity": self.reviewer_identity,
             "verdict": self.verdict,
+            "decision_records": list(self.decision_records) if self.decision_records is not None else None,
             "failures": [failure.as_dict() for failure in self.failures],
         }
 
@@ -317,6 +331,70 @@ def _validate_evidence(
     return tuple(evidence)
 
 
+def is_decision_record_reference(value: str) -> bool:
+    """True when ``value`` names a decision record by ID, path, or repository link."""
+
+    return bool(
+        DECISION_RECORD_ID_RE.match(value)
+        or DECISION_RECORD_PATH_RE.match(value)
+        or DECISION_RECORD_URL_RE.match(value)
+    )
+
+
+def _validate_decision_records(
+    container: dict[str, Any],
+    path: str,
+    failures: list[Failure],
+) -> tuple[str, ...] | None:
+    """Validate the optional ``decision_records`` list (GA-2).
+
+    The field is optional here; ``scripts/check_decision_record_links.py``
+    requires it when a pull request changes a safety-invariant path. When it is
+    present it must be a non-empty list of single-line record references, so an
+    empty list cannot stand in for "no decision record needed".
+    """
+
+    key = "decision_records"
+    if key not in container:
+        return None
+    value = container[key]
+    if not isinstance(value, list):
+        failures.append(_failure("FIELD_TYPE", f"{path}.{key} must be a list of decision-record IDs or links"))
+        return None
+    if not value:
+        failures.append(
+            _failure("FIELD_EMPTY", f"{path}.{key} must not be empty; omit it when no decision record is required")
+        )
+        return None
+    if len(value) > MAX_DECISION_RECORDS:
+        failures.append(_failure("FIELD_INVALID", f"{path}.{key} exceeds {MAX_DECISION_RECORDS} items"))
+        return None
+    references: list[str] = []
+    for index, item in enumerate(value):
+        item_path = f"{path}.{key}[{index}]"
+        if not isinstance(item, str) or not item.strip():
+            failures.append(_failure("FIELD_INVALID", f"{item_path} must be a non-empty string"))
+            return None
+        text = item.strip()
+        if len(text) > 300:
+            failures.append(_failure("FIELD_INVALID", f"{item_path} exceeds 300 characters"))
+            return None
+        if "\n" in text or "\r" in text or "\t" in text:
+            failures.append(_failure("FIELD_INVALID", f"{item_path} must be a single line"))
+            return None
+        if not is_decision_record_reference(text):
+            failures.append(
+                _failure(
+                    "FIELD_INVALID",
+                    f"{item_path} must be a four-digit record ID (for example 0002), a docs/adr/NNNN-*.md path, "
+                    "or an https link to that file",
+                )
+            )
+            return None
+        references.append(text)
+    return tuple(references)
+
+
 def _validate_timestamp(value: str | None, failures: list[Failure]) -> str | None:
     if value is None:
         return None
@@ -408,6 +486,7 @@ def validate_receipt(receipt: Any) -> tuple[list[Failure], Receipt | None]:
         minimum=MIN_POST_MERGE_CHARS,
         maximum=4000,
     )
+    decision_records = _validate_decision_records(receipt, "receipt", failures)
 
     if failures:
         return failures, None
@@ -434,6 +513,7 @@ def validate_receipt(receipt: Any) -> tuple[list[Failure], Receipt | None]:
         reviewed_at=reviewed_at,
         self_review=self_review,
         post_merge_verification=post_merge,
+        decision_records=decision_records,
     )
 
 
@@ -449,6 +529,11 @@ def _placeholder_failures(receipt: Receipt) -> list[Failure]:
     values.extend(
         (f"receipt.evidence[{index}].value", item["value"]) for index, item in enumerate(receipt.evidence)
     )
+    if receipt.decision_records:
+        values.extend(
+            (f"receipt.decision_records[{index}]", item)
+            for index, item in enumerate(receipt.decision_records)
+        )
     failures: list[Failure] = []
     for path, value in values:
         if PLACEHOLDER_RE.search(value):
@@ -616,6 +701,7 @@ def validate_event(event: Any) -> Report:
         receipt.reviewer_identity,
         receipt.reviewed_sha,
         receipt.verdict,
+        receipt.decision_records,
     )
 
 

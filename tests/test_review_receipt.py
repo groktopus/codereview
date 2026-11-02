@@ -309,3 +309,63 @@ def test_duplicate_json_keys_are_rejected_before_last_key_wins(tmp_path):
     report = receipt_check.check(path)
     assert report.exit_code == 3
     assert [failure.code for failure in report.failures] == ["RECEIPT_DUPLICATE_KEY"]
+
+
+def test_decision_records_field_is_optional(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run_cli(tmp_path, event(body_with(receipt())), "--json") == 0
+    assert json.loads(capsys.readouterr().out)["decision_records"] is None
+
+
+def test_decision_records_list_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run_cli(tmp_path, event(body_with(receipt(decision_records=["0002"]))), "--json") == 0
+    assert json.loads(capsys.readouterr().out)["decision_records"] == ["0002"]
+
+
+def test_decision_record_reference_forms_are_accepted(tmp_path: Path) -> None:
+    for value in (
+        "0002",
+        "docs/adr/0002-production-architecture.md",
+        "https://github.com/groktopus/codereview/blob/main/docs/adr/0002-production-architecture.md",
+    ):
+        assert run_cli(tmp_path, event(body_with(receipt(decision_records=[value])))) == 0
+
+
+def test_decision_records_must_be_a_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert (
+        run_cli(tmp_path, event(body_with(receipt(decision_records="0002"))), "--json") == receipt_check.EXIT_FIELD
+    )
+    report = json.loads(capsys.readouterr().out)
+    assert {failure["code"] for failure in report["failures"]} == {"FIELD_TYPE"}
+
+
+def test_empty_decision_records_list_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run_cli(tmp_path, event(body_with(receipt(decision_records=[]))), "--json") == receipt_check.EXIT_FIELD
+    report = json.loads(capsys.readouterr().out)
+    assert {failure["code"] for failure in report["failures"]} == {"FIELD_EMPTY"}
+
+
+def test_unknown_decision_record_format_is_rejected(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    for value in ("ADR-2", "2", "docs/adr/README.md", "https://example.com/0002.md"):
+        assert run_cli(tmp_path, event(body_with(receipt(decision_records=[value])))) == receipt_check.EXIT_FIELD
+        capsys.readouterr()
+
+
+def test_decision_record_reference_must_be_single_line(tmp_path: Path) -> None:
+    assert run_cli(tmp_path, event(body_with(receipt(decision_records=["0002\n0003"])))) == receipt_check.EXIT_FIELD
+
+
+def test_too_many_decision_records_are_rejected(tmp_path: Path) -> None:
+    too_many = ["0002"] * (receipt_check.MAX_DECISION_RECORDS + 1)
+    assert run_cli(tmp_path, event(body_with(receipt(decision_records=too_many)))) == receipt_check.EXIT_FIELD
+
+
+def test_decision_records_are_stripped(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run_cli(tmp_path, event(body_with(receipt(decision_records=[" 0002 "]))), "--json") == 0
+    assert json.loads(capsys.readouterr().out)["decision_records"] == ["0002"]
+
+
+def test_is_decision_record_reference_helper() -> None:
+    assert receipt_check.is_decision_record_reference("0002")
+    assert receipt_check.is_decision_record_reference("docs/adr/0002-production-architecture.md")
+    assert not receipt_check.is_decision_record_reference("docs/adr/0002-production-architecture.MD")
+    assert not receipt_check.is_decision_record_reference("0002 ")

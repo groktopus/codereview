@@ -1,0 +1,57 @@
+name: Decision record links
+
+# Fail-closed GA-2 enforcement (issue #270): a pull request that changes a
+# path or glob in docs/adr/safety-invariants.json must cite accepted decision
+# records in its review receipt.
+#
+# pull_request_target runs this workflow definition from the default branch,
+# and the checkout below stays on the pull request base revision, so no pull
+# request code is checked out or executed. The only credential is the automatic
+# GITHUB_TOKEN, limited here to `contents: read` and `pull-requests: read`
+# (the files endpoint is read-only); no repository secret is used, and the
+# token is never printed. The changed-file list comes from the read-only
+# GitHub API, and the manifest, index, and records are read from the base
+# commit object.
+#
+# Enabling this workflow is not enough on its own: repository settings must
+# mark the "Decision record links" check as required for main. Branch
+# protection is not enabled, so until the owner does that, a failing check is
+# visible and recorded but does not by itself prevent a merge. See
+# docs/REVIEW-EVIDENCE.md and docs/adr/README.md.
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: decision-record-links-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  decision-record-links:
+    name: Decision record links
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out the pull request base revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Require accepted decision records for safety-invariant changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 scripts/check_decision_record_links.py \
+            --base-ref "${{ github.event.pull_request.base.sha }}" \
+            --json --summary "$GITHUB_STEP_SUMMARY"

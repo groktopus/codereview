@@ -1,11 +1,15 @@
-# Review evidence receipts (GA-1)
+# Review evidence receipts (GA-1) and decision-record links (GA-2)
 
-Status: **partial implementation of GA-1
-([issue #269](https://github.com/groktopus/codereview/issues/269))**. The receipt
-protocol and CI validator exist; enforcement is pending the owner marking the
-`Review receipt` check required. It is not a GitHub review record or branch
-protection, and this change does not by itself make an unreceipted merge
-impossible.
+Status: **GA-1 is partially implemented
+([issue #269](https://github.com/groktopus/codereview/issues/269)) and the GA-2
+decision-record link check is active
+([issue #270](https://github.com/groktopus/codereview/issues/270))**. Both
+checks exist and fail closed in CI; neither is a GitHub review record, and
+neither is enforced by branch protection yet. Branch protection is absent, so
+the `Review receipt` and `Decision record links` checks are visible and recorded
+but are not yet *required* — a merge is blocked procedurally, not by GitHub.
+The owner action in [Enforcement limits](#enforcement-limits) is still
+outstanding, and issue #270 stays open until it is done.
 
 Once the check is required, every merge into `main` must carry a review receipt
 bound to the exact reviewed head. The first merge that adds this workflow is an
@@ -37,6 +41,7 @@ fields are rejected, so a receipt cannot add its own approval shortcut.
 | `reviewed_at` | string | ISO 8601 timestamp with a time zone, for example `2026-11-02T12:00:00Z`. |
 | `self_review` | boolean | `true` only when `reviewer.identity` is the pull request author. |
 | `post_merge_verification` | string | What will be verified after merge: the merge commit identity and the required checks on it. |
+| `decision_records` | array of strings | Optional. **Required** by the `Decision record links` check when the pull request changes a path or glob listed in [`docs/adr/safety-invariants.json`](adr/safety-invariants.json), including the manifest file itself. Each item is a four-digit record ID (`0002`), a `docs/adr/NNNN-*.md` path, or an https link to that file. At most 10 items; an empty list is rejected so it cannot stand in for "not required". |
 
 ## Rules
 
@@ -71,6 +76,16 @@ fields are rejected, so a receipt cannot add its own approval shortcut.
    posts a review, approves, merges, edits the body, or infers a verdict.
    Unknown fields (including anything that looks like an approval instruction)
    fail closed.
+8. **Safety-invariant changes cite accepted decision records.** When the pull
+   request changes a path or glob in [`docs/adr/safety-invariants.json`](adr/safety-invariants.json)
+   — or the manifest file itself, or a renamed or deleted protected path — the
+   receipt must carry `decision_records`. Every cited record must already exist
+   on the pull request **base** revision, be listed in the
+   [decision-record index](adr/README.md), and have Status `Accepted`.
+   Because the check reads the base revision, a record added by the same pull
+   request does not count yet: land the accepted record in its own pull request
+   first, or cite an existing accepted record that already authorizes the
+   behavior. `docs/adr/README.md` owns that process.
 
 ## Writing a receipt
 
@@ -114,6 +129,13 @@ For an agent review, add the protocol and keep the same evidence standard:
 }
 ```
 
+When the change touches a safety-invariant path, add the records that authorize
+it (omit the field otherwise):
+
+```json
+"decision_records": ["0002", "docs/adr/0004-publication-authorization.md"]
+```
+
 ## The CI check
 
 `Review receipt` runs on `pull_request_target` for `opened`, `edited`,
@@ -145,37 +167,105 @@ Failure codes and exit codes are stable:
 | 8 | `SELF_REVIEW_UNDECLARED`, `SELF_REVIEW_INCONSISTENT` | Self-review is undeclared or inconsistently declared. |
 | 9 | `AGENT_PROTOCOL_MISSING` | An agent review lacks a recorded protocol. |
 
+## The decision-record check (GA-2)
+
+`Decision record links` runs on `pull_request_target` for `opened`, `edited`,
+`synchronize`, and `reopened` on the base branch `main`. It is a separate
+workflow so that each required check fails for its own reason. It checks out the
+pull request **base** revision only, with `persist-credentials: false`,
+`contents: read`, and `pull-requests: read`; the changed-file list comes from the
+read-only GitHub API (`GET /repos/{owner}/{repo}/pulls/{number}/files`), and the
+only token is the automatic `GITHUB_TOKEN`. No repository secret is used, the
+token is never printed, redirects are refused, and no pull request code is
+checked out or executed. The script is
+[`scripts/check_decision_record_links.py`](../scripts/check_decision_record_links.py).
+
+It fails closed when it cannot prove the requirement: no event, no changed-file
+list, an API error or 1,000 or more changed files, a missing or malformed
+manifest, a missing ADR index, a missing or unvalidated receipt, a missing
+`decision_records` list, or any cited record that is malformed, unindexed,
+absent from the base revision, or not `Accepted`.
+
+Run it locally against a captured event payload and a changed-file fixture:
+
+```sh
+python3 scripts/check_decision_record_links.py \
+  --event pull_request.json \
+  --changed-files changed-files.json \
+  --repo-root . \
+  --json
+```
+
+The fixture is a JSON list of changed paths (strings, GitHub API item objects
+with `filename`/`previous_filename`, or `{"files": [...]}`). It never contacts
+the network. Without `--changed-files` the script reads the GitHub API and needs
+`GITHUB_TOKEN`. `--base-ref` reads the manifest, index, and records from a Git
+revision instead of the working tree; the workflow passes the base SHA.
+
+Failure codes and exit codes are stable:
+
+| Exit | Codes | Meaning |
+|---|---|---|
+| 0 | — | No safety-invariant path changed, or every cited record is accepted on the base revision. |
+| 1 | — | Unexpected internal error. |
+| 2 | `EVENT_PATH_MISSING`, `EVENT_PATH_UNREADABLE`, `EVENT_TOO_LARGE`, `EVENT_INVALID_JSON`, `EVENT_INVALID_SHAPE`, `EVENT_NUMBER_UNKNOWN`, `EVENT_REPOSITORY_UNKNOWN` | The event is absent or malformed. |
+| 3 | `CHANGED_FILES_FIXTURE_MISSING`, `CHANGED_FILES_FIXTURE_INVALID`, `CHANGED_FILES_TOKEN_MISSING`, `CHANGED_FILES_API_UNAVAILABLE`, `CHANGED_FILES_API_ERROR`, `CHANGED_FILES_API_INVALID`, `CHANGED_FILES_API_TRUNCATED` | The changed-file list is unavailable, invalid, or truncated. |
+| 4 | `BASE_UNAVAILABLE`, `MANIFEST_MISSING`, `MANIFEST_INVALID`, `INDEX_MISSING` | Base-revision content is missing or unusable. |
+| 5 | `RECEIPT_NOT_VALID` | The review receipt is missing or did not validate; run `check_review_receipt.py` for details. |
+| 6 | `DECISION_RECORDS_MISSING` | A safety-invariant path changed but the receipt has no `decision_records`. |
+| 7 | `RECORD_REFERENCE_INVALID`, `RECORD_NOT_INDEXED`, `RECORD_NOT_ACCEPTED`, `RECORD_FILE_UNRESOLVED`, `RECORD_PATH_MISMATCH`, `RECORD_MISSING`, `RECORD_INVALID` | A cited decision record is malformed, unindexed, absent, or not accepted. |
+
+Failures are emitted in a fixed code order, so identical input produces
+identical output.
+
 ## Enforcement limits
 
-This mechanism is enforceable only after the repository owner completes one
-setting change. Without it, the workflow produces a failing check but GitHub
+Both mechanisms are enforceable only after the repository owner completes one
+setting change. Without it, each workflow produces a failing check but GitHub
 does not prevent a merge:
 
 > **Owner action:** in repository **Settings → Branches**, protect `main`,
 > enable **Require status checks to pass before merging**, and select
-> **Review receipt** (and the other required harness jobs). Enable **Require
-> branches to be up to date before merging** so the check runs against the
-> latest base. Optionally restrict force pushes and deletions.
+> **Review receipt**, **Decision record links**, and the other required harness
+> jobs. Enable **Require branches to be up to date before merging** so the
+> checks run against the latest base. Optionally restrict force pushes and
+> deletions.
 
 The owner deliberately did not enable branch protection in this change, so the
-current state is: the receipt protocol is documented, checked, and visible, but
-a merge is only procedurally blocked until that setting exists.
+current state is: the receipt protocol and the decision-record link check are
+documented, active in CI, and visible, but a merge is only procedurally blocked
+until that setting exists. Branch protection is not enabled; the checks are not
+yet required.
+
+## Bootstrap exception for GA-2 enforcement
+
+The first pull request that adds the `decision_records` field and the
+`Decision record links` workflow cannot be validated by them: `pull_request_target`
+runs the base-branch workflow, whose receipt schema predates the field, and the
+new check is not on the base branch. That bootstrap PR must still carry a valid
+GA-1 receipt under the base schema, is independently reviewed, and is the only
+merge exempt from citing `decision_records`. Every later pull request that
+changes a safety-invariant path is checked. This exception does not authorize a
+second unreceipted safety change.
 
 ## Bootstrap, retention, and caps
 
 - The bootstrap merge is the only acknowledged exception; it must still carry a
-  completed receipt in its body even though the check is absent. The owner
-  cannot select `Review receipt` as required until it has run at least once on
-  `main`; bootstrap in two steps (merge this protocol with a receipt, then mark
-  the check required).
-- The workflow retains the PASS/error summary in the job summary and log. It
-  does **not** upload a signed or immutable receipt artifact; PR bodies remain
-  editable and logs expire. Export the PR body and job log together for audit.
+  completed receipt in its body even though the check is absent. `pull_request_target`
+  runs the workflow from the default branch, so neither `Review receipt` nor
+  `Decision record links` can run on the pull request that first adds it. The
+  owner cannot select either check as required until it has run at least once on
+  `main`; bootstrap in two steps (merge the protocol and the workflows with
+  completed receipts, then mark the checks required).
+- Both workflows retain the PASS/error summary in the job summary and log. They
+  do **not** upload a signed or immutable receipt artifact; PR bodies remain
+  editable and logs expire. Export the PR body and job logs together for audit.
 - Caps: receipt ≤64 KB, event body ≤2 MB, scope/evidence ≤50 items each, most
   fields ≤4000 chars, reviewer identity ≤200, `post_merge_verification` ≥10
-  chars, evidence values single-line.
+  chars, evidence values single-line, `decision_records` ≤10 items, changed-file
+  list ≤999 entries (1,000 or more fails closed).
 
-Even with the check required, CI can and cannot do the following:
+Even with both checks required, CI can and cannot do the following:
 
 **CI can enforce**
 
@@ -186,7 +276,11 @@ Even with the check required, CI can and cannot do the following:
   placeholder text remains, and no unknown approval-like fields are present.
 - Self-review is declared consistently with the recorded reviewer identity,
   and agent reviews carry a protocol string.
-- The check fails closed when the event payload is missing or malformed.
+- When a changed path matches `docs/adr/safety-invariants.json`, the receipt
+  cites records that are indexed and accepted on the pull request base
+  revision.
+- Both checks fail closed when their input is missing, malformed, or
+  unavailable.
 
 **CI cannot enforce**
 
@@ -204,6 +298,12 @@ Even with the check required, CI can and cannot do the following:
   merge. The `edited` event starts a new run, but a merge can race that run;
   the post-merge verification rule catches the mismatch afterward rather than
   preventing it.
+- That a cited accepted decision record actually authorizes the change, or that
+  the decision was wise or sufficient. The link check is structural: it proves
+  the record exists, is indexed, and is accepted on the base revision.
+- That the GitHub changed-file list reflects every intended change beyond the
+  API response and its 999-entry cap. The check fails closed on an API error
+  or an oversized list instead of guessing.
 - Direct pushes, force pushes, or merges performed by automation that bypass
   the pull request body.
 
@@ -220,5 +320,7 @@ owner enables branch protection or a merge queue.
 - [Operations guide](OPERATIONS.md) — CI operation, evidence handling, and
   recovery.
 - [Status](STATUS.md) — what the harness does and does not do.
+- [Decision-record index](adr/README.md) — record format, status vocabulary,
+  safety-invariant surfaces, and the process for adding a record.
 - [Issue record: governance and accountability](issues/09-governance-and-accountability.md)
-  — GA-1 scope and exit criteria.
+  — GA-1 and GA-2 scope, status, and exit criteria.

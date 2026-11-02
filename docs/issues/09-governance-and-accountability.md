@@ -36,6 +36,13 @@
   - Link decisions from `STATUS.md` and the affected code/docs.
 - **Exit criteria:** A decision log exists; the named decisions have records; every safety-invariant change links to one; owners are identifiable.
 - **Verification:** decision index; a sampled change traced to its record.
+- **Status (2026-11-02):** enforcement is active. The review receipt accepts an
+  optional `decision_records` list, and the fail-closed `Decision record links`
+  check reads the changed-file list from the read-only GitHub API and requires
+  indexed, `Accepted` records on the base revision when a safety-invariant path
+  changes. This issue stays open: branch protection is absent, so the check is
+  not yet a required status check, and no sampled change has been traced to its
+  record as the verification step requires.
 - **Depends on:** GA-1, DT-1.
 - **Non-goals:** documenting every small change.
 

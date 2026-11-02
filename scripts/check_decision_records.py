@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import glob
 import json
 import re
 from pathlib import Path
@@ -40,10 +41,9 @@ def _field_value(fields: dict[str, str], name: str) -> str:
     return fields.get(name, "").strip()
 
 
-def parse_record(path: Path) -> dict[str, object]:
-    """Parse header fields and section headings from one ADR."""
+def parse_record_text(text: str, label: str = "") -> dict[str, object]:
+    """Parse header fields and section headings from one ADR's text."""
 
-    text = path.read_text(encoding="utf-8")
     fields: dict[str, str] = {}
     sections: set[str] = set()
     title = ""
@@ -58,7 +58,15 @@ def parse_record(path: Path) -> dict[str, object]:
         heading = HEADING_RE.match(raw_line)
         if heading:
             sections.add(heading.group("name").strip().lower())
-    return {"path": path, "title": title, "fields": fields, "sections": sections, "text": text}
+    return {"path": label, "title": title, "fields": fields, "sections": sections, "text": text}
+
+
+def parse_record(path: Path) -> dict[str, object]:
+    """Parse header fields and section headings from one ADR file."""
+
+    record = parse_record_text(path.read_text(encoding="utf-8"), path.name)
+    record["path"] = path
+    return record
 
 
 def parse_index_rows(text: str) -> dict[str, list[str]]:
@@ -227,7 +235,16 @@ def _check_manifest(
             errors.append(f"{manifest_path.relative_to(root)}: invariant {invariant_id} has no paths")
         else:
             for relative in paths:
-                if not isinstance(relative, str) or not (root / relative).exists():
+                if not isinstance(relative, str):
+                    errors.append(
+                        f"{manifest_path.relative_to(root)}: invariant {invariant_id} names a non-string path"
+                    )
+                elif any(char in relative for char in "*?["):
+                    if not glob.glob(str(root / relative), recursive=True):
+                        errors.append(
+                            f"{manifest_path.relative_to(root)}: invariant {invariant_id} glob matches no path {relative!r}"
+                        )
+                elif not (root / relative).exists():
                     errors.append(
                         f"{manifest_path.relative_to(root)}: invariant {invariant_id} names missing path {relative!r}"
                     )

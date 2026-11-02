@@ -64,7 +64,7 @@ implementation.
 | [ADR 0008: release and version policy](adr/0008-release-version-policy.md) | Accepted: package SemVer plus independent contract versions, changelog, and tag-gated release. |
 | [ADR 0009: ownership and second review](adr/0009-ownership-and-second-review.md) | Accepted: path-specific ownership, agent second path, bus-factor-1 limits, and triage states. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
-| [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields, receipt rules, CI check and exit codes, owner action, and enforcement limits. |
+| [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields including `decision_records` for safety-invariant changes, receipt rules, both CI checks and exit codes, owner action, and enforcement limits. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |
 | [Provenance and evidence](PROVENANCE.md) | License/evidence boundary, retained snapshots, third-party content, and AI-assistance disclosure. |
 | [Cost model and ceilings](COST-MODEL.md) | Operator price tables, estimated vs billed cost, currency ceilings, and unknown-value rules. |
