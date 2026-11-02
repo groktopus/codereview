@@ -263,7 +263,7 @@ second unreceipted safety change.
 - Caps: receipt ≤64 KB, event body ≤2 MB, scope/evidence ≤50 items each, most
   fields ≤4000 chars, reviewer identity ≤200, `post_merge_verification` ≥10
   chars, evidence values single-line, `decision_records` ≤10 items, changed-file
-  list ≤1,000 entries (a longer list fails closed). The changed-file API cap is 999 entries; 1,000 fails closed.
+  list ≤999 entries (1,000 or more fails closed).
 
 Even with both checks required, CI can and cannot do the following:
 
