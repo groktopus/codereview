@@ -66,6 +66,7 @@ Past decisions and dated evidence sections are **not rewritten** by this page. T
 ## Related pages
 
 - [README](../README.md) — install, CLI, and read-only boundaries.
+- [Decision records](adr/README.md) — accepted and proposed decisions with owners, evidence, reversal conditions, and the safety-invariant change requirement.
 - [VERIFICATION.md](VERIFICATION.md) — 2026-09-26 spec-gap accounting.
 - [PUBLICATION-READINESS.md](PUBLICATION-READINESS.md) — 2026-09-29 publication NO-GO and acceptance gates.
 - [CURRENT-STATUS.md](CURRENT-STATUS.md) — dated source and target-deployment evidence log.

@@ -8,7 +8,9 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+
+- Decision-record index and lightweight ADRs for architecture, transport, publication authorization, provider boundaries, evaluation gates, license, and release policy, with an executable index/field/status/safety-link check.
 
 ## [0.1.0] - 2026-11-02
 

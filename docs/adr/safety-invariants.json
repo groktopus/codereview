@@ -1,0 +1,80 @@
+{
+  "schema": "decision-record-safety-invariants.v1",
+  "description": "Safety-invariant and external-effect surfaces. A change to one of these paths requires a linked decision record. The checker verifies each path exists and each referenced record is accepted.",
+  "invariants": [
+    {
+      "id": "deterministic-control-plane",
+      "statement": "Models return bounded candidates and advisory assessments; deterministic code owns planning, budgets, retries, termination, disposition, and effects.",
+      "paths": [
+        "src/pr_review_harness/engine.py",
+        "src/pr_review_harness/review_stages.py",
+        "src/pr_review_harness/planner.py",
+        "src/pr_review_harness/reconcile.py",
+        "src/pr_review_harness/budget.py"
+      ],
+      "records": ["0002"]
+    },
+    {
+      "id": "no-target-code-execution",
+      "statement": "Credentialed analysis reads immutable Git objects and does not execute pull-request code, hooks, tests, builds, or checked-out working trees.",
+      "paths": [
+        "src/pr_review_harness/snapshot.py",
+        "src/pr_review_harness/engine.py",
+        ".github/workflows/pr-analysis.yml"
+      ],
+      "records": ["0002"]
+    },
+    {
+      "id": "credential-transport",
+      "statement": "Provider credentials are attached only to HTTPS or exact-loopback endpoints, with no redirects or URL-embedded credentials.",
+      "paths": [
+        "src/pr_review_harness/providers.py",
+        "src/pr_review_harness/claim_transport.py"
+      ],
+      "records": ["0003", "0005"]
+    },
+    {
+      "id": "external-effect-authorization",
+      "statement": "Review runs and the CLI create no live publication effect; only an explicitly authorized publication route may write externally.",
+      "paths": [
+        "src/pr_review_harness/cli.py",
+        "src/pr_review_harness/publisher.py",
+        "src/pr_review_harness/protected_publication_runtime.py",
+        "src/pr_review_harness/actions_publication.py",
+        ".github/workflows/pr-publish.yml"
+      ],
+      "records": ["0004"]
+    },
+    {
+      "id": "configured-provider-boundary",
+      "statement": "Provider endpoints, models, accounts, and credentials come from trusted configuration; no new provider or automatic fallback is introduced.",
+      "paths": [
+        "src/pr_review_harness/providers.py",
+        "src/pr_review_harness/claim_transport.py",
+        "src/pr_review_harness/github_app_credentials.py",
+        "src/pr_review_harness/actions_publication.py"
+      ],
+      "records": ["0005", "0003"]
+    },
+    {
+      "id": "surface-and-budget",
+      "statement": "The installed package keeps one review orchestrator and respects the recorded post-CA-2 source-line budget.",
+      "paths": [
+        "src/pr_review_harness/engine.py",
+        "docs/public-surface.json",
+        "tests/test_surface_consolidation.py"
+      ],
+      "records": ["0001", "0002"]
+    },
+    {
+      "id": "quality-claim-gate",
+      "statement": "No production-quality or replacement claim is made without independent quality evidence; a successful publication or transport run is not quality evidence.",
+      "paths": [
+        "src/pr_review_harness/reconcile.py",
+        "src/pr_review_harness/completeness.py",
+        "src/pr_review_harness/report.py"
+      ],
+      "records": ["0006"]
+    }
+  ]
+}
