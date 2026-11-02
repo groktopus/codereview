@@ -6,6 +6,16 @@
 
 <!-- Commands, tests, or checks you ran and their observed results. -->
 
+## Decision record (GA-2)
+
+Required when this change alters a safety invariant or an external effect. Link
+the specific accepted record, or add/amend one, in the
+[decision-record index](https://github.com/groktopus/codereview/blob/main/docs/adr/README.md).
+The protected surfaces are listed in
+[safety-invariants.json](https://github.com/groktopus/codereview/blob/main/docs/adr/safety-invariants.json).
+
+- [ ] Decision record: <link, or `not required — no safety invariant or external effect changed`>
+
 ## Review receipt
 
 Every pull request needs a review record in the fenced `review-receipt` block

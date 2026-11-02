@@ -25,6 +25,29 @@ at the exact reviewed head, then verify the merge commit and its checks. The
 field contract, exit codes, owner settings action, and enforcement limits are in
 [review evidence](docs/REVIEW-EVIDENCE.md).
 
+## Decision records (GA-2)
+
+Major decisions and their owners are recorded in the
+[decision-record index](docs/adr/README.md), with status, date, evidence, and
+reversal conditions. A change that alters a **safety invariant** or an
+**external effect** requires a decision record before merge: add a new record,
+amend an existing one with a dated note, or link the specific accepted record in
+the pull request. The surfaces that require this are listed in
+[`docs/adr/safety-invariants.json`](docs/adr/safety-invariants.json).
+
+A proposed record is a proposal, not approval. Do not mark a record accepted
+without recorded decision authority, and do not invent an owner, approval, or
+evidence link. Run the structural check with:
+
+```sh
+python scripts/check_decision_records.py
+```
+
+It verifies that the index covers every record, required fields and statuses are
+valid, safety-invariant surfaces map to accepted records, and the process is
+documented here and in the pull request template. It does not judge whether the
+evidence is sufficient.
+
 ## Versioning, changelog, and releases
 
 Package and contract versions follow the [versioning policy](docs/VERSIONING.md).

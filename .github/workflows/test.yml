@@ -137,6 +137,8 @@ jobs:
         run: python scripts/check_relative_links.py
       - name: Preserve DT-2 docs index coverage
         run: python scripts/check_docs_index.py
+      - name: Enforce GA-2 decision-record index and safety-invariant links
+        run: python scripts/check_decision_records.py
       - name: Enforce release metadata and changelog classification
         run: |
           set -euo pipefail
@@ -198,7 +200,7 @@ jobs:
           set -e
           test "$link_status" -eq 1
       - name: Run seeded docs truth regression tests
-        run: python -m pytest -q tests/test_docs_truth.py tests/test_docs_tooling.py
+        run: python -m pytest -q tests/test_docs_truth.py tests/test_docs_tooling.py tests/test_decision_records.py
 
   status-evidence:
     name: Status evidence (generated block, links, stale gate)

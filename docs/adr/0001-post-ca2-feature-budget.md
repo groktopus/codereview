@@ -2,8 +2,13 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-01
+- **Owner:** Repository owner (`@magnus919`; `.github/CODEOWNERS`).
 - **Decision authority:** Repository owner (explicit approval in the coordinating session)
 - **Scope:** Integrated source-line guard for `src/pr_review_harness/` after CA-2
+- **Evidence:** Merged pull request [#291](https://github.com/groktopus/codereview/pull/291); commits `be9556c` and `c026176`; [public-surface.json](../public-surface.json); [test_surface_consolidation.py](../../tests/test_surface_consolidation.py).
+- **Reversal/expiry:** One-time for the CA-2 migration period. Further source growth requires a new decision record or real reduction elsewhere; it does not renew this budget automatically.
+- **Supersedes:** None. **Superseded by:** None.
+- **Related:** [ADR 0002](0002-production-architecture.md) records the consolidated production surface this budget guards.
 
 ## Context
 

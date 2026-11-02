@@ -51,7 +51,15 @@ implementation.
 | Document | What it records |
 |---|---|
 | [Typed boundaries](TYPED-BOUNDARIES.md) | Stable record contracts, typed stage interfaces, and the strict-check scope and migration limits. |
-| [ADR 0001: post-CA-2 feature budget](adr/0001-post-ca2-feature-budget.md) | Bounded source-line exception preserving the one-time CA-2 reduction. |
+| [Decision records (ADR index)](adr/README.md) | Status, owner, date, and evidence for each recorded decision, plus the safety-invariant change requirement and legacy-proposal reconciliation. |
+| [ADR 0001: post-CA-2 feature budget](adr/0001-post-ca2-feature-budget.md) | Accepted bounded source-line exception preserving the one-time CA-2 reduction. |
+| [ADR 0002: production architecture](adr/0002-production-architecture.md) | Accepted: one modular core with typed deterministic stages and one production review path. |
+| [ADR 0003: transport and credential policy](adr/0003-transport-security-policy.md) | Accepted: HTTPS for remote endpoints, exact loopback HTTP only, no redirects. |
+| [ADR 0004: publication authorization](adr/0004-publication-authorization.md) | Accepted: READ_ONLY by default; live effects disabled on the CLI and central route. |
+| [ADR 0005: model and provider boundary](adr/0005-provider-boundary.md) | Accepted: configured providers only, no new providers; production model remains unresolved. |
+| [ADR 0006: evaluation gates](adr/0006-evaluation-gates.md) | Accepted no-claim rule; quality evidence and replacement readiness are not established. |
+| [ADR 0007: license](adr/0007-license.md) | Accepted: MIT for original code and documentation, with third-party terms excluded. |
+| [ADR 0008: release and version policy](adr/0008-release-version-policy.md) | Accepted: package SemVer plus independent contract versions, changelog, and tag-gated release. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
 | [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields, receipt rules, CI check and exit codes, owner action, and enforcement limits. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |
@@ -61,11 +69,11 @@ implementation.
 | [PR Review Harness contracts](design/CONTRACTS.md) | Proposed canonical records and envelopes used by the design package. Field names are canonical; runtime support varies. |
 | [PR Review Harness — specification](design/SPEC.md) | Proposed behavior and independently testable acceptance criteria (the 39-AC/12-NFR baseline). |
 | [PR Review Harness — traceability](design/TRACEABILITY.md) | Requirement-to-acceptance mapping and unresolved interpretations. |
-| [Architecture decisions](design/adrs/README.md) | Index of proposed architecture decisions. None is recorded as accepted. |
-| [ADR-001: Keep a reusable modular core behind CLI and Actions adapters](design/adrs/001-modular-core-and-adapters.md) | ADR-001, proposed: reusable modular core behind CLI and Actions adapters. |
-| [ADR-002: Keep review workflow and disposition deterministic](design/adrs/002-deterministic-review-controller.md) | ADR-002, proposed: deterministic workflow, budgets, policy transitions, and disposition. |
-| [ADR-003: Persist run evidence and make recovery and effects idempotent](design/adrs/003-durable-ledger-and-idempotent-effects.md) | ADR-003, proposed: durable run evidence, recovery, and idempotent effects. Its storage shape is superseded by the current stateless direction. |
-| [ADR-004: Separate credentialed analysis from untrusted head-code execution](design/adrs/004-isolate-untrusted-pr-execution.md) | ADR-004, proposed: separate credentialed analysis from untrusted head-code execution. |
+| [Architecture decisions](design/adrs/README.md) | Index of proposed legacy design ADRs. None is recorded as accepted; the decision-record index reconciles them with the accepted production decisions. |
+| [ADR-001: Keep a reusable modular core behind CLI and Actions adapters](design/adrs/001-modular-core-and-adapters.md) | Legacy design ADR-001, proposed and not accepted. The production modular-core decision is recorded as accepted in [ADR 0002](adr/0002-production-architecture.md). |
+| [ADR-002: Keep review workflow and disposition deterministic](design/adrs/002-deterministic-review-controller.md) | Legacy design ADR-002, proposed and not accepted. Deterministic stages are recorded as accepted in [ADR 0002](adr/0002-production-architecture.md). |
+| [ADR-003: Persist run evidence and make recovery and effects idempotent](design/adrs/003-durable-ledger-and-idempotent-effects.md) | Legacy design ADR-003, proposed and not accepted. Its storage shape is superseded by the current stateless direction; recovery and effect rationale is retained. |
+| [ADR-004: Separate credentialed analysis from untrusted head-code execution](design/adrs/004-isolate-untrusted-pr-execution.md) | Legacy design ADR-004, proposed and not accepted. The implemented trust boundary is recorded in [ADR 0002](adr/0002-production-architecture.md), [ADR 0003](adr/0003-transport-security-policy.md), and [ADR 0004](adr/0004-publication-authorization.md). |
 | [Threat model — PR Review Harness](THREAT-MODEL.md) | Threat model, trust boundaries, and effect controls. References current status for the target-local route. |
 | [Production core contract](CORE-PRODUCTION.md) | Production core contract: budgets, provider-call accounting, durable resume, and coverage. |
 | [Test and production model policy](TEST-MODEL-POLICY.md) | Test-versus-production model policy and rotation boundaries. |
