@@ -131,7 +131,7 @@ def test_predictions_without_labels_report_missing_labels_not_zero():
         corpus,
         predictions,
         labels,
-        input_hashes={"corpus": "a" * 64, "predictions": "b" * 64, "labels": "c" * 64},
+        input_hashes={"corpus": _hash(FIXTURE / "corpus.json"), "predictions": "b" * 64, "labels": "c" * 64},
     )
     assert scorecard["data_state"]["state"] == "MISSING_DATA"
     assert "no_complete_adjudicated_human_label_packets" in scorecard["data_state"]["reasons"]
@@ -330,3 +330,43 @@ def test_human_adjudication_remains_unmet_without_a_human_packet():
         assert metric["human_adjudication"]["precision"]["value"] is None
         assert metric["human_adjudication"]["known_material_finding_recall"]["corpus_recall_lower_bound"]["value"] is None
     assert report["claims"] == {"release_gate": None, "heldout_quality_claim": False}
+
+
+def test_gate_fails_when_an_arm_disappears(tmp_path: Path) -> None:
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
+    predictions = deepcopy(json.loads((FIXTURE / "predictions-baseline.json").read_text()))
+    predictions["runs"] = [run for run in predictions["runs"] if run["arm"] == "harness"]
+    path = tmp_path / "predictions-harness-only.json"
+    path.write_text(json.dumps(predictions))
+    current = build_scorecard(
+        json.loads((FIXTURE / "corpus.json").read_text()),
+        predictions,
+        json.loads((FIXTURE / "labels.json").read_text()),
+        input_hashes={"corpus": _hash(FIXTURE / "corpus.json"), "predictions": "b" * 64, "labels": "c" * 64},
+    )
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert any(check["id"] == "arm:droid" and check["status"] == "FAIL" for check in gate["checks"])
+
+
+def test_gate_cli_rejects_malformed_scorecard(tmp_path: Path) -> None:
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
+    malformed = deepcopy(baseline)
+    del malformed["data_state"]
+    baseline_path = tmp_path / "baseline.json"
+    malformed_path = tmp_path / "malformed.json"
+    baseline_path.write_bytes(canonical_bytes(baseline) + b"\n")
+    malformed_path.write_bytes(canonical_bytes(malformed) + b"\n")
+    result = _run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/check_quality_scorecard_gate.py"),
+            "--baseline",
+            str(baseline_path),
+            "--current",
+            str(malformed_path),
+            "--json",
+        ]
+    )
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["error"] == "invalid_scorecard_schema"
