@@ -37,9 +37,9 @@ class SnapshotEvidence(TypedDict, total=False):
     source_revision: str
     content_truncated: bool
     source_side: str
-    source_object_id: str
-    source_object_format: str
-    source_object_size_bytes: int
+    source_object_id: str | None
+    source_object_format: str | None
+    source_object_size_bytes: int | None
     source_url: str | None
     manifest_sha256: str
     lock_object_id: str | None
