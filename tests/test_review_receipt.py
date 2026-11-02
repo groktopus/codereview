@@ -224,6 +224,7 @@ def test_failure_codes_map_to_stable_exit_codes() -> None:
         "RECEIPT_TOO_LARGE",
         "RECEIPT_NOT_JSON",
         "RECEIPT_NOT_OBJECT",
+        "RECEIPT_DUPLICATE_KEY",
         "FIELD_MISSING",
         "FIELD_TYPE",
         "FIELD_EMPTY",
@@ -300,3 +301,11 @@ def test_repository_template_is_rejected_by_ci() -> None:
         receipt_check.EXIT_PLACEHOLDER,
         receipt_check.EXIT_VERDICT,
     }
+
+
+def test_duplicate_json_keys_are_rejected_before_last_key_wins(tmp_path):
+    body = body_with(receipt()).replace('"verdict": "CLEAR"', '"verdict": "NOT CLEAR", "verdict": "CLEAR"')
+    path = write_event(tmp_path, event(body))
+    report = receipt_check.check(path)
+    assert report.exit_code == 3
+    assert [failure.code for failure in report.failures] == ["RECEIPT_DUPLICATE_KEY"]

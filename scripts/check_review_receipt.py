@@ -96,6 +96,7 @@ CODE_EXITS = {
     "EVENT_AUTHOR_UNKNOWN": EXIT_EVENT,
     "RECEIPT_MISSING": EXIT_RECEIPT,
     "RECEIPT_DUPLICATE": EXIT_RECEIPT,
+    "RECEIPT_DUPLICATE_KEY": EXIT_RECEIPT,
     "RECEIPT_UNCLOSED": EXIT_RECEIPT,
     "RECEIPT_TOO_LARGE": EXIT_RECEIPT,
     "RECEIPT_NOT_JSON": EXIT_RECEIPT,
@@ -455,6 +456,19 @@ def _placeholder_failures(receipt: Receipt) -> list[Failure]:
     return failures
 
 
+class DuplicateKeyError(ValueError):
+    """A JSON object contained the same key more than once."""
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateKeyError(key)
+        result[key] = value
+    return result
+
+
 def validate_event(event: Any) -> Report:
     """Validate a decoded pull request event. Pure function; reads nothing."""
 
@@ -537,7 +551,15 @@ def validate_event(event: Any) -> Report:
     if len(raw.encode("utf-8")) > MAX_RECEIPT_BYTES:
         return Report((_failure("RECEIPT_TOO_LARGE", "review-receipt block is too large"),), head_sha, None, None, None)
     try:
-        decoded = json.loads(raw)
+        decoded = json.loads(raw, object_pairs_hook=_reject_duplicate_keys)
+    except DuplicateKeyError:
+        return Report(
+            (_failure("RECEIPT_DUPLICATE_KEY", "review-receipt JSON repeats an object key"),),
+            head_sha,
+            None,
+            None,
+            None,
+        )
     except json.JSONDecodeError as exc:
         return Report(
             (_failure("RECEIPT_NOT_JSON", f"review-receipt block is not valid JSON: {exc.msg}"),),
@@ -644,7 +666,7 @@ def main(argv: list[str] | None = None) -> int:
     elif report.ok:
         print(
             "review-receipt: PASS "
-            f"reviewer={report.reviewer_identity} reviewed_sha={report.reviewed_sha} verdict={report.verdict}"
+            f"reviewer={str(report.reviewer_identity).replace(chr(10), ' ').replace(chr(13), ' ')} reviewed_sha={report.reviewed_sha} verdict={report.verdict}"
         )
     else:
         for failure in report.failures:
