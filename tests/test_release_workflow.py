@@ -82,7 +82,10 @@ def test_release_workflow_builds_checksums_and_attaches_artifacts_and_notes() ->
         "scripts/check_version_policy.py",
     ):
         assert token in text
-    assert text.count("dist/RELEASE-NOTES.md") >= 2, "notes must be both an asset and the notes file"
+    import re
+    asset = re.search(r"^\s+dist/RELEASE-NOTES\.md \\$", text, re.MULTILINE)
+    assert asset is not None, "RELEASE-NOTES.md must be a positional release asset"
+    assert asset.start() < text.index("--notes-file dist/RELEASE-NOTES.md")
 
 
 def test_release_workflow_generates_and_publishes_supply_chain_evidence() -> None:
