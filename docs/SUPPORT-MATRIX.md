@@ -135,32 +135,25 @@ The checker prefers the pinned `uv` installed in the current interpreter
   with the advisory identity instead. `uv` is installed from the same
   hash-locked dev set.
 
-### Dependency review (conditional variable)
+### Dependency review (active)
 
-The `dependency-review` job in `.github/workflows/security.yml` requires the
-repository dependency graph to be enabled. It is off until the repository
-variable `DEPENDENCY_GRAPH_ENABLED` is set to `true`, because the action fails
-(not skips) when the graph is unavailable. To make it active:
+The `dependency-review` job in `.github/workflows/security.yml` is now active:
+the repository variable `DEPENDENCY_GRAPH_ENABLED` is `true` and the dependency
+graph is enabled. It runs on every pull request, reviews dependency manifest
+changes, and fails on high or critical known vulnerabilities. It never posts a
+comment (`comment-summary-in-pr: never`) and keeps `contents: read`.
 
-1. Enable **Settings → Code security and analysis → Dependency graph** for the
-   repository (and Dependabot alerts if policy allows).
-2. Set the repository variable, for example:
+This repository has no runtime dependencies. The graph's parsing of `uv.lock`
+revision 5 / `requirements-dev.lock` is exercised by the job; a successful run
+on the activating pull request is the evidence.
 
-   ```sh
-   gh variable set DEPENDENCY_GRAPH_ENABLED --repo groktopus/codereview --body true
-   ```
+If the graph or variable is later disabled, the `dependency-review-guidance` job
+emits a warning annotation and step summary rather than failing silently. The
+activation commands remain:
 
-3. Re-run a pull request or the workflow. The job then reviews dependency
-   manifest changes and fails a PR on high or critical known vulnerabilities; it
-   never posts a comment (`comment-summary-in-pr: never`) and keeps
-   `contents: read`.
-
-Until the variable is set, the `dependency-review-guidance` job emits a warning
-annotation and a step-summary note containing these instructions, so the skipped
-gate is visible and actionable rather than silent. This repository currently has
-no runtime dependencies. Whether GitHub's dependency graph parses `uv.lock`
-revision 5 and `requirements-dev.lock` is unverified until dependency review
-actually runs; the gate remains inactive until the repository variable is set.
+1. Enable **Settings → Code security and analysis → Dependency graph**.
+2. `gh variable set DEPENDENCY_GRAPH_ENABLED --repo groktopus/codereview --body true`.
+3. Re-run a pull request.
 
 ## Verification map
 
