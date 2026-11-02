@@ -8,7 +8,7 @@ The harness owns review depth, scopes, budgets, coverage, freshness, and disposi
 
 ## Try it
 
-Python 3.11+ and Git are required. GitHub PR mode also requires the `gh` CLI authenticated with read-only access to pull requests and checks. For a local review, install the CLI and create a provider config that references an environment variable; never put a key value in the file or command line:
+Python 3.11+ and Git are required; see the [support matrix](docs/SUPPORT-MATRIX.md) for the supported Python/OS combinations and install matrix, and the [public API](docs/PUBLIC-API.md) for the supported import surface. The package has no runtime dependencies. GitHub PR mode also requires the `gh` CLI authenticated with read-only access to pull requests and checks. For a local review, install the CLI and create a provider config that references an environment variable; never put a key value in the file or command line:
 
 ```sh
 python3 -m venv .venv

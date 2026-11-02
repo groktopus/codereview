@@ -35,7 +35,9 @@ procedure as every later release.
 5. Run the local gates:
 
 ```sh
-python3 -m pip install -e '.[dev]'
+python3 -m pip install --require-hashes --no-deps -r requirements-dev.lock
+python3 -m pip install --no-deps --no-build-isolation -e .
+python3 scripts/check_dev_lock.py
 python3 -m pytest -q -m "not compatibility"
 python3 -m pytest -q -m compatibility
 ruff check .

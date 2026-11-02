@@ -26,7 +26,8 @@ The Actions uploader bundle is deliberately source-distribution-only. The normal
 From a clean checkout, build both distributions, record their digests, install the wheel in a new environment, and run the smoke script with the checkout outside the process working directory:
 
 ```sh
-python3 -m pip install '.[dev]'
+python3 -m pip install --require-hashes --no-deps -r requirements-dev.lock
+python3 -m pip install --no-deps --no-build-isolation -e .
 python3 -m build --wheel --sdist --outdir dist
 sha256sum dist/*
 python3 -m venv /tmp/pr-review-wheel
@@ -39,7 +40,7 @@ The smoke test confirms that the entry point belongs to the selected environment
 
 ## Continuous integration
 
-`.github/workflows/test.yml` runs pytest and Ruff on Python 3.11, 3.12, 3.13, and 3.14. A separate build job produces a wheel and sdist and records SHA-256 digests. Installed-wheel smoke jobs install that exact uploaded wheel into fresh environments outside the checkout on Python 3.11 and 3.14. A `Supply chain` job builds twice with a fixed `SOURCE_DATE_EPOCH`, compares artifact and archive-content hashes, generates a CycloneDX SBOM and unsigned provenance from the built distributions, verifies that the evidence agrees, and retains the reports. The artifact is retained for seven days for the run. Asset formats, verification commands, and the unsigned/reproducibility limits are documented in [`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md).
+`.github/workflows/test.yml` runs pytest and Ruff on Python 3.11, 3.12, 3.13, and 3.14. Every test, coverage, compatibility, documentation, and build job installs the hash-locked development/test set from `requirements-dev.lock` with `pip --require-hashes` and then the editable project with `--no-deps --no-build-isolation`; a mandatory `lock-freshness` job runs `scripts/check_dev_lock.py` (`uv lock --check` plus a byte-identical hashed export diff) and the lock/public-surface regression tests. A separate build job produces a wheel and sdist and records SHA-256 digests. Installed-wheel smoke jobs install that exact uploaded wheel into fresh environments outside the checkout on Python 3.11 and 3.14. An `install-matrix` job installs the same wheel without development dependencies into fresh environments on Linux, macOS, and Windows for Python 3.11 and 3.14, asserts the installed metadata declares no runtime requirements, and runs `pr-review --help`; the documented combinations and limits are in [`SUPPORT-MATRIX.md`](SUPPORT-MATRIX.md). A `Supply chain` job builds twice with a fixed `SOURCE_DATE_EPOCH`, compares artifact and archive-content hashes, generates a CycloneDX SBOM and unsigned provenance from the built distributions, verifies that the evidence agrees, and retains the reports. The artifact is retained for seven days for the run. Asset formats, verification commands, and the unsigned/reproducibility limits are documented in [`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md).
 
 The regular test workflow has only `contents: read` and no provider credentials. CI executing this repository's own tests/build metadata is not a PR-analysis job. The PR-analysis workflow is separate and does not execute the target PR tree.
 
