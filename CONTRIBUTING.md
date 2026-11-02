@@ -42,24 +42,43 @@ field contract, exit codes, owner settings action, and enforcement limits are in
 
 Major decisions and their owners are recorded in the
 [decision-record index](docs/adr/README.md), with status, date, evidence, and
-reversal conditions. A change that alters a **safety invariant** or an
-**external effect** must link a decision record; the structural check does not inspect PR diffs: add a new record,
-amend an existing one with a dated note, or link the specific accepted record in
-the pull request. The surfaces that require this are listed in
-[`docs/adr/safety-invariants.json`](docs/adr/safety-invariants.json).
+reversal conditions. The surfaces that require a record are listed in
+[`docs/adr/safety-invariants.json`](docs/adr/safety-invariants.json): exact
+paths, directory paths, and globs, plus the manifest file itself.
+
+**Enforcement is active.** A pull request that changes a path that carries a
+**safety invariant** must cite a decision record in the `decision_records` list of its review receipt
+(an ID such as `0002`, a `docs/adr/NNNN-*.md` path, or an https link to that
+file). The `Decision record links` workflow
+([`.github/workflows/decision-record-links.yml`](.github/workflows/decision-record-links.yml))
+reads the changed-file list from the read-only GitHub API and fails closed
+unless every cited record already exists on `main`, is listed in the index, and
+has Status **Accepted**. It never checks out or executes pull request code. Land
+the accepted record first and cite it from the change; a record added by the same
+pull request is not on the base revision yet.
 
 A proposed record is a proposal, not approval. Do not mark a record accepted
 without recorded decision authority, and do not invent an owner, approval, or
-evidence link. Run the structural check with:
+evidence link. Run both checks before opening the pull request:
 
 ```sh
 python scripts/check_decision_records.py
+python scripts/check_decision_record_links.py --event event.json --changed-files changed-files.json
 ```
 
-It verifies that the index covers every record, required fields and statuses are
-valid, safety-invariant surfaces map to accepted records, and the process is
-documented here and in the pull request template. It does not judge whether the
-evidence is sufficient.
+The structural check verifies that the index covers every record, required
+fields and statuses are valid, safety-invariant surfaces map to accepted
+records, and the process is documented here and in the pull request template.
+The diff check verifies the receipt links. Neither judges whether the evidence is
+sufficient. Failure codes, the fixture format, and the limits are in
+[review evidence](docs/REVIEW-EVIDENCE.md).
+
+**Not yet required.** Branch protection is absent: `Decision record links`
+(like `Review receipt`) runs and reports on every pull request, but the owner has
+not marked it a required status check, so GitHub does not yet block a merge on a
+failing result. Issue
+[#270](https://github.com/groktopus/codereview/issues/270) stays open until the
+owner completes that setting.
 
 ## Ownership, review routing, and backlog triage (GA-3)
 

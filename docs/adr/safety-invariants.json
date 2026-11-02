@@ -1,6 +1,6 @@
 {
   "schema": "decision-record-safety-invariants.v1",
-  "description": "Safety-invariant and external-effect surfaces. A change to one of these paths requires a linked decision record. The checker verifies each path exists and each referenced record is accepted.",
+  "description": "Safety-invariant and external-effect surfaces. A change to one of these paths (exact file, directory ending in /, or glob using *, ?, **, [...]) requires a linked decision record. check_decision_records.py verifies each path exists and each referenced record is accepted; check_decision_record_links.py requires an accepted, indexed record in the review receipt for any pull request that changes a protected path, including this manifest itself.",
   "invariants": [
     {
       "id": "deterministic-control-plane",

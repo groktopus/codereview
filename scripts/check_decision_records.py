@@ -40,10 +40,9 @@ def _field_value(fields: dict[str, str], name: str) -> str:
     return fields.get(name, "").strip()
 
 
-def parse_record(path: Path) -> dict[str, object]:
-    """Parse header fields and section headings from one ADR."""
+def parse_record_text(text: str, label: str = "") -> dict[str, object]:
+    """Parse header fields and section headings from one ADR's text."""
 
-    text = path.read_text(encoding="utf-8")
     fields: dict[str, str] = {}
     sections: set[str] = set()
     title = ""
@@ -58,7 +57,15 @@ def parse_record(path: Path) -> dict[str, object]:
         heading = HEADING_RE.match(raw_line)
         if heading:
             sections.add(heading.group("name").strip().lower())
-    return {"path": path, "title": title, "fields": fields, "sections": sections, "text": text}
+    return {"path": label, "title": title, "fields": fields, "sections": sections, "text": text}
+
+
+def parse_record(path: Path) -> dict[str, object]:
+    """Parse header fields and section headings from one ADR file."""
+
+    record = parse_record_text(path.read_text(encoding="utf-8"), path.name)
+    record["path"] = path
+    return record
 
 
 def parse_index_rows(text: str) -> dict[str, list[str]]:

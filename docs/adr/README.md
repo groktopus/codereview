@@ -69,19 +69,46 @@ These are intentionally not "accepted by implication" from a merged feature:
 
 ## Safety-invariant and external-effect changes
 
-A pull request that changes a safety invariant or an external effect requires a
-decision record: a new record, an amended record with a dated note, or a
-specific accepted record linked from the pull request. The machine-readable
-surface list is [safety-invariants.json](safety-invariants.json). It covers the
-deterministic control plane, no target-code execution, credential transport,
-provider selection, budget/surface limits, publication authorization, and the
-quality-claim gate.
+**Enforcement is active.** A pull request that changes a safety invariant or an
+external effect requires a decision record, and CI now checks the pull request
+diff for it. The machine-readable surface list is
+[safety-invariants.json](safety-invariants.json). It covers the deterministic
+control plane, no target-code execution, credential transport, provider
+selection, budget/surface limits, publication authorization, and the
+quality-claim gate. Each entry is an exact path, a directory path ending in `/`,
+or a glob (`*`, `?`, `**`, `[...]`). The manifest file itself is always a
+protected path, and a renamed or deleted protected path counts as a change.
 
-`python scripts/check_decision_records.py` verifies that the index covers every
-record, required fields and statuses are valid, safety-invariant surfaces map to
-accepted records, and the process is documented in `CONTRIBUTING.md` and the
-pull request template. The check is a link-and-structure gate; it does not judge
-whether the evidence is sufficient.
+Two checks apply:
+
+1. `python scripts/check_decision_records.py` is the structural gate. It
+   verifies that the index covers every record, required fields and statuses are
+   valid, every safety-invariant surface maps to an accepted record, and the
+   process is documented in `CONTRIBUTING.md` and the pull request template.
+2. The `Decision record links` workflow
+   ([`scripts/check_decision_record_links.py`](../../scripts/check_decision_record_links.py))
+   is the diff gate. For a pull request it reads the changed-file list from the
+   read-only GitHub API, compares it with `safety-invariants.json` on the pull
+   request base revision, and — when a protected path changed — requires a
+   non-empty `decision_records` list in the review receipt. Each cited record
+   (ID, `docs/adr/NNNN-*.md` path, or link to that file) must already exist on
+   the base revision, be listed in the table above, and have Status `Accepted`.
+   It fails closed when the event, changed-file list, base content, or receipt is
+   missing or unusable.
+
+Because the check reads the base revision, a record added by the same pull
+request does not satisfy it. Land the accepted record first (or amend an
+existing record) in its own pull request, then cite it from the change that
+depends on it. The field contract, failure codes, and enforcement limits are in
+[review evidence](../REVIEW-EVIDENCE.md).
+
+Neither check judges whether the evidence is sufficient or the decision was
+wise. Both fail closed, but **branch protection is not enabled**: the checks run
+and report, and they are not yet required status checks, so a failing result is
+visible and recorded but GitHub does not by itself block the merge. The owner
+action is recorded in [review evidence](../REVIEW-EVIDENCE.md#enforcement-limits);
+issue [#270](https://github.com/groktopus/codereview/issues/270) stays open until
+the owner marks the checks required.
 
 ## Legacy design ADRs (proposed, not rewritten)
 
@@ -104,8 +131,10 @@ the accepted production decisions are the records above.
    evidence, and reversal/expiry.
 3. State alternatives and consequences. Distinguish proposed from accepted, and
    observed evidence from planned checks.
-4. Add the record to the table above and link it from the PR that changes the
-   behavior.
+4. Add the record to the table above, merge it, and then cite its ID from the
+   PR that changes the behavior (`decision_records` in the review receipt).
 5. For a safety-invariant or external-effect change, update
-   `safety-invariants.json` if the surface list changes and link the record from
-   the pull request.
+   `safety-invariants.json` if the surface list changes. A manifest change is
+   itself protected, so it also needs an accepted record cited in the receipt.
+6. Keep a record's Status and the table row consistent; the structural check
+   rejects a mismatch, and the diff check reads both.

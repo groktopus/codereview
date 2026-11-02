@@ -8,13 +8,18 @@
 
 ## Decision record (GA-2)
 
-Required when this change alters a safety invariant or an external effect. Link
-the specific accepted record, or add/amend one, in the
-[decision-record index](https://github.com/groktopus/codereview/blob/main/docs/adr/README.md).
-The protected surfaces are listed in
-[safety-invariants.json](https://github.com/groktopus/codereview/blob/main/docs/adr/safety-invariants.json).
+**Enforced.** The `Decision record links` check reads this pull request's
+changed files from the GitHub API. If any changed path — including a rename or
+deletion — matches a path or glob in
+[safety-invariants.json](https://github.com/groktopus/codereview/blob/main/docs/adr/safety-invariants.json),
+or changes that manifest itself, the review receipt below must carry a
+non-empty `decision_records` list. Every cited record must already exist on
+`main`, be listed in the
+[decision-record index](https://github.com/groktopus/codereview/blob/main/docs/adr/README.md),
+and have Status **Accepted**. Land the accepted record first, then cite it here;
+a record added by this same pull request is not on the base revision yet.
 
-- [ ] Decision record: <link, or `not required — no safety invariant or external effect changed`>
+- [ ] Decision record: <`NNNN` or `docs/adr/NNNN-*.md` link, or `not required — no safety-invariant path changed`>
 
 ## Review receipt
 
@@ -46,7 +51,8 @@ for the field contract and the evidence rules.
   ],
   "reviewed_at": "<ISO 8601 timestamp with time zone, e.g. 2026-11-02T12:00:00Z>",
   "self_review": false,
-  "post_merge_verification": "<how the merge commit and required checks will be verified after merge>"
+  "post_merge_verification": "<how the merge commit and required checks will be verified after merge>",
+  "decision_records": ["<NNNN or docs/adr/NNNN-*.md; required only when a safety-invariant path changes>"]
 }
 ```
 
@@ -57,9 +63,11 @@ Reviewer checklist:
 - [ ] `self_review` is `true` only when I am also the author, and the independence statement says so.
 - [ ] An agent review records `kind: "agent"` and a non-empty `protocol`.
 - [ ] Evidence entries are durable links or exact commands, not claims.
+- [ ] `decision_records` names accepted, indexed records when a safety invariant path changed.
 
 ## Merge checklist
 
 - [ ] Required checks are green at the exact reviewed head.
 - [ ] The review receipt passes the `Review receipt` check on that head.
+- [ ] The `Decision record links` check passes on that head.
 - [ ] After merge, the merge commit and its post-merge required checks are verified and recorded.
