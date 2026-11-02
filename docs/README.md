@@ -274,3 +274,5 @@ document, issue, test, script, or release record depends on the file. The full
 policy, layout, and `git mv` move log are in
 [history/README.md](history/README.md#archive-policy). The moves in this change
 are recorded there and Git reports them as renames, not copies.
+
+- [Reassessment 2026-11-02](REASSESSMENT-2026-11-02.md) — current A-minus judgment and blockers.
