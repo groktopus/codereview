@@ -36,6 +36,7 @@
   - Define what a version promises: CLI surface, artifact schema, contract compatibility.
   - Keep release notes free of quality or replacement claims.
 - **Exit criteria:** At least one tagged release exists with artifacts and notes; every subsequent merge is classified for changelog impact; the version policy is documented and enforced.
+- **Status (2026-11-02):** **done.** `v0.1.0` is tagged on `main` and published as a non-draft GitHub Release with wheel, sdist, `SHA256SUMS`, SBOM, unsigned provenance, reproducibility reports, and notes. The changelog/version policy is enforced in CI; all seven published checksums were verified after download.
 - **Verification:** `git tag`, GitHub release assets, changelog entries, version-policy test.
 - **Depends on:** RS-1.
 - **Non-goals:** promising stability before the contract registry (CA-3) exists.

@@ -36,7 +36,7 @@ its state label; the closure record is the evidence.
 | `awaiting-evidence` | Implementation merged, but one or more exit criteria still lack observable evidence. | `state:awaiting-evidence` | The evidence is linked and checked (`done`), or the remaining work returns to `ready`. |
 | `done` | Closed because the exit criteria are met and linked. | none (closed) | Reopen with new evidence if the claim regresses. |
 
-`triage` is not a resting state for this snapshot: all 16 issues have a
+`triage` is not a resting state for this snapshot: all 15 issues have a
 state below. Use it for new intake until the owner has read the issue.
 
 ## Labels
@@ -57,7 +57,7 @@ may be a worker, but the assignee remains the accountable human.
 
 ## Owners
 
-- Accountable owner for all 16 open issues: `@magnus919`.
+- Accountable owner for all 15 open issues: `@magnus919`.
 - An implementing agent, when one is used, is a worker on a branch under the
   owner's direction. It is not the assignee and cannot close the issue.
 - If the owner is unavailable, do not reassign to an agent or to a placeholder.
@@ -106,7 +106,7 @@ The checker validates that the table below stays consistent with the open-issue
 snapshot and the filed-issue map. It cannot validate the truth of a closure
 record; a reviewer must do that.
 
-## Mapping for the 16 open issues
+## Mapping for the 15 open issues
 
 Existing labels stay. "Labels to add" is the applied state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
@@ -126,15 +126,14 @@ the concrete move, not a schedule.
 | #253 | VD-3 | [VD-3] Isolate historical pins in a compatibility suite | `@magnus919` | `ready` | `state:ready` | Dependency #248 is closed. The compatibility marker exists; the refresh tool and manifest work remain. |
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |
 | #258 | SE-4 | [SE-4] Prove effect-boundary behavior with a fault matrix and canary | `@magnus919` | `ready` | `state:ready` | Dependencies #255, #256, #247 are closed. Build the parameterized matrix; live publication stays disabled. |
-| #260 | RS-2 | [RS-2] Establish versioning, changelog, tags, and a release pipeline | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | PR #294 merged the policy, changelog, and workflow, but no tagged release or release assets exist. The exit criterion needs a real tag and notes. |
 | #261 | RS-3 | [RS-3] Produce SBOM, provenance, and reproducible artifacts | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | PR #296 merged SBOM/provenance/reproducibility tooling, but provenance is unsigned and no release carries it. Needs #260's real release plus signed attestation or an explicitly accepted unsigned limit. |
 | #262 | RS-4 | [RS-4] Lock dependencies and publish the package contract | `@magnus919` | `ready` | `state:ready` | Dependency #259 is closed. The package has no runtime dependencies; lock and publish the contract deliberately. |
 | #269 | GA-1 | [GA-1] Require recorded review evidence for every merge | `@magnus919` | `blocked` | `state:blocked` | Protocol and receipt check merged in PR #293, but branch protection does not require the check. Owner action: protect `main` and require `Review receipt` plus the other required jobs. |
 | #270 | GA-2 | [GA-2] Record decisions with named owners and evidence | `@magnus919` | `awaiting-evidence` | `state:awaiting-evidence` | PR #295 merged the ADR index and structural check. PR-diff enforcement is now active as the `Decision record links` check: read-only GitHub API changed-file list, and for a safety-invariant path a non-empty `decision_records` receipt list whose records are indexed and Accepted on the base revision. Exit criteria still need branch protection: owner action to mark `Review receipt` and `Decision record links` required on `main`, plus a sampled change traced to its record. |
 <!-- backlog-table:end -->
 
-Summary: **8 `ready`, 5 `blocked`, 3 `awaiting-evidence`, 0 `in-progress`**;
-16 open issues, all with one owner and one state.
+Summary: **8 `ready`, 5 `blocked`, 2 `awaiting-evidence`, 0 `in-progress`**;
+15 open issues, all with one owner and one state.
 
 ## Board and issue-template configuration
 
