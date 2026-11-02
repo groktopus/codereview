@@ -11,9 +11,9 @@
 ## Context
 
 The repository has one maintainer, path ownership was a single default rule, and the
-backlog had no durable owner/state model. GA-1 established a receipt protocol but
-`main` has no branch protection, so CODEOWNERS and receipts route review but do not
-technically block a merge.
+backlog had no durable owner/state model. GA-1 established a receipt protocol, and
+`main` now requires the receipt and decision-record checks (with an administrator
+bypass for the sole maintainer).
 
 ## Decision
 
@@ -27,9 +27,9 @@ settings, and live effects. Human review remains preferred when available.
 
 ## Consequences
 
-Ownership is inspectable and CODEOWNERS covers every production module. Enforcement
-still depends on branch protection/required checks, which remains owner action.
-Bus factor is still 1; this record does not invent a successor or second human.
+Ownership is inspectable and CODEOWNERS covers every production module.
+Enforcement uses required checks with a sole-maintainer administrator bypass. Bus
+factor is still 1; this record does not invent a successor or second human.
 
 ## Confirmation
 

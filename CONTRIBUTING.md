@@ -73,12 +73,12 @@ The diff check verifies the receipt links. Neither judges whether the evidence i
 sufficient. Failure codes, the fixture format, and the limits are in
 [review evidence](docs/REVIEW-EVIDENCE.md).
 
-**Not yet required.** Branch protection is absent: `Decision record links`
-(like `Review receipt`) runs and reports on every pull request, but the owner has
-not marked it a required status check, so GitHub does not yet block a merge on a
-failing result. Issue
-[#270](https://github.com/groktopus/codereview/issues/270) stays open until the
-owner completes that setting.
+**Required on `main`.** `Decision record links` (like `Review receipt`) is a
+required status check. The sole maintainer retains an explicit administrator
+bypass, so the owner can merge their own PRs; every non-admin merge requires the
+check. Issue
+[#270](https://github.com/groktopus/codereview/issues/270) remains open only for
+a sampled safety change traced to its record.
 
 ## Ownership, review routing, and backlog triage (GA-3)
 

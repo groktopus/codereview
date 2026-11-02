@@ -265,7 +265,7 @@ receipt bound to an old head is stale.
 ## Backlog triage
 
 Issue intake, states, labels, owners, closure-evidence rules, and the applied
-mapping for the current 16 open issues are in [BACKLOG.md](BACKLOG.md). The
+mapping for the current 15 open issues are in [BACKLOG.md](BACKLOG.md). The
 short version: every open issue must have an accountable owner and exactly one
 current state; an issue closes only with observable evidence for its exit
 criteria, not because a pull request merged.

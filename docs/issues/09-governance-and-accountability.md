@@ -40,9 +40,9 @@
   optional `decision_records` list, and the fail-closed `Decision record links`
   check reads the changed-file list from the read-only GitHub API and requires
   indexed, `Accepted` records on the base revision when a safety-invariant path
-  changes. This issue stays open: branch protection is absent, so the check is
-  not yet a required status check, and no sampled change has been traced to its
-  record as the verification step requires.
+  changes. Both checks are required on `main` with an administrator bypass for
+  the sole maintainer. The issue stays open only for the sampled safety change
+  traced to its record.
 - **Depends on:** GA-1, DT-1.
 - **Non-goals:** documenting every small change.
 
