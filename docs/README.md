@@ -63,6 +63,7 @@ implementation.
 | [ADR 0007: license](adr/0007-license.md) | Accepted: MIT for original code and documentation, with third-party terms excluded. |
 | [ADR 0008: release and version policy](adr/0008-release-version-policy.md) | Accepted: package SemVer plus independent contract versions, changelog, and tag-gated release. |
 | [ADR 0009: ownership and second review](adr/0009-ownership-and-second-review.md) | Accepted: path-specific ownership, agent second path, bus-factor-1 limits, and triage states. |
+| [ADR 0010: synthetic model-teacher adjudication](adr/0010-synthetic-model-teacher-adjudication.md) | Accepted: synthetic model-teacher adjudication is the quality method; human labels are optional and never conflated with synthetic output. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
 | [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields including `decision_records` for safety-invariant changes, receipt rules, both CI checks and exit codes, owner action, and enforcement limits. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |
@@ -95,8 +96,8 @@ implementation.
 | [Production context profile revision](PROFILE-REVISION.md) | Production context-profile revision. |
 | [Provider contract revision](PROVIDER-CONTRACT-REVISION.md) | Provider contract revision. |
 | [Review evaluation toolkit](EVALUATION-TOOLKIT.md) | Review evaluation toolkit. |
-| [Quality labeling and adjudication protocol](QUALITY-LABELING-PROTOCOL.md) | QM-2 severity/introducedness rubric, evidence, abstention, reviewer-kind, provenance, and relabeling protocol; no human labels exist yet. |
-| [Quality scorecards and regression gate](QUALITY-SCORECARD.md) | QM-3 deterministic scorecard fields, missing-data semantics, accuracy refusal, and seeded regression gate. |
+| [Quality labeling and adjudication protocol](QUALITY-LABELING-PROTOCOL.md) | QM-2 severity/introducedness rubric, evidence, abstention, reviewer-kind, synthetic adjudication, provenance, and relabeling protocol; no synthetic or human packets exist yet. |
+| [Quality scorecards and regression gate](QUALITY-SCORECARD.md) | QM-3 deterministic two-arm (synthetic/human) scorecard fields, missing-data semantics, accuracy refusal, and seeded regression gate. |
 | [Frozen evaluation corpus v1](FROZEN-EVALUATION-CORPUS-V1.md) | QM-1 versioned 41-case corpus identity, provenance, splits, hashes, and limits. |
 | [GitHub Actions canary runtime](ACTIONS-RUNTIME.md) | GitHub Actions canary runtime contract. |
 | [Stateless GitHub Actions publication design](ACTIONS-PUBLICATION-DESIGN.md) | Stateless GitHub Actions publication design. |

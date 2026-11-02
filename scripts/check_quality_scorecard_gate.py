@@ -56,36 +56,65 @@ def _validate_scorecard(value: object) -> None:
     label_state = data_state.get("label_state")
     required_label = (
         "status",
-        "human_packets",
-        "adjudicated_human_packets",
-        "complete_adjudicated_human_packets",
-        "human_labeled_cases",
-        "complete_adjudicated_human_labeled_cases",
         "rubric_version",
+        "accepted_quality_method",
+        "human_labels_required",
+        "synthetic_is_human_truth",
+        "arms",
     )
     if not isinstance(label_state, dict) or any(key not in label_state for key in required_label):
         raise EvaluationError("invalid_scorecard_schema")
     if label_state["status"] not in {"missing", "partial", "present"}:
         raise EvaluationError("invalid_scorecard_schema")
-    if data_state["state"] == "COMPLETE" and (label_state["status"] != "present" or data_state["reasons"]):
+    if label_state["accepted_quality_method"] != "synthetic_model_teacher_adjudication":
+        raise EvaluationError("invalid_scorecard_schema")
+    if label_state["human_labels_required"] is not False:
+        raise EvaluationError("invalid_scorecard_schema")
+    if label_state["synthetic_is_human_truth"] is not False:
+        raise EvaluationError("invalid_scorecard_schema")
+    label_arms = label_state.get("arms")
+    if not isinstance(label_arms, dict) or set(label_arms) != {"human", "synthetic"}:
+        raise EvaluationError("invalid_scorecard_schema")
+    for kind, arm_state in label_arms.items():
+        if not isinstance(arm_state, dict) or arm_state.get("status") not in {"missing", "partial", "present"}:
+            raise EvaluationError("invalid_scorecard_schema")
+        if arm_state.get("label_arm") != kind or arm_state.get("is_human_truth") is not (kind == "human"):
+            raise EvaluationError("invalid_scorecard_schema")
+        if arm_state.get("scope") != ("human_adjudicated" if kind == "human" else "synthetic_only"):
+            raise EvaluationError("invalid_scorecard_schema")
+        for key in (
+            "packets",
+            "independent_packets",
+            "adjudicated_packets",
+            "complete_adjudicated_packets",
+            "labeled_cases",
+            "complete_adjudicated_labeled_cases",
+        ):
+            if not isinstance(arm_state.get(key), int):
+                raise EvaluationError("invalid_scorecard_schema")
+    if data_state["state"] == "COMPLETE" and (
+        label_state["status"] != "present"
+        or data_state["reasons"]
+        or all(arm_state["status"] != "present" for arm_state in label_arms.values())
+        or any(arm_state["status"] == "partial" for arm_state in label_arms.values())
+    ):
         raise EvaluationError("invalid_scorecard_schema")
     if not isinstance(data_state.get("expected_cases"), int) or not isinstance(data_state.get("missing_arms"), list):
         raise EvaluationError("invalid_scorecard_schema")
-    for key in (
-        "human_packets",
-        "adjudicated_human_packets",
-        "complete_adjudicated_human_packets",
-        "human_labeled_cases",
-        "complete_adjudicated_human_labeled_cases",
-    ):
-        if not isinstance(label_state.get(key), int):
-            raise EvaluationError("invalid_scorecard_schema")
     arms = value["arms"]
-    if not isinstance(arms, dict) or any(
-        not isinstance(arm, dict) or arm.get("status") not in {"complete", "partial", "missing"}
-        for arm in arms.values()
-    ):
+    if not isinstance(arms, dict):
         raise EvaluationError("invalid_scorecard_schema")
+    for arm in arms.values():
+        if not isinstance(arm, dict) or arm.get("status") not in {"complete", "partial", "missing"}:
+            raise EvaluationError("invalid_scorecard_schema")
+        arm_blocks = arm.get("label_arms")
+        if not isinstance(arm_blocks, dict) or set(arm_blocks) != {"human", "synthetic"}:
+            raise EvaluationError("invalid_scorecard_schema")
+        for kind, block in arm_blocks.items():
+            if not isinstance(block, dict) or block.get("status") not in {"present", "missing_labels", "missing"}:
+                raise EvaluationError("invalid_scorecard_schema")
+            if block.get("label_arm") != kind or block.get("is_human_truth") is not (kind == "human"):
+                raise EvaluationError("invalid_scorecard_schema")
     completion = value["completion"]
     if not isinstance(completion, dict) or any(
         key not in completion for key in ("expected_cases", "expected_case_arms", "by_status", "completed_of_expected")
@@ -95,7 +124,16 @@ def _validate_scorecard(value: object) -> None:
         raise EvaluationError("invalid_scorecard_schema")
     claims = value["claims"]
     if not isinstance(claims, dict) or any(
-        key not in claims for key in ("quality_claim", "release_gate", "accuracy", "model_teacher_is_truth")
+        key not in claims
+        for key in (
+            "quality_claim",
+            "release_gate",
+            "accuracy",
+            "model_teacher_is_truth",
+            "synthetic_is_human_truth",
+            "human_labels_required",
+            "label_arm_policy",
+        )
     ):
         raise EvaluationError("invalid_scorecard_schema")
     if (
@@ -103,6 +141,9 @@ def _validate_scorecard(value: object) -> None:
         or claims["release_gate"] is not None
         or claims["accuracy"] is not None
         or claims["model_teacher_is_truth"] is not False
+        or claims["synthetic_is_human_truth"] is not False
+        or claims["human_labels_required"] is not False
+        or claims["label_arm_policy"] != "synthetic_primary_human_optional"
     ):
         raise EvaluationError("invalid_scorecard_schema")
     hashes = value["input_hashes"]

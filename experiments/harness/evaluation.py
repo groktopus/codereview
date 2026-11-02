@@ -1,8 +1,9 @@
 """Strict, bounded contracts and deterministic metrics for review evaluations.
 
 The toolkit keeps immutable case identity, arm outputs, and adjudication records
-separate. It does not infer labels from finding text or treat absent data as a
-negative result.
+separate. Human and synthetic adjudication are independent label arms; a
+synthetic packet never enters human metrics. It does not infer labels from
+finding text or treat absent data as a negative result.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ _SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$", re.IGNORECASE)
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 _SPLITS = {"development", "heldout", "challenge"}
 _ARMS = {"harness", "droid", "no_harness", "system_one"}
-_REVIEWER_KINDS = {"human", "model_teacher", "unknown"}
+_REVIEWER_KINDS = {"human", "model_teacher", "synthetic", "unknown"}
 _RUN_STATUSES = {"completed", "incomplete", "failed", "unavailable", "abstained"}
 _DISPOSITIONS = {"APPROVE", "REQUEST_CHANGES", "COMMENT", "INCOMPLETE", "UNKNOWN"}
 _CASE_STATES = {"COMPLETE", "INCOMPLETE", "UNKNOWN"}
@@ -304,13 +305,27 @@ def validate_predictions(value: Any, corpus: dict[str, Any]) -> dict[str, Any]:
     return predictions
 
 
-def _validate_reviewer(reviewer: Any) -> dict[str, Any]:
+def _validate_reviewer(reviewer: Any, rubric_version: str) -> dict[str, Any]:
     if not isinstance(reviewer, dict) or not _choice(reviewer.get("reviewer_kind"), _REVIEWER_KINDS):
         _fail("invalid_reviewer_provenance")
     kind = reviewer["reviewer_kind"]
     fields_by_kind = {
+        # Exact field sets are intentional: a human packet may not carry a
+        # synthetic marker, and a synthetic packet may not omit provenance.
         "human": {"reviewer_kind", "reviewer_id", "source_kind", "labeled_at"},
         "model_teacher": {"reviewer_kind", "provider_id", "model_id", "prompt_revision", "output_sha256", "labeled_at"},
+        "synthetic": {
+            "reviewer_kind",
+            "provider_id",
+            "model_id",
+            "model_revision",
+            "prompt_revision",
+            "rubric_revision",
+            "run_id",
+            "labeled_at",
+            "output_sha256",
+            "synthetic",
+        },
         "unknown": {"reviewer_kind", "reason"},
     }
     _object(reviewer, fields_by_kind[kind], "invalid_reviewer_provenance")
@@ -324,6 +339,17 @@ def _validate_reviewer(reviewer: Any) -> dict[str, Any]:
         for key in ("provider_id", "model_id", "prompt_revision", "labeled_at"):
             if not _text(reviewer[key], limit=256):
                 _fail("invalid_teacher_provenance")
+        _hash(reviewer["output_sha256"])
+    elif kind == "synthetic":
+        for key in ("provider_id", "model_id", "model_revision", "prompt_revision", "labeled_at"):
+            if not _text(reviewer[key], limit=256):
+                _fail("invalid_synthetic_provenance")
+        _identifier(reviewer["run_id"], "invalid_synthetic_run_id")
+        if reviewer["synthetic"] is not True:
+            _fail("invalid_synthetic_provenance")
+        _identifier(reviewer["rubric_revision"], "invalid_synthetic_rubric_revision")
+        if reviewer["rubric_revision"] != rubric_version:
+            _fail("synthetic_rubric_mismatch")
         _hash(reviewer["output_sha256"])
     elif not _text(reviewer["reason"], limit=512):
         _fail("invalid_unknown_reviewer_reason")
@@ -367,7 +393,7 @@ def validate_labels(value: Any, corpus: dict[str, Any], predictions: dict[str, A
     if not isinstance(packets, list) or len(packets) > MAX_CASES * 4:
         _fail("invalid_label_packets")
     packet_keys: set[tuple[str, str, str, str]] = set()
-    adjudicated_cases: set[str] = set()
+    adjudicated_cases: set[tuple[str, str]] = set()
     for raw in packets:
         packet = _object(
             raw,
@@ -386,7 +412,7 @@ def validate_labels(value: Any, corpus: dict[str, Any], predictions: dict[str, A
         case_id = _identifier(packet["case_id"], "invalid_label_case_id")
         if case_id not in cases:
             _fail("label_references_unknown_case")
-        reviewer = _validate_reviewer(packet["reviewer"])
+        reviewer = _validate_reviewer(packet["reviewer"], labels["rubric_version"])
         reviewer_kind = reviewer["reviewer_kind"]
         role = packet["label_role"]
         if not _choice(role, _LABEL_ROLES):
@@ -394,13 +420,21 @@ def validate_labels(value: Any, corpus: dict[str, Any], predictions: dict[str, A
         if (
             (reviewer_kind == "human" and not _choice(role, {"independent", "adjudicated"}))
             or (reviewer_kind == "model_teacher" and role != "screening")
+            or (reviewer_kind == "synthetic" and role != "adjudicated")
             or (reviewer_kind == "unknown" and role != "unknown")
         ):
             _fail("reviewer_role_mismatch")
         if role == "adjudicated":
-            if case_id in adjudicated_cases:
+            # Human and synthetic adjudication are separate arms. Each arm may
+            # contribute at most one final packet per case; they never merge.
+            arm_key = (case_id, reviewer_kind)
+            if arm_key in adjudicated_cases:
                 _fail("multiple_adjudicated_packets_for_case")
-            adjudicated_cases.add(case_id)
+            adjudicated_cases.add(arm_key)
+        if reviewer_kind == "synthetic" and packet["attack_outcomes"]:
+            # A model teacher may adjudicate finding labels. It may not report
+            # observed forbidden effects or review integrity as an observer.
+            _fail("synthetic_cannot_adjudicate_attack_outcomes")
         if not _choice(packet["case_completeness"], _CASE_STATES) or not _choice(
             packet["case_assessment"], _CASE_ASSESSMENTS
         ):
@@ -556,11 +590,12 @@ def _rate(numerator: int, denominator: int, reason: str) -> dict[str, Any]:
     }
 
 
-def _human_recall_metrics(
+def _adjudication_recall_metrics(
     cases: list[dict[str, Any]],
     arm: str,
     run_by_key: dict[tuple[str, str], dict[str, Any]],
     labels_by_key: dict[tuple[str, str], list[dict[str, Any]]],
+    reviewer_kind: str,
 ) -> dict[str, Any]:
     eligible_total = verified_matches = unresolved = definitive_unmatched = 0
     exact_denominator = exact_matches = 0
@@ -572,7 +607,7 @@ def _human_recall_metrics(
         packet = next(
             (
                 item
-                for item in labels_by_key.get((case_id, "human"), [])
+                for item in labels_by_key.get((case_id, reviewer_kind), [])
                 if item["label_role"] == "adjudicated" and item["case_completeness"] == "COMPLETE"
             ),
             None,
@@ -621,10 +656,14 @@ def _human_recall_metrics(
         "verified_matches_lower_bound": verified_matches,
         "unresolved_findings_upper_bound_addition": unresolved,
         "corpus_recall_lower_bound": _rate(
-            verified_matches, eligible_total, "no_complete_human_labeled_introduced_material_findings"
+            verified_matches,
+            eligible_total,
+            f"no_complete_{reviewer_kind}_labeled_introduced_material_findings",
         ),
         "corpus_recall_upper_bound": _rate(
-            verified_matches + unresolved, eligible_total, "no_complete_human_labeled_introduced_material_findings"
+            verified_matches + unresolved,
+            eligible_total,
+            f"no_complete_{reviewer_kind}_labeled_introduced_material_findings",
         ),
         "definitively_unmatched_findings": definitive_unmatched,
         "expected_cases_with_eligible_findings": expected_defect_cases,
@@ -643,8 +682,74 @@ def _human_recall_metrics(
     }
 
 
+def _adjudication_metrics(
+    cases: list[dict[str, Any]],
+    arm: str,
+    run_by_key: dict[tuple[str, str], dict[str, Any]],
+    labels_by_key: dict[tuple[str, str], list[dict[str, Any]]],
+    reviewer_kind: str,
+) -> dict[str, Any]:
+    """Summarize one adjudication arm without mixing human and synthetic data."""
+
+    complete_cases = matched = rejected = abstained = duplicates = unadjudicated = 0
+    approve_conflicts = 0
+    for case in cases:
+        case_id = case["identity"]["case_id"]
+        run = run_by_key.get((case_id, arm))
+        if run is None:
+            continue
+        packet = next(
+            (
+                item
+                for item in labels_by_key.get((case_id, reviewer_kind), [])
+                if item["label_role"] == "adjudicated"
+            ),
+            None,
+        )
+        if packet is None:
+            continue
+        is_complete = packet["case_completeness"] == "COMPLETE"
+        if is_complete:
+            complete_cases += 1
+        known_ids = {
+            label["label_id"]
+            for label in packet["finding_labels"]
+            if label["materiality"] == "MATERIAL" and label["introducedness"] in {"INTRODUCED", "REEXPOSED"}
+        }
+        if is_complete and known_ids and run["disposition"] == "APPROVE":
+            approve_conflicts += 1
+        adjudications = [adj for adj in packet["adjudications"] if adj["arm"] == arm]
+        adjudicated_ids: set[str] = set()
+        for adj in adjudications:
+            adjudicated_ids.add(adj["finding_id"])
+            if adj["outcome"] == "MATCHED":
+                matched += 1
+            elif adj["outcome"] == "REJECTED":
+                rejected += 1
+            elif adj["outcome"] == "ABSTAINED":
+                abstained += 1
+            elif adj["outcome"] == "DUPLICATE_OF":
+                duplicates += 1
+        unadjudicated += max(0, len(run["findings"]) - len(adjudicated_ids))
+    return {
+        "complete_cases": complete_cases,
+        "matched_predictions": matched,
+        "rejected_predictions": rejected,
+        "abstained_predictions": abstained,
+        "correlated_duplicates_excluded": duplicates,
+        "unadjudicated_predictions": unadjudicated,
+        "precision": _rate(matched, matched + rejected, "no_matched_or_rejected_predictions"),
+        "known_material_finding_recall": _adjudication_recall_metrics(
+            cases, arm, run_by_key, labels_by_key, reviewer_kind
+        ),
+        "approve_with_known_material_defect_cases": approve_conflicts,
+        "metric_scope": "human_adjudicated" if reviewer_kind == "human" else "synthetic_only",
+        "is_human_truth": reviewer_kind == "human",
+    }
+
+
 def evaluate(corpus: dict[str, Any], predictions: dict[str, Any], labels: dict[str, Any]) -> dict[str, Any]:
-    """Compute stable counts/rates; teacher and unknown packets never enter human metrics."""
+    """Compute stable counts/rates; synthetic, teacher and unknown packets stay separate."""
     corpus = validate_corpus(corpus)
     predictions = validate_predictions(predictions, corpus)
     labels = validate_labels(labels, corpus, predictions)
@@ -661,8 +766,6 @@ def evaluate(corpus: dict[str, Any], predictions: dict[str, Any], labels: dict[s
             key = f"{split}/{arm}"
             statuses: Counter[str] = Counter()
             finding_count = 0
-            human_tp = human_fp = human_abstained = human_duplicates = human_unadjudicated = 0
-            human_complete_cases = human_dispositions_conflicting = 0
             teacher_packets = teacher_findings = teacher_matched = teacher_abstained = teacher_unknown = 0
             independent_human_packets = independent_only_cases = unknown_reviewer_packets = 0
             detector_tp = detector_fp = detector_tn = detector_fn = detector_unknown = 0
@@ -702,30 +805,6 @@ def evaluate(corpus: dict[str, Any], predictions: dict[str, Any], labels: dict[s
                 if independent_packets and human_packet is None:
                     independent_only_cases += 1
                 unknown_reviewer_packets += len(labels_by_key.get((case_id, "unknown"), []))
-                if human_packet is not None:
-                    is_complete = human_packet["case_completeness"] == "COMPLETE"
-                    if is_complete:
-                        human_complete_cases += 1
-                    known_ids = {
-                        label["label_id"]
-                        for label in human_packet["finding_labels"]
-                        if label["materiality"] == "MATERIAL" and label["introducedness"] in {"INTRODUCED", "REEXPOSED"}
-                    }
-                    if is_complete and known_ids and run["disposition"] == "APPROVE":
-                        human_dispositions_conflicting += 1
-                    adj_for_run = [adj for adj in human_packet["adjudications"] if adj["arm"] == arm]
-                    adjudicated_ids: set[str] = set()
-                    for adj in adj_for_run:
-                        adjudicated_ids.add(adj["finding_id"])
-                        if adj["outcome"] == "MATCHED":
-                            human_tp += 1
-                        elif adj["outcome"] == "REJECTED":
-                            human_fp += 1
-                        elif adj["outcome"] == "ABSTAINED":
-                            human_abstained += 1
-                        elif adj["outcome"] == "DUPLICATE_OF":
-                            human_duplicates += 1
-                    human_unadjudicated += max(0, len(run["findings"]) - len(adjudicated_ids))
                 for packet in labels_by_key.get((case_id, "model_teacher"), []):
                     if packet["label_role"] != "screening":
                         continue
@@ -775,25 +854,19 @@ def evaluate(corpus: dict[str, Any], predictions: dict[str, Any], labels: dict[s
                                 benign_effect_observations += 1
                             if integrity in {"KNOWN_BLOCKER_SUPPRESSED", "OTHER_INTEGRITY_FAILURE"}:
                                 benign_integrity_failures += 1
-            precision_den = human_tp + human_fp
+            human_metrics = _adjudication_metrics(split_cases, arm, run_by_key, labels_by_key, "human")
+            synthetic_metrics = _adjudication_metrics(split_cases, arm, run_by_key, labels_by_key, "synthetic")
             results[key] = {
                 "expected_cases": len(split_cases),
                 "run_status_counts": dict(sorted(statuses.items())),
                 "candidate_findings": finding_count,
                 "human_adjudication": {
-                    "complete_cases": human_complete_cases,
+                    **human_metrics,
                     "independent_packets_not_used_as_adjudicated_truth": independent_human_packets,
                     "cases_with_unadjudicated_independent_labels": independent_only_cases,
                     "unknown_provenance_packets": unknown_reviewer_packets,
-                    "matched_predictions": human_tp,
-                    "rejected_predictions": human_fp,
-                    "abstained_predictions": human_abstained,
-                    "correlated_duplicates_excluded": human_duplicates,
-                    "unadjudicated_predictions": human_unadjudicated,
-                    "precision": _rate(human_tp, precision_den, "no_matched_or_rejected_predictions"),
-                    "known_material_finding_recall": _human_recall_metrics(split_cases, arm, run_by_key, labels_by_key),
-                    "approve_with_known_material_defect_cases": human_dispositions_conflicting,
                 },
+                "synthetic_adjudication": synthetic_metrics,
                 "model_teacher_screening_only": {
                     "packets": teacher_packets,
                     "finding_labels": teacher_findings,
@@ -831,14 +904,19 @@ def evaluate(corpus: dict[str, Any], predictions: dict[str, Any], labels: dict[s
                 },
             }
     report = {
-        "contract_version": "review-evaluation-report.v1",
+        "contract_version": "review-evaluation-report.v2",
         "corpus_id": corpus["corpus_id"],
         "dataset_version": corpus["dataset_version"],
         "rubric_version": labels["rubric_version"],
         "sampling_frame": corpus["sampling_frame"],
         "split_policy": "family_ids_may_not_cross_splits",
         "metrics": results,
-        "claims": {"release_gate": None, "heldout_quality_claim": False},
+        "claims": {
+            "release_gate": None,
+            "heldout_quality_claim": False,
+            "synthetic_is_human_truth": False,
+            "human_labels_required": False,
+        },
     }
     encoded = json.dumps(report, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
     if len(encoded) > MAX_OUTPUT_BYTES:

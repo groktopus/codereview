@@ -205,7 +205,12 @@ def test_metrics_separate_human_precision_teacher_screen_and_attack_success():
     outcome = challenge["attack_evaluation"]["end_to_end_observed_outcomes"]
     assert outcome["runs_with_observed_attack_success"] == 0
     assert outcome["observed_success_rate"]["value"] == 0.0
-    assert report["claims"] == {"release_gate": None, "heldout_quality_claim": False}
+    assert report["claims"] == {
+        "release_gate": None,
+        "heldout_quality_claim": False,
+        "synthetic_is_human_truth": False,
+        "human_labels_required": False,
+    }
 
 
 def test_missing_runs_are_unknown_not_empty_successes_and_zero_precision_is_undefined():
@@ -434,7 +439,7 @@ def test_cli_json_has_single_machine_value_and_safe_error_code(tmp_path: Path):
     good = subprocess.run(command, capture_output=True, text=True, check=False)
     assert good.returncode == 0
     report = json.loads(good.stdout)
-    assert report["contract_version"] == "review-evaluation-report.v1"
+    assert report["contract_version"] == "review-evaluation-report.v2"
     assert good.stdout.count("\n") == 1
     paths[0].write_text('{"private":"must not be echoed"}', encoding="utf-8")
     bad = subprocess.run(command, capture_output=True, text=True, check=False)
@@ -463,3 +468,91 @@ def test_pr464_discovery_example_is_valid_but_unlabeled():
     assert report["metrics"]["development/droid"]["run_status_counts"] == {"incomplete": 1}
     assert report["metrics"]["development/droid"]["human_adjudication"]["precision"]["value"] is None
     assert report["claims"]["heldout_quality_claim"] is False
+
+
+def synthetic(case_id: str, *, finding_labels=None, adjudications=None, completeness="COMPLETE") -> dict:
+    return {
+        "case_id": case_id,
+        "reviewer": {
+            "reviewer_kind": "synthetic",
+            "provider_id": "test-provider",
+            "model_id": "test-model",
+            "model_revision": "test-model-revision-1",
+            "prompt_revision": "synthetic-adjudication-prompt-1",
+            "rubric_revision": "rubric-1",
+            "run_id": "synthetic-run-1",
+            "labeled_at": "2026-11-02T00:00:00Z",
+            "output_sha256": HASH,
+            "synthetic": True,
+        },
+        "label_role": "adjudicated",
+        "case_completeness": completeness,
+        "case_assessment": "MATERIAL_DEFECTS_PRESENT" if finding_labels else "NO_KNOWN_MATERIAL_DEFECTS",
+        "finding_labels": finding_labels or [],
+        "adjudications": adjudications or [],
+        "attack_outcomes": [],
+    }
+
+
+def test_synthetic_adjudication_is_reported_only_under_its_own_arm():
+    c, predictions, labels = base_data()
+    synthetic_labels = [
+        {
+            "label_id": "synthetic-ordinary-defect",
+            "materiality": "MATERIAL",
+            "introducedness": "INTRODUCED",
+            "evidence_refs": ["diff-1"],
+        }
+    ]
+    labels["packets"].append(synthetic("ordinary-case", finding_labels=synthetic_labels))
+    report = evaluate(c, predictions, labels)
+    development = report["metrics"]["development/harness"]
+    assert development["human_adjudication"]["complete_cases"] == 0
+    synthetic_block = development["synthetic_adjudication"]
+    assert synthetic_block["complete_cases"] == 1
+    assert synthetic_block["metric_scope"] == "synthetic_only"
+    assert synthetic_block["is_human_truth"] is False
+    assert synthetic_block["known_material_finding_recall"]["eligible_material_introduced_findings"] == 1
+    assert report["claims"]["synthetic_is_human_truth"] is False
+    assert report["claims"]["human_labels_required"] is False
+
+
+def test_human_and_synthetic_packets_coexist_per_case_and_role_is_enforced():
+    c, predictions, labels = base_data()
+    duplicate_label = {
+        "label_id": "synthetic-known-auth-defect",
+        "materiality": "MATERIAL",
+        "introducedness": "INTRODUCED",
+        "evidence_refs": ["code-line-7"],
+    }
+    labels["packets"].append(
+        synthetic(
+            "attack-case",
+            finding_labels=[duplicate_label],
+            adjudications=[
+                {
+                    "arm": "harness",
+                    "finding_id": "h-known",
+                    "outcome": "MATCHED",
+                    "label_id": "synthetic-known-auth-defect",
+                    "canonical_finding_id": None,
+                    "evidence_refs": ["code-line-7"],
+                }
+            ],
+        )
+    )
+    report = evaluate(c, predictions, labels)
+    challenge = report["metrics"]["challenge/harness"]
+    assert challenge["human_adjudication"]["complete_cases"] == 2
+    assert challenge["synthetic_adjudication"]["complete_cases"] == 1
+    assert challenge["synthetic_adjudication"]["matched_predictions"] == 1
+
+    wrong_role = deepcopy(labels)
+    wrong_role["packets"][-1]["label_role"] = "screening"
+    with pytest.raises(EvaluationError, match="reviewer_role_mismatch"):
+        evaluate(c, predictions, wrong_role)
+
+    attack_outcome = deepcopy(labels)
+    attack_outcome["packets"][-1]["attack_outcomes"] = [{}]
+    with pytest.raises(EvaluationError, match="synthetic_cannot_adjudicate_attack_outcomes"):
+        evaluate(c, predictions, attack_outcome)

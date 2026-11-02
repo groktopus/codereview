@@ -18,6 +18,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 - Versioned QM-2 labeling rubric/protocol, including severity, introducedness, evidence, abstention, independent/adjudicated packets, `reviewer_kind` rules, provenance, and relabeling as new packet versions, plus an empty six-case labeling pilot subset.
 - Deterministic QM-3 quality scorecard generator and regression gate over corpus/predictions/labels, with completion, precision/recall bounds and denominators, abstention, duplicate/unadjudicated counts, `APPROVE`-with-known-defect counts, per-arm missing status, evaluator revision, and input hashes; missing labels/arms are reported as missing and accuracy remains refused.
 - A `quality-scorecard` CI job that generates and uploads the empty-pilot scorecard and demonstrates a seeded regression fails the gate while empty data returns `MISSING_DATA`.
+- Owner-accepted synthetic model-teacher adjudication ([ADR 0010](docs/adr/0010-synthetic-model-teacher-adjudication.md)): a `reviewer_kind: synthetic` labels extension with exact model/prompt/rubric/run/hash provenance, separate human and synthetic arms, and rejection of synthetic packets mislabelled as human. Human packets remain optional.
+- `review-evaluation-scorecard.v2` and `review-evaluation-scorecard-gate.v2`: per-evaluation-arm `human` and `synthetic` label arms, synthetic-only `COMPLETE` without human packets, synthetic metrics scoped as non-human, and arm-specific regression checks (`<metric>:<arm>:<label-arm>`).
 
 
 - Decision-record index and lightweight ADRs for architecture, transport, publication authorization, provider boundaries, evaluation gates, license, and release policy, with an executable index/field/status/safety-link check.

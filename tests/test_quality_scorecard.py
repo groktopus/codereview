@@ -73,6 +73,7 @@ def test_labeling_pilot_is_valid_empty_and_derived_from_the_frozen_subset():
     assert manifest["content_hashes"]["labels.json"] == _hash(PILOT / "labels.json")
     assert manifest["label_packet_state"]["state"] == "missing"
     assert manifest["label_packet_state"]["human_packets"] == 0
+    assert manifest["label_packet_state"]["synthetic_adjudicated_packets"] == 0
     assert manifest["label_packet_state"]["model_teacher_screening_packets"] == 0
     source = _load(FROZEN)
     source_by_id = {case["identity"]["case_id"]: case for case in source["cases"]}
@@ -91,7 +92,7 @@ def test_empty_labels_and_predictions_produce_missing_not_zero():
     assert scorecard["contract_version"] == SCORECARD_VERSION
     assert scorecard["evaluator_revision"] == EVALUATOR_REVISION
     assert scorecard["data_state"]["state"] == "MISSING_DATA"
-    assert "no_complete_adjudicated_human_label_packets" in scorecard["data_state"]["reasons"]
+    assert "no_complete_adjudicated_human_or_synthetic_label_packets" in scorecard["data_state"]["reasons"]
     assert "no_prediction_runs" in scorecard["data_state"]["reasons"]
     assert scorecard["missing_data"]["arms"] == ["droid", "harness"]
     assert scorecard["claims"]["accuracy"] is None
@@ -104,14 +105,14 @@ def test_empty_labels_and_predictions_produce_missing_not_zero():
         assert summary["status"] == "missing"
         assert summary["missing"] is True
         assert summary["candidate_findings"] is None
-        assert summary["precision"]["lower_bound"]["value"] is None
-        assert summary["precision"]["upper_bound"]["value"] is None
-        assert summary["recall"]["lower_bound"]["value"] is None
-        assert summary["recall"]["upper_bound"]["value"] is None
-        assert summary["abstention"]["adjudicated_abstentions"] is None
-        assert summary["duplicates"]["correlated_duplicates_excluded"] is None
-        assert summary["unadjudicated"]["findings_without_final_adjudication"] is None
-        assert summary["approve_with_known_defect"]["cases"] is None
+        assert summary["label_arms"]["human"]["precision"]["lower_bound"]["value"] is None
+        assert summary["label_arms"]["human"]["precision"]["upper_bound"]["value"] is None
+        assert summary["label_arms"]["human"]["recall"]["lower_bound"]["value"] is None
+        assert summary["label_arms"]["human"]["recall"]["upper_bound"]["value"] is None
+        assert summary["label_arms"]["human"]["abstention"]["adjudicated_abstentions"] is None
+        assert summary["label_arms"]["human"]["duplicates"]["correlated_duplicates_excluded"] is None
+        assert summary["label_arms"]["human"]["unadjudicated"]["findings_without_final_adjudication"] is None
+        assert summary["label_arms"]["human"]["approve_with_known_defect"]["cases"] is None
         assert summary["accuracy"]["value"] is None
     for digest in scorecard["input_hashes"].values():
         assert len(digest) == 64
@@ -134,17 +135,17 @@ def test_predictions_without_labels_report_missing_labels_not_zero():
         input_hashes={"corpus": _hash(FIXTURE / "corpus.json"), "predictions": "b" * 64, "labels": "c" * 64},
     )
     assert scorecard["data_state"]["state"] == "MISSING_DATA"
-    assert "no_complete_adjudicated_human_label_packets" in scorecard["data_state"]["reasons"]
+    assert "no_complete_adjudicated_human_or_synthetic_label_packets" in scorecard["data_state"]["reasons"]
     harness = scorecard["arms"]["harness"]
     assert harness["status"] == "complete"
     assert harness["candidate_findings"] == 1
-    assert harness["precision"]["status"] == "missing_labels"
-    assert harness["precision"]["lower_bound"]["value"] is None
-    assert harness["recall"]["lower_bound"]["value"] is None
-    assert harness["abstention"]["adjudicated_abstentions"] is None
-    assert harness["duplicates"]["correlated_duplicates_excluded"] is None
-    assert harness["unadjudicated"]["findings_without_final_adjudication"] is None
-    assert harness["approve_with_known_defect"]["cases"] is None
+    assert harness["label_arms"]["human"]["precision"]["status"] == "missing_labels"
+    assert harness["label_arms"]["human"]["precision"]["lower_bound"]["value"] is None
+    assert harness["label_arms"]["human"]["recall"]["lower_bound"]["value"] is None
+    assert harness["label_arms"]["human"]["abstention"]["adjudicated_abstentions"] is None
+    assert harness["label_arms"]["human"]["duplicates"]["correlated_duplicates_excluded"] is None
+    assert harness["label_arms"]["human"]["unadjudicated"]["findings_without_final_adjudication"] is None
+    assert harness["label_arms"]["human"]["approve_with_known_defect"]["cases"] is None
     assert regression_gate(scorecard, scorecard)["status"] == "MISSING_DATA"
 
 
@@ -156,26 +157,26 @@ def test_scorecard_publishes_bounds_counts_and_denominators():
     assert scorecard["data_state"]["label_state"]["status"] == "present"
     harness = scorecard["arms"]["harness"]
     assert harness["status"] == "complete"
-    assert harness["precision"]["lower_bound"] == {
+    assert harness["label_arms"]["human"]["precision"]["lower_bound"] == {
         "numerator": 1,
         "denominator": 1,
         "value": 1.0,
         "undefined_reason": None,
     }
-    assert harness["precision"]["upper_bound"] == {
+    assert harness["label_arms"]["human"]["precision"]["upper_bound"] == {
         "numerator": 1,
         "denominator": 1,
         "value": 1.0,
         "undefined_reason": None,
     }
-    assert harness["recall"]["lower_bound"]["numerator"] == 1
-    assert harness["recall"]["lower_bound"]["denominator"] == 1
-    assert harness["recall"]["upper_bound"]["value"] == 1.0
-    assert harness["abstention"]["adjudicated_abstentions"] == 0
-    assert harness["abstention"]["rate"]["denominator"] == 1
-    assert harness["duplicates"]["correlated_duplicates_excluded"] == 0
-    assert harness["unadjudicated"]["findings_without_final_adjudication"] == 0
-    assert harness["approve_with_known_defect"]["cases"] == 0
+    assert harness["label_arms"]["human"]["recall"]["lower_bound"]["numerator"] == 1
+    assert harness["label_arms"]["human"]["recall"]["lower_bound"]["denominator"] == 1
+    assert harness["label_arms"]["human"]["recall"]["upper_bound"]["value"] == 1.0
+    assert harness["label_arms"]["human"]["abstention"]["adjudicated_abstentions"] == 0
+    assert harness["label_arms"]["human"]["abstention"]["rate"]["denominator"] == 1
+    assert harness["label_arms"]["human"]["duplicates"]["correlated_duplicates_excluded"] == 0
+    assert harness["label_arms"]["human"]["unadjudicated"]["findings_without_final_adjudication"] == 0
+    assert harness["label_arms"]["human"]["approve_with_known_defect"]["cases"] == 0
     assert harness["accuracy"]["value"] is None
     assert harness["accuracy"]["status"] == "refused"
     assert scorecard["input_hashes"]["corpus"] == _hash(FIXTURE / "corpus.json")
@@ -210,13 +211,13 @@ def test_seeded_regression_fails_the_gate():
     regressed = _scorecard(
         FIXTURE / "corpus.json", FIXTURE / "predictions-regressed.json", FIXTURE / "labels-regressed.json"
     )
-    assert baseline["arms"]["harness"]["recall"]["lower_bound"]["value"] == 1.0
-    assert regressed["arms"]["harness"]["recall"]["lower_bound"]["value"] == 0.0
+    assert baseline["arms"]["harness"]["label_arms"]["human"]["recall"]["lower_bound"]["value"] == 1.0
+    assert regressed["arms"]["harness"]["label_arms"]["human"]["recall"]["lower_bound"]["value"] == 0.0
     gate = regression_gate(regressed, baseline)
     assert gate["status"] == "FAIL"
-    assert "recall_lower_bound:harness" in gate["regressions"]
-    assert "precision_lower_bound:harness" in gate["regressions"]
-    assert "approve_with_known_defect:harness" in gate["regressions"]
+    assert "recall_lower_bound:harness:human" in gate["regressions"]
+    assert "precision_lower_bound:harness:human" in gate["regressions"]
+    assert "approve_with_known_defect:harness:human" in gate["regressions"]
     assert any(check["status"] == "NOT_EVALUATED" for check in gate["checks"])
 
 
@@ -299,7 +300,7 @@ def test_gate_cli_fails_on_seeded_regression(tmp_path: Path):
     assert result.returncode == 1
     gate = json.loads(result.stdout)
     assert gate["status"] == "FAIL"
-    assert "recall_lower_bound:harness" in gate["regressions"]
+    assert "recall_lower_bound:harness:human" in gate["regressions"]
 
 
 def test_labels_contract_forbids_model_teacher_adjudication():
@@ -329,7 +330,12 @@ def test_human_adjudication_remains_unmet_without_a_human_packet():
         assert metric["human_adjudication"]["complete_cases"] == 0
         assert metric["human_adjudication"]["precision"]["value"] is None
         assert metric["human_adjudication"]["known_material_finding_recall"]["corpus_recall_lower_bound"]["value"] is None
-    assert report["claims"] == {"release_gate": None, "heldout_quality_claim": False}
+    assert report["claims"] == {
+        "release_gate": None,
+        "heldout_quality_claim": False,
+        "synthetic_is_human_truth": False,
+        "human_labels_required": False,
+    }
 
 
 def test_gate_fails_when_an_arm_disappears(tmp_path: Path) -> None:
@@ -454,3 +460,118 @@ def test_partial_baseline_to_complete_current_passes() -> None:
     gate = regression_gate(current, baseline)
     assert gate["current_data_state"] == "COMPLETE"
     assert gate["status"] in {"PASS", "MISSING_DATA"}
+
+
+def test_synthetic_only_scorecard_is_complete_without_human_packets():
+    scorecard = _scorecard(
+        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels-synthetic.json"
+    )
+    assert scorecard["data_state"]["state"] == "COMPLETE"
+    assert scorecard["data_state"]["reasons"] == []
+    label_state = scorecard["data_state"]["label_state"]
+    assert label_state["status"] == "present"
+    assert label_state["human_labels_required"] is False
+    assert label_state["synthetic_is_human_truth"] is False
+    assert label_state["arms"]["human"]["status"] == "missing"
+    assert label_state["arms"]["synthetic"]["status"] == "present"
+    harness = scorecard["arms"]["harness"]["label_arms"]
+    assert harness["human"]["status"] == "missing_labels"
+    assert harness["synthetic"]["status"] == "present"
+    assert harness["synthetic"]["scope"] == "synthetic_only"
+    assert harness["synthetic"]["is_human_truth"] is False
+    assert harness["synthetic"]["precision"]["lower_bound"]["value"] == 1.0
+    assert harness["synthetic"]["recall"]["lower_bound"]["value"] == 1.0
+    assert scorecard["claims"]["accuracy"] is None
+    assert scorecard["claims"]["quality_claim"] is False
+    assert scorecard["claims"]["synthetic_is_human_truth"] is False
+    assert scorecard["claims"]["human_labels_required"] is False
+    accuracy = scorecard["arms"]["harness"]["accuracy"]
+    assert accuracy["status"] == "refused"
+    assert "synthetic_is_not_human_accuracy" in accuracy["reasons"]
+    assert regression_gate(scorecard, scorecard)["status"] == "PASS"
+
+
+def test_synthetic_packet_validates_and_cannot_be_mislabelled_human():
+    corpus = _load(FIXTURE / "corpus.json")
+    predictions = _load(FIXTURE / "predictions-baseline.json")
+    labels = _load(FIXTURE / "labels-synthetic.json")
+    assert validate_labels(labels, corpus, predictions) == labels
+
+    human_marked = deepcopy(labels)
+    reviewer = human_marked["packets"][0]["reviewer"]
+    reviewer["reviewer_kind"] = "human"
+    reviewer["reviewer_id"] = "not-a-synthetic-run"
+    reviewer["source_kind"] = "independent_reviewer"
+    del reviewer["synthetic"]
+    with pytest.raises(EvaluationError, match="invalid_reviewer_provenance"):
+        validate_labels(human_marked, corpus, predictions)
+
+    not_marked = deepcopy(labels)
+    not_marked["packets"][0]["reviewer"]["synthetic"] = False
+    with pytest.raises(EvaluationError, match="invalid_synthetic_provenance"):
+        validate_labels(not_marked, corpus, predictions)
+
+    wrong_rubric = deepcopy(labels)
+    wrong_rubric["packets"][0]["reviewer"]["rubric_revision"] = "qm2-labeling-rubric.v999"
+    with pytest.raises(EvaluationError, match="synthetic_rubric_mismatch"):
+        validate_labels(wrong_rubric, corpus, predictions)
+
+    missing_run = deepcopy(labels)
+    del missing_run["packets"][0]["reviewer"]["run_id"]
+    with pytest.raises(EvaluationError, match="invalid_reviewer_provenance"):
+        validate_labels(missing_run, corpus, predictions)
+
+
+def test_synthetic_packet_cannot_adjudicate_attack_outcomes():
+    corpus = _load(FIXTURE / "corpus.json")
+    predictions = _load(FIXTURE / "predictions-baseline.json")
+    labels = _load(FIXTURE / "labels-synthetic.json")
+    labels["packets"][0]["attack_outcomes"] = [{}]
+    with pytest.raises(EvaluationError, match="synthetic_cannot_adjudicate_attack_outcomes"):
+        validate_labels(labels, corpus, predictions)
+
+
+def test_human_and_synthetic_adjudication_are_separate_arms():
+    corpus = _load(FIXTURE / "corpus.json")
+    predictions = _load(FIXTURE / "predictions-baseline.json")
+    labels = _load(FIXTURE / "labels.json")
+    labels["packets"].extend(deepcopy(_load(FIXTURE / "labels-synthetic.json")["packets"]))
+    assert validate_labels(labels, corpus, predictions) == labels
+    scorecard = build_scorecard(
+        corpus,
+        predictions,
+        labels,
+        input_hashes={"corpus": _hash(FIXTURE / "corpus.json"), "predictions": "b" * 64, "labels": "c" * 64},
+    )
+    assert scorecard["data_state"]["state"] == "COMPLETE"
+    label_state = scorecard["data_state"]["label_state"]
+    assert label_state["arms"]["human"]["status"] == "present"
+    assert label_state["arms"]["synthetic"]["status"] == "present"
+    harness = scorecard["arms"]["harness"]["label_arms"]
+    assert harness["human"]["is_human_truth"] is True
+    assert harness["human"]["precision"]["lower_bound"]["value"] == 1.0
+    assert harness["synthetic"]["is_human_truth"] is False
+    assert harness["synthetic"]["precision"]["lower_bound"]["value"] == 1.0
+
+
+def test_gate_fails_synthetic_only_regression_and_disappearance():
+    baseline = _scorecard(
+        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels-synthetic.json"
+    )
+    regressed = _scorecard(
+        FIXTURE / "corpus.json", FIXTURE / "predictions-regressed.json", FIXTURE / "labels-synthetic.json"
+    )
+    gate = regression_gate(regressed, baseline)
+    assert gate["status"] == "FAIL"
+    assert "approve_with_known_defect:harness:synthetic" in gate["regressions"]
+
+    human_only = _scorecard(
+        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json"
+    )
+    assert human_only["data_state"]["state"] == "COMPLETE"
+    dropped = regression_gate(human_only, baseline)
+    assert dropped["status"] == "FAIL"
+    assert any(
+        check["id"] == "label_arm:harness:synthetic" and check["status"] == "FAIL"
+        for check in dropped["checks"]
+    )

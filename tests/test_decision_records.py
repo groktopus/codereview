@@ -82,7 +82,7 @@ def make_repo(tmp_path: Path, status: str = "Accepted") -> Path:
 def test_repository_decision_log_passes() -> None:
     result = records.check(ROOT)
     assert result["errors"] == []
-    assert result["records"] == 9
+    assert result["records"] == 10
     assert result["legacy"] == 4
     assert result["invariants"] == 7
 
