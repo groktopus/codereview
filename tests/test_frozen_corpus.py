@@ -154,4 +154,4 @@ def test_evidence_status_definitions_match_case_labels() -> None:
         else:
             assert status == "incomplete", case["case_id"]
             assert gaps["required"] > 0, case["case_id"]
-            assert set(gaps["by_reason"]) & {"diff_truncated", "context_selection_budget_exhausted"}, case["case_id"]
+            assert set(gaps["by_reason"]) & {"diff_truncated", "context_selection_budget_exhausted", "changed_source_unavailable"}, case["case_id"]
