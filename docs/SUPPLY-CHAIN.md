@@ -287,5 +287,4 @@ python3 -m venv /tmp/pr-review-release-venv
   retains no independent builder or separate transparency-log audit.
 * The SBOM covers distribution metadata and artifact hashes, not every file
   inside the archives, and not development dependencies.
-* The release workflow has not been exercised by a real tag or release in this
-  change; a workflow file is not evidence that a release exists.
+* The release workflow was exercised by `v0.1.1` (run 41531113971), which published both artifacts with attestations; `v0.1.0` predates the attestation step and remains unsigned.

@@ -1,7 +1,7 @@
 {
   "schema": "review-harness-backlog-snapshot.v1",
   "repository": "groktopus/codereview",
-  "captured_at": "2026-11-02T20:30:00Z",
+  "captured_at": "2026-11-02T21:54:45Z",
   "source": "gh issue list --repo groktopus/codereview --state open --limit 100",
   "state": "open",
   "total_filed": 33,
@@ -17,8 +17,7 @@
     253,
     254,
     258,
-    261,
     262
   ],
-  "notes": "Snapshot excluding #270, which this PR closes; 13 open issues after merge. Update with the same query when the set changes."
+  "notes": "Snapshot at 12 open issues after the v0.1.1 attested release and RS-3 close. Update with the same query when the set changes."
 }
