@@ -60,6 +60,31 @@
 
 ---
 
+### QM-2/QM-3 infrastructure checkpoint — 2026-11-02
+
+Infrastructure only; both issues remain **open**.
+
+- QM-2: [labeling protocol and rubric](../QUALITY-LABELING-PROTOCOL.md)
+  (`qm2-labeling-rubric.v1`) and a fixed six-case, empty
+  [pilot subset](../../examples/evaluation/qm2-labeling-pilot-v1/manifest.json).
+  The pilot has zero human packets, zero model-teacher packets, and no
+  predictions. The v1 contract forbids model-teacher adjudication.
+- QM-3: [scorecard and regression gate](../QUALITY-SCORECARD.md), a CI job that
+  runs the empty pilot, uploads the artifact, and proves a seeded regression
+  fails while empty data is `MISSING_DATA` rather than zero. The scorecard
+  never emits accuracy.
+
+QM-2 exit criteria still unmet: at least one case family has two real
+independent human packets plus a separate human adjudicated packet; real
+disagreement counts exist; the non-empty packets validate against
+`review-evaluation-labels.v1`. No human reviewer is recorded, so this cannot be
+satisfied by model-teacher output.
+
+QM-3 exit criteria still unmet: real predictions and human labels for the
+corpus, an owner-accepted baseline with owner-set tolerances, a scorecard from a
+real corpus run, and a scheduled full-corpus run. The RC-3 dependency is not
+closed. CI currently exercises the wiring, not quality.
+
 ## QM-4 — Measure the incumbent on identical snapshots
 
 - **Priority:** P1

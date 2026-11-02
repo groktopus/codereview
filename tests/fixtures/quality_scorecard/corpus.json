@@ -1,0 +1,36 @@
+{
+  "cases": [
+    {
+      "identity": {
+        "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "case_id": "scorecard-fixture-case",
+        "family_id": "scorecard-fixture-family",
+        "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "profile": {
+          "profile_id": "scorecard-fixture-profile",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "version": "1"
+        },
+        "repository": {
+          "name": "reviewed",
+          "owner": "example"
+        },
+        "snapshot_id": "snapshot-scorecard-fixture",
+        "source_manifest": {
+          "manifest_id": "scorecard-fixture-source",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "split": "development"
+      },
+      "scenario": null
+    }
+  ],
+  "contract_version": "review-evaluation-corpus.v1",
+  "corpus_id": "scorecard-gate-fixture-v1",
+  "dataset_version": "2026-11-02.1",
+  "expected_arms": [
+    "harness",
+    "droid"
+  ],
+  "sampling_frame": "pilot_internal"
+}

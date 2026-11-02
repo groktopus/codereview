@@ -95,6 +95,8 @@ implementation.
 | [Production context profile revision](PROFILE-REVISION.md) | Production context-profile revision. |
 | [Provider contract revision](PROVIDER-CONTRACT-REVISION.md) | Provider contract revision. |
 | [Review evaluation toolkit](EVALUATION-TOOLKIT.md) | Review evaluation toolkit. |
+| [Quality labeling and adjudication protocol](QUALITY-LABELING-PROTOCOL.md) | QM-2 severity/introducedness rubric, evidence, abstention, reviewer-kind, provenance, and relabeling protocol; no human labels exist yet. |
+| [Quality scorecards and regression gate](QUALITY-SCORECARD.md) | QM-3 deterministic scorecard fields, missing-data semantics, accuracy refusal, and seeded regression gate. |
 | [Frozen evaluation corpus v1](FROZEN-EVALUATION-CORPUS-V1.md) | QM-1 versioned 41-case corpus identity, provenance, splits, hashes, and limits. |
 | [GitHub Actions canary runtime](ACTIONS-RUNTIME.md) | GitHub Actions canary runtime contract. |
 | [Stateless GitHub Actions publication design](ACTIONS-PUBLICATION-DESIGN.md) | Stateless GitHub Actions publication design. |

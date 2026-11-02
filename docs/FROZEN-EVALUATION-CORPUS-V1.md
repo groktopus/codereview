@@ -118,6 +118,15 @@ The corpus cannot establish:
   are explicitly present;
 - that a control is clean or that an incomplete case contains a defect.
 
+## Labeling pilot subset
+
+The fixed six-case QM-2 pilot subset
+[examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)
+copies case identities unchanged from this corpus, covers both repositories and
+all three splits, and intentionally contains empty label and prediction
+packets. It is a measurement-infrastructure fixture, not a labeled dataset; see
+[QUALITY-LABELING-PROTOCOL.md](QUALITY-LABELING-PROTOCOL.md).
+
 ## Validation
 
 `tests/test_frozen_corpus.py` validates the corpus with the same

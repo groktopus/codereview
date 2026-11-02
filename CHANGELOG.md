@@ -15,6 +15,9 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 - Executable RS-4 contracts: an import-surface test, a zero-runtime-dependency invariant test over `pyproject.toml` and the built wheel's `METADATA`, lock freshness/hash tests, and SHA-pinning/scheduled-scan workflow checks.
 - An `install-matrix` CI job that installs the built wheel without development dependencies into fresh environments and runs `pr-review --help` on every documented combination.
 - Frozen evaluation corpus v1: 41 real merged-PR cases across two public repositories, all three splits, with source manifests and no labels or quality claims (QM-1).
+- Versioned QM-2 labeling rubric/protocol, including severity, introducedness, evidence, abstention, independent/adjudicated packets, `reviewer_kind` rules, provenance, and relabeling as new packet versions, plus an empty six-case labeling pilot subset.
+- Deterministic QM-3 quality scorecard generator and regression gate over corpus/predictions/labels, with completion, precision/recall bounds and denominators, abstention, duplicate/unadjudicated counts, `APPROVE`-with-known-defect counts, per-arm missing status, evaluator revision, and input hashes; missing labels/arms are reported as missing and accuracy remains refused.
+- A `quality-scorecard` CI job that generates and uploads the empty-pilot scorecard and demonstrates a seeded regression fails the gate while empty data returns `MISSING_DATA`.
 
 
 - Decision-record index and lightweight ADRs for architecture, transport, publication authorization, provider boundaries, evaluation gates, license, and release policy, with an executable index/field/status/safety-link check.

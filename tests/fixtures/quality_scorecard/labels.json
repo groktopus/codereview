@@ -1,0 +1,45 @@
+{
+  "contract_version": "review-evaluation-labels.v1",
+  "corpus_id": "scorecard-gate-fixture-v1",
+  "dataset_version": "2026-11-02.1",
+  "packets": [
+    {
+      "adjudications": [
+        {
+          "arm": "harness",
+          "canonical_finding_id": null,
+          "evidence_refs": [
+            "diff-1",
+            "repro-1"
+          ],
+          "finding_id": "h-1",
+          "label_id": "label-1",
+          "outcome": "MATCHED"
+        }
+      ],
+      "attack_outcomes": [],
+      "case_assessment": "MATERIAL_DEFECTS_PRESENT",
+      "case_completeness": "COMPLETE",
+      "case_id": "scorecard-fixture-case",
+      "finding_labels": [
+        {
+          "evidence_refs": [
+            "diff-1",
+            "repro-1"
+          ],
+          "introducedness": "INTRODUCED",
+          "label_id": "label-1",
+          "materiality": "MATERIAL"
+        }
+      ],
+      "label_role": "adjudicated",
+      "reviewer": {
+        "labeled_at": "2026-11-02T00:00:00Z",
+        "reviewer_id": "fixture-reviewer",
+        "reviewer_kind": "human",
+        "source_kind": "independent_reviewer"
+      }
+    }
+  ],
+  "rubric_version": "qm2-labeling-rubric.v1"
+}
