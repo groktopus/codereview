@@ -129,7 +129,9 @@ def _provider_reservations(state: RunState) -> list[tuple[str, dict]]:
 
 
 def _reservation_cost_target(state: RunState, key: str, reservation: dict) -> Any:
-    if reservation.get("kind") == "claim_assessment" or key.startswith(("claim-assessment:", "system-one:")):
+    if reservation.get("kind") == "claim_assessment" or key.startswith("claim-assessment:"):
+        return state.claim_assessor
+    if key.startswith("system-one:"):
         return state.decision_provider
     return state.provider
 

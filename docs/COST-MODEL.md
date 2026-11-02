@@ -56,7 +56,7 @@ provider price and grant no authority to use one).
   identity, so a resume against a different revision/content fails closed.
 - `currency` is an explicit three-letter uppercase code. It is never assumed
   to be USD.
-- The file is limited to 128 KiB and 1,000 rows; duplicate
+- The file is limited to 128,000 bytes (128 kB) and 1,000 rows; duplicate
   `(provider_id, model_id)` rows, duplicate JSON keys, unknown fields, control
   characters, and non-finite numbers are rejected.
 

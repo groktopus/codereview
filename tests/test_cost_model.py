@@ -360,3 +360,13 @@ def test_stats_refuses_to_sum_across_currencies_and_keeps_unknown_explicit():
     assert single["cost"]["currency"] == "USD"
     assert single["cost"]["currency_mixed"] is False
     assert single["cost"]["estimate"]["microunits_total_known"] == 100
+
+
+def test_claim_assessment_cost_target_uses_claim_assessor():
+    from types import SimpleNamespace
+
+    from pr_review_harness.review_stages import _reservation_cost_target
+
+    state = SimpleNamespace(provider="primary", decision_provider="decision", claim_assessor="claim")
+    assert _reservation_cost_target(state, "claim-assessment:run", {"kind": "claim_assessment"}) == "claim"
+    assert _reservation_cost_target(state, "system-one:run", {"kind": "advisory"}) == "decision"
