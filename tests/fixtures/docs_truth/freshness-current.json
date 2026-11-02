@@ -3,7 +3,7 @@
   "documents": [
     {
       "document": "docs/STATUS.md",
-      "evidence_revision": "bc0cd241840387b3b98654cccc35ea4056a305bf",
+      "evidence_revision": "42fbd07a09d6ff76b2f3e59e92203d555db273bc",
       "evidence_date": "2026-11-01",
       "source_paths": [
         "src/pr_review_harness/cli.py"
