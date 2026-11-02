@@ -2,12 +2,12 @@
 
 These declarations do not validate JSON/provider/workflow input.
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol, Required, TypedDict
 
 # Stable typed boundary records; validators at external edges remain authoritative.
-
 
 class SnapshotEvidence(TypedDict, total=False):
     evidence_id: str
@@ -39,7 +39,6 @@ class SnapshotEvidence(TypedDict, total=False):
     head_object_id: str | None
     head_relation: str
 
-
 class SnapshotUnit(TypedDict, total=False):
     unit_id: str
     path: str
@@ -54,7 +53,6 @@ class SnapshotUnit(TypedDict, total=False):
     review_context_evidence_ids: list[str]
     diff_hash: str
     file_level_location: dict[str, object]
-
 
 class SnapshotRecord(TypedDict, total=False):
     snapshot_id: str
@@ -77,7 +75,6 @@ class SnapshotRecord(TypedDict, total=False):
     gaps: list[dict[str, object]]
     external_check_results: dict[str, dict[str, object]]
     profile_hash: str
-
 
 class TaskRecord(TypedDict, total=False):
     task_id: Required[str]
@@ -106,7 +103,6 @@ class TaskRecord(TypedDict, total=False):
     _group: tuple[str, ...]
     _context_group: tuple[str, ...] | None
 
-
 class CoverageRow(TypedDict, total=False):
     coverage_id: str
     run_id: str
@@ -124,7 +120,6 @@ class CoverageRow(TypedDict, total=False):
     updated_at: str
     closure_diagnostics: dict[str, object]
 
-
 class PlanRecord(TypedDict, total=False):
     plan_version: str
     snapshot_id: str | None
@@ -138,7 +133,6 @@ class PlanRecord(TypedDict, total=False):
     coverage_obligations: list[dict[str, object]]
     tasks: list[TaskRecord]
     not_applicable: list[dict[str, object]]
-
 
 class StageOutcome(TypedDict, total=False):
     task_id: str
@@ -167,7 +161,6 @@ class StageOutcome(TypedDict, total=False):
     started_at: str
     finished_at: str
 
-
 class PreparedAttempt(TypedDict, total=False):
     task: TaskRecord
     task_id: str
@@ -188,7 +181,6 @@ class PreparedAttempt(TypedDict, total=False):
     attempts: int
     input_hash: str
 
-
 class AttemptRecord(TypedDict, total=False):
     attempt_id: str
     task_id: str
@@ -200,7 +192,6 @@ class AttemptRecord(TypedDict, total=False):
     input_hash: str
     output_hash: str | None
     error_code: str | None
-
 
 class LedgerEntry(TypedDict, total=False):
     identity: dict[str, object]
@@ -230,7 +221,6 @@ class LedgerEntry(TypedDict, total=False):
     ledger_version: str
     adjudications: dict[str, dict[str, object]]
 
-
 class FindingRecord(TypedDict, total=False):
     finding_id: str
     candidate_id: str
@@ -259,7 +249,6 @@ class FindingRecord(TypedDict, total=False):
     reconciliation_conflict: bool
     semantic_usage: dict[str, object]
     semantic_provenance: dict[str, object]
-
 
 class ReviewResult(TypedDict, total=False):
     contract_version: str
@@ -306,36 +295,27 @@ class ReviewResult(TypedDict, total=False):
     evidence_index: dict[str, dict[str, object]]
     context_omissions: list[dict[str, str]]
 
-
 class PlannerBoundary(Protocol):
-    def __call__(
-        self, snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "AUTO"
-    ) -> PlanRecord: ...
-
+    def __call__(self, snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "AUTO") -> PlanRecord: ...
 
 class StageBoundary(Protocol):
     """A controller stage consumes run state and returns no decision."""
 
     def __call__(self, state: Any, /) -> None: ...
 
-
 class TaskStageBoundary(Protocol):
     """Boundary signature for a task-oriented stage after ingress validation."""
 
     def __call__(self, state: Any, task: TaskRecord, /) -> StageOutcome: ...
 
-
 class AttemptStartBoundary(Protocol):
     def __call__(self, state: Any, task: TaskRecord, attempt_index: int, /) -> PreparedAttempt: ...
-
 
 class AttemptFinishBoundary(Protocol):
     def __call__(self, state: Any, prepared: PreparedAttempt, /) -> StageOutcome: ...
 
-
 class ReconcileBoundary(Protocol):
     def __call__(self, findings: list[FindingRecord], /) -> list[FindingRecord]: ...
-
 
 class ReportBoundary(Protocol):
     def __call__(self, result: ReviewResult, /) -> str: ...

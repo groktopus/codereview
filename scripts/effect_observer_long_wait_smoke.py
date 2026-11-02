@@ -38,7 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     cli = args.cli or Path(sysconfig.get_path("scripts")) / ("pr-review.exe" if os.name == "nt" else "pr-review")
     identity = preflight()
     if identity.get("status") != "AVAILABLE" or not cli.is_file() or not os.access(cli, os.X_OK):
-        print(json.dumps({"status": "UNAVAILABLE", "reason": "installed_cli_or_observer_unavailable"}, separators=(",", ":")))
+        print(
+            json.dumps(
+                {"status": "UNAVAILABLE", "reason": "installed_cli_or_observer_unavailable"}, separators=(",", ":")
+            )
+        )
         return 2
     result = _full_review_smoke(
         cli,

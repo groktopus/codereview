@@ -37,8 +37,12 @@ class FinalizeError(ValueError):
 def _git(root: Path, *args: str) -> bytes:
     try:
         result = subprocess.run(
-            ["git", "-C", str(root), *args], check=False, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15,
+            ["git", "-C", str(root), *args],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
         )
     except (OSError, subprocess.SubprocessError):
         raise FinalizeError("runtime_revision_unavailable") from None
@@ -77,8 +81,9 @@ def _module_tree_revision(root: Path, revision: str) -> tuple[int, str]:
     names = _git(root, "ls-tree", "-r", "--name-only", revision, "--", MODULE_RELATIVE).decode("utf-8").splitlines()
     prefix = MODULE_RELATIVE + "/"
     direct = sorted(
-        name[len(prefix):] for name in names
-        if name.startswith(prefix) and "/" not in name[len(prefix):] and name.endswith(".py")
+        name[len(prefix) :]
+        for name in names
+        if name.startswith(prefix) and "/" not in name[len(prefix) :] and name.endswith(".py")
     )
     files = {name: _git(root, "show", f"{revision}:{MODULE_RELATIVE}/{name}") for name in direct}
     if not files:
@@ -138,13 +143,16 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
     identity_sha = hashlib.sha256(identity_raw).hexdigest()
     digest_match = re.findall(rb'^IDENTITY_SHA256 = "([0-9a-f]{64})"$', package_raw, flags=re.MULTILINE)
     if configuration.get("runtime_pin_status") == "FROZEN":
-        if (configuration.get("module_count") != count
-                or configuration.get("module_tree_sha256") != tree_sha
-                or configuration.get("source_revision") != revision
-                or len(digest_match) != 1 or digest_match[0].decode("ascii") != identity_sha
-                or f'MODULE_COUNT = {count}'.encode() not in verifier_raw
-                or f'MODULE_TREE_SHA256 = "{tree_sha}"'.encode() not in verifier_raw
-                or f'SOURCE_REVISION = "{revision}"'.encode() not in verifier_raw):
+        if (
+            configuration.get("module_count") != count
+            or configuration.get("module_tree_sha256") != tree_sha
+            or configuration.get("source_revision") != revision
+            or len(digest_match) != 1
+            or digest_match[0].decode("ascii") != identity_sha
+            or f"MODULE_COUNT = {count}".encode() not in verifier_raw
+            or f'MODULE_TREE_SHA256 = "{tree_sha}"'.encode() not in verifier_raw
+            or f'SOURCE_REVISION = "{revision}"'.encode() not in verifier_raw
+        ):
             raise FinalizeError("finalized_runtime_pin_mismatch")
         return {
             "schema": "synth-001-identity-v3-finalization.v1",
@@ -156,38 +164,50 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
             "provider_calls": 0,
             "target_code_execution": False,
         }
-    if (configuration.get("runtime_pin_status") != "REQUIRES_FINAL_STACKED_RUNTIME"
-            or configuration.get("module_count") is not None
-            or configuration.get("module_tree_sha256") is not None
-            or configuration.get("source_revision") is not None):
+    if (
+        configuration.get("runtime_pin_status") != "REQUIRES_FINAL_STACKED_RUNTIME"
+        or configuration.get("module_count") is not None
+        or configuration.get("module_tree_sha256") is not None
+        or configuration.get("source_revision") is not None
+    ):
         raise FinalizeError("identity_not_pending")
     if len(digest_match) != 1 or digest_match[0].decode("ascii") != identity_sha:
         raise FinalizeError("package_identity_route_mismatch")
     finalized_identity = json.loads(json.dumps(identity))
     finalized_configuration = finalized_identity["configuration"]
-    finalized_configuration.update({
-        "module_count": count,
-        "module_tree_sha256": tree_sha,
-        "source_revision": revision,
-        "runtime_pin_status": "FROZEN",
-    })
+    finalized_configuration.update(
+        {
+            "module_count": count,
+            "module_tree_sha256": tree_sha,
+            "source_revision": revision,
+            "runtime_pin_status": "FROZEN",
+        }
+    )
     finalized_identity_raw = (json.dumps(finalized_identity, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     updated_verifier = _replace_once(
-        verifier_raw, rb"^MODULE_COUNT = [0-9]+$", f"MODULE_COUNT = {count}".encode(),
+        verifier_raw,
+        rb"^MODULE_COUNT = [0-9]+$",
+        f"MODULE_COUNT = {count}".encode(),
         "verifier_module_count_route_invalid",
     )
     updated_verifier = _replace_once(
-        updated_verifier, rb'^MODULE_TREE_SHA256 = "[0-9a-f]{64}"$',
-        f'MODULE_TREE_SHA256 = "{tree_sha}"'.encode(), "verifier_module_tree_route_invalid",
+        updated_verifier,
+        rb'^MODULE_TREE_SHA256 = "[0-9a-f]{64}"$',
+        f'MODULE_TREE_SHA256 = "{tree_sha}"'.encode(),
+        "verifier_module_tree_route_invalid",
     )
     updated_verifier = _replace_once(
-        updated_verifier, rb'^SOURCE_REVISION = "[0-9a-f]{40}"$',
-        f'SOURCE_REVISION = "{revision}"'.encode(), "verifier_revision_route_invalid",
+        updated_verifier,
+        rb'^SOURCE_REVISION = "[0-9a-f]{40}"$',
+        f'SOURCE_REVISION = "{revision}"'.encode(),
+        "verifier_revision_route_invalid",
     )
     identity_sha = hashlib.sha256(finalized_identity_raw).hexdigest()
     updated_package = _replace_once(
-        package_raw, rb'^IDENTITY_SHA256 = "[0-9a-f]{64}"$',
-        f'IDENTITY_SHA256 = "{identity_sha}"'.encode(), "package_digest_route_invalid",
+        package_raw,
+        rb'^IDENTITY_SHA256 = "[0-9a-f]{64}"$',
+        f'IDENTITY_SHA256 = "{identity_sha}"'.encode(),
+        "package_digest_route_invalid",
     )
 
     # All contracts and bytes are computed before the first replacement.
@@ -208,14 +228,22 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source-revision", required=True, help="immutable commit containing the final runtime module tree")
+    parser.add_argument(
+        "--source-revision", required=True, help="immutable commit containing the final runtime module tree"
+    )
     args = parser.parse_args(argv)
     try:
         result = finalize(ROOT, args.source_revision)
     except Exception as exc:
         error = str(exc) if isinstance(exc, FinalizeError) else "finalization_failed"
-        print(json.dumps({"schema": "synth-001-identity-v3-finalization.v1", "status": "REJECTED", "error": error},
-                         sort_keys=True, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps(
+                {"schema": "synth-001-identity-v3-finalization.v1", "status": "REJECTED", "error": error},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0

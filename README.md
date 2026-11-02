@@ -109,7 +109,9 @@ The reusable Actions analysis is inactive until a trusted target-repository work
 
 ```sh
 pytest -q
-ruff check src tests
+ruff check .
+ruff format --check .
+python scripts/check_complexity.py
 ```
 
 Reports retain source excerpts and should be handled according to the target repository's confidentiality and retention requirements. Credentials belong in environment variables, never configuration files. Runtime limits and source provenance are recorded; model assessments remain fallible advisory evidence.

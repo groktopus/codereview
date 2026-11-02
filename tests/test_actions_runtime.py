@@ -88,9 +88,7 @@ def test_runtime_source_identity_binds_loaded_module_and_clean_package_tree_to_r
     assert identity["state"] == "VERIFIED"
     assert identity["reason_code"] is None
     assert identity["source_revision"] == revision
-    assert identity["module_count"] == len(
-        list((repository / "src/pr_review_harness").rglob("*.py"))
-    ) + 1
+    assert identity["module_count"] == len(list((repository / "src/pr_review_harness").rglob("*.py"))) + 1
     assert re.fullmatch(r"[0-9a-f]{64}", identity["module_tree_sha256"])
 
 
@@ -127,9 +125,7 @@ def test_runtime_source_identity_rejects_loaded_package_module_outside_checkout(
     repository, revision, module_file = _runtime_checkout(tmp_path)
     monkeypatch.setattr(actions_canary, "__file__", str(module_file))
 
-    identity = actions_canary._runtime_source_identity(
-        {"GITHUB_WORKSPACE": str(repository), "GITHUB_SHA": revision}
-    )
+    identity = actions_canary._runtime_source_identity({"GITHUB_WORKSPACE": str(repository), "GITHUB_SHA": revision})
 
     assert identity["state"] == "UNAVAILABLE"
     assert identity["reason_code"] == "runtime_module_origin_mismatch"

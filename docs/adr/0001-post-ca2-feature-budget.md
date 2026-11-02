@@ -31,6 +31,34 @@ i.e. 31,014 lines at this budget. Every source addition must update the recorded
 measurement; the test asserts the live count and reduction match the manifest.
 Unused budget is not permission to grow without review.
 
+## VD-4 formatter normalization addendum (2026-11-02)
+
+VD-4 adopts `ruff format` at the existing 120-column line length as the
+canonical formatter. Formatting is behavior-preserving but changes physical line
+counts: wrapping long signatures and calls took `src/pr_review_harness` from
+30,870 to 31,725 lines (+855). The source-line guard measures physical lines, so
+leaving the manifest at the pre-format count would fail CI for a whitespace-only
+change.
+
+The recorded measurement is therefore re-baselined to 31,725 lines
+(−22.02%, still short of the one-time 25% outcome), and
+`formatting_normalization_allowance_lines: 900` is added as a **one-time
+formatter allowance, not feature headroom**. The 500-line feature budget is
+unchanged and remains a separate allowance. The gate becomes:
+
+```
+current_src_lines <= base_src_lines * (1 - required_reduction)
+                     + feature_budget + formatting_normalization_allowance
+```
+
+i.e. 31,914 lines. After normalization, 189 physical lines remain against that
+ceiling; the unused feature budget was 144 lines before formatting and is not
+renewed by this addendum. Further feature growth still requires a new decision
+record or real reduction elsewhere.
+
+This addendum records a measurement change required by VD-4; owner review of the
+re-baseline is required before merge, and it does not relabel the CA-2 result.
+
 ## Consequences
 
 - OE-2 can ship without deleting working code or falsifying the CA-2 result.

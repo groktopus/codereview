@@ -133,6 +133,8 @@ fixtures keep validating against the same bytes they always described.
 ```sh
 PYTHONPATH=src python -m pytest -q                 # full suite, including archive tests
 ruff check src scripts tests experiments           # lint
+ruff format --check src scripts tests experiments  # canonical formatting
+python scripts/check_complexity.py                 # function-length baseline
 rg -n "def run_" src                               # orchestrator inventory
 python -m build --wheel --outdir dist && unzip -l dist/*.whl  # wheel inventory: no experiments/
 ```

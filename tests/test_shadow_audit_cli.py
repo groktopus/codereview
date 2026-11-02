@@ -35,13 +35,22 @@ def test_legacy_cli_supplies_finite_stage_guard_limits_without_dispatch(tmp_path
     monkeypatch.setattr(CLI, "OpenAIProvider", FakeProvider)
     monkeypatch.setattr(CLI, "ClaimTransport", FakeClaimTransport)
     monkeypatch.setattr(CLI, "run_shadow_audit", fake_run)
-    code = CLI.main([
-        "--case", str(tmp_path / "case.json"),
-        "--source-provider-config", str(tmp_path / "source.json"),
-        "--claim-provider-config", str(tmp_path / "claim.json"),
-        "--jev-config", str(tmp_path / "jev.json"),
-        "--output-dir", str(tmp_path / "private"), "--live", "--json",
-    ])
+    code = CLI.main(
+        [
+            "--case",
+            str(tmp_path / "case.json"),
+            "--source-provider-config",
+            str(tmp_path / "source.json"),
+            "--claim-provider-config",
+            str(tmp_path / "claim.json"),
+            "--jev-config",
+            str(tmp_path / "jev.json"),
+            "--output-dir",
+            str(tmp_path / "private"),
+            "--live",
+            "--json",
+        ]
+    )
     assert code == 0
     assert json.loads(capsys.readouterr().out)["terminal_state"] == "completed"
     assert observed["limits"] == CLI.LEGACY_AUDIT_LIMITS

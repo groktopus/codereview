@@ -166,7 +166,10 @@ def _is_scalar_or_container(value: Any, *, depth: int = 0) -> bool:
 def _validate_source(entry: dict[str, Any], *, root: Path | None) -> None:
     source_path = entry.get("source_path")
     if source_path is not None and (
-        not isinstance(source_path, str) or not source_path or source_path.startswith(("/", "..")) or ".." in source_path.split("/")
+        not isinstance(source_path, str)
+        or not source_path
+        or source_path.startswith(("/", ".."))
+        or ".." in source_path.split("/")
     ):
         raise ContractRegistryError("registry_invalid")
     source_sha256 = entry.get("source_sha256")
@@ -251,7 +254,14 @@ def _validate_archived(entry: dict[str, Any]) -> None:
 
 def validate_registry(registry: dict[str, Any], *, root: Path | str | None = None) -> None:
     """Validate shape, status matrix, references, and pinned source digests."""
-    if set(registry) != {"registry_version", "owner", "supported_combination", "targets", "deprecation_policy", "contracts"}:
+    if set(registry) != {
+        "registry_version",
+        "owner",
+        "supported_combination",
+        "targets",
+        "deprecation_policy",
+        "contracts",
+    }:
         raise ContractRegistryError("registry_invalid")
     if registry["registry_version"] != REGISTRY_VERSION:
         raise ContractRegistryError("registry_invalid")
@@ -600,8 +610,7 @@ def effective_contract_set(
             (
                 entry
                 for entry in registry["contracts"]
-                if entry["kind"] == "review-contract"
-                and entry["combination"]["profile"] == profile_entry["name"]
+                if entry["kind"] == "review-contract" and entry["combination"]["profile"] == profile_entry["name"]
             ),
             None,
         )
@@ -611,9 +620,7 @@ def effective_contract_set(
         for entry in (contract, profile_entry, limits_entry):
             if entry is None:
                 raise ContractRegistryError("contract_limits_mismatch")
-            _verify_component_status(
-                entry, allow_deprecated=allow_deprecated, allow_archived=allow_archived
-            )
+            _verify_component_status(entry, allow_deprecated=allow_deprecated, allow_archived=allow_archived)
         historical_limits = bool(
             allow_archived
             and limits_entry is not None
@@ -640,9 +647,8 @@ def effective_contract_set(
         # A profile that presents a registry identity (repository + status) on a
         # known target must resolve to a registered version.  Synthetic fixtures
         # without that identity remain usable as library inputs.
-        identity_claims_registry = (
-            isinstance(profile.get("repository"), str)
-            and isinstance(profile.get("profile_status"), str)
+        identity_claims_registry = isinstance(profile.get("repository"), str) and isinstance(
+            profile.get("profile_status"), str
         )
         if identity_claims_registry and profile["repository"] in registry["targets"] and profile_entry is None:
             raise ContractRegistryError("contract_unregistered_profile")
@@ -653,18 +659,20 @@ def effective_contract_set(
     context_selection = profile.get("context_selection")
     context_version = context_selection.get("version") if isinstance(context_selection, dict) else None
     context_target_manifest = profile.get("context_target_manifest")
-    manifest_version = (
-        context_target_manifest.get("version") if isinstance(context_target_manifest, dict) else None
+    manifest_version = context_target_manifest.get("version") if isinstance(context_target_manifest, dict) else None
+    component = (
+        _component(profile_entry)
+        if profile_entry is not None
+        else {
+            "name": profile.get("version", profile.get("profile_version")),
+            "version": profile.get("version", profile.get("profile_version")),
+            "status": registration if registration == "unregistered" else "unregistered",
+            "owner": None,
+            "replaced_by": None,
+            "source_path": None,
+            "source_sha256": None,
+        }
     )
-    component = _component(profile_entry) if profile_entry is not None else {
-        "name": profile.get("version", profile.get("profile_version")),
-        "version": profile.get("version", profile.get("profile_version")),
-        "status": registration if registration == "unregistered" else "unregistered",
-        "owner": None,
-        "replaced_by": None,
-        "source_path": None,
-        "source_sha256": None,
-    }
     return {
         "registration": registration,
         "registry": registry_component,
@@ -699,10 +707,7 @@ def _resolve_path(document: dict[str, Any], path: str) -> tuple[bool, Any]:
     return True, current
 
 
-
-def validate_contract_checks(
-    profile: dict[str, Any], limits: dict[str, Any], contract_entry: dict[str, Any]
-) -> None:
+def validate_contract_checks(profile: dict[str, Any], limits: dict[str, Any], contract_entry: dict[str, Any]) -> None:
     """Enforce the machine-readable ``checks`` clauses for one review contract."""
     for clause in contract_entry.get("checks", []):
         path = clause["path"]
@@ -741,6 +746,9 @@ def receipt_contract_set(registry: dict[str, Any], protocol_version: str) -> dic
     if entry["status"] == "archived":
         raise ContractRegistryError("contract_archived")
     return {
-        "registry": {**_component(get_entry(registry, "registry", REGISTRY_VERSION)), "sha256": registry_digest(registry)},
+        "registry": {
+            **_component(get_entry(registry, "registry", REGISTRY_VERSION)),
+            "sha256": registry_digest(registry),
+        },
         "canary_receipt": _component(entry),
     }

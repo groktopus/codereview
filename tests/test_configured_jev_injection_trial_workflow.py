@@ -16,9 +16,7 @@ def test_configured_jev_workflow_is_main_only_read_only_and_prepare_by_default()
     assert "github.repository == 'groktopus/codereview'" in source
     assert "github.ref == 'refs/heads/main'" in source
     assert "permissions:\n  contents: read" in source
-    live = source.split("- name: Run the two configured Jev calls", 1)[1].split(
-        "- name: Upload only", 1
-    )[0]
+    live = source.split("- name: Run the two configured Jev calls", 1)[1].split("- name: Upload only", 1)[0]
     assert "if: inputs.run_live_trial == true" in live
     assert all(f"{name}: ${{{{ secrets.{name} }}}}" in live for name in ("JEV_BASE_URL", "JEV_MODEL", "JEV_API_KEY"))
     assert all(name not in live for name in ("LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY"))

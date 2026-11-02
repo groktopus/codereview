@@ -90,9 +90,11 @@ def _read_bounded_regular(path: Path, limit: int) -> bytes:
             chunks.extend(chunk)
         after = os.fstat(fd)
         if (
-            len(chunks) > limit or not stat.S_ISREG(after.st_mode)
+            len(chunks) > limit
+            or not stat.S_ISREG(after.st_mode)
             or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
-            or after.st_size != len(chunks) or before.st_size != after.st_size
+            or after.st_size != len(chunks)
+            or before.st_size != after.st_size
         ):
             raise ValueError("capture file changed while reading")
         return bytes(chunks)
@@ -103,9 +105,18 @@ def _read_bounded_regular(path: Path, limit: int) -> bytes:
 class PrivateShadowCapture:
     """Owns a new private capture directory and its bounded call receipts."""
 
-    def __init__(self, root: str | os.PathLike[str], *, case_id: str, snapshot: dict, source_task: str,
-                 provider: Any, request_byte_limit: int, response_byte_limit: int,
-                 corpus_case_id: str | None = None):
+    def __init__(
+        self,
+        root: str | os.PathLike[str],
+        *,
+        case_id: str,
+        snapshot: dict,
+        source_task: str,
+        provider: Any,
+        request_byte_limit: int,
+        response_byte_limit: int,
+        corpus_case_id: str | None = None,
+    ):
         self.root = Path(root).expanduser()
         if self.root.exists() or self.root.is_symlink():
             raise ValueError("capture directory must be new")
@@ -154,9 +165,11 @@ class PrivateShadowCapture:
         self._source_task_rows: dict[str, dict] = {}
         self._profile_id: str | None = None
         if (
-            isinstance(request_byte_limit, bool) or not isinstance(request_byte_limit, int)
+            isinstance(request_byte_limit, bool)
+            or not isinstance(request_byte_limit, int)
             or not 1 <= request_byte_limit <= MAX_REQUEST_BYTES
-            or isinstance(response_byte_limit, bool) or not isinstance(response_byte_limit, int)
+            or isinstance(response_byte_limit, bool)
+            or not isinstance(response_byte_limit, int)
             or not 1 <= response_byte_limit <= MAX_RESPONSE_BYTES
         ):
             raise ValueError("capture capacity invalid")
@@ -167,16 +180,19 @@ class PrivateShadowCapture:
             child.mkdir(mode=0o700)
             os.chmod(child, 0o700)
         self._write_json("snapshot.json", snapshot)
-        self._write_json("manifest.json", {
-            "contract_version": "model-only-shadow-case.v1",
-            "case_id": self.case_id,
-            "snapshot_id": self.snapshot_id,
-            "snapshot_hash": self.snapshot_hash,
-            "source_task": self.source_task,
-            "provider": self.provider_identity,
-            "calls": [],
-            "private_artifacts": True,
-        })
+        self._write_json(
+            "manifest.json",
+            {
+                "contract_version": "model-only-shadow-case.v1",
+                "case_id": self.case_id,
+                "snapshot_id": self.snapshot_id,
+                "snapshot_hash": self.snapshot_hash,
+                "source_task": self.source_task,
+                "provider": self.provider_identity,
+                "calls": [],
+                "private_artifacts": True,
+            },
+        )
 
     def _write_json(self, relative: str, value: Any) -> None:
         path = self.root / relative
@@ -197,20 +213,35 @@ class PrivateShadowCapture:
             if call_id in self._calls or len(self._calls) >= MAX_CAPTURE_CALLS:
                 raise ValueError("capture call limit or duplicate call")
             receipt = {
-                "call_id": call_id, "case_id": self.case_id, "run_id": run_id,
-                "snapshot_id": self.snapshot_id, "snapshot_hash": self.snapshot_hash,
-                "task_id": task_id, "attempt": attempt, "provider": self.provider_identity,
-                "status": "incomplete", "request_artifact_id": None,
-                "request_sha256": None, "response_artifact_id": None,
-                "response_sha256": None, "response_envelope_sha256": None,
+                "call_id": call_id,
+                "case_id": self.case_id,
+                "run_id": run_id,
+                "snapshot_id": self.snapshot_id,
+                "snapshot_hash": self.snapshot_hash,
+                "task_id": task_id,
+                "attempt": attempt,
+                "provider": self.provider_identity,
+                "status": "incomplete",
+                "request_artifact_id": None,
+                "request_sha256": None,
+                "response_artifact_id": None,
+                "response_sha256": None,
+                "response_envelope_sha256": None,
                 "content_transform": None,
             }
             self._calls[call_id] = receipt
             self._write_call_receipt(receipt)
-        return {"case_id": self.case_id, "run_id": run_id, "snapshot_id": self.snapshot_id,
-                "snapshot_hash": self.snapshot_hash, "task_id": task_id, "call_id": call_id,
-                "attempt": attempt, "request_byte_limit": self.request_byte_limit,
-                "response_byte_limit": self.response_byte_limit}
+        return {
+            "case_id": self.case_id,
+            "run_id": run_id,
+            "snapshot_id": self.snapshot_id,
+            "snapshot_hash": self.snapshot_hash,
+            "task_id": task_id,
+            "call_id": call_id,
+            "attempt": attempt,
+            "request_byte_limit": self.request_byte_limit,
+            "response_byte_limit": self.response_byte_limit,
+        }
 
     def export_source_tasks(self, rows: list[dict], *, profile_id: str) -> None:
         profile_id = _safe_id(profile_id, "profile_id")
@@ -232,11 +263,17 @@ class PrivateShadowCapture:
             if any(not isinstance(item, dict) or item.get("snapshot_id") != self.snapshot_id for item in evidence):
                 raise ValueError("source evidence snapshot mismatch")
             safe_rows.append({"task": task, "evidence": evidence})
-        self._write_json("source_tasks.json", {
-            "contract_version": "model-only-shadow-source-tasks.v1",
-            "case_id": self.case_id, "snapshot_id": self.snapshot_id,
-            "snapshot_hash": self.snapshot_hash, "profile_id": profile_id, "tasks": safe_rows,
-        })
+        self._write_json(
+            "source_tasks.json",
+            {
+                "contract_version": "model-only-shadow-source-tasks.v1",
+                "case_id": self.case_id,
+                "snapshot_id": self.snapshot_id,
+                "snapshot_hash": self.snapshot_hash,
+                "profile_id": profile_id,
+                "tasks": safe_rows,
+            },
+        )
         self._source_task_rows = {row["task"]["task_id"]: row for row in safe_rows}
         self._profile_id = profile_id
 
@@ -255,7 +292,9 @@ class PrivateShadowCapture:
         if packet_dir.exists() or packet_dir.is_symlink():
             raise ValueError("case packet directory already exists")
         call_values = list(self._calls.values())
-        provider_id = self.provider_identity.get("provider_id", self.provider_identity.get("provider", "openai-compatible"))
+        provider_id = self.provider_identity.get(
+            "provider_id", self.provider_identity.get("provider", "openai-compatible")
+        )
         model_id = self.provider_identity.get("model_id", self.provider_identity.get("model", "unreported"))
         version = self.provider_identity.get("adapter_version", "0.2")
         observed_profile_hash = _sha(_canonical(profile))
@@ -279,8 +318,10 @@ class PrivateShadowCapture:
                     writer_status = "completed"
                 else:
                     writer_status = (
-                        "unavailable" if all(status == "unavailable" for status in statuses)
-                        else "failed" if all(status == "failed" for status in statuses)
+                        "unavailable"
+                        if all(status == "unavailable" for status in statuses)
+                        else "failed"
+                        if all(status == "failed" for status in statuses)
                         else "incomplete"
                     )
                 calls = [
@@ -293,9 +334,11 @@ class PrivateShadowCapture:
                     }
                     for call in task_calls
                 ]
-                calls_manifest_hash = _sha(json.dumps(
-                    calls, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-                ).encode("utf-8"))
+                calls_manifest_hash = _sha(
+                    json.dumps(
+                        calls, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+                    ).encode("utf-8")
+                )
             candidates: list[dict | None] = []
             task_payload = task_result.get("payload", {}) if isinstance(task_result, dict) else {}
             raw_candidates = task_payload.get("finding_candidates", []) if isinstance(task_payload, dict) else []
@@ -319,22 +362,26 @@ class PrivateShadowCapture:
                 if writer_status == "not_run":
                     calls_digest = None
                 writer_run = {
-                    "role": "writer", "status": writer_status,
+                    "role": "writer",
+                    "status": writer_status,
                     "run_id": result.get("run_id") if writer_status != "not_run" else None,
                     "provider_id": provider_id if writer_status != "not_run" else None,
                     "model_id": model_id if writer_status != "not_run" else None,
                     "runtime_id": f"pr-review-harness/{version}" if writer_status != "not_run" else None,
                     "prompt_revision": "specialist-findings.v4" if writer_status != "not_run" else None,
                     "rubric_revision": rubric_revision if writer_status != "not_run" else None,
-                    "calls": calls, "calls_manifest_sha256": calls_digest,
+                    "calls": calls,
+                    "calls_manifest_sha256": calls_digest,
                 }
                 evidence_rows = row["evidence"]
                 packet = {
                     "contract_version": "model-only-shadow-case.v1",
                     "case_id": self.corpus_case_id or packet_file_id,
                     "snapshot": json.loads((self.root / "snapshot.json").read_text(encoding="utf-8")),
-                    "source_task": row["task"], "source_evidence": evidence_rows,
-                    "writer_run": writer_run, "writer_candidate": candidate,
+                    "source_task": row["task"],
+                    "source_evidence": evidence_rows,
+                    "writer_run": writer_run,
+                    "writer_candidate": candidate,
                     "profile_id": self._profile_id,
                 }
                 path = staging_dir / f"{packet_file_id}.json"
@@ -362,9 +409,11 @@ class PrivateShadowCapture:
         self._replace_json(self.root / "calls" / f"{receipt['call_id']}.json", receipt)
         manifest_path = self.root / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["calls"] = [*manifest["calls"], receipt] if not any(
-            row.get("call_id") == receipt["call_id"] for row in manifest["calls"]
-        ) else [receipt if row.get("call_id") == receipt["call_id"] else row for row in manifest["calls"]]
+        manifest["calls"] = (
+            [*manifest["calls"], receipt]
+            if not any(row.get("call_id") == receipt["call_id"] for row in manifest["calls"])
+            else [receipt if row.get("call_id") == receipt["call_id"] else row for row in manifest["calls"]]
+        )
         self._replace_json(manifest_path, manifest)
 
     def reconcile(self, spec: dict) -> dict | None:
@@ -381,9 +430,10 @@ class PrivateShadowCapture:
             return None
         with self._lock:
             pending = self._calls.get(call_id)
-            if pending is None or any(receipt.get(k) != pending.get(k) for k in (
-                "call_id", "case_id", "run_id", "snapshot_id", "snapshot_hash", "task_id", "attempt"
-            )):
+            if pending is None or any(
+                receipt.get(k) != pending.get(k)
+                for k in ("call_id", "case_id", "run_id", "snapshot_id", "snapshot_hash", "task_id", "attempt")
+            ):
                 raise ValueError("capture receipt identity mismatch")
             if receipt.get("status") not in {"completed", "incomplete", "failed", "unavailable"}:
                 raise ValueError("capture receipt status invalid")
@@ -410,9 +460,21 @@ class PrivateShadowCapture:
                     raise ValueError("capture aggregate byte limit exceeded")
                 self._total_bytes += len(raw)
             allowed = {
-                "call_id", "case_id", "run_id", "snapshot_id", "snapshot_hash", "task_id", "attempt",
-                "provider", "status", "request_artifact_id", "request_sha256", "response_artifact_id",
-                "response_sha256", "response_envelope_sha256", "content_transform",
+                "call_id",
+                "case_id",
+                "run_id",
+                "snapshot_id",
+                "snapshot_hash",
+                "task_id",
+                "attempt",
+                "provider",
+                "status",
+                "request_artifact_id",
+                "request_sha256",
+                "response_artifact_id",
+                "response_sha256",
+                "response_envelope_sha256",
+                "content_transform",
             }
             if set(receipt) != allowed:
                 raise ValueError("capture receipt shape invalid")
@@ -421,9 +483,17 @@ class PrivateShadowCapture:
             self._calls[call_id] = receipt
             self._reconciled.add(call_id)
             self._write_call_receipt(receipt)
-            return {key: receipt[key] for key in (
-                "call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id", "status"
-            )}
+            return {
+                key: receipt[key]
+                for key in (
+                    "call_id",
+                    "request_sha256",
+                    "request_artifact_id",
+                    "response_sha256",
+                    "response_artifact_id",
+                    "status",
+                )
+            }
 
     def finalize_pending(self, call_id: str, status: str = "incomplete") -> None:
         if status not in {"incomplete", "failed", "unavailable"}:
@@ -435,9 +505,14 @@ class PrivateShadowCapture:
                 self._write_call_receipt(receipt)
 
 
-def write_provider_exchange(capture_spec: dict, request_bytes: bytes | None, response_content_bytes: bytes | None,
-                            status: str, response_envelope_sha256: str | None = None,
-                            content_transform: str | None = None) -> dict:
+def write_provider_exchange(
+    capture_spec: dict,
+    request_bytes: bytes | None,
+    response_content_bytes: bytes | None,
+    status: str,
+    response_envelope_sha256: str | None = None,
+    content_transform: str | None = None,
+) -> dict:
     """Spawn-safe provider callback; the parent-owned directory is addressed by spec."""
     root = Path(capture_spec["root"])
     if root.is_symlink() or not root.is_dir():
@@ -449,16 +524,22 @@ def write_provider_exchange(capture_spec: dict, request_bytes: bytes | None, res
     if pending_path.is_symlink() or not pending_path.is_file() or pending_path.stat().st_size > 64_000:
         raise ValueError("capture pending receipt unavailable")
     pending = json.loads(pending_path.read_text(encoding="utf-8"))
-    if any(capture_spec.get(key) != pending.get(key) for key in (
-        "case_id", "run_id", "snapshot_id", "snapshot_hash", "task_id", "attempt"
-    )) or pending.get("status") != "incomplete":
+    if (
+        any(
+            capture_spec.get(key) != pending.get(key)
+            for key in ("case_id", "run_id", "snapshot_id", "snapshot_hash", "task_id", "attempt")
+        )
+        or pending.get("status") != "incomplete"
+    ):
         raise ValueError("capture call identity mismatch")
     request_limit = capture_spec.get("request_byte_limit")
     response_limit = capture_spec.get("response_byte_limit")
     if (
-        isinstance(request_limit, bool) or not isinstance(request_limit, int)
+        isinstance(request_limit, bool)
+        or not isinstance(request_limit, int)
         or not 1 <= request_limit <= MAX_REQUEST_BYTES
-        or isinstance(response_limit, bool) or not isinstance(response_limit, int)
+        or isinstance(response_limit, bool)
+        or not isinstance(response_limit, int)
         or not 1 <= response_limit <= MAX_RESPONSE_BYTES
     ):
         raise ValueError("capture limits invalid")
@@ -477,12 +558,14 @@ def write_provider_exchange(capture_spec: dict, request_bytes: bytes | None, res
     ):
         raise ValueError("response capture limit exceeded")
     receipt = {
-        "call_id": call_id, "case_id": _safe_id(capture_spec.get("case_id"), "case_id"),
+        "call_id": call_id,
+        "case_id": _safe_id(capture_spec.get("case_id"), "case_id"),
         "run_id": _safe_id(capture_spec.get("run_id"), "run_id"),
         "snapshot_id": _safe_id(capture_spec.get("snapshot_id"), "snapshot_id"),
         "snapshot_hash": capture_spec.get("snapshot_hash"),
         "task_id": _safe_id(capture_spec.get("task_id"), "task_id"),
-        "attempt": capture_spec.get("attempt"), "provider": capture_spec.get("provider", {}),
+        "attempt": capture_spec.get("attempt"),
+        "provider": capture_spec.get("provider", {}),
         "status": status,
     }
     # Child writes use unique paths reserved by the parent. A pending receipt
@@ -504,6 +587,14 @@ def write_provider_exchange(capture_spec: dict, request_bytes: bytes | None, res
     receipt["response_envelope_sha256"] = response_envelope_sha256
     receipt["content_transform"] = content_transform if response_content_bytes is not None else None
     _write_private(root / "calls" / f"{call_id}.final.json", _canonical(receipt) + b"\n", limit=64_000)
-    return {key: receipt.get(key) for key in (
-        "call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id", "status"
-    )}
+    return {
+        key: receipt.get(key)
+        for key in (
+            "call_id",
+            "request_sha256",
+            "request_artifact_id",
+            "response_sha256",
+            "response_artifact_id",
+            "status",
+        )
+    }

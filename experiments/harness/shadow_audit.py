@@ -65,17 +65,30 @@ def _schema_claim() -> dict[str, Any]:
                 "contract_version": {"type": "string", "enum": ["shadow-claim-audit.v1"]},
                 "status": {"type": "string", "enum": ["completed", "abstained"]},
                 "relations": {
-                    "type": "array", "maxItems": len(_DIMENSIONS),
+                    "type": "array",
+                    "maxItems": len(_DIMENSIONS),
                     "items": {
-                        "type": "object", "additionalProperties": False,
-                        "required": ["assertion_id", "dimension", "relation", "left_record_id", "right_record_id", "evidence_refs"],
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "assertion_id",
+                            "dimension",
+                            "relation",
+                            "left_record_id",
+                            "right_record_id",
+                            "evidence_refs",
+                        ],
                         "properties": {
                             "assertion_id": {"type": "string", "minLength": 1, "maxLength": 256},
                             "dimension": {"type": "string", "enum": list(_DIMENSIONS)},
                             "relation": {"type": "string", "enum": sorted(_RELATIONS)},
                             "left_record_id": {"type": "string", "minLength": 1, "maxLength": 256},
                             "right_record_id": {"type": "string", "minLength": 1, "maxLength": 256},
-                            "evidence_refs": {"type": "array", "maxItems": 128, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+                            "evidence_refs": {
+                                "type": "array",
+                                "maxItems": 128,
+                                "items": {"type": "string", "minLength": 1, "maxLength": 256},
+                            },
                         },
                     },
                 },
@@ -137,13 +150,31 @@ def _error_code(value: Any, fallback: str) -> str:
 def _validate_snapshot(snapshot: Any) -> dict[str, Any]:
     if not isinstance(snapshot, dict):
         raise ShadowAuditError("snapshot_missing")
-    required = {"snapshot_id", "snapshot_hash", "repository", "repository_url", "base_sha", "head_sha", "profile_version", "profile_hash", "inventory", "evidence", "gaps", "trusted_context_refs"}
+    required = {
+        "snapshot_id",
+        "snapshot_hash",
+        "repository",
+        "repository_url",
+        "base_sha",
+        "head_sha",
+        "profile_version",
+        "profile_hash",
+        "inventory",
+        "evidence",
+        "gaps",
+        "trusted_context_refs",
+    }
     if not required.issubset(snapshot):
         raise ShadowAuditError("snapshot_shape_invalid")
     _safe_token(snapshot["snapshot_id"], "snapshot_identity_invalid")
     if not isinstance(snapshot["snapshot_hash"], str) or not _SHA256.fullmatch(snapshot["snapshot_hash"]):
         raise ShadowAuditError("snapshot_hash_invalid")
-    if not all(isinstance(snapshot[key], str) and _REVISION.fullmatch(snapshot[key]) for key in ("base_sha", "head_sha")) or snapshot["base_sha"] == snapshot["head_sha"]:
+    if (
+        not all(
+            isinstance(snapshot[key], str) and _REVISION.fullmatch(snapshot[key]) for key in ("base_sha", "head_sha")
+        )
+        or snapshot["base_sha"] == snapshot["head_sha"]
+    ):
         raise ShadowAuditError("snapshot_revision_invalid")
     payload = {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}}
     if _json_hash(payload) != snapshot["snapshot_hash"]:
@@ -158,7 +189,16 @@ def _validate_snapshot(snapshot: Any) -> dict[str, Any]:
 def _validate_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(packet, Mapping):
         raise ShadowAuditError("case_packet_invalid")
-    required = {"contract_version", "case_id", "snapshot", "source_task", "source_evidence", "writer_run", "writer_candidate", "profile_id"}
+    required = {
+        "contract_version",
+        "case_id",
+        "snapshot",
+        "source_task",
+        "source_evidence",
+        "writer_run",
+        "writer_candidate",
+        "profile_id",
+    }
     if set(packet) != required or packet.get("contract_version") != "model-only-shadow-case.v1":
         raise ShadowAuditError("case_packet_invalid")
     value = json.loads(_canonical(dict(packet)))
@@ -186,9 +226,25 @@ def _validate_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(expected, dict) or item != expected:
             raise ShadowAuditError("source_evidence_snapshot_mismatch")
     writer = value["writer_run"]
-    role_fields = {"role", "status", "run_id", "provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision", "calls", "calls_manifest_sha256"}
+    role_fields = {
+        "role",
+        "status",
+        "run_id",
+        "provider_id",
+        "model_id",
+        "runtime_id",
+        "prompt_revision",
+        "rubric_revision",
+        "calls",
+        "calls_manifest_sha256",
+    }
     call_fields = {"call_id", "request_sha256", "request_artifact_id", "response_sha256", "response_artifact_id"}
-    if not isinstance(writer, dict) or set(writer) != role_fields or writer.get("role") != "writer" or writer.get("status") not in {"completed", "incomplete", "failed", "unavailable", "abstained", "not_run"}:
+    if (
+        not isinstance(writer, dict)
+        or set(writer) != role_fields
+        or writer.get("role") != "writer"
+        or writer.get("status") not in {"completed", "incomplete", "failed", "unavailable", "abstained", "not_run"}
+    ):
         raise ShadowAuditError("writer_run_invalid")
     calls = writer.get("calls")
     if not isinstance(calls, list):
@@ -196,7 +252,10 @@ def _validate_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
     if writer["status"] == "not_run":
         if writer["run_id"] is not None or calls or writer["calls_manifest_sha256"] is not None:
             raise ShadowAuditError("writer_run_invalid")
-        if any(writer[field] is not None for field in ("provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision")):
+        if any(
+            writer[field] is not None
+            for field in ("provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision")
+        ):
             raise ShadowAuditError("writer_run_invalid")
     else:
         if writer.get("calls_manifest_sha256") != _calls_manifest_hash(calls):
@@ -206,18 +265,34 @@ def _validate_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
             if not isinstance(writer[field], str) or not _SAFE_METADATA.fullmatch(writer[field]):
                 raise ShadowAuditError("writer_run_invalid")
     for call in calls:
-        if not isinstance(call, dict) or set(call) != call_fields or not isinstance(call.get("call_id"), str) or not _SAFE_TOKEN.fullmatch(call["call_id"]):
+        if (
+            not isinstance(call, dict)
+            or set(call) != call_fields
+            or not isinstance(call.get("call_id"), str)
+            or not _SAFE_TOKEN.fullmatch(call["call_id"])
+        ):
             raise ShadowAuditError("writer_run_invalid")
         request_hash, request_artifact = call.get("request_sha256"), call.get("request_artifact_id")
         if (request_hash is None) != (request_artifact is None) or (
-            request_hash is not None and (
-                not isinstance(request_hash, str) or not _SHA256.fullmatch(request_hash)
-                or not isinstance(request_artifact, str) or not _SAFE_TOKEN.fullmatch(request_artifact)
+            request_hash is not None
+            and (
+                not isinstance(request_hash, str)
+                or not _SHA256.fullmatch(request_hash)
+                or not isinstance(request_artifact, str)
+                or not _SAFE_TOKEN.fullmatch(request_artifact)
             )
         ):
             raise ShadowAuditError("writer_run_invalid")
         response_hash, response_artifact = call.get("response_sha256"), call.get("response_artifact_id")
-        if (response_hash is None) != (response_artifact is None) or (response_hash is not None and (not isinstance(response_hash, str) or not _SHA256.fullmatch(response_hash) or not isinstance(response_artifact, str) or not _SAFE_TOKEN.fullmatch(response_artifact))):
+        if (response_hash is None) != (response_artifact is None) or (
+            response_hash is not None
+            and (
+                not isinstance(response_hash, str)
+                or not _SHA256.fullmatch(response_hash)
+                or not isinstance(response_artifact, str)
+                or not _SAFE_TOKEN.fullmatch(response_artifact)
+            )
+        ):
             raise ShadowAuditError("writer_run_invalid")
         if request_hash is None and response_hash is not None:
             raise ShadowAuditError("writer_run_invalid")
@@ -225,13 +300,26 @@ def _validate_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
         raise ShadowAuditError("writer_run_invalid")
     candidate = value["writer_candidate"]
     if candidate is not None:
-        if not isinstance(candidate, dict) or set(candidate) != {"candidate_id", "title", "observation", "consequence", "rule_or_contract", "evidence_refs"}:
+        if not isinstance(candidate, dict) or set(candidate) != {
+            "candidate_id",
+            "title",
+            "observation",
+            "consequence",
+            "rule_or_contract",
+            "evidence_refs",
+        }:
             raise ShadowAuditError("writer_candidate_invalid")
         _safe_token(candidate["candidate_id"], "writer_candidate_invalid")
         for field in ("title", "observation", "consequence", "rule_or_contract"):
             _safe_id(candidate[field], "writer_candidate_invalid", MAX_CANDIDATE_BYTES)
         refs = candidate["evidence_refs"]
-        if not isinstance(refs, list) or not refs or any(not isinstance(ref, str) for ref in refs) or len(refs) != len(set(refs)) or any(ref not in source_ids for ref in refs):
+        if (
+            not isinstance(refs, list)
+            or not refs
+            or any(not isinstance(ref, str) for ref in refs)
+            or len(refs) != len(set(refs))
+            or any(ref not in source_ids for ref in refs)
+        ):
             raise ShadowAuditError("writer_candidate_evidence_invalid")
     return value
 
@@ -271,7 +359,10 @@ def _parse_output(raw: bytes) -> dict[str, Any]:
 
 
 def _validate_source_output(value: dict[str, Any], evidence_ids: set[str]) -> str:
-    if set(value) != {"contract_version", "status", "records"} or value.get("contract_version") != "shadow-source-audit.v1":
+    if (
+        set(value) != {"contract_version", "status", "records"}
+        or value.get("contract_version") != "shadow-source-audit.v1"
+    ):
         raise ShadowAuditError("source_audit_contract_invalid")
     status = value.get("status")
     records = value.get("records")
@@ -284,7 +375,13 @@ def _validate_source_output(value: dict[str, Any], evidence_ids: set[str]) -> st
         record_id = _safe_id(record["record_id"], "source_audit_record_invalid")
         _safe_id(record["summary"], "source_audit_record_invalid", 4000)
         refs = record["evidence_refs"]
-        if record_id in seen or not isinstance(refs, list) or not refs or len(refs) != len(set(refs)) or any(ref not in evidence_ids for ref in refs):
+        if (
+            record_id in seen
+            or not isinstance(refs, list)
+            or not refs
+            or len(refs) != len(set(refs))
+            or any(ref not in evidence_ids for ref in refs)
+        ):
             raise ShadowAuditError("source_audit_evidence_invalid")
         seen.add(record_id)
     if (status == "abstained") != (len(records) == 0):
@@ -293,7 +390,10 @@ def _validate_source_output(value: dict[str, Any], evidence_ids: set[str]) -> st
 
 
 def _validate_claim_output(value: dict[str, Any], candidate_id: str, evidence_ids: set[str]) -> str:
-    if set(value) != {"contract_version", "status", "relations"} or value.get("contract_version") != "shadow-claim-audit.v1":
+    if (
+        set(value) != {"contract_version", "status", "relations"}
+        or value.get("contract_version") != "shadow-claim-audit.v1"
+    ):
         raise ShadowAuditError("claim_audit_contract_invalid")
     status = value.get("status")
     relations = value.get("relations")
@@ -315,7 +415,11 @@ def _validate_claim_output(value: dict[str, Any], candidate_id: str, evidence_id
             raise ShadowAuditError("claim_audit_relation_invalid")
         expected_left = f"{candidate_id}:jev:{dimension}"
         expected_right = f"{candidate_id}:claim_auditor:{dimension}"
-        if relation["assertion_id"] != f"{candidate_id}:{dimension}" or relation["left_record_id"] != expected_left or relation["right_record_id"] != expected_right:
+        if (
+            relation["assertion_id"] != f"{candidate_id}:{dimension}"
+            or relation["left_record_id"] != expected_left
+            or relation["right_record_id"] != expected_right
+        ):
             raise ShadowAuditError("claim_audit_record_binding_invalid")
         refs = relation["evidence_refs"]
         if not isinstance(refs, list) or len(refs) != len(set(refs)) or any(ref not in evidence_ids for ref in refs):
@@ -388,7 +492,9 @@ def _not_run(role: str) -> dict[str, Any]:
 
 
 class _CapturingNativeCall:
-    def __init__(self, transport: Callable[[bytes, float, int], bytes], before_dispatch: Callable[[bytes], None] | None = None):
+    def __init__(
+        self, transport: Callable[[bytes, float, int], bytes], before_dispatch: Callable[[bytes], None] | None = None
+    ):
         self.transport = transport
         self.before_dispatch = before_dispatch
         self.request_bytes: bytes | None = None
@@ -414,9 +520,9 @@ class _CapturingNativeCall:
                 self.dispatch_state = transport_state
             raise
         transport_state = getattr(self.transport, "last_dispatch_state", None)
-        self.dispatch_state = transport_state if transport_state in {
-            "http_attempted", "post_guard_pretransport"
-        } else "unknown"
+        self.dispatch_state = (
+            transport_state if transport_state in {"http_attempted", "post_guard_pretransport"} else "unknown"
+        )
         if not isinstance(result, bytes) or len(result) > max_response_bytes:
             self.error_code = "malformed_native_response"
             raise ClaimAssessmentError("malformed_native_response")
@@ -439,7 +545,8 @@ def run_shadow_audit(
     """Run source-only LLM -> Jev -> claim-facing LLM once each, with no retries."""
     case = _validate_packet(packet)
     if source_request_serializer not in {
-        SOURCE_AUDIT_SERIALIZER_LEGACY, SOURCE_AUDIT_SERIALIZER_CANONICAL,
+        SOURCE_AUDIT_SERIALIZER_LEGACY,
+        SOURCE_AUDIT_SERIALIZER_CANONICAL,
     }:
         raise ShadowAuditError("source_request_serializer_invalid")
     if not isinstance(limits, Mapping):
@@ -457,11 +564,17 @@ def run_shadow_audit(
     retries = limits_value.get("max_retries", 0)
     total_deadline = limits_value.get("total_provider_deadline_seconds", deadline * 3)
     if (
-        isinstance(output_tokens, bool) or not isinstance(output_tokens, int) or not 1 <= output_tokens <= 1800
-        or isinstance(max_calls, bool) or max_calls != 3
-        or isinstance(retries, bool) or retries != 0
-        or isinstance(total_deadline, bool) or not isinstance(total_deadline, (int, float))
-        or total_deadline <= 0 or total_deadline > 270
+        isinstance(output_tokens, bool)
+        or not isinstance(output_tokens, int)
+        or not 1 <= output_tokens <= 1800
+        or isinstance(max_calls, bool)
+        or max_calls != 3
+        or isinstance(retries, bool)
+        or retries != 0
+        or isinstance(total_deadline, bool)
+        or not isinstance(total_deadline, (int, float))
+        or total_deadline <= 0
+        or total_deadline > 270
     ):
         raise ShadowAuditError("limits_invalid")
     dispatch_guard = AuditDispatchGuard(limits_value)
@@ -470,6 +583,7 @@ def run_shadow_audit(
         dispatch_guard.check(role, request_bytes)
         if before_dispatch is not None:
             before_dispatch(role, request_bytes)
+
     if not isinstance(source_provider, OpenAIProvider) or not isinstance(claim_provider, OpenAIProvider):
         raise ShadowAuditError("openai_provider_required")
     output_dir = Path(output_dir)
@@ -515,6 +629,7 @@ def run_shadow_audit(
         if "shadow-audit-manifest" not in artifact_paths:
             put("shadow-audit-manifest", "shadow-audit-manifest.json", _canonical(base_manifest))
         return {"manifest": base_manifest, "artifact_paths": artifact_paths}
+
     source_run: dict[str, Any]
     jev_run: dict[str, Any]
     claim_run: dict[str, Any]
@@ -528,9 +643,7 @@ def run_shadow_audit(
     if source_request_serializer == SOURCE_AUDIT_SERIALIZER_CANONICAL:
         source_task = _canonical_json_value(source_task)
         source_evidence = _canonical_json_value(source_evidence)
-    source_user = source_audit_user(
-        case_id, snapshot, case["profile_id"], source_task, source_evidence
-    )
+    source_user = source_audit_user(case_id, snapshot, case["profile_id"], source_task, source_evidence)
     source_status = "failed"
     source_call: dict[str, Any] = {}
     source_error: str | None = None
@@ -584,13 +697,23 @@ def run_shadow_audit(
                 "dispatch_state": exchange.get("dispatch_state", "unknown"),
             }
             if isinstance(transport_bytes, bytes):
-                put("source-auditor-transport-response", "private/source-auditor.transport-response.json", transport_bytes)
+                put(
+                    "source-auditor-transport-response",
+                    "private/source-auditor.transport-response.json",
+                    transport_bytes,
+                )
                 base_manifest["transport_response_sha256"]["source_auditor"] = _sha(transport_bytes)
         source_status = "failed"
     source_identity = source_provider.identity
     source_run = _role_run(
-        "source_auditor", source_status, source_identity.get("provider_id"), source_identity.get("model_id"),
-        "openai-compatible-adapter-v0.2", SOURCE_PROMPT_REVISION, "specialist-findings.v4", [source_call] if source_call else [],
+        "source_auditor",
+        source_status,
+        source_identity.get("provider_id"),
+        source_identity.get("model_id"),
+        "openai-compatible-adapter-v0.2",
+        SOURCE_PROMPT_REVISION,
+        "specialist-findings.v4",
+        [source_call] if source_call else [],
     )
     source_run["model_id"] = _metadata(source_model_id)
     base_manifest["roles"]["source_auditor"] = source_run
@@ -614,13 +737,17 @@ def run_shadow_audit(
         base_manifest["terminal_state"] = "source_audit_failed"
         base_manifest["roles"].update({"jev": _not_run("jev"), "claim_auditor": _not_run("claim_auditor")})
         base_manifest["terminal_details"]["source_auditor"] = source_error or "source_audit_failed"
-        base_manifest["terminal_details"].update({"jev": "source_audit_not_sealed", "claim_auditor": "source_audit_not_sealed"})
+        base_manifest["terminal_details"].update(
+            {"jev": "source_audit_not_sealed", "claim_auditor": "source_audit_not_sealed"}
+        )
         return finish()
 
     if candidate is None:
         base_manifest["terminal_state"] = "missing_writer_candidate"
         base_manifest["roles"].update({"jev": _not_run("jev"), "claim_auditor": _not_run("claim_auditor")})
-        base_manifest["terminal_details"].update({"jev": "missing_writer_candidate", "claim_auditor": "missing_writer_candidate"})
+        base_manifest["terminal_details"].update(
+            {"jev": "missing_writer_candidate", "claim_auditor": "missing_writer_candidate"}
+        )
         return finish()
 
     # Stage 2: Jev assesses exactly the writer candidate and its cited evidence.
@@ -634,9 +761,12 @@ def run_shadow_audit(
     jev_error: str | None = None
     try:
         identity = {
-            "snapshot_id": snapshot["snapshot_id"], "snapshot_hash": snapshot["snapshot_hash"],
-            "profile_id": case["profile_id"], "profile_hash": snapshot["profile_hash"],
-            "base_sha": snapshot["base_sha"], "head_sha": snapshot["head_sha"],
+            "snapshot_id": snapshot["snapshot_id"],
+            "snapshot_hash": snapshot["snapshot_hash"],
+            "profile_id": case["profile_id"],
+            "profile_hash": snapshot["profile_hash"],
+            "base_sha": snapshot["base_sha"],
+            "head_sha": snapshot["head_sha"],
         }
         prepared = jev_adapter.prepare(candidate, source_evidence, identity, limits_value)
         jev_request_id = "jev-request"
@@ -648,13 +778,17 @@ def run_shadow_audit(
         put(jev_response_id, "private/jev.response.json", native_capture.response_bytes)
         jev_call = {
             "call_id": "jev-call-1",
-            "request_sha256": _sha(prepared.request_bytes), "request_artifact_id": jev_request_id,
-            "response_sha256": _sha(native_capture.response_bytes), "response_artifact_id": jev_response_id,
+            "request_sha256": _sha(prepared.request_bytes),
+            "request_artifact_id": jev_request_id,
+            "response_sha256": _sha(native_capture.response_bytes),
+            "response_artifact_id": jev_response_id,
             "dispatch_state": native_capture.dispatch_state,
         }
         answer_statuses = [row.get("status") for row in jev_result["assessments"].values()]
         choices = [row.get("choice") for row in jev_result["assessments"].values() if row.get("status") == "ANSWERED"]
-        if not answer_statuses or any(value in {"FAILED", "INVALID", "OMITTED", "NOT_RUN"} for value in answer_statuses):
+        if not answer_statuses or any(
+            value in {"FAILED", "INVALID", "OMITTED", "NOT_RUN"} for value in answer_statuses
+        ):
             jev_status = "failed"
         elif any(value not in {"ANSWERED", "NOT_SHOWN"} for value in answer_statuses):
             jev_status = "incomplete"
@@ -671,9 +805,12 @@ def run_shadow_audit(
             if not (output_dir / "private/jev.request.json").exists():
                 put(jev_req_id, "private/jev.request.json", native_capture.request_bytes)
             jev_call = {
-                "call_id": "jev-call-1", "request_sha256": _sha(native_capture.request_bytes),
+                "call_id": "jev-call-1",
+                "request_sha256": _sha(native_capture.request_bytes),
                 "request_artifact_id": jev_req_id,
-                "response_sha256": _sha(native_capture.response_bytes) if native_capture.response_bytes is not None else None,
+                "response_sha256": _sha(native_capture.response_bytes)
+                if native_capture.response_bytes is not None
+                else None,
                 "response_artifact_id": "jev-response" if native_capture.response_bytes is not None else None,
                 "dispatch_state": native_capture.dispatch_state,
             }
@@ -682,18 +819,30 @@ def run_shadow_audit(
         jev_status = "failed"
     jev_identity = jev_adapter.identity
     jev_run = _role_run(
-        "jev", jev_status, "typesafe", jev_identity.get("configured_model_id"), "claim-assessment-adapter-v1",
-        "claim-assessment.1", "claim-assessment.1", [jev_call] if jev_call else [],
+        "jev",
+        jev_status,
+        "typesafe",
+        jev_identity.get("configured_model_id"),
+        "claim-assessment-adapter-v1",
+        "claim-assessment.1",
+        "claim-assessment.1",
+        [jev_call] if jev_call else [],
     )
     if jev_result is not None:
-        jev_run["model_id"] = jev_result.get("provenance", {}).get("provider_model_id") or jev_result.get("provenance", {}).get("configured_model_id") or jev_run["model_id"]
+        jev_run["model_id"] = (
+            jev_result.get("provenance", {}).get("provider_model_id")
+            or jev_result.get("provenance", {}).get("configured_model_id")
+            or jev_run["model_id"]
+        )
     if native_capture.response_bytes is not None:
         base_manifest["transport_response_sha256"]["jev"] = _sha(native_capture.response_bytes)
     base_manifest["roles"]["jev"] = jev_run
     if jev_status not in {"completed", "abstained"} or jev_result is None:
         base_manifest["terminal_state"] = "jev_assessment_failed"
         base_manifest["roles"]["claim_auditor"] = _not_run("claim_auditor")
-        base_manifest["terminal_details"].update({"jev": jev_error or "jev_result_unavailable", "claim_auditor": "jev_result_unavailable"})
+        base_manifest["terminal_details"].update(
+            {"jev": jev_error or "jev_result_unavailable", "claim_auditor": "jev_result_unavailable"}
+        )
         return finish()
 
     # Stage 3: the separate claim-facing auditor receives only the target claim,
@@ -710,7 +859,11 @@ def run_shadow_audit(
         for dimension, row in jev_result["assessments"].items()
     }
     claim_user = {
-        "case": {"case_id": case_id, "snapshot_id": snapshot["snapshot_id"], "snapshot_hash": snapshot["snapshot_hash"]},
+        "case": {
+            "case_id": case_id,
+            "snapshot_id": snapshot["snapshot_id"],
+            "snapshot_hash": snapshot["snapshot_hash"],
+        },
         "writer_claim": candidate,
         "jev_classification": jev_for_auditor,
         "evidence": cited_evidence,
@@ -738,8 +891,11 @@ def run_shadow_audit(
         put(claim_response_id, "private/claim-auditor.response.json", output_bytes)
         put("claim-auditor-transport-response", "private/claim-auditor.transport-response.json", transport_bytes)
         claim_call = {
-            "call_id": "claim-auditor-call-1", "request_sha256": _sha(request_bytes), "request_artifact_id": claim_request_id,
-            "response_sha256": _sha(output_bytes), "response_artifact_id": claim_response_id,
+            "call_id": "claim-auditor-call-1",
+            "request_sha256": _sha(request_bytes),
+            "request_artifact_id": claim_request_id,
+            "response_sha256": _sha(output_bytes),
+            "response_artifact_id": claim_response_id,
             "dispatch_state": exchange.get("dispatch_state", "unknown"),
         }
         claim_model_id = reply["provenance"].get("provider_reported_model_id") or claim_model_id
@@ -757,20 +913,37 @@ def run_shadow_audit(
             if not (output_dir / "private/claim-auditor.request.json").exists():
                 put(request_id, "private/claim-auditor.request.json", request_bytes)
             claim_call = {
-                "call_id": "claim-auditor-call-1", "request_sha256": _sha(request_bytes), "request_artifact_id": request_id,
-                "response_sha256": None, "response_artifact_id": None,
+                "call_id": "claim-auditor-call-1",
+                "request_sha256": _sha(request_bytes),
+                "request_artifact_id": request_id,
+                "response_sha256": None,
+                "response_artifact_id": None,
                 "dispatch_state": exchange.get("dispatch_state", "unknown"),
             }
             if isinstance(transport_bytes, bytes):
-                put("claim-auditor-transport-response", "private/claim-auditor.transport-response.json", transport_bytes)
+                put(
+                    "claim-auditor-transport-response", "private/claim-auditor.transport-response.json", transport_bytes
+                )
                 base_manifest["transport_response_sha256"]["claim_auditor"] = _sha(transport_bytes)
     claim_identity = claim_provider.identity
     claim_run = _role_run(
-        "claim_auditor", claim_status, claim_identity.get("provider_id"), claim_model_id,
-        "openai-compatible-adapter-v0.2", CLAIM_PROMPT_REVISION, RUBRIC_REVISION, [claim_call] if claim_call else [],
+        "claim_auditor",
+        claim_status,
+        claim_identity.get("provider_id"),
+        claim_model_id,
+        "openai-compatible-adapter-v0.2",
+        CLAIM_PROMPT_REVISION,
+        RUBRIC_REVISION,
+        [claim_call] if claim_call else [],
     )
     base_manifest["roles"]["claim_auditor"] = claim_run
-    base_manifest["terminal_state"] = "completed" if claim_status == "completed" else "claim_audit_abstained" if claim_status == "abstained" else "claim_audit_failed"
+    base_manifest["terminal_state"] = (
+        "completed"
+        if claim_status == "completed"
+        else "claim_audit_abstained"
+        if claim_status == "abstained"
+        else "claim_audit_failed"
+    )
     if claim_error:
         base_manifest["terminal_details"]["claim_auditor"] = claim_error
     # No response text, prompts, evidence, or credentials are written to this

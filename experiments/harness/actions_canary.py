@@ -177,20 +177,21 @@ class RuntimeCanaryResult:
             "response_hashes": [{"endpoint": endpoint, "sha256": digest} for endpoint, digest in self.response_hashes],
             "publication_capability": self.publication_capability,
             "write_permission": self.write_permission,
-            "runtime_identity": dict(self.runtime_identity or {
-                "state": "UNAVAILABLE",
-                "reason_code": "runtime_identity_not_checked",
-                "source_revision": None,
-                "module_count": 0,
-                "module_tree_sha256": None,
-            }),
+            "runtime_identity": dict(
+                self.runtime_identity
+                or {
+                    "state": "UNAVAILABLE",
+                    "reason_code": "runtime_identity_not_checked",
+                    "source_revision": None,
+                    "module_count": 0,
+                    "module_tree_sha256": None,
+                }
+            ),
             "safe_to_publish": False,
         }
 
 
-def _runtime_source_identity(
-    environ: Mapping[str, str], *, module_file: Path | None = None
-) -> dict[str, object]:
+def _runtime_source_identity(environ: Mapping[str, str], *, module_file: Path | None = None) -> dict[str, object]:
     """Bind the loaded canary module and package sources to the runner checkout SHA.
 
     This is local source-integrity evidence only. It does not prove credential
@@ -685,9 +686,7 @@ def run_actions_canary(
             with event_file.open("rb") as source:
                 event_bytes = source.read(256 * 1024 + 1)
             expectation = canary_expectation_from_environment(environ, event_bytes)
-            result = verify_read_only_actions_context(
-                expectation, environ.get("GITHUB_TOKEN", ""), transport=transport
-            )
+            result = verify_read_only_actions_context(expectation, environ.get("GITHUB_TOKEN", ""), transport=transport)
         except ActionsRuntimeError as exc:
             result = RuntimeCanaryResult("UNKNOWN", exc.code, None, None, "UNAVAILABLE", (), ())
         except OSError:

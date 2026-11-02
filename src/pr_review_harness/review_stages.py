@@ -45,6 +45,7 @@ _CONTRACT_REJECTION_DETAILS = {
 
 def checkpoint_stage(state: RunState, terminal: bool = False) -> None:
     from .engine import _atomic_write, _canonical, _hash, _now
+
     with state.state_lock:
         payload = {
             "run_id": state.run_id,
@@ -57,24 +58,24 @@ def checkpoint_stage(state: RunState, terminal: bool = False) -> None:
         _atomic_write(state.output_path, _canonical(payload) + b"\n")
 
 
-
-def review_input_size_stage(
-    state: RunState, task: TaskRecord, evidence: list[SnapshotEvidence]
-) -> int:
+def review_input_size_stage(state: RunState, task: TaskRecord, evidence: list[SnapshotEvidence]) -> int:
     from .engine import _canonical
+
     measure = getattr(state.provider, "review_input_bytes", None)
     if callable(measure) and task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
         return measure(task, evidence, state.limits) + 1024
     return len(_canonical({"task": task, "evidence": evidence}))
 
 
-
-def remaining_call_limits_stage(state: RunState, ) -> dict:
+def remaining_call_limits_stage(
+    state: RunState,
+) -> dict:
     return {**state.limits, "deadline_seconds": max(0.0, state.budget.remaining_seconds())}
 
 
-
-def required_claim_calls_remaining_stage(state: RunState, ) -> int:
+def required_claim_calls_remaining_stage(
+    state: RunState,
+) -> int:
     """Return the outstanding required calls for currently validated candidates."""
     if state.reconciliation_policy is None:
         return 0
@@ -94,16 +95,17 @@ def required_claim_calls_remaining_stage(state: RunState, ) -> int:
     return max(0, demand - used)
 
 
-
-def required_claim_deadline_floor_stage(state: RunState, ) -> float:
+def required_claim_deadline_floor_stage(
+    state: RunState,
+) -> float:
     from .engine import _CLAIM_ASSESSMENT_DISPATCH_SECONDS, _CLAIM_FRESHNESS_TAIL_SECONDS
+
     calls = state.required_claim_calls_remaining()
     if not calls:
         return 0.0
     return calls * _CLAIM_ASSESSMENT_DISPATCH_SECONDS + (
         _CLAIM_FRESHNESS_TAIL_SECONDS if callable(state.freshness_check) else 0.0
     )
-
 
 
 def _apply_price_table_bound(state: RunState, target: Any, estimate: dict) -> dict:
@@ -114,8 +116,11 @@ def _apply_price_table_bound(state: RunState, target: Any, estimate: dict) -> di
         return estimate
     provider_id, model_id = provider_price_identity(target)
     bound = state.price_table.bound_call(
-        provider_id, model_id, estimate.get("input_bytes"),
-        estimate.get("max_output_tokens"), estimate.get("max_output_bytes"),
+        provider_id,
+        model_id,
+        estimate.get("input_bytes"),
+        estimate.get("max_output_tokens"),
+        estimate.get("max_output_bytes"),
     )
     return estimate if bound is None else {**estimate, **bound}
 
@@ -123,8 +128,7 @@ def _apply_price_table_bound(state: RunState, target: Any, estimate: dict) -> di
 def _provider_reservations(state: RunState) -> list[tuple[str, dict]]:
     reservations = state.budget.state.get("reservations", {})
     return [
-        (key, row) for key, row in reservations.items()
-        if isinstance(row, dict) and row.get("provider_calls", 0) > 0
+        (key, row) for key, row in reservations.items() if isinstance(row, dict) and row.get("provider_calls", 0) > 0
     ]
 
 
@@ -162,35 +166,47 @@ def _cost_summary(state: RunState) -> dict:
     provider_reservations = _provider_reservations(state)
     limit = summary.get("cost_limit_microunits")
     if limit is not None:
-        kinds = {row.get("reservation_kind") for _key, row in provider_reservations
-                 if row.get("max_cost_microunits") is not None}
+        kinds = {
+            row.get("reservation_kind")
+            for _key, row in provider_reservations
+            if row.get("max_cost_microunits") is not None
+        }
         summary["cost_ceiling_enforced_pre_dispatch"] = all(
             row.get("max_cost_microunits") is not None for _key, row in provider_reservations
         )
         if isinstance(state.limits.get("max_cost_currency"), str):
             summary["cost_ceiling_currency"] = state.limits["max_cost_currency"]
         summary["cost_ceiling_basis"] = (
-            "PRICE_TABLE_BOUND" if kinds == {"price_table_bound"}
-            else "OPERATOR_BOUND" if kinds == {"operator_bound"}
-            else "MIXED" if kinds else "UNKNOWN"
+            "PRICE_TABLE_BOUND"
+            if kinds == {"price_table_bound"}
+            else "OPERATOR_BOUND"
+            if kinds == {"operator_bound"}
+            else "MIXED"
+            if kinds
+            else "UNKNOWN"
         )
     table = state.price_table
     if table is not None:
-        summary.update({
-            "cost_currency": table.currency,
-            "cost_price_table_schema": PRICE_TABLE_SCHEMA,
-            "cost_price_table_revision": table.revision,
-        })
+        summary.update(
+            {
+                "cost_currency": table.currency,
+                "cost_price_table_schema": PRICE_TABLE_SCHEMA,
+                "cost_price_table_revision": table.revision,
+            }
+        )
         settlements = state.budget.state.get("settlements", {})
-        bases = [settlements.get(key, {}).get("estimated_cost_basis")
-                 for key, _row in provider_reservations if isinstance(settlements.get(key), dict)]
+        bases = [
+            settlements.get(key, {}).get("estimated_cost_basis")
+            for key, _row in provider_reservations
+            if isinstance(settlements.get(key), dict)
+        ]
         if summary.get("cost_estimate_known") is True and bases and set(bases) == {PRICE_TABLE_BASIS}:
             summary["cost_estimate_basis"] = PRICE_TABLE_BASIS
     return summary
 
 
 def call_estimate_stage(
-        state: RunState,
+    state: RunState,
     target: Any,
     task_kind: str,
     task: dict,
@@ -200,6 +216,7 @@ def call_estimate_stage(
     deadline_floor_seconds: float = 0.0,
 ) -> dict:
     from .engine import BudgetExhausted
+
     current_remaining = state.budget.remaining_seconds()
     quote_deadline = max(0.0, current_remaining - deadline_floor_seconds)
     if deadline_floor_seconds and quote_deadline <= 0:
@@ -242,10 +259,8 @@ def call_estimate_stage(
     return estimate
 
 
-
 def reserve_provider_call_stage(
-        state: RunState,
-    key: str, target: Any, task_kind: str, task: dict, evidence: list[dict], fallback_size: int
+    state: RunState, key: str, target: Any, task_kind: str, task: dict, evidence: list[dict], fallback_size: int
 ) -> dict:
     protect_required_claim_stage = task_kind in {"SEMANTIC_ADJUDICATION", "SYSTEM_ONE_ASSESSMENT"}
     protected_claim_calls = state.required_claim_calls_remaining() if protect_required_claim_stage else 0
@@ -268,7 +283,6 @@ def reserve_provider_call_stage(
     return state.budget.reserve(key, estimate)
 
 
-
 def reserve_local_check_stage(state: RunState, key: str, input_bytes: int) -> dict:
     """Reserve bounded local check work without charging a provider call."""
     estimate = {
@@ -282,7 +296,6 @@ def reserve_local_check_stage(state: RunState, key: str, input_bytes: int) -> di
     return state.budget.reserve(key, estimate, kind="deterministic_check")
 
 
-
 def validated_check_evidence_stage(state: RunState, task: dict, payload: dict) -> list[str]:
     """Bind deterministic-check outputs to the exact ingested evidence.
 
@@ -292,6 +305,7 @@ def validated_check_evidence_stage(state: RunState, task: dict, payload: dict) -
     a check adapter claim evidence from another binding or snapshot.
     """
     from .engine import _check_evidence_hash
+
     binding_id = task.get("check_binding_id")
     if not isinstance(binding_id, str) or not binding_id:
         raise ValueError("check_binding_missing")
@@ -362,7 +376,6 @@ def validated_check_evidence_stage(state: RunState, task: dict, payload: dict) -
     return expected_refs
 
 
-
 def start_attempt_stage(state: RunState, task: TaskRecord, attempt_index: int) -> PreparedAttempt:
     from .engine import (
         BudgetExhausted,
@@ -378,6 +391,7 @@ def start_attempt_stage(state: RunState, task: TaskRecord, attempt_index: int) -
         time,
         write_provider_exchange,
     )
+
     task_id = task["task_id"]
     evidence = state.evidence_cache[task_id]
     kind = task.get("task_kind", "SPECIALIST_FINDINGS")
@@ -464,24 +478,32 @@ def start_attempt_stage(state: RunState, task: TaskRecord, attempt_index: int) -
     capture_spec = None
     if capturing:
         capture_spec = state.private_capture.begin_call(run_id=state.run_id, task_id=task_id, attempt=attempt_index)
-        capture_spec.update({
-            "root": str(state.private_capture.root),
-            "provider": state.private_capture.provider_identity,
-        })
+        capture_spec.update(
+            {
+                "root": str(state.private_capture.root),
+                "provider": state.private_capture.provider_identity,
+            }
+        )
         if state.private_capture_request_pins is not None:
             pin = state.private_capture_request_pins.get(task_id)
             if not isinstance(pin, dict):
                 state.private_capture.finalize_pending(capture_spec["call_id"], "failed")
                 raise EnginePreflightError("invalid_review_request", "private capture task is not pinned")
-            capture_spec.update({
-                "strict_request_pin": True,
-                "expected_task_id": task_id,
-                "expected_request_sha256": pin["input_sha256"],
-            })
-    args = invocation_args if is_check else (
-        (task, evidence, invocation_limits, capture_spec, write_provider_exchange)
-        if capturing
-        else (task, evidence, invocation_limits)
+            capture_spec.update(
+                {
+                    "strict_request_pin": True,
+                    "expected_task_id": task_id,
+                    "expected_request_sha256": pin["input_sha256"],
+                }
+            )
+    args = (
+        invocation_args
+        if is_check
+        else (
+            (task, evidence, invocation_limits, capture_spec, write_provider_exchange)
+            if capturing
+            else (task, evidence, invocation_limits)
+        )
     )
     try:
         invocation = IsolatedInvocation(
@@ -506,11 +528,7 @@ def start_attempt_stage(state: RunState, task: TaskRecord, attempt_index: int) -
                 usage={},
                 status="FAILED",
                 observation=_settlement_observation(
-                    "deterministic_check"
-                    if is_check
-                    else "followup"
-                    if ":followup:" in task_id
-                    else "primary",
+                    "deterministic_check" if is_check else "followup" if ":followup:" in task_id else "primary",
                     {},
                 ),
             )
@@ -541,7 +559,6 @@ def start_attempt_stage(state: RunState, task: TaskRecord, attempt_index: int) -
     }
 
 
-
 def finish_attempt_stage(state: RunState, prepared: PreparedAttempt) -> StageOutcome:
     from .engine import (
         BudgetExhausted,
@@ -553,6 +570,7 @@ def finish_attempt_stage(state: RunState, prepared: PreparedAttempt) -> StageOut
         _unwrap,
         time,
     )
+
     task = prepared["task"]
     task_id = prepared["task_id"]
     evidence = prepared["evidence"]
@@ -720,11 +738,11 @@ def finish_attempt_stage(state: RunState, prepared: PreparedAttempt) -> StageOut
         }
 
 
-
 def record_task_outcome_stage(
     state: RunState, task: TaskRecord, outcome: StageOutcome, reservation_key: str | None = None
 ) -> None:
     from .engine import _now, review_contracts
+
     with state.state_lock:
         if task.get("request_input_contract") == review_contracts.SPECIALIST_INPUT_V2:
             outcome = {
@@ -754,11 +772,9 @@ def record_task_outcome_stage(
         state.checkpoint()
 
 
-
-def run_followup_stage(
-    state: RunState, task: TaskRecord, evidence: list[SnapshotEvidence]
-) -> StageOutcome:
+def run_followup_stage(state: RunState, task: TaskRecord, evidence: list[SnapshotEvidence]) -> StageOutcome:
     from .engine import _hash
+
     task_id = task["task_id"]
     state.evidence_cache[task_id] = evidence
     max_attempts = 1 + int(state.limits["max_retries_per_task"])
@@ -802,7 +818,6 @@ def run_followup_stage(
     return outcome
 
 
-
 def claim_not_run_stage(state: RunState, candidate_id: str, reason: str, **details: Any) -> None:
     state.claim_rows[candidate_id] = {
         "contract_version": state.claim_assessor_contract,
@@ -814,9 +829,9 @@ def claim_not_run_stage(state: RunState, candidate_id: str, reason: str, **detai
     state.checkpoint()
 
 
-
 def report_notes_stage(state: RunState, field: str, detail_name: str) -> list[dict]:
     from .engine import _hash
+
     notes: dict[str, dict] = {}
     for task in state.tasks:
         outcome = state.task_results.get(task["task_id"], {})
@@ -850,12 +865,11 @@ def report_notes_stage(state: RunState, field: str, detail_name: str) -> list[di
     return [notes[key] for key in sorted(notes)]
 
 
-
 def preflight_review(state: RunState) -> None:
     """Validate the review request and bind the trusted snapshot/plan/profile.
 
-Contract: fail closed with ``EnginePreflightError`` before any provider
-dispatch or result file creation.  No reservation is made here."""
+    Contract: fail closed with ``EnginePreflightError`` before any provider
+    dispatch or result file creation.  No reservation is made here."""
     from .engine import (
         EnginePreflightError,
         _claim_assessor_binding,
@@ -866,6 +880,7 @@ dispatch or result file creation.  No reservation is made here."""
         validate_claim_reconciliation_policy,
         validate_limits,
     )
+
     try:
         validate_limits(state.limits)
     except (TypeError, ValueError) as exc:
@@ -880,7 +895,10 @@ dispatch or result file creation.  No reservation is made here."""
         state.reconciliation_policy = validate_claim_reconciliation_policy(state.profile)
     except (TypeError, ValueError) as exc:
         raise EnginePreflightError("invalid_review_request", str(exc)) from None
-    if state.reconciliation_policy is not None and state.max_claim_assessments != state.reconciliation_policy["max_assessments"]:
+    if (
+        state.reconciliation_policy is not None
+        and state.max_claim_assessments != state.reconciliation_policy["max_assessments"]
+    ):
         raise EnginePreflightError(
             "invalid_review_request",
             "required claim reconciliation cap must match the trusted profile",
@@ -893,10 +911,12 @@ dispatch or result file creation.  No reservation is made here."""
     )
     if state.max_claim_assessments > 0:
         if state.claim_assessor is None:
-            raise EnginePreflightError("invalid_review_request", "positive max_claim_assessments requires a claim assessor")
+            raise EnginePreflightError(
+                "invalid_review_request", "positive max_claim_assessments requires a claim assessor"
+            )
         try:
-            state.claim_assessor_identity_hash, state.claim_assessor_contract, state.claim_assessor_code_hash = _claim_assessor_binding(
-                state.claim_assessor, state.expected_claim_contract
+            state.claim_assessor_identity_hash, state.claim_assessor_contract, state.claim_assessor_code_hash = (
+                _claim_assessor_binding(state.claim_assessor, state.expected_claim_contract)
             )
         except (TypeError, ValueError) as exc:
             raise EnginePreflightError("invalid_review_request", str(exc)) from None
@@ -938,7 +958,11 @@ dispatch or result file creation.  No reservation is made here."""
     try:
         state.input_ceiling = effective_task_input_ceiling(state.limits, state.provider)
         state.primary_tasks, state.split_skips = prepare_plan_tasks(
-            state.snapshot, {"tasks": state.tasks, "coverage_obligations": state.obligations}, state.profile, state.limits, state.provider
+            state.snapshot,
+            {"tasks": state.tasks, "coverage_obligations": state.obligations},
+            state.profile,
+            state.limits,
+            state.provider,
         )
         state.primary_task_inputs = [
             {
@@ -957,7 +981,6 @@ dispatch or result file creation.  No reservation is made here."""
         raise EnginePreflightError("invalid_review_request", str(exc)) from None
 
 
-
 def _reseal_resumed_result(saved: dict) -> None:
     """Refresh a resumed result's summary before sealing the new hash."""
 
@@ -972,9 +995,9 @@ def _reseal_resumed_result(saved: dict) -> None:
 def resume_completed_review(state: RunState) -> dict | None:
     """Build request identity, open the ledger, and load a prior result.
 
-Contract: an existing result is returned only after resume validation;
-a non-resume collision raises ``run_id_already_exists``.  Returns the
-saved result (refreshed for freshness) or ``None`` to start a new run."""
+    Contract: an existing result is returned only after resume validation;
+    a non-resume collision raises ``run_id_already_exists``.  Returns the
+    saved result (refreshed for freshness) or ``None`` to start a new run."""
     from .engine import (
         EnginePreflightError,
         IsolatedCallError,
@@ -991,6 +1014,7 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
         review_contracts,
         time,
     )
+
     state.output_path = Path(state.output_dir).resolve() / f"{state.run_id}.json"
     state.provider_identity = _provider_identity(state.provider, state.decision_provider)
     state.request_basis = {
@@ -1065,7 +1089,11 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
             if callable(state.freshness_check):
                 try:
                     state.check = _bounded_freshness(state.freshness_check, 5.0)
-                    if isinstance(state.check, dict) and state.check.get("freshness") in {"CURRENT", "STALE", "UNKNOWN"}:
+                    if isinstance(state.check, dict) and state.check.get("freshness") in {
+                        "CURRENT",
+                        "STALE",
+                        "UNKNOWN",
+                    }:
                         state.saved["freshness"] = state.check["freshness"]
                         state.saved["freshness_details"] = {
                             "expected_head_sha": state.snapshot.get("head_sha"),
@@ -1125,13 +1153,12 @@ saved result (refreshed for freshness) or ``None`` to start a new run."""
         state.ledger["events"].append(state.event)
 
 
-
 def bind_run_state(state: RunState) -> None:
     """Bind resume-carried evidence, dynamic tasks, ledger, and call indexes.
 
-Contract: reserve-before-dispatch and fail-closed resume.  A reservation
-that outlived its process is settled INTERRUPTED_UNKNOWN and its key is
-never dispatched again."""
+    Contract: reserve-before-dispatch and fail-closed resume.  A reservation
+    that outlived its process is settled INTERRUPTED_UNKNOWN and its key is
+    never dispatched again."""
     from .engine import (
         BudgetLedger,
         EnginePreflightError,
@@ -1144,6 +1171,7 @@ never dispatched again."""
         review_contracts,
         threading,
     )
+
     if state.max_claim_assessments > 0:
         state.ledger.setdefault("claim_assessments", {})
     # Dynamic follow-up requests and retrieved immutable evidence are part of
@@ -1164,15 +1192,25 @@ never dispatched again."""
     state.tasks = state.primary_tasks
     state.dynamic_tasks = [t for t in state.ledger.get("dynamic_tasks", []) if isinstance(t, dict)]
     if isinstance(state.ledger.get("dynamic_obligations"), list):
-        state.obligations = list(state.obligations) + [o for o in state.ledger["dynamic_obligations"] if isinstance(o, dict)]
+        state.obligations = list(state.obligations) + [
+            o for o in state.ledger["dynamic_obligations"] if isinstance(o, dict)
+        ]
     state.deadline_epoch = float(state.ledger.get("deadline_epoch", state.deadline_epoch))
     state.state_lock = threading.RLock()
     state.checkpoint = functools.partial(checkpoint_stage, state)
-    state.budget = BudgetLedger(state.limits, state.ledger.setdefault("budget", {}), persist=state.checkpoint, deadline_epoch=state.deadline_epoch)
+    state.budget = BudgetLedger(
+        state.limits,
+        state.ledger.setdefault("budget", {}),
+        persist=state.checkpoint,
+        deadline_epoch=state.deadline_epoch,
+    )
     # A process crash after reservation is an uncertain paid attempt. Settle it
     # as unknown and never reuse its idempotency key for another dispatch.
     for state.reservation_key, state.reservation in list(state.budget.state["reservations"].items()):
-        if state.reservation.get("provider_calls", 0) > 0 and state.reservation_key not in state.budget.state["settlements"]:
+        if (
+            state.reservation.get("provider_calls", 0) > 0
+            and state.reservation_key not in state.budget.state["settlements"]
+        ):
             state.budget.settle(state.reservation_key, output_bytes=None, usage={}, status="INTERRUPTED_UNKNOWN")
             state.ledger.setdefault("invocations", []).append(
                 {
@@ -1198,10 +1236,16 @@ never dispatched again."""
             raise ValueError("task references unknown obligation")
     state.known_task_ids = {task["task_id"] for task in state.tasks}
     for state.task in state.dynamic_tasks:
-        if not state.task.get("task_id") or not state.task.get("obligation_id") or state.task["task_id"] in state.known_task_ids:
+        if (
+            not state.task.get("task_id")
+            or not state.task.get("obligation_id")
+            or state.task["task_id"] in state.known_task_ids
+        ):
             raise ValueError("invalid_or_duplicate_dynamic_task")
         if state.task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
-            _validate_context_followup_task(state.task, state.ledger, state.snapshot, state.obligation_by_id, state.task_by_id)
+            _validate_context_followup_task(
+                state.task, state.ledger, state.snapshot, state.obligation_by_id, state.task_by_id
+            )
             state.evidence = _evidence_for(state.task, state.snapshot, state.input_ceiling)
             _validate_bound_specialist_input(state.task, state.snapshot, state.profile, state.evidence)
         if not set(state.task.get("obligation_ids", [state.task["obligation_id"]])).issubset(state.obligation_by_id):
@@ -1219,18 +1263,16 @@ never dispatched again."""
     state.ledger["planned_task_inputs"] = state.planned_task_inputs
 
 
-
 def install_review_input_size(state: RunState) -> None:
     """Install the provider-aware request-size measure used for splits and quotes."""
     state.review_input_size = functools.partial(review_input_size_stage, state)
 
 
-
 def prepare_dispatch(state: RunState) -> None:
     """Compute pending work, evidence bindings, and internal private capture.
 
-Contract: every specialist task is validated against exactly its bound
-evidence before dispatch; capture pins are verified byte-for-byte."""
+    Contract: every specialist task is validated against exactly its bound
+    evidence before dispatch; capture pins are verified byte-for-byte."""
     from .engine import (
         MAX_CAPTURE_CALLS,
         MAX_REQUEST_BYTES,
@@ -1245,21 +1287,28 @@ evidence before dispatch; capture pins are verified byte-for-byte."""
         serialize_source_audit_request,
         threading,
     )
+
     state.call_lock = threading.Lock()
     state.task_results = dict(state.ledger.get("outputs", {}))
     for state.key, state.value in state.split_skips.items():
         state.task_results[state.key] = state.value
     state.pending = [
-        t for t in state.tasks if t["task_id"] not in state.task_results or state.task_results[t["task_id"]].get("status") != "SUCCEEDED"
+        t
+        for t in state.tasks
+        if t["task_id"] not in state.task_results or state.task_results[t["task_id"]].get("status") != "SUCCEEDED"
     ]
     state.evidence_cache = {t["task_id"]: _evidence_for(t, state.snapshot, state.input_ceiling) for t in state.tasks}
     for state.task in state.tasks:
         if state.task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
-            _validate_bound_specialist_input(state.task, state.snapshot, state.profile, state.evidence_cache[state.task["task_id"]])
+            _validate_bound_specialist_input(
+                state.task, state.snapshot, state.profile, state.evidence_cache[state.task["task_id"]]
+            )
     state.private_capture = None
     if state.private_capture_dir is not None:
         if state.resume or not callable(getattr(state.provider, "review_with_capture", None)):
-            raise EnginePreflightError("invalid_review_request", "private capture requires a fresh capture-capable provider")
+            raise EnginePreflightError(
+                "invalid_review_request", "private capture requires a fresh capture-capable provider"
+            )
         if (
             isinstance(state.private_capture_source_audit_max_bytes, bool)
             or not isinstance(state.private_capture_source_audit_max_bytes, int)
@@ -1301,7 +1350,8 @@ evidence before dispatch; capture pins are verified byte-for-byte."""
                     )
         if state.private_capture_request_pins is not None:
             state.planned = [
-                task for task in state.primary_tasks
+                task
+                for task in state.primary_tasks
                 if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"
             ]
             if (
@@ -1324,7 +1374,9 @@ evidence before dispatch; capture pins are verified byte-for-byte."""
                 state.pin = state.private_capture_request_pins.get(state.task_id)
                 if not isinstance(state.pin, dict):
                     raise EnginePreflightError("invalid_review_request", "private capture task is not pinned")
-                state.request_bytes = state.provider.serialize_review_request(state.task, state.evidence_cache[state.task_id], state.limits)
+                state.request_bytes = state.provider.serialize_review_request(
+                    state.task, state.evidence_cache[state.task_id], state.limits
+                )
                 if (
                     hashlib.sha256(state.request_bytes).hexdigest() != state.pin.get("input_sha256")
                     or len(state.request_bytes) != state.pin.get("input_bytes")
@@ -1366,15 +1418,16 @@ evidence before dispatch; capture pins are verified byte-for-byte."""
                 profile_id=state.capture_profile_id,
             )
         except (OSError, TypeError, ValueError) as exc:
-            raise EnginePreflightError("invalid_review_request", f"private capture unavailable: {type(exc).__name__}") from None
-
+            raise EnginePreflightError(
+                "invalid_review_request", f"private capture unavailable: {type(exc).__name__}"
+            ) from None
 
 
 def install_budget_helpers(state: RunState) -> None:
     """Install estimate/reservation/check-validation helpers on the state.
 
-Contract: reserve-before-dispatch.  Required claim-assessment capacity is
-protected by a call floor and a deadline floor at every reservation."""
+    Contract: reserve-before-dispatch.  Required claim-assessment capacity is
+    protected by a call floor and a deadline floor at every reservation."""
     state.remaining_call_limits = functools.partial(remaining_call_limits_stage, state)
     state.required_claim_calls_remaining = functools.partial(required_claim_calls_remaining_stage, state)
     state.required_claim_deadline_floor = functools.partial(required_claim_deadline_floor_stage, state)
@@ -1382,7 +1435,6 @@ protected by a call floor and a deadline floor at every reservation."""
     state.reserve_provider_call = functools.partial(reserve_provider_call_stage, state)
     state.reserve_local_check = functools.partial(reserve_local_check_stage, state)
     state.validated_check_evidence = functools.partial(validated_check_evidence_stage, state)
-
 
 
 def quote_monetary_budget(state: RunState) -> None:
@@ -1407,7 +1459,9 @@ def quote_monetary_budget(state: RunState) -> None:
             # Deterministic checks are bounded local work, not provider
             # calls requiring a provider quote.
             continue
-        state.target = state.check_adapter if state.planned_task.get("task_kind") == "DETERMINISTIC_CHECK" else state.provider
+        state.target = (
+            state.check_adapter if state.planned_task.get("task_kind") == "DETERMINISTIC_CHECK" else state.provider
+        )
         if state.target is None:
             continue
         state.evidence = state.evidence_cache[state.planned_task["task_id"]]
@@ -1431,19 +1485,19 @@ def quote_monetary_budget(state: RunState) -> None:
 def install_attempt_lifecycle(state: RunState) -> None:
     """Install the per-attempt open/settle helpers on the state.
 
-Contract: a task either holds a reservation or is terminally skipped; an
-attempt is settled exactly once with its observed bytes and usage."""
+    Contract: a task either holds a reservation or is terminally skipped; an
+    attempt is settled exactly once with its observed bytes and usage."""
     state.start_attempt = functools.partial(start_attempt_stage, state)
     state.finish_attempt = functools.partial(finish_attempt_stage, state)
-
 
 
 def dispatch_tasks(state: RunState) -> None:
     """Dispatch reserved specialist/check work and record task outcomes.
 
-Contract: deterministic scheduling only; each settlement records observed
-output, and a failed or unavailable attempt stays explicitly unsuccessful."""
+    Contract: deterministic scheduling only; each settlement records observed
+    output, and a failed or unavailable attempt stays explicitly unsuccessful."""
     from .engine import _hash, _now, _settlement_observation, review_contracts, time, wait_for_any
+
     state.max_workers = int(state.limits["max_concurrent_scopes"])
     state.max_context = int(state.limits["max_context_bytes"])
     state.used_context = 0
@@ -1594,7 +1648,6 @@ output, and a failed or unavailable attempt stays explicitly unsuccessful."""
     state.ledger["outputs"] = state.task_results
 
 
-
 def prepare_followups(state: RunState) -> None:
     """Index existing results, evidence, and units for follow-up binding."""
     state.checkpoint()
@@ -1615,7 +1668,9 @@ def prepare_followups(state: RunState) -> None:
                     "reason_code": "REQUIRED_CONTEXT_OMITTED_BY_INPUT_LIMIT",
                     "path": state.evidence_item.get("path"),
                     "evidence_id": state.evidence_id,
-                    "affected_obligation_ids": list(state.task.get("obligation_ids", [state.task.get("obligation_id")])),
+                    "affected_obligation_ids": list(
+                        state.task.get("obligation_ids", [state.task.get("obligation_id")])
+                    ),
                     "affected_unit_ids": list(state.task.get("unit_ids", [])),
                     "required_lens": state.task.get("lens"),
                 }
@@ -1628,15 +1683,15 @@ def prepare_followups(state: RunState) -> None:
         for state.oid in state.gap.get("affected_obligation_ids", []):
             state.gap_obligations.setdefault(state.oid, []).append(state.gap["proposal_id"])
     state.known_ids = {f.get("finding_id") for f in state.findings}
-    state.evidence_map = state.snapshot.get("evidence", {}) if isinstance(state.snapshot.get("evidence", {}), dict) else {}
+    state.evidence_map = (
+        state.snapshot.get("evidence", {}) if isinstance(state.snapshot.get("evidence", {}), dict) else {}
+    )
     state.unit_map = {u.get("unit_id"): u for u in state.snapshot.get("inventory", []) if isinstance(u, dict)}
-
 
 
 def install_followup_runner(state: RunState) -> None:
     """Install the bounded context follow-up runner on the state."""
     state.run_followup = functools.partial(run_followup_stage, state)
-
 
 
 def run_followups(state: RunState) -> None:
@@ -1669,14 +1724,21 @@ def run_followups(state: RunState) -> None:
         validate_context_target_choice,
         validate_location,
     )
+
     for state.task in state.tasks:
         state.result = state.task_results.get(state.task["task_id"], {})
-        if state.result.get("status") != "SUCCEEDED" or state.task["task_id"] in state.ledger.get("reconciled_tasks", []):
+        if state.result.get("status") != "SUCCEEDED" or state.task["task_id"] in state.ledger.get(
+            "reconciled_tasks", []
+        ):
             continue
         state.payload = state.result.get("payload", {})
         state.task_units = set(state.task.get("unit_ids", state.task.get("scope_unit_ids", [])))
         for state.index, state.proposal in enumerate(state.payload.get("context_gap_proposals", [])):
-            state.record = {"task_id": state.task["task_id"], "proposal_id": f"{state.task['task_id']}:gap:{state.index}", "proposal": state.proposal}
+            state.record = {
+                "task_id": state.task["task_id"],
+                "proposal_id": f"{state.task['task_id']}:gap:{state.index}",
+                "proposal": state.proposal,
+            }
             state.manifest = state.task.get("context_target_manifest")
             state.manifest_choice = (
                 validate_context_target_choice(state.manifest, state.proposal)
@@ -1706,7 +1768,11 @@ def run_followups(state: RunState) -> None:
                 else None
             )
             if state.target_unit is None and isinstance(state.target, dict) and state.target.get("target_path"):
-                state.candidates = [uid for uid in state.task_units if state.unit_map.get(uid, {}).get("path") == state.target["target_path"]]
+                state.candidates = [
+                    uid
+                    for uid in state.task_units
+                    if state.unit_map.get(uid, {}).get("path") == state.target["target_path"]
+                ]
                 state.target_unit = state.candidates[0] if len(state.candidates) == 1 else None
             state.lens = (
                 state.proposal.get("required_lens")
@@ -1746,9 +1812,11 @@ def run_followups(state: RunState) -> None:
             state.record["status"] = "VALID_UNRESOLVED" if state.valid else "INVALID"
             state.record["resolved_unit_id"] = state.target_unit if state.valid else None
             if state.valid and state.manifest_choice is not None:
-                state.selected_path = state.manifest_choice["value"] if state.manifest_choice["kind"] == "path" else state.unit_map.get(
-                    state.manifest_choice["value"], {}
-                ).get("path")
+                state.selected_path = (
+                    state.manifest_choice["value"]
+                    if state.manifest_choice["kind"] == "path"
+                    else state.unit_map.get(state.manifest_choice["value"], {}).get("path")
+                )
                 state.record["context_target_binding"] = {
                     "choice_id": state.manifest_choice["choice_id"],
                     "target_kind": state.manifest_choice["kind"],
@@ -1769,7 +1837,11 @@ def run_followups(state: RunState) -> None:
                 "obligation_ids", [state.task["obligation_id"]]
             )
             state.prior_index = next(
-                (i for i, existing in enumerate(state.context_gaps) if existing.get("proposal_id") == state.record["proposal_id"]),
+                (
+                    i
+                    for i, existing in enumerate(state.context_gaps)
+                    if existing.get("proposal_id") == state.record["proposal_id"]
+                ),
                 None,
             )
             if state.prior_index is None:
@@ -1782,7 +1854,9 @@ def run_followups(state: RunState) -> None:
                 state.retrieval_key = f"{state.record['proposal_id']}:context-retrieval"
                 state.target_binding = state.record.get("context_target_binding")
                 state.snapshot_item = (
-                    _complete_snapshot_context_evidence(state.snapshot, state.target_binding, state.snapshot_captured_evidence)
+                    _complete_snapshot_context_evidence(
+                        state.snapshot, state.target_binding, state.snapshot_captured_evidence
+                    )
                     if isinstance(state.target_binding, dict)
                     and isinstance(state.profile.get("context_target_manifest"), dict)
                     else None
@@ -1817,12 +1891,14 @@ def run_followups(state: RunState) -> None:
                             "reason": "reused_complete_snapshot_evidence",
                             "source": "SNAPSHOT_REUSE",
                         }
-                        state.fetched = [{
-                            **state.snapshot_item,
-                            "proposal_id": state.record["proposal_id"],
-                            "task_id": state.task["task_id"],
-                            "required_lens": state.lens,
-                        }]
+                        state.fetched = [
+                            {
+                                **state.snapshot_item,
+                                "proposal_id": state.record["proposal_id"],
+                                "task_id": state.task["task_id"],
+                                "required_lens": state.lens,
+                            }
+                        ]
                         state.cached = None
                     else:
                         if state.reserved_bytes <= 0:
@@ -1867,7 +1943,9 @@ def run_followups(state: RunState) -> None:
                             else:
                                 state.invocation.cancel()
                                 raise BudgetExhausted("DEADLINE_EXHAUSTED")
-                            state.fetched = state.retrieved.get("evidence", []) if isinstance(state.retrieved, dict) else []
+                            state.fetched = (
+                                state.retrieved.get("evidence", []) if isinstance(state.retrieved, dict) else []
+                            )
                             if isinstance(state.fetched, dict):
                                 state.fetched = [state.fetched]
                             elif state.fetched is None:
@@ -1887,7 +1965,9 @@ def run_followups(state: RunState) -> None:
                     state.target_binding = state.record.get("context_target_binding")
                     if isinstance(state.target_binding, dict):
                         state.target_path = state.target_binding.get("path")
-                    state.patterns = state.profile.get("retrieval_context_patterns") or state.profile.get("context_paths") or []
+                    state.patterns = (
+                        state.profile.get("retrieval_context_patterns") or state.profile.get("context_paths") or []
+                    )
                     if not isinstance(state.patterns, list):
                         state.patterns = []
                     state.verified, state.byte_count = [], 0
@@ -1907,7 +1987,8 @@ def run_followups(state: RunState) -> None:
                                 or not _same_evidence_content(state.original, state.item)
                                 or _complete_snapshot_context_evidence(
                                     state.snapshot, state.target_binding, state.snapshot_captured_evidence
-                                ) is None
+                                )
+                                is None
                             ):
                                 raise ValueError("context_snapshot_reuse_binding_failed")
                             state.verified.append(state.item)
@@ -1916,7 +1997,8 @@ def run_followups(state: RunState) -> None:
                             state.item.get("snapshot_id") != state.snapshot.get("snapshot_id")
                             or state.item.get("trust") not in {"repository_evidence", "trusted_policy"}
                             or state.item.get("source_kind") != "repository_file"
-                            or state.item.get("source_revision") not in (
+                            or state.item.get("source_revision")
+                            not in (
                                 {state.snapshot.get("base_sha"), state.snapshot.get("head_sha")}
                                 | (
                                     {state.snapshot["change_base_sha"]}
@@ -1945,10 +2027,13 @@ def run_followups(state: RunState) -> None:
                                 isinstance(state.target_binding, dict)
                                 and (
                                     state.item.get("source_revision") != state.target_binding.get("source_sha")
-                                    or state.item.get("source_object_id") != state.target_binding.get("source_object_id")
+                                    or state.item.get("source_object_id")
+                                    != state.target_binding.get("source_object_id")
                                 )
                             )
-                            or not any(fnmatch.fnmatchcase(state.path, pat) for pat in state.patterns if isinstance(pat, str))
+                            or not any(
+                                fnmatch.fnmatchcase(state.path, pat) for pat in state.patterns if isinstance(pat, str)
+                            )
                             or (state.target_path and state.path != state.target_path)
                         ):
                             raise ValueError("context_retrieval_evidence_binding_failed")
@@ -1957,7 +2042,12 @@ def run_followups(state: RunState) -> None:
                     if not state.snapshot_reuse and state.byte_count > state.reserved_bytes:
                         raise BudgetExhausted("CONTEXT_RETRIEVAL_BYTE_LIMIT_EXCEEDED")
                     if not state.snapshot_reuse:
-                        state.budget.settle(state.retrieval_key, output_bytes=state.byte_count, usage={}, status=state.retrieved["status"])
+                        state.budget.settle(
+                            state.retrieval_key,
+                            output_bytes=state.byte_count,
+                            usage={},
+                            status=state.retrieved["status"],
+                        )
                     state.record["retrieval_status"] = state.retrieved["status"]
                     state.record["retrieval_reason"] = state.retrieved.get("reason")
                     if state.retrieved.get("source") == "SNAPSHOT_REUSE":
@@ -1990,11 +2080,17 @@ def run_followups(state: RunState) -> None:
                             state.budget.settle(state.retrieval_key, output_bytes=None, usage={}, status="FAILED")
                     except (ValueError, KeyError):
                         pass
-                if state.retrieved and state.retrieved.get("status") == "RESOLVED" and state.record.get("retrieved_evidence_ids"):
+                if (
+                    state.retrieved
+                    and state.retrieved.get("status") == "RESOLVED"
+                    and state.record.get("retrieved_evidence_ids")
+                ):
                     state.followup_id = f"{state.task['task_id']}:followup:{state.index}"
                     state.followup_obligation_id = f"context:{state.record['proposal_id']}"
                     state.followup_unit_ids = (
-                        [state.target_unit] if state.target_unit else list(state.task.get("unit_ids", state.task.get("scope_unit_ids", [])))
+                        [state.target_unit]
+                        if state.target_unit
+                        else list(state.task.get("unit_ids", state.task.get("scope_unit_ids", [])))
                     )
                     state.followup_task = {
                         **state.task,
@@ -2004,15 +2100,19 @@ def run_followups(state: RunState) -> None:
                         "unit_ids": state.followup_unit_ids,
                         "scope_unit_ids": state.followup_unit_ids,
                         "evidence_ids": list(
-                            dict.fromkeys(list(state.task.get("evidence_ids", [])) + state.record["retrieved_evidence_ids"])
+                            dict.fromkeys(
+                                list(state.task.get("evidence_ids", [])) + state.record["retrieved_evidence_ids"]
+                            )
                         ),
                         "context_gap_followup_for": state.record["proposal_id"],
                         "lens": state.lens,
                     }
-                    state.followup_evidence = _merge_evidence_rows([
-                        *state.evidence_cache.get(state.task["task_id"], []),
-                        *(state.evidence_map[eid] for eid in state.record["retrieved_evidence_ids"]),
-                    ])
+                    state.followup_evidence = _merge_evidence_rows(
+                        [
+                            *state.evidence_cache.get(state.task["task_id"], []),
+                            *(state.evidence_map[eid] for eid in state.record["retrieved_evidence_ids"]),
+                        ]
+                    )
                     try:
                         state.obligation = {
                             "obligation_id": state.followup_obligation_id,
@@ -2030,14 +2130,18 @@ def run_followups(state: RunState) -> None:
                             obligation=state.obligation,
                             parent_task=state.task,
                             parent_result=state.task_results[state.task["task_id"]],
-                            retrieved_entry=state.ledger.get("retrieved_context", {}).get(state.record["proposal_id"], {}),
+                            retrieved_entry=state.ledger.get("retrieved_context", {}).get(
+                                state.record["proposal_id"], {}
+                            ),
                             snapshot_id=state.snapshot.get("snapshot_id"),
                         )
                         state.followup_task = _bind_specialist_input(
                             state.followup_task, state.snapshot, state.profile, state.followup_evidence
                         )
                         if state.record.get("retrieval_source") == "SNAPSHOT_REUSE":
-                            state.quoted_input_bytes = state.review_input_size(state.followup_task, state.followup_evidence)
+                            state.quoted_input_bytes = state.review_input_size(
+                                state.followup_task, state.followup_evidence
+                            )
                             if state.quoted_input_bytes > state.input_ceiling:
                                 raise BudgetExhausted("INPUT_BYTE_LIMIT_EXCEEDED")
                         state.budget.reserve_followup(state.followup_id)
@@ -2048,7 +2152,11 @@ def run_followups(state: RunState) -> None:
                         if not isinstance(state.dynamic_obligations, list):
                             raise ValueError("invalid_dynamic_obligation_ledger")
                         state.existing_obligation = next(
-                            (item for item in state.dynamic_obligations if isinstance(item, dict) and item.get("obligation_id") == state.followup_obligation_id),
+                            (
+                                item
+                                for item in state.dynamic_obligations
+                                if isinstance(item, dict) and item.get("obligation_id") == state.followup_obligation_id
+                            ),
                             None,
                         )
                         if state.existing_obligation is None:
@@ -2060,8 +2168,8 @@ def run_followups(state: RunState) -> None:
                             state.tasks.append(state.followup_task)
                             state.task_by_id[state.followup_id] = state.followup_task
                             state.ledger.setdefault("dynamic_tasks", []).append(state.followup_task)
-                            state.ledger.setdefault("planned_task_inputs", {})[state.followup_id] = _task_input_provenance(
-                                state.followup_task
+                            state.ledger.setdefault("planned_task_inputs", {})[state.followup_id] = (
+                                _task_input_provenance(state.followup_task)
                             )
                         else:
                             if state.prior_task != state.followup_task:
@@ -2072,10 +2180,15 @@ def run_followups(state: RunState) -> None:
                         if not isinstance(state.followup_result, dict):
                             state.followup_result = state.run_followup(state.followup_task, state.followup_evidence)
                         state.followup_payload = state.followup_result.get("payload", {})
-                        state.notes = state.followup_payload.get("coverage_notes", []) if isinstance(state.followup_payload, dict) else []
+                        state.notes = (
+                            state.followup_payload.get("coverage_notes", [])
+                            if isinstance(state.followup_payload, dict)
+                            else []
+                        )
                         state.covered, state.note_observation = _coverage_note_observation(
                             state.notes,
-                            notes_present=isinstance(state.followup_payload, dict) and "coverage_notes" in state.followup_payload,
+                            notes_present=isinstance(state.followup_payload, dict)
+                            and "coverage_notes" in state.followup_payload,
                             scope_unit_ids=state.followup_task.get("unit_ids", []),
                             required_evidence_ids=state.record.get("retrieved_evidence_ids", []),
                             task_input_evidence_ids=state.followup_result.get("input_evidence_ids", []),
@@ -2111,13 +2224,21 @@ def run_followups(state: RunState) -> None:
             state.task_units = set(state.task.get("unit_ids", state.task.get("scope_unit_ids", [])))
             state.refs = state.candidate.get("evidence_refs", [])
             state.supplied_ids = set(state.task.get("evidence_ids", []))
-            state.valid_refs = [ref for ref in state.refs if isinstance(ref, str) and ref in state.supplied_ids and ref in state.evidence_map]
-            state.location_valid, state.location, state.line, state.uid = validate_location(state.candidate, None, state.task_units, state.unit_map)
+            state.valid_refs = [
+                ref
+                for ref in state.refs
+                if isinstance(ref, str) and ref in state.supplied_ids and ref in state.evidence_map
+            ]
+            state.location_valid, state.location, state.line, state.uid = validate_location(
+                state.candidate, None, state.task_units, state.unit_map
+            )
             if state.location.get("kind") == "file" and state.unit_map.get(state.uid):
                 state.anchor = state.unit_map[state.uid].get("file_level_location")
                 state.anchor_id = state.anchor.get("evidence_id") if isinstance(state.anchor, dict) else None
                 state.anchor_hash = state.anchor.get("evidence_hash") if isinstance(state.anchor, dict) else None
-                state.anchor_record = state.evidence_map.get(state.anchor_id) if isinstance(state.anchor_id, str) else None
+                state.anchor_record = (
+                    state.evidence_map.get(state.anchor_id) if isinstance(state.anchor_id, str) else None
+                )
                 state.anchor_side = state.anchor.get("side") if isinstance(state.anchor, dict) else None
                 state.expected_revision = (
                     state.snapshot.get("change_base_sha", state.snapshot.get("base_sha"))
@@ -2184,7 +2305,9 @@ def run_followups(state: RunState) -> None:
             state.causal_roles_valid = False
             state.semantic_role_refs: set[str] = set()
             if (
-                state.private_capture is None and state.structurally_valid and state.provider is not None
+                state.private_capture is None
+                and state.structurally_valid
+                and state.provider is not None
                 and callable(getattr(state.provider, "adjudicate", None))
             ):
                 try:
@@ -2241,7 +2364,11 @@ def run_followups(state: RunState) -> None:
                             len(_canonical({"candidate": state.candidate, "evidence": state.adjudication_evidence})),
                         )
                         state.adjudication_deadline = min(
-                            float(state.reservation.get("deadline_seconds", state.remaining_call_limits()["deadline_seconds"])),
+                            float(
+                                state.reservation.get(
+                                    "deadline_seconds", state.remaining_call_limits()["deadline_seconds"]
+                                )
+                            ),
                             max(0.0, state.budget.remaining_seconds() - state.required_claim_deadline_floor()),
                         )
                         if state.adjudication_deadline <= 0 and state.required_claim_deadline_floor() > 0:
@@ -2267,9 +2394,12 @@ def run_followups(state: RunState) -> None:
                     }
                     state.support_keys = ("observation_support", "consequence_support", "rule_connection_support")
                     if (
-                        state.assessment.get("outcome") not in {"SUPPORTED", "NOT_SUPPORTED", "UNCERTAIN", "CONTRADICTED"}
+                        state.assessment.get("outcome")
+                        not in {"SUPPORTED", "NOT_SUPPORTED", "UNCERTAIN", "CONTRADICTED"}
                         or not isinstance(state.assessment_refs, list)
-                        or any(not isinstance(ref, str) or ref not in state.delivered_ids for ref in state.assessment_refs)
+                        or any(
+                            not isinstance(ref, str) or ref not in state.delivered_ids for ref in state.assessment_refs
+                        )
                         or state.assessment.get("introducedness")
                         not in {"INTRODUCED", "REEXPOSED", "PRE_EXISTING", "UNKNOWN"}
                         or any(
@@ -2365,7 +2495,9 @@ def run_followups(state: RunState) -> None:
                     # UNCERTAIN is deliberately unresolved and cannot support a blocker.
                     state.semantic_result = state.assessment
                     state.remote_meta = getattr(exc, "meta", {})
-                    state.semantic_usage = state.remote_meta.get("usage", {}) if isinstance(state.remote_meta, dict) else {}
+                    state.semantic_usage = (
+                        state.remote_meta.get("usage", {}) if isinstance(state.remote_meta, dict) else {}
+                    )
                     state.semantic_provenance = {"error_meta": state.remote_meta} if state.remote_meta else {}
                     if state.reservation_key is not None:
                         try:
@@ -2396,7 +2528,8 @@ def run_followups(state: RunState) -> None:
             state.introduced = (state.assessment or {}).get("introducedness", "UNKNOWN")
             state.causal_roles = (state.assessment or {}).get("causal_roles", {})
             state.causal_path_supported = bool(
-                state.causal_roles_valid and all(state.causal_roles[role].get("support") == "SUPPORTED" for role in _CAUSAL_ROLES)
+                state.causal_roles_valid
+                and all(state.causal_roles[role].get("support") == "SUPPORTED" for role in _CAUSAL_ROLES)
             )
             state.claim_supported = (
                 state.structurally_valid
@@ -2404,13 +2537,20 @@ def run_followups(state: RunState) -> None:
                 and state.assessment.get("outcome") == "SUPPORTED"
                 and state.causal_path_supported
                 and all(
-                    state.assessment.get(key) == "SUPPORTED" for key in ("observation_support", "rule_connection_support")
+                    state.assessment.get(key) == "SUPPORTED"
+                    for key in ("observation_support", "rule_connection_support")
                 )
             )
-            state.claim_supported = bool(state.claim_supported and state.introduced in {"INTRODUCED", "REEXPOSED", "PRE_EXISTING"})
+            state.claim_supported = bool(
+                state.claim_supported and state.introduced in {"INTRODUCED", "REEXPOSED", "PRE_EXISTING"}
+            )
             state.supported = bool(state.claim_supported and state.introduced in {"INTRODUCED", "REEXPOSED"})
             state.materiality = (state.assessment or {}).get("material_consequence")
-            state.blocking = bool(state.supported and state.materiality is True and state.assessment.get("consequence_support") == "SUPPORTED")
+            state.blocking = bool(
+                state.supported
+                and state.materiality is True
+                and state.assessment.get("consequence_support") == "SUPPORTED"
+            )
             state.unresolved = (
                 not state.structurally_valid
                 or state.assessment is None
@@ -2418,7 +2558,10 @@ def run_followups(state: RunState) -> None:
                 or not state.causal_path_supported
                 or state.assessment.get("outcome") in {"UNCERTAIN", "CONTRADICTED"}
                 or state.introduced == "UNKNOWN"
-                or (state.assessment.get("outcome") == "SUPPORTED" and (not state.claim_supported or state.materiality is None))
+                or (
+                    state.assessment.get("outcome") == "SUPPORTED"
+                    and (not state.claim_supported or state.materiality is None)
+                )
             )
             state.status = (
                 "ACCEPTED"
@@ -2433,8 +2576,16 @@ def run_followups(state: RunState) -> None:
                     else "NEEDS_EVIDENCE"
                 )
             )
-            state.location = dict(state.candidate.get("location", {})) if isinstance(state.candidate.get("location", {}), dict) else {}
-            state.path = state.location.get("path") or state.candidate.get("path") or (state.unit.get("path") if state.unit else None)
+            state.location = (
+                dict(state.candidate.get("location", {}))
+                if isinstance(state.candidate.get("location", {}), dict)
+                else {}
+            )
+            state.path = (
+                state.location.get("path")
+                or state.candidate.get("path")
+                or (state.unit.get("path") if state.unit else None)
+            )
             state.location["path"] = state.path
             state.location["side"] = state.location.get("side", "HEAD")
             if state.line is not None:
@@ -2455,7 +2606,11 @@ def run_followups(state: RunState) -> None:
                 "status": state.status,
                 "severity": state.candidate.get("severity", "unknown"),
                 "introducedness": state.introduced,
-                "blocking_class": "BLOCKING" if state.blocking else "UNRESOLVED" if state.unresolved else "NON_BLOCKING",
+                "blocking_class": "BLOCKING"
+                if state.blocking
+                else "UNRESOLVED"
+                if state.unresolved
+                else "NON_BLOCKING",
                 "blocking_rationale": "Evidence and semantic assessment support a material changed behavior or trusted policy consequence."
                 if state.blocking
                 else "Not established as a blocker by the bounded evidence and policy rules.",
@@ -2467,12 +2622,11 @@ def run_followups(state: RunState) -> None:
         state.ledger.setdefault("reconciled_tasks", []).append(state.task["task_id"])
 
 
-
 def assess_claims(state: RunState) -> None:
     """Run required claim adjudication under the trusted reconciliation policy.
 
-Contract: only validated candidates may consume a required assessment;
-unknown or failed adjudication never becomes a clean approval."""
+    Contract: only validated candidates may consume a required assessment;
+    unknown or failed adjudication never becomes a clean approval."""
     from .engine import (
         _ADJUDICATION_V3,
         _CAUSAL_ROLES,
@@ -2490,6 +2644,7 @@ unknown or failed adjudication never becomes a clean approval."""
         math,
         time,
     )
+
     # The per-candidate claim assessor is an optional, sequential shadow stage.
     # It runs after every primary adjudication has settled and before findings
     # are consolidated so it cannot consume primary call slots or affect the
@@ -2510,7 +2665,9 @@ unknown or failed adjudication never becomes a clean approval."""
         }
         state.ordered_candidates = sorted(state.record_by_candidate)
         state.attempts_used = sum(
-            1 for row in state.claim_rows.values() if isinstance(row, dict) and isinstance(row.get("reservation_key"), str)
+            1
+            for row in state.claim_rows.values()
+            if isinstance(row, dict) and isinstance(row.get("reservation_key"), str)
         )
         state.claim_not_run = functools.partial(claim_not_run_stage, state)
         state.claim_identity = {
@@ -2593,7 +2750,11 @@ unknown or failed adjudication never becomes a clean approval."""
                     state.invalid_binding = True
                     break
                 state.cited_evidence.append(state.item)
-            if state.invalid_binding or not state.original_refs or any(ref not in state.refs for ref in state.original_refs):
+            if (
+                state.invalid_binding
+                or not state.original_refs
+                or any(ref not in state.refs for ref in state.original_refs)
+            ):
                 state.claim_not_run(state.candidate_id, "CANDIDATE_EVIDENCE_BINDING_INVALID")
                 continue
             state.reservation_key = f"claim-assessment:{state.claim_assessor_contract}:{state.candidate_id}:attempt:0"
@@ -2668,10 +2829,18 @@ unknown or failed adjudication never becomes a clean approval."""
                     state.prepared_body = json.loads(state.prepared_request.decode("utf-8"))
                 except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
                     raise ValueError("invalid_prepared_claim_request") from None
-                state.prepared_state = state.prepared_body.get("state") if isinstance(state.prepared_body, dict) else None
-                state.prepared_candidate = state.prepared_state.get("candidate") if isinstance(state.prepared_state, dict) else None
-                state.prepared_evidence = state.prepared_state.get("cited_evidence") if isinstance(state.prepared_state, dict) else None
-                state.prepared_questions = state.prepared_body.get("questions") if isinstance(state.prepared_body, dict) else None
+                state.prepared_state = (
+                    state.prepared_body.get("state") if isinstance(state.prepared_body, dict) else None
+                )
+                state.prepared_candidate = (
+                    state.prepared_state.get("candidate") if isinstance(state.prepared_state, dict) else None
+                )
+                state.prepared_evidence = (
+                    state.prepared_state.get("cited_evidence") if isinstance(state.prepared_state, dict) else None
+                )
+                state.prepared_questions = (
+                    state.prepared_body.get("questions") if isinstance(state.prepared_body, dict) else None
+                )
                 state.prepared_primary = (
                     state.prepared_state.get("primary_assessment") if isinstance(state.prepared_state, dict) else None
                 )
@@ -2719,14 +2888,16 @@ unknown or failed adjudication never becomes a clean approval."""
                     or state.prepared_candidate != state.claim_candidate
                     or state.prepared_primary != state.primary
                     or not isinstance(state.prepared_evidence, list)
-                    or [item.get("evidence_id") for item in state.prepared_evidence if isinstance(item, dict)] != state.refs
+                    or [item.get("evidence_id") for item in state.prepared_evidence if isinstance(item, dict)]
+                    != state.refs
                     or not isinstance(state.prepared_questions, dict)
                     or not state.prepared_questions
                     or not state.prepared_question_ids_valid
                     or getattr(state.prepared, "candidate_hash", None) != _claim_adapter_hash(state.prepared_candidate)
                     or getattr(state.prepared, "evidence_hash", None) != _claim_adapter_hash(state.prepared_evidence)
                     or getattr(state.prepared, "question_hash", None) != _claim_adapter_hash(state.prepared_questions)
-                    or getattr(state.prepared, "primary_assessment_hash", None) != _claim_adapter_hash(state.prepared_primary)
+                    or getattr(state.prepared, "primary_assessment_hash", None)
+                    != _claim_adapter_hash(state.prepared_primary)
                 ):
                     raise ValueError("invalid_prepared_claim_binding")
                 # Preparation and quote are local but may consume wall time.
@@ -2764,7 +2935,9 @@ unknown or failed adjudication never becomes a clean approval."""
                         "candidate_hash": getattr(state.prepared, "candidate_hash", None),
                         "question_hash": getattr(state.prepared, "question_hash", None),
                         "evidence_hash": getattr(state.prepared, "evidence_hash", None),
-                        "primary_assessment_hash": getattr(state.prepared, "primary_assessment_hash", state.primary_hash),
+                        "primary_assessment_hash": getattr(
+                            state.prepared, "primary_assessment_hash", state.primary_hash
+                        ),
                         "provider_response_bytes_reserved": state.raw_response_cap,
                         "ipc_output_bytes_reserved": state.ipc_cap,
                         "input_bytes_reserved": state.estimate["input_bytes"],
@@ -2811,7 +2984,9 @@ unknown or failed adjudication never becomes a clean approval."""
                 state.status = state.response.get("status")
                 if state.status not in {"COMPLETE", "PARTIAL", "FAILED"}:
                     state.status = "FAILED"
-                state.provenance = state.response.get("provenance") if isinstance(state.response.get("provenance"), dict) else {}
+                state.provenance = (
+                    state.response.get("provenance") if isinstance(state.response.get("provenance"), dict) else {}
+                )
                 state.expected_provenance = {
                     "contract_version": state.prepared_version,
                     "request_hash": state.prepared_hash,
@@ -2833,7 +3008,11 @@ unknown or failed adjudication never becomes a clean approval."""
                     and state.response.get("decision") == "ADVISORY_ONLY"
                 )
                 for state.dimension, state.question_id in state.question_map.items():
-                    state.item = state.response_assessments.get(state.dimension) if isinstance(state.response_assessments, dict) else None
+                    state.item = (
+                        state.response_assessments.get(state.dimension)
+                        if isinstance(state.response_assessments, dict)
+                        else None
+                    )
                     if (
                         not isinstance(state.item, dict)
                         or state.item.get("question_id") != state.question_id
@@ -2843,7 +3022,10 @@ unknown or failed adjudication never becomes a clean approval."""
                         or state.item.get("status") not in {"ANSWERED", "OMITTED", "INVALID", "FAILED", "NOT_SHOWN"}
                         or (
                             state.item.get("status") == "NOT_SHOWN"
-                            and (state.dimension != "introducedness" or getattr(state.prepared, "introducedness_available", True))
+                            and (
+                                state.dimension != "introducedness"
+                                or getattr(state.prepared, "introducedness_available", True)
+                            )
                         )
                     ):
                         state.assessments_valid = False
@@ -2861,7 +3043,9 @@ unknown or failed adjudication never becomes a clean approval."""
                     )
                 )
                 state.response_valid = bool(
-                    state.provenance_valid and state.assessments_valid and (state.status != "COMPLETE" or state.complete_assessment)
+                    state.provenance_valid
+                    and state.assessments_valid
+                    and (state.status != "COMPLETE" or state.complete_assessment)
                 )
                 if not state.response_valid:
                     state.status = "FAILED"
@@ -2909,7 +3093,9 @@ unknown or failed adjudication never becomes a clean approval."""
                     "PROVIDER_CALL_BUDGET_EXHAUSTED",
                 }
                 state.error_code = (
-                    state.budget_code if state.budget_code in state.allowed_budget_codes else "CLAIM_ASSESSMENT_BUDGET_UNAVAILABLE"
+                    state.budget_code
+                    if state.budget_code in state.allowed_budget_codes
+                    else "CLAIM_ASSESSMENT_BUDGET_UNAVAILABLE"
                 )
                 if state.reservation is not None:
                     try:
@@ -2953,7 +3139,9 @@ unknown or failed adjudication never becomes a clean approval."""
                 state.raw_actual = state.meta.get("actual_output_bytes")
                 state.actual_output = (
                     state.raw_actual
-                    if isinstance(state.raw_actual, int) and not isinstance(state.raw_actual, bool) and state.raw_actual >= 0
+                    if isinstance(state.raw_actual, int)
+                    and not isinstance(state.raw_actual, bool)
+                    and state.raw_actual >= 0
                     else None
                 )
                 if state.reservation is not None:
@@ -3004,12 +3192,11 @@ unknown or failed adjudication never becomes a clean approval."""
                 state.checkpoint()
 
 
-
 def reduce_coverage(state: RunState) -> None:
     """Reconcile findings, compute coverage and freshness, and preserve blockers.
 
-Contract: blocker preservation - a known supported blocker survives
-partial coverage; model agreement is never treated as truth."""
+    Contract: blocker preservation - a known supported blocker survives
+    partial coverage; model agreement is never treated as truth."""
     from .engine import (
         _REQUIRED_CONTEXT_NOTE_CODES,
         IsolatedCallError,
@@ -3021,6 +3208,7 @@ partial coverage; model agreement is never treated as truth."""
         classify_reconciliation,
         consolidate_findings,
     )
+
     state.claim_reconciliation_rows: list[dict[str, Any]] = []
     state.reconciliation_by_candidate: dict[str, dict[str, Any]] = {}
     if state.reconciliation_policy is not None:
@@ -3031,11 +3219,15 @@ partial coverage; model agreement is never treated as truth."""
         }
         state.claim_rows = state.ledger.get("claim_assessments", {})
         for state.candidate_record in state.ledger.get("candidate_records", []):
-            if not isinstance(state.candidate_record, dict) or not isinstance(state.candidate_record.get("candidate_id"), str):
+            if not isinstance(state.candidate_record, dict) or not isinstance(
+                state.candidate_record.get("candidate_id"), str
+            ):
                 continue
             state.candidate_id = state.candidate_record["candidate_id"]
             state.primary_finding = state.primary_finding_by_candidate.get(state.candidate_id)
-            state.primary = state.primary_finding.get("semantic_assessment") if isinstance(state.primary_finding, dict) else None
+            state.primary = (
+                state.primary_finding.get("semantic_assessment") if isinstance(state.primary_finding, dict) else None
+            )
             state.claim_row = state.claim_rows.get(state.candidate_id) if isinstance(state.claim_rows, dict) else None
             state.relation = classify_reconciliation(
                 state.primary,
@@ -3052,7 +3244,11 @@ partial coverage; model agreement is never treated as truth."""
             state.reconciliation_by_candidate[state.candidate_id] = state.relation
             state.raw_candidate = state.candidate_record.get("raw")
             state.raw_candidate = state.raw_candidate if isinstance(state.raw_candidate, dict) else {}
-            state.refs = set(state.raw_candidate.get("evidence_refs", [])) if isinstance(state.raw_candidate.get("evidence_refs"), list) else set()
+            state.refs = (
+                set(state.raw_candidate.get("evidence_refs", []))
+                if isinstance(state.raw_candidate.get("evidence_refs"), list)
+                else set()
+            )
             if isinstance(state.primary, dict) and isinstance(state.primary.get("evidence_refs"), list):
                 state.refs.update(state.primary["evidence_refs"])
             state.claim_reconciliation_rows.append(
@@ -3095,13 +3291,21 @@ partial coverage; model agreement is never treated as truth."""
     state.coverage = []
     for state.obligation_id, state.obligation in state.obligation_by_id.items():
         state.related = [t for t in state.tasks if state.obligation_id in t.get("obligation_ids", [t["obligation_id"]])]
-        state.preflight_skips = [row for row in state.split_skips.values() if state.obligation_id in row.get("obligation_ids", [])]
+        state.preflight_skips = [
+            row for row in state.split_skips.values() if state.obligation_id in row.get("obligation_ids", [])
+        ]
         state.results = [state.task_results.get(t["task_id"], {}) for t in state.related]
-        state.successful = bool(state.related) and not state.preflight_skips and all(r.get("status") == "SUCCEEDED" for r in state.results)
+        state.successful = (
+            bool(state.related)
+            and not state.preflight_skips
+            and all(r.get("status") == "SUCCEEDED" for r in state.results)
+        )
         state.check_evidence_refs: set[str] = set()
         state.check_result_evidence_invalid = False
         state.check_result_unavailable = False
-        state.required_output_quarantined, state.quarantine_observation = _required_output_quarantine_observation(state.results)
+        state.required_output_quarantined, state.quarantine_observation = _required_output_quarantine_observation(
+            state.results
+        )
         state.required_context_not_covered = False
         state.required_context_note_observations: list[dict[str, Any]] = []
         state.required_context_note_matches: list[bool] = []
@@ -3110,7 +3314,9 @@ partial coverage; model agreement is never treated as truth."""
         state.partial_coverage_note = False
         if state.successful:
             # No-finding success is a completed result. A check UNKNOWN/ERROR remains partial.
-            state.successful = all(r.get("payload", {}).get("outcome") not in {"UNKNOWN", "ERROR"} for r in state.results)
+            state.successful = all(
+                r.get("payload", {}).get("outcome") not in {"UNKNOWN", "ERROR"} for r in state.results
+            )
             state.check_result_unavailable = state.obligation.get("obligation_kind") == "PROJECT_CHECK" and any(
                 r.get("payload", {}).get("outcome") in {"UNKNOWN", "ERROR"} for r in state.results
             )
@@ -3135,15 +3341,21 @@ partial coverage; model agreement is never treated as truth."""
                         and n.get("state") == "COVERED"
                         and n.get("coverage_basis") == "STATIC_REVIEW"
                         and n.get("evidence_refs")
-                        and set(n.get("evidence_refs", [])).issubset(set(state.task_result.get("input_evidence_ids", [])))
+                        and set(n.get("evidence_refs", [])).issubset(
+                            set(state.task_result.get("input_evidence_ids", []))
+                        )
                         and set(n.get("evidence_refs", [])) & state.unit_evidence.get(n.get("unit_id"), set())
                     }
-                    state.missing_covered_units = (set(state.task.get("unit_ids", [])) & state.scope_units) - state.covered
+                    state.missing_covered_units = (
+                        set(state.task.get("unit_ids", [])) & state.scope_units
+                    ) - state.covered
                     if state.missing_covered_units:
                         state.successful = False
                         for state.unit_id in state.missing_covered_units:
                             state.unit_notes = [
-                                note for note in state.notes if isinstance(note, dict) and note.get("unit_id") == state.unit_id
+                                note
+                                for note in state.notes
+                                if isinstance(note, dict) and note.get("unit_id") == state.unit_id
                             ]
                             if not state.unit_notes:
                                 state.coverage_note_missing = True
@@ -3164,7 +3376,9 @@ partial coverage; model agreement is never treated as truth."""
                                         state.coverage_note_evidence_invalid = True
                                     else:
                                         state.coverage_note_missing = True
-                    state.task_has_required_quarantine, state._ = _required_output_quarantine_observation([state.task_result])
+                    state.task_has_required_quarantine, state._ = _required_output_quarantine_observation(
+                        [state.task_result]
+                    )
                     if state.task_has_required_quarantine:
                         state.successful = False
             if state.obligation.get("obligation_kind") == "REQUIRED_CONTEXT":
@@ -3184,7 +3398,9 @@ partial coverage; model agreement is never treated as truth."""
                     state.required_context_note_matches.append(state.covered)
                     if not state.covered:
                         state.required_context_not_covered = True
-                    state.task_has_required_quarantine, state._ = _required_output_quarantine_observation([state.task_result])
+                    state.task_has_required_quarantine, state._ = _required_output_quarantine_observation(
+                        [state.task_result]
+                    )
                     if not state.covered or state.task_has_required_quarantine:
                         state.successful = False
         if state.obligation.get("obligation_kind") == "PROJECT_CHECK":
@@ -3219,7 +3435,11 @@ partial coverage; model agreement is never treated as truth."""
             else "NOT_STARTED"
         )
         state.failure_reason = next(
-            (result.get("error_code", "MISSING_RESULT") for result in state.results if result.get("status") != "SUCCEEDED"),
+            (
+                result.get("error_code", "MISSING_RESULT")
+                for result in state.results
+                if result.get("status") != "SUCCEEDED"
+            ),
             None,
         )
         state.skip_reason = next((row.get("error_code", "MISSING_RESULT") for row in state.preflight_skips), None)
@@ -3248,24 +3468,24 @@ partial coverage; model agreement is never treated as truth."""
         else:
             state.reason_code = "MISSING_RESULT"
         state.coverage_row = {
-                "coverage_id": _hash({"run_id": state.run_id, "obligation": state.obligation_id})[:20],
-                "run_id": state.run_id,
-                "snapshot_id": state.snapshot.get("snapshot_id"),
-                **state.obligation,
-                "state": state.state,
-                "reason_code": state.reason_code,
-                "context_gap_ids": state.gap_obligations.get(state.obligation_id, []),
-                "task_ids": list(
-                    dict.fromkeys(
-                        [t["task_id"] for t in state.related]
-                        + [row["task_id"] for row in state.preflight_skips if isinstance(row.get("task_id"), str)]
-                    )
-                ),
-                "evidence_refs": sorted(state.check_evidence_refs)
-                if state.obligation.get("obligation_kind") == "PROJECT_CHECK"
-                else sorted({eid for t in state.related for eid in t.get("evidence_ids", [])}),
-                "updated_at": _now(),
-            }
+            "coverage_id": _hash({"run_id": state.run_id, "obligation": state.obligation_id})[:20],
+            "run_id": state.run_id,
+            "snapshot_id": state.snapshot.get("snapshot_id"),
+            **state.obligation,
+            "state": state.state,
+            "reason_code": state.reason_code,
+            "context_gap_ids": state.gap_obligations.get(state.obligation_id, []),
+            "task_ids": list(
+                dict.fromkeys(
+                    [t["task_id"] for t in state.related]
+                    + [row["task_id"] for row in state.preflight_skips if isinstance(row.get("task_id"), str)]
+                )
+            ),
+            "evidence_refs": sorted(state.check_evidence_refs)
+            if state.obligation.get("obligation_kind") == "PROJECT_CHECK"
+            else sorted({eid for t in state.related for eid in t.get("evidence_ids", [])}),
+            "updated_at": _now(),
+        }
         if state.obligation.get("obligation_kind") == "REQUIRED_CONTEXT":
             state.note_observed = bool(state.required_context_note_observations) and all(
                 row.get("state") == "OBSERVED" for row in state.required_context_note_observations
@@ -3301,7 +3521,11 @@ partial coverage; model agreement is never treated as truth."""
             state.unresolved_followup_count = 0
             state.gap_observation_known = True
             for state.gap_id in state.unresolved_ids:
-                state.linked = [gap for gap in state.context_gaps if isinstance(gap, dict) and gap.get("proposal_id") == state.gap_id]
+                state.linked = [
+                    gap
+                    for gap in state.context_gaps
+                    if isinstance(gap, dict) and gap.get("proposal_id") == state.gap_id
+                ]
                 if len(state.linked) != 1 or not isinstance(state.linked[0].get("task_id"), str):
                     state.gap_observation_known = False
                     continue
@@ -3309,7 +3533,9 @@ partial coverage; model agreement is never treated as truth."""
                     state.unresolved_followup_count += 1
             state.closure_state = (
                 "OBSERVED"
-                if state.note_observed and state.quarantine_observation["state"] == "OBSERVED" and state.gap_observation_known
+                if state.note_observed
+                and state.quarantine_observation["state"] == "OBSERVED"
+                and state.gap_observation_known
                 else "UNKNOWN"
             )
             state.coverage_row["closure_diagnostics"] = {
@@ -3364,8 +3590,9 @@ partial coverage; model agreement is never treated as truth."""
     elif state.snapshot.get("freshness_basis") == "HISTORICAL_SNAPSHOT" and state.snapshot.get("snapshot_hash"):
         state.freshness = "CURRENT"
         state.freshness_details["freshness_basis"] = "HISTORICAL_SNAPSHOT"
-    state.blockers = [f for f in state.findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"]
-
+    state.blockers = [
+        f for f in state.findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"
+    ]
 
 
 def install_report_notes(state: RunState) -> None:
@@ -3373,12 +3600,11 @@ def install_report_notes(state: RunState) -> None:
     state.report_notes = functools.partial(report_notes_stage, state)
 
 
-
 def build_and_persist_result(state: RunState) -> ReviewResult:
     """Assemble result, disposition, and advisory assessment, then persist.
 
-Contract: result hash and ledger are written atomically; disposition is
-reduced deterministically from preserved findings and coverage."""
+    Contract: result hash and ledger are written atomically; disposition is
+    reduced deterministically from preserved findings and coverage."""
     from .completeness import build_completeness_summary
     from .engine import (
         _SYSTEM_ONE_ADVISORY_QUESTION,
@@ -3395,6 +3621,7 @@ reduced deterministically from preserved findings and coverage."""
         json,
         time,
     )
+
     state.accepted_improvements = [
         f for f in state.findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "NON_BLOCKING"
     ]
@@ -3453,7 +3680,9 @@ reduced deterministically from preserved findings and coverage."""
         "effective_contracts": state.contracts,
         "project_profile_version": state.profile.get(
             "version",
-            state.profile.get("profile_version", state.snapshot.get("profile_version", state.snapshot.get("project_profile_version"))),
+            state.profile.get(
+                "profile_version", state.snapshot.get("profile_version", state.snapshot.get("project_profile_version"))
+            ),
         ),
         "coverage_state": state.coverage_state,
         "freshness": state.freshness,
@@ -3513,7 +3742,8 @@ reduced deterministically from preserved findings and coverage."""
     }
     if state.max_claim_assessments > 0:
         state.result["claim_assessments"] = [
-            state.ledger["claim_assessments"][candidate_id] for candidate_id in sorted(state.ledger["claim_assessments"])
+            state.ledger["claim_assessments"][candidate_id]
+            for candidate_id in sorted(state.ledger["claim_assessments"])
         ]
     state.result["disposition"] = _reduce(
         state.result,
@@ -3597,10 +3827,9 @@ reduced deterministically from preserved findings and coverage."""
                 "provenance": state.provenance,
             }
         except BudgetExhausted as exc:
-            if (
-                state.reservation_key in state.budget.state.get("reservations", {})
-                and state.reservation_key not in state.budget.state.get("settlements", {})
-            ):
+            if state.reservation_key in state.budget.state.get(
+                "reservations", {}
+            ) and state.reservation_key not in state.budget.state.get("settlements", {}):
                 try:
                     state.budget.settle(
                         state.reservation_key,

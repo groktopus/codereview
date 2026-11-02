@@ -30,9 +30,7 @@ LIMITS_V3 = ROOT / "profiles/ordinary-review-limits-v3.json"
 
 
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, text=True, stdout=subprocess.PIPE
-    ).stdout.strip()
+    return subprocess.run(["git", "-C", str(repo), *args], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
 
 
 def _native_candidate() -> dict:
@@ -118,7 +116,7 @@ def test_v16_profile_changes_only_the_approved_capacity_and_retrieval_fields() -
                 "Network-client adapters cross credential, upstream-input, and remote-service trust boundaries "
                 "and need explicit security, correctness, and test review."
             ),
-        }
+        },
     )
     assert candidate == expected
     for field in (
@@ -315,10 +313,7 @@ def test_small_and_deep_added_sources_use_v16_splitter_with_bounded_preparation(
         assert all(len(item["content"].encode("utf-8")) <= 12_000 for item in rows)
         assert all(item["source_revision"] == head for item in rows)
         assert all(item["source_object_id"] == _git(repo, "rev-parse", f"{head}:{path}") for item in rows)
-        assert all(
-            item["content_hash"] == hashlib.sha256(item["content"].encode("utf-8")).hexdigest()
-            for item in rows
-        )
+        assert all(item["content_hash"] == hashlib.sha256(item["content"].encode("utf-8")).hexdigest() for item in rows)
 
     required_source_gaps = [
         gap for gap in snapshot["gaps"] if gap.get("required") and gap.get("source_kind") == "source_window"
@@ -346,9 +341,9 @@ def test_small_and_deep_added_sources_use_v16_splitter_with_bounded_preparation(
     assert ceiling == limits["max_input_bytes_per_task"]
     assert not any(row.get("error_code") == "REQUIRED_CONTEXT_MISSING" for row in skipped.values())
     assert all(
-        provider.estimate_call(
-            "SPECIALIST_FINDINGS", task, _evidence_for(task, snapshot, ceiling), limits
-        )["input_bytes"]
+        provider.estimate_call("SPECIALIST_FINDINGS", task, _evidence_for(task, snapshot, ceiling), limits)[
+            "input_bytes"
+        ]
         <= ceiling
         for task in tasks
         if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"

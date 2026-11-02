@@ -19,10 +19,7 @@ pytestmark = pytest.mark.compatibility
 
 def _inventory_hashes(source_root: Path) -> tuple[int, str, str]:
     files = sorted((source_root / "src/pr_review_harness").glob("*.py"), key=lambda path: path.name)
-    model_hashes = {
-        f"pr_review_harness/{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in files
-    }
+    model_hashes = {f"pr_review_harness/{path.name}": hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
     model_tree = hashlib.sha256(
         json.dumps(model_hashes, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()
@@ -43,14 +40,25 @@ def test_publisher_overlay_is_exact_publication_branch_base_blob():
 
 def test_frozen_runtime_reconstructs_both_historical_inventories(tmp_path: Path):
     for fixture in (
-        frozen_runtime.FROZEN_CLI, frozen_runtime.FROZEN_ENGINE, frozen_runtime.FROZEN_BUDGET,
-        frozen_runtime.FROZEN_PLANNER, frozen_runtime.FROZEN_PUBLICATION_RECEIPTS,
-        frozen_runtime.FROZEN_SNAPSHOT, frozen_runtime.FROZEN_MODULE, frozen_runtime.FROZEN_EVIDENCE,
-        frozen_runtime.FROZEN_ACTIONS_RUNTIME, frozen_runtime.FROZEN_OBSERVER,
-        frozen_runtime.FROZEN_REPORT, frozen_runtime.FROZEN_ARTIFACT_INTAKE,
-        frozen_runtime.FROZEN_ACTIONS_PUBLICATION, frozen_runtime.FROZEN_PROVIDERS,
-        frozen_runtime.FROZEN_CLAIM_ASSESSMENT, frozen_runtime.FROZEN_CLAIM_TRANSPORT,
-        frozen_runtime.FROZEN_GITHUB, frozen_runtime.FROZEN_POLICY_INVENTORY, frozen_runtime.FROZEN_SHADOW_AUDIT,
+        frozen_runtime.FROZEN_CLI,
+        frozen_runtime.FROZEN_ENGINE,
+        frozen_runtime.FROZEN_BUDGET,
+        frozen_runtime.FROZEN_PLANNER,
+        frozen_runtime.FROZEN_PUBLICATION_RECEIPTS,
+        frozen_runtime.FROZEN_SNAPSHOT,
+        frozen_runtime.FROZEN_MODULE,
+        frozen_runtime.FROZEN_EVIDENCE,
+        frozen_runtime.FROZEN_ACTIONS_RUNTIME,
+        frozen_runtime.FROZEN_OBSERVER,
+        frozen_runtime.FROZEN_REPORT,
+        frozen_runtime.FROZEN_ARTIFACT_INTAKE,
+        frozen_runtime.FROZEN_ACTIONS_PUBLICATION,
+        frozen_runtime.FROZEN_PROVIDERS,
+        frozen_runtime.FROZEN_CLAIM_ASSESSMENT,
+        frozen_runtime.FROZEN_CLAIM_TRANSPORT,
+        frozen_runtime.FROZEN_GITHUB,
+        frozen_runtime.FROZEN_POLICY_INVENTORY,
+        frozen_runtime.FROZEN_SHADOW_AUDIT,
     ):
         name = fixture.name
         frozen_runtime.assert_frozen_runtime_pin(name, fixture)
@@ -76,7 +84,6 @@ def test_historical_pin_failure_names_module_revision_and_migration(tmp_path: Pa
     assert "modified.py" in message
     assert frozen_runtime.HISTORICAL_REVISION in message
     assert "reviewed migration" in message
-
 
 
 def test_unlisted_new_module_is_excluded_from_historical_runtime(tmp_path: Path):
@@ -134,6 +141,7 @@ def test_manifest_pins_match_revision_source_bytes():
         source = files[name]
         blob = subprocess.run(
             ["git", "-C", str(ROOT), "show", f"{revisions[name]}:{source}"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         ).stdout
         assert hashlib.sha256(blob).hexdigest() == digest, name

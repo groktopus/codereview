@@ -159,9 +159,16 @@ def _reference_candidates(line: str) -> list[tuple[str, int, int, bool]]:
         if HEX_TOKEN_RE.fullmatch(token) and len(token) >= 7:
             candidates.append((token, match.start(), match.end(), True))
     run_patterns = (
-        re.compile(r"\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number))?\s*#\s*([0-9]{7,12})\b", re.IGNORECASE),
-        re.compile(r"\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number))?\s+([0-9]{7,12})\b", re.IGNORECASE),
-        re.compile(r"\b(?:actions\s+)?(?:run|job|check|artifact|review)\s+(?:A|B|\d+)\s+`?([0-9]{7,12})`?\b", re.IGNORECASE),
+        re.compile(
+            r"\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number))?\s*#\s*([0-9]{7,12})\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number))?\s+([0-9]{7,12})\b", re.IGNORECASE
+        ),
+        re.compile(
+            r"\b(?:actions\s+)?(?:run|job|check|artifact|review)\s+(?:A|B|\d+)\s+`?([0-9]{7,12})`?\b", re.IGNORECASE
+        ),
     )
     known = {token for token, _, _, _ in candidates}
     for pattern in run_patterns:
@@ -194,12 +201,15 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _git_exists(root: Path, sha: str) -> bool:
-    return subprocess.run(
-        ["git", "-C", str(root), "cat-file", "-e", f"{sha}^{{commit}}"],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    ).returncode == 0
+    return (
+        subprocess.run(
+            ["git", "-C", str(root), "cat-file", "-e", f"{sha}^{{commit}}"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode
+        == 0
+    )
 
 
 def _sha_reference_records(manifest_path: Path) -> dict[str, dict[str, str]]:
@@ -207,7 +217,11 @@ def _sha_reference_records(manifest_path: Path) -> dict[str, dict[str, str]]:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError(f"cannot read SHA reference manifest {manifest_path}: {error}") from error
-    if not isinstance(data, dict) or data.get("schema_version") != SHA_SCHEMA or not isinstance(data.get("references"), list):
+    if (
+        not isinstance(data, dict)
+        or data.get("schema_version") != SHA_SCHEMA
+        or not isinstance(data.get("references"), list)
+    ):
         raise ValueError(f"SHA reference manifest must use schema_version {SHA_SCHEMA!r} and a references array")
     records: dict[str, dict[str, str]] = {}
     for index, row in enumerate(data["references"]):
@@ -225,14 +239,25 @@ def _sha_reference_records(manifest_path: Path) -> dict[str, dict[str, str]]:
             key = f"run-id:{value}"
         elif kind == "artifact-digest":
             if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
-                raise ValueError(f"references[{index}] artifact-digest value must contain exactly 64 hexadecimal characters")
+                raise ValueError(
+                    f"references[{index}] artifact-digest value must contain exactly 64 hexadecimal characters"
+                )
             key = f"artifact-digest:{value.lower()}"
         else:
             raise ValueError(f"references[{index}].kind must be commit, run-id, or artifact-digest")
         repository, scope, evidence = row.get("repository"), row.get("scope"), row.get("evidence")
         if repository not in {"groktopus/codereview", "magnus919/SlopSearX", "unknown"}:
-            raise ValueError(f"references[{index}].repository must be groktopus/codereview, magnus919/SlopSearX, or unknown")
-        if scope not in {"local", "foreign-target", "historical-local", "historical-not-retained", "unknown", "external-artifact"}:
+            raise ValueError(
+                f"references[{index}].repository must be groktopus/codereview, magnus919/SlopSearX, or unknown"
+            )
+        if scope not in {
+            "local",
+            "foreign-target",
+            "historical-local",
+            "historical-not-retained",
+            "unknown",
+            "external-artifact",
+        }:
             raise ValueError(f"references[{index}].scope is invalid")
         if kind == "commit":
             allowed = {
@@ -243,7 +268,11 @@ def _sha_reference_records(manifest_path: Path) -> dict[str, dict[str, str]]:
             if scope not in allowed[repository]:
                 raise ValueError(f"references[{index}] has invalid commit repository/scope pairing")
         elif kind == "run-id":
-            allowed = {"groktopus/codereview": {"local"}, "magnus919/SlopSearX": {"foreign-target"}, "unknown": {"unknown"}}
+            allowed = {
+                "groktopus/codereview": {"local"},
+                "magnus919/SlopSearX": {"foreign-target"},
+                "unknown": {"unknown"},
+            }
             if scope not in allowed[repository]:
                 raise ValueError(f"references[{index}] has invalid run-id repository/scope pairing")
         elif repository != "unknown" and scope != "external-artifact":
@@ -272,7 +301,11 @@ def _sha256_context(lines: list[str], line_index: int, start: int, end: int) -> 
     # artifact-kind noun and a SHA-256 marker, not a generic word like hash.
     nearby = line[max(0, start - 150) : min(len(line), end + 150)]
     labeled_digest = re.search(r"\b(?:sha[- ]?256|sha256|digest)\b", nearby, re.IGNORECASE)
-    artifact_kind = re.search(r"\b(?:JSON|Markdown|report|profile|recovery|archive|wheel|sdist|source|output|summary|request|receipt|evidence)\b", nearby, re.IGNORECASE)
+    artifact_kind = re.search(
+        r"\b(?:JSON|Markdown|report|profile|recovery|archive|wheel|sdist|source|output|summary|request|receipt|evidence)\b",
+        nearby,
+        re.IGNORECASE,
+    )
     return bool(labeled_digest and artifact_kind)
 
 
@@ -285,15 +318,25 @@ def _reference_kind_and_value(line: str, start: int, end: int, token: str) -> tu
         or re.search(r"artifact-digest|SHA-256|digest|hash", line[max(0, start - 160) : start], re.IGNORECASE)
     ):
         return "artifact-digest", token.lower(), None
-    if token.isdigit() and 7 <= len(token) <= 12 and re.search(
-        r"(?:\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number|#|A|B|\d+))?\s*(?:#\s*)?`?" + re.escape(token) + r"`?(?!\d)|"
-        r"\b(?:actions\s+)?(?:run|job|check|artifact|review)\s+(?:A|B|\d+)\s+`?" + re.escape(token) + r"`?(?!\d))",
-        context,
-        re.IGNORECASE,
+    if (
+        token.isdigit()
+        and 7 <= len(token) <= 12
+        and re.search(
+            r"(?:\b(?:actions\s+)?(?:run|job|check|artifact|review)(?:\s+(?:id|number|#|A|B|\d+))?\s*(?:#\s*)?`?"
+            + re.escape(token)
+            + r"`?(?!\d)|"
+            r"\b(?:actions\s+)?(?:run|job|check|artifact|review)\s+(?:A|B|\d+)\s+`?" + re.escape(token) + r"`?(?!\d))",
+            context,
+            re.IGNORECASE,
+        )
     ):
         return "run-id", token, None
     if len(token) > 40:
-        return "malformed", token.lower(), f"hexadecimal token has {len(token)} characters, exceeding Git commit SHA length"
+        return (
+            "malformed",
+            token.lower(),
+            f"hexadecimal token has {len(token)} characters, exceeding Git commit SHA length",
+        )
     return "commit", token.lower(), None
 
 
@@ -324,35 +367,113 @@ def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path 
                 if malformed and f"artifact-digest:{token.lower()}" in records:
                     kind, value, malformed = "artifact-digest", token.lower(), None
                 if malformed:
-                    findings.append(Finding("MALFORMED_SHA", path.relative_to(root).as_posix(), line_number, f"{malformed}: `{token}`; use a valid full commit SHA or identify a non-commit artifact explicitly"))
+                    findings.append(
+                        Finding(
+                            "MALFORMED_SHA",
+                            path.relative_to(root).as_posix(),
+                            line_number,
+                            f"{malformed}: `{token}`; use a valid full commit SHA or identify a non-commit artifact explicitly",
+                        )
+                    )
                     continue
                 key = f"{kind}:{value}"
                 record = records.get(key)
                 if record is None or record["repository"] == "unknown" or record["scope"] == "unknown":
-                    findings.append(Finding("UNSCOPED_SHA", path.relative_to(root).as_posix(), line_number, f"{kind} `{value}` has no provenance; add it to {manifest_path.relative_to(root)} with kind, repository, scope, and attribution"))
+                    findings.append(
+                        Finding(
+                            "UNSCOPED_SHA",
+                            path.relative_to(root).as_posix(),
+                            line_number,
+                            f"{kind} `{value}` has no provenance; add it to {manifest_path.relative_to(root)} with kind, repository, scope, and attribution",
+                        )
+                    )
                     continue
                 if kind == "commit":
                     sha = value
-                    if record["repository"] == "groktopus/codereview" and record["scope"] in {"local", "historical-local"} and not _git_exists(root, sha):
-                        findings.append(Finding("SHA_NOT_IN_REPOSITORY", path.relative_to(root).as_posix(), line_number, f"local revision `{sha}` is not a commit in this repository; verify it or correct the manifest attribution"))
+                    if (
+                        record["repository"] == "groktopus/codereview"
+                        and record["scope"] in {"local", "historical-local"}
+                        and not _git_exists(root, sha)
+                    ):
+                        findings.append(
+                            Finding(
+                                "SHA_NOT_IN_REPOSITORY",
+                                path.relative_to(root).as_posix(),
+                                line_number,
+                                f"local revision `{sha}` is not a commit in this repository; verify it or correct the manifest attribution",
+                            )
+                        )
                     elif record["scope"] == "historical-not-retained":
                         continue
                     elif record["repository"] == "groktopus/codereview" and record["scope"] == "foreign-target":
-                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"local repository revision `{sha}` cannot use foreign-target scope"))
-                    elif record["repository"] == "groktopus/codereview" and record["scope"] not in {"local", "historical-local", "historical-not-retained"}:
-                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"commit `{sha}` has invalid local scope {record['scope']!r}"))
+                        findings.append(
+                            Finding(
+                                "SHA_PROVENANCE_CONFLICT",
+                                path.relative_to(root).as_posix(),
+                                line_number,
+                                f"local repository revision `{sha}` cannot use foreign-target scope",
+                            )
+                        )
+                    elif record["repository"] == "groktopus/codereview" and record["scope"] not in {
+                        "local",
+                        "historical-local",
+                        "historical-not-retained",
+                    }:
+                        findings.append(
+                            Finding(
+                                "SHA_PROVENANCE_CONFLICT",
+                                path.relative_to(root).as_posix(),
+                                line_number,
+                                f"commit `{sha}` has invalid local scope {record['scope']!r}",
+                            )
+                        )
                     elif record["repository"] != "groktopus/codereview" and record["scope"] != "foreign-target":
-                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"revision `{sha}` names repository {record['repository']!r} but scope {record['scope']!r}; reconcile attribution"))
+                        findings.append(
+                            Finding(
+                                "SHA_PROVENANCE_CONFLICT",
+                                path.relative_to(root).as_posix(),
+                                line_number,
+                                f"revision `{sha}` names repository {record['repository']!r} but scope {record['scope']!r}; reconcile attribution",
+                            )
+                        )
                 elif kind == "run-id":
                     allowed_scopes = {"groktopus/codereview": "local", "magnus919/SlopSearX": "foreign-target"}
                     expected = allowed_scopes.get(record["repository"])
                     if record["repository"] != "unknown" and record["scope"] != expected:
-                        findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"run ID `{value}` has invalid repository/scope pairing"))
+                        findings.append(
+                            Finding(
+                                "SHA_PROVENANCE_CONFLICT",
+                                path.relative_to(root).as_posix(),
+                                line_number,
+                                f"run ID `{value}` has invalid repository/scope pairing",
+                            )
+                        )
                     if not re.fullmatch(r"[0-9]{7,12}", value):
-                        findings.append(Finding("MALFORMED_RUN_ID", path.relative_to(root).as_posix(), line_number, f"run identifier `{value}` must contain 7-12 decimal digits"))
+                        findings.append(
+                            Finding(
+                                "MALFORMED_RUN_ID",
+                                path.relative_to(root).as_posix(),
+                                line_number,
+                                f"run identifier `{value}` must contain 7-12 decimal digits",
+                            )
+                        )
                 elif kind == "artifact-digest" and record["scope"] != "external-artifact":
-                    findings.append(Finding("SHA_PROVENANCE_CONFLICT", path.relative_to(root).as_posix(), line_number, f"artifact digest `{value}` must use external-artifact scope"))
-                    findings.append(Finding("MALFORMED_RUN_ID", path.relative_to(root).as_posix(), line_number, f"run identifier `{value}` must contain 7-12 decimal digits"))
+                    findings.append(
+                        Finding(
+                            "SHA_PROVENANCE_CONFLICT",
+                            path.relative_to(root).as_posix(),
+                            line_number,
+                            f"artifact digest `{value}` must use external-artifact scope",
+                        )
+                    )
+                    findings.append(
+                        Finding(
+                            "MALFORMED_RUN_ID",
+                            path.relative_to(root).as_posix(),
+                            line_number,
+                            f"run identifier `{value}` must contain 7-12 decimal digits",
+                        )
+                    )
     present_keys: set[str] = set()
     for path in paths if paths is not None else current_documents(root):
         fenced = False
@@ -384,12 +505,31 @@ def check_shas(root: Path, paths: list[Path] | None = None, manifest_path: Path 
                 elif not malformed and len(token) == 64 and f"artifact-digest:{token.lower()}" in records:
                     present_keys.add(f"artifact-digest:{token.lower()}")
     for key in sorted(set(records) - present_keys):
-        findings.append(Finding("SHA_MANIFEST_UNUSED", "<manifest>", 1, f"manifest entry {key!r} has no matching token in the living documentation set; remove it or correct the reference"))
+        findings.append(
+            Finding(
+                "SHA_MANIFEST_UNUSED",
+                "<manifest>",
+                1,
+                f"manifest entry {key!r} has no matching token in the living documentation set; remove it or correct the reference",
+            )
+        )
     for key, record in records.items():
         kind, value = key.split(":", 1)
-        if kind == "commit" and record["repository"] == "groktopus/codereview" and record["scope"] in {"local", "historical-local"} and not _git_exists(root, value):
+        if (
+            kind == "commit"
+            and record["repository"] == "groktopus/codereview"
+            and record["scope"] in {"local", "historical-local"}
+            and not _git_exists(root, value)
+        ):
             if not any(f.code == "SHA_NOT_IN_REPOSITORY" and value in f.message for f in findings):
-                findings.append(Finding("SHA_NOT_IN_REPOSITORY", "<manifest>", 1, f"manifest local revision `{value}` is not a commit in this repository"))
+                findings.append(
+                    Finding(
+                        "SHA_NOT_IN_REPOSITORY",
+                        "<manifest>",
+                        1,
+                        f"manifest local revision `{value}` is not a commit in this repository",
+                    )
+                )
     return findings
 
 
@@ -416,14 +556,29 @@ def check_status_freshness(root: Path, manifest_path: Path, head: str = "HEAD") 
     for index, record in enumerate(records):
         prefix = f"documents[{index}]"
         if not isinstance(record, dict):
-            findings.append(Finding("FRESHNESS_RECORD_INVALID", manifest_path.relative_to(root).as_posix(), 1, f"{prefix} must be an object"))
+            findings.append(
+                Finding(
+                    "FRESHNESS_RECORD_INVALID",
+                    manifest_path.relative_to(root).as_posix(),
+                    1,
+                    f"{prefix} must be an object",
+                )
+            )
             continue
-        document, revision, evidence_date = record.get("document"), record.get("evidence_revision"), record.get("evidence_date")
+        document, revision, evidence_date = (
+            record.get("document"),
+            record.get("evidence_revision"),
+            record.get("evidence_date"),
+        )
         sources, evidence_links = record.get("source_paths"), record.get("evidence_links")
         problems = []
         if not isinstance(document, str) or not (root / document).is_file():
             problems.append("document must name an existing repository-relative file")
-        if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", revision) or not _git_exists(root, revision):
+        if (
+            not isinstance(revision, str)
+            or not re.fullmatch(r"[0-9a-fA-F]{40}", revision)
+            or not _git_exists(root, revision)
+        ):
             problems.append("evidence_revision must be an existing full 40-character commit SHA")
         try:
             date.fromisoformat(evidence_date)
@@ -431,10 +586,21 @@ def check_status_freshness(root: Path, manifest_path: Path, head: str = "HEAD") 
             problems.append("evidence_date must be an ISO-8601 calendar date")
         if not isinstance(sources, list) or not sources or any(not isinstance(s, str) for s in sources):
             problems.append("source_paths must be a non-empty array of repository-relative paths")
-        if not isinstance(evidence_links, list) or not evidence_links or any(not isinstance(link, str) for link in evidence_links):
+        if (
+            not isinstance(evidence_links, list)
+            or not evidence_links
+            or any(not isinstance(link, str) for link in evidence_links)
+        ):
             problems.append("evidence_links must be a non-empty array of evidence link strings")
         if problems:
-            findings.append(Finding("FRESHNESS_RECORD_INVALID", manifest_path.relative_to(root).as_posix(), 1, f"{prefix}: {'; '.join(problems)}"))
+            findings.append(
+                Finding(
+                    "FRESHNESS_RECORD_INVALID",
+                    manifest_path.relative_to(root).as_posix(),
+                    1,
+                    f"{prefix}: {'; '.join(problems)}",
+                )
+            )
             continue
         doc_path = (root / document).resolve()
         if not doc_path.is_relative_to(root.resolve()):
@@ -445,32 +611,66 @@ def check_status_freshness(root: Path, manifest_path: Path, head: str = "HEAD") 
         for source in sources:
             source_path = (root / source).resolve()
             if not source_path.is_relative_to(root.resolve()) or not source_path.exists():
-                findings.append(Finding("FRESHNESS_RECORD_INVALID", document, line, f"source path is missing or escapes repository: {source!r}"))
+                findings.append(
+                    Finding(
+                        "FRESHNESS_RECORD_INVALID",
+                        document,
+                        line,
+                        f"source path is missing or escapes repository: {source!r}",
+                    )
+                )
                 continue
             latest_result = _git(root, "log", "-1", "--format=%H", head, "--", source)
             if latest_result.returncode:
-                findings.append(Finding("FRESHNESS_CHECK_ERROR", document, line, f"cannot inspect latest source revision for {source!r}: {latest_result.stderr.strip()}"))
+                findings.append(
+                    Finding(
+                        "FRESHNESS_CHECK_ERROR",
+                        document,
+                        line,
+                        f"cannot inspect latest source revision for {source!r}: {latest_result.stderr.strip()}",
+                    )
+                )
                 continue
             latest = latest_result.stdout.strip()
             if latest and _git(root, "merge-base", "--is-ancestor", latest, revision).returncode != 0:
-                findings.append(Finding("STATUS_STALE", document, line, f"evidence revision {revision[:12]} predates source {source!r} at {latest[:12]}; refresh the evidence or narrow source_paths to the documented claim"))
+                findings.append(
+                    Finding(
+                        "STATUS_STALE",
+                        document,
+                        line,
+                        f"evidence revision {revision[:12]} predates source {source!r} at {latest[:12]}; refresh the evidence or narrow source_paths to the documented claim",
+                    )
+                )
         for link in evidence_links:
             if link.startswith(("http://", "https://", "mailto:", "#")):
                 continue
             destination = (doc_path.parent / link.split("#", 1)[0].split("?", 1)[0]).resolve()
             if not destination.is_relative_to(root.resolve()):
-                findings.append(Finding("FRESHNESS_RECORD_INVALID", document, line, f"evidence link escapes repository: {link!r}"))
+                findings.append(
+                    Finding("FRESHNESS_RECORD_INVALID", document, line, f"evidence link escapes repository: {link!r}")
+                )
             elif not destination.exists():
-                findings.append(Finding("FRESHNESS_EVIDENCE_MISSING", document, line, f"evidence link does not resolve: {link!r}"))
+                findings.append(
+                    Finding("FRESHNESS_EVIDENCE_MISSING", document, line, f"evidence link does not resolve: {link!r}")
+                )
     return findings
 
 
-def check_superseded_contracts(root: Path, paths: list[Path] | None = None, registry_path: Path | None = None, contract_ids: set[str] | None = None) -> list[Finding]:
+def check_superseded_contracts(
+    root: Path, paths: list[Path] | None = None, registry_path: Path | None = None, contract_ids: set[str] | None = None
+) -> list[Finding]:
     registry_path = registry_path or root / "src" / "pr_review_harness" / "contract_registry.json"
     try:
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        return [Finding("CONTRACT_REGISTRY_INVALID", registry_path.relative_to(root).as_posix(), 1, f"cannot read contract registry: {error}")]
+        return [
+            Finding(
+                "CONTRACT_REGISTRY_INVALID",
+                registry_path.relative_to(root).as_posix(),
+                1,
+                f"cannot read contract registry: {error}",
+            )
+        ]
     deprecated = [entry.get("name") for entry in registry.get("contracts", []) if entry.get("status") == "deprecated"]
     findings: list[Finding] = []
     if contract_ids is not None:
@@ -482,7 +682,14 @@ def check_superseded_contracts(root: Path, paths: list[Path] | None = None, regi
                 details.append(f"missing deprecated IDs: {', '.join(missing)}")
             if extra:
                 details.append(f"IDs no longer deprecated: {', '.join(extra)}")
-            findings.append(Finding("CONTRACT_ID_SCOPE_DRIFT", "scripts/documentation-contract-ids.v1.json", 1, "; ".join(details) + "; regenerate the reviewed scope list"))
+            findings.append(
+                Finding(
+                    "CONTRACT_ID_SCOPE_DRIFT",
+                    "scripts/documentation-contract-ids.v1.json",
+                    1,
+                    "; ".join(details) + "; regenerate the reviewed scope list",
+                )
+            )
         deprecated = [name for name in deprecated if name in contract_ids]
     for path in paths if paths is not None else current_documents(root):
         fenced = False
@@ -504,7 +711,14 @@ def check_superseded_contracts(root: Path, paths: list[Path] | None = None, regi
                 # remain records, not unqualified present-tense guidance.
                 if in_deprecated_section or re.search(r"\b(?:deprecated|archived)\b", line, re.IGNORECASE):
                     continue
-                findings.append(Finding("SUPERSEDED_CONTRACT_UNMARKED", path.relative_to(root).as_posix(), number, f"contract identifier `{name}` is deprecated in the registry; mark this reference as deprecated or archived"))
+                findings.append(
+                    Finding(
+                        "SUPERSEDED_CONTRACT_UNMARKED",
+                        path.relative_to(root).as_posix(),
+                        number,
+                        f"contract identifier `{name}` is deprecated in the registry; mark this reference as deprecated or archived",
+                    )
+                )
     return findings
 
 
@@ -514,8 +728,15 @@ def _read_contract_ids(path: Path) -> set[str]:
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError(f"cannot read contract identifier list {path}: {error}") from error
     ids = data.get("contract_ids") if isinstance(data, dict) else None
-    if not isinstance(data, dict) or data.get("schema_version") != CONTRACT_SCHEMA or not isinstance(ids, list) or any(not isinstance(item, str) for item in ids):
-        raise ValueError(f"contract identifier list must use schema_version {CONTRACT_SCHEMA!r} and a string contract_ids array")
+    if (
+        not isinstance(data, dict)
+        or data.get("schema_version") != CONTRACT_SCHEMA
+        or not isinstance(ids, list)
+        or any(not isinstance(item, str) for item in ids)
+    ):
+        raise ValueError(
+            f"contract identifier list must use schema_version {CONTRACT_SCHEMA!r} and a string contract_ids array"
+        )
     return set(ids)
 
 
@@ -535,16 +756,27 @@ def run_checks(
     findings += check_superseded_contracts(root, paths, contract_ids=_read_contract_ids(contract_ids_path))
     if freshness_manifest is not None:
         findings += check_status_freshness(root, freshness_manifest)
-    return {"schema_version": "docs-truth-report.v1", "documents_checked": [p.relative_to(root).as_posix() for p in paths], "findings": [f.as_dict() for f in findings]}
+    return {
+        "schema_version": "docs-truth-report.v1",
+        "documents_checked": [p.relative_to(root).as_posix() for p in paths],
+        "findings": [f.as_dict() for f in findings],
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--sha-manifest", type=Path, required=True, help="required provenance manifest for commit references")
+    parser.add_argument(
+        "--sha-manifest", type=Path, required=True, help="required provenance manifest for commit references"
+    )
     parser.add_argument("--contract-ids", type=Path, required=True, help="versioned deprecated contract identifier set")
     parser.add_argument("--freshness-manifest", type=Path, help="optional OE-3-compatible document evidence records")
-    parser.add_argument("--document", action="append", type=Path, help="additional repository Markdown file to lint (repeatable; default: indexed living set)")
+    parser.add_argument(
+        "--document",
+        action="append",
+        type=Path,
+        help="additional repository Markdown file to lint (repeatable; default: indexed living set)",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     root = args.root.resolve()
@@ -560,7 +792,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
-        print(f"Documentation truth: {len(result['documents_checked'])} living documents, {len(result['findings'])} finding(s)")
+        print(
+            f"Documentation truth: {len(result['documents_checked'])} living documents, {len(result['findings'])} finding(s)"
+        )
         for finding in result["findings"]:
             print(f"  {finding['file']}:{finding['line']}: [{finding['code']}] {finding['message']}")
         if not result["findings"]:

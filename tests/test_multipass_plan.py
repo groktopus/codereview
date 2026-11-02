@@ -165,16 +165,36 @@ def test_plan_rejects_required_obligation_omission_even_if_fingerprint_is_recomp
 @pytest.mark.parametrize(
     ("mutate", "error_code"),
     [
-        (lambda plan: plan["required_obligations"].append(copy.deepcopy(plan["required_obligations"][0])), "duplicate_required_obligation_id"),
-        (lambda plan: plan["task_manifest"].append(copy.deepcopy(plan["task_manifest"][0])), "duplicate_task_manifest_id"),
-        (lambda plan: plan["check_tasks"].__setitem__(1, {**plan["check_tasks"][1], "task_id": plan["check_tasks"][0]["task_id"]}), "duplicate_check_task_id"),
-        (lambda plan: plan["context_tasks"].__setitem__(1, {**plan["context_tasks"][1], "task_id": plan["context_tasks"][0]["task_id"]}), "duplicate_context_task_id"),
         (
-            lambda plan: plan["check_tasks"][1].__setitem__("obligation_ids", plan["check_tasks"][0]["obligation_ids"][:]),
+            lambda plan: plan["required_obligations"].append(copy.deepcopy(plan["required_obligations"][0])),
+            "duplicate_required_obligation_id",
+        ),
+        (
+            lambda plan: plan["task_manifest"].append(copy.deepcopy(plan["task_manifest"][0])),
+            "duplicate_task_manifest_id",
+        ),
+        (
+            lambda plan: plan["check_tasks"].__setitem__(
+                1, {**plan["check_tasks"][1], "task_id": plan["check_tasks"][0]["task_id"]}
+            ),
+            "duplicate_check_task_id",
+        ),
+        (
+            lambda plan: plan["context_tasks"].__setitem__(
+                1, {**plan["context_tasks"][1], "task_id": plan["context_tasks"][0]["task_id"]}
+            ),
+            "duplicate_context_task_id",
+        ),
+        (
+            lambda plan: plan["check_tasks"][1].__setitem__(
+                "obligation_ids", plan["check_tasks"][0]["obligation_ids"][:]
+            ),
             "duplicate_assigned_check_obligation_id",
         ),
         (
-            lambda plan: plan["context_tasks"].__setitem__(1, {**plan["context_tasks"][1], "obligation_id": plan["context_tasks"][0]["obligation_id"]}),
+            lambda plan: plan["context_tasks"].__setitem__(
+                1, {**plan["context_tasks"][1], "obligation_id": plan["context_tasks"][0]["obligation_id"]}
+            ),
             "duplicate_assigned_context_obligation_id",
         ),
     ],

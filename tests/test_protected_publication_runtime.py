@@ -69,9 +69,7 @@ def actions_token_policy_document(*, enabled=False):
     value["schema"] = "pr-review-protected-publication-policy.v2"
     value["authorization_mode"] = "STANDING_BOUNDED"
     value["credential"] = {"kind": "ACTIONS_TOKEN", "actor_login": "github-actions[bot]"}
-    value["publisher_workflow"]["sha256"] = hashlib.sha256(
-        b"name: protected publisher\n"
-    ).hexdigest()
+    value["publisher_workflow"]["sha256"] = hashlib.sha256(b"name: protected publisher\n").hexdigest()
     return value
 
 
@@ -108,7 +106,18 @@ def protected_checkout(tmp_path, *, enabled=True, policy_value=None):
     subprocess.run(["git", "init", "-q", str(workspace)], check=True)
     subprocess.run(["git", "-C", str(workspace), "add", "."], check=True)
     subprocess.run(
-        ["git", "-C", str(workspace), "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "trusted fixture"],
+        [
+            "git",
+            "-C",
+            str(workspace),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "trusted fixture",
+        ],
         check=True,
     )
     revision = subprocess.check_output(["git", "-C", str(workspace), "rev-parse", "HEAD"], text=True).strip()
@@ -129,9 +138,9 @@ def event_payload(*, include_pr=True):
             "head_branch": "feature/review-target",
             "head_sha": HEAD,
             "event": "pull_request_target",
-            "pull_requests": [
-                {"number": policy.pull_request_number, "base": {"sha": BASE}, "head": {"sha": HEAD}}
-            ] if include_pr else [],
+            "pull_requests": [{"number": policy.pull_request_number, "base": {"sha": BASE}, "head": {"sha": HEAD}}]
+            if include_pr
+            else [],
         },
     }
 
@@ -256,7 +265,18 @@ def test_disabled_actions_token_policy_returns_before_any_credential_or_api_acce
     )
     subprocess.run(["git", "-C", str(workspace), "add", "."], check=True)
     subprocess.run(
-        ["git", "-C", str(workspace), "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "disabled actions policy"],
+        [
+            "git",
+            "-C",
+            str(workspace),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "disabled actions policy",
+        ],
         check=True,
     )
     revision = subprocess.check_output(["git", "-C", str(workspace), "rev-parse", "HEAD"], text=True).strip()
@@ -277,7 +297,9 @@ def test_disabled_actions_token_policy_returns_before_any_credential_or_api_acce
         def upload(self, *_args, **_kwargs):
             pytest.fail("disabled policy must not upload a receipt")
 
-    result = runtime.run_protected_publication(TrackingEnvironment(env), transport=NoGitHub(), artifact_uploader=NoUpload())
+    result = runtime.run_protected_publication(
+        TrackingEnvironment(env), transport=NoGitHub(), artifact_uploader=NoUpload()
+    )
 
     assert result["status"] == "DISABLED"
     assert result["reason"] == "publication_disabled"
@@ -323,14 +345,10 @@ def test_v3_policy_selects_closed_api_location_mode_and_preserves_v2_static_host
     v3 = runtime.ProtectedPublicationPolicy.parse(v3_value)
     assert v2.raw["artifact_redirect_hosts"] == ["downloads.example.test"]
     assert v3.raw["artifact_download_mode"] == "AUTHENTICATED_API_LOCATION_NO_AUTH"
-    assert runtime._trusted_artifact_location(
-        v3, "https://productionresultssa99.blob.core.windows.net/file?sig=opaque"
-    )
+    assert runtime._trusted_artifact_location(v3, "https://productionresultssa99.blob.core.windows.net/file?sig=opaque")
     assert runtime._trusted_artifact_location(v3, "https://unlisted.example.test/file?sig=opaque")
     assert not runtime._trusted_artifact_location(v3, "https://127.1/file?sig=opaque")
-    assert runtime._trusted_artifact_location(
-        v2, "https://downloads.example.test/file?sig=opaque"
-    )
+    assert runtime._trusted_artifact_location(v2, "https://downloads.example.test/file?sig=opaque")
     assert not runtime._trusted_artifact_location(
         v2, "https://productionresultssa99.blob.core.windows.net/file?sig=opaque"
     )
@@ -401,7 +419,9 @@ def test_actions_workflow_digest_mismatch_fails_before_token_transport_or_upload
 def test_protected_policy_drift_is_rejected_before_key_supplier(tmp_path):
     workspace, revision, event_path = protected_checkout(tmp_path)
     policy_path = workspace / ".github/pr-review-publisher-policy.json"
-    policy_path.write_text(policy_path.read_text(encoding="utf-8").replace('"enabled":true', '"enabled":false'), encoding="utf-8")
+    policy_path.write_text(
+        policy_path.read_text(encoding="utf-8").replace('"enabled":true', '"enabled":false'), encoding="utf-8"
+    )
     key_calls = []
 
     result = runtime.run_protected_publication(
@@ -467,8 +487,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
     policy_value = (
         nonbinding_comment_policy_document(enabled=True)
         if credential_route == "ACTIONS_TOKEN_V5"
-        else
-        api_location_policy_document(enabled=True)
+        else api_location_policy_document(enabled=True)
         if credential_route == "ACTIONS_TOKEN_V3"
         else actions_token_policy_document(enabled=True)
         if actions_token_route
@@ -540,7 +559,10 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             else None
         ),
         "referenced_workflows": [
-            {"path": policy.called_harness_repository + "/" + policy.called_harness_path + "@refs/heads/main", "sha": CALLED_SHA}
+            {
+                "path": policy.called_harness_repository + "/" + policy.called_harness_path + "@refs/heads/main",
+                "sha": CALLED_SHA,
+            }
         ],
     }
     if source_association == "omitted":
@@ -561,35 +583,55 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         if path.endswith("/branches/main"):
             default_branch_reads += 1
             changed_at = 3 if failure_mode == "stale_default_tip_before_ack" else 4
-            tip = "c" * 40 if failure_mode.startswith("stale_default_tip_") and default_branch_reads >= changed_at else DEFAULT_BRANCH_TIP
+            tip = (
+                "c" * 40
+                if failure_mode.startswith("stale_default_tip_") and default_branch_reads >= changed_at
+                else DEFAULT_BRANCH_TIP
+            )
             return response({"name": "main", "commit": {"sha": tip}})
         if path == "/app":
             return response({"id": 333, "slug": "review-agent"})
         if path == "/app/installations/444" or path.endswith("/repos/owner/repo/installation"):
-            return response({
-                "id": 444,
-                "app_id": 333,
-                "account": {"login": "owner", "id": 77},
-                "suspended_at": None,
-            })
+            return response(
+                {
+                    "id": 444,
+                    "app_id": 333,
+                    "account": {"login": "owner", "id": 77},
+                    "suspended_at": None,
+                }
+            )
         if path == "/app/installations/444/access_tokens" and method == "POST":
             permissions = dict(body["permissions"])
             if permissions["pull_requests"] == "write":
                 events.append("write_token_mint")
                 if failure_mode == "write_token_denied":
                     return response({"message": "denied"}, status=403)
-            return response({
-                "token": "app-installation-" + permissions["pull_requests"],
-                "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=55)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "permissions": {**permissions, "metadata": "read"},
-            }, status=201)
+            return response(
+                {
+                    "token": "app-installation-" + permissions["pull_requests"],
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=55)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "permissions": {**permissions, "metadata": "read"},
+                },
+                status=201,
+            )
         if path == "/installation/repositories":
-            return response({"total_count": 1, "repositories": [{"id": policy.repository_id, "full_name": policy.repository}]})
+            return response(
+                {"total_count": 1, "repositories": [{"id": policy.repository_id, "full_name": policy.repository}]}
+            )
         if path == "/users/review-agent[bot]" or unquote(path) == "/users/review-agent[bot]":
             return response({"id": 88, "login": WRITER, "type": "Bot"})
         if path.endswith("/pulls/44"):
             pull_reads += 1
-            return response({"number": 44, "state": "open", "draft": False, "created_at": "2026-09-26T16:00:00Z", "base": {"sha": BASE, "ref": "main", "repo": {"id": policy.repository_id}}, "head": {"sha": HEAD, "ref": "feature/review-target"}})
+            return response(
+                {
+                    "number": 44,
+                    "state": "open",
+                    "draft": False,
+                    "created_at": "2026-09-26T16:00:00Z",
+                    "base": {"sha": BASE, "ref": "main", "repo": {"id": policy.repository_id}},
+                    "head": {"sha": HEAD, "ref": "feature/review-target"},
+                }
+            )
         if path.endswith(f"/actions/runs/{policy.upstream_run_id}/attempts/1"):
             return response(upstream_detail)
         if path.endswith(f"/actions/runs/{policy.upstream_run_id}"):
@@ -610,12 +652,26 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
                 return response({"total_count": 0, "artifacts": []})
             receipt_name = policy.receipt_artifact_name(EffectSlot(policy.repository_id, policy.repository, 44, HEAD))
             archived = receipt_archives[policy.publisher_run_id]
-            return response({"total_count": 1, "artifacts": [{
-                "id": 991, "name": receipt_name, "size_in_bytes": len(archived),
-                "digest": "sha256:" + hashlib.sha256(archived).hexdigest(), "expired": False,
-                "expires_at": "2999-01-01T00:00:00Z",
-                "workflow_run": {"id": policy.publisher_run_id, "repository_id": policy.repository_id, "run_attempt": 1},
-            }]})
+            return response(
+                {
+                    "total_count": 1,
+                    "artifacts": [
+                        {
+                            "id": 991,
+                            "name": receipt_name,
+                            "size_in_bytes": len(archived),
+                            "digest": "sha256:" + hashlib.sha256(archived).hexdigest(),
+                            "expired": False,
+                            "expires_at": "2999-01-01T00:00:00Z",
+                            "workflow_run": {
+                                "id": policy.publisher_run_id,
+                                "repository_id": policy.repository_id,
+                                "run_attempt": 1,
+                            },
+                        }
+                    ],
+                }
+            )
         if path.endswith(f"/actions/workflows/{policy.publisher_workflow_id}/runs"):
             return response({"total_count": 0, "workflow_runs": []})
         if path.endswith("/pulls/44/reviews") and method == "GET":
@@ -634,7 +690,15 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
             if failure_mode == "post_forbidden":
                 return response({"message": "permission denied"}, status=403)
             post_actor = "github-actions[bot]" if actions_token_route else WRITER
-            return response({"id": 777, "commit_id": HEAD, "state": "COMMENTED", "body": body["body"], "user": {"login": post_actor}})
+            return response(
+                {
+                    "id": 777,
+                    "commit_id": HEAD,
+                    "state": "COMMENTED",
+                    "body": body["body"],
+                    "user": {"login": post_actor},
+                }
+            )
         raise AssertionError(f"unexpected fake API request: {method} {url}")
 
     class TestClock:
@@ -689,7 +753,7 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         actions_environment(workspace, revision, event_path),
         transport=transport,
         artifact_uploader=uploader,
-        key_supplier=lambda: (key_calls.append(True) or actual_key),
+        key_supplier=lambda: key_calls.append(True) or actual_key,
         clock=clock,
     )
 
@@ -721,9 +785,10 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
                 "contents": "read",
                 "pull-requests": "write",
             }
-            assert receipt_value["credential_provenance"]["publisher_workflow_sha256"] == hashlib.sha256(
-                b"name: protected publisher\n"
-            ).hexdigest()
+            assert (
+                receipt_value["credential_provenance"]["publisher_workflow_sha256"]
+                == hashlib.sha256(b"name: protected publisher\n").hexdigest()
+            )
         else:
             assert outcome == {"schema": "pr-review-protected-publication.v1", "status": "CONFIRMED", "reason": None}
         assert len(admitted) == 1
@@ -764,10 +829,16 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         assert events.count("receipt_upload") == 1
         assert events.count("receipt_artifact_download") == 1
         assert events.count("review_post") == 1
-        assert max(i for i, item in enumerate(events) if item == "source_artifact_download") < events.index("receipt_upload")
+        assert max(i for i, item in enumerate(events) if item == "source_artifact_download") < events.index(
+            "receipt_upload"
+        )
         assert events.index("receipt_upload") < events.index("receipt_artifact_download")
         if credential_route == "APP":
-            assert events.index("receipt_artifact_download") < events.index("write_token_mint") < events.index("review_post")
+            assert (
+                events.index("receipt_artifact_download")
+                < events.index("write_token_mint")
+                < events.index("review_post")
+            )
         assert post_bodies[0]["commit_id"] == HEAD
         assert post_bodies[0]["event"] == "COMMENT"
         if credential_route == "ACTIONS_TOKEN_V5":
@@ -789,11 +860,23 @@ def test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_pos
         else:
             assert post_bodies == []
             assert events.count("review_post") == 0
-        assert len(key_calls) == (0 if actions_token_route else (
+        assert len(key_calls) == (
             0
-            if failure_mode in {"caller_workflow_sha_mismatch", "provider_identity_mismatch", "duplicate_source_artifact", "stale_base", "stale_head", "deadline"}
-            else 1
-        ))
+            if actions_token_route
+            else (
+                0
+                if failure_mode
+                in {
+                    "caller_workflow_sha_mismatch",
+                    "provider_identity_mismatch",
+                    "duplicate_source_artifact",
+                    "stale_base",
+                    "stale_head",
+                    "deadline",
+                }
+                else 1
+            )
+        )
         assert events.count("write_token_mint") == (1 if failure_mode == "write_token_denied" else 0)
         if failure_mode in {
             "duplicate_source_artifact",
@@ -914,7 +997,9 @@ def test_real_bundle_producer_integrates_with_protected_consumer(tmp_path):
                     document = pull_document
                 else:
                     raise AssertionError(f"unexpected producer API URL: {url}")
-                return producer_fixture.HTTPResponse(200, {"content-type": "application/json"}, producer_fixture.canonical(document))
+                return producer_fixture.HTTPResponse(
+                    200, {"content-type": "application/json"}, producer_fixture.canonical(document)
+                )
 
         producer_fixture.create_publication_directory(
             result_path=result_path,

@@ -67,10 +67,7 @@ def discover_artifacts(dist: Path) -> list[Path]:
 
 
 def hash_distributions(dist: Path) -> dict[str, dict[str, object]]:
-    return {
-        path.name: {"sha256": sha256_file(path), "size": path.stat().st_size}
-        for path in discover_artifacts(dist)
-    }
+    return {path.name: {"sha256": sha256_file(path), "size": path.stat().st_size} for path in discover_artifacts(dist)}
 
 
 def wheel_members(path: Path) -> dict[str, object]:

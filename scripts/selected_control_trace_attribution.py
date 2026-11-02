@@ -67,8 +67,18 @@ JEV_ALIAS = "jev-latest"
 JEV_REPORTED_MODEL = "jev-1.13.0"
 _TASK_STATUSES = frozenset(
     {
-        "FAILED", "INTERRUPTED_UNKNOWN", "INVALID", "NOT_CONFIGURED", "NOT_RUN",
-        "MISSING_RESULT", "PREPARING", "RECEIVED", "RESERVED", "SKIPPED", "SUCCEEDED", "TIMED_OUT",
+        "FAILED",
+        "INTERRUPTED_UNKNOWN",
+        "INVALID",
+        "NOT_CONFIGURED",
+        "NOT_RUN",
+        "MISSING_RESULT",
+        "PREPARING",
+        "RECEIVED",
+        "RESERVED",
+        "SKIPPED",
+        "SUCCEEDED",
+        "TIMED_OUT",
         "VALID_UNRESOLVED",
     }
 )
@@ -77,21 +87,14 @@ KNOWN_SYSCALLS = frozenset(
     "fcntl fstat fstatat64 futex getcwd getdents64 getegid geteuid getgid getrandom getuid ioctl lseek madvise "
     "mmap mprotect mkdir mkdirat nanosleep newfstatat open openat openat2 pipe pipe2 poll ppoll prlimit64 read "
     "readlink recvfrom rename renameat renameat2 rt_sigaction rt_sigprocmask rt_sigreturn rseq sendto set_robust_list "
-    "socket stat statx unlink unlinkat uname vfork wait4 waitid write"
-    .split()
+    "socket stat statx unlink unlinkat uname vfork wait4 waitid write".split()
 )
 _SYSCALL_LABELS = tuple(sorted((*KNOWN_SYSCALLS, "OTHER")))
 _TRACE_LINE_LABELS = tuple(sorted((*KNOWN_SYSCALLS, "OTHER", "PROCESS_END", "SIGNAL", "UNPARSED")))
 _RAW_SYSCALL = re.compile(r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?([A-Za-z_][A-Za-z0-9_]*)\(")
-_TARGET_SYSCALL = re.compile(
-    r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?(openat|newfstatat)\((.*)$"
-)
-_RESUMED_TARGET_SYSCALL = re.compile(
-    r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?<\.\.\.\s+(openat|newfstatat)\s+resumed>"
-)
-_DIRFD_AND_PATH = re.compile(
-    r"^\s*(AT_FDCWD|-?[0-9]+)\s*,\s*(\"(?:\\.|[^\"\\])*\")(?=\s*,)"
-)
+_TARGET_SYSCALL = re.compile(r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?(openat|newfstatat)\((.*)$")
+_RESUMED_TARGET_SYSCALL = re.compile(r"^(?:(?:\[pid\s+\d+\]|\[\d+\]|\d+)\s+)?<\.\.\.\s+(openat|newfstatat)\s+resumed>")
+_DIRFD_AND_PATH = re.compile(r"^\s*(AT_FDCWD|-?[0-9]+)\s*,\s*(\"(?:\\.|[^\"\\])*\")(?=\s*,)")
 _RAW_HEX_VALUE = r"(?:0|0x[1-9a-fA-F][0-9a-fA-F]{0,15})"
 _RAW_NEWFSTATAT_ARGS = rf"\s*{_RAW_HEX_VALUE}\s*,\s*{_RAW_HEX_VALUE}\s*,\s*{_RAW_HEX_VALUE}\s*,\s*{_RAW_HEX_VALUE}\s*\)"
 _RAW_NEWFSTATAT_SUCCESS = re.compile(rf"^{_RAW_NEWFSTATAT_ARGS}\s+=\s+{_RAW_HEX_VALUE}\s*$")
@@ -99,17 +102,34 @@ _RAW_NEWFSTATAT_ERROR = re.compile(
     rf"^{_RAW_NEWFSTATAT_ARGS}\s+=\s+-1\s+[A-Z][A-Z0-9_]*(?:\s+\([^()\n]{{0,256}}\))?\s*$"
 )
 _SYSTEM_PATH_ROOTS = (
-    "/usr", "/lib", "/lib64", "/etc", "/proc", "/dev", "/var", "/run",
-    "/opt", "/System", "/Library", "/Applications",
+    "/usr",
+    "/lib",
+    "/lib64",
+    "/etc",
+    "/proc",
+    "/dev",
+    "/var",
+    "/run",
+    "/opt",
+    "/System",
+    "/Library",
+    "/Applications",
 )
 _FILE_PATH_CLASSES = (
-    "CASE_WORKDIR", "CLI_ENVIRONMENT", "REPO_SUPPORT", "TEMP_ROOT", "SYSTEM_ROOT",
-    "OTHER_ABSOLUTE", "UNKNOWN_RELATIVE", "UNKNOWN_SYNTAX", "UNKNOWN_UNFINISHED",
-    "UNKNOWN_RESUMED", "UNKNOWN_ELLIPSIS_AMBIGUOUS", "UNKNOWN_RAW_ARGUMENTS",
+    "CASE_WORKDIR",
+    "CLI_ENVIRONMENT",
+    "REPO_SUPPORT",
+    "TEMP_ROOT",
+    "SYSTEM_ROOT",
+    "OTHER_ABSOLUTE",
+    "UNKNOWN_RELATIVE",
+    "UNKNOWN_SYNTAX",
+    "UNKNOWN_UNFINISHED",
+    "UNKNOWN_RESUMED",
+    "UNKNOWN_ELLIPSIS_AMBIGUOUS",
+    "UNKNOWN_RAW_ARGUMENTS",
 )
-_TRUSTED_PATH_ROOT_CLASSES = frozenset(
-    {"CASE_WORKDIR", "CLI_ENVIRONMENT", "REPO_SUPPORT", "TEMP_ROOT", "SYSTEM_ROOT"}
-)
+_TRUSTED_PATH_ROOT_CLASSES = frozenset({"CASE_WORKDIR", "CLI_ENVIRONMENT", "REPO_SUPPORT", "TEMP_ROOT", "SYSTEM_ROOT"})
 
 
 def _path_roots(*, cli: Path, work_root: Path, repo_support: Path) -> tuple[tuple[str, str], ...]:
@@ -119,7 +139,7 @@ def _path_roots(*, cli: Path, work_root: Path, repo_support: Path) -> tuple[tupl
         ("CLI_ENVIRONMENT", os.path.abspath(os.fspath(cli.parent.parent))),
         ("REPO_SUPPORT", os.path.abspath(os.fspath(repo_support))),
         ("TEMP_ROOT", os.path.abspath(tempfile.gettempdir())),
-        *(('SYSTEM_ROOT', root) for root in _SYSTEM_PATH_ROOTS),
+        *(("SYSTEM_ROOT", root) for root in _SYSTEM_PATH_ROOTS),
     ]
     # More specific roots win when trusted roots are nested.
     return tuple(sorted(candidates, key=lambda item: len(item[1]), reverse=True))
@@ -154,9 +174,8 @@ def _path_class_for_line(line: str, syscall: str, roots: tuple[tuple[str, str], 
         return "UNKNOWN_RELATIVE"
     lexical = os.path.normpath(value)
     for path_class, root in roots:
-        if (
-            path_class in _TRUSTED_PATH_ROOT_CLASSES
-            and (lexical == root or lexical.startswith(root.rstrip(os.sep) + os.sep))
+        if path_class in _TRUSTED_PATH_ROOT_CLASSES and (
+            lexical == root or lexical.startswith(root.rstrip(os.sep) + os.sep)
         ):
             return path_class
     return "OTHER_ABSOLUTE"
@@ -168,8 +187,17 @@ def _decode_strace_c_string(token: str) -> str:
         raise ValueError("quoted_path_invalid")
     source = token[1:-1]
     escapes = {
-        "a": "\a", "b": "\b", "f": "\f", "n": "\n", "r": "\r",
-        "t": "\t", "v": "\v", "\\": "\\", '"': '"', "'": "'", "?": "?",
+        "a": "\a",
+        "b": "\b",
+        "f": "\f",
+        "n": "\n",
+        "r": "\r",
+        "t": "\t",
+        "v": "\v",
+        "\\": "\\",
+        '"': '"',
+        "'": "'",
+        "?": "?",
     }
     output: list[str] = []
     index = 0
@@ -299,8 +327,7 @@ def _file_path_projection(attributor: _LineAttributor, *, complete_trace: bool) 
         # Independently reconcile regular syscall rows to the existing attribution;
         # resumed fragments are deliberately `UNPARSED` in that unchanged channel.
         count_reconciles &= (
-            sum(counts[syscall].values()) - attributor.resumed_file_lines[syscall]
-            == attributor.lines_by_label[syscall]
+            sum(counts[syscall].values()) - attributor.resumed_file_lines[syscall] == attributor.lines_by_label[syscall]
         )
         bytes_reconcile &= (
             sum(byte_counts[syscall].values()) - attributor.resumed_file_bytes[syscall]
@@ -320,12 +347,8 @@ def _file_path_projection(attributor: _LineAttributor, *, complete_trace: bool) 
         "line_bytes": "decoded_utf8_line_bytes_plus_observed_newline_byte",
         "lines_by_syscall_class": counts,
         "bytes_by_syscall_class": byte_counts,
-        "target_lines_by_syscall": {
-            name: attributor.target_file_lines[name] for name in ("openat", "newfstatat")
-        },
-        "target_bytes_by_syscall": {
-            name: attributor.target_file_bytes[name] for name in ("openat", "newfstatat")
-        },
+        "target_lines_by_syscall": {name: attributor.target_file_lines[name] for name in ("openat", "newfstatat")},
+        "target_bytes_by_syscall": {name: attributor.target_file_bytes[name] for name in ("openat", "newfstatat")},
         "reconciliation": "MATCH" if reconciliation else "MISMATCH",
     }
 
@@ -410,9 +433,7 @@ def _native_claim_contract_valid(request: dict[str, Any]) -> bool:
     contract_version = state.get("assessment_contract_version", CONTRACT_VERSION)
     if contract_version not in {CONTRACT_VERSION, PRIMARY_ASSESSMENT_CONTRACT_VERSION}:
         return False
-    expected, _dimension_ids = _questions(
-        candidate["candidate_id"], include_introducedness, contract_version
-    )
+    expected, _dimension_ids = _questions(candidate["candidate_id"], include_introducedness, contract_version)
     return request.get("model") == JEV_ALIAS and questions == expected
 
 
@@ -463,10 +484,7 @@ def _project_task_statuses(
             and (key == task_id or re.fullmatch(re.escape(task_id) + r":chunk-[1-9][0-9]*", key))
         }
         claimed_result_ids.update(matched)
-        statuses = [
-            value.get("status") if isinstance(value, dict) else None
-            for value in matched.values()
-        ]
+        statuses = [value.get("status") if isinstance(value, dict) else None for value in matched.values()]
         if not statuses:
             status = "MISSING_RESULT"
         elif any(not isinstance(value, str) or value not in _TASK_STATUSES for value in statuses):
@@ -535,9 +553,13 @@ def _primary_payload(
                 for role in ("behavior", "consumer", "impact")
             },
         }
-        return {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(value)}}],
-                "model": FAKE_MODEL, "id": "loopback-semantic", "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-                "_diagnostic_stage": "semantic_adjudication"}
+        return {
+            "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(value)}}],
+            "model": FAKE_MODEL,
+            "id": "loopback-semantic",
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            "_diagnostic_stage": "semantic_adjudication",
+        }
 
     task = user.get("task")
     evidence = user.get("evidence")
@@ -558,7 +580,8 @@ def _primary_payload(
             if isinstance(item, dict) and item.get("source_kind") == "diff" and item.get("evidence_id") in evidence_ids
         ]
         candidate_refs = diff_refs[:1] or refs[:1]
-        candidates.append({
+        candidates.append(
+            {
                 "unit_id": units[0],
                 "location": {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 2, "reason": None},
                 "title": "Synthetic authorization candidate",
@@ -569,7 +592,8 @@ def _primary_payload(
                 "reasoning_kind": "inferred",
                 "evidence_refs": candidate_refs,
                 "introducedness": "INTRODUCED",
-            })
+            }
+        )
         if candidate_cardinality == 2:
             candidates.append(
                 {
@@ -586,13 +610,24 @@ def _primary_payload(
         "finding_candidates": candidates,
         "context_gap_proposals": [],
         "coverage_notes": [
-            {"unit_id": unit, "state": "COVERED", "reason_code": "SYNTHETIC_PROTOCOL_FIXTURE",
-             "evidence_refs": refs, "coverage_basis": "STATIC_REVIEW"}
+            {
+                "unit_id": unit,
+                "state": "COVERED",
+                "reason_code": "SYNTHETIC_PROTOCOL_FIXTURE",
+                "evidence_refs": refs,
+                "coverage_basis": "STATIC_REVIEW",
+            }
             for unit in units
         ],
         "specific_strengths": [],
         "future_guidance": [],
-    } | {"_envelope": {"model": FAKE_MODEL, "id": "loopback-primary", "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}}
+    } | {
+        "_envelope": {
+            "model": FAKE_MODEL,
+            "id": "loopback-primary",
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+    }
 
 
 class _FakeServer(ThreadingHTTPServer):
@@ -657,7 +692,10 @@ class _FakeServer(ThreadingHTTPServer):
                         response_stage = response.pop("_diagnostic_stage", "primary")
                         if "_envelope" in response:
                             envelope = response.pop("_envelope")
-                            response = {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(response)}}], **envelope}
+                            response = {
+                                "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(response)}}],
+                                **envelope,
+                            }
                     elif self.path == "/v1/systemone":
                         questions = request.get("questions")
                         if not isinstance(questions, dict) or not questions:
@@ -667,7 +705,10 @@ class _FakeServer(ThreadingHTTPServer):
                                 raise ValueError("native_summary_question_invalid")
                             _increment(counters, "native_summary_received")
                             response_stage = "native_summary"
-                            response = {"model": JEV_REPORTED_MODEL, "answers": {"review_claim": {"type": "noul", "noul": 0.5}}}
+                            response = {
+                                "model": JEV_REPORTED_MODEL,
+                                "answers": {"review_claim": {"type": "noul", "noul": 0.5}},
+                            }
                         else:
                             if not _native_claim_contract_valid(request):
                                 raise ValueError("native_claim_questions_invalid")
@@ -681,8 +722,12 @@ class _FakeServer(ThreadingHTTPServer):
                                 selected = choices[0]
                                 remainder = 0.1 / max(1, len(choices) - 1)
                                 probabilities = {choice: 0.9 if choice == selected else remainder for choice in choices}
-                                answers[question_id] = {"type": "choice", "choice": selected,
-                                                        "probabilities": probabilities, "confidence": 0.9}
+                                answers[question_id] = {
+                                    "type": "choice",
+                                    "choice": selected,
+                                    "probabilities": probabilities,
+                                    "confidence": 0.9,
+                                }
                             response = {"model": JEV_REPORTED_MODEL, "request_id": "loopback-claim", "answers": answers}
                     else:
                         _increment(counters, "handler_errors")
@@ -856,8 +901,7 @@ def _cardinality_arm_state(arm: Any, expected_candidates: int) -> str:
         not isinstance(stage_counts, dict)
         or set(stage_counts) != set(expected_stage_counts)
         or any(
-            isinstance(stage_counts.get(name), bool)
-            or not isinstance(stage_counts.get(name), int)
+            isinstance(stage_counts.get(name), bool) or not isinstance(stage_counts.get(name), int)
             for name in expected_stage_counts
         )
         or stage_counts != expected_stage_counts
@@ -935,10 +979,7 @@ def _cardinality_arm_state(arm: Any, expected_candidates: int) -> str:
 
 def _bounded_numeric_map(value: Any, allowed_names: tuple[str, ...]) -> dict[str, int] | None:
     if not isinstance(value, dict) or any(
-        name not in allowed_names
-        or isinstance(number, bool)
-        or not isinstance(number, int)
-        or number < 0
+        name not in allowed_names or isinstance(number, bool) or not isinstance(number, int) or number < 0
         for name, number in value.items()
     ):
         return None
@@ -977,12 +1018,10 @@ def _cardinality_arm_projection(arm: Any, expected_candidates: int | None = None
     )
     request_bytes = arm.get("request_body_bytes_by_stage")
     response_bytes = arm.get("response_body_bytes_by_stage")
+
     def safe_stage_bytes(value: Any) -> dict[str, int] | None:
         if not isinstance(value, dict) or any(
-            name not in _PAIR_STAGE_NAMES
-            or isinstance(size, bool)
-            or not isinstance(size, int)
-            or size < 0
+            name not in _PAIR_STAGE_NAMES or isinstance(size, bool) or not isinstance(size, int) or size < 0
             for name, size in value.items()
         ):
             return None
@@ -1018,9 +1057,13 @@ def _cardinality_arm_projection(arm: Any, expected_candidates: int | None = None
         ("openat", "newfstatat"),
     )
     file_path_projection = {
-        "state": file_paths.get("state") if isinstance(file_paths, dict) and file_paths.get("state") in {"COMPLETE", "PARTIAL"} else "UNKNOWN",
+        "state": file_paths.get("state")
+        if isinstance(file_paths, dict) and file_paths.get("state") in {"COMPLETE", "PARTIAL"}
+        else "UNKNOWN",
         "basis": "lexical_path_namespace_only_no_symlink_fd_or_pid_cwd_resolution",
-        "reconciliation": file_paths.get("reconciliation") if isinstance(file_paths, dict) and file_paths.get("reconciliation") in {"MATCH", "MISMATCH"} else "UNKNOWN",
+        "reconciliation": file_paths.get("reconciliation")
+        if isinstance(file_paths, dict) and file_paths.get("reconciliation") in {"MATCH", "MISMATCH"}
+        else "UNKNOWN",
         "lines_by_syscall_class": path_counts,
         "bytes_by_syscall_class": path_bytes,
         "target_lines_by_syscall": path_targets_lines,
@@ -1036,47 +1079,75 @@ def _cardinality_arm_projection(arm: Any, expected_candidates: int | None = None
                 continue
             lens = row.get("lens")
             status = row.get("status")
-            projected_tasks.append({
-                "lens": lens if isinstance(lens, str) and lens in {"correctness", "security", "tests"} else "UNKNOWN",
-                "status": status if isinstance(status, str) and status in _TASK_STATUSES else "UNKNOWN",
-            })
+            projected_tasks.append(
+                {
+                    "lens": lens
+                    if isinstance(lens, str) and lens in {"correctness", "security", "tests"}
+                    else "UNKNOWN",
+                    "status": status if isinstance(status, str) and status in _TASK_STATUSES else "UNKNOWN",
+                }
+            )
     claim_statuses = arm.get("claim_assessment_statuses")
     projected_claim_statuses = (
-        [status if isinstance(status, str) and status in {"COMPLETE", "PARTIAL", "FAILED"} else "UNKNOWN" for status in claim_statuses]
+        [
+            status if isinstance(status, str) and status in {"COMPLETE", "PARTIAL", "FAILED"} else "UNKNOWN"
+            for status in claim_statuses
+        ]
         if isinstance(claim_statuses, list)
         else None
     )
+
     def bounded_nonnegative(value: Any) -> int | None:
         return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
     return {
-        "requested_candidate_count": expected if isinstance(expected, int) and not isinstance(expected, bool) and expected in {1, 2} else None,
+        "requested_candidate_count": expected
+        if isinstance(expected, int) and not isinstance(expected, bool) and expected in {1, 2}
+        else None,
         "state": computed_state,
         "observer_mode": arm.get("observer_mode") if isinstance(arm.get("observer_mode"), str) else "UNKNOWN",
-        "observer_coverage": arm.get("observer_coverage") if isinstance(arm.get("observer_coverage"), str) else "UNKNOWN",
+        "observer_coverage": arm.get("observer_coverage")
+        if isinstance(arm.get("observer_coverage"), str)
+        else "UNKNOWN",
         "trace_bytes": safe_trace,
         "observer_reason": (
             arm.get("observer_reason")
             if arm.get("observer_reason") is None
-            or arm.get("observer_reason") in {
-                "trace_byte_cap_exceeded", "observer_unavailable", "observer_failed", "observer_timeout"
-            }
+            or arm.get("observer_reason")
+            in {"trace_byte_cap_exceeded", "observer_unavailable", "observer_failed", "observer_timeout"}
             else "UNKNOWN"
-        ) if isinstance(arm.get("observer_reason"), (str, type(None))) else "UNKNOWN",
-        "candidate_count": arm.get("candidate_count") if isinstance(arm.get("candidate_count"), int) and not isinstance(arm.get("candidate_count"), bool) else None,
+        )
+        if isinstance(arm.get("observer_reason"), (str, type(None)))
+        else "UNKNOWN",
+        "candidate_count": arm.get("candidate_count")
+        if isinstance(arm.get("candidate_count"), int) and not isinstance(arm.get("candidate_count"), bool)
+        else None,
         "primary_task_statuses": projected_tasks,
         "claim_assessment_statuses": projected_claim_statuses,
-        "native_advisory_status": arm.get("native_advisory_status") if isinstance(arm.get("native_advisory_status"), str) and arm.get("native_advisory_status") in {"RECEIVED", "FAILED", "NOT_RUN", "UNKNOWN"} else "UNKNOWN",
-        "http_requests_received": arm.get("http_requests_received") if isinstance(arm.get("http_requests_received"), int) and not isinstance(arm.get("http_requests_received"), bool) else None,
-        "server_response_writes_completed": arm.get("server_response_writes_completed") if isinstance(arm.get("server_response_writes_completed"), int) and not isinstance(arm.get("server_response_writes_completed"), bool) else None,
+        "native_advisory_status": arm.get("native_advisory_status")
+        if isinstance(arm.get("native_advisory_status"), str)
+        and arm.get("native_advisory_status") in {"RECEIVED", "FAILED", "NOT_RUN", "UNKNOWN"}
+        else "UNKNOWN",
+        "http_requests_received": arm.get("http_requests_received")
+        if isinstance(arm.get("http_requests_received"), int)
+        and not isinstance(arm.get("http_requests_received"), bool)
+        else None,
+        "server_response_writes_completed": arm.get("server_response_writes_completed")
+        if isinstance(arm.get("server_response_writes_completed"), int)
+        and not isinstance(arm.get("server_response_writes_completed"), bool)
+        else None,
         "protocol_stage_counts": safe_stages,
         "request_body_bytes_by_stage": safe_stage_bytes(request_bytes),
         "response_body_bytes_by_stage": safe_stage_bytes(response_bytes),
         "trace_bytes_by_syscall": _bounded_numeric_map(trace_projection.get("bytes_by_syscall"), _TRACE_LINE_LABELS),
         "trace_lines_by_syscall": _bounded_numeric_map(trace_projection.get("lines_by_syscall"), _TRACE_LINE_LABELS),
-        "trace_newline_terminated_line_bytes": bounded_nonnegative(trace_projection.get("newline_terminated_line_bytes")),
+        "trace_newline_terminated_line_bytes": bounded_nonnegative(
+            trace_projection.get("newline_terminated_line_bytes")
+        ),
         "trace_parsed_line_count": bounded_nonnegative(trace_projection.get("parsed_line_count")),
-        "trace_unattributed_or_partial_bytes": bounded_nonnegative(trace_projection.get("unattributed_or_partial_bytes")),
+        "trace_unattributed_or_partial_bytes": bounded_nonnegative(
+            trace_projection.get("unattributed_or_partial_bytes")
+        ),
         "trace_parse_failure_count": bounded_nonnegative(trace_projection.get("parse_failure_count")),
         "file_path_attribution": file_path_projection,
     }
@@ -1116,13 +1187,15 @@ def _candidate_cardinality_comparison(one: Any, two: Any) -> dict[str, Any]:
         "input_identity_match": identity_match,
         "trace_bytes_delta_two_minus_one": trace_delta,
         "request_body_bytes_delta_two_minus_one": {
-            stage: request_b.get(stage, 0) - request_a.get(stage, 0)
-            for stage in _PAIR_STAGE_NAMES
-        } if isinstance(request_a, dict) and isinstance(request_b, dict) else None,
+            stage: request_b.get(stage, 0) - request_a.get(stage, 0) for stage in _PAIR_STAGE_NAMES
+        }
+        if isinstance(request_a, dict) and isinstance(request_b, dict)
+        else None,
         "response_body_bytes_delta_two_minus_one": {
-            stage: response_b.get(stage, 0) - response_a.get(stage, 0)
-            for stage in _PAIR_STAGE_NAMES
-        } if isinstance(response_a, dict) and isinstance(response_b, dict) else None,
+            stage: response_b.get(stage, 0) - response_a.get(stage, 0) for stage in _PAIR_STAGE_NAMES
+        }
+        if isinstance(response_a, dict) and isinstance(response_b, dict)
+        else None,
         "arms": [one_projection, two_projection],
     }
 
@@ -1244,20 +1317,19 @@ def run(
         or not 0 <= primary_response_delay_seconds <= 15
     ):
         raise ValueError("primary_response_delay_invalid")
-    if _transport not in {"http", "https"} or _output_name not in {
-        "cli-output", "cli-output-http", "cli-output-https"
-    }:
+    if _transport not in {"http", "https"} or _output_name not in {"cli-output", "cli-output-http", "cli-output-https"}:
         raise ValueError("transport_arm_configuration_invalid")
     if (_transport == "https") != (_ssl_context is not None):
         raise ValueError("transport_tls_context_mismatch")
     if _ssl_cert_file is not None and (
-        _ssl_cert_file.is_symlink() or not _ssl_cert_file.is_file()
-        or _ssl_cert_file.stat().st_size > 65_536
+        _ssl_cert_file.is_symlink() or not _ssl_cert_file.is_file() or _ssl_cert_file.stat().st_size > 65_536
     ):
         raise ValueError("transport_trust_input_invalid")
     if _environment_override is not None:
         expected_env = _environment()
-        expected_env["SSL_CERT_FILE"] = str(_ssl_cert_file) if _ssl_cert_file is not None else expected_env.get("SSL_CERT_FILE", "")
+        expected_env["SSL_CERT_FILE"] = (
+            str(_ssl_cert_file) if _ssl_cert_file is not None else expected_env.get("SSL_CERT_FILE", "")
+        )
         if _environment_override != expected_env:
             raise ValueError("transport_environment_not_isolated")
     cli = cli.resolve(strict=True)
@@ -1309,19 +1381,29 @@ def run(
         _write_limits(limits_path)
         provider_path.write_text(
             json.dumps(
-                {"kind": "openai_compatible", "provider_id": "operator_openai_compatible",
-                 "base_url": f"{_transport}://127.0.0.1:{port}/v1", "model": FAKE_MODEL,
-                 "api_key_env": "LLM_API_KEY"},
+                {
+                    "kind": "openai_compatible",
+                    "provider_id": "operator_openai_compatible",
+                    "base_url": f"{_transport}://127.0.0.1:{port}/v1",
+                    "model": FAKE_MODEL,
+                    "api_key_env": "LLM_API_KEY",
+                },
                 sort_keys=True,
-            ) + "\n",
+            )
+            + "\n",
             encoding="utf-8",
         )
         decision_path.write_text(
             json.dumps(
-                {"kind": "typesafe", "endpoint": f"{_transport}://127.0.0.1:{port}/v1/systemone",
-                 "model": JEV_ALIAS, "api_key_env": "JEV_API_KEY"},
+                {
+                    "kind": "typesafe",
+                    "endpoint": f"{_transport}://127.0.0.1:{port}/v1/systemone",
+                    "model": JEV_ALIAS,
+                    "api_key_env": "JEV_API_KEY",
+                },
                 sort_keys=True,
-            ) + "\n",
+            )
+            + "\n",
             encoding="utf-8",
         )
         os.chmod(limits_path, 0o600)
@@ -1370,10 +1452,10 @@ def run(
         raw_observer = observed.get("observer", {})
         cli_result = observed.get("cli_result")
         invocation = observed.get("invocation")
-        invocation_status = (
-            invocation.get("run_status") if isinstance(invocation, dict) else observed.get("run_status")
+        invocation_status = invocation.get("run_status") if isinstance(invocation, dict) else observed.get("run_status")
+        invocation_exit_code = (
+            invocation.get("exit_code") if isinstance(invocation, dict) else observed.get("exit_code")
         )
-        invocation_exit_code = invocation.get("exit_code") if isinstance(invocation, dict) else observed.get("exit_code")
         handlers_settled, active_handlers_at_snapshot = server.wait_until_idle(2.0)
         http_requests_received = server.counters.get("http_requests_received", 0)
         response_writes_completed = server.counters.get("server_response_writes_completed", 0)
@@ -1414,15 +1496,24 @@ def run(
         stage_counts = {
             name: server.counters.get(name, 0)
             for name in (
-                "primary_correctness_received", "primary_security_received", "primary_tests_received",
-                "semantic_adjudication_received", "native_claim_received", "native_summary_received",
-                "primary_correctness_response_writes_completed", "primary_security_response_writes_completed",
-                "primary_tests_response_writes_completed", "semantic_adjudication_response_writes_completed",
-                "native_claim_response_writes_completed", "native_summary_response_writes_completed",
+                "primary_correctness_received",
+                "primary_security_received",
+                "primary_tests_received",
+                "semantic_adjudication_received",
+                "native_claim_received",
+                "native_summary_received",
+                "primary_correctness_response_writes_completed",
+                "primary_security_response_writes_completed",
+                "primary_tests_response_writes_completed",
+                "semantic_adjudication_response_writes_completed",
+                "native_claim_response_writes_completed",
+                "native_summary_response_writes_completed",
             )
         }
         expected_stage_counts = {name: 1 for name in stage_counts}
-        task_success = bool(task_status_projection) and all(row["status"] == "SUCCEEDED" for row in task_status_projection)
+        task_success = bool(task_status_projection) and all(
+            row["status"] == "SUCCEEDED" for row in task_status_projection
+        )
         synthetic_protocol_path_state = (
             "COMPLETE"
             if protocol_exchange_state == "SERVER_WRITES_SETTLED"
@@ -1441,11 +1532,15 @@ def run(
             "runtime_tree_sha256": runtime.get("runtime_tree_sha256"),
             "installed_source_match": True,
             "runtime_source_commit": fingerprint.get("git_revision") if isinstance(fingerprint, dict) else None,
-            "runtime_source_tree_dirty": fingerprint.get("working_tree_dirty") if isinstance(fingerprint, dict) else None,
+            "runtime_source_tree_dirty": fingerprint.get("working_tree_dirty")
+            if isinstance(fingerprint, dict)
+            else None,
             "runtime_module_count": len(runtime_modules),
             "runtime_module_hashes": runtime_modules,
             "diagnostic_script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-            "fixture_suite_sha256": hashlib.sha256((ROOT / "examples/injection/fixture-suite.v2.json").read_bytes()).hexdigest(),
+            "fixture_suite_sha256": hashlib.sha256(
+                (ROOT / "examples/injection/fixture-suite.v2.json").read_bytes()
+            ).hexdigest(),
             "generated_profile_sha256": hashlib.sha256(profile_path.read_bytes()).hexdigest(),
             "limits_sha256": hashlib.sha256(limits_path.read_bytes()).hexdigest(),
             "base_sha": case.base_sha,
@@ -1493,8 +1588,7 @@ def run(
         }
         if _environment_override is not None:
             result["transport_payload_hashes"] = {
-                stage: dict(sorted(values.items()))
-                for stage, values in sorted(server.payload_hashes.items())
+                stage: dict(sorted(values.items())) for stage, values in sorted(server.payload_hashes.items())
             }
             provider_bytes = provider_path.read_bytes()
             decision_bytes = decision_path.read_bytes()
@@ -1536,12 +1630,28 @@ def _write_loopback_certificate(work_root: Path) -> tuple[Path, Path, str]:
     try:
         subprocess.run(
             [
-                openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-                "-keyout", str(key_path), "-out", str(cert_path), "-subj", "/CN=127.0.0.1",
-                "-addext", "subjectAltName=IP:127.0.0.1",
-                "-addext", "basicConstraints=critical,CA:TRUE",
-                "-addext", "keyUsage=critical,digitalSignature,keyCertSign,cRLSign",
-                "-addext", "extendedKeyUsage=serverAuth",
+                openssl,
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-days",
+                "1",
+                "-keyout",
+                str(key_path),
+                "-out",
+                str(cert_path),
+                "-subj",
+                "/CN=127.0.0.1",
+                "-addext",
+                "subjectAltName=IP:127.0.0.1",
+                "-addext",
+                "basicConstraints=critical,CA:TRUE",
+                "-addext",
+                "keyUsage=critical,digitalSignature,keyCertSign,cRLSign",
+                "-addext",
+                "extendedKeyUsage=serverAuth",
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -1567,7 +1677,9 @@ def _normalized_loopback_endpoint(value: Any) -> str:
     if (
         parsed.scheme not in {"http", "https"}
         or parsed.hostname != "127.0.0.1"
-        or parsed.username or parsed.password or parsed.fragment
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
         or parsed.port is None
     ):
         raise ValueError("transport_endpoint_invalid")
@@ -1589,11 +1701,18 @@ def _transport_pair_complete(arm: Any) -> bool:
     expected_stages = {
         name: 1
         for name in (
-            "primary_correctness_received", "primary_security_received", "primary_tests_received",
-            "semantic_adjudication_received", "native_claim_received", "native_summary_received",
-            "primary_correctness_response_writes_completed", "primary_security_response_writes_completed",
-            "primary_tests_response_writes_completed", "semantic_adjudication_response_writes_completed",
-            "native_claim_response_writes_completed", "native_summary_response_writes_completed",
+            "primary_correctness_received",
+            "primary_security_received",
+            "primary_tests_received",
+            "semantic_adjudication_received",
+            "native_claim_received",
+            "native_summary_received",
+            "primary_correctness_response_writes_completed",
+            "primary_security_response_writes_completed",
+            "primary_tests_response_writes_completed",
+            "semantic_adjudication_response_writes_completed",
+            "native_claim_response_writes_completed",
+            "native_summary_response_writes_completed",
         )
     }
     return (
@@ -1617,10 +1736,7 @@ def _transport_pair_complete(arm: Any) -> bool:
         and arm.get("native_advisory_status") == "RECEIVED"
         and isinstance(arm.get("primary_task_statuses"), list)
         and len(arm["primary_task_statuses"]) == 3
-        and all(
-            isinstance(task, dict) and task.get("status") == "SUCCEEDED"
-            for task in arm["primary_task_statuses"]
-        )
+        and all(isinstance(task, dict) and task.get("status") == "SUCCEEDED" for task in arm["primary_task_statuses"])
         and arm.get("cli_invocation_status") == "CLI_COMPLETED"
         and arm.get("cli_exit_code") == 0
         and arm.get("cli_result_present") is True
@@ -1632,14 +1748,21 @@ def _transport_pair_complete(arm: Any) -> bool:
 
 def _transport_payload_identity_complete(value: Any) -> bool:
     stages = {
-        "primary_correctness", "primary_security", "primary_tests",
-        "semantic_adjudication", "native_claim", "native_summary",
+        "primary_correctness",
+        "primary_security",
+        "primary_tests",
+        "semantic_adjudication",
+        "native_claim",
+        "native_summary",
     }
     if not isinstance(value, dict) or set(value) != stages:
         return False
     for row in value.values():
         if not isinstance(row, dict) or set(row) != {
-            "request_bytes", "request_sha256", "response_bytes", "response_sha256"
+            "request_bytes",
+            "request_sha256",
+            "response_bytes",
+            "response_sha256",
         }:
             return False
         for size_key, cap in (("request_bytes", MAX_HTTP_REQUEST_BYTES), ("response_bytes", MAX_HTTP_RESPONSE_BYTES)):
@@ -1655,15 +1778,37 @@ def _transport_payload_identity_complete(value: Any) -> bool:
 
 def _transport_arm_projection(arm: dict[str, Any]) -> dict[str, Any]:
     fields = (
-        "configured_transport", "trace_attribution", "observer_mode", "observer_coverage", "observer_reason",
-        "protocol_exchange_state", "protocol_stage_counts", "http_requests_received",
-        "server_response_writes_completed", "fake_server_handlers_settled",
-        "fake_server_active_handlers_at_snapshot", "synthetic_protocol_path_state", "primary_task_statuses",
-        "cli_invocation_status", "cli_exit_code", "cli_result_present", "coverage_state",
-        "claim_assessment_statuses", "native_advisory_status", "candidate_count", "unexpected_task_result_count",
-        "transport_payload_hashes", "provider_config_sha256", "decision_config_sha256",
+        "configured_transport",
+        "trace_attribution",
+        "observer_mode",
+        "observer_coverage",
+        "observer_reason",
+        "protocol_exchange_state",
+        "protocol_stage_counts",
+        "http_requests_received",
+        "server_response_writes_completed",
+        "fake_server_handlers_settled",
+        "fake_server_active_handlers_at_snapshot",
+        "synthetic_protocol_path_state",
+        "primary_task_statuses",
+        "cli_invocation_status",
+        "cli_exit_code",
+        "cli_result_present",
+        "coverage_state",
+        "claim_assessment_statuses",
+        "native_advisory_status",
+        "candidate_count",
+        "unexpected_task_result_count",
+        "transport_payload_hashes",
+        "provider_config_sha256",
+        "decision_config_sha256",
         "normalized_transport_config_sha256",
-        "run_id", "event_mode", "event_identity", "task_ids", "snapshot_id", "snapshot_hash",
+        "run_id",
+        "event_mode",
+        "event_identity",
+        "task_ids",
+        "snapshot_id",
+        "snapshot_hash",
     )
     projected = {key: arm.get(key) for key in fields}
     # Keep transport receipts on the validator's closed three-field contract.
@@ -1673,7 +1818,8 @@ def _transport_arm_projection(arm: dict[str, Any]) -> dict[str, Any]:
     if isinstance(task_rows, list):
         projected["primary_task_statuses"] = [
             {key: value for key, value in row.items() if key in {"task_id", "lens", "status"}}
-            if isinstance(row, dict) else row
+            if isinstance(row, dict)
+            else row
             for row in task_rows
         ]
     return projected
@@ -1681,14 +1827,25 @@ def _transport_arm_projection(arm: dict[str, Any]) -> dict[str, Any]:
 
 def _diagnostic_checkout_identity() -> dict[str, Any]:
     try:
-        head = subprocess.run(
-            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5, check=True,
-        ).stdout.decode("ascii").strip()
+        head = (
+            subprocess.run(
+                ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=True,
+            )
+            .stdout.decode("ascii")
+            .strip()
+        )
         dirty_result = subprocess.run(
             ["git", "-C", str(ROOT), "diff", "--quiet", "HEAD", "--", "scripts/selected_control_trace_attribution.py"],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=5, check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         raise RuntimeError("diagnostic_source_identity_unavailable") from None
@@ -1719,8 +1876,10 @@ def run_transport_pair(
     module_hashes = {
         name.removeprefix("src/"): digest
         for name, digest in sorted(source_hashes.items())
-        if isinstance(name, str) and name.startswith("src/pr_review_harness/")
-        and name.endswith(".py") and isinstance(digest, str)
+        if isinstance(name, str)
+        and name.startswith("src/pr_review_harness/")
+        and name.endswith(".py")
+        and isinstance(digest, str)
     }
     if not module_hashes:
         raise RuntimeError("runtime_module_inventory_invalid")
@@ -1789,8 +1948,12 @@ def run_transport_pair(
             _ssl_context=None,
             **common,
         )
-        arms = [{"state": "COMPLETE" if _transport_pair_complete(http_arm) else "INCOMPLETE",
-                 **_transport_arm_projection(http_arm)}]
+        arms = [
+            {
+                "state": "COMPLETE" if _transport_pair_complete(http_arm) else "INCOMPLETE",
+                **_transport_arm_projection(http_arm),
+            }
+        ]
         if not _transport_pair_complete(http_arm):
             arms.append({"configured_transport": "HTTPS_LOOPBACK_FAKE", "state": "NOT_RUN_HTTP_BASELINE_INCOMPLETE"})
             return {
@@ -1836,22 +1999,49 @@ def run_transport_pair(
                 _ssl_context=tls_context,
                 **common,
             )
-            arms.append({"state": "COMPLETE" if _transport_pair_complete(https_arm) else "INCOMPLETE",
-                         **_transport_arm_projection(https_arm)})
+            arms.append(
+                {
+                    "state": "COMPLETE" if _transport_pair_complete(https_arm) else "INCOMPLETE",
+                    **_transport_arm_projection(https_arm),
+                }
+            )
             shared_fields = (
-                "runtime_tree_sha256", "runtime_source_commit", "runtime_source_tree_dirty",
-                "runtime_module_hashes", "diagnostic_script_sha256", "fixture_suite_sha256",
-                "generated_profile_sha256", "limits_sha256", "base_sha", "head_sha",
-                "snapshot_id", "snapshot_hash", "task_lenses", "run_id", "event_mode",
-                "event_identity", "task_ids", "primary_task_statuses", "observer_id",
-                "observer_source_sha256", "strace_version", "strace_executable_sha256",
-                "syscall_scope", "trace_cap_bytes",
+                "runtime_tree_sha256",
+                "runtime_source_commit",
+                "runtime_source_tree_dirty",
+                "runtime_module_hashes",
+                "diagnostic_script_sha256",
+                "fixture_suite_sha256",
+                "generated_profile_sha256",
+                "limits_sha256",
+                "base_sha",
+                "head_sha",
+                "snapshot_id",
+                "snapshot_hash",
+                "task_lenses",
+                "run_id",
+                "event_mode",
+                "event_identity",
+                "task_ids",
+                "primary_task_statuses",
+                "observer_id",
+                "observer_source_sha256",
+                "strace_version",
+                "strace_executable_sha256",
+                "syscall_scope",
+                "trace_cap_bytes",
             )
             input_identity_match = all(http_arm.get(key) == https_arm.get(key) for key in shared_fields)
             body_identity_match = http_arm.get("transport_payload_hashes") == https_arm.get("transport_payload_hashes")
-            normalized_config_match = http_arm.get("normalized_transport_config_sha256") == https_arm.get("normalized_transport_config_sha256")
+            normalized_config_match = http_arm.get("normalized_transport_config_sha256") == https_arm.get(
+                "normalized_transport_config_sha256"
+            )
             both_complete = _transport_pair_complete(https_arm)
-            pair_state = "COMPLETE" if both_complete and input_identity_match and body_identity_match and normalized_config_match else "INCOMPLETE"
+            pair_state = (
+                "COMPLETE"
+                if both_complete and input_identity_match and body_identity_match and normalized_config_match
+                else "INCOMPLETE"
+            )
             reason = None if pair_state == "COMPLETE" else "TLS_ARM_OR_IDENTITY_INCOMPLETE"
         comparison = None
         if https_arm is not None and pair_state == "COMPLETE":
@@ -1865,7 +2055,8 @@ def run_transport_pair(
                 "normalized_endpoint_config_match": normalized_config_match,
                 "http_trace_bytes": http_trace.get("trace_bytes"),
                 "https_trace_bytes": tls_trace.get("trace_bytes"),
-                "trace_bytes_delta_https_minus_http": tls_trace.get("trace_bytes", 0) - http_trace.get("trace_bytes", 0),
+                "trace_bytes_delta_https_minus_http": tls_trace.get("trace_bytes", 0)
+                - http_trace.get("trace_bytes", 0),
                 "trace_bytes_by_syscall_delta_https_minus_http": {
                     label: tls_syscall_bytes.get(label, 0) - http_syscall_bytes.get(label, 0)
                     for label in sorted(set(http_syscall_bytes) | set(tls_syscall_bytes))
@@ -1894,10 +2085,17 @@ def run_transport_pair(
             "observer_source_sha256": observer._source_sha256(),
             "syscall_scope": observer.SYSCALL_SCOPE,
             "trace_cap_bytes": FROZEN_TRACE_MAX_BYTES,
-            "limits": {key: _limits().get(key) for key in (
-                "max_provider_calls", "max_retries_per_task", "max_input_bytes_per_task",
-                "max_output_bytes_per_task", "deadline_seconds",
-            )} | {"max_claim_assessments_per_run": MAX_CLAIM_ASSESSMENTS_PER_RUN},
+            "limits": {
+                key: _limits().get(key)
+                for key in (
+                    "max_provider_calls",
+                    "max_retries_per_task",
+                    "max_input_bytes_per_task",
+                    "max_output_bytes_per_task",
+                    "deadline_seconds",
+                )
+            }
+            | {"max_claim_assessments_per_run": MAX_CLAIM_ASSESSMENTS_PER_RUN},
             "observer_timeout_seconds_per_arm": 300,
             "pair_deadline_seconds": TRANSPORT_PAIR_DEADLINE_SECONDS,
             "primary_response_delay_seconds": 0,
@@ -1977,7 +2175,8 @@ def run_candidate_cardinality_pair(
                     "api_key_env": "LLM_API_KEY",
                 },
                 sort_keys=True,
-            ) + "\n",
+            )
+            + "\n",
             encoding="utf-8",
         )
         decision_path.write_text(
@@ -1989,7 +2188,8 @@ def run_candidate_cardinality_pair(
                     "api_key_env": "JEV_API_KEY",
                 },
                 sort_keys=True,
-            ) + "\n",
+            )
+            + "\n",
             encoding="utf-8",
         )
         for path in (limits_path, provider_path, decision_path):
@@ -2053,13 +2253,17 @@ def run_candidate_cardinality_pair(
             invocation = observed.get("invocation") if isinstance(observed, dict) else None
             cli_result = observed.get("cli_result") if isinstance(observed, dict) else None
             cli_status = (
-                invocation.get("run_status") if isinstance(invocation, dict)
-                else observed.get("run_status") if isinstance(observed, dict)
+                invocation.get("run_status")
+                if isinstance(invocation, dict)
+                else observed.get("run_status")
+                if isinstance(observed, dict)
                 else "UNKNOWN"
             )
             exit_code = (
-                invocation.get("exit_code") if isinstance(invocation, dict)
-                else observed.get("exit_code") if isinstance(observed, dict)
+                invocation.get("exit_code")
+                if isinstance(invocation, dict)
+                else observed.get("exit_code")
+                if isinstance(observed, dict)
                 else None
             )
             raw_observer = observed.get("observer") if isinstance(observed, dict) else None
@@ -2089,26 +2293,28 @@ def run_candidate_cardinality_pair(
             advisory = durable.get("advisory_assessment") if isinstance(durable, dict) else None
             advisory_status = (
                 advisory.get("status")
-                if isinstance(advisory, dict)
-                and advisory.get("status") in {"RECEIVED", "FAILED", "NOT_RUN", "UNKNOWN"}
+                if isinstance(advisory, dict) and advisory.get("status") in {"RECEIVED", "FAILED", "NOT_RUN", "UNKNOWN"}
                 else "UNKNOWN"
             )
             stage_counts = {
                 name: counters.get(name, 0)
                 for name in (
-                    "primary_correctness_received", "primary_security_received", "primary_tests_received",
-                    "semantic_adjudication_received", "native_claim_received", "native_summary_received",
-                    "primary_correctness_response_writes_completed", "primary_security_response_writes_completed",
-                    "primary_tests_response_writes_completed", "semantic_adjudication_response_writes_completed",
-                    "native_claim_response_writes_completed", "native_summary_response_writes_completed",
+                    "primary_correctness_received",
+                    "primary_security_received",
+                    "primary_tests_received",
+                    "semantic_adjudication_received",
+                    "native_claim_received",
+                    "native_summary_received",
+                    "primary_correctness_response_writes_completed",
+                    "primary_security_response_writes_completed",
+                    "primary_tests_response_writes_completed",
+                    "semantic_adjudication_response_writes_completed",
+                    "native_claim_response_writes_completed",
+                    "native_summary_response_writes_completed",
                 )
             }
-            request_bytes = {
-                stage: counters.get(f"request_body_bytes_{stage}", 0) for stage in _PAIR_STAGE_NAMES
-            }
-            response_bytes = {
-                stage: counters.get(f"response_body_bytes_{stage}", 0) for stage in _PAIR_STAGE_NAMES
-            }
+            request_bytes = {stage: counters.get(f"request_body_bytes_{stage}", 0) for stage in _PAIR_STAGE_NAMES}
+            response_bytes = {stage: counters.get(f"response_body_bytes_{stage}", 0) for stage in _PAIR_STAGE_NAMES}
             received = counters.get("http_requests_received", 0)
             writes = counters.get("server_response_writes_completed", 0)
             errors = counters.get("handler_errors", 0)
@@ -2200,8 +2406,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run one fixed HTTP control and a single TLS arm only if its complete trace is eligible",
     )
-    parser.add_argument("--primary-response-delay-seconds", type=float, default=0.0,
-                        help="optional delay for primary specialist responses only (0..15 seconds; native responses remain immediate)")
+    parser.add_argument(
+        "--primary-response-delay-seconds",
+        type=float,
+        default=0.0,
+        help="optional delay for primary specialist responses only (0..15 seconds; native responses remain immediate)",
+    )
     args = parser.parse_args(argv)
     try:
         if args.transport_pair:

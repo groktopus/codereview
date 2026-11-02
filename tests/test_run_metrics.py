@@ -286,16 +286,19 @@ def test_resume_rebuilds_the_run_summary():
 
 def test_duplicate_input_paths_are_one_run(tmp_path, capsys):
     source = FIXTURES / "run-1-complete.json"
-    assert cli.main(
-        [
-            "stats",
-            "--result",
-            str(source),
-            "--results-dir",
-            str(FIXTURES),
-            "--json",
-        ]
-    ) == 0
+    assert (
+        cli.main(
+            [
+                "stats",
+                "--result",
+                str(source),
+                "--results-dir",
+                str(FIXTURES),
+                "--json",
+            ]
+        )
+        == 0
+    )
     payload = json.loads(capsys.readouterr().out)
     assert payload["runs"]["input"] == 4
     assert payload["runs"]["included"] == 4
@@ -396,9 +399,7 @@ def test_stats_manifest_and_default_artifacts(tmp_path, monkeypatch, capsys):
 
 def test_stats_jsonl_success_does_not_expose_paths(tmp_path, capsys):
     jsonl = tmp_path / "metrics.jsonl"
-    code = cli.main(
-        ["stats", "--results-dir", str(FIXTURES), "--jsonl", str(jsonl), "--json"]
-    )
+    code = cli.main(["stats", "--results-dir", str(FIXTURES), "--jsonl", str(jsonl), "--json"])
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["jsonl_export"]["records"] >= 1

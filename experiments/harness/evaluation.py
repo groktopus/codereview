@@ -699,11 +699,7 @@ def _adjudication_metrics(
         if run is None:
             continue
         packet = next(
-            (
-                item
-                for item in labels_by_key.get((case_id, reviewer_kind), [])
-                if item["label_role"] == "adjudicated"
-            ),
+            (item for item in labels_by_key.get((case_id, reviewer_kind), []) if item["label_role"] == "adjudicated"),
             None,
         )
         if packet is None:

@@ -84,7 +84,7 @@ def test_live_workflow_binds_dispatch_runner_and_fixed_runtime_sources():
     assert 'stream.write("sha256="' in text
     assert "runner_revision_mismatch" in text
     assert "runtime_revision_mismatch" in text
-    assert "--runtime-source \"$GITHUB_WORKSPACE/trusted-runtime\"" in text
+    assert '--runtime-source "$GITHUB_WORKSPACE/trusted-runtime"' in text
 
 
 def test_live_workflow_scopes_provider_secrets_and_does_not_log_them():

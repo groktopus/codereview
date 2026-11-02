@@ -54,16 +54,14 @@ def test_trusted_runner_pin_is_identical_and_checkout_does_not_persist_credentia
     assert f"ref: {RUNNER_SHA}" in checkout
     assert "persist-credentials: false" in checkout
     assert f"EXPECTED_RUNNER_SHA: {RUNNER_SHA}" in verify
-    assert 'result.stdout.strip() != expected' in verify
+    assert "result.stdout.strip() != expected" in verify
 
 
 def test_secretless_fixed_case_preparation_precedes_the_credentialed_trial():
     source = _workflow()
     steps = _steps(source)
     prepare_index = next(
-        index
-        for index, step in enumerate(steps)
-        if "prepare_selected_pair_clean_control_trial.py" in step
+        index for index, step in enumerate(steps) if "prepare_selected_pair_clean_control_trial.py" in step
     )
     trial_index = next(index for index, step in enumerate(steps) if "--run-provider-trial" in step)
     prepare = steps[prepare_index]
@@ -74,10 +72,7 @@ def test_secretless_fixed_case_preparation_precedes_the_credentialed_trial():
     assert "--prepared-plan" in trial
     assert "--observe-effects" in trial
 
-    refs_by_step = {
-        index: set(re.findall(r"\bsecrets\.([A-Z0-9_]+)", step))
-        for index, step in enumerate(steps)
-    }
+    refs_by_step = {index: set(re.findall(r"\bsecrets\.([A-Z0-9_]+)", step)) for index, step in enumerate(steps)}
     assert set().union(*refs_by_step.values()) == OPERATOR_SECRETS
     assert refs_by_step[trial_index] == OPERATOR_SECRETS
     assert all(not refs for index, refs in refs_by_step.items() if index != trial_index)

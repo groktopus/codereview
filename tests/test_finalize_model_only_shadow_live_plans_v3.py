@@ -16,7 +16,8 @@ def _prepared(case_id: str) -> dict:
     case = finalizer.CASES[case_id]
     proposal_path = ROOT / (
         "experiments/model-only-shadow-live-pr457-plan-v3-proposal.json"
-        if case_id == "PR-457" else "experiments/model-only-shadow-live-pr464-plan-v3-proposal.json"
+        if case_id == "PR-457"
+        else "experiments/model-only-shadow-live-pr464-plan-v3-proposal.json"
     )
     proposal = json.loads(proposal_path.read_text())
     identity = proposal["case"]
@@ -25,24 +26,35 @@ def _prepared(case_id: str) -> dict:
     if writer_requests is None:
         writer_requests = old_plan["writer_requests"]
     runtime = proposal.get("runtime", old_plan["runtime"])
+
     def ident(key):
         return identity.get(key, old_plan["case"].get(key))
+
     primary = [{**row, "admitted": True} for row in writer_requests]
     source_rows = proposal.get("source_audit_preflight", {}).get("requests")
     if source_rows is None:
         source_rows = [
-            {"task_id": row["task_id"], "input_bytes": 113_860 if case_id == "PR-457" and index < 3 else 70_000 + index,
-             "input_sha256": hashlib.sha256(f"{case_id}-{index}".encode()).hexdigest(), "admitted": True}
+            {
+                "task_id": row["task_id"],
+                "input_bytes": 113_860 if case_id == "PR-457" and index < 3 else 70_000 + index,
+                "input_sha256": hashlib.sha256(f"{case_id}-{index}".encode()).hexdigest(),
+                "admitted": True,
+            }
             for index, row in enumerate(primary)
         ]
     else:
         source_rows = [{**row, "admitted": True} for row in source_rows]
     return {
-        "command": "review", "status": "PREPARED_ONLY", "no_provider_calls": True,
-        "no_target_code_execution": True, "disposition": None,
+        "command": "review",
+        "status": "PREPARED_ONLY",
+        "no_provider_calls": True,
+        "no_target_code_execution": True,
+        "disposition": None,
         "snapshot": {
-            "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
-            "snapshot_id": identity["snapshot_id"], "snapshot_hash": identity["snapshot_sha256"],
+            "base_sha": identity["base_sha"],
+            "head_sha": identity["head_sha"],
+            "snapshot_id": identity["snapshot_id"],
+            "snapshot_hash": identity["snapshot_sha256"],
             "evidence_index_sha256": ident("evidence_index_sha256"),
             "profile_version": ident("profile_version"),
             "profile_file_sha256": ident("profile_file_sha256"),
@@ -55,7 +67,8 @@ def _prepared(case_id: str) -> dict:
         "scope": {"coverage_obligations": [{} for _ in range(case["scope_obligations"])]},
         "capacity": {
             "source_audit_preflight": {
-                "active_input_limit_bytes": case["audit_cap"], "status": "ADMITTED",
+                "active_input_limit_bytes": case["audit_cap"],
+                "status": "ADMITTED",
                 "request_count": len(source_rows),
                 "request_bytes_max": max(row["input_bytes"] for row in source_rows),
                 "requests": source_rows,

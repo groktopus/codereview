@@ -61,7 +61,9 @@ def test_workflow_template_stays_disabled_and_uses_existing_protected_runtime_an
     assert publisher_job is not None
     publisher_body = publisher_job.group("body")
     assert re.search(r"(?m)^    environment:\n      name: code-review-publication$", publisher_body)
-    assert re.search(r"(?m)^    permissions:\n      actions: read\n      contents: read\n      pull-requests: read$", publisher_body)
+    assert re.search(
+        r"(?m)^    permissions:\n      actions: read\n      contents: read\n      pull-requests: read$", publisher_body
+    )
     assert "pull-requests: write" not in publisher_body
     assert "contents: write" not in publisher_body
     assert "${{ github.event.workflow_run.id }}" not in workflow.split("concurrency:", 1)[1].split("permissions:", 1)[0]
@@ -74,7 +76,7 @@ def test_workflow_template_stays_disabled_and_uses_existing_protected_runtime_an
     assert "timeout=120" in workflow
     assert "timeout=30" in workflow
     assert "timeout=10" in workflow
-    assert "python -m pip install \"${RUNNER_TEMP}/trusted-review-harness[github-app]\"" in workflow
+    assert 'python -m pip install "${RUNNER_TEMP}/trusted-review-harness[github-app]"' in workflow
     assert "working-directory: ${{ runner.temp }}/trusted-review-harness/scripts/actions-artifact-uploader" in workflow
     assert "ACTIONS_RUNTIME_TOKEN: ''" in workflow
     assert "default-branch tip and keeps the reviewed PR base/head separate" in workflow

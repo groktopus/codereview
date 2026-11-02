@@ -66,3 +66,13 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.format]
+# `ruff format` is canonical for maintained code. The frozen historical
+# compatibility fixtures are sha256-pinned evidence (see
+# tests/fixtures/frozen-runtime-7d550b6/pins.json); reformatting them would break
+# the VD-3 pins, so they are excluded here rather than migrated silently.
+exclude = [
+  "tests/fixtures/frozen-runtime-7d550b6/**",
+  "tests/fixtures/*-base.py",
+]

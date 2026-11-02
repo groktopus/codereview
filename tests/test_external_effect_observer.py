@@ -50,34 +50,43 @@ def _injection_fake_response(user: dict, schema_name: str) -> dict:
         candidates = []
         if task["lens"] == "correctness":
             source = next(
-                item for item in evidence
+                item
+                for item in evidence
                 if item.get("path") == "src/auth.py" and item.get("source_kind") == "head_file"
             )
             line = next(
-                index for index, value in enumerate(source["content"].splitlines(), 1)
-                if value.strip() == "return True"
+                index for index, value in enumerate(source["content"].splitlines(), 1) if value.strip() == "return True"
             )
-            candidates.append({
-                "unit_id": task["unit_ids"][0],
-                "location": {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": line, "reason": None},
-                "title": "Owner check removed",
-                "observation": "The changed authorization helper returns true for every caller.",
-                "consequence": "A caller may read a document owned by another user.",
-                "rule_or_contract": "Only the document owner may read it.",
-                "severity": "high",
-                "reasoning_kind": "observed",
-                "evidence_refs": [item["evidence_id"] for item in evidence if item.get("path") == "src/auth.py"],
-                "introducedness": "INTRODUCED",
-            })
+            candidates.append(
+                {
+                    "unit_id": task["unit_ids"][0],
+                    "location": {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": line, "reason": None},
+                    "title": "Owner check removed",
+                    "observation": "The changed authorization helper returns true for every caller.",
+                    "consequence": "A caller may read a document owned by another user.",
+                    "rule_or_contract": "Only the document owner may read it.",
+                    "severity": "high",
+                    "reasoning_kind": "observed",
+                    "evidence_refs": [item["evidence_id"] for item in evidence if item.get("path") == "src/auth.py"],
+                    "introducedness": "INTRODUCED",
+                }
+            )
         return {
             "contract_version": "specialist-findings.v4",
             "finding_candidates": candidates,
             "context_gap_proposals": [],
-            "coverage_notes": [{
-                "unit_id": unit_id, "state": "COVERED", "reason_code": "DETERMINISTIC_EFFECT_REHEARSAL",
-                "evidence_refs": refs, "coverage_basis": "STATIC_REVIEW",
-            } for unit_id in task["unit_ids"]],
-            "specific_strengths": [], "future_guidance": [],
+            "coverage_notes": [
+                {
+                    "unit_id": unit_id,
+                    "state": "COVERED",
+                    "reason_code": "DETERMINISTIC_EFFECT_REHEARSAL",
+                    "evidence_refs": refs,
+                    "coverage_basis": "STATIC_REVIEW",
+                }
+                for unit_id in task["unit_ids"]
+            ],
+            "specific_strengths": [],
+            "future_guidance": [],
         }
     if schema_name == "semantic_assessment":
         refs = [item["evidence_id"] for item in user["evidence"]]
@@ -89,11 +98,16 @@ def _injection_fake_response(user: dict, schema_name: str) -> dict:
             "rule_connection_support": "SUPPORTED",
             "introducedness": "INTRODUCED",
             "evidence_refs": refs,
-            "assumptions": [], "uncertainties": [],
+            "assumptions": [],
+            "uncertainties": [],
             "summary": "The supplied fixture evidence supports the authorization finding.",
             "material_consequence": True,
             "causal_roles": {
-                role: {"support": "SUPPORTED", "assessment": f"Supplied evidence supports {role}.", "evidence_refs": refs}
+                role: {
+                    "support": "SUPPORTED",
+                    "assessment": f"Supplied evidence supports {role}.",
+                    "evidence_refs": refs,
+                }
                 for role in ("behavior", "consumer", "impact")
             },
         }
@@ -102,6 +116,7 @@ def _injection_fake_response(user: dict, schema_name: str) -> dict:
 
 class _InjectionRehearsalProvider(ThreadingHTTPServer):
     """Loopback-only deterministic HTTP provider for the external-observer test."""
+
     daemon_threads = True
 
     def __init__(self):
@@ -126,12 +141,15 @@ class _InjectionRehearsalProvider(ThreadingHTTPServer):
                     self.send_error(400)
                     return
                 server.requests.append({"schema_name": schema_name, "user": user})
-                body = json.dumps({
-                    "id": f"injection-rehearsal-{len(server.requests)}",
-                    "model": "deterministic-local-fixture-v1",
-                    "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(content)}}],
-                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-                }, separators=(",", ":")).encode()
+                body = json.dumps(
+                    {
+                        "id": f"injection-rehearsal-{len(server.requests)}",
+                        "model": "deterministic-local-fixture-v1",
+                        "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(content)}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                    },
+                    separators=(",", ":"),
+                ).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
@@ -232,7 +250,7 @@ def test_observations_keep_only_typed_fields_and_hash_raw_paths(tmp_path, monkey
         f'[pid 41] openat(AT_FDCWD, "{raw_path}", O_WRONLY|O_CREAT, 0600) = 3\n'
         f'[pid 41] rename("{raw_path}", "{raw_path}.new") = 0\n'
         '[pid 41] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("127.0.0.1")}, 16) = -1 ECONNREFUSED (Connection refused)\n'
-        '[pid 41] clone(0x123, 0, 0, 0, 0) = 42\n'
+        "[pid 41] clone(0x123, 0, 0, 0, 0) = 42\n"
     )
     env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.encode().hex()}
     result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
@@ -315,9 +333,7 @@ def test_lower_per_invocation_trace_cap_is_enforced_and_reported(tmp_path, monke
         "OBSERVER_TEST_TRACE_REPEAT": "25000",
         "OBSERVER_TEST_TRACE_REPEAT_KIND": "metadata",
     }
-    result = observer.observe_cli(
-        _fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=10, trace_max_bytes=cap
-    )
+    result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=10, trace_max_bytes=cap)
 
     assert result["observer"]["trace_cap_bytes"] == cap
     assert result["observer"]["reason"] == "trace_byte_cap_exceeded"
@@ -353,7 +369,7 @@ def test_trace_above_previous_cap_completes_with_bounded_aggregates_and_late_eff
         b'[pid 6] write(3, "content", 7) = 7\n'
         b'[pid 6] rename("/tmp/LATE_PRIVATE_PATH", "/tmp/LATE_PRIVATE_PATH.new") = 0\n'
         b'[pid 6] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("203.0.113.8")}, 16) = 0\n'
-        b'[pid 7] execve(0x0, 0x0, 0x0) = 0x0\n'
+        b"[pid 7] execve(0x0, 0x0, 0x0) = 0x0\n"
     )
     env = {
         **os.environ,
@@ -388,7 +404,7 @@ def test_noisy_prepare_volume_is_aggregated_with_late_effect_buckets(tmp_path, m
     late = (
         b'[pid 6] rename("/tmp/LATE_PRIVATE_PATH", "/tmp/LATE_PRIVATE_PATH.new") = 0\n'
         b'[pid 6] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("203.0.113.8")}, 16) = 0\n'
-        b'[pid 7] execve(0x0, 0x0, 0x0) = 0x0\n'
+        b"[pid 7] execve(0x0, 0x0, 0x0) = 0x0\n"
     )
     env = {
         **os.environ,
@@ -419,8 +435,7 @@ def test_noisy_prepare_volume_is_aggregated_with_late_effect_buckets(tmp_path, m
 def test_aggregate_bucket_cap_fails_closed(tmp_path, monkeypatch):
     _fake_strace(tmp_path, monkeypatch)
     trace = b"".join(
-        f"[pid 8] syscall{index}() = 0\n".encode()
-        for index in range(observer.TRACE_MAX_AGGREGATE_BUCKETS)
+        f"[pid 8] syscall{index}() = 0\n".encode() for index in range(observer.TRACE_MAX_AGGREGATE_BUCKETS)
     )
     env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
     result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
@@ -437,9 +452,9 @@ def test_resumed_socket_and_process_calls_keep_safe_pending_metadata(tmp_path, m
     _fake_strace(tmp_path, monkeypatch)
     trace = (
         b'[pid 51] connect(3, {sa_family=AF_INET, sin_addr=inet_addr("127.0.0.1")}, 16 <unfinished ...>\n'
-        b'[pid 51] <... connect resumed>) = 0\n'
-        b'[pid 52] clone(0x1, 0, 0, 0, 0 <unfinished ...>\n'
-        b'[pid 52] <... clone resumed>) = 53\n'
+        b"[pid 51] <... connect resumed>) = 0\n"
+        b"[pid 52] clone(0x1, 0, 0, 0, 0 <unfinished ...>\n"
+        b"[pid 52] <... clone resumed>) = 53\n"
     )
     env = {**os.environ, "OBSERVER_TEST_TRACE_HEX": trace.hex()}
     result = observer.observe_cli(_fake_cli(tmp_path), cwd=tmp_path, env=env, timeout_seconds=5)
@@ -499,7 +514,13 @@ def test_prepare_smoke_failure_summary_is_code_only_and_bounded():
     sentinel = "synthetic-canary-never-send"
     summary = _failure_summary(
         {
-            "observer": {"observer_id": observer.OBSERVER_ID, "reason": sentinel, "coverage": {sentinel: sentinel}, "event_count": 4, "trace_bytes": 128},
+            "observer": {
+                "observer_id": observer.OBSERVER_ID,
+                "reason": sentinel,
+                "coverage": {sentinel: sentinel},
+                "event_count": 4,
+                "trace_bytes": 128,
+            },
             "invocation": {"run_status": sentinel, "exit_code": 1, "cli_error_code": sentinel},
             "cli_result": {"status": sentinel, "error": sentinel, "no_provider_calls": False},
         },
@@ -674,9 +695,7 @@ def test_full_review_failure_diagnostic_uses_stable_codes_and_no_payload_fields(
     result["task_results"]["task-security"].update(
         {"status": "FAILED", "attempts": 1, "error_code": "provider_deadline_exceeded"}
     )
-    result["task_results"]["task-tests"].update(
-        {"status": "INVALID", "attempts": 1, "error_code": sentinel}
-    )
+    result["task_results"]["task-tests"].update({"status": "INVALID", "attempts": 1, "error_code": sentinel})
     result["task_results"]["task-correctness"].update(
         {"status": "FAILED", "attempts": 1, "error_code": "http_status_504"}
     )
@@ -689,13 +708,9 @@ def test_full_review_failure_diagnostic_uses_stable_codes_and_no_payload_fields(
             "event_count": True,
         }
     )
-    code = _full_review_failure_code(
-        result, observation, invocation, calls, target_marker_exists=False
-    )
+    code = _full_review_failure_code(result, observation, invocation, calls, target_marker_exists=False)
     assert code == "observer_scope_or_trace_incomplete"
-    summary = _bounded_full_review_failure(
-        code, result, observation, invocation, calls, target_marker_exists=False
-    )
+    summary = _bounded_full_review_failure(code, result, observation, invocation, calls, target_marker_exists=False)
     encoded = json.dumps(summary, sort_keys=True)
     assert sentinel not in encoded
     assert summary["failure_stage"] == "observer_scope_or_trace_incomplete"
@@ -719,22 +734,25 @@ def test_full_review_diagnostic_fails_closed_on_malformed_payload_and_envelope()
     result, observation, invocation, calls = _full_review_contract_fixture()
     result["task_results"]["task-security"]["payload"] = [sentinel]
     code = _full_review_failure_code(
-        result, None, None, calls, target_marker_exists=False  # type: ignore[arg-type]
+        result,
+        None,
+        None,
+        calls,
+        target_marker_exists=False,  # type: ignore[arg-type]
     )
     assert code == "observer_scope_or_trace_incomplete"
 
     result, observation, invocation, calls = _full_review_contract_fixture()
     result["task_results"]["task-security"]["payload"] = [sentinel]
     observation["coverage"] = "SCOPED_COMPLETE"
-    summary = _bounded_full_review_failure(
-        sentinel, result, observation, invocation, calls, target_marker_exists=False
-    )
+    summary = _bounded_full_review_failure(sentinel, result, observation, invocation, calls, target_marker_exists=False)
     encoded = json.dumps(summary, sort_keys=True)
     assert sentinel not in encoded
     assert summary["failure_stage"] == "unknown_failure"
-    assert _full_review_failure_code(
-        result, observation, invocation, calls, target_marker_exists=False
-    ) == "task_payload_schema_invalid"
+    assert (
+        _full_review_failure_code(result, observation, invocation, calls, target_marker_exists=False)
+        == "task_payload_schema_invalid"
+    )
 
 
 def test_full_review_smoke_uses_five_second_fake_timeout_without_changing_recovery_default(tmp_path):
@@ -864,7 +882,7 @@ def test_unterminated_trace_line_cap_fails_closed(tmp_path, monkeypatch):
     ("env_additions", "trace"),
     [
         ({"OBSERVER_TEST_NO_ROOT_EXEC": "1"}, b""),
-        ({}, b"openat(AT_FDCWD, \"trailing\", O_RDONLY)"),
+        ({}, b'openat(AT_FDCWD, "trailing", O_RDONLY)'),
     ],
 )
 def test_missing_root_exec_or_trailing_trace_bytes_fail_closed(tmp_path, monkeypatch, env_additions, trace):
@@ -928,7 +946,9 @@ def test_real_strace_observes_file_names_connect_and_child_after_parent_exit(tmp
     port = server.getsockname()[1]
     script, _child_source = _effect_fixture_sources(created, renamed, child_file, port)
     try:
-        result = observer.observe_cli([sys.executable, "-c", script], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=8)
+        result = observer.observe_cli(
+            [sys.executable, "-c", script], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=8
+        )
         accept_thread.join(timeout=5)
     finally:
         server.close()
@@ -942,34 +962,44 @@ def test_real_strace_observes_file_names_connect_and_child_after_parent_exit(tmp
     assert result["invocation"]["run_status"] == "CLI_COMPLETED"
     aggregates = observation["event_aggregates"]
     assert sum(item["count"] for item in aggregates) == observation["event_count"]
-    assert sum(
-        item["count"]
-        for item in aggregates
-        if item["operation"] == "file_name_syscall"
-        and item["syscall"] in {"open", "openat", "creat"}
-        and item["outcome"] == "SUCCESS"
-        and item["path_scope"] == "case_workdir"
-    ) > 0
-    assert sum(
-        item["count"]
-        for item in aggregates
-        if item["operation"] == "file_name_syscall"
-        and item["syscall"].startswith("rename")
-        and item["outcome"] == "SUCCESS"
-        and item["path_scope"] == "case_workdir"
-    ) > 0
-    assert sum(
-        item["count"]
-        for item in aggregates
-        if item["syscall"] == "connect"
-        and item["outcome"] == "SUCCESS"
-        and item["destination_class"] == "loopback"
-    ) > 0
-    assert sum(
-        item["count"]
-        for item in aggregates
-        if item["syscall"] in {"execve", "execveat"} and item["outcome"] == "SUCCESS"
-    ) >= 2
+    assert (
+        sum(
+            item["count"]
+            for item in aggregates
+            if item["operation"] == "file_name_syscall"
+            and item["syscall"] in {"open", "openat", "creat"}
+            and item["outcome"] == "SUCCESS"
+            and item["path_scope"] == "case_workdir"
+        )
+        > 0
+    )
+    assert (
+        sum(
+            item["count"]
+            for item in aggregates
+            if item["operation"] == "file_name_syscall"
+            and item["syscall"].startswith("rename")
+            and item["outcome"] == "SUCCESS"
+            and item["path_scope"] == "case_workdir"
+        )
+        > 0
+    )
+    assert (
+        sum(
+            item["count"]
+            for item in aggregates
+            if item["syscall"] == "connect" and item["outcome"] == "SUCCESS" and item["destination_class"] == "loopback"
+        )
+        > 0
+    )
+    assert (
+        sum(
+            item["count"]
+            for item in aggregates
+            if item["syscall"] in {"execve", "execveat"} and item["outcome"] == "SUCCESS"
+        )
+        >= 2
+    )
     assert not created.exists() and renamed.is_file() and child_file.is_file()
     assert len(accepted) == 1
 
@@ -1005,11 +1035,7 @@ def test_hash_file_rejects_symlink_and_fifo_without_opening_them(tmp_path):
 
 
 def _effect_fixture_sources(created: Path, renamed: Path, child_file: Path, port: int) -> tuple[str, str]:
-    child_source = (
-        "import pathlib, time\n"
-        "time.sleep(0.2)\n"
-        f"pathlib.Path({str(child_file)!r}).write_text('late')\n"
-    )
+    child_source = f"import pathlib, time\ntime.sleep(0.2)\npathlib.Path({str(child_file)!r}).write_text('late')\n"
     parent_source = (
         "import pathlib, socket, subprocess, sys\n"
         f"first = pathlib.Path({str(created)!r}); second = pathlib.Path({str(renamed)!r})\n"
@@ -1020,7 +1046,7 @@ def _effect_fixture_sources(created: Path, renamed: Path, child_file: Path, port
         f"client = socket.socket(socket.AF_INET, socket.SOCK_STREAM); client.connect(('127.0.0.1', {port})); client.close()\n"
         f"child_source = {child_source!r}\n"
         "subprocess.Popen([sys.executable, '-c', child_source])\n"
-        "print('{\"status\":\"ok\"}')\n"
+        'print(\'{"status":"ok"}\')\n'
     )
     return parent_source, child_source
 
@@ -1046,28 +1072,32 @@ def test_raw_exec_hex_zero_is_success_but_nonzero_is_not():
 
 
 def test_raw_metadata_hex_args_keep_normalized_syscall_outcomes(tmp_path):
-    decoded_stat = observer._parse_line(
-        'newfstatat(AT_FDCWD, "private-name", {st_mode=S_IFREG|0600}, 0) = 0', tmp_path
-    )
-    raw_stat = observer._parse_line(
-        "newfstatat(0xffffff9c, 0x7ffeaa001000, 0x7ffeaa000a00, 0) = 0", tmp_path
-    )
+    decoded_stat = observer._parse_line('newfstatat(AT_FDCWD, "private-name", {st_mode=S_IFREG|0600}, 0) = 0', tmp_path)
+    raw_stat = observer._parse_line("newfstatat(0xffffff9c, 0x7ffeaa001000, 0x7ffeaa000a00, 0) = 0", tmp_path)
     decoded_wait = observer._parse_line(
         "wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, {ru_utime={tv_sec=0, tv_usec=0}}) = 4242",
         tmp_path,
     )
     raw_wait = observer._parse_line("wait4(0xffffffff, 0x7ffeaa000a00, 0, 0x0) = 0x1092", tmp_path)
 
-    assert decoded_stat == raw_stat == {
-        "syscall": "newfstatat",
-        "operation": "other_scoped_syscall",
-        "outcome": "SUCCESS",
-    }
-    assert decoded_wait == raw_wait == {
-        "syscall": "wait4",
-        "operation": "other_scoped_syscall",
-        "outcome": "SUCCESS",
-    }
+    assert (
+        decoded_stat
+        == raw_stat
+        == {
+            "syscall": "newfstatat",
+            "operation": "other_scoped_syscall",
+            "outcome": "SUCCESS",
+        }
+    )
+    assert (
+        decoded_wait
+        == raw_wait
+        == {
+            "syscall": "wait4",
+            "operation": "other_scoped_syscall",
+            "outcome": "SUCCESS",
+        }
+    )
     assert observer._parse_line("newfstatat(0x1, 0x2, 0x3, 0) = -1 ENOENT", tmp_path)["outcome"] == "ERROR"
     assert observer._outcome("wait4(0x1, 0x2, 0x0, 0x0) = 0xfffffffffffffff2", "wait4") == ("ERROR", -14)
     with pytest.raises(ValueError, match="trace_outcome_unavailable"):
@@ -1096,10 +1126,7 @@ def _bounded_observer_count_summary(rows):
     for row in rows:
         if row["syscall"] not in selected or row["outcome"] == "PENDING":
             continue
-        key = ":".join(
-            str(value or "-")
-            for value in (row["syscall"], row["outcome"], row.get("destination_class"))
-        )
+        key = ":".join(str(value or "-") for value in (row["syscall"], row["outcome"], row.get("destination_class")))
         counts[key] = counts.get(key, 0) + row["count"]
     return dict(sorted(counts.items()))
 
@@ -1108,15 +1135,33 @@ def test_completed_projection_ignores_only_resumption_framing_metadata():
     normal = [
         {"operation": "other_scoped_syscall", "syscall": "newfstatat", "outcome": "SUCCESS", "count": 3},
         {"operation": "other_scoped_syscall", "syscall": "wait4", "outcome": "ERROR", "count": 1},
-        {"operation": "file_name_syscall", "syscall": "openat", "outcome": "SUCCESS", "path_scope": "case_workdir", "count": 2},
-        {"operation": "socket_endpoint_syscall", "syscall": "connect", "outcome": "SUCCESS", "destination_class": "loopback", "count": 1},
+        {
+            "operation": "file_name_syscall",
+            "syscall": "openat",
+            "outcome": "SUCCESS",
+            "path_scope": "case_workdir",
+            "count": 2,
+        },
+        {
+            "operation": "socket_endpoint_syscall",
+            "syscall": "connect",
+            "outcome": "SUCCESS",
+            "destination_class": "loopback",
+            "count": 1,
+        },
     ]
     resumed_equivalent = [
         {**normal[0], "result_class": "positive", "trace_state": "RESUMED"},
         {**normal[1], "result_class": "zero_or_nonpositive", "trace_state": "RESUMED"},
         {**normal[2], "result_class": "positive", "trace_state": "RESUMED"},
         {**normal[3], "result_class": "positive", "trace_state": "RESUMED"},
-        {"operation": "other_scoped_syscall", "syscall": "newfstatat", "outcome": "PENDING", "trace_state": "UNFINISHED", "count": 900},
+        {
+            "operation": "other_scoped_syscall",
+            "syscall": "newfstatat",
+            "outcome": "PENDING",
+            "trace_state": "UNFINISHED",
+            "count": 900,
+        },
     ]
     assert _completed_aggregate_projection(normal) == _completed_aggregate_projection(resumed_equivalent)
 
@@ -1126,10 +1171,20 @@ def test_completed_projection_ignores_only_resumption_framing_metadata():
         {**resumed_equivalent[3], "destination_class": "public"},
     ):
         changed = [*resumed_equivalent[:4]]
-        changed[resumed_equivalent.index(next(row for row in resumed_equivalent[:4] if row["syscall"] == changed_row["syscall"]))] = changed_row
+        changed[
+            resumed_equivalent.index(
+                next(row for row in resumed_equivalent[:4] if row["syscall"] == changed_row["syscall"])
+            )
+        ] = changed_row
         assert _completed_aggregate_projection(normal) != _completed_aggregate_projection(changed)
 
-    clone_zero = {"operation": "process_lifecycle_syscall", "syscall": "clone", "outcome": "SUCCESS", "result_class": "zero_or_nonpositive", "count": 1}
+    clone_zero = {
+        "operation": "process_lifecycle_syscall",
+        "syscall": "clone",
+        "outcome": "SUCCESS",
+        "result_class": "zero_or_nonpositive",
+        "count": 1,
+    }
     clone_child = {**clone_zero, "result_class": "positive"}
     assert _completed_aggregate_projection([clone_zero]) != _completed_aggregate_projection([clone_child])
 
@@ -1143,7 +1198,9 @@ def test_strace_command_raw_formats_only_low_detail_metadata(tmp_path, monkeypat
 
     assert result["invocation"]["run_status"] == "CLI_COMPLETED"
     assert argv[argv.index("-e") + 1] == "trace=" + ",".join(observer.SYSCALL_SCOPE)
-    raw_arguments = [argv[index + 1] for index, item in enumerate(argv[:-1]) if item == "-e" and argv[index + 1].startswith("raw=")]
+    raw_arguments = [
+        argv[index + 1] for index, item in enumerate(argv[:-1]) if item == "-e" and argv[index + 1].startswith("raw=")
+    ]
     assert raw_arguments == ["raw=execve,execveat,newfstatat,wait4"]
 
 
@@ -1187,9 +1244,13 @@ def test_linux_raw_metadata_format_reduces_bytes_without_changing_observed_event
     assert baseline["invocation"]["run_status"] == candidate["invocation"]["run_status"] == "CLI_COMPLETED"
     assert baseline["cli_result"] == candidate["cli_result"] == {"status": "ok"}
     assert baseline["observer"]["coverage"] == candidate["observer"]["coverage"] == "SCOPED_COMPLETE"
-    assert baseline["observer"]["event_aggregates_complete"] is candidate["observer"]["event_aggregates_complete"] is True
+    assert (
+        baseline["observer"]["event_aggregates_complete"] is candidate["observer"]["event_aggregates_complete"] is True
+    )
     assert sum(row["count"] for row in baseline["observer"]["event_aggregates"]) == baseline["observer"]["event_count"]
-    assert sum(row["count"] for row in candidate["observer"]["event_aggregates"]) == candidate["observer"]["event_count"]
+    assert (
+        sum(row["count"] for row in candidate["observer"]["event_aggregates"]) == candidate["observer"]["event_count"]
+    )
     baseline_completed = _completed_aggregate_projection(baseline["observer"]["event_aggregates"])
     candidate_completed = _completed_aggregate_projection(candidate["observer"]["event_aggregates"])
     assert baseline_completed == candidate_completed
@@ -1203,11 +1264,14 @@ def test_linux_raw_metadata_format_reduces_bytes_without_changing_observed_event
     assert counts[("wait4", "ERROR")] >= 1
     assert counts[("openat", "SUCCESS")] >= 1
     assert counts[("connect", "SUCCESS")] >= 1
-    assert sum(
-        row["count"]
-        for row in candidate["observer"]["event_aggregates"]
-        if row["syscall"] in {"rename", "renameat", "renameat2"} and row["outcome"] == "SUCCESS"
-    ) == 1
+    assert (
+        sum(
+            row["count"]
+            for row in candidate["observer"]["event_aggregates"]
+            if row["syscall"] in {"rename", "renameat", "renameat2"} and row["outcome"] == "SUCCESS"
+        )
+        == 1
+    )
     assert counts["unlink", "SUCCESS"] == 1
     print(
         "observer-v3-real-strace="
@@ -1293,7 +1357,9 @@ def test_cli_json_is_available_in_memory_but_excluded_from_persistable_projectio
     _fake_strace(tmp_path, monkeypatch)
     secret = "CANARY_SECRET_DO_NOT_PERSIST"
     cli = tmp_path / "secret_cli.py"
-    cli.write_text(f"import json; print(json.dumps({{'token': {secret!r}, 'path': '/private/secret'}}))\n", encoding="utf-8")
+    cli.write_text(
+        f"import json; print(json.dumps({{'token': {secret!r}, 'path': '/private/secret'}}))\n", encoding="utf-8"
+    )
     result = observer.observe_cli([sys.executable, str(cli)], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=5)
     assert result["cli_result"]["token"] == secret
     persisted = json.dumps({"invocation": result["invocation"], "observer": result["observer"]}, sort_keys=True)
@@ -1312,9 +1378,11 @@ def test_kill_on_exit_stops_setsid_descendant_on_trial_deadline(tmp_path):
         f" pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()))\n"
         " time.sleep(30)\n"
         " os._exit(0)\n"
-        "print('{\"status\":\"parent-exited\"}', flush=True)\n"
+        'print(\'{"status":"parent-exited"}\', flush=True)\n'
     )
-    result = observer.observe_cli([sys.executable, "-c", script], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=0.8)
+    result = observer.observe_cli(
+        [sys.executable, "-c", script], cwd=tmp_path, env=os.environ.copy(), timeout_seconds=0.8
+    )
     assert result["observer"]["overall_state"] == "UNKNOWN"
     assert result["observer"]["coverage"] == "INCOMPLETE"
     assert result["invocation"]["run_status"] == "RUN_TIMEOUT"
@@ -1394,17 +1462,24 @@ def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_pat
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
     thread.start()
     config_path = tmp_path / "local-provider.json"
-    config_path.write_text(json.dumps({
-        "kind": "openai_compatible",
-        "provider_id": "deterministic-local-fixture",
-        "base_url": provider.endpoint,
-        "model": "deterministic-local-fixture-v1",
-        "api_key_env": "RECOVERY_FAKE_PROVIDER_KEY",
-        "timeout_seconds": 5,
-        "max_request_bytes": 64_000,
-        "max_response_bytes": 16_000,
-        "max_output_tokens": 1_800,
-    }, sort_keys=True) + "\n", encoding="utf-8")
+    config_path.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "provider_id": "deterministic-local-fixture",
+                "base_url": provider.endpoint,
+                "model": "deterministic-local-fixture-v1",
+                "api_key_env": "RECOVERY_FAKE_PROVIDER_KEY",
+                "timeout_seconds": 5,
+                "max_request_bytes": 64_000,
+                "max_response_bytes": 16_000,
+                "max_output_tokens": 1_800,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     cli = Path(sysconfig.get_path("scripts")) / "pr-review"
     assert cli.is_file() and os.access(cli, os.X_OK), "installed pr-review CLI is required"
     env = _clean_env(home, provider_key=True)
@@ -1415,8 +1490,11 @@ def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_pat
         selected = {
             case.case_id: case
             for case in prepared.cases
-            if case.case_id in {
-                "r1-control", "r1-code-comment-attack", "r1-code-comment-benign",
+            if case.case_id
+            in {
+                "r1-control",
+                "r1-code-comment-attack",
+                "r1-code-comment-benign",
             }
         }
         assert set(selected) == {"r1-control", "r1-code-comment-attack", "r1-code-comment-benign"}
@@ -1426,10 +1504,25 @@ def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_pat
             output = tmp_path / "output" / case_id
             result = observer.observe_cli(
                 [
-                    str(cli), "review", "--repo", str(case.repo), "--base", case.base_sha,
-                    "--head", case.head_sha, "--profile", str(prepared.profile_path),
-                    "--limits", str(limits_path), "--provider-config", str(config_path),
-                    "--output", str(output), "--run-id", f"effect-boundary-{case_id}", "--json",
+                    str(cli),
+                    "review",
+                    "--repo",
+                    str(case.repo),
+                    "--base",
+                    case.base_sha,
+                    "--head",
+                    case.head_sha,
+                    "--profile",
+                    str(prepared.profile_path),
+                    "--limits",
+                    str(limits_path),
+                    "--provider-config",
+                    str(config_path),
+                    "--output",
+                    str(output),
+                    "--run-id",
+                    f"effect-boundary-{case_id}",
+                    "--json",
                 ],
                 cwd=tmp_path,
                 env=env,
@@ -1447,7 +1540,8 @@ def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_pat
             assert review.get("coverage_state") == "COMPLETE"
             assert review.get("disposition") == "REQUEST_CHANGES"
             blockers = [
-                finding for finding in review.get("findings", [])
+                finding
+                for finding in review.get("findings", [])
                 if finding.get("status") == "ACCEPTED" and finding.get("blocking_class") == "BLOCKING"
             ]
             assert len(blockers) == 1, case_id
@@ -1468,12 +1562,17 @@ def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_pat
             else:
                 assert "return True" in input_text
             assert sorted(item["schema_name"] for item in case_requests) == [
-                "semantic_assessment", "specialist_report", "specialist_report", "specialist_report",
+                "semantic_assessment",
+                "specialist_report",
+                "specialist_report",
+                "specialist_report",
             ]
             assert case.repo.joinpath("src/auth.py").is_file()
             status = subprocess.run(
                 ["git", "-C", str(case.repo), "status", "--porcelain"],
-                check=True, capture_output=True, text=True,
+                check=True,
+                capture_output=True,
+                text=True,
             )
             assert status.stdout == ""
             assert not marker.exists(), "review execution ran source fixture code"
@@ -1481,15 +1580,16 @@ def test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker(tmp_pat
             aggregates = observation.get("event_aggregates", [])
             assert observation.get("event_count", 0) > 0
             assert observation.get("root_exec_evidence") == "first_successful_execve_in_fresh_spawn_trace"
-            assert sum(
-                row["count"] for row in aggregates
-                if row.get("syscall") in {"fork", "vfork", "clone", "clone3"}
-                and row.get("outcome") == "SUCCESS"
-            ) <= 32
+            assert (
+                sum(
+                    row["count"]
+                    for row in aggregates
+                    if row.get("syscall") in {"fork", "vfork", "clone", "clone3"} and row.get("outcome") == "SUCCESS"
+                )
+                <= 32
+            )
             assert all(
-                row.get("destination_class") == "loopback"
-                for row in aggregates
-                if row.get("syscall") == "connect"
+                row.get("destination_class") == "loopback" for row in aggregates if row.get("syscall") == "connect"
             )
             assert all(
                 row.get("path_scope") == "case_workdir"

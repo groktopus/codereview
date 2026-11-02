@@ -100,8 +100,13 @@ def test_actions_receipt_v3_explicitly_binds_non_binding_comment_projection():
         **{
             key: value
             for key, value in receipt().__dict__.items()
-            if key not in {
-                "protocol_version", "schema_version", "credential_provenance", "publication_mode", "review_event",
+            if key
+            not in {
+                "protocol_version",
+                "schema_version",
+                "credential_provenance",
+                "publication_mode",
+                "review_event",
                 "disposition",
             }
         },

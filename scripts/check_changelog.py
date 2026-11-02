@@ -81,10 +81,7 @@ def version_key(version: str) -> tuple[int, int, int, int, tuple[tuple[int, int,
     pre = match.group("pre")
     identifiers: tuple[tuple[int, int, str], ...] = ()
     if pre:
-        identifiers = tuple(
-            (0, int(part), "") if part.isdigit() else (1, 0, part)
-            for part in pre.split(".")
-        )
+        identifiers = tuple((0, int(part), "") if part.isdigit() else (1, 0, part) for part in pre.split("."))
     return (
         int(match.group("major")),
         int(match.group("minor")),
@@ -173,12 +170,16 @@ def parse_changelog(path: Path) -> tuple[list[Release], list[str]]:
             findings.append(f"CHANGELOG.md:{release.line}: released version {release.version!r} is not semantic")
             continue
         if not release.date:
-            findings.append(f"CHANGELOG.md:{release.line}: released version {release.version!r} needs a YYYY-MM-DD date")
+            findings.append(
+                f"CHANGELOG.md:{release.line}: released version {release.version!r} needs a YYYY-MM-DD date"
+            )
         if release.version in versions:
             findings.append(f"CHANGELOG.md:{release.line}: duplicate released version {release.version!r}")
         versions[release.version] = release.line
         if release.entry_count == 0:
-            findings.append(f"CHANGELOG.md:{release.line}: released version {release.version!r} has no classified entries")
+            findings.append(
+                f"CHANGELOG.md:{release.line}: released version {release.version!r} has no classified entries"
+            )
         for version_category, entries in release.categories.items():
             if not entries:
                 findings.append(f"CHANGELOG.md:{release.line}: category {version_category!r} has no entries")
@@ -224,7 +225,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     releases, findings = parse_changelog(args.changelog)
     if args.json:
-        print(json.dumps({"ok": not findings, "findings": findings, "releases": [release.version for release in releases]}))
+        print(
+            json.dumps(
+                {"ok": not findings, "findings": findings, "releases": [release.version for release in releases]}
+            )
+        )
     elif findings:
         for finding in findings:
             print(finding)

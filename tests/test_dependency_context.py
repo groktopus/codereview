@@ -63,9 +63,8 @@ def test_dependency_projection_distinguishes_absent_lock_from_missing_lock_entry
 
 def test_dependency_projection_preserves_conditional_declarations_and_multiple_lock_versions():
     result = _project(
-        b'[project]\ndependencies = ["fastmcp>=2; python_version < \'3.13\'", "fastmcp>=3; python_version >= \'3.13\'"]\n',
-        b'[[package]]\nname = "fastmcp"\nversion = "2.13.0"\n\n'
-        b'[[package]]\nname = "fastmcp"\nversion = "3.1.1"\n',
+        b"[project]\ndependencies = [\"fastmcp>=2; python_version < '3.13'\", \"fastmcp>=3; python_version >= '3.13'\"]\n",
+        b'[[package]]\nname = "fastmcp"\nversion = "2.13.0"\n\n[[package]]\nname = "fastmcp"\nversion = "3.1.1"\n',
     )
     assert result["packages"][0]["requirements"] == [
         "fastmcp>=2; python_version < '3.13'",
@@ -191,7 +190,10 @@ def test_projection_is_bound_to_base_and_head_objects_and_routed_to_matching_tas
         ("BASE", base),
         ("HEAD", head),
     }
-    assert all(item["source_object_id"] == _git(repo, "rev-parse", f"{item['source_revision']}:pyproject.toml") for item in projections)
+    assert all(
+        item["source_object_id"] == _git(repo, "rev-parse", f"{item['source_revision']}:pyproject.toml")
+        for item in projections
+    )
     assert all(item["trust"] == "repository_evidence" for item in projections)
     assert all("line_start" not in item and "line_end" not in item for item in projections)
     plan = plan_review(snapshot, profile)
@@ -212,16 +214,17 @@ def test_projection_is_bound_to_base_and_head_objects_and_routed_to_matching_tas
         delivered = _evidence_for(task, snapshot, 80_000)
         delivered_projection = [item for item in delivered if item["source_kind"] == "dependency_projection"]
         assert {item["source_side"] for item in delivered_projection} == {"BASE", "HEAD"}
-        assert all(item["content_hash"] == hashlib.sha256(item["content"].encode()).hexdigest() for item in delivered_projection)
+        assert all(
+            item["content_hash"] == hashlib.sha256(item["content"].encode()).hexdigest()
+            for item in delivered_projection
+        )
 
 
 def test_planner_rejects_projection_from_wrong_revision(dependency_repo):
     repo, base, head = dependency_repo
     profile = _profile(["HEAD"])
     snapshot = collect_snapshot(str(repo), base, head, profile, {"max_context_bytes": 80_000})
-    projection = next(
-        item for item in snapshot["evidence"].values() if item["source_kind"] == "dependency_projection"
-    )
+    projection = next(item for item in snapshot["evidence"].values() if item["source_kind"] == "dependency_projection")
     projection["source_revision"] = base
     plan = plan_review(snapshot, profile)
     assert any(
@@ -244,9 +247,7 @@ def test_planner_rejects_malformed_projection_hashes_and_sizes(dependency_repo, 
     repo, base, head = dependency_repo
     profile = _profile(["HEAD"])
     snapshot = collect_snapshot(str(repo), base, head, profile, {"max_context_bytes": 80_000})
-    projection = next(
-        item for item in snapshot["evidence"].values() if item["source_kind"] == "dependency_projection"
-    )
+    projection = next(item for item in snapshot["evidence"].values() if item["source_kind"] == "dependency_projection")
     projection[field] = value
     plan = plan_review(snapshot, profile)
     assert any(
@@ -259,9 +260,7 @@ def test_planner_rejects_malformed_projection_hashes_and_sizes(dependency_repo, 
 def test_snapshot_marks_missing_lock_file_as_source_fact_not_context_gap(dependency_repo, tmp_path: Path):
     bare, base, _head = dependency_repo
     work = tmp_path / "without-lock"
-    subprocess.run(
-        ["git", "clone", "--branch", "main", str(bare), str(work)], check=True, stdout=subprocess.DEVNULL
-    )
+    subprocess.run(["git", "clone", "--branch", "main", str(bare), str(work)], check=True, stdout=subprocess.DEVNULL)
     _git(work, "config", "user.email", "fixture@example.invalid")
     _git(work, "config", "user.name", "Fixture")
     (work / "uv.lock").unlink()
@@ -273,9 +272,7 @@ def test_snapshot_marks_missing_lock_file_as_source_fact_not_context_gap(depende
 
     profile = _profile(["HEAD"])
     snapshot = collect_snapshot(str(bare), base, head, profile, {"max_context_bytes": 80_000})
-    projection = next(
-        item for item in snapshot["evidence"].values() if item["source_kind"] == "dependency_projection"
-    )
+    projection = next(item for item in snapshot["evidence"].values() if item["source_kind"] == "dependency_projection")
     assert projection["source_revision"] == head
     assert projection["lock_object_id"] is None
     assert '"lock_status":"LOCK_FILE_ABSENT"' in projection["content"]
@@ -288,10 +285,7 @@ def test_missing_manifest_becomes_required_context_gap_and_task_sentinel(depende
     profile["retrieval_context_patterns"] = ["uv.lock", "missing.toml"]
     profile["dependency_context"]["bindings"][0]["manifest_path"] = "missing.toml"
     snapshot = collect_snapshot(str(repo), base, head, profile, {"max_context_bytes": 80_000})
-    assert any(
-        gap["required"] is True and gap["reason"] == "dependency_manifest_missing"
-        for gap in snapshot["gaps"]
-    )
+    assert any(gap["required"] is True and gap["reason"] == "dependency_manifest_missing" for gap in snapshot["gaps"])
     plan = plan_review(snapshot, profile)
     assert any(
         evidence_id.startswith("missing-dependency-context-")

@@ -30,16 +30,26 @@ def test_v3_package_route_is_versioned_and_frozen_runtime_matches():
     assert configuration["module_count"] > 0
     assert re.fullmatch(r"[0-9a-f]{64}", configuration["module_tree_sha256"])
     assert re.fullmatch(r"[0-9a-f]{40}", configuration["source_revision"])
-    verification = {key: configuration[key] for key in (
-        "runtime", "module_count", "module_tree_sha256", "source_revision",
-    )}
+    verification = {
+        key: configuration[key]
+        for key in (
+            "runtime",
+            "module_count",
+            "module_tree_sha256",
+            "source_revision",
+        )
+    }
     assert package._check_configuration(identity, verification)
 
     pending = json.loads(json.dumps(identity))
-    pending["configuration"].update({
-        "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME",
-        "module_count": None, "module_tree_sha256": None, "source_revision": None,
-    })
+    pending["configuration"].update(
+        {
+            "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME",
+            "module_count": None,
+            "module_tree_sha256": None,
+            "source_revision": None,
+        }
+    )
     with pytest.raises(package.PackageError, match="package_runtime_pin_pending"):
         package._check_configuration(pending, {})
 
@@ -61,7 +71,10 @@ def test_finalizer_binds_identity_verifier_and_digest_to_one_runtime_revision(tm
     subprocess.run(["git", "-C", str(repo), "add", "src/pr_review_harness"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", "runtime fixture"], check=True)
     revision = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True,
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
 
     experiments = repo / "experiments"
@@ -75,15 +88,22 @@ def test_finalizer_binds_identity_verifier_and_digest_to_one_runtime_revision(tm
     package_path = scripts / "package_synth_001_cross_model.py"
     package_raw = (ROOT / "scripts/package_synth_001_cross_model.py").read_bytes()
     identity = json.loads(identity_path.read_text())
-    identity["configuration"].update({
-        "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME",
-        "module_count": None, "module_tree_sha256": None, "source_revision": None,
-    })
+    identity["configuration"].update(
+        {
+            "runtime_pin_status": "REQUIRES_FINAL_STACKED_RUNTIME",
+            "module_count": None,
+            "module_tree_sha256": None,
+            "source_revision": None,
+        }
+    )
     identity_raw = (json.dumps(identity, indent=2, ensure_ascii=False) + "\n").encode()
     identity_path.write_bytes(identity_raw)
     package_raw = re.sub(
         rb'^IDENTITY_SHA256 = "[0-9a-f]{64}"$',
-        f'IDENTITY_SHA256 = "{_sha(identity_raw)}"'.encode(), package_raw, count=1, flags=re.MULTILINE,
+        f'IDENTITY_SHA256 = "{_sha(identity_raw)}"'.encode(),
+        package_raw,
+        count=1,
+        flags=re.MULTILINE,
     )
     package_path.write_bytes(package_raw)
     monkeypatch.setattr(finalizer, "IDENTITY_PATH", identity_path)
@@ -100,7 +120,7 @@ def test_finalizer_binds_identity_verifier_and_digest_to_one_runtime_revision(tm
     assert config["module_count"] == result["module_count"]
     assert config["module_tree_sha256"] == result["module_tree_sha256"]
     assert result["identity_sha256"] == _sha(identity_raw)
-    assert f'MODULE_COUNT = {config["module_count"]}'.encode() in verifier_path.read_bytes()
+    assert f"MODULE_COUNT = {config['module_count']}".encode() in verifier_path.read_bytes()
     assert f'MODULE_TREE_SHA256 = "{config["module_tree_sha256"]}"'.encode() in verifier_path.read_bytes()
     assert f'SOURCE_REVISION = "{revision}"'.encode() in verifier_path.read_bytes()
     assert f'IDENTITY_SHA256 = "{_sha(identity_raw)}"'.encode() in package_path.read_bytes()
@@ -121,7 +141,10 @@ def test_finalizer_rejects_runtime_tree_that_differs_from_immutable_revision(tmp
     subprocess.run(["git", "-C", str(repo), "add", "src/pr_review_harness"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", "runtime fixture"], check=True)
     revision = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True,
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     (module_dir / "a.py").write_text("VALUE = 2\n")
 

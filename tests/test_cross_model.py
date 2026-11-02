@@ -33,9 +33,18 @@ def sample_corpus() -> dict:
 def role_run(case_id: str, role: str, input_hash: str, *, status: str = "completed") -> dict:
     if status == "not_run":
         return {
-            "role": role, "status": status, "run_id": None, "provider_id": None, "model_id": None,
-            "runtime_id": None, "prompt_revision": "prompt-v1", "rubric_revision": "rubric-v1",
-            "input_sha256": None, "input_artifact_id": None, "output_sha256": None, "artifact_id": None,
+            "role": role,
+            "status": status,
+            "run_id": None,
+            "provider_id": None,
+            "model_id": None,
+            "runtime_id": None,
+            "prompt_revision": "prompt-v1",
+            "rubric_revision": "rubric-v1",
+            "input_sha256": None,
+            "input_artifact_id": None,
+            "output_sha256": None,
+            "artifact_id": None,
         }
     return {
         "role": role,
@@ -71,37 +80,50 @@ def fixture(*, one_case: bool = False) -> tuple[dict, dict]:
             for role in ("writer", "jev", "auditor")
         ]
         by_role = {r["role"]: r["record_id"] for r in records}
-        cases.append({
-            "case_id": case_id,
-            "identity": identity,
-            "runs": [role_run(case_id, role, hashlib.sha256(f"{case_id}:{role}".encode()).hexdigest()) for role in ("writer", "jev", "auditor")],
-            "anchors": [{"anchor_id": f"anchor-{case_id}", "path": "src/review.py", "line_start": 2, "line_end": 2}],
-            "records": records,
-            "units": [
-                {
-                    "pair": "writer_jev", "unit_id": f"unit-wj-{case_id}",
-                    "left": {"state": "record", "record_id": by_role["writer"]},
-                    "right": {"state": "record", "record_id": by_role["jev"]},
-                    "relation": "MATCH",
-                    "relation_reporter": "jev",
-                    "reporter_record_id": by_role["jev"],
-                },
-                {
-                    "pair": "jev_auditor", "unit_id": f"unit-ja-{case_id}",
-                    "left": {"state": "record", "record_id": by_role["jev"]},
-                    "right": {"state": "record", "record_id": by_role["auditor"]},
-                    "relation": "DISAGREEMENT",
-                    "relation_reporter": "auditor",
-                    "reporter_record_id": by_role["auditor"],
-                },
-            ],
-        })
+        cases.append(
+            {
+                "case_id": case_id,
+                "identity": identity,
+                "runs": [
+                    role_run(case_id, role, hashlib.sha256(f"{case_id}:{role}".encode()).hexdigest())
+                    for role in ("writer", "jev", "auditor")
+                ],
+                "anchors": [
+                    {"anchor_id": f"anchor-{case_id}", "path": "src/review.py", "line_start": 2, "line_end": 2}
+                ],
+                "records": records,
+                "units": [
+                    {
+                        "pair": "writer_jev",
+                        "unit_id": f"unit-wj-{case_id}",
+                        "left": {"state": "record", "record_id": by_role["writer"]},
+                        "right": {"state": "record", "record_id": by_role["jev"]},
+                        "relation": "MATCH",
+                        "relation_reporter": "jev",
+                        "reporter_record_id": by_role["jev"],
+                    },
+                    {
+                        "pair": "jev_auditor",
+                        "unit_id": f"unit-ja-{case_id}",
+                        "left": {"state": "record", "record_id": by_role["jev"]},
+                        "right": {"state": "record", "record_id": by_role["auditor"]},
+                        "relation": "DISAGREEMENT",
+                        "relation_reporter": "auditor",
+                        "reporter_record_id": by_role["auditor"],
+                    },
+                ],
+            }
+        )
     comparison = {
         "contract_version": CROSS_MODEL_VERSION,
         "comparison_id": "comparison-2026-09-27-v1",
         "corpus_id": corpus["corpus_id"],
         "dataset_version": corpus["dataset_version"],
-        "procedure": {"revision": "procedure-v1", "relation_origin": "declared_reporter_relation", "frozen_sha256": HASH_B},
+        "procedure": {
+            "revision": "procedure-v1",
+            "relation_origin": "declared_reporter_relation",
+            "frozen_sha256": HASH_B,
+        },
         "cases": cases,
     }
     return corpus, comparison
@@ -124,7 +146,14 @@ def test_report_accounts_for_all_roles_units_and_unchecked_anchors_without_quali
         "cases_with_records": case_count,
         "cases_with_zero_records": 0,
         "record_denominator": case_count,
-        "record_kind_counts": {"abstention": 0, "audit": 0, "classification": 0, "failure": 0, "finding": case_count, "no_counterpart": 0},
+        "record_kind_counts": {
+            "abstention": 0,
+            "audit": 0,
+            "classification": 0,
+            "failure": 0,
+            "finding": case_count,
+            "no_counterpart": 0,
+        },
         "candidate_or_decision_count": case_count,
         "candidate_or_decision_cases_with_zero": 0,
     }
@@ -223,7 +252,9 @@ def test_duplicate_json_keys_are_rejected():
 
 
 def git(*args: str, cwd: Path) -> str:
-    result = subprocess.run(["git", *args], cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(
+        ["git", *args], cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
     return result.stdout.strip()
 
 
@@ -336,7 +367,9 @@ def test_artifact_verification_rejects_symlink_nonregular_oversized_and_wrong_ha
         status = "HASH_MISMATCH"
     run["input_sha256"] = expected
     report = compare_cross_model(comparison, corpus, artifacts={run["input_artifact_id"]: path})
-    row = next(row for row in report["artifact_verification"]["artifacts"] if row["artifact_id"] == run["input_artifact_id"])
+    row = next(
+        row for row in report["artifact_verification"]["artifacts"] if row["artifact_id"] == run["input_artifact_id"]
+    )
     assert row["status"] == status
     assert str(path) not in json.dumps(report)
 
@@ -355,9 +388,12 @@ def test_offline_cli_reports_corpus_hash_and_never_echoes_artifact_path(tmp_path
         [
             sys.executable,
             str(ROOT / "scripts/compare_cross_models.py"),
-            "--corpus", str(corpus_path),
-            "--comparison", str(comparison_path),
-            "--artifact", f"{writer['input_artifact_id']}={artifact_path}",
+            "--corpus",
+            str(corpus_path),
+            "--comparison",
+            str(comparison_path),
+            "--artifact",
+            f"{writer['input_artifact_id']}={artifact_path}",
             "--json",
         ],
         check=False,
@@ -369,7 +405,12 @@ def test_offline_cli_reports_corpus_hash_and_never_echoes_artifact_path(tmp_path
     assert result.returncode == 0
     report = json.loads(result.stdout)
     assert report["corpus_sha256"] == hashlib.sha256(corpus_path.read_bytes()).hexdigest()
-    assert next(a for a in report["artifact_verification"]["artifacts"] if a["artifact_id"] == writer["input_artifact_id"])["status"] == "VERIFIED"
+    assert (
+        next(
+            a for a in report["artifact_verification"]["artifacts"] if a["artifact_id"] == writer["input_artifact_id"]
+        )["status"]
+        == "VERIFIED"
+    )
     assert str(tmp_path) not in result.stdout
     assert "a private request body" not in result.stdout
     assert result.stderr == ""
@@ -381,7 +422,15 @@ def test_cli_rejects_fifo_inputs_without_blocking(tmp_path):
     corpus_path.write_text("{}")
     os.mkfifo(fifo)
     result = subprocess.run(
-        [sys.executable, str(ROOT / "scripts/compare_cross_models.py"), "--corpus", str(corpus_path), "--comparison", str(fifo), "--json"],
+        [
+            sys.executable,
+            str(ROOT / "scripts/compare_cross_models.py"),
+            "--corpus",
+            str(corpus_path),
+            "--comparison",
+            str(fifo),
+            "--json",
+        ],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -411,8 +460,12 @@ def test_git_probe_strips_git_overrides_and_disables_lazy_fetch(tmp_path, monkey
     payload = json.loads(observed)
     assert payload["argv"][:3] == ["--no-lazy-fetch", "--no-replace-objects", "-C"]
     assert payload["git_env"] == [
-        "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_NO_REPLACE_OBJECTS",
-        "GIT_OPTIONAL_LOCKS", "GIT_PAGER", "GIT_TERMINAL_PROMPT",
+        "GIT_CONFIG_GLOBAL",
+        "GIT_CONFIG_NOSYSTEM",
+        "GIT_NO_REPLACE_OBJECTS",
+        "GIT_OPTIONAL_LOCKS",
+        "GIT_PAGER",
+        "GIT_TERMINAL_PROMPT",
     ]
 
 
@@ -440,6 +493,7 @@ def test_anchor_path_budget_is_explicit_for_unchecked_paths(tmp_path, monkeypatc
     for record in case["records"]:
         record["anchor_ids"] = ["one"]
     monkeypatch.setattr(cross_model, "MAX_ANCHOR_PATHS", 1)
+
     def fake_git(root, *args, deadline=None):
         del root, deadline
         if args[:2] == ("rev-parse", "HEAD"):
@@ -449,6 +503,7 @@ def test_anchor_path_budget_is_explicit_for_unchecked_paths(tmp_path, monkeypatc
         if args[0] == "show":
             return b"line\n"
         return b""
+
     monkeypatch.setattr(cross_model, "_git", fake_git)
     report = compare_cross_model(comparison, corpus, snapshot_roots={case["case_id"]: tmp_path})
     statuses = {row["anchor_id"]: row["status"] for row in report["cases"][0]["anchors"]}

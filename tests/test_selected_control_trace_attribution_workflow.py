@@ -47,18 +47,18 @@ def test_workflow_runs_only_bounded_loopback_observation_and_uploads_sanitized_j
     assert "/usr/bin/setpriv --reuid" in text and "--clear-groups" in text
     assert "/usr/bin/env -i" in text
     assert "ip link set lo up" in text
-    assert "PROBE_DELAY=\"$delay\"" in text
-    assert "--primary-response-delay-seconds \"$PROBE_DELAY\"" in text
+    assert 'PROBE_DELAY="$delay"' in text
+    assert '--primary-response-delay-seconds "$PROBE_DELAY"' in text
     assert "run_probe immediate 0" in text
     assert "run_probe primary-delay-15s 15" in text
     assert "ulimit -f" not in text
-    assert "python -m json.tool \"$output\"" in text
+    assert 'python -m json.tool "$output"' in text
     assert "immediate_probe_not_complete" in text
     assert text.count("'observer_default_trace_cap_bytes':TRACE_MAX_BYTES") == 2
     assert text.count("'supports_trace_cap_override':parameter is not None and ") == 2
     assert text.count('"trace_cap_bytes": 1_048_576') == 2
-    assert text.count("observer.get(\"observer_default_trace_cap_bytes\") != 16 * 1_048_576") == 2
-    assert text.count("observer.get(\"supports_trace_cap_override\") is not True") == 2
+    assert text.count('observer.get("observer_default_trace_cap_bytes") != 16 * 1_048_576') == 2
+    assert text.count('observer.get("supports_trace_cap_override") is not True') == 2
     diagnostic = Path(__file__).parents[1] / "scripts" / "selected_control_trace_attribution.py"
     assert "trace_max_bytes=FROZEN_TRACE_MAX_BYTES" in diagnostic.read_text(encoding="utf-8")
     assert "1_048_576" in text
@@ -77,10 +77,13 @@ def test_cardinality_pair_has_its_own_bounded_job_and_artifact():
     assert "  loopback-measurement:" in text
     pair_job = text.split("  candidate-cardinality-pair:", 1)[1]
     assert "    timeout-minutes: 20" in pair_job
-    assert "      - name: Run the one-versus-two candidate pair in loopback-only namespace\n        timeout-minutes: 12" in pair_job
+    assert (
+        "      - name: Run the one-versus-two candidate pair in loopback-only namespace\n        timeout-minutes: 12"
+        in pair_job
+    )
     assert "--candidate-cardinality-pair" in pair_job
     assert 'output="$ARTIFACT_DIR/candidate-cardinality-pair.json"' in pair_job
-    assert "PROBE_SCRIPT=\"$CARDINALITY_SCRIPT\"" in pair_job
+    assert 'PROBE_SCRIPT="$CARDINALITY_SCRIPT"' in pair_job
     assert "--primary-response-delay-seconds" not in pair_job
     assert "sudo unshare --net --fork" in pair_job
     assert "/usr/bin/setpriv --reuid" in pair_job and "/usr/bin/env -i" in pair_job
@@ -89,9 +92,9 @@ def test_cardinality_pair_has_its_own_bounded_job_and_artifact():
     assert "len(encoded) > 65_536" in pair_job
     assert "path.stat().st_size > 65_536" in pair_job
     assert '[ "$(wc -c < "$output")" -gt 65536 ]' in pair_job
-    assert 'total > 128 * 1024' in pair_job
-    assert 'name: selected-control-cardinality-pair' in pair_job
-    assert 'candidate-cardinality-pair.json' in pair_job
+    assert "total > 128 * 1024" in pair_job
+    assert "name: selected-control-cardinality-pair" in pair_job
+    assert "candidate-cardinality-pair.json" in pair_job
     assert "retention-days: 3" in pair_job
 
 
@@ -101,7 +104,8 @@ def test_all_embedded_python_blocks_parse_and_delay_probe_gate_is_fail_closed():
     trees = [ast.parse(block) for block in blocks]
     gate = trees[1]
     selected = [
-        node for node in gate.body
+        node
+        for node in gate.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "delay_allowed"
     ]
     assert len(selected) == 1
@@ -131,9 +135,12 @@ def test_all_embedded_python_blocks_parse_and_delay_probe_gate_is_fail_closed():
 def test_delay_probe_gate_rejects_malformed_summary(bad):
     gate = ast.parse(_embedded_python()[1])
     selected = [
-        node for node in gate.body
+        node
+        for node in gate.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "delay_allowed"
     ]
     namespace: dict[str, object] = {}
-    exec(compile(ast.fix_missing_locations(ast.Module(body=selected, type_ignores=[])), str(WORKFLOW), "exec"), namespace)
+    exec(
+        compile(ast.fix_missing_locations(ast.Module(body=selected, type_ignores=[])), str(WORKFLOW), "exec"), namespace
+    )
     assert namespace["delay_allowed"](bad, TRACE_CAP) is False

@@ -165,9 +165,7 @@ def test_predictions_without_labels_report_missing_labels_not_zero():
 
 
 def test_scorecard_publishes_bounds_counts_and_denominators():
-    scorecard = _scorecard(
-        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json"
-    )
+    scorecard = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
     assert scorecard["data_state"]["state"] == "COMPLETE"
     assert scorecard["data_state"]["label_state"]["status"] == "present"
     harness = scorecard["arms"]["harness"]
@@ -220,9 +218,7 @@ def test_gate_reports_retained_pilot_as_missing_data_without_failure(tmp_path: P
 
 
 def test_seeded_regression_fails_the_gate():
-    baseline = _scorecard(
-        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json"
-    )
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
     regressed = _scorecard(
         FIXTURE / "corpus.json", FIXTURE / "predictions-regressed.json", FIXTURE / "labels-regressed.json"
     )
@@ -237,9 +233,7 @@ def test_seeded_regression_fails_the_gate():
 
 
 def test_gate_rejects_cross_corpus_comparison():
-    baseline = _scorecard(
-        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json"
-    )
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
     current = deepcopy(baseline)
     current["corpus_id"] = "different-corpus"
     gate = regression_gate(current, baseline)
@@ -291,9 +285,7 @@ def test_scorecard_cli_is_deterministic_and_rejects_invalid_labels(tmp_path: Pat
 
 
 def test_gate_cli_fails_on_seeded_regression(tmp_path: Path):
-    baseline = _scorecard(
-        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json"
-    )
+    baseline = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
     regressed = _scorecard(
         FIXTURE / "corpus.json", FIXTURE / "predictions-regressed.json", FIXTURE / "labels-regressed.json"
     )
@@ -344,7 +336,9 @@ def test_human_adjudication_remains_unmet_without_a_human_packet():
     for metric in report["metrics"].values():
         assert metric["human_adjudication"]["complete_cases"] == 0
         assert metric["human_adjudication"]["precision"]["value"] is None
-        assert metric["human_adjudication"]["known_material_finding_recall"]["corpus_recall_lower_bound"]["value"] is None
+        assert (
+            metric["human_adjudication"]["known_material_finding_recall"]["corpus_recall_lower_bound"]["value"] is None
+        )
     assert report["claims"] == {
         "release_gate": None,
         "heldout_quality_claim": False,
@@ -408,7 +402,9 @@ def test_gate_fails_when_baseline_arm_key_is_absent() -> None:
     del current["arms"]["droid"]
     gate = regression_gate(current, baseline)
     assert gate["status"] == "FAIL"
-    assert any(check["id"] == "arm:droid" and check["reason"] == "arm_absent_since_baseline" for check in gate["checks"])
+    assert any(
+        check["id"] == "arm:droid" and check["reason"] == "arm_absent_since_baseline" for check in gate["checks"]
+    )
 
 
 @pytest.mark.parametrize("mutator", ["completion", "label_state", "hashes"])
@@ -580,13 +576,10 @@ def test_gate_fails_synthetic_only_regression_and_disappearance():
     assert gate["status"] == "FAIL"
     assert "approve_with_known_defect:harness:synthetic" in gate["regressions"]
 
-    human_only = _scorecard(
-        FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json"
-    )
+    human_only = _scorecard(FIXTURE / "corpus.json", FIXTURE / "predictions-baseline.json", FIXTURE / "labels.json")
     assert human_only["data_state"]["state"] == "COMPLETE"
     dropped = regression_gate(human_only, baseline)
     assert dropped["status"] == "FAIL"
     assert any(
-        check["id"] == "label_arm:harness:synthetic" and check["status"] == "FAIL"
-        for check in dropped["checks"]
+        check["id"] == "label_arm:harness:synthetic" and check["status"] == "FAIL" for check in dropped["checks"]
     )

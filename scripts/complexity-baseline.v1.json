@@ -1,0 +1,541 @@
+{
+  "schema": "pr-review-complexity-baseline.v1",
+  "threshold": 150,
+  "entries": [
+    {
+      "path": "experiments/harness/actions_canary.py",
+      "qualname": "verify_read_only_actions_context",
+      "lines": 184
+    },
+    {
+      "path": "experiments/harness/context_selector.py",
+      "qualname": "select_policy_section",
+      "lines": 182
+    },
+    {
+      "path": "experiments/harness/cross_model.py",
+      "qualname": "compare_cross_model",
+      "lines": 215
+    },
+    {
+      "path": "experiments/harness/cross_model.py",
+      "qualname": "validate_cross_model_comparison",
+      "lines": 209
+    },
+    {
+      "path": "experiments/harness/cross_model_package.py",
+      "qualname": "build_cross_model_package",
+      "lines": 522
+    },
+    {
+      "path": "experiments/harness/cross_model_v2.py",
+      "qualname": "compare_cross_model_v2",
+      "lines": 194
+    },
+    {
+      "path": "experiments/harness/cross_model_v2.py",
+      "qualname": "validate_cross_model_comparison_v2",
+      "lines": 187
+    },
+    {
+      "path": "experiments/harness/evaluation.py",
+      "qualname": "evaluate",
+      "lines": 174
+    },
+    {
+      "path": "experiments/harness/evaluation.py",
+      "qualname": "validate_labels",
+      "lines": 205
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "qualname": "recover_existing_trials",
+      "lines": 225
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "qualname": "run_trials",
+      "lines": 462
+    },
+    {
+      "path": "experiments/harness/policy_inventory.py",
+      "qualname": "build_policy_inventory",
+      "lines": 279
+    },
+    {
+      "path": "experiments/harness/scorecard.py",
+      "qualname": "_label_arm_rates",
+      "lines": 214
+    },
+    {
+      "path": "experiments/harness/scorecard.py",
+      "qualname": "build_scorecard",
+      "lines": 187
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "_case_result_summary",
+      "lines": 187
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "_current_coverage_diagnostics",
+      "lines": 438
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "_current_provider_telemetry",
+      "lines": 193
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "_prepared_plan",
+      "lines": 283
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "_safe_assessment_rows",
+      "lines": 210
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "_validate_claim_bindings",
+      "lines": 242
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "prepare_current_source_trial",
+      "lines": 182
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "qualname": "run_provider_trial",
+      "lines": 613
+    },
+    {
+      "path": "experiments/harness/shadow_audit.py",
+      "qualname": "run_shadow_audit",
+      "lines": 419
+    },
+    {
+      "path": "scripts/build_frozen_corpus_v1.py",
+      "qualname": "build",
+      "lines": 170
+    },
+    {
+      "path": "scripts/check_docs_truth.py",
+      "qualname": "check_shas",
+      "lines": 191
+    },
+    {
+      "path": "scripts/check_ownership.py",
+      "qualname": "check",
+      "lines": 160
+    },
+    {
+      "path": "scripts/effect_observer_smoke.py",
+      "qualname": "_full_review_smoke",
+      "lines": 189
+    },
+    {
+      "path": "scripts/generate_status_evidence.py",
+      "qualname": "_render_page",
+      "lines": 181
+    },
+    {
+      "path": "scripts/hosted_recovery_rehearsal.py",
+      "qualname": "_download_canceled_run_artifact",
+      "lines": 156
+    },
+    {
+      "path": "scripts/hosted_recovery_rehearsal.py",
+      "qualname": "run_a",
+      "lines": 218
+    },
+    {
+      "path": "scripts/hosted_recovery_rehearsal.py",
+      "qualname": "run_b",
+      "lines": 261
+    },
+    {
+      "path": "scripts/multipass_plan.py",
+      "qualname": "build_plan",
+      "lines": 182
+    },
+    {
+      "path": "scripts/package_smoke.py",
+      "qualname": "smoke",
+      "lines": 182
+    },
+    {
+      "path": "scripts/prepare_selected_pair_clean_control_trial.py",
+      "qualname": "prepare_trial",
+      "lines": 318
+    },
+    {
+      "path": "scripts/protected_source_context_probe.py",
+      "qualname": "run_probe",
+      "lines": 189
+    },
+    {
+      "path": "scripts/run_historical_functional_review.py",
+      "qualname": "_validate_prepare",
+      "lines": 244
+    },
+    {
+      "path": "scripts/run_model_only_shadow_audit.py",
+      "qualname": "run",
+      "lines": 272
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "qualname": "_project_context_followups",
+      "lines": 539
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "qualname": "_project_required_context_coverage_diagnostic",
+      "lines": 265
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "qualname": "load_locked_cases",
+      "lines": 494
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "qualname": "main",
+      "lines": 429
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "qualname": "_run_rehearsal_body",
+      "lines": 304
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "qualname": "run_matrix",
+      "lines": 313
+    },
+    {
+      "path": "scripts/sanitize_model_only_shadow_audit_receipt.py",
+      "qualname": "_valid",
+      "lines": 260
+    },
+    {
+      "path": "scripts/sanitize_model_only_shadow_reconciliation.py",
+      "qualname": "build_receipt",
+      "lines": 290
+    },
+    {
+      "path": "scripts/sanitize_model_only_shadow_writer_receipt.py",
+      "qualname": "sanitize",
+      "lines": 286
+    },
+    {
+      "path": "scripts/select_frozen_pr464_no_candidate_packet.py",
+      "qualname": "select",
+      "lines": 153
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "qualname": "_cardinality_arm_projection",
+      "lines": 151
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "qualname": "run",
+      "lines": 321
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "qualname": "run_candidate_cardinality_pair",
+      "lines": 275
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "qualname": "run_transport_pair",
+      "lines": 253
+    },
+    {
+      "path": "scripts/source_record_decision.py",
+      "qualname": "run_source_record_decision",
+      "lines": 168
+    },
+    {
+      "path": "scripts/validate_selected_control_transport_receipt.py",
+      "qualname": "validate_receipt",
+      "lines": 184
+    },
+    {
+      "path": "scripts/verify_model_only_shadow_live_preflight.py",
+      "qualname": "_plan_requests",
+      "lines": 155
+    },
+    {
+      "path": "scripts/verify_model_only_shadow_live_preflight.py",
+      "qualname": "verify",
+      "lines": 181
+    },
+    {
+      "path": "scripts/verify_synth_001_preflight.py",
+      "qualname": "verify",
+      "lines": 159
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "qualname": "GitHubActionsPublicationAdapter.admit",
+      "lines": 190
+    },
+    {
+      "path": "src/pr_review_harness/claim_assessment.py",
+      "qualname": "ClaimAssessmentAdapter._validate_prepared",
+      "lines": 196
+    },
+    {
+      "path": "src/pr_review_harness/claim_assessment.py",
+      "qualname": "ClaimAssessmentAdapter.assess_prepared",
+      "lines": 186
+    },
+    {
+      "path": "src/pr_review_harness/claim_transport.py",
+      "qualname": "_validate_claim_state",
+      "lines": 164
+    },
+    {
+      "path": "src/pr_review_harness/cli.py",
+      "qualname": "_run_one",
+      "lines": 625
+    },
+    {
+      "path": "src/pr_review_harness/cli.py",
+      "qualname": "main",
+      "lines": 303
+    },
+    {
+      "path": "src/pr_review_harness/completeness.py",
+      "qualname": "compare_to_baseline",
+      "lines": 191
+    },
+    {
+      "path": "src/pr_review_harness/contract_registry.py",
+      "qualname": "validate_registry",
+      "lines": 177
+    },
+    {
+      "path": "src/pr_review_harness/current_source_capture.py",
+      "qualname": "_deterministic_check_tasks",
+      "lines": 154
+    },
+    {
+      "path": "src/pr_review_harness/current_source_capture.py",
+      "qualname": "validate_plan",
+      "lines": 198
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "qualname": "_context_followup_metadata",
+      "lines": 171
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "qualname": "prepare_plan_tasks",
+      "lines": 199
+    },
+    {
+      "path": "src/pr_review_harness/evidence.py",
+      "qualname": "retrieve_context_gap",
+      "lines": 187
+    },
+    {
+      "path": "src/pr_review_harness/external_effect_observer.py",
+      "qualname": "observe_cli",
+      "lines": 426
+    },
+    {
+      "path": "src/pr_review_harness/github_app_canary.py",
+      "qualname": "verify_github_app_identity_canary",
+      "lines": 282
+    },
+    {
+      "path": "src/pr_review_harness/github_app_credentials.py",
+      "qualname": "GitHubAppPublisherCredentialProvider.credential_for",
+      "lines": 216
+    },
+    {
+      "path": "src/pr_review_harness/metrics.py",
+      "qualname": "aggregate_run_summaries",
+      "lines": 361
+    },
+    {
+      "path": "src/pr_review_harness/metrics.py",
+      "qualname": "build_run_summary",
+      "lines": 213
+    },
+    {
+      "path": "src/pr_review_harness/planner.py",
+      "qualname": "plan_review",
+      "lines": 442
+    },
+    {
+      "path": "src/pr_review_harness/protected_publication_runtime.py",
+      "qualname": "ProtectedPublicationPolicy.parse",
+      "lines": 260
+    },
+    {
+      "path": "src/pr_review_harness/protected_publication_runtime.py",
+      "qualname": "_bootstrap_target_claim",
+      "lines": 208
+    },
+    {
+      "path": "src/pr_review_harness/protected_publication_runtime.py",
+      "qualname": "run_protected_publication",
+      "lines": 295
+    },
+    {
+      "path": "src/pr_review_harness/providers.py",
+      "qualname": "DecisionProvider.assess",
+      "lines": 245
+    },
+    {
+      "path": "src/pr_review_harness/providers.py",
+      "qualname": "OpenAIProvider._call",
+      "lines": 304
+    },
+    {
+      "path": "src/pr_review_harness/providers.py",
+      "qualname": "OpenAIProvider._review_parts",
+      "lines": 325
+    },
+    {
+      "path": "src/pr_review_harness/providers.py",
+      "qualname": "OpenAIProvider.review_with_capture",
+      "lines": 179
+    },
+    {
+      "path": "src/pr_review_harness/publisher.py",
+      "qualname": "publish_review_stateless",
+      "lines": 307
+    },
+    {
+      "path": "src/pr_review_harness/report.py",
+      "qualname": "render_report",
+      "lines": 261
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "assess_claims",
+      "lines": 568
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "build_and_persist_result",
+      "lines": 304
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "dispatch_tasks",
+      "lines": 155
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "finish_attempt_stage",
+      "lines": 177
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "prepare_dispatch",
+      "lines": 153
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "reduce_coverage",
+      "lines": 401
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "resume_completed_review",
+      "lines": 159
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "run_followups",
+      "lines": 926
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "qualname": "start_attempt_stage",
+      "lines": 181
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "qualname": "collect_snapshot",
+      "lines": 945
+    },
+    {
+      "path": "tests/test_actions_publication.py",
+      "qualname": "test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_posts_once",
+      "lines": 284
+    },
+    {
+      "path": "tests/test_cross_model_package.py",
+      "qualname": "_fixture",
+      "lines": 291
+    },
+    {
+      "path": "tests/test_engine.py",
+      "qualname": "test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling",
+      "lines": 152
+    },
+    {
+      "path": "tests/test_external_effect_observer.py",
+      "qualname": "test_injection_source_trio_keeps_scoped_effects_and_accepted_blocker",
+      "lines": 173
+    },
+    {
+      "path": "tests/test_frozen_pr464_capture_integration.py",
+      "qualname": "test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap",
+      "lines": 244
+    },
+    {
+      "path": "tests/test_frozen_pr464_packet_selection.py",
+      "qualname": "test_exact_frozen_pr464_selector_binds_canonical_profile_hash",
+      "lines": 163
+    },
+    {
+      "path": "tests/test_model_only_shadow_audit_runner.py",
+      "qualname": "test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never_claim",
+      "lines": 161
+    },
+    {
+      "path": "tests/test_pr_analysis_artifact_manifest.py",
+      "qualname": "test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_capture",
+      "lines": 161
+    },
+    {
+      "path": "tests/test_prepare_only.py",
+      "qualname": "test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windows",
+      "lines": 184
+    },
+    {
+      "path": "tests/test_private_capture.py",
+      "qualname": "test_actual_cli_review_exports_valid_private_packet_without_raw_output",
+      "lines": 233
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "qualname": "_run_case",
+      "lines": 230
+    },
+    {
+      "path": "tests/test_protected_publication_runtime.py",
+      "qualname": "test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_post",
+      "lines": 415
+    },
+    {
+      "path": "tests/test_shadow_writer_reconciliation.py",
+      "qualname": "_synthetic_run",
+      "lines": 154
+    }
+  ]
+}

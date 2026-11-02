@@ -32,7 +32,10 @@ def test_workflow_is_manual_only_main_guarded_and_read_only():
     assert "contents: write" not in source
     assert "actions: write" not in source
     assert "pull-requests: write" not in source
-    assert "if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in source
+    assert (
+        "if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'"
+        in source
+    )
     assert "timeout-minutes: 20" in source
 
 
@@ -55,23 +58,35 @@ def test_full_sha_is_verified_before_any_project_install_or_import():
     install = _step(source, "Install the verified wheel")
     run = _step(source, "Prepare the fixed synthetic cases using the installed CLI")
     assert f"EXPECTED_RUNNER_SHA: {PIN}" in verify
-    assert "[\"git\", \"-C\", source, \"rev-parse\", \"HEAD\"]" in verify
+    assert '["git", "-C", source, "rev-parse", "HEAD"]' in verify
     assert "result.stdout.strip() != expected" in verify
     assert "pip wheel --no-deps" in build
-    assert "pip\", \"install\", \"--no-deps\"" in install
-    assert source.index("Verify the exact trusted source revision") < source.index("Build the wheel from the verified trusted source")
+    assert 'pip", "install", "--no-deps"' in install
+    assert source.index("Verify the exact trusted source revision") < source.index(
+        "Build the wheel from the verified trusted source"
+    )
     assert source.index("Build the wheel from the verified trusted source") < source.index("Install the verified wheel")
     assert source.index("Install the verified wheel") < source.index("Prepare the fixed synthetic cases")
     assert "--prepare-only" in run
-    assert "--cli-executable \"$(command -v pr-review)\"" in run
+    assert '--cli-executable "$(command -v pr-review)"' in run
     assert "--run-provider-trial" not in source
 
 
 def test_prepare_path_has_no_provider_secrets_or_runtime_selection_inputs():
     source = _source()
     for forbidden in (
-        "secrets.", "LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "JEV_BASE_URL", "JEV_MODEL", "JEV_API_KEY",
-        "NOUS_API_KEY", "TYPESAFE_API_KEY", "--provider-config", "--decision-config", "provider_config_from_env.py",
+        "secrets.",
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "JEV_BASE_URL",
+        "JEV_MODEL",
+        "JEV_API_KEY",
+        "NOUS_API_KEY",
+        "TYPESAFE_API_KEY",
+        "--provider-config",
+        "--decision-config",
+        "provider_config_from_env.py",
     ):
         assert forbidden not in source
     assert "workflow_dispatch:\n    inputs:" not in source

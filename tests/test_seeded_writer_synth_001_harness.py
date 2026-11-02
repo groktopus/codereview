@@ -73,30 +73,43 @@ def test_openai_transport_binds_request_and_parses_response_locally(monkeypatch)
     system = "Review the frozen synthetic source evidence."
     user = {"case_id": fixture_id, "task": {"task_id": task_id}, "evidence": []}
     schema = {"type": "object", "properties": {"fixture_id": {"type": "string"}}}
-    limits = {"max_input_bytes_per_task": 20_000, "max_output_bytes_per_task": 4096,
-              "deadline_seconds": 2}
+    limits = {"max_input_bytes_per_task": 20_000, "max_output_bytes_per_task": 4096, "deadline_seconds": 2}
     payload = {"fixture_id": fixture_id, "task_id": task_id, "status": "parsed"}
     content = json.dumps(payload, separators=(",", ":"))
-    response_body = json.dumps({
-        "id": "local-response-1", "model": "fixture-reviewer",
-        "choices": [{"finish_reason": "stop", "message": {"content": content}}],
-        "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
-    }, separators=(",", ":")).encode("utf-8")
+    response_body = json.dumps(
+        {
+            "id": "local-response-1",
+            "model": "fixture-reviewer",
+            "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+            "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
     transport = _LocalHTTPTransport(response_body)
     monkeypatch.setattr(provider_module, "_HTTP_OPENER", transport)
     monkeypatch.setenv("UNSET_SYNTH_CONTROL_KEY", _OFFLINE_PROVIDER_KEY)
 
-    provider = OpenAIProvider({
-        "kind": "openai_compatible", "base_url": "https://offline.invalid/v1",
-        "model": "fixture-reviewer", "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
-        "provider_id": "provider-free-transport-test", "semantic_adjudication": False,
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://offline.invalid/v1",
+            "model": "fixture-reviewer",
+            "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+            "provider_id": "provider-free-transport-test",
+            "semantic_adjudication": False,
+        }
+    )
     request_bytes = provider._serialize_request_body(system, user, schema, limits)
     request_sha256 = hashlib.sha256(request_bytes).hexdigest()
     parsed, metadata = provider._call(
-        system=system, user=user, schema=schema, limits=limits,
-        contract_version="openai-transport-test.v1", capture_exchange=True,
-        expected_request_sha256=request_sha256, serialized_request_bytes=request_bytes,
+        system=system,
+        user=user,
+        schema=schema,
+        limits=limits,
+        contract_version="openai-transport-test.v1",
+        capture_exchange=True,
+        expected_request_sha256=request_sha256,
+        serialized_request_bytes=request_bytes,
     )
 
     assert parsed == payload
@@ -117,13 +130,16 @@ def test_openai_transport_binds_request_and_parses_response_locally(monkeypatch)
 def test_openai_transport_rejects_malformed_envelope_and_inner_json(monkeypatch):
     """Both production response parsing layers fail closed on malformed bytes."""
     monkeypatch.setenv("UNSET_SYNTH_CONTROL_KEY", _OFFLINE_PROVIDER_KEY)
-    provider = OpenAIProvider({
-        "kind": "openai_compatible", "base_url": "https://offline.invalid/v1",
-        "model": "fixture-reviewer", "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://offline.invalid/v1",
+            "model": "fixture-reviewer",
+            "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+        }
+    )
     system, user, schema = "system", {"case_id": "SYNTH-001"}, {"type": "object"}
-    limits = {"max_input_bytes_per_task": 2000, "max_output_bytes_per_task": 2000,
-              "deadline_seconds": 2}
+    limits = {"max_input_bytes_per_task": 2000, "max_output_bytes_per_task": 2000, "deadline_seconds": 2}
     malformed_responses = (
         b'{"choices": [',
         json.dumps({"choices": [{"finish_reason": "stop", "message": {"content": "{"}}]}).encode(),
@@ -131,8 +147,14 @@ def test_openai_transport_rejects_malformed_envelope_and_inner_json(monkeypatch)
     for response_body in malformed_responses:
         monkeypatch.setattr(provider_module, "_HTTP_OPENER", _LocalHTTPTransport(response_body))
         with pytest.raises(ProviderError, match="malformed_provider_response"):
-            provider._call(system=system, user=user, schema=schema, limits=limits,
-                           contract_version="openai-transport-test.v1", capture_exchange=True)
+            provider._call(
+                system=system,
+                user=user,
+                schema=schema,
+                limits=limits,
+                contract_version="openai-transport-test.v1",
+                capture_exchange=True,
+            )
 
 
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
@@ -191,9 +213,7 @@ def _synthetic_repo(tmp_path: Path, *, seeded_defect: bool = True) -> tuple[Path
         "allow_empty_approve": True,
         "context_paths": ["contract.md", "caller.py"],
     }
-    assert set(_git(repo, "ls-tree", "-r", "--name-only", head).splitlines()) == {
-        "auth.py", "caller.py", "contract.md"
-    }
+    assert set(_git(repo, "ls-tree", "-r", "--name-only", head).splitlines()) == {"auth.py", "caller.py", "contract.md"}
     return repo, base, head, profile
 
 
@@ -201,46 +221,74 @@ class _SerializedFixtureProvider(OpenAIProvider):
     """Use production serialization and specialist validation with a fixed response."""
 
     def __init__(self, candidate_enabled: bool):
-        super().__init__({
-            "kind": "openai_compatible",
-            "base_url": "https://offline.invalid/v1",
-            "model": "fixture-reviewer",
-            "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
-            "provider_id": "provider-free-sensitivity-control",
-            "semantic_adjudication": False,
-        })
+        super().__init__(
+            {
+                "kind": "openai_compatible",
+                "base_url": "https://offline.invalid/v1",
+                "model": "fixture-reviewer",
+                "api_key_env": "UNSET_SYNTH_CONTROL_KEY",
+                "provider_id": "provider-free-sensitivity-control",
+                "semantic_adjudication": False,
+            }
+        )
         self.candidate_enabled = candidate_enabled
 
     def _fixture_payload(self, task, evidence):
         diff = next(row for row in evidence if row.get("source_kind") == "diff")
         candidates = []
         if self.candidate_enabled:
-            candidates = [{
-                "unit_id": task["unit_ids"][0],
-                "location": {
-                    "kind": "line", "path": diff["path"], "side": "HEAD", "line": 2, "reason": None,
-                },
-                "title": "Synthetic authorization bypass",
-                "observation": "The seeded change makes the authorization predicate unconditional.",
-                "consequence": "A caller may access another owner's document.",
-                "rule_or_contract": "The supplied contract requires matching caller and owner IDs.",
-                "severity": "high", "reasoning_kind": "inferred", "introducedness": "INTRODUCED",
-                "evidence_refs": [diff["evidence_id"]],
-            }]
+            candidates = [
+                {
+                    "unit_id": task["unit_ids"][0],
+                    "location": {
+                        "kind": "line",
+                        "path": diff["path"],
+                        "side": "HEAD",
+                        "line": 2,
+                        "reason": None,
+                    },
+                    "title": "Synthetic authorization bypass",
+                    "observation": "The seeded change makes the authorization predicate unconditional.",
+                    "consequence": "A caller may access another owner's document.",
+                    "rule_or_contract": "The supplied contract requires matching caller and owner IDs.",
+                    "severity": "high",
+                    "reasoning_kind": "inferred",
+                    "introducedness": "INTRODUCED",
+                    "evidence_refs": [diff["evidence_id"]],
+                }
+            ]
         return {
             "contract_version": "specialist-findings.v4",
             "finding_candidates": candidates,
             "context_gap_proposals": [],
-            "coverage_notes": [{
-                "unit_id": unit_id, "state": "COVERED", "reason_code": "fixture_scope_reviewed",
-                "evidence_refs": [diff["evidence_id"]], "coverage_basis": "STATIC_REVIEW",
-            } for unit_id in task["unit_ids"]],
-            "specific_strengths": [], "future_guidance": [],
+            "coverage_notes": [
+                {
+                    "unit_id": unit_id,
+                    "state": "COVERED",
+                    "reason_code": "fixture_scope_reviewed",
+                    "evidence_refs": [diff["evidence_id"]],
+                    "coverage_basis": "STATIC_REVIEW",
+                }
+                for unit_id in task["unit_ids"]
+            ],
+            "specific_strengths": [],
+            "future_guidance": [],
         }
 
-    def _call(self, *, system, user, schema, limits, contract_version, capture_exchange=False,
-              expected_request_sha256=None, serialized_request_bytes=None, before_dispatch=None,
-              on_http_attempt=None):
+    def _call(
+        self,
+        *,
+        system,
+        user,
+        schema,
+        limits,
+        contract_version,
+        capture_exchange=False,
+        expected_request_sha256=None,
+        serialized_request_bytes=None,
+        before_dispatch=None,
+        on_http_attempt=None,
+    ):
         assert capture_exchange is True
         expected = self._serialize_request_body(system, user, schema, limits)
         assert serialized_request_bytes == expected
@@ -248,7 +296,8 @@ class _SerializedFixtureProvider(OpenAIProvider):
         payload = self._fixture_payload(user["task"], user["evidence"])
         content = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         return json.loads(content), {
-            "usage": {}, "provenance": {"provider": "provider-free-sensitivity-control"},
+            "usage": {},
+            "provenance": {"provider": "provider-free-sensitivity-control"},
             "_audit_exchange": {
                 "structured_response_bytes": content,
                 "response_bytes": b'{"fixture":"provider-free"}',
@@ -267,9 +316,13 @@ def test_provider_free_seeded_writer_control_roundtrips_serialization_validation
         provider = _SerializedFixtureProvider(candidate_enabled=seeded_defect)
         plan = plan_review(snapshot, profile, "AUTO")
         limits = {
-            **LIMITS, "max_provider_calls": 1, "max_retries_per_task": 0,
-            "max_followup_tasks": 0, "max_output_tokens": 1_800,
-            "max_output_bytes_per_task": 16_000, "max_input_bytes_per_task": 45_000,
+            **LIMITS,
+            "max_provider_calls": 1,
+            "max_retries_per_task": 0,
+            "max_followup_tasks": 0,
+            "max_output_tokens": 1_800,
+            "max_output_bytes_per_task": 16_000,
+            "max_input_bytes_per_task": 45_000,
         }
         tasks, _skipped = prepare_plan_tasks(snapshot, plan, profile, limits, provider)
         writer_tasks = [task for task in tasks if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"]
@@ -279,19 +332,32 @@ def test_provider_free_seeded_writer_control_roundtrips_serialization_validation
         request_bytes = provider.serialize_review_request(task, evidence, limits)
         request_pin = {
             task["task_id"]: {
-                "task_id": task["task_id"], "input_sha256": hashlib.sha256(request_bytes).hexdigest(),
-                "input_bytes": len(request_bytes), "lens": task["lens"],
-                "output_bytes_cap": 16_000, "output_tokens_cap": 1_800,
+                "task_id": task["task_id"],
+                "input_sha256": hashlib.sha256(request_bytes).hexdigest(),
+                "input_bytes": len(request_bytes),
+                "lens": task["lens"],
+                "output_bytes_cap": 16_000,
+                "output_tokens_cap": 1_800,
             }
         }
         capture_dir = tmp_path / f"capture-{label}"
         result = run_review(
-            snapshot, plan, profile, provider, None, limits, str(tmp_path / f"results-{label}"),
-            f"writer-live-synth-{label}", max_claim_assessments=0,
-            private_capture_dir=str(capture_dir), private_capture_case_id="SYNTH-001",
+            snapshot,
+            plan,
+            profile,
+            provider,
+            None,
+            limits,
+            str(tmp_path / f"results-{label}"),
+            f"writer-live-synth-{label}",
+            max_claim_assessments=0,
+            private_capture_dir=str(capture_dir),
+            private_capture_case_id="SYNTH-001",
             private_capture_request_pins=request_pin,
-            private_capture_snapshot_pin={"snapshot_id": snapshot["snapshot_id"],
-                                          "snapshot_sha256": snapshot["snapshot_hash"]},
+            private_capture_snapshot_pin={
+                "snapshot_id": snapshot["snapshot_id"],
+                "snapshot_sha256": snapshot["snapshot_hash"],
+            },
         )
         captured_requests = list((capture_dir / "requests").glob("*.bin"))
         assert len(captured_requests) == 1
@@ -299,9 +365,9 @@ def test_provider_free_seeded_writer_control_roundtrips_serialization_validation
         captured_responses = list((capture_dir / "responses").glob("*.bin"))
         assert len(captured_responses) == 1
         expected_payload = provider._fixture_payload(task, evidence)
-        expected_response_bytes = json.dumps(
-            expected_payload, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")
+        expected_response_bytes = json.dumps(expected_payload, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
         assert captured_responses[0].read_bytes() == expected_response_bytes
         captured_payload = json.loads(captured_responses[0].read_bytes())
         assert captured_payload == expected_payload

@@ -62,8 +62,12 @@ def _read(path: Path, limit: int = MAX_INPUT_BYTES) -> bytes:
         fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
-                    or opened.st_ino != before.st_ino or opened.st_size > limit):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size > limit
+            ):
                 raise VerifyError("input_invalid")
             data = bytearray()
             while len(data) <= limit:
@@ -111,8 +115,14 @@ def _git(repo: Path, *args: str) -> str:
     }
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo), *args], check=True, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, timeout=10,
+            ["git", "-C", str(repo), *args],
+            check=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
         raise VerifyError("repository_identity_mismatch") from None
@@ -194,27 +204,42 @@ def verify(
 
     prepared, _prepared_raw = _document(prepared_path)
     required_top = {
-        "capacity", "checks", "command", "disposition", "no_provider_calls",
-        "no_target_code_execution", "primary_requests", "scope", "snapshot", "status",
+        "capacity",
+        "checks",
+        "command",
+        "disposition",
+        "no_provider_calls",
+        "no_target_code_execution",
+        "primary_requests",
+        "scope",
+        "snapshot",
+        "status",
     }
     if set(prepared) != required_top:
         raise VerifyError("prepared_shape_mismatch")
-    if (prepared["command"] != "review" or prepared["status"] != "PREPARED_ONLY"
-            or prepared["disposition"] is not None or prepared["no_provider_calls"] is not True
-            or prepared["no_target_code_execution"] is not True):
+    if (
+        prepared["command"] != "review"
+        or prepared["status"] != "PREPARED_ONLY"
+        or prepared["disposition"] is not None
+        or prepared["no_provider_calls"] is not True
+        or prepared["no_target_code_execution"] is not True
+    ):
         raise VerifyError("prepared_status_mismatch")
     if prepared["checks"] != {"check_evidence_hash": None, "check_results": [], "historical_check_identity": None}:
         raise VerifyError("prepared_checks_mismatch")
     capacity = prepared["capacity"]
-    if (not isinstance(capacity, dict) or capacity.get("configured_max_provider_calls") != 1
-            or capacity.get("exact_primary_call_demand") != 1
-            or capacity.get("exact_primary_serialized_input_bytes") != REQUEST_BYTES
-            or capacity.get("configured_max_context_retrievals") not in (None, 0)
-            or capacity.get("configured_max_followup_tasks") not in (None, 0)
-            or capacity.get("configured_claim_assessment_call_slots") != 0
-            or capacity.get("configured_followup_task_slots") != 0
-            or capacity.get("configured_summary_advisory_call_slots") != 0
-            or capacity.get("remaining_global_call_slots_after_primary") != 0):
+    if (
+        not isinstance(capacity, dict)
+        or capacity.get("configured_max_provider_calls") != 1
+        or capacity.get("exact_primary_call_demand") != 1
+        or capacity.get("exact_primary_serialized_input_bytes") != REQUEST_BYTES
+        or capacity.get("configured_max_context_retrievals") not in (None, 0)
+        or capacity.get("configured_max_followup_tasks") not in (None, 0)
+        or capacity.get("configured_claim_assessment_call_slots") != 0
+        or capacity.get("configured_followup_task_slots") != 0
+        or capacity.get("configured_summary_advisory_call_slots") != 0
+        or capacity.get("remaining_global_call_slots_after_primary") != 0
+    ):
         raise VerifyError("prepared_capacity_mismatch")
     if prepared["primary_requests"].__class__ is not list or len(prepared["primary_requests"]) != 1:
         raise VerifyError("primary_request_cardinality_mismatch")
@@ -224,10 +249,14 @@ def verify(
     ).hexdigest()
     if request_descriptor_hash != REQUEST_DESCRIPTOR_SHA256:
         raise VerifyError("primary_request_descriptor_mismatch")
-    if (request.get("admitted") is not True or request.get("input_sha256") != REQUEST_SHA256
-            or request.get("input_bytes") != REQUEST_BYTES or request.get("lens") != "correctness"
-            or request.get("output_bytes_cap") != OUTPUT_BYTES_CAP
-            or request.get("output_tokens_cap") != OUTPUT_TOKENS_CAP):
+    if (
+        request.get("admitted") is not True
+        or request.get("input_sha256") != REQUEST_SHA256
+        or request.get("input_bytes") != REQUEST_BYTES
+        or request.get("lens") != "correctness"
+        or request.get("output_bytes_cap") != OUTPUT_BYTES_CAP
+        or request.get("output_tokens_cap") != OUTPUT_TOKENS_CAP
+    ):
         raise VerifyError("primary_request_mismatch")
 
     snapshot = prepared["snapshot"]
@@ -255,16 +284,21 @@ def verify(
         )
     except Exception:
         raise VerifyError("snapshot_recomputation_failed") from None
-    if (not isinstance(snapshot, dict) or snapshot.get("base_sha") != BASE_SHA
-            or snapshot.get("head_sha") != HEAD_SHA or snapshot.get("snapshot_id") != SNAPSHOT_ID
-            or snapshot.get("snapshot_hash") != expected_snapshot.get("snapshot_hash")
-            or snapshot.get("evidence_index_sha256") != EVIDENCE_INDEX_SHA256
-            or hashlib.sha256(json.dumps(snapshot.get("evidence_index"), sort_keys=True,
-                                         separators=(",", ":")).encode("utf-8")).hexdigest()
-            != EVIDENCE_INDEX_CANONICAL_SHA256
-            or snapshot.get("profile_file_sha256") != CONFIG_HASHES["profile"]
-            or snapshot.get("limits_sha256") != CONFIG_HASHES["limits"]
-            or snapshot.get("provider_identity_sha256") != PROVIDER_IDENTITY_SHA256):
+    if (
+        not isinstance(snapshot, dict)
+        or snapshot.get("base_sha") != BASE_SHA
+        or snapshot.get("head_sha") != HEAD_SHA
+        or snapshot.get("snapshot_id") != SNAPSHOT_ID
+        or snapshot.get("snapshot_hash") != expected_snapshot.get("snapshot_hash")
+        or snapshot.get("evidence_index_sha256") != EVIDENCE_INDEX_SHA256
+        or hashlib.sha256(
+            json.dumps(snapshot.get("evidence_index"), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        != EVIDENCE_INDEX_CANONICAL_SHA256
+        or snapshot.get("profile_file_sha256") != CONFIG_HASHES["profile"]
+        or snapshot.get("limits_sha256") != CONFIG_HASHES["limits"]
+        or snapshot.get("provider_identity_sha256") != PROVIDER_IDENTITY_SHA256
+    ):
         raise VerifyError("snapshot_identity_mismatch")
     count, tree_sha = _module_tree(source_root.resolve(strict=True))
     if count != MODULE_COUNT or tree_sha != MODULE_TREE_SHA256:
@@ -307,12 +341,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-root", type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args(argv)
     try:
-        result = verify(args.materialization, args.prepared, args.repo, args.fixture_dir,
-                        args.profile, args.limits, args.provider_config, args.source_root)
+        result = verify(
+            args.materialization,
+            args.prepared,
+            args.repo,
+            args.fixture_dir,
+            args.profile,
+            args.limits,
+            args.provider_config,
+            args.source_root,
+        )
     except (VerifyError, OSError) as exc:
         code = str(exc) if isinstance(exc, VerifyError) else "verification_failed"
-        print(json.dumps({"schema": "synth-001-preflight-verification.v1", "result": "REJECTED", "error": code},
-                         sort_keys=True, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps(
+                {"schema": "synth-001-preflight-verification.v1", "result": "REJECTED", "error": code},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0

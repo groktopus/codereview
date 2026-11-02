@@ -273,8 +273,7 @@ def check(root: Path) -> dict[str, object]:
         expected = module_groups.get(module)
         if expected and rule.group != expected:
             errors.append(
-                f".github/CODEOWNERS: effective group for {path} is {rule.group!r}; "
-                f"docs/OWNERSHIP.md says {expected!r}"
+                f".github/CODEOWNERS: effective group for {path} is {rule.group!r}; docs/OWNERSHIP.md says {expected!r}"
             )
         if rule.owners != (REQUIRED_OWNER,):
             errors.append(f".github/CODEOWNERS: effective owner for {path} must be {REQUIRED_OWNER}")
@@ -353,7 +352,11 @@ def check(root: Path) -> dict[str, object]:
                     f"docs/BACKLOG.md: issue #{number} ID {title_match.group('id')!r} "
                     f"does not match FILED.md ({filed[number]!r})"
                 )
-        if row["state"] in {"blocked", "awaiting-evidence"} and "#" not in row["next"] and "owner action" not in row["next"].lower():
+        if (
+            row["state"] in {"blocked", "awaiting-evidence"}
+            and "#" not in row["next"]
+            and "owner action" not in row["next"].lower()
+        ):
             errors.append(
                 f"docs/BACKLOG.md: issue #{number} is {row['state']!r} but names no blocker, "
                 "issue number, or owner action"
@@ -383,9 +386,7 @@ def check(root: Path) -> dict[str, object]:
         }
         for state, expected in expected_counts.items():
             if counts[state] != expected:
-                errors.append(
-                    f"docs/BACKLOG.md: summary says {expected} {state} issues, table has {counts[state]}"
-                )
+                errors.append(f"docs/BACKLOG.md: summary says {expected} {state} issues, table has {counts[state]}")
 
     return {
         "errors": errors,

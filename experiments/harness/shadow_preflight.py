@@ -48,11 +48,17 @@ class AuditDispatchGuard:
             raise AuditPreflightError("audit_limits_invalid")
         if not (0 < self.token_cap <= 1_800 and self.call_cap == 3 and self.retry_cap == 0):
             raise AuditPreflightError("audit_limits_invalid")
-        if (isinstance(self.call_deadline, bool) or not isinstance(self.call_deadline, (int, float))
-                or not 0 < self.call_deadline <= 90):
+        if (
+            isinstance(self.call_deadline, bool)
+            or not isinstance(self.call_deadline, (int, float))
+            or not 0 < self.call_deadline <= 90
+        ):
             raise AuditPreflightError("audit_limits_invalid")
-        if (isinstance(self.total_deadline, bool) or not isinstance(self.total_deadline, (int, float))
-                or not 0 < self.total_deadline <= 270):
+        if (
+            isinstance(self.total_deadline, bool)
+            or not isinstance(self.total_deadline, (int, float))
+            or not 0 < self.total_deadline <= 270
+        ):
             raise AuditPreflightError("audit_limits_invalid")
         if self.call_deadline * self.call_cap > self.total_deadline:
             raise AuditPreflightError("audit_limits_invalid")

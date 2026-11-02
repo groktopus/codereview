@@ -33,7 +33,8 @@ def test_builder_materializes_only_the_reviewed_pilot_configuration(tmp_path: Pa
     os.chmod(runner, 0o700)
     digest = builder.build(
         ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json",
-        runner / "private-shadow-runtime-config", _env(runner),
+        runner / "private-shadow-runtime-config",
+        _env(runner),
     )
     config_path = runner / "private-shadow-runtime-config/provider.json"
     config_bytes = config_path.read_bytes()

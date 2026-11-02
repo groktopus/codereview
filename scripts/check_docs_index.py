@@ -43,7 +43,13 @@ def section_for(line: int, headings: dict[int, str]) -> str | None:
 def check(root: Path, docs_dir: Path, index_path: Path) -> dict[str, object]:
     errors: list[str] = []
     if not index_path.is_file():
-        return {"errors": [f"index not found: {index_path}"], "documents": 0, "indexed": 0, "counts": {}, "unindexed": []}
+        return {
+            "errors": [f"index not found: {index_path}"],
+            "documents": 0,
+            "indexed": 0,
+            "counts": {},
+            "unindexed": [],
+        }
 
     docs = sorted(
         path.relative_to(docs_dir).as_posix()
@@ -92,10 +98,7 @@ def check(root: Path, docs_dir: Path, index_path: Path) -> dict[str, object]:
     if len(current_docs) > MAX_CURRENT:
         errors.append(f"Current section lists {len(current_docs)} documents; maximum is {MAX_CURRENT}")
 
-    counts = {
-        section: sum(1 for sections in memberships.values() if section in sections)
-        for section in SECTION_NAMES
-    }
+    counts = {section: sum(1 for sections in memberships.values() if section in sections) for section in SECTION_NAMES}
     return {
         "documents": len(docs),
         "indexed": len(memberships),

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Project validated writer/engine candidate reconciliation into private hash-only evidence."""
+
 from __future__ import annotations
 
 import argparse
@@ -29,8 +30,13 @@ SHA = re.compile(r"^[0-9a-f]{64}$")
 _COVERAGE_STATES = {"COMPLETE", "PARTIAL", "NOT_STARTED"}
 _DISPOSITIONS = {"APPROVE", "REQUEST_CHANGES", "COMMENT", "INCOMPLETE"}
 _TASK_STATES = {
-    "SUCCEEDED", "FAILED", "INVALID", "SKIPPED", "TIMED_OUT",
-    "INTERRUPTED_UNKNOWN", "NOT_RUN",
+    "SUCCEEDED",
+    "FAILED",
+    "INVALID",
+    "SKIPPED",
+    "TIMED_OUT",
+    "INTERRUPTED_UNKNOWN",
+    "NOT_RUN",
 }
 _CHECK_OUTCOMES = {"PASS", "FINDINGS", "UNKNOWN", "ERROR"}
 
@@ -40,8 +46,7 @@ class ReconciliationError(ValueError):
 
 
 def canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-                      allow_nan=False).encode("utf-8")
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def digest(data: bytes) -> str:
@@ -52,14 +57,20 @@ def read_json(path: Path, limit: int, private: bool = False) -> tuple[Any, bytes
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
         before = path.lstat()
-        if (not stat.S_ISREG(before.st_mode) or before.st_size > limit
-                or (private and stat.S_IMODE(before.st_mode) != 0o600)):
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size > limit
+            or (private and stat.S_IMODE(before.st_mode) != 0o600)
+        ):
             raise ReconciliationError("input_unavailable")
         fd = os.open(path, flags)
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or (before.st_dev, before.st_ino) !=
-                    (opened.st_dev, opened.st_ino) or opened.st_size > limit):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino)
+                or opened.st_size > limit
+            ):
                 raise ReconciliationError("input_unavailable")
             data = bytearray()
             while len(data) <= limit:
@@ -74,8 +85,11 @@ def read_json(path: Path, limit: int, private: bool = False) -> tuple[Any, bytes
     if len(data) > limit or len(data) != before.st_size:
         raise ReconciliationError("input_changed_or_oversize")
     try:
-        value = json.loads(data.decode("utf-8"), object_pairs_hook=unique_pairs,
-                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+        value = json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=unique_pairs,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError()),
+        )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
         raise ReconciliationError("input_invalid_json") from None
     return value, bytes(data)
@@ -107,16 +121,21 @@ def finding_pairs(findings: Any) -> set[tuple[str, str]]:
             continue
         rows = finding.get("assessment_records")
         if isinstance(rows, list):
-            pairs.update((row["candidate_id"], row["task_id"]) for row in rows
-                         if isinstance(row, dict) and isinstance(row.get("candidate_id"), str)
-                         and isinstance(row.get("task_id"), str))
+            pairs.update(
+                (row["candidate_id"], row["task_id"])
+                for row in rows
+                if isinstance(row, dict)
+                and isinstance(row.get("candidate_id"), str)
+                and isinstance(row.get("task_id"), str)
+            )
         elif isinstance(finding.get("candidate_id"), str) and isinstance(finding.get("task_id"), str):
             pairs.add((finding["candidate_id"], finding["task_id"]))
     return pairs
 
 
-def validate_deterministic_check_rows(tasks: dict[str, Any], ledger_outputs: dict[str, Any],
-                                      check_tasks: dict[str, dict[str, Any]], snapshot_hash: str) -> None:
+def validate_deterministic_check_rows(
+    tasks: dict[str, Any], ledger_outputs: dict[str, Any], check_tasks: dict[str, dict[str, Any]], snapshot_hash: str
+) -> None:
     """Validate the exact prepared checks without removing them from the ledger."""
     for task_id, binding in check_tasks.items():
         output = tasks.get(task_id)
@@ -133,13 +152,20 @@ def validate_deterministic_check_rows(tasks: dict[str, Any], ledger_outputs: dic
         }
         expected_hash = digest(canonical(expected_payload))
         expected_input_hash = binding["expected_input_hash"]
-        if (output.get("task_id") != task_id or output.get("task_kind") != "DETERMINISTIC_CHECK"
-                or output.get("lens") != binding["lens"] or output.get("unit_ids") != binding["unit_ids"]
-                or output.get("status") != "SUCCEEDED" or output.get("input_evidence_ids") != expected_refs
-                or output.get("input_hash") != expected_input_hash
-                or output.get("payload") != expected_payload or output.get("output_hash") != expected_hash
-                or isinstance(output.get("attempts"), bool) or output.get("attempts") != 1
-                or ledger_outputs[task_id].get("output_hash") != expected_hash):
+        if (
+            output.get("task_id") != task_id
+            or output.get("task_kind") != "DETERMINISTIC_CHECK"
+            or output.get("lens") != binding["lens"]
+            or output.get("unit_ids") != binding["unit_ids"]
+            or output.get("status") != "SUCCEEDED"
+            or output.get("input_evidence_ids") != expected_refs
+            or output.get("input_hash") != expected_input_hash
+            or output.get("payload") != expected_payload
+            or output.get("output_hash") != expected_hash
+            or isinstance(output.get("attempts"), bool)
+            or output.get("attempts") != 1
+            or ledger_outputs[task_id].get("output_hash") != expected_hash
+        ):
             raise ReconciliationError("check_task_output_invalid")
 
 
@@ -223,7 +249,9 @@ def engine_summary(result: dict[str, Any], ledger: dict[str, Any], plan: dict[st
     return {
         "schema": "model-only-shadow-engine-summary.v1",
         "disposition": disposition if isinstance(disposition, str) and disposition in _DISPOSITIONS else "UNKNOWN",
-        "coverage_state": coverage_state if isinstance(coverage_state, str) and coverage_state in _COVERAGE_STATES else "UNKNOWN",
+        "coverage_state": coverage_state
+        if isinstance(coverage_state, str) and coverage_state in _COVERAGE_STATES
+        else "UNKNOWN",
         "coverage": {
             "inventory_state": coverage_inventory,
             "row_count": len(actual_rows),
@@ -257,20 +285,33 @@ def engine_summary(result: dict[str, Any], ledger: dict[str, Any], plan: dict[st
     }
 
 
-def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict[str, Any],
-                  manifest: dict[str, Any], response_payloads: dict[str, tuple[str, dict]],
-                  packet_pairs: set[tuple[str, str]], plan: dict[str, Any], writer_receipt: dict[str, Any],
-                  result_sha: str, plan_sha: str, manifest_sha: str, writer_receipt_sha: str,
-                  *, current_source: bool = False) -> dict[str, Any]:
+def build_receipt(
+    result: dict[str, Any],
+    ledger: dict[str, Any],
+    outcomes: dict[str, Any],
+    manifest: dict[str, Any],
+    response_payloads: dict[str, tuple[str, dict]],
+    packet_pairs: set[tuple[str, str]],
+    plan: dict[str, Any],
+    writer_receipt: dict[str, Any],
+    result_sha: str,
+    plan_sha: str,
+    manifest_sha: str,
+    writer_receipt_sha: str,
+    *,
+    current_source: bool = False,
+) -> dict[str, Any]:
     tasks = result.get("task_results")
     requests = plan.get("writer_requests")
     outcome_rows = outcomes.get("tasks")
     calls = manifest.get("calls")
     if not isinstance(ledger, dict) or not isinstance(tasks, dict) or not isinstance(requests, list):
         raise ReconciliationError("result_shape_invalid")
-    if (result.get("result_hash") != result_sha
-            or digest(canonical({key: value for key, value in result.items() if key != "result_hash"})) != result_sha
-            or ledger.get("request_hash") != result.get("request_hash")):
+    if (
+        result.get("result_hash") != result_sha
+        or digest(canonical({key: value for key, value in result.items() if key != "result_hash"})) != result_sha
+        or ledger.get("request_hash") != result.get("request_hash")
+    ):
         raise ReconciliationError("result_ledger_hash_invalid")
     if not all(isinstance(rows, list) for rows in (outcome_rows, calls)):
         raise ReconciliationError("provenance_missing")
@@ -281,29 +322,41 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
     if any(not isinstance(task_id, str) for task_id in task_ids) or len(set(task_ids)) != expected_count:
         raise ReconciliationError("task_coverage_invalid")
     check_tasks = plan.get("deterministic_check_tasks", {})
-    if (not isinstance(check_tasks, dict) or set(check_tasks).intersection(task_ids)
-            or set(tasks) != set(task_ids).union(check_tasks) or ledger.get("outputs") != tasks):
+    if (
+        not isinstance(check_tasks, dict)
+        or set(check_tasks).intersection(task_ids)
+        or set(tasks) != set(task_ids).union(check_tasks)
+        or ledger.get("outputs") != tasks
+    ):
         raise ReconciliationError("result_task_binding_invalid")
     validate_deterministic_check_rows(
-        tasks, ledger["outputs"], check_tasks, plan.get("case", {}).get("snapshot_sha256"),
+        tasks,
+        ledger["outputs"],
+        check_tasks,
+        plan.get("case", {}).get("snapshot_sha256"),
     )
-    if (result.get("run_id") != manifest.get("case_id")
-            or result.get("snapshot_id") != manifest.get("snapshot_id")
-            or plan.get("case", {}).get("snapshot_id") != result.get("snapshot_id")
-            or plan.get("case", {}).get("snapshot_sha256") != manifest.get("snapshot_hash")):
+    if (
+        result.get("run_id") != manifest.get("case_id")
+        or result.get("snapshot_id") != manifest.get("snapshot_id")
+        or plan.get("case", {}).get("snapshot_id") != result.get("snapshot_id")
+        or plan.get("case", {}).get("snapshot_sha256") != manifest.get("snapshot_hash")
+    ):
         raise ReconciliationError("result_capture_identity_mismatch")
     call_by_task = {row.get("task_id"): row for row in calls if isinstance(row, dict)}
     outcomes_by_hash = {row.get("task_id_sha256"): row for row in outcome_rows if isinstance(row, dict)}
     if set(call_by_task) != set(task_ids) or len(outcomes_by_hash) != expected_count:
         raise ReconciliationError("capture_task_binding_invalid")
     receipt_calls = writer_receipt.get("calls")
-    if (writer_receipt.get("plan_sha256") != plan_sha
-            or writer_receipt.get("snapshot_id") != plan.get("case", {}).get("snapshot_id")
-            or writer_receipt.get("snapshot_sha256") != plan.get("case", {}).get("snapshot_sha256")
-            or writer_receipt.get("writer_call_count") != expected_count
-            or writer_receipt.get("publication_enabled") is not False
-            or writer_receipt.get("target_code_execution") is not False
-            or not isinstance(receipt_calls, list) or len(receipt_calls) != expected_count):
+    if (
+        writer_receipt.get("plan_sha256") != plan_sha
+        or writer_receipt.get("snapshot_id") != plan.get("case", {}).get("snapshot_id")
+        or writer_receipt.get("snapshot_sha256") != plan.get("case", {}).get("snapshot_sha256")
+        or writer_receipt.get("writer_call_count") != expected_count
+        or writer_receipt.get("publication_enabled") is not False
+        or writer_receipt.get("target_code_execution") is not False
+        or not isinstance(receipt_calls, list)
+        or len(receipt_calls) != expected_count
+    ):
         raise ReconciliationError("writer_receipt_binding_invalid")
     receipt_by_task = {row.get("task_id"): row for row in receipt_calls if isinstance(row, dict)}
     if set(receipt_by_task) != set(task_ids):
@@ -314,7 +367,11 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
     records_by_key: dict[tuple[str, str], dict] = {}
     if isinstance(records, list):
         for row in records:
-            if not isinstance(row, dict) or not isinstance(row.get("task_id"), str) or not isinstance(row.get("candidate_id"), str):
+            if (
+                not isinstance(row, dict)
+                or not isinstance(row.get("task_id"), str)
+                or not isinstance(row.get("candidate_id"), str)
+            ):
                 raise ReconciliationError("candidate_record_invalid")
             key = (row["task_id"], row["candidate_id"])
             if key in records_by_key or key[0] not in task_ids:
@@ -334,8 +391,7 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
         if not isinstance(payload, dict) or not isinstance(payload.get("finding_candidates"), list):
             raise ReconciliationError("engine_payload_invalid")
         ledger_output = ledger["outputs"].get(task_id)
-        if (not isinstance(ledger_output, dict)
-                or ledger_output.get("output_hash") != digest(canonical(payload))):
+        if not isinstance(ledger_output, dict) or ledger_output.get("output_hash") != digest(canonical(payload)):
             raise ReconciliationError("task_output_hash_invalid")
         call = call_by_task[task_id]
         outcome = outcomes_by_hash.get(digest(task_id.encode()))
@@ -346,9 +402,11 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
         if outcome.get("response_sha256") != call.get("response_sha256") or captured_sha != call.get("response_sha256"):
             raise ReconciliationError("response_hash_binding_invalid")
         request = next(row for row in requests if row["task_id"] == task_id)
-        if (call.get("request_sha256") != request.get("input_sha256")
-                or receipt_by_task[task_id].get("request_sha256") != request.get("input_sha256")
-                or receipt_by_task[task_id].get("response_sha256") != captured_sha):
+        if (
+            call.get("request_sha256") != request.get("input_sha256")
+            or receipt_by_task[task_id].get("request_sha256") != request.get("input_sha256")
+            or receipt_by_task[task_id].get("response_sha256") != captured_sha
+        ):
             raise ReconciliationError("request_response_binding_invalid")
         if outcome.get("returned_candidate_count") != len(raw_candidates):
             raise ReconciliationError("response_candidate_count_invalid")
@@ -371,21 +429,36 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
             rejected_item = rejected.get(index)
             if rejected_item is not None:
                 if rejected_item.get("item_hash") != raw_item_hash(raw) or rejected_item.get("reason_code") not in {
-                    "invalid_candidate_fields", "invalid_candidate_line", "invalid_candidate_text",
-                    "invalid_candidate_severity", "invalid_candidate_reasoning_kind",
-                    "invalid_candidate_introducedness", "invalid_candidate_evidence_refs",
-                    "invalid_candidate_location", "invalid_candidate_unit_id",
-                    "candidate_references_unknown_scope", "candidate_references_unknown_evidence",
-                    "candidate_text_exceeds_limit", "output_item_limit_exceeded",
+                    "invalid_candidate_fields",
+                    "invalid_candidate_line",
+                    "invalid_candidate_text",
+                    "invalid_candidate_severity",
+                    "invalid_candidate_reasoning_kind",
+                    "invalid_candidate_introducedness",
+                    "invalid_candidate_evidence_refs",
+                    "invalid_candidate_location",
+                    "invalid_candidate_unit_id",
+                    "candidate_references_unknown_scope",
+                    "candidate_references_unknown_evidence",
+                    "candidate_text_exceeds_limit",
+                    "output_item_limit_exceeded",
                 }:
                     raise ReconciliationError("normalization_quarantine_binding_invalid")
-                projected.append({"candidate_ordinal": index, "candidate_id_sha256": None,
-                                  "raw_candidate_sha256": raw_item_hash(raw),
-                                  "record_provenance": "VERIFIED", "validation_state": "NOT_APPLICABLE",
-                                  "validation_reason": "NORMALIZATION_QUARANTINE", "in_reconciled_findings": False,
-                                  "in_case_packet": False, "export_disposition": "NORMALIZATION_QUARANTINED",
-                                  "normalization_reason_code": rejected_item["reason_code"],
-                                  "missing_required_fields": []})
+                projected.append(
+                    {
+                        "candidate_ordinal": index,
+                        "candidate_id_sha256": None,
+                        "raw_candidate_sha256": raw_item_hash(raw),
+                        "record_provenance": "VERIFIED",
+                        "validation_state": "NOT_APPLICABLE",
+                        "validation_reason": "NORMALIZATION_QUARANTINE",
+                        "in_reconciled_findings": False,
+                        "in_case_packet": False,
+                        "export_disposition": "NORMALIZATION_QUARANTINED",
+                        "normalization_reason_code": rejected_item["reason_code"],
+                        "missing_required_fields": [],
+                    }
+                )
                 continue
             if accepted_index >= len(payload["finding_candidates"]):
                 raise ReconciliationError("normalization_candidate_count_invalid")
@@ -402,8 +475,7 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
             for field, value in normalized.items():
                 if field == "location":
                     if not isinstance(engine_raw.get(field), dict) or any(
-                        engine_raw[field].get(name) != value.get(name)
-                        for name in ("kind", "path", "side", "line")
+                        engine_raw[field].get(name) != value.get(name) for name in ("kind", "path", "side", "line")
                     ):
                         raise ReconciliationError("engine_candidate_source_mismatch")
                 elif engine_raw.get(field) != value:
@@ -425,7 +497,8 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
                 state = record.get("validation_state")
                 reason = record.get("validation_reason")
                 if state not in {"VALID", "NEEDS_CONTEXT", "INVALID"} or reason not in {
-                    "candidate_not_object", "location_or_evidence_not_validated",
+                    "candidate_not_object",
+                    "location_or_evidence_not_validated",
                     "snapshot_location_and_evidence_validated",
                 }:
                     raise ReconciliationError("candidate_validation_value_invalid")
@@ -447,37 +520,57 @@ def build_receipt(result: dict[str, Any], ledger: dict[str, Any], outcomes: dict
             else:
                 missing = [field for field in FIELDS if field not in raw]
                 disposition = "MISSING_REQUIRED_FIELDS" if missing else "UNKNOWN"
-            projected.append({"candidate_ordinal": index, "candidate_id_sha256": digest(cid.encode()),
-                              "raw_candidate_sha256": raw_item_hash(raw),
-                              "record_provenance": provenance, "validation_state": state,
-                              "validation_reason": reason, "in_reconciled_findings": in_findings,
-                              "in_case_packet": in_packet, "export_disposition": disposition,
-                              "normalization_reason_code": None,
-                              "missing_required_fields": missing})
-        projected_tasks.append({"task_id_sha256": digest(task_id.encode()),
-                                "response_sha256": call["response_sha256"],
-                                "returned_candidate_count": len(projected),
-                                "packet_candidate_count": sum(row["in_case_packet"] is True for row in projected),
-                                "candidates": projected})
+            projected.append(
+                {
+                    "candidate_ordinal": index,
+                    "candidate_id_sha256": digest(cid.encode()),
+                    "raw_candidate_sha256": raw_item_hash(raw),
+                    "record_provenance": provenance,
+                    "validation_state": state,
+                    "validation_reason": reason,
+                    "in_reconciled_findings": in_findings,
+                    "in_case_packet": in_packet,
+                    "export_disposition": disposition,
+                    "normalization_reason_code": None,
+                    "missing_required_fields": missing,
+                }
+            )
+        projected_tasks.append(
+            {
+                "task_id_sha256": digest(task_id.encode()),
+                "response_sha256": call["response_sha256"],
+                "returned_candidate_count": len(projected),
+                "packet_candidate_count": sum(row["in_case_packet"] is True for row in projected),
+                "candidates": projected,
+            }
+        )
     if accounted != set(records_by_key):
         raise ReconciliationError("candidate_record_unmatched")
     if not found.issubset(expected_pairs):
         raise ReconciliationError("finding_candidate_unmatched")
     if not packet_pairs.issubset(expected_pairs):
         raise ReconciliationError("packet_candidate_unmatched")
-    projection = {"schema": "model-only-shadow-writer-reconciliation.v1", "status": "PROJECTION_COMPLETE",
-            "case_id": plan.get("case", {}).get("case_id", "unknown"), "run_id_sha256": digest(str(result.get("run_id")).encode()),
-            "snapshot_id": result.get("snapshot_id"), "snapshot_sha256": plan["case"]["snapshot_sha256"],
-            "plan_sha256": plan_sha, "capture_manifest_sha256": manifest_sha,
-            "writer_receipt_sha256": writer_receipt_sha, "result_sha256": result_sha,
-            "returned_candidate_count_total": sum(t["returned_candidate_count"] for t in projected_tasks),
-            "packet_candidate_count_total": sum(t["packet_candidate_count"] for t in projected_tasks),
-            "normalization_quarantined_count_total": sum(
-                c["export_disposition"] == "NORMALIZATION_QUARANTINED"
-                for t in projected_tasks for c in t["candidates"]
-            ),
-            "unknown_candidate_provenance_count": sum(c["record_provenance"] == "UNKNOWN"
-                for t in projected_tasks for c in t["candidates"]), "tasks": projected_tasks}
+    projection = {
+        "schema": "model-only-shadow-writer-reconciliation.v1",
+        "status": "PROJECTION_COMPLETE",
+        "case_id": plan.get("case", {}).get("case_id", "unknown"),
+        "run_id_sha256": digest(str(result.get("run_id")).encode()),
+        "snapshot_id": result.get("snapshot_id"),
+        "snapshot_sha256": plan["case"]["snapshot_sha256"],
+        "plan_sha256": plan_sha,
+        "capture_manifest_sha256": manifest_sha,
+        "writer_receipt_sha256": writer_receipt_sha,
+        "result_sha256": result_sha,
+        "returned_candidate_count_total": sum(t["returned_candidate_count"] for t in projected_tasks),
+        "packet_candidate_count_total": sum(t["packet_candidate_count"] for t in projected_tasks),
+        "normalization_quarantined_count_total": sum(
+            c["export_disposition"] == "NORMALIZATION_QUARANTINED" for t in projected_tasks for c in t["candidates"]
+        ),
+        "unknown_candidate_provenance_count": sum(
+            c["record_provenance"] == "UNKNOWN" for t in projected_tasks for c in t["candidates"]
+        ),
+        "tasks": projected_tasks,
+    }
     if current_source:
         projection["schema"] = "model-only-shadow-writer-reconciliation.v2"
         projection["engine_summary"] = engine_summary(result, ledger, plan)
@@ -488,15 +581,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ("result", "capture-root", "plan", "preflight", "writer-receipt", "writer-outcomes", "output"):
         parser.add_argument("--" + option, type=Path, required=True)
-    parser.add_argument("--current-source", action="store_true",
-                        help="validate the closed per-run PR-457 plan and receipt")
+    parser.add_argument(
+        "--current-source", action="store_true", help="validate the closed per-run PR-457 plan and receipt"
+    )
     args = parser.parse_args(argv)
     try:
         plan, plan_raw = read_json(args.plan, 128_000)
         if args.current_source:
             preflight, _ = read_json(args.preflight, 16_384)
             projection_plan, policy, _snapshot = _current_source_plan(
-                plan, preflight, args.plan, args.preflight,
+                plan,
+                preflight,
+                args.plan,
+                args.preflight,
             )
             case_id = "PR-457"
         else:
@@ -511,12 +608,18 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if args.current_source:
                 generated_receipt = sanitize_writer_capture(
-                    args.capture_root, args.plan, args.preflight, generated_dir,
+                    args.capture_root,
+                    args.plan,
+                    args.preflight,
+                    generated_dir,
                     current_source=True,
                 )
             else:
                 generated_receipt = sanitize_writer_capture(
-                    args.capture_root, args.plan, args.preflight, generated_dir,
+                    args.capture_root,
+                    args.plan,
+                    args.preflight,
+                    generated_dir,
                 )
             receipt_file, _ = read_json(args.writer_receipt, 128_000)
             outcomes_file, _ = read_json(args.writer_outcomes, 128_000)
@@ -526,13 +629,17 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             if generated_dir.exists():
                 import shutil
+
                 shutil.rmtree(generated_dir)
         result, result_raw = read_json(args.result, 8_000_000, True)
         manifest, manifest_raw = read_json(args.capture_root / "manifest.json", 256_000, True)
         if not isinstance(result, dict) or not isinstance(manifest, dict):
             raise ReconciliationError("result_shape_invalid")
         expected_hash = result.get("result_hash")
-        if not isinstance(expected_hash, str) or digest(canonical({k: v for k, v in result.items() if k != "result_hash"})) != expected_hash:
+        if (
+            not isinstance(expected_hash, str)
+            or digest(canonical({k: v for k, v in result.items() if k != "result_hash"})) != expected_hash
+        ):
             raise ReconciliationError("result_hash_mismatch")
         receipt, _ = read_json(args.writer_receipt, 128_000)
         outcomes, _ = read_json(args.writer_outcomes, 128_000)
@@ -550,8 +657,18 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(candidate, dict) and isinstance(source_task, dict):
                 packet_pairs.add((candidate["candidate_id"], source_task["task_id"]))
         projection = build_receipt(
-            result, result.get("ledger"), outcomes, manifest, response_payloads, packet_pairs,
-            projection_plan, receipt, expected_hash, digest(plan_raw), digest(manifest_raw), digest(canonical(receipt)),
+            result,
+            result.get("ledger"),
+            outcomes,
+            manifest,
+            response_payloads,
+            packet_pairs,
+            projection_plan,
+            receipt,
+            expected_hash,
+            digest(plan_raw),
+            digest(manifest_raw),
+            digest(canonical(receipt)),
             current_source=args.current_source,
         )
         out = canonical(projection) + b"\n"

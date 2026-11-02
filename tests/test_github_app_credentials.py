@@ -224,9 +224,7 @@ def test_missing_policy_is_unavailable_before_any_api_or_token_request():
 
 def test_missing_canary_identity_is_unavailable_before_any_api_or_token_request():
     transport = FakeTransport()
-    credential_provider = GitHubAppPublisherCredentialProvider(
-        make_policy(), private_key_pem(), transport=transport
-    )
+    credential_provider = GitHubAppPublisherCredentialProvider(make_policy(), private_key_pem(), transport=transport)
 
     with pytest.raises(GitHubPublicationError, match="publisher_identity_unavailable"):
         credential_provider.credential_for(REPO_ID, {"actions": "read", "pull_requests": "read"}, 30)
@@ -287,8 +285,12 @@ def test_expired_deadline_fails_before_any_http_request():
     ticks = iter([10.0, 40.0])
     transport = FakeTransport()
     credential_provider = GitHubAppPublisherCredentialProvider(
-        make_policy(), private_key_pem(), canary_identity=canary_identity(), transport=transport,
-        clock=lambda: next(ticks), utcnow=lambda: NOW
+        make_policy(),
+        private_key_pem(),
+        canary_identity=canary_identity(),
+        transport=transport,
+        clock=lambda: next(ticks),
+        utcnow=lambda: NOW,
     )
 
     with pytest.raises(GitHubPublicationError, match="github_app_deadline_exhausted"):
@@ -321,7 +323,9 @@ def test_wrong_target_or_permission_request_fails_before_api_calls(repository_id
 def test_invalid_policy_object_is_unavailable_without_attribute_error_or_http_calls():
     transport = FakeTransport()
     credential_provider = GitHubAppPublisherCredentialProvider(
-        {"app_id": APP_ID}, private_key_pem(), transport=transport  # type: ignore[arg-type]
+        {"app_id": APP_ID},
+        private_key_pem(),
+        transport=transport,  # type: ignore[arg-type]
     )
 
     with pytest.raises(GitHubPublicationError, match="publisher_identity_unavailable"):
@@ -338,36 +342,44 @@ def test_invalid_policy_object_is_unavailable_without_attribute_error_or_http_ca
             "github_app_identity_mismatch",
         ),
         (
-            lambda i, method, url, status, body: (status, {**body, "suspended_at": NOW.isoformat()})
-            if i == 2
-            else (status, body),
+            lambda i, method, url, status, body: (
+                (status, {**body, "suspended_at": NOW.isoformat()}) if i == 2 else (status, body)
+            ),
             "github_app_installation_identity_mismatch",
         ),
         (
-            lambda i, method, url, status, body: (status, {**body, "id": INSTALLATION_ID + 1})
-            if i == 3
-            else (status, body),
+            lambda i, method, url, status, body: (
+                (status, {**body, "id": INSTALLATION_ID + 1}) if i == 3 else (status, body)
+            ),
             "github_app_installation_identity_mismatch",
         ),
         (
-            lambda i, method, url, status, body: (status, {**body, "permissions": {**body["permissions"], "contents": "read"}})
-            if i == 4
-            else (status, body),
+            lambda i, method, url, status, body: (
+                (status, {**body, "permissions": {**body["permissions"], "contents": "read"}})
+                if i == 4
+                else (status, body)
+            ),
             "github_app_token_scope_mismatch",
         ),
         (
             lambda i, method, url, status, body: (
-                status,
-                {**body, "total_count": 2, "repositories": [*body["repositories"], {"id": 9000, "full_name": "owner/other"}]},
-            )
-            if i == 5
-            else (status, body),
+                (
+                    status,
+                    {
+                        **body,
+                        "total_count": 2,
+                        "repositories": [*body["repositories"], {"id": 9000, "full_name": "owner/other"}],
+                    },
+                )
+                if i == 5
+                else (status, body)
+            ),
             "github_app_token_scope_mismatch",
         ),
         (
-            lambda i, method, url, status, body: (status, {**body, "login": "someone-else[bot]"})
-            if i == 6
-            else (status, body),
+            lambda i, method, url, status, body: (
+                (status, {**body, "login": "someone-else[bot]"}) if i == 6 else (status, body)
+            ),
             "github_app_bot_identity_mismatch",
         ),
     ],
@@ -410,6 +422,7 @@ def test_redirect_invalid_json_and_transport_exception_are_generic_and_single_at
         (200, b'{"id":333,"id":999}', None, "github_app_response_invalid"),
         (200, {}, 1, "github_app_transport_unavailable"),
     ):
+
         def mutate(index, _method, _url, default_status, default_body):
             return (status, body) if index == 1 else (default_status, default_body)
 
@@ -468,9 +481,7 @@ def test_real_adapter_read_then_write_uses_stable_identity_and_two_exact_scope_t
 
     assert client.fresh_head(30) == "a" * 40
     body = "Ordinary review comment.\n\n<!-- pr-review-harness:effect-" + "c" * 64 + " -->"
-    result = client.submit_review(
-        {"commit_id": "a" * 40, "event": "COMMENT", "body": body}, "effect-" + "c" * 64, 30
-    )
+    result = client.submit_review({"commit_id": "a" * 40, "event": "COMMENT", "body": body}, "effect-" + "c" * 64, 30)
 
     assert result.actor_login == BOT_LOGIN
     assert [call[3] for call in transport.calls if call[0] == "POST" and call[1].endswith("/access_tokens")] == [
@@ -482,19 +493,15 @@ def test_real_adapter_read_then_write_uses_stable_identity_and_two_exact_scope_t
     review_post = next(call for call in transport.calls if call[0] == "POST" and call[1].endswith("/pulls/44/reviews"))
     assert pull_get[2].endswith("-4")
     assert review_post[2].endswith("-11")
-    read_credential = credential_provider.credential_for(
-        REPO_ID, {"actions": "read", "pull_requests": "read"}, 30
-    )
-    write_credential = credential_provider.credential_for(
-        REPO_ID, {"actions": "read", "pull_requests": "write"}, 30
-    )
+    read_credential = credential_provider.credential_for(REPO_ID, {"actions": "read", "pull_requests": "read"}, 30)
+    write_credential = credential_provider.credential_for(REPO_ID, {"actions": "read", "pull_requests": "write"}, 30)
     assert read_credential.identity == write_credential.identity == client._identity
     assert dict(read_credential.permissions) == {"actions": "read", "pull_requests": "read"}
     assert dict(write_credential.permissions) == {"actions": "read", "pull_requests": "write"}
     before_cache_hits = len(transport.calls)
-    assert credential_provider.credential_for(
-        REPO_ID, {"actions": "read", "pull_requests": "read"}, 30
-    ) is read_credential
+    assert (
+        credential_provider.credential_for(REPO_ID, {"actions": "read", "pull_requests": "read"}, 30) is read_credential
+    )
     assert len(transport.calls) == before_cache_hits
 
 
@@ -503,14 +510,14 @@ def test_verified_identity_evidence_binds_protected_canary_and_server_bot_user()
     first = provider(first_transport).credential_for(REPO_ID, {"actions": "read", "pull_requests": "read"}, 30)
 
     second_transport = FakeTransport()
-    second = provider(
-        second_transport, canary_identity=canary_identity(evidence_id="6" * 64)
-    ).credential_for(REPO_ID, {"actions": "read", "pull_requests": "read"}, 30)
+    second = provider(second_transport, canary_identity=canary_identity(evidence_id="6" * 64)).credential_for(
+        REPO_ID, {"actions": "read", "pull_requests": "read"}, 30
+    )
 
     changed_bot_transport = FakeTransport(
-        mutate=lambda index, method, url, status, body: (status, {**body, "id": 56})
-        if url.endswith("/users/review-agent%5Bbot%5D")
-        else (status, body)
+        mutate=lambda index, method, url, status, body: (
+            (status, {**body, "id": 56}) if url.endswith("/users/review-agent%5Bbot%5D") else (status, body)
+        )
     )
     changed_bot = provider(changed_bot_transport).credential_for(
         REPO_ID, {"actions": "read", "pull_requests": "read"}, 30
@@ -524,12 +531,8 @@ def test_writer_cache_entry_is_never_reused_for_read_scope():
     transport = FakeTransport()
     credential_provider = provider(transport)
 
-    writer = credential_provider.credential_for(
-        REPO_ID, {"actions": "read", "pull_requests": "write"}, 30
-    )
-    reader = credential_provider.credential_for(
-        REPO_ID, {"actions": "read", "pull_requests": "read"}, 30
-    )
+    writer = credential_provider.credential_for(REPO_ID, {"actions": "read", "pull_requests": "write"}, 30)
+    reader = credential_provider.credential_for(REPO_ID, {"actions": "read", "pull_requests": "read"}, 30)
 
     assert dict(writer.permissions) == {"actions": "read", "pull_requests": "write"}
     assert dict(reader.permissions) == {"actions": "read", "pull_requests": "read"}

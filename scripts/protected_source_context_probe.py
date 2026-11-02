@@ -184,7 +184,11 @@ def run_probe(
     workflow_sha = env.get("GITHUB_WORKFLOW_SHA", "")
     event_name = env.get("GITHUB_EVENT_NAME", "")
     raw_context_ref = env.get("GITHUB_REF", "")
-    context_ref = _safe_ref(raw_context_ref.removeprefix("refs/heads/")) if isinstance(raw_context_ref, str) and raw_context_ref.startswith("refs/heads/") else None
+    context_ref = (
+        _safe_ref(raw_context_ref.removeprefix("refs/heads/"))
+        if isinstance(raw_context_ref, str) and raw_context_ref.startswith("refs/heads/")
+        else None
+    )
     workflow_ref = _safe_workflow_ref(env.get("GITHUB_WORKFLOW_REF", ""))
     if not _sha(context_sha) or not _sha(workflow_sha) or event_name != "pull_request_target":
         raise ProbeError("probe_context_invalid")

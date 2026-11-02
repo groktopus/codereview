@@ -314,7 +314,9 @@ def test_check_detects_out_of_date_outputs_and_seeded_stale_source(tmp_path: Pat
     assert status.check(tmp_path, tmp_path / INPUTS, tmp_path / PAGE, tmp_path / MANIFEST) == []
 
     write(tmp_path / PAGE, generated.page_text + "\nhand edit\n")
-    codes = {finding.code for finding in status.check(tmp_path, tmp_path / INPUTS, tmp_path / PAGE, tmp_path / MANIFEST)}
+    codes = {
+        finding.code for finding in status.check(tmp_path, tmp_path / INPUTS, tmp_path / PAGE, tmp_path / MANIFEST)
+    }
     assert "STATUS_EVIDENCE_OUT_OF_DATE" in codes
 
     write(tmp_path / PAGE, generated.page_text)
@@ -333,9 +335,13 @@ def test_superseded_contract_reference_fails_only_when_unlabelled(tmp_path: Path
     assert status.check(tmp_path, tmp_path / INPUTS, tmp_path / PAGE, tmp_path / MANIFEST) == []
     write(
         tmp_path / PAGE,
-        generated.page_text.replace("## Evidence links", "Use legacy-v14 as the current contract.\n\n## Evidence links"),
+        generated.page_text.replace(
+            "## Evidence links", "Use legacy-v14 as the current contract.\n\n## Evidence links"
+        ),
     )
-    codes = {finding.code for finding in status.check(tmp_path, tmp_path / INPUTS, tmp_path / PAGE, tmp_path / MANIFEST)}
+    codes = {
+        finding.code for finding in status.check(tmp_path, tmp_path / INPUTS, tmp_path / PAGE, tmp_path / MANIFEST)
+    }
     assert "SUPERSEDED_CONTRACT_UNMARKED" in codes
 
 
@@ -369,7 +375,9 @@ def test_cli_check_json_and_write_mode(tmp_path: Path, capsys: pytest.CaptureFix
     assert status.main(args + ["--check", "--json"]) == 1
     report = json.loads(capsys.readouterr().out)
     assert {finding["code"] for finding in report["findings"]} == {"STATUS_EVIDENCE_OUT_OF_DATE"}
-    assert status.main(["--root", str(tmp_path), "--inputs", "missing.json", "--page", PAGE, "--manifest", MANIFEST]) == 2
+    assert (
+        status.main(["--root", str(tmp_path), "--inputs", "missing.json", "--page", PAGE, "--manifest", MANIFEST]) == 2
+    )
 
 
 def test_historical_evidence_files_are_never_written(tmp_path: Path) -> None:

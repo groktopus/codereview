@@ -38,10 +38,9 @@ class PinnedCaptureProbeProvider:
 
     def review_with_capture(self, task, evidence, limits, capture_spec, capture_sink):
         request = self.serialize_review_request(task, evidence, limits)
-        if (
-            capture_spec.get("strict_request_pin") is not True
-            or hashlib.sha256(request).hexdigest() != capture_spec.get("expected_request_sha256")
-        ):
+        if capture_spec.get("strict_request_pin") is not True or hashlib.sha256(
+            request
+        ).hexdigest() != capture_spec.get("expected_request_sha256"):
             raise ValueError("fake_request_pin_mismatch")
         capture_sink(capture_spec, request, None, "failed", None, None)
         raise RuntimeError("offline_fake_transport_not_configured")
@@ -55,22 +54,39 @@ class AdjudicatingCaptureProbeProvider(PinnedCaptureProbeProvider):
         refs = [item["evidence_id"] for item in evidence]
         payload = {
             "contract_version": "specialist-findings.v4",
-            "finding_candidates": [{
-                "unit_id": task["unit_ids"][0],
-                "location": {"kind": "line", "path": evidence[0]["path"], "side": "HEAD", "line": 1, "reason": None},
-                "title": "Candidate for offline adjudication probe",
-                "observation": "The changed value is used without validation.",
-                "consequence": "Malformed values may fail unexpectedly.",
-                "rule_or_contract": "Inputs should be validated before use.",
-                "severity": "low", "reasoning_kind": "inferred", "evidence_refs": refs,
-                "introducedness": "INTRODUCED",
-            }],
+            "finding_candidates": [
+                {
+                    "unit_id": task["unit_ids"][0],
+                    "location": {
+                        "kind": "line",
+                        "path": evidence[0]["path"],
+                        "side": "HEAD",
+                        "line": 1,
+                        "reason": None,
+                    },
+                    "title": "Candidate for offline adjudication probe",
+                    "observation": "The changed value is used without validation.",
+                    "consequence": "Malformed values may fail unexpectedly.",
+                    "rule_or_contract": "Inputs should be validated before use.",
+                    "severity": "low",
+                    "reasoning_kind": "inferred",
+                    "evidence_refs": refs,
+                    "introducedness": "INTRODUCED",
+                }
+            ],
             "context_gap_proposals": [],
-            "coverage_notes": [{
-                "unit_id": unit_id, "state": "COVERED", "reason_code": "STATIC_REVIEW",
-                "evidence_refs": refs, "coverage_basis": "STATIC_REVIEW",
-            } for unit_id in task["unit_ids"]],
-            "specific_strengths": [], "future_guidance": [],
+            "coverage_notes": [
+                {
+                    "unit_id": unit_id,
+                    "state": "COVERED",
+                    "reason_code": "STATIC_REVIEW",
+                    "evidence_refs": refs,
+                    "coverage_basis": "STATIC_REVIEW",
+                }
+                for unit_id in task["unit_ids"]
+            ],
+            "specific_strengths": [],
+            "future_guidance": [],
         }
         response = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         capture_sink(capture_spec, request, response, "completed", "b" * 64, CONTENT_TRANSFORM)
@@ -253,7 +269,11 @@ class BoundWireProvider(SizingOnlyOpenAIProvider):
                         "state": "COVERED",
                         "reason_code": "REVIEWED",
                         "evidence_refs": [
-                            *next(row["evidence_ids"] for row in task["unit_evidence_bindings"] if row["unit_id"] == unit_id),
+                            *next(
+                                row["evidence_ids"]
+                                for row in task["unit_evidence_bindings"]
+                                if row["unit_id"] == unit_id
+                            ),
                             *(eid for eid in task["evidence_ids"] if eid.startswith("policy:")),
                         ],
                         "coverage_basis": "STATIC_REVIEW",
@@ -399,14 +419,16 @@ class FindingProvider(EmptyProvider):
 class FindingWithUnmanifestedGapProvider(FindingProvider):
     def review(self, task, evidence, limits):
         result = super().review(task, evidence, limits)
-        result["context_gap_proposals"] = [{
-            "evidence_kind": "implementation",
-            "target": {"target_unit_id": None, "target_path": "src/not-captured.py", "target_symbol": None},
-            "rationale": "Inspect the related implementation.",
-            "related_candidate_ids": [],
-            "related_evidence_ids": [evidence[0]["evidence_id"]],
-            "required_lens": task["lens"],
-        }]
+        result["context_gap_proposals"] = [
+            {
+                "evidence_kind": "implementation",
+                "target": {"target_unit_id": None, "target_path": "src/not-captured.py", "target_symbol": None},
+                "rationale": "Inspect the related implementation.",
+                "related_candidate_ids": [],
+                "related_evidence_ids": [evidence[0]["evidence_id"]],
+                "required_lens": task["lens"],
+            }
+        ]
         return result
 
 
@@ -589,13 +611,15 @@ class SnapshotReuseGapProvider(EmptyProvider):
                     }
                     for path in self.target_paths
                 ],
-                "coverage_notes": [{
-                    "unit_id": unit,
-                    "state": "COVERED",
-                    "reason_code": "initial_review",
-                    "evidence_refs": [evidence_id],
-                    "coverage_basis": "STATIC_REVIEW",
-                }],
+                "coverage_notes": [
+                    {
+                        "unit_id": unit,
+                        "state": "COVERED",
+                        "reason_code": "initial_review",
+                        "evidence_refs": [evidence_id],
+                        "coverage_basis": "STATIC_REVIEW",
+                    }
+                ],
             },
             "usage": {},
             "provenance": {"provider": "snapshot-reuse-fixture"},
@@ -689,12 +713,8 @@ class RequiredContextClosureFixtureProvider(ContextFollowupProvider):
 
         self.calls += 1
         unit_id = task["unit_ids"][0]
-        retrieved_id = next(
-            item["evidence_id"] for item in evidence if item.get("path") == "docs/caller.md"
-        )
-        unit_binding = next(
-            row for row in task["unit_evidence_bindings"] if row["unit_id"] == unit_id
-        )
+        retrieved_id = next(item["evidence_id"] for item in evidence if item.get("path") == "docs/caller.md")
+        unit_binding = next(row for row in task["unit_evidence_bindings"] if row["unit_id"] == unit_id)
         unit_local_id = unit_binding["evidence_ids"][0]
         note = {
             "unit_id": unit_id,
@@ -725,13 +745,15 @@ class NestedGapContextFollowupProvider(ContextFollowupProvider):
         evidence_id = task["evidence_ids"][0]
         return {
             "finding_candidates": [],
-            "context_gap_proposals": [{
-                "evidence_kind": "caller",
-                "target": {"target_unit_id": unit, "target_path": None, "target_symbol": None},
-                "rationale": "Nested contract gap remains.",
-                "related_evidence_ids": [evidence_id],
-                "required_lens": task["lens"],
-            }],
+            "context_gap_proposals": [
+                {
+                    "evidence_kind": "caller",
+                    "target": {"target_unit_id": unit, "target_path": None, "target_symbol": None},
+                    "rationale": "Nested contract gap remains.",
+                    "related_evidence_ids": [evidence_id],
+                    "required_lens": task["lens"],
+                }
+            ],
             "coverage_notes": [],
         }
 
@@ -984,9 +1006,14 @@ def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_ch
     provider = PinProvider()
     snapshot = make_snapshot()
     prof = profile()
-    limits = {**LIMITS, "max_provider_calls": 1, "max_followup_tasks": 0,
-              "max_input_bytes_per_task": 128_000, "max_output_bytes_per_task": 32_768,
-              "max_output_tokens": 1_800}
+    limits = {
+        **LIMITS,
+        "max_provider_calls": 1,
+        "max_followup_tasks": 0,
+        "max_input_bytes_per_task": 128_000,
+        "max_output_bytes_per_task": 32_768,
+        "max_output_tokens": 1_800,
+    }
     plan = plan_review(snapshot, prof, "AUTO")
     prepared, _skipped = prepare_plan_tasks(snapshot, plan, prof, limits, provider)
     from pr_review_harness.engine import _evidence_for
@@ -998,8 +1025,11 @@ def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_ch
         evidence = _evidence_for(task, snapshot, limits["max_input_bytes_per_task"])
         request = provider.serialize_review_request(task, evidence, limits)
         pins[task["task_id"]] = {
-            "task_id": task["task_id"], "input_sha256": hashlib.sha256(request).hexdigest(),
-            "input_bytes": len(request), "lens": task["lens"], "output_bytes_cap": 32_768,
+            "task_id": task["task_id"],
+            "input_sha256": hashlib.sha256(request).hexdigest(),
+            "input_bytes": len(request),
+            "lens": task["lens"],
+            "output_bytes_cap": 32_768,
             "output_tokens_cap": 1_800,
         }
 
@@ -1008,8 +1038,16 @@ def test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_ch
         capture_dir = tmp_path / f"capture-{len(list(tmp_path.iterdir()))}"
         with pytest.raises(EnginePreflightError, match="review request is invalid"):
             run_review(
-                snapshot, plan, prof, provider, None, limits, str(tmp_path / "results"), "pinned-run",
-                private_capture_dir=str(capture_dir), private_capture_case_id="PR-464",
+                snapshot,
+                plan,
+                prof,
+                provider,
+                None,
+                limits,
+                str(tmp_path / "results"),
+                "pinned-run",
+                private_capture_dir=str(capture_dir),
+                private_capture_case_id="PR-464",
                 private_capture_request_pins=pin_map,
                 private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": "d" * 64},
             )
@@ -1032,13 +1070,22 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
         (Path(__file__).resolve().parents[1] / "experiments/model-only-shadow-live-pr464-plan-v3.json").read_text()
     )
     prof["repository"] = frozen_plan["case"]["repository"]
-    snapshot["profile_hash"] = hashlib.sha256(json.dumps(
-        prof, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-    ).encode()).hexdigest()
-    snapshot["snapshot_hash"] = hashlib.sha256(json.dumps(
-        {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
-        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-    ).encode()).hexdigest()
+    snapshot["profile_hash"] = hashlib.sha256(
+        json.dumps(
+            prof,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
+    snapshot["snapshot_hash"] = hashlib.sha256(
+        json.dumps(
+            {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
     limits = {
         **LIMITS,
         "max_provider_calls": 10,
@@ -1071,31 +1118,54 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
 
     rejected_profile = {**prof, "profile_id": "../bad"}
     rejected_snapshot = copy.deepcopy(snapshot)
-    rejected_snapshot["profile_hash"] = hashlib.sha256(json.dumps(
-        rejected_profile, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-    ).encode()).hexdigest()
-    rejected_snapshot["snapshot_hash"] = hashlib.sha256(json.dumps(
-        {key: value for key, value in rejected_snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
-        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-    ).encode()).hexdigest()
+    rejected_snapshot["profile_hash"] = hashlib.sha256(
+        json.dumps(
+            rejected_profile,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
+    rejected_snapshot["snapshot_hash"] = hashlib.sha256(
+        json.dumps(
+            {key: value for key, value in rejected_snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
     rejected_plan = plan_review(rejected_snapshot, rejected_profile, "AUTO")
-    rejected_prepared, _skipped = prepare_plan_tasks(rejected_snapshot, rejected_plan, rejected_profile, limits, provider)
-    rejected_tasks = [task for task in rejected_prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"]
+    rejected_prepared, _skipped = prepare_plan_tasks(
+        rejected_snapshot, rejected_plan, rejected_profile, limits, provider
+    )
+    rejected_tasks = [
+        task for task in rejected_prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"
+    ]
     rejected_pins = {}
     for task in rejected_tasks:
         evidence = _evidence_for(task, rejected_snapshot, limits["max_input_bytes_per_task"])
         request = provider.serialize_review_request(task, evidence, limits)
         rejected_pins[task["task_id"]] = {
-            "task_id": task["task_id"], "input_sha256": hashlib.sha256(request).hexdigest(),
-            "input_bytes": len(request), "lens": task["lens"],
-            "output_bytes_cap": 32_768, "output_tokens_cap": 1_800,
+            "task_id": task["task_id"],
+            "input_sha256": hashlib.sha256(request).hexdigest(),
+            "input_bytes": len(request),
+            "lens": task["lens"],
+            "output_bytes_cap": 32_768,
+            "output_tokens_cap": 1_800,
         }
     rejected_capture = tmp_path / "capture-missing-profile-id"
     with pytest.raises(EnginePreflightError, match="review request is invalid"):
         run_review(
-            rejected_snapshot, rejected_plan, rejected_profile, provider, None, limits,
-            str(tmp_path / "results"), "missing-profile-id",
-            private_capture_dir=str(rejected_capture), private_capture_case_id="PR-464",
+            rejected_snapshot,
+            rejected_plan,
+            rejected_profile,
+            provider,
+            None,
+            limits,
+            str(tmp_path / "results"),
+            "missing-profile-id",
+            private_capture_dir=str(rejected_capture),
+            private_capture_case_id="PR-464",
             private_capture_request_pins=rejected_pins,
             private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": rejected_snapshot["snapshot_hash"]},
         )
@@ -1103,8 +1173,16 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
 
     capture_dir = tmp_path / "capture-six-of-ten"
     result = run_review(
-        snapshot, plan, prof, provider, None, limits, str(tmp_path / "results"), "six-of-ten",
-        private_capture_dir=str(capture_dir), private_capture_case_id="PR-457",
+        snapshot,
+        plan,
+        prof,
+        provider,
+        None,
+        limits,
+        str(tmp_path / "results"),
+        "six-of-ten",
+        private_capture_dir=str(capture_dir),
+        private_capture_case_id="PR-457",
         private_capture_request_pins=pins,
         private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": snapshot["snapshot_hash"]},
     )
@@ -1122,8 +1200,16 @@ def test_private_capture_accepts_exact_six_pins_under_ten_call_ceiling(tmp_path)
     below_cap_dir = tmp_path / "capture-below-cap"
     with pytest.raises(EnginePreflightError, match="review request is invalid"):
         run_review(
-            snapshot, plan, prof, provider, None, below_cap_limits, str(tmp_path / "results"), "below-cap",
-            private_capture_dir=str(below_cap_dir), private_capture_case_id="PR-457",
+            snapshot,
+            plan,
+            prof,
+            provider,
+            None,
+            below_cap_limits,
+            str(tmp_path / "results"),
+            "below-cap",
+            private_capture_dir=str(below_cap_dir),
+            private_capture_case_id="PR-457",
             private_capture_request_pins=pins,
             private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": snapshot["snapshot_hash"]},
         )
@@ -1155,14 +1241,25 @@ def test_private_capture_profile_identity_resolution():
 def test_private_capture_skips_semantic_adjudication_for_valid_candidate(tmp_path):
     provider = AdjudicatingCaptureProbeProvider()
     snapshot = make_snapshot()
-    prof = json.loads((Path(__file__).resolve().parents[1] / "experiments/synth-001-writer-profile-v1.json").read_text())
-    snapshot["profile_hash"] = hashlib.sha256(json.dumps(
-        prof, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-    ).encode()).hexdigest()
-    snapshot["snapshot_hash"] = hashlib.sha256(json.dumps(
-        {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
-        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-    ).encode()).hexdigest()
+    prof = json.loads(
+        (Path(__file__).resolve().parents[1] / "experiments/synth-001-writer-profile-v1.json").read_text()
+    )
+    snapshot["profile_hash"] = hashlib.sha256(
+        json.dumps(
+            prof,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
+    snapshot["snapshot_hash"] = hashlib.sha256(
+        json.dumps(
+            {key: value for key, value in snapshot.items() if key not in {"snapshot_id", "snapshot_hash"}},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
     marker = tmp_path / "adjudication-called"
     limits = {
         **LIMITS,
@@ -1176,21 +1273,36 @@ def test_private_capture_skips_semantic_adjudication_for_valid_candidate(tmp_pat
     }
     plan = plan_review(snapshot, prof, "AUTO")
     prepared, _skipped = prepare_plan_tasks(snapshot, plan, prof, limits, provider)
-    writer_task = next(task for task in prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS")
+    writer_task = next(
+        task for task in prepared if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"
+    )
     from pr_review_harness.engine import _evidence_for
 
     evidence = _evidence_for(writer_task, snapshot, limits["max_input_bytes_per_task"])
     request = provider.serialize_review_request(writer_task, evidence, limits)
-    pins = {writer_task["task_id"]: {
-        "task_id": writer_task["task_id"], "input_sha256": hashlib.sha256(request).hexdigest(),
-        "input_bytes": len(request), "lens": writer_task["lens"],
-        "output_bytes_cap": 32_768, "output_tokens_cap": 1_800,
-    }}
+    pins = {
+        writer_task["task_id"]: {
+            "task_id": writer_task["task_id"],
+            "input_sha256": hashlib.sha256(request).hexdigest(),
+            "input_bytes": len(request),
+            "lens": writer_task["lens"],
+            "output_bytes_cap": 32_768,
+            "output_tokens_cap": 1_800,
+        }
+    }
 
     capture_dir = tmp_path / "capture-no-adjudication"
     result = run_review(
-        snapshot, plan, prof, provider, None, limits, str(tmp_path / "results"), "capture-no-adjudication",
-        private_capture_dir=str(capture_dir), private_capture_case_id="PR-457",
+        snapshot,
+        plan,
+        prof,
+        provider,
+        None,
+        limits,
+        str(tmp_path / "results"),
+        "capture-no-adjudication",
+        private_capture_dir=str(capture_dir),
+        private_capture_case_id="PR-457",
         private_capture_request_pins=pins,
         private_capture_snapshot_pin={"snapshot_id": "snap", "snapshot_sha256": snapshot["snapshot_hash"]},
     )
@@ -1336,7 +1448,18 @@ def test_collector_to_engine_serializes_owned_windows_and_required_context(tmp_p
     (work / "src/b.py").write_text("def beta():\n    return 1\n")
     git(work, "add", "AGENTS.md", "docs/contract.md", "src/a.py", "src/b.py")
     subprocess.run(
-        ["git", "-C", str(work), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "base"],
+        [
+            "git",
+            "-C",
+            str(work),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "-m",
+            "base",
+        ],
         check=True,
         capture_output=True,
         timeout=10,
@@ -1346,14 +1469,27 @@ def test_collector_to_engine_serializes_owned_windows_and_required_context(tmp_p
     (work / "src/b.py").write_text("def beta():\n    return 2\n")
     git(work, "add", "src/a.py", "src/b.py")
     subprocess.run(
-        ["git", "-C", str(work), "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "commit", "-m", "change"],
+        [
+            "git",
+            "-C",
+            str(work),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "-m",
+            "change",
+        ],
         check=True,
         capture_output=True,
         timeout=10,
     )
     head = git(work, "rev-parse", "HEAD")
     git(work, "remote", "add", "origin", str(bare))
-    subprocess.run(["git", "-C", str(work), "push", "origin", "HEAD:refs/heads/main"], check=True, capture_output=True, timeout=10)
+    subprocess.run(
+        ["git", "-C", str(work), "push", "origin", "HEAD:refs/heads/main"], check=True, capture_output=True, timeout=10
+    )
     prof = {
         **profile(),
         "context_paths": ["AGENTS.md", "docs/contract.md"],
@@ -1361,7 +1497,7 @@ def test_collector_to_engine_serializes_owned_windows_and_required_context(tmp_p
         "retrieval_context_patterns": ["AGENTS.md", "docs/contract.md"],
         "context_selection": {
             "version": "context-selection.v1",
-                "mandatory_policy_paths": ["AGENTS.md"],
+            "mandatory_policy_paths": ["AGENTS.md"],
             "max_total_context_bytes": 10_000,
             "window": {
                 "before_lines": 0,
@@ -1407,7 +1543,9 @@ def test_collector_to_engine_serializes_owned_windows_and_required_context(tmp_p
             assert set(binding["evidence_ids"]).issubset(sent)
         assert set(row["input_evidence_ids"]) & windows
     code_coverage = [row for row in result["coverage_ledger"] if row["obligation_kind"] == "CHANGED_UNIT_LENS"]
-    expected_code_obligations = sum(row["obligation_kind"] == "CHANGED_UNIT_LENS" for row in plan["coverage_obligations"])
+    expected_code_obligations = sum(
+        row["obligation_kind"] == "CHANGED_UNIT_LENS" for row in plan["coverage_obligations"]
+    )
     assert len(code_coverage) == expected_code_obligations
     assert all(row["state"] == "COMPLETE" for row in code_coverage)
 
@@ -1545,21 +1683,21 @@ def test_lower_adapter_ceiling_drives_splitting_below_runtime_ceiling():
     assert all(size <= limits["max_input_bytes_per_task"] for size in final_sizes)
 
 
-def test_adapter_cap_rejects_unsplittable_task_before_reservation_or_secret_lookup(
-    tmp_path, monkeypatch
-):
+def test_adapter_cap_rejects_unsplittable_task_before_reservation_or_secret_lookup(tmp_path, monkeypatch):
     snap = make_snapshot(units=1)
     evidence = snap["evidence"]["diff:u0"]
     evidence["content"] = "x" * 5_000
     evidence["content_hash"] = hashlib.sha256(evidence["content"].encode()).hexdigest()
     prof = profile()
-    provider = OpenAIProvider({
-        "kind": "openai_compatible",
-        "base_url": "https://provider.invalid/v1",
-        "model": "adapter-cap-test",
-        "api_key_env": "ADAPTER_CAP_MUST_NOT_BE_READ",
-        "max_request_bytes": 1_000,
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://provider.invalid/v1",
+            "model": "adapter-cap-test",
+            "api_key_env": "ADAPTER_CAP_MUST_NOT_BE_READ",
+            "max_request_bytes": 1_000,
+        }
+    )
 
     class GuardedEnv(dict):
         def get(self, key, default=None):
@@ -1596,15 +1734,14 @@ def test_invalid_declared_adapter_input_cap_fails_preflight(adapter_cap):
     provider = EmptyProvider()
     provider.max_request_bytes = adapter_cap
     with pytest.raises(ValueError, match="invalid provider input byte capability"):
-        engine_module.effective_task_input_ceiling(
-            {**LIMITS, "max_input_bytes_per_task": 128_000}, provider
-        )
+        engine_module.effective_task_input_ceiling({**LIMITS, "max_input_bytes_per_task": 128_000}, provider)
 
 
 def test_provider_without_declared_request_cap_keeps_runtime_input_ceiling():
-    assert engine_module.effective_task_input_ceiling(
-        {**LIMITS, "max_input_bytes_per_task": 128_000}, EmptyProvider()
-    ) == 128_000
+    assert (
+        engine_module.effective_task_input_ceiling({**LIMITS, "max_input_bytes_per_task": 128_000}, EmptyProvider())
+        == 128_000
+    )
 
 
 def test_unit_skips_when_required_context_cannot_fit_without_dispatch(tmp_path):
@@ -2062,7 +2199,9 @@ def test_external_path_followup_preserves_multi_unit_parent_scope_order(tmp_path
     assert followup["unit_ids"] == parent_order
     metadata = followup["context_followup"]
     obligation = next(
-        item for item in result["ledger"]["dynamic_obligations"] if item["obligation_id"] == metadata["followup_obligation_id"]
+        item
+        for item in result["ledger"]["dynamic_obligations"]
+        if item["obligation_id"] == metadata["followup_obligation_id"]
     )
     assert metadata["scope_unit_ids"] == parent_order
     assert obligation["scope_unit_ids"] == parent_order
@@ -2099,18 +2238,14 @@ def test_required_context_closure_fixtures_preserve_engine_decision(
     assert result["context_gaps"][0]["status"] == (
         "RESOLVED_BY_FOLLOWUP" if expected_coverage == "COMPLETE" else "VALID_UNRESOLVED"
     )
-    context_coverage = next(
-        row for row in result["coverage_ledger"] if row["obligation_kind"] == "REQUIRED_CONTEXT"
-    )
+    context_coverage = next(row for row in result["coverage_ledger"] if row["obligation_kind"] == "REQUIRED_CONTEXT")
     assert context_coverage["state"] == expected_coverage
     assert context_coverage["reason_code"] == (
         "VALID_RESULT" if expected_coverage == "COMPLETE" else "REQUIRED_CONTEXT_NOT_COVERED"
     )
     diagnostics = context_coverage["closure_diagnostics"]
     assert diagnostics["state"] == "OBSERVED"
-    assert diagnostics["coverage_note_result"] == (
-        "COVERED" if expected_coverage == "COMPLETE" else "NO_COVERING_NOTE"
-    )
+    assert diagnostics["coverage_note_result"] == ("COVERED" if expected_coverage == "COMPLETE" else "NO_COVERING_NOTE")
     assert diagnostics["coverage_note_failure_counts"][expected_note_code] == 1
     assert result["coverage_state"] == expected_coverage
     assert result["disposition"] == ("APPROVE" if expected_coverage == "COMPLETE" else "INCOMPLETE")
@@ -2149,16 +2284,25 @@ def test_required_context_note_diagnostics_share_the_acceptance_predicate(mutati
 
 def test_required_context_note_diagnostics_keep_empty_missing_and_malformed_distinct():
     empty, empty_observation = engine_module._coverage_note_observation(
-        [], notes_present=True, scope_unit_ids=["unit-1"],
-        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+        [],
+        notes_present=True,
+        scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"],
+        task_input_evidence_ids=["ev-required"],
     )
     absent, absent_observation = engine_module._coverage_note_observation(
-        [], notes_present=False, scope_unit_ids=["unit-1"],
-        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+        [],
+        notes_present=False,
+        scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"],
+        task_input_evidence_ids=["ev-required"],
     )
     malformed, malformed_observation = engine_module._coverage_note_observation(
-        ["private-note-canary"], notes_present=True, scope_unit_ids=["unit-1"],
-        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+        ["private-note-canary"],
+        notes_present=True,
+        scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"],
+        task_input_evidence_ids=["ev-required"],
     )
     assert not empty and empty_observation["result"] == "NO_NOTES"
     assert not absent and absent_observation["result"] == "UNKNOWN"
@@ -2172,32 +2316,46 @@ def test_required_context_note_diagnostics_keep_empty_missing_and_malformed_dist
         "evidence_refs": ["ev-other"],
     }
     covered, multiple_observation = engine_module._coverage_note_observation(
-        [multiple, {
-            "unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW",
-            "evidence_refs": ["ev-required"],
-        }],
-        notes_present=True, scope_unit_ids=["unit-1"],
-        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+        [
+            multiple,
+            {
+                "unit_id": "unit-1",
+                "state": "COVERED",
+                "coverage_basis": "STATIC_REVIEW",
+                "evidence_refs": ["ev-required"],
+            },
+        ],
+        notes_present=True,
+        scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"],
+        task_input_evidence_ids=["ev-required"],
     )
     assert covered and multiple_observation["result"] == "COVERED"
     assert multiple_observation["failure_counts"]["STATE_NOT_COVERED"] == 1
     assert multiple_observation["failure_counts"]["MATCH"] == 1
 
     valid_first = {
-        "unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW",
+        "unit_id": "unit-1",
+        "state": "COVERED",
+        "coverage_basis": "STATIC_REVIEW",
         "evidence_refs": ["ev-required"],
     }
     malformed_later = {**valid_first, "evidence_refs": [{"unhashable": "private"}]}
     matched, short_circuited = engine_module._coverage_note_observation(
-        [valid_first, malformed_later], notes_present=True, scope_unit_ids=["unit-1"],
-        required_evidence_ids=["ev-required"], task_input_evidence_ids=["ev-required"],
+        [valid_first, malformed_later],
+        notes_present=True,
+        scope_unit_ids=["unit-1"],
+        required_evidence_ids=["ev-required"],
+        task_input_evidence_ids=["ev-required"],
     )
     assert matched and short_circuited["notes_unexamined_after_match_count"] == 1
 
 
 def test_required_context_note_first_failure_order_matches_each_existing_call_site():
     note = {
-        "unit_id": "unit-outside", "state": "PARTIAL", "coverage_basis": "DYNAMIC_EXECUTION",
+        "unit_id": "unit-outside",
+        "state": "PARTIAL",
+        "coverage_basis": "DYNAMIC_EXECUTION",
         "evidence_refs": ["ev-other"],
     }
     common = {
@@ -2224,13 +2382,44 @@ def test_required_context_shared_helper_matches_both_legacy_any_predicates():
     note_rows = [
         [],
         ["not-an-object"],
-        [{"unit_id": "unit-1", "state": "PARTIAL", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]}],
-        [{"unit_id": "unit-outside", "state": "PARTIAL", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]}],
-        [{"unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-extra"]}],
-        [{"unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required", "ev-missing"]}],
         [
-            {"unit_id": "unit-outside", "state": "PARTIAL", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]},
-            {"unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-required"]},
+            {
+                "unit_id": "unit-1",
+                "state": "PARTIAL",
+                "coverage_basis": "STATIC_REVIEW",
+                "evidence_refs": ["ev-required"],
+            }
+        ],
+        [
+            {
+                "unit_id": "unit-outside",
+                "state": "PARTIAL",
+                "coverage_basis": "STATIC_REVIEW",
+                "evidence_refs": ["ev-required"],
+            }
+        ],
+        [{"unit_id": "unit-1", "state": "COVERED", "coverage_basis": "STATIC_REVIEW", "evidence_refs": ["ev-extra"]}],
+        [
+            {
+                "unit_id": "unit-1",
+                "state": "COVERED",
+                "coverage_basis": "STATIC_REVIEW",
+                "evidence_refs": ["ev-required", "ev-missing"],
+            }
+        ],
+        [
+            {
+                "unit_id": "unit-outside",
+                "state": "PARTIAL",
+                "coverage_basis": "STATIC_REVIEW",
+                "evidence_refs": ["ev-required"],
+            },
+            {
+                "unit_id": "unit-1",
+                "state": "COVERED",
+                "coverage_basis": "STATIC_REVIEW",
+                "evidence_refs": ["ev-required"],
+            },
         ],
     ]
     for notes in note_rows:
@@ -2253,13 +2442,19 @@ def test_required_context_shared_helper_matches_both_legacy_any_predicates():
             for note in notes
         )
         actual_followup, _ = engine_module._coverage_note_observation(
-            notes, notes_present=True, scope_unit_ids=scope,
-            required_evidence_ids=required, task_input_evidence_ids=dispatched,
+            notes,
+            notes_present=True,
+            scope_unit_ids=scope,
+            required_evidence_ids=required,
+            task_input_evidence_ids=dispatched,
             predicate_order="followup_resolution",
         )
         actual_final, _ = engine_module._coverage_note_observation(
-            notes, notes_present=True, scope_unit_ids=scope,
-            required_evidence_ids=required, task_input_evidence_ids=dispatched,
+            notes,
+            notes_present=True,
+            scope_unit_ids=scope,
+            required_evidence_ids=required,
+            task_input_evidence_ids=dispatched,
             predicate_order="final_coverage",
         )
         assert actual_followup is legacy_followup
@@ -2267,25 +2462,32 @@ def test_required_context_shared_helper_matches_both_legacy_any_predicates():
 
 
 def test_required_output_quarantine_diagnostic_preserves_current_required_kind_rule():
-    rows = [{
-        "quarantined_items": [
-            {"kind": "future_guidance", "index": 0},
-            {"kind": "coverage_notes", "index": 1, "item_hash": "secret-hash"},
-        ]
-    }]
+    rows = [
+        {
+            "quarantined_items": [
+                {"kind": "future_guidance", "index": 0},
+                {"kind": "coverage_notes", "index": 1, "item_hash": "secret-hash"},
+            ]
+        }
+    ]
     required, observation = engine_module._required_output_quarantine_observation(rows)
     legacy_required = any(
         item.get("kind") not in {"specific_strengths", "future_guidance"}
-        for result_row in rows for item in result_row.get("quarantined_items", [])
+        for result_row in rows
+        for item in result_row.get("quarantined_items", [])
     )
     assert required is legacy_required
     assert required is True
     assert observation["count"] == 1
     assert observation["by_kind"]["coverage_notes"] == 1
     assert "secret-hash" not in json.dumps(observation)
-    _, unknown_kind = engine_module._required_output_quarantine_observation([{
-        "quarantined_items": [{"kind": "future_guidance"}, {"kind": "new_unrecognized_kind"}],
-    }])
+    _, unknown_kind = engine_module._required_output_quarantine_observation(
+        [
+            {
+                "quarantined_items": [{"kind": "future_guidance"}, {"kind": "new_unrecognized_kind"}],
+            }
+        ]
+    )
     assert unknown_kind["count"] == 1
     assert unknown_kind["by_kind"]["other_required_kind"] == 1
     _, missing = engine_module._required_output_quarantine_observation([{}])
@@ -2293,17 +2495,23 @@ def test_required_output_quarantine_diagnostic_preserves_current_required_kind_r
     assert missing["count"] == "UNKNOWN"
     with pytest.raises(AttributeError):
         engine_module._required_output_quarantine_observation([{"quarantined_items": ["malformed"]}])
-    early = {"quarantined_items": [
-        {"kind": "coverage_notes"},
-        "malformed-but-short-circuited-by-the-existing-any-predicate",
-    ]}
+    early = {
+        "quarantined_items": [
+            {"kind": "coverage_notes"},
+            "malformed-but-short-circuited-by-the-existing-any-predicate",
+        ]
+    }
     early_required, early_observation = engine_module._required_output_quarantine_observation([early])
     assert early_required is True
     assert early_observation["state"] == "UNKNOWN"
     assert early_observation["count"] == "UNKNOWN"
-    multiple_required, multiple_observation = engine_module._required_output_quarantine_observation([{
-        "quarantined_items": [{"kind": "coverage_notes"}, {"kind": "context_gap_proposals"}],
-    }])
+    multiple_required, multiple_observation = engine_module._required_output_quarantine_observation(
+        [
+            {
+                "quarantined_items": [{"kind": "coverage_notes"}, {"kind": "context_gap_proposals"}],
+            }
+        ]
+    )
     assert multiple_required is True
     assert multiple_observation["count"] == "UNKNOWN"
 
@@ -2318,7 +2526,8 @@ def test_nested_followup_gap_is_counted_without_changing_no_recursion_closure(tm
         context_retriever=ResolvedContextRetriever(),
     )
     followup_coverage = [
-        row for row in result["coverage_ledger"]
+        row
+        for row in result["coverage_ledger"]
         if row.get("obligation_kind") == "REQUIRED_CONTEXT" and row.get("context_gap_id")
     ]
     assert followup_coverage
@@ -2428,8 +2637,17 @@ def test_legacy_cached_dynamic_followup_without_binding_is_rejected_before_repla
     plan = plan_review(snap, prof)
     run_id = "legacy-followup-cache"
     path = tmp_path / f"{run_id}.json"
-    run_review(snap, plan, prof, ContextFollowupProvider(), None, LIMITS, str(tmp_path), run_id,
-               context_retriever=ResolvedContextRetriever())
+    run_review(
+        snap,
+        plan,
+        prof,
+        ContextFollowupProvider(),
+        None,
+        LIMITS,
+        str(tmp_path),
+        run_id,
+        context_retriever=ResolvedContextRetriever(),
+    )
     saved = json.loads(path.read_text())
     task = saved["ledger"]["dynamic_tasks"][0]
     task_id = task["task_id"]
@@ -2465,8 +2683,17 @@ def test_cached_followup_rejects_unknown_parent_contract_version(tmp_path):
     plan = plan_review(snap, prof)
     run_id = "unknown-parent-contract"
     path = tmp_path / f"{run_id}.json"
-    run_review(snap, plan, prof, ContextFollowupProvider(), None, LIMITS, str(tmp_path), run_id,
-               context_retriever=ResolvedContextRetriever())
+    run_review(
+        snap,
+        plan,
+        prof,
+        ContextFollowupProvider(),
+        None,
+        LIMITS,
+        str(tmp_path),
+        run_id,
+        context_retriever=ResolvedContextRetriever(),
+    )
     saved = json.loads(path.read_text())
     parent_id = saved["ledger"]["dynamic_tasks"][0]["context_followup"]["parent_task_id"]
     saved["ledger"]["outputs"][parent_id]["source_contract_version"] = {"unrecognized": "version"}
@@ -2495,13 +2722,16 @@ def test_followup_deduplicates_repeated_identical_context_and_binds_v2(tmp_path)
     snap, prof = make_snapshot(), {**profile(), "retrieval_context_patterns": ["docs/caller.md"]}
     path, content = "docs/caller.md", "The caller expects a validated result.\n"
     content_hash = hashlib.sha256(content.encode()).hexdigest()
-    evidence_id = "ev-" + hashlib.sha256(
-        json.dumps(
-            {"snapshot_id": snap["snapshot_id"], "revision": snap["base_sha"], "path": path, "hash": content_hash},
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
-    ).hexdigest()[:24]
+    evidence_id = (
+        "ev-"
+        + hashlib.sha256(
+            json.dumps(
+                {"snapshot_id": snap["snapshot_id"], "revision": snap["base_sha"], "path": path, "hash": content_hash},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()[:24]
+    )
     retrieved = {
         "evidence_id": evidence_id,
         "snapshot_id": snap["snapshot_id"],
@@ -2678,14 +2908,19 @@ def test_manifest_bound_reuses_exact_complete_snapshot_head_file_without_retriev
     content = ("captured implementation detail\n" * 900).encode("utf-8")
     object_id = hashlib.sha1(f"blob {len(content)}\0".encode() + content).hexdigest()
     content_hash = hashlib.sha256(content).hexdigest()
-    source_id = "ev-" + engine_module._hash({
-        "snapshot": snapshot["snapshot_id"],
-        "path": "src/m0.py",
-        "source": "head_file",
-        "sha": snapshot["head_sha"],
-        "hash": content_hash,
-        "start": 1,
-    })[:24]
+    source_id = (
+        "ev-"
+        + engine_module._hash(
+            {
+                "snapshot": snapshot["snapshot_id"],
+                "path": "src/m0.py",
+                "source": "head_file",
+                "sha": snapshot["head_sha"],
+                "hash": content_hash,
+                "start": 1,
+            }
+        )[:24]
+    )
     snapshot["evidence"][source_id] = {
         "evidence_id": source_id,
         "snapshot_id": snapshot["snapshot_id"],
@@ -2725,25 +2960,29 @@ def test_manifest_bound_reuses_exact_complete_snapshot_head_file_without_retriev
         assert engine_module._complete_snapshot_context_evidence(tampered, binding) is None
     unicode_path = "src/naïve.py"
     unicode_row = {**snapshot["evidence"][source_id], "path": unicode_path}
-    unicode_row["evidence_id"] = "ev-" + hashlib.sha256(
-        json.dumps(
-            {
-                "snapshot": snapshot["snapshot_id"],
-                "path": unicode_path,
-                "source": "head_file",
-                "sha": snapshot["head_sha"],
-                "hash": content_hash,
-                "start": 1,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-        ).encode()
-    ).hexdigest()[:24]
+    unicode_row["evidence_id"] = (
+        "ev-"
+        + hashlib.sha256(
+            json.dumps(
+                {
+                    "snapshot": snapshot["snapshot_id"],
+                    "path": unicode_path,
+                    "source": "head_file",
+                    "sha": snapshot["head_sha"],
+                    "hash": content_hash,
+                    "start": 1,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode()
+        ).hexdigest()[:24]
+    )
     unicode_snapshot = {**snapshot, "evidence": {unicode_row["evidence_id"]: unicode_row}}
-    assert engine_module._complete_snapshot_context_evidence(
-        unicode_snapshot, {**binding, "path": unicode_path}
-    ) == unicode_row
+    assert (
+        engine_module._complete_snapshot_context_evidence(unicode_snapshot, {**binding, "path": unicode_path})
+        == unicode_row
+    )
     prof = {
         **profile(),
         "retrieval_context_patterns": ["src/*.py"],
@@ -2797,21 +3036,24 @@ def test_oversized_snapshot_reuse_does_not_consume_followup_slot_before_later_fi
         raw = content.encode("utf-8")
         object_id = hashlib.sha1(f"blob {len(raw)}\0".encode() + raw).hexdigest()
         content_hash = hashlib.sha256(raw).hexdigest()
-        evidence_id = "ev-" + hashlib.sha256(
-            json.dumps(
-                {
-                    "snapshot": snapshot["snapshot_id"],
-                    "path": path,
-                    "source": "head_file",
-                    "sha": snapshot["head_sha"],
-                    "hash": content_hash,
-                    "start": 1,
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=True,
-            ).encode()
-        ).hexdigest()[:24]
+        evidence_id = (
+            "ev-"
+            + hashlib.sha256(
+                json.dumps(
+                    {
+                        "snapshot": snapshot["snapshot_id"],
+                        "path": path,
+                        "source": "head_file",
+                        "sha": snapshot["head_sha"],
+                        "hash": content_hash,
+                        "start": 1,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode()
+            ).hexdigest()[:24]
+        )
         rows[path] = {
             "evidence_id": evidence_id,
             "snapshot_id": snapshot["snapshot_id"],
@@ -3259,16 +3501,33 @@ def test_invalid_run_id_and_resume_state_are_typed_preflight_without_calls_or_mu
     attempt_provider = ContextFollowupProvider(marker=marker)
 
     with pytest.raises(EnginePreflightError) as collision:
-        run_review(make_snapshot(), plan_review(make_snapshot(), profile()), profile(), attempt_provider, None,
-                   LIMITS, str(tmp_path), "r1")
+        run_review(
+            make_snapshot(),
+            plan_review(make_snapshot(), profile()),
+            profile(),
+            attempt_provider,
+            None,
+            LIMITS,
+            str(tmp_path),
+            "r1",
+        )
     assert collision.value.reason == "run_id_already_exists"
     assert path.read_bytes() == original
     assert not marker.exists()
 
     other_snapshot = make_snapshot(2)
     with pytest.raises(EnginePreflightError) as mismatch:
-        run_review(other_snapshot, plan_review(other_snapshot, profile()), profile(), attempt_provider, None,
-                   LIMITS, str(tmp_path), "r1", resume=True)
+        run_review(
+            other_snapshot,
+            plan_review(other_snapshot, profile()),
+            profile(),
+            attempt_provider,
+            None,
+            LIMITS,
+            str(tmp_path),
+            "r1",
+            resume=True,
+        )
     assert mismatch.value.reason == "resume_state_invalid"
     assert path.read_bytes() == original
     assert not marker.exists()
@@ -3279,8 +3538,17 @@ def test_invalid_run_id_and_resume_state_are_typed_preflight_without_calls_or_mu
     tampered_bytes = path.read_bytes()
     snap = make_snapshot()
     with pytest.raises(EnginePreflightError) as integrity:
-        run_review(snap, plan_review(snap, profile()), profile(), attempt_provider, None,
-                   LIMITS, str(tmp_path), "r1", resume=True)
+        run_review(
+            snap,
+            plan_review(snap, profile()),
+            profile(),
+            attempt_provider,
+            None,
+            LIMITS,
+            str(tmp_path),
+            "r1",
+            resume=True,
+        )
     assert integrity.value.reason == "resume_state_invalid"
     assert path.read_bytes() == tampered_bytes
     assert not marker.exists()
@@ -3322,7 +3590,14 @@ def test_completed_resume_persistence_failure_remains_runtime(tmp_path, monkeypa
     monkeypatch.setattr(engine_module, "_atomic_write", fail_write)
     with pytest.raises(OSError, match="private persistence detail"):
         run_review(
-            snap, plan, profile(), provider, None, LIMITS, str(tmp_path), "r1",
+            snap,
+            plan,
+            profile(),
+            provider,
+            None,
+            LIMITS,
+            str(tmp_path),
+            "r1",
             resume=True,
             freshness_check=StaticFreshness({"freshness": "STALE", "observed_head_sha": "e" * 40}),
         )
@@ -3464,17 +3739,13 @@ def test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispa
 
 def test_optional_retrieval_result_budget_accepts_absent_or_positive_integer():
     engine_module.validate_limits(LIMITS)
-    engine_module.validate_limits(
-        {**LIMITS, "max_retrieval_result_bytes": LIMITS["max_input_bytes_per_task"]}
-    )
+    engine_module.validate_limits({**LIMITS, "max_retrieval_result_bytes": LIMITS["max_input_bytes_per_task"]})
 
 
 def test_retrieval_result_budget_cannot_exceed_task_input_budget():
     engine_module.validate_limits(LIMITS)
     with pytest.raises(ValueError, match="max_retrieval_result_bytes"):
-        engine_module.validate_limits(
-            {**LIMITS, "max_retrieval_result_bytes": LIMITS["max_input_bytes_per_task"] + 1}
-        )
+        engine_module.validate_limits({**LIMITS, "max_retrieval_result_bytes": LIMITS["max_input_bytes_per_task"] + 1})
 
 
 def test_unsupported_monetary_cap_rejected_before_provider_dispatch(tmp_path):

@@ -487,9 +487,7 @@ class Freshness:
 
     def __call__(self) -> dict:
         if self.dispatch_observation_path is not None:
-            marker_seen = bool(
-                self.dispatch_marker_path is not None and Path(self.dispatch_marker_path).is_file()
-            )
+            marker_seen = bool(self.dispatch_marker_path is not None and Path(self.dispatch_marker_path).is_file())
             Path(self.dispatch_observation_path).write_text(
                 "dispatch_seen\n" if marker_seen else "dispatch_missing\n",
                 encoding="utf-8",
@@ -888,9 +886,10 @@ def test_native_jev_agreement_is_bound_and_reaches_deterministic_reducer(tmp_pat
     assert finding["blocking_class"] == "BLOCKING"
     assert finding["claim_reconciliations"][0]["state"] == "AGREES"
     assert finding["claim_reconciliations"][0]["uncompared_dimensions"] == ["missing_context"]
-    assert finding["claim_reconciliations"][0]["primary_assessment_hash"] == result["claim_assessments"][0][
-        "primary_assessment_hash"
-    ]
+    assert (
+        finding["claim_reconciliations"][0]["primary_assessment_hash"]
+        == result["claim_assessments"][0]["primary_assessment_hash"]
+    )
     assert result["coverage_state"] == "COMPLETE"
     assert result["disposition"] == "REQUEST_CHANGES"
     projected, valid = selected_model_trial._current_coverage_diagnostics(result)
@@ -1078,9 +1077,7 @@ def test_required_classifier_cap_exhaustion_is_explicit_partial(tmp_path, monkey
     assert len(result["claim_assessments"]) == 2
     statuses = {row["status"] for row in result["claim_assessments"]}
     assert statuses == {"COMPLETE", "NOT_RUN"}
-    assert any(
-        row.get("reason_code") == "CLAIM_ASSESSMENT_CAP_EXHAUSTED" for row in result["claim_assessments"]
-    )
+    assert any(row.get("reason_code") == "CLAIM_ASSESSMENT_CAP_EXHAUSTED" for row in result["claim_assessments"])
     assert result["coverage_state"] == "PARTIAL"
     assert result["disposition"] == "REQUEST_CHANGES"
     projected, valid = selected_model_trial._current_coverage_diagnostics(result)
@@ -1121,8 +1118,7 @@ def test_deferred_primary_without_refs_projects_as_bound_partial_fallback(tmp_pa
     assert deferred_claim["status"] == "NOT_RUN"
     assert deferred_claim["reason_code"] == "PRIMARY_ASSESSMENT_UNAVAILABLE"
     assert any(
-        row.get("status") == "ACCEPTED" and row.get("blocking_class") == "BLOCKING"
-        for row in result["findings"]
+        row.get("status") == "ACCEPTED" and row.get("blocking_class") == "BLOCKING" for row in result["findings"]
     )
     assert result["disposition"] == "REQUEST_CHANGES"
     assert result["coverage_state"] == "PARTIAL"
@@ -1136,9 +1132,7 @@ def test_deferred_primary_without_refs_projects_as_bound_partial_fallback(tmp_pa
     for mutation in ("candidate_reason", "primary_reason", "extra_primary_field"):
         altered = copy.deepcopy(result)
         altered_candidate = next(
-            row
-            for row in altered["ledger"]["candidate_records"]
-            if row.get("candidate_id") == deferred["candidate_id"]
+            row for row in altered["ledger"]["candidate_records"] if row.get("candidate_id") == deferred["candidate_id"]
         )
         altered_finding = next(
             row for row in altered["findings"] if row.get("candidate_id") == deferred["candidate_id"]
@@ -1188,9 +1182,7 @@ def test_required_classifier_slot_and_deadline_are_protected_from_extra_adjudica
     rows = result["claim_assessments"]
     assert [row["status"] for row in rows].count("COMPLETE") == 1
     assert [row["status"] for row in rows].count("NOT_RUN") == 1
-    deferred = next(
-        row for row in result["ledger"]["candidate_records"] if row.get("adjudication_state") == "DEFERRED"
-    )
+    deferred = next(row for row in result["ledger"]["candidate_records"] if row.get("adjudication_state") == "DEFERRED")
     assert deferred["adjudication_reason_code"] == "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED"
     reservations = result["ledger"]["budget"]["reservations"]
     assert len([row for row in reservations.values() if row.get("provider_calls") == 1]) == 3
@@ -1253,9 +1245,7 @@ def test_slow_adjudication_quote_rechecks_required_classifier_time_floor(tmp_pat
     assert DeadlineQuotePrimaryProvider.quote_elapsed is True
     assert requests == []
     assert result["claim_assessments"][0]["status"] == "NOT_RUN"
-    deferred = next(
-        row for row in result["ledger"]["candidate_records"] if row.get("adjudication_state") == "DEFERRED"
-    )
+    deferred = next(row for row in result["ledger"]["candidate_records"] if row.get("adjudication_state") == "DEFERRED")
     assert deferred["adjudication_reason_code"] == "REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED"
 
 
@@ -1285,9 +1275,7 @@ def test_deadline_loss_after_adjudication_reservation_settles_not_run(tmp_path, 
     assert LateDeadlinePrimaryProvider.elapsed_remaining_reads >= 4
     assert requests == []
     adjudication = next(
-        item
-        for key, item in result["ledger"]["budget"]["settlements"].items()
-        if ":adjudicate:" in key
+        item for key, item in result["ledger"]["budget"]["settlements"].items() if ":adjudicate:" in key
     )
     assert adjudication["status"] == "NOT_RUN"
     assert result["claim_assessments"][0]["status"] == "NOT_RUN"
@@ -1402,9 +1390,7 @@ def test_context_selected_head_source_window_reaches_claim_transport_with_exact_
     assert len(ClaimChoiceHandler.seen) == 1
     request = json.loads(ClaimChoiceHandler.seen[0])
     state = request["state"]
-    cited = next(
-        item for item in state["cited_evidence"] if item["evidence_id"] == window["evidence_id"]
-    )
+    cited = next(item for item in state["cited_evidence"] if item["evidence_id"] == window["evidence_id"])
     assert cited["source_kind"] == "source_window"
     assert cited["content"] == window["content"]
     assert cited["content_hash"] == window["content_hash"]
@@ -1608,15 +1594,20 @@ def test_finite_claim_error_codes_cover_every_literal_engine_contract_code():
 
 
 def test_wrapped_error_code_requires_allowlisted_message_and_exact_remote_type():
-    assert engine_module._safe_claim_error_code(
-        IsolatedCallError("ClaimAssessmentError", "invalid_prepared_assessment")
-    ) == "invalid_prepared_assessment"
-    assert engine_module._safe_claim_error_code(
-        IsolatedCallError("ClaimAssessmentError", 'private-canary "credential-value"')
-    ) == "UNKNOWN"
-    assert engine_module._safe_claim_error_code(
-        IsolatedCallError("ValueError", "invalid_prepared_assessment")
-    ) == "UNKNOWN"
+    assert (
+        engine_module._safe_claim_error_code(IsolatedCallError("ClaimAssessmentError", "invalid_prepared_assessment"))
+        == "invalid_prepared_assessment"
+    )
+    assert (
+        engine_module._safe_claim_error_code(
+            IsolatedCallError("ClaimAssessmentError", 'private-canary "credential-value"')
+        )
+        == "UNKNOWN"
+    )
+    assert (
+        engine_module._safe_claim_error_code(IsolatedCallError("ValueError", "invalid_prepared_assessment"))
+        == "UNKNOWN"
+    )
     assert engine_module._safe_claim_error_code(DerivedClaimAssessmentError("invalid_prepared_assessment")) == "UNKNOWN"
 
 

@@ -685,22 +685,32 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
                         fnmatch.fnmatchcase(unit_path, pattern) for pattern in binding["unit_patterns"]
                     ):
                         continue
-                    binding_id = "dependency-binding-" + hashlib.sha256(
-                        _canonical({"index": binding_index, "binding": binding}).encode("utf-8")
-                    ).hexdigest()[:16]
+                    binding_id = (
+                        "dependency-binding-"
+                        + hashlib.sha256(
+                            _canonical({"index": binding_index, "binding": binding}).encode("utf-8")
+                        ).hexdigest()[:16]
+                    )
                     for side in binding["sides"]:
                         revision = snapshot.get(
-                            "change_base_sha" if side == "BASE" and snapshot.get("comparison_mode") == "PR_MERGE_BASE"
-                            else "base_sha" if side == "BASE" else "head_sha"
+                            "change_base_sha"
+                            if side == "BASE" and snapshot.get("comparison_mode") == "PR_MERGE_BASE"
+                            else "base_sha"
+                            if side == "BASE"
+                            else "head_sha"
                         )
-                        candidates = [
-                            (evidence_id, item)
-                            for evidence_id, item in evidence_map.items()
-                            if isinstance(item, dict)
-                            and item.get("dependency_binding_id") == binding_id
-                            and item.get("source_side") == side
-                            and item.get("path") == binding["manifest_path"]
-                        ] if isinstance(evidence_map, dict) else []
+                        candidates = (
+                            [
+                                (evidence_id, item)
+                                for evidence_id, item in evidence_map.items()
+                                if isinstance(item, dict)
+                                and item.get("dependency_binding_id") == binding_id
+                                and item.get("source_side") == side
+                                and item.get("path") == binding["manifest_path"]
+                            ]
+                            if isinstance(evidence_map, dict)
+                            else []
+                        )
                         if (
                             isinstance(snapshot_id, str)
                             and len(candidates) == 1

@@ -30,13 +30,31 @@ def _private_paths(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 def _cli_args(profile: Path, output: Path) -> list[str]:
     return [
-        "review", "--repo", str(ROOT), "--base", "a" * 40, "--head", "b" * 40,
-        "--profile", str(profile), "--provider-config",
+        "review",
+        "--repo",
+        str(ROOT),
+        "--base",
+        "a" * 40,
+        "--head",
+        "b" * 40,
+        "--profile",
+        str(profile),
+        "--provider-config",
         str(ROOT / "experiments/model-only-shadow-live-writer-provider-v1.json"),
-        "--limits", str(ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json"),
-        "--historical-checks-json", str(ROOT / "docs/real-case-trial-v1/checks/PR-464.json"),
-        "--mode", "AUTO", "--effect-policy", "READ_ONLY", "--run-id", "diagnostic-test",
-        "--output", str(output), "--prepare-only", "--json",
+        "--limits",
+        str(ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json"),
+        "--historical-checks-json",
+        str(ROOT / "docs/real-case-trial-v1/checks/PR-464.json"),
+        "--mode",
+        "AUTO",
+        "--effect-policy",
+        "READ_ONLY",
+        "--run-id",
+        "diagnostic-test",
+        "--output",
+        str(output),
+        "--prepare-only",
+        "--json",
     ]
 
 
@@ -44,13 +62,17 @@ def test_wrapper_records_profile_failure_stage_without_details(tmp_path: Path, m
     runner, stage_path, output = _private_paths(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(runner))
     monkeypatch.setenv("GITHUB_EVENT_PATH", "")
-    code = diagnostic.main(["--stage-output", str(stage_path), "--", *_cli_args(tmp_path / "missing-profile.json", output)])
+    code = diagnostic.main(
+        ["--stage-output", str(stage_path), "--", *_cli_args(tmp_path / "missing-profile.json", output)]
+    )
     captured = capsys.readouterr().out
     assert code == 2
     assert json.loads(captured) == {"error": "cannot read profile JSON", "exit_code": 2}
     stage = json.loads(stage_path.read_text())
     assert stage == {
-        "schema": "pr-review-prepare-stage-diagnostic.v1", "stage": "profile_configuration", "exit_code": 2,
+        "schema": "pr-review-prepare-stage-diagnostic.v1",
+        "stage": "profile_configuration",
+        "exit_code": 2,
     }
     assert stat_mode(stage_path) == 0o600
     assert "missing-profile" not in stage_path.read_text()
@@ -60,7 +82,9 @@ def test_wrapper_records_profile_failure_stage_without_details(tmp_path: Path, m
     from scripts.extract_pr_review_failure_code import extract, extract_stage
 
     assert {"stage": extract_stage(stage_path, 2), **extract(private_output, 2)} == {
-        "stage": "profile_configuration", "error": "cannot read profile JSON", "exit_code": 2,
+        "stage": "profile_configuration",
+        "error": "cannot read profile JSON",
+        "exit_code": 2,
     }
 
 
@@ -163,8 +187,10 @@ def test_check_ingestion_failure_is_classified_by_call_site(monkeypatch):
             cli._validate_historical_checks(
                 {"repository": "owner/repo", "required_checks": []},
                 {
-                    "repository": "owner/repo", "head_sha": "a" * 40,
-                    "pull_request_number": 1, "runs": [],
+                    "repository": "owner/repo",
+                    "head_sha": "a" * 40,
+                    "pull_request_number": 1,
+                    "runs": [],
                 },
                 "b" * 40,
                 "a" * 40,

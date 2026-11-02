@@ -33,15 +33,24 @@ def _deterministic_check_fixture():
         "unit_ids": ["unit-98ecf75f7878cd37c560"],
     }
     payload = {
-        "check_id": binding["check_id"], "outcome": binding["expected_outcome"],
-        "finding_candidates": [], "evidence_refs": [evidence_id], "diagnostics": [],
+        "check_id": binding["check_id"],
+        "outcome": binding["expected_outcome"],
+        "finding_candidates": [],
+        "evidence_refs": [evidence_id],
+        "diagnostics": [],
     }
     expected_input_hash = binding["expected_input_hash"]
     output = {
-        "task_id": task_id, "task_kind": "DETERMINISTIC_CHECK", "lens": binding["lens"],
-        "unit_ids": binding["unit_ids"], "status": "SUCCEEDED", "input_evidence_ids": [evidence_id],
-        "input_hash": expected_input_hash, "payload": payload,
-        "output_hash": reconciliation.digest(reconciliation.canonical(payload)), "attempts": 1,
+        "task_id": task_id,
+        "task_kind": "DETERMINISTIC_CHECK",
+        "lens": binding["lens"],
+        "unit_ids": binding["unit_ids"],
+        "status": "SUCCEEDED",
+        "input_evidence_ids": [evidence_id],
+        "input_hash": expected_input_hash,
+        "payload": payload,
+        "output_hash": reconciliation.digest(reconciliation.canonical(payload)),
+        "attempts": 1,
     }
     return snapshot_hash, {task_id: binding}, {task_id: output}
 
@@ -66,17 +75,17 @@ def _engine_summary_fixture():
         "writer_requests": [{"task_id": task_id} for task_id in writer_ids],
         "deterministic_check_tasks": {task_id: {} for task_id in check_ids},
         "coverage_obligations": [
-            {"obligation_id": "planned-a"}, {"obligation_id": "planned-b"},
+            {"obligation_id": "planned-a"},
+            {"obligation_id": "planned-b"},
         ],
     }
-    outputs = {
-        task_id: {"task_id": task_id, "status": "SUCCEEDED", "payload": {}}
-        for task_id in writer_ids
-    }
-    outputs.update({
-        "check-a": {"task_id": "check-a", "status": "SUCCEEDED", "payload": {"outcome": "FINDINGS"}},
-        "check-b": {"task_id": "check-b", "status": "SUCCEEDED", "payload": {"outcome": "PASS"}},
-    })
+    outputs = {task_id: {"task_id": task_id, "status": "SUCCEEDED", "payload": {}} for task_id in writer_ids}
+    outputs.update(
+        {
+            "check-a": {"task_id": "check-a", "status": "SUCCEEDED", "payload": {"outcome": "FINDINGS"}},
+            "check-b": {"task_id": "check-b", "status": "SUCCEEDED", "payload": {"outcome": "PASS"}},
+        }
+    )
     rows = [
         {"obligation_id": "planned-a", "state": "COMPLETE", "required": True},
         {"obligation_id": "planned-b", "state": "PARTIAL", "required": True},
@@ -93,22 +102,31 @@ def test_current_source_engine_summary_counts_full_ledger_without_text():
     assert summary["disposition"] == "REQUEST_CHANGES"
     assert summary["coverage_state"] == "PARTIAL"
     assert summary["coverage"] == {
-        "inventory_state": "OBSERVED", "row_count": 3,
+        "inventory_state": "OBSERVED",
+        "row_count": 3,
         "state_counts": {"COMPLETE": 1, "NOT_STARTED": 1, "PARTIAL": 1},
-        "unknown_state_count": 0, "required_row_count": 2,
+        "unknown_state_count": 0,
+        "required_row_count": 2,
         "required_state_counts": {"COMPLETE": 1, "NOT_STARTED": 0, "PARTIAL": 1},
-        "unknown_required_state_count": 0, "requiredness_unknown_count": 0,
+        "unknown_required_state_count": 0,
+        "requiredness_unknown_count": 0,
         "planned_inventory_state": "OBSERVED",
-        "planned_obligation_count": 2, "planned_obligations_present": 2,
-        "planned_obligations_missing": 0, "planned_obligation_duplicates": 0,
-        "actual_obligation_duplicates": 0, "unplanned_coverage_row_count": 1,
+        "planned_obligation_count": 2,
+        "planned_obligations_present": 2,
+        "planned_obligations_missing": 0,
+        "planned_obligation_duplicates": 0,
+        "actual_obligation_duplicates": 0,
+        "unplanned_coverage_row_count": 1,
     }
     assert summary["tasks"]["writer_expected_count"] == 6
     assert summary["tasks"]["deterministic_check_expected_count"] == 2
     assert summary["tasks"]["ledger_task_count"] == 8
     assert summary["tasks"]["status_counts"]["SUCCEEDED"] == 8
     assert summary["deterministic_checks"]["outcome_counts"] == {
-        "ERROR": 0, "FINDINGS": 1, "PASS": 1, "UNKNOWN": 0,
+        "ERROR": 0,
+        "FINDINGS": 1,
+        "PASS": 1,
+        "UNKNOWN": 0,
     }
     assert "sensitive model text" not in json.dumps(summary)
 
@@ -139,9 +157,7 @@ def test_engine_summary_marks_missing_unknown_and_unrecognized_values_explicitly
 def test_engine_summary_counts_duplicate_and_unknown_coverage_rows_and_mismatched_task_denominator():
     result, ledger, plan = _engine_summary_fixture()
     result["coverage_ledger"][0]["state"] = None
-    result["coverage_ledger"].append(
-        {"obligation_id": "planned-a", "state": None, "required": "unknown"}
-    )
+    result["coverage_ledger"].append({"obligation_id": "planned-a", "state": None, "required": "unknown"})
     ledger["outputs"].pop("writer-5")
     summary = reconciliation.engine_summary(result, ledger, plan)
 
@@ -165,7 +181,8 @@ def test_engine_summary_does_not_infer_missing_planned_obligations_or_check_succ
     assert summary["coverage"]["planned_obligations_missing"] is None
     assert summary["coverage"]["unplanned_coverage_row_count"] is None
     assert summary["deterministic_checks"] == {
-        "applicability": "NOT_APPLICABLE", "task_count": 0,
+        "applicability": "NOT_APPLICABLE",
+        "task_count": 0,
         "outcome_counts": {"ERROR": 0, "FINDINGS": 0, "PASS": 0, "UNKNOWN": 0},
         "unknown_outcome_count": 0,
     }
@@ -182,10 +199,18 @@ def test_engine_summary_does_not_infer_missing_planned_obligations_or_check_succ
 def test_reconciliation_v2_is_opt_in_and_v1_shape_stays_unchanged(tmp_path):
     values = _synthetic_run(tmp_path)
     args = (
-        values["result"], values["ledger"], values["outcomes"], values["manifest"],
-        values["response_payloads"], values["packet_pairs"], values["plan"],
-        values["writer_receipt"], values["result"]["result_hash"], values["plan_sha"],
-        values["manifest_sha"], values["writer_receipt_sha"],
+        values["result"],
+        values["ledger"],
+        values["outcomes"],
+        values["manifest"],
+        values["response_payloads"],
+        values["packet_pairs"],
+        values["plan"],
+        values["writer_receipt"],
+        values["result"]["result_hash"],
+        values["plan_sha"],
+        values["manifest_sha"],
+        values["writer_receipt_sha"],
     )
     legacy = reconciliation.build_receipt(*args)
     current = reconciliation.build_receipt(*args, current_source=True)
@@ -215,14 +240,10 @@ class _SingleCandidateProvider(seeded._SerializedFixtureProvider):
         return payload
 
 
-def _synthetic_run(
-    tmp_path: Path, *, missing_title: bool = False, mixed_candidates: bool = False
-) -> dict:
+def _synthetic_run(tmp_path: Path, *, missing_title: bool = False, mixed_candidates: bool = False) -> dict:
     repo, base, head, profile = seeded._synthetic_repo(tmp_path / "repo", seeded_defect=True)
     snapshot = collect_snapshot(str(repo), base, head, profile, seeded.LIMITS)
-    provider = _SingleCandidateProvider(
-        missing_title=missing_title, mixed_candidates=mixed_candidates
-    )
+    provider = _SingleCandidateProvider(missing_title=missing_title, mixed_candidates=mixed_candidates)
     plan = plan_review(snapshot, profile, "AUTO")
     original_task = plan["tasks"][0]
     original_obligation = plan["coverage_obligations"][0]
@@ -237,8 +258,7 @@ def _synthetic_run(
         for index in range(10)
     ]
     plan["coverage_obligations"] = [
-        {**original_obligation, "obligation_id": f"synth-obligation-{index:02d}"}
-        for index in range(10)
+        {**original_obligation, "obligation_id": f"synth-obligation-{index:02d}"} for index in range(10)
     ]
     limits = {
         **seeded.LIMITS,
@@ -258,12 +278,14 @@ def _synthetic_run(
         evidence = _evidence_for(task, snapshot, limits["max_input_bytes_per_task"])
         request_bytes = provider.serialize_review_request(task, evidence, limits)
         task_evidence[task["task_id"]] = (task, evidence)
-        request_rows.append({
-            "task_id": task["task_id"],
-            "lens": task["lens"],
-            "input_sha256": hashlib.sha256(request_bytes).hexdigest(),
-            "input_bytes": len(request_bytes),
-        })
+        request_rows.append(
+            {
+                "task_id": task["task_id"],
+                "lens": task["lens"],
+                "input_sha256": hashlib.sha256(request_bytes).hexdigest(),
+                "input_bytes": len(request_bytes),
+            }
+        )
         request_pins[task["task_id"]] = {
             "task_id": task["task_id"],
             "input_sha256": hashlib.sha256(request_bytes).hexdigest(),
@@ -274,9 +296,17 @@ def _synthetic_run(
         }
     capture_root = tmp_path / "capture"
     result = run_review(
-        snapshot, plan, profile, provider, None, limits, str(tmp_path / "results"),
-        "writer-live-synth-001", max_claim_assessments=0,
-        private_capture_dir=str(capture_root), private_capture_case_id="SYNTH-001",
+        snapshot,
+        plan,
+        profile,
+        provider,
+        None,
+        limits,
+        str(tmp_path / "results"),
+        "writer-live-synth-001",
+        max_claim_assessments=0,
+        private_capture_dir=str(capture_root),
+        private_capture_case_id="SYNTH-001",
         private_capture_request_pins=request_pins,
         private_capture_snapshot_pin={
             "snapshot_id": snapshot["snapshot_id"],
@@ -295,11 +325,13 @@ def _synthetic_run(
         response_raw = (capture_root / "responses" / f"{call['call_id']}.bin").read_bytes()
         response = json.loads(response_raw)
         response_sha = hashlib.sha256(response_raw).hexdigest()
-        outcomes_rows.append({
-            "task_id_sha256": hashlib.sha256(call["task_id"].encode()).hexdigest(),
-            "response_sha256": response_sha,
-            "returned_candidate_count": len(response["finding_candidates"]),
-        })
+        outcomes_rows.append(
+            {
+                "task_id_sha256": hashlib.sha256(call["task_id"].encode()).hexdigest(),
+                "response_sha256": response_sha,
+                "returned_candidate_count": len(response["finding_candidates"]),
+            }
+        )
         response_payloads[call["task_id"]] = (response_sha, response)
     # Bind the plan to the actual chunk-level calls emitted by run_review.
     # The engine may split a logical planned task into one or more calls.
@@ -317,9 +349,7 @@ def _synthetic_run(
             for call in manifest["calls"]
         ],
     }
-    plan_sha = hashlib.sha256(
-        json.dumps(plan_wire, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    plan_sha = hashlib.sha256(json.dumps(plan_wire, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     for row in manifest["case_packet_inventory"]["packets"]:
         packet = json.loads((capture_root / "case-packets" / row["path"]).read_bytes())
         candidate = packet.get("writer_candidate")
@@ -366,17 +396,21 @@ def _synthetic_run(
     }
 
 
-def _project(
-    tmp_path: Path, *, missing_title: bool = False, mixed_candidates: bool = False
-) -> tuple[dict, dict]:
-    values = _synthetic_run(
-        tmp_path, missing_title=missing_title, mixed_candidates=mixed_candidates
-    )
+def _project(tmp_path: Path, *, missing_title: bool = False, mixed_candidates: bool = False) -> tuple[dict, dict]:
+    values = _synthetic_run(tmp_path, missing_title=missing_title, mixed_candidates=mixed_candidates)
     receipt = reconciliation.build_receipt(
-        values["result"], values["ledger"], values["outcomes"], values["manifest"],
-        values["response_payloads"], values["packet_pairs"], values["plan"],
-        values["writer_receipt"], values["result"]["result_hash"],
-        values["plan_sha"], values["manifest_sha"], values["writer_receipt_sha"],
+        values["result"],
+        values["ledger"],
+        values["outcomes"],
+        values["manifest"],
+        values["response_payloads"],
+        values["packet_pairs"],
+        values["plan"],
+        values["writer_receipt"],
+        values["result"]["result_hash"],
+        values["plan_sha"],
+        values["manifest_sha"],
+        values["writer_receipt_sha"],
     )
     return receipt, values
 
@@ -390,11 +424,7 @@ def test_seeded_valid_candidate_is_bound_to_result_and_private_packet_without_te
     assert receipt["result_sha256"] == values["result"]["result_hash"]
     assert receipt["returned_candidate_count_total"] == 1
     assert receipt["packet_candidate_count_total"] == 1
-    candidate = next(
-        candidate
-        for task in receipt["tasks"]
-        for candidate in task["candidates"]
-    )
+    candidate = next(candidate for task in receipt["tasks"] for candidate in task["candidates"])
     assert candidate["record_provenance"] == "VERIFIED"
     assert candidate["in_reconciled_findings"] is True
     assert candidate["in_case_packet"] is True
@@ -409,11 +439,7 @@ def test_seeded_missing_title_is_reported_as_normalization_quarantine(tmp_path):
 
     assert receipt["returned_candidate_count_total"] == 1
     assert receipt["packet_candidate_count_total"] == 0
-    candidate = next(
-        candidate
-        for task in receipt["tasks"]
-        for candidate in task["candidates"]
-    )
+    candidate = next(candidate for task in receipt["tasks"] for candidate in task["candidates"])
     assert candidate["record_provenance"] == "VERIFIED"
     assert candidate["in_reconciled_findings"] is False
     assert candidate["in_case_packet"] is False
@@ -437,10 +463,18 @@ def test_reconciliation_rejects_candidate_record_raw_mismatch(tmp_path):
     ).hexdigest()
     with pytest.raises(reconciliation.ReconciliationError):
         reconciliation.build_receipt(
-            values["result"], values["ledger"], values["outcomes"], values["manifest"],
-            values["response_payloads"], values["packet_pairs"], values["plan"],
-            values["writer_receipt"], values["result"]["result_hash"],
-            values["plan_sha"], values["manifest_sha"], values["writer_receipt_sha"],
+            values["result"],
+            values["ledger"],
+            values["outcomes"],
+            values["manifest"],
+            values["response_payloads"],
+            values["packet_pairs"],
+            values["plan"],
+            values["writer_receipt"],
+            values["result"]["result_hash"],
+            values["plan_sha"],
+            values["manifest_sha"],
+            values["writer_receipt_sha"],
         )
 
 
@@ -473,9 +507,7 @@ def test_mixed_candidate_projection_rejects_forged_quarantine_hash(tmp_path):
     quarantined["item_hash"] = "0" * 64
     ledger_output = values["ledger"]["outputs"][task_id]
     ledger_output["payload"]["quarantined_items"][0]["item_hash"] = "0" * 64
-    ledger_output["output_hash"] = reconciliation.digest(
-        reconciliation.canonical(ledger_output["payload"])
-    )
+    ledger_output["output_hash"] = reconciliation.digest(reconciliation.canonical(ledger_output["payload"]))
     values["result"]["task_results"][task_id]["output_hash"] = ledger_output["output_hash"]
     unsigned = {key: value for key, value in values["result"].items() if key != "result_hash"}
     values["result"]["result_hash"] = hashlib.sha256(
@@ -483,10 +515,18 @@ def test_mixed_candidate_projection_rejects_forged_quarantine_hash(tmp_path):
     ).hexdigest()
     with pytest.raises(reconciliation.ReconciliationError, match="normalization_quarantine_binding_invalid"):
         reconciliation.build_receipt(
-            values["result"], values["ledger"], values["outcomes"], values["manifest"],
-            values["response_payloads"], values["packet_pairs"], values["plan"],
-            values["writer_receipt"], values["result"]["result_hash"],
-            values["plan_sha"], values["manifest_sha"], values["writer_receipt_sha"],
+            values["result"],
+            values["ledger"],
+            values["outcomes"],
+            values["manifest"],
+            values["response_payloads"],
+            values["packet_pairs"],
+            values["plan"],
+            values["writer_receipt"],
+            values["result"]["result_hash"],
+            values["plan_sha"],
+            values["manifest_sha"],
+            values["writer_receipt_sha"],
         )
 
 
@@ -505,10 +545,18 @@ def test_reconciliation_rejects_forged_candidate_id_in_selected_writer_finding(t
 
     with pytest.raises(reconciliation.ReconciliationError, match="finding_candidate_unmatched"):
         reconciliation.build_receipt(
-            values["result"], values["ledger"], values["outcomes"], values["manifest"],
-            values["response_payloads"], values["packet_pairs"], values["plan"],
-            values["writer_receipt"], values["result"]["result_hash"],
-            values["plan_sha"], values["manifest_sha"], values["writer_receipt_sha"],
+            values["result"],
+            values["ledger"],
+            values["outcomes"],
+            values["manifest"],
+            values["response_payloads"],
+            values["packet_pairs"],
+            values["plan"],
+            values["writer_receipt"],
+            values["result"]["result_hash"],
+            values["plan_sha"],
+            values["manifest_sha"],
+            values["writer_receipt_sha"],
         )
 
 
@@ -541,12 +589,27 @@ def test_cli_main_binds_saved_engine_result_to_capture_and_projects_private_rece
     monkeypatch.setattr(reconciliation, "sanitize_writer_capture", fake_sanitize)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     output = tmp_path / "projection.json"
-    assert reconciliation.main([
-        "--result", str(result_path), "--capture-root", str(values["capture_root"]),
-        "--plan", str(plan_path), "--preflight", str(preflight_path),
-        "--writer-receipt", str(receipt_path), "--writer-outcomes", str(outcomes_path),
-        "--output", str(output),
-    ]) == 0
+    assert (
+        reconciliation.main(
+            [
+                "--result",
+                str(result_path),
+                "--capture-root",
+                str(values["capture_root"]),
+                "--plan",
+                str(plan_path),
+                "--preflight",
+                str(preflight_path),
+                "--writer-receipt",
+                str(receipt_path),
+                "--writer-outcomes",
+                str(outcomes_path),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
     projection = json.loads(output.read_bytes())
     assert projection["status"] == "PROJECTION_COMPLETE"
     assert projection["returned_candidate_count_total"] == 1

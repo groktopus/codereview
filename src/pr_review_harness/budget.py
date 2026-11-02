@@ -287,9 +287,7 @@ class BudgetLedger:
                 available_deadline_seconds = current_remaining_seconds - deadline_floor_seconds
                 if available_deadline_seconds <= 0:
                     raise BudgetExhausted("REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED")
-                reservation["deadline_seconds"] = min(
-                    reservation["deadline_seconds"], available_deadline_seconds
-                )
+                reservation["deadline_seconds"] = min(reservation["deadline_seconds"], available_deadline_seconds)
             reservations = list(self.state["reservations"].values())
             reserved_calls = sum(r.get("provider_calls", 0) for r in reservations)
             projected_calls = reserved_calls + reservation["provider_calls"]
@@ -516,7 +514,9 @@ def _usage_state(usage: Any, known_flag: Any = None) -> str:
     if not isinstance(usage, dict):
         return "UNKNOWN"
     has_any = any(_valid_token_count(usage.get(field)) for field in _TOKEN_FIELDS)
-    required = all(_valid_token_count(usage.get(field)) for field in ("prompt_tokens", "completion_tokens", "total_tokens"))
+    required = all(
+        _valid_token_count(usage.get(field)) for field in ("prompt_tokens", "completion_tokens", "total_tokens")
+    )
     if known_flag is True and required:
         return "KNOWN"
     return "PARTIAL" if has_any else "UNKNOWN"

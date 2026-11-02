@@ -37,7 +37,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--predictions", required=True, help="arm outputs bound to the corpus snapshots")
     parser.add_argument("--labels", required=True, help="explicit adjudications and outcome evidence")
     parser.add_argument("--output", help="write the same canonical scorecard JSON to this path")
-    parser.add_argument("--json", action="store_true", required=True, help="emit exactly one machine-readable JSON object")
+    parser.add_argument(
+        "--json", action="store_true", required=True, help="emit exactly one machine-readable JSON object"
+    )
     return parser
 
 

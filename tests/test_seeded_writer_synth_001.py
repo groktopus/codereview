@@ -10,10 +10,7 @@ FIXTURE = ROOT / "examples/evaluation/seeded-writer-synth-001"
 
 def _model_payload() -> bytes:
     seed = json.loads((FIXTURE / "seed.json").read_text())
-    files = {
-        relative: (FIXTURE / relative).read_text()
-        for relative in seed["visible_files"]
-    }
+    files = {relative: (FIXTURE / relative).read_text() for relative in seed["visible_files"]}
     return json.dumps(
         {"fixture_id": seed["fixture_id"], "seed": seed["seed"], "files": files},
         sort_keys=True,

@@ -75,12 +75,16 @@ def validate_dependency_context(profile: dict[str, Any]) -> dict[str, Any] | Non
             or any(not isinstance(item, str) or not item or any(c in item for c in "\\\0") for item in patterns)
         ):
             raise DependencyContextError("dependency_context unit patterns are invalid")
-        if not isinstance(lenses, list) or not lenses or any(
-            not isinstance(item, str) or item not in _LENSES for item in lenses
+        if (
+            not isinstance(lenses, list)
+            or not lenses
+            or any(not isinstance(item, str) or item not in _LENSES for item in lenses)
         ):
             raise DependencyContextError("dependency_context lenses are invalid")
-        if not isinstance(sides, list) or not sides or any(
-            not isinstance(item, str) or item not in {"BASE", "HEAD"} for item in sides
+        if (
+            not isinstance(sides, list)
+            or not sides
+            or any(not isinstance(item, str) or item not in {"BASE", "HEAD"} for item in sides)
         ):
             raise DependencyContextError("dependency_context sides are invalid")
         if len(set(sides)) != len(sides):
@@ -98,10 +102,7 @@ def validate_dependency_context(profile: dict[str, Any]) -> dict[str, Any] | Non
                 raise DependencyContextError("dependency_context paths must be exact relative paths")
             if not any(
                 isinstance(allowed, str)
-                and (
-                    allowed == path
-                    or (any(char in allowed for char in "*?[") and fnmatch.fnmatchcase(path, allowed))
-                )
+                and (allowed == path or (any(char in allowed for char in "*?[") and fnmatch.fnmatchcase(path, allowed)))
                 for allowed in [*context_paths, *retrieval]
             ):
                 raise DependencyContextError("dependency_context path is outside profile allowlists")
@@ -183,23 +184,41 @@ def project_python_dependencies(
             projected.append({"package": package, "declaration_status": "NOT_DECLARED"})
         elif lock_bytes is None:
             projected.append(
-                {"package": package, "declaration_status": "DECLARED", "requirements": requirements,
-                 "lock_status": "LOCK_FILE_ABSENT"}
+                {
+                    "package": package,
+                    "declaration_status": "DECLARED",
+                    "requirements": requirements,
+                    "lock_status": "LOCK_FILE_ABSENT",
+                }
             )
         elif key in locked and len(locked[key]) == 1:
             projected.append(
-                {"package": package, "declaration_status": "DECLARED", "requirements": requirements,
-                 "lock_status": "LOCK_ENTRY_PRESENT", "locked_versions": sorted(locked[key])}
+                {
+                    "package": package,
+                    "declaration_status": "DECLARED",
+                    "requirements": requirements,
+                    "lock_status": "LOCK_ENTRY_PRESENT",
+                    "locked_versions": sorted(locked[key]),
+                }
             )
         elif key in locked:
             projected.append(
-                {"package": package, "declaration_status": "DECLARED", "requirements": requirements,
-                 "lock_status": "LOCK_ENTRIES_MULTIPLE", "locked_versions": sorted(locked[key])}
+                {
+                    "package": package,
+                    "declaration_status": "DECLARED",
+                    "requirements": requirements,
+                    "lock_status": "LOCK_ENTRIES_MULTIPLE",
+                    "locked_versions": sorted(locked[key]),
+                }
             )
         else:
             projected.append(
-                {"package": package, "declaration_status": "DECLARED", "requirements": requirements,
-                 "lock_status": "PACKAGE_NOT_IN_LOCK"}
+                {
+                    "package": package,
+                    "declaration_status": "DECLARED",
+                    "requirements": requirements,
+                    "lock_status": "PACKAGE_NOT_IN_LOCK",
+                }
             )
     record = {
         "schema": "dependency-projection.v1",

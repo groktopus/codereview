@@ -162,15 +162,10 @@ def upstream_record(policy, **overrides):
         "event": "pull_request",
         "status": "completed",
         "conclusion": "success",
-        "pull_requests": [
-            {"number": policy.pull_request_number, "base": {"sha": BASE}, "head": {"sha": HEAD}}
-        ],
+        "pull_requests": [{"number": policy.pull_request_number, "base": {"sha": BASE}, "head": {"sha": HEAD}}],
         "referenced_workflows": [
             {
-                "path": policy.called_harness_repository
-                + "/"
-                + policy.called_harness_path
-                + "@refs/heads/main",
+                "path": policy.called_harness_repository + "/" + policy.called_harness_path + "@refs/heads/main",
                 "sha": policy.called_harness_sha,
             }
         ],
@@ -248,9 +243,7 @@ def artifact_record(
         "digest": digest or "sha256:" + hashlib.sha256(content).hexdigest(),
         "expired": False,
         "expires_at": expires_at,
-        "workflow_run": {"id": 900001, "repository_id": 8123}
-        if workflow_run is None
-        else workflow_run,
+        "workflow_run": {"id": 900001, "repository_id": 8123} if workflow_run is None else workflow_run,
     }
 
 
@@ -287,9 +280,12 @@ def test_api_location_validator_accepts_global_ip_literal():
 
 
 def test_api_location_validator_accepts_public_signed_locations():
-    assert validate_api_issued_artifact_location(
-        "https://productionresultssa99.blob.core.windows.net/container/file?sig=opaque"
-    ) is True
+    assert (
+        validate_api_issued_artifact_location(
+            "https://productionresultssa99.blob.core.windows.net/container/file?sig=opaque"
+        )
+        is True
+    )
     assert validate_api_issued_artifact_location("https://storage.example.test/file?sig=x") is True
 
 
@@ -888,9 +884,7 @@ def test_upstream_run_refuses_missing_pull_request_binding():
     detail = upstream_record(policy, pull_requests=None)
     adapter = client(policy=policy, transport=FakeTransport(lambda *_: response(detail)))
     with pytest.raises(GitHubPublicationError, match="workflow_run_pr_binding_missing"):
-        adapter._validate_upstream_run(
-            {"base_sha": BASE, "head_sha": HEAD}, 10
-        )
+        adapter._validate_upstream_run({"base_sha": BASE, "head_sha": HEAD}, 10)
 
 
 def test_upstream_run_refuses_nonmatching_pull_request_rows():
@@ -907,9 +901,7 @@ def _receipt_upstream_adapter(policy, upstream):
 
 def test_receipt_upstream_refuses_workflow_identity_mismatch():
     policy = make_policy()
-    receipt = attempt_receipt(policy, upstream_run=replace(
-        attempt_receipt(policy).upstream_run, workflow_sha="a" * 40
-    ))
+    receipt = attempt_receipt(policy, upstream_run=replace(attempt_receipt(policy).upstream_run, workflow_sha="a" * 40))
     upstream = upstream_record(policy)
     adapter = _receipt_upstream_adapter(policy, upstream)
     with pytest.raises(GitHubPublicationError, match="receipt_upstream_workflow_mismatch"):
@@ -942,7 +934,14 @@ def test_receipt_upstream_refuses_unsuccessful_run():
         {"id": 1, "name": "x", "size_in_bytes": 10, "digest": "sha256:" + "a" * 64, "expired": False},
         {"id": 1, "name": "x", "size_in_bytes": 30, "digest": "md5:00", "expired": False},
         {"id": 1, "name": "x", "size_in_bytes": 30, "digest": "sha256:" + "a" * 64, "expired": True},
-        {"id": 1, "name": "x", "size_in_bytes": 30, "digest": "sha256:" + "a" * 64, "expired": False, "workflow_run": {"id": 999, "repository_id": 8123}},
+        {
+            "id": 1,
+            "name": "x",
+            "size_in_bytes": 30,
+            "digest": "sha256:" + "a" * 64,
+            "expired": False,
+            "workflow_run": {"id": 999, "repository_id": 8123},
+        },
     ],
 )
 def test_artifact_metadata_refuses_invalid_or_foreign_metadata(artifact):
@@ -1040,58 +1039,68 @@ def _artifact_pages(pages):
 
 
 def test_list_named_artifacts_bounds_items_and_reports_completeness():
-    adapter = client(transport=FakeTransport(_artifact_pages([
-        {"total_count": 3, "artifacts": [{"id": 1}, {"id": 2}, {"id": 3}]}
-    ])))
-    items, complete = adapter._list_named_artifacts("x", ScanLimits(max_runs=20, max_pages=2, max_reviews=100, deadline_seconds=10), 2)
+    adapter = client(
+        transport=FakeTransport(_artifact_pages([{"total_count": 3, "artifacts": [{"id": 1}, {"id": 2}, {"id": 3}]}]))
+    )
+    items, complete = adapter._list_named_artifacts(
+        "x", ScanLimits(max_runs=20, max_pages=2, max_reviews=100, deadline_seconds=10), 2
+    )
     assert items == [{"id": 1}, {"id": 2}] and complete is False
 
-    adapter = client(transport=FakeTransport(_artifact_pages([
-        {"total_count": 2, "artifacts": [{"id": 1}, {"id": 2}]}
-    ])))
+    adapter = client(
+        transport=FakeTransport(_artifact_pages([{"total_count": 2, "artifacts": [{"id": 1}, {"id": 2}]}]))
+    )
     items, complete = adapter._list_named_artifacts("x", LIMITS, 100)
     assert items == [{"id": 1}, {"id": 2}] and complete is True
 
-    adapter = client(transport=FakeTransport(_artifact_pages([
-        {"total_count": 5, "artifacts": [{"id": 1}, {"id": 2}]}
-    ])))
+    adapter = client(
+        transport=FakeTransport(_artifact_pages([{"total_count": 5, "artifacts": [{"id": 1}, {"id": 2}]}]))
+    )
     items, complete = adapter._list_named_artifacts("x", LIMITS, 100)
     assert items == [{"id": 1}, {"id": 2}] and complete is False
 
 
 def test_list_named_artifacts_reaches_final_page_bound():
-    adapter = client(transport=FakeTransport(_artifact_pages([
-        {"total_count": 200, "artifacts": [{"id": index} for index in range(100)]}
-    ])))
-    items, complete = adapter._list_named_artifacts("x", ScanLimits(max_runs=20, max_pages=1, max_reviews=100, deadline_seconds=10), 200)
+    adapter = client(
+        transport=FakeTransport(
+            _artifact_pages([{"total_count": 200, "artifacts": [{"id": index} for index in range(100)]}])
+        )
+    )
+    items, complete = adapter._list_named_artifacts(
+        "x", ScanLimits(max_runs=20, max_pages=1, max_reviews=100, deadline_seconds=10), 200
+    )
     assert len(items) == 100 and complete is False
 
 
 def test_list_named_artifacts_refuses_inconsistent_or_oversized_pages():
-    adapter = client(transport=FakeTransport(_artifact_pages([
-        {"total_count": 2, "artifacts": None}
-    ])))
+    adapter = client(transport=FakeTransport(_artifact_pages([{"total_count": 2, "artifacts": None}])))
     with pytest.raises(GitHubPublicationError, match="artifact_listing_invalid"):
         adapter._list_named_artifacts("x", LIMITS, 100)
 
-    adapter = client(transport=FakeTransport(_artifact_pages([
-        {"total_count": 200, "artifacts": [{"id": index} for index in range(100)]},
-        {"total_count": 201, "artifacts": [{"id": 100}]},
-    ])))
+    adapter = client(
+        transport=FakeTransport(
+            _artifact_pages(
+                [
+                    {"total_count": 200, "artifacts": [{"id": index} for index in range(100)]},
+                    {"total_count": 201, "artifacts": [{"id": 100}]},
+                ]
+            )
+        )
+    )
     with pytest.raises(GitHubPublicationError, match="artifact_listing_invalid"):
         adapter._list_named_artifacts("x", LIMITS, 200)
 
-    adapter = client(transport=FakeTransport(_artifact_pages([
-        {"total_count": 101, "artifacts": [{"id": index} for index in range(101)]}
-    ])))
+    adapter = client(
+        transport=FakeTransport(
+            _artifact_pages([{"total_count": 101, "artifacts": [{"id": index} for index in range(101)]}])
+        )
+    )
     with pytest.raises(GitHubPublicationError, match="artifact_page_limit_exceeded"):
         adapter._list_named_artifacts("x", LIMITS, 200)
 
 
 def test_list_run_artifacts_refuses_count_mismatch():
-    adapter = client(
-        transport=FakeTransport(lambda *_: response({"total_count": 2, "artifacts": [{"id": 1}]}))
-    )
+    adapter = client(transport=FakeTransport(lambda *_: response({"total_count": 2, "artifacts": [{"id": 1}]})))
     with pytest.raises(GitHubPublicationError, match="artifact_listing_invalid"):
         adapter._list_run_artifacts(900001, None, 10)
 
@@ -1419,9 +1428,7 @@ def test_historical_no_effect_refuses_unbound_run_record():
     )
     adapter = client(policy=policy)
     with pytest.raises(GitHubPublicationError, match="historical_no_effect_run_mismatch"):
-        adapter._verify_historical_no_effect(
-            {"id": 900001, "run_attempt": 2, "workflow_id": 904}, 10
-        )
+        adapter._verify_historical_no_effect({"id": 900001, "run_attempt": 2, "workflow_id": 904}, 10)
     assert adapter.transport.calls == []
 
 
@@ -1567,7 +1574,9 @@ def api_policy_document(*, enabled=True):
     return value
 
 
-def _historical_policy_adapter(policy_bytes, *, workflow=b"name: protected publisher\n", extra=None, policy_override=None, workflow_override=None):
+def _historical_policy_adapter(
+    policy_bytes, *, workflow=b"name: protected publisher\n", extra=None, policy_override=None, workflow_override=None
+):
     def responder(_method, url, _body):
         path = urlsplit(url).path
         if path.endswith("/contents/.github/pr-review-publisher-policy.json"):
@@ -1609,9 +1618,7 @@ def test_historical_policy_hash_refuses_foreign_publisher_identity():
 
 
 def test_historical_policy_hash_refuses_workflow_digest_mismatch():
-    adapter = _historical_policy_adapter(
-        json.dumps(api_policy_document()).encode(), workflow=b"tampered workflow\n"
-    )
+    adapter = _historical_policy_adapter(json.dumps(api_policy_document()).encode(), workflow=b"tampered workflow\n")
     with pytest.raises(GitHubPublicationError, match="historical_policy_invalid"):
         adapter._historical_policy_hash(_run_identity(), 10)
 
@@ -1672,9 +1679,7 @@ def test_skipped_publisher_run_refuses_unproven_job_shape(payload):
     policy = make_policy(history_reconciliation=_history(), no_effect_policy_hash="a" * 64)
     adapter = client(policy=policy, transport=FakeTransport(lambda *_: response(payload)))
     with pytest.raises(GitHubPublicationError):
-        adapter._verify_skipped_publisher_run(
-            {"id": 900001, "run_attempt": 1, "conclusion": "skipped"}, 10
-        )
+        adapter._verify_skipped_publisher_run({"id": 900001, "run_attempt": 1, "conclusion": "skipped"}, 10)
 
 
 def test_skipped_publisher_run_accepts_proven_zero_step_job():
@@ -1692,9 +1697,7 @@ def test_skipped_publisher_run_accepts_proven_zero_step_job():
         policy=policy,
         transport=FakeTransport(lambda *_: response({"total_count": 1, "jobs": [job]})),
     )
-    assert adapter._verify_skipped_publisher_run(
-        {"id": 900001, "run_attempt": 1, "conclusion": "skipped"}, 10
-    ) is True
+    assert adapter._verify_skipped_publisher_run({"id": 900001, "run_attempt": 1, "conclusion": "skipped"}, 10) is True
 
 
 # ---------------------------------------------------------------------------
@@ -1839,9 +1842,7 @@ def test_admit_refuses_canonical_review_mismatch():
     policy = make_policy()
     tampered = dict(result)
     tampered["rendered_review"] = "different review body"
-    tampered["result_hash"] = _canonical_hash(
-        {key: value for key, value in tampered.items() if key != "result_hash"}
-    )
+    tampered["result_hash"] = _canonical_hash({key: value for key, value in tampered.items() if key != "result_hash"})
     bundle = bundle_for(policy, tampered)
     adapter, _transport, settings = _admit_setup(
         policy, bundle=bundle, result=tampered, artifacts=[_default_admit_artifact(policy, bundle)]
@@ -2118,9 +2119,7 @@ def test_scan_refuses_deadline_consumed_by_review_pages():
 
 def test_scan_maps_typed_publication_error_to_unavailable(monkeypatch):
     adapter = client()
-    monkeypatch.setattr(
-        adapter, "_review_pages", lambda *_: (_ for _ in ()).throw(GitHubPublicationError("x"))
-    )
+    monkeypatch.setattr(adapter, "_review_pages", lambda *_: (_ for _ in ()).throw(GitHubPublicationError("x")))
     result = adapter.scan(SLOT, LIMITS)
     assert result.status is HistoryStatus.UNAVAILABLE
     assert result.reason_code == "github_history_unavailable"
@@ -2180,15 +2179,11 @@ def test_receipt_history_legacy_none_receipt_is_tolerated(monkeypatch):
 
 def test_receipt_history_accepts_current_and_proven_historical_runs(monkeypatch):
     policy = make_policy(history_reconciliation=_history(), no_effect_policy_hash="a" * 64)
-    adapter = _history_adapter(
-        policy, monkeypatch, runs=[{"id": 900001}], receipt=None, historical=True
-    )
+    adapter = _history_adapter(policy, monkeypatch, runs=[{"id": 900001}], receipt=None, historical=True)
     result = adapter.scan(SLOT, LIMITS)
     assert result.status is HistoryStatus.COMPLETE
 
-    adapter = _history_adapter(
-        policy, monkeypatch, runs=[{"id": 900002}], receipt=None, skipped=True
-    )
+    adapter = _history_adapter(policy, monkeypatch, runs=[{"id": 900002}], receipt=None, skipped=True)
     result = adapter.scan(SLOT, LIMITS)
     assert result.status is HistoryStatus.COMPLETE
 
@@ -2280,7 +2275,9 @@ def test_persist_refuses_completed_publisher_run_before_upload():
     policy = make_policy()
     detail = publisher_record(policy, status="completed")
     uploader = RecordingUploader()
-    adapter = client(policy=policy, transport=DownloadTransport(lambda *_: response(detail)), artifact_uploader=uploader)
+    adapter = client(
+        policy=policy, transport=DownloadTransport(lambda *_: response(detail)), artifact_uploader=uploader
+    )
     result = adapter.persist(attempt_receipt(policy), LIMITS)
     assert result.status is ReceiptPersistenceStatus.REJECTED
     assert result.reason_code == "publisher_identity_mismatch"
@@ -2439,7 +2436,11 @@ def _no_effect_setup(
     body = archive_holder.get("archive") if archive_holder else b""
     adapter = client(
         policy=policy,
-        transport=DownloadTransport(responder, body or b"", download_factory=lambda _url: HTTPResponse(200, {}, (archive_holder or {}).get("archive", b""))),
+        transport=DownloadTransport(
+            responder,
+            body or b"",
+            download_factory=lambda _url: HTTPResponse(200, {}, (archive_holder or {}).get("archive", b"")),
+        ),
         artifact_uploader=uploader,
     )
     return adapter, uploader
@@ -2462,9 +2463,7 @@ def test_persist_no_effect_refuses_unavailable_policy_and_uploader():
 def test_persist_no_effect_refuses_foreign_receipt_run():
     policy = _no_effect_policy()
     uploader = NoEffectUploader()
-    adapter, _uploader = _no_effect_setup(
-        policy, no_effect_receipt(), upload=uploader
-    )
+    adapter, _uploader = _no_effect_setup(policy, no_effect_receipt(), upload=uploader)
     result = adapter.persist_no_effect(no_effect_receipt(publisher_run=_run_identity(run_id=900002)), LIMITS)
     assert result.status is ReceiptPersistenceStatus.REJECTED
     assert result.reason_code == "publisher_run_mismatch"
@@ -2502,9 +2501,7 @@ def test_persist_no_effect_refuses_ambiguous_or_foreign_prior_receipt():
     name = policy.receipt_artifact_name(slot)
 
     # Two same-named prior attempt receipts are ambiguous.
-    adapter, uploader = _no_effect_setup(
-        policy, receipt, artifacts=[{"name": name}, {"name": name}]
-    )
+    adapter, uploader = _no_effect_setup(policy, receipt, artifacts=[{"name": name}, {"name": name}])
     result = adapter.persist_no_effect(receipt, LIMITS)
     assert result.reason_code == "attempt_receipt_ambiguous"
     assert uploader.calls == []
@@ -2512,7 +2509,9 @@ def test_persist_no_effect_refuses_ambiguous_or_foreign_prior_receipt():
     # A single prior receipt that binds a different slot is not adopted.
     foreign = attempt_receipt(policy, slot=EffectSlot(8123, "owner/repo", 45, HEAD))
     archive = zip_bytes("attempt-receipt.json", foreign.to_bytes())
-    prior = artifact_record(name, archive, workflow_run={"id": policy.publisher_run_id, "repository_id": policy.repository_id})
+    prior = artifact_record(
+        name, archive, workflow_run={"id": policy.publisher_run_id, "repository_id": policy.repository_id}
+    )
     adapter, uploader = _no_effect_setup(policy, receipt, artifacts=[prior])
     adapter.transport.download_factory = lambda _url: HTTPResponse(200, {}, archive)
     result = adapter.persist_no_effect(receipt, LIMITS)
@@ -2534,11 +2533,16 @@ def test_persist_no_effect_refuses_ack_and_attempt_metadata():
     def artifacts_with_attempt(call):
         if call == 1:
             return []
-        return [artifact_record(name, holder["archive"], artifact_id=55, workflow_run={"id": 900001, "repository_id": 8123, "run_attempt": 2})]
+        return [
+            artifact_record(
+                name,
+                holder["archive"],
+                artifact_id=55,
+                workflow_run={"id": 900001, "repository_id": 8123, "run_attempt": 2},
+            )
+        ]
 
-    adapter, uploader = _no_effect_setup(
-        policy, receipt, artifacts=artifacts_with_attempt, archive_holder=holder
-    )
+    adapter, uploader = _no_effect_setup(policy, receipt, artifacts=artifacts_with_attempt, archive_holder=holder)
     result = adapter.persist_no_effect(receipt, LIMITS)
     assert result.reason_code == "no_effect_attempt_binding_mismatch"
     assert len(uploader.calls) == 1
@@ -2553,7 +2557,9 @@ def test_persist_no_effect_refuses_unproven_attempt_for_rerun_policy():
     def artifacts_with_binding(call):
         if call == 1:
             return []
-        return [artifact_record(name, holder["archive"], artifact_id=55, workflow_run={"id": 900001, "repository_id": 8123})]
+        return [
+            artifact_record(name, holder["archive"], artifact_id=55, workflow_run={"id": 900001, "repository_id": 8123})
+        ]
 
     adapter, uploader = _no_effect_setup(
         policy, receipt, artifacts=artifacts_with_binding, archive_holder=holder, latest=2
@@ -2572,7 +2578,9 @@ def test_persist_no_effect_refuses_latest_attempt_change_after_metadata():
     def artifacts_with_binding(call):
         if call == 1:
             return []
-        return [artifact_record(name, holder["archive"], artifact_id=55, workflow_run={"id": 900001, "repository_id": 8123})]
+        return [
+            artifact_record(name, holder["archive"], artifact_id=55, workflow_run={"id": 900001, "repository_id": 8123})
+        ]
 
     adapter, uploader = _no_effect_setup(
         policy,
@@ -2742,9 +2750,7 @@ def test_submit_review_posts_once_and_returns_bound_observation():
         )
 
     adapter = client(transport=FakeTransport(responder))
-    observed = adapter.submit_review(
-        {"commit_id": HEAD, "event": "COMMENT", "body": body}, EFFECT, 10
-    )
+    observed = adapter.submit_review({"commit_id": HEAD, "event": "COMMENT", "body": body}, EFFECT, 10)
     assert observed.actor_login == WRITER
     assert observed.review_id == 1234
     assert observed.slot == EffectSlot(8123, "owner/repo", 44, HEAD)
@@ -2770,9 +2776,7 @@ def test_submit_review_refuses_foreign_post_response_content():
     body = "Review.\n\n<!-- pr-review-harness:" + EFFECT + " -->"
 
     def responder(_method, _url, _payload):
-        return response(
-            {"id": 1234, "commit_id": HEAD, "state": "APPROVED", "body": body, "user": {"login": WRITER}}
-        )
+        return response({"id": 1234, "commit_id": HEAD, "state": "APPROVED", "body": body, "user": {"login": WRITER}})
 
     adapter = client(transport=FakeTransport(responder))
     with pytest.raises(GitHubPublicationError, match="review_post_response_content_mismatch"):

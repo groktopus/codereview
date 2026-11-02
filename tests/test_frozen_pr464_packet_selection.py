@@ -47,10 +47,15 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "case_id": "PR-464",
             "snapshot": {"snapshot_id": "snapshot-464", "snapshot_hash": "a" * 64},
             "source_task": {"task_id": task_id},
-            "writer_run": {"status": "completed", "calls": [{
-                "request_sha256": requests[index]["input_sha256"],
-                "response_sha256": f"{index + 100:064x}",
-            }]},
+            "writer_run": {
+                "status": "completed",
+                "calls": [
+                    {
+                        "request_sha256": requests[index]["input_sha256"],
+                        "response_sha256": f"{index + 100:064x}",
+                    }
+                ],
+            },
             "writer_candidate": None,
         }
         raw = json.dumps(packet, sort_keys=True, separators=(",", ":")).encode()
@@ -105,8 +110,12 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "target_code_execution": False,
         "publication_enabled": False,
         "calls": [
-            {"task_id": row["task_id"], "request_sha256": row["input_sha256"],
-             "request_bytes": row["input_bytes"], "response_sha256": f"{index + 100:064x}"}
+            {
+                "task_id": row["task_id"],
+                "request_sha256": row["input_sha256"],
+                "request_bytes": row["input_bytes"],
+                "response_sha256": f"{index + 100:064x}",
+            }
             for index, row in enumerate(requests)
         ],
     }
@@ -117,9 +126,14 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "plan_sha256": plan_sha,
         "capture_manifest_sha256": manifest_sha,
         "tasks": [
-            {"task_id_sha256": _sha(task_id.encode()), "outcome": "zero_findings_returned",
-             "returned_candidate_count": 0, "packet_candidate_count": 0,
-             "candidate_packet_count": 1, "response_sha256": f"{index + 100:064x}"}
+            {
+                "task_id_sha256": _sha(task_id.encode()),
+                "outcome": "zero_findings_returned",
+                "returned_candidate_count": 0,
+                "packet_candidate_count": 0,
+                "candidate_packet_count": 1,
+                "response_sha256": f"{index + 100:064x}",
+            }
             for index, task_id in enumerate(task_ids)
         ],
         "returned_candidate_count_total": 0,
@@ -150,9 +164,18 @@ def test_selects_manifest_bound_first_pr464_empty_packet_without_dispatch(tmp_pa
     assert result["publication_enabled"] is False
     assert result["target_code_execution"] is False
     assert set(result) == {
-        "schema", "case_id", "packet_path", "selected_packet_sha256", "capture_manifest_sha256",
-        "plan_sha256", "snapshot_sha256", "selected_task_sha256", "writer_calls",
-        "audit_provider_calls", "publication_enabled", "target_code_execution",
+        "schema",
+        "case_id",
+        "packet_path",
+        "selected_packet_sha256",
+        "capture_manifest_sha256",
+        "plan_sha256",
+        "snapshot_sha256",
+        "selected_task_sha256",
+        "writer_calls",
+        "audit_provider_calls",
+        "publication_enabled",
+        "target_code_execution",
     }
 
 
@@ -203,16 +226,12 @@ def test_exact_frozen_pr464_selector_binds_canonical_profile_hash(tmp_path, monk
     plan = json.loads(plan_raw)
     plan_sha = _sha(plan_raw)
     case = plan["case"]
-    corpus = json.loads(
-        (selector.ROOT / "examples/evaluation/model-only-shadow-pr464-v3/corpus.json").read_text()
-    )
+    corpus = json.loads((selector.ROOT / "examples/evaluation/model-only-shadow-pr464-v3/corpus.json").read_text())
     identity = corpus["cases"][0]["identity"]
     profile_raw = (selector.ROOT / "docs/real-case-trial-v1/profiles/PR-464.json").read_bytes()
     profile = json.loads(profile_raw)
     raw_profile_sha = _sha(profile_raw)
-    canonical_profile_sha = _sha(
-        json.dumps(profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
-    )
+    canonical_profile_sha = _sha(json.dumps(profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode())
     assert raw_profile_sha == case["profile_file_sha256"] == identity["profile"]["sha256"]
     assert canonical_profile_sha != raw_profile_sha
 
@@ -265,41 +284,77 @@ def test_exact_frozen_pr464_selector_binds_canonical_profile_hash(tmp_path, monk
     manifest_raw = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     (capture / "manifest.json").write_bytes(manifest_raw)
     preflight_path = tmp_path / "preflight.json"
-    preflight_path.write_text(json.dumps({
-        "schema": "model-only-shadow-live-preflight-receipt.v1",
-        "status": "PLAN_MATCHED_PROVIDER_FREE", "case_id": "PR-464", "plan_sha256": plan_sha,
-        "snapshot_sha256": case["snapshot_sha256"], "provider_calls": 0,
-        "target_code_execution": False, "publication_enabled": False,
-    }))
+    preflight_path.write_text(
+        json.dumps(
+            {
+                "schema": "model-only-shadow-live-preflight-receipt.v1",
+                "status": "PLAN_MATCHED_PROVIDER_FREE",
+                "case_id": "PR-464",
+                "plan_sha256": plan_sha,
+                "snapshot_sha256": case["snapshot_sha256"],
+                "provider_calls": 0,
+                "target_code_execution": False,
+                "publication_enabled": False,
+            }
+        )
+    )
     writer_receipt_path = tmp_path / "writer-receipt.json"
-    writer_receipt_path.write_text(json.dumps({
-        "schema": "model-only-shadow-live-writer-receipt.v1", "status": "WRITER_TRANSPORT_CAPTURED",
-        "case_id": "PR-464", "plan_sha256": plan_sha, "snapshot_id": case["snapshot_id"],
-        "snapshot_sha256": case["snapshot_sha256"], "writer_call_count": 10,
-        "audit_or_jev_dispatched": False, "target_code_execution": False, "publication_enabled": False,
-        "calls": [{
-            "task_id": request["task_id"], "request_sha256": request["input_sha256"],
-            "request_bytes": request["input_bytes"], "response_sha256": response_hashes[request["task_id"]],
-        } for request in plan["writer_requests"]],
-    }))
+    writer_receipt_path.write_text(
+        json.dumps(
+            {
+                "schema": "model-only-shadow-live-writer-receipt.v1",
+                "status": "WRITER_TRANSPORT_CAPTURED",
+                "case_id": "PR-464",
+                "plan_sha256": plan_sha,
+                "snapshot_id": case["snapshot_id"],
+                "snapshot_sha256": case["snapshot_sha256"],
+                "writer_call_count": 10,
+                "audit_or_jev_dispatched": False,
+                "target_code_execution": False,
+                "publication_enabled": False,
+                "calls": [
+                    {
+                        "task_id": request["task_id"],
+                        "request_sha256": request["input_sha256"],
+                        "request_bytes": request["input_bytes"],
+                        "response_sha256": response_hashes[request["task_id"]],
+                    }
+                    for request in plan["writer_requests"]
+                ],
+            }
+        )
+    )
     outcomes_path = tmp_path / "writer-outcomes.json"
 
     def write_outcomes(bound_manifest_raw: bytes) -> None:
-        outcomes_path.write_text(json.dumps({
-            "schema": "model-only-shadow-live-writer-outcomes.v1", "plan_sha256": plan_sha,
-            "capture_manifest_sha256": _sha(bound_manifest_raw),
-            "tasks": [{
-                "task_id_sha256": _sha(request["task_id"].encode()),
-                "outcome": "zero_findings_returned", "returned_candidate_count": 0,
-                "packet_candidate_count": 0, "candidate_packet_count": 1,
-                "response_sha256": response_hashes[request["task_id"]],
-            } for request in plan["writer_requests"]],
-            "returned_candidate_count_total": 0, "packet_candidate_count_total": 0,
-            "outcome_counts": {
-                "zero_findings_returned": 10, "parse_failure": 0,
-                "candidate_reconciliation_or_filtering": 0, "candidates_preserved_in_packets": 0,
-            },
-        }))
+        outcomes_path.write_text(
+            json.dumps(
+                {
+                    "schema": "model-only-shadow-live-writer-outcomes.v1",
+                    "plan_sha256": plan_sha,
+                    "capture_manifest_sha256": _sha(bound_manifest_raw),
+                    "tasks": [
+                        {
+                            "task_id_sha256": _sha(request["task_id"].encode()),
+                            "outcome": "zero_findings_returned",
+                            "returned_candidate_count": 0,
+                            "packet_candidate_count": 0,
+                            "candidate_packet_count": 1,
+                            "response_sha256": response_hashes[request["task_id"]],
+                        }
+                        for request in plan["writer_requests"]
+                    ],
+                    "returned_candidate_count_total": 0,
+                    "packet_candidate_count_total": 0,
+                    "outcome_counts": {
+                        "zero_findings_returned": 10,
+                        "parse_failure": 0,
+                        "candidate_reconciliation_or_filtering": 0,
+                        "candidates_preserved_in_packets": 0,
+                    },
+                }
+            )
+        )
 
     write_outcomes(manifest_raw)
     result = selector.select(capture, plan_path, preflight_path, writer_receipt_path, outcomes_path)

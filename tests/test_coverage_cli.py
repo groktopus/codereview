@@ -33,6 +33,8 @@ def _local_cli_environment(monkeypatch):
         "GITHUB_REF",
     ):
         monkeypatch.delenv(name, raising=False)
+
+
 HEAD = "b" * 40
 
 
@@ -243,9 +245,7 @@ def test_trusted_private_plan_paths_require_exact_workflow_locations(tmp_path, m
     trusted_receipt = _write_json(runner_temp / "pr457-current-source-receipt.json", {})
     monkeypatch.setenv("GITHUB_WORKFLOW_REF", cli.TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF)
     assert (
-        cli._validate_trusted_private_plan_paths(
-            str(trusted_plan), str(trusted_receipt), "PR-457", current_source=True
-        )
+        cli._validate_trusted_private_plan_paths(str(trusted_plan), str(trusted_receipt), "PR-457", current_source=True)
         is None
     )
 
@@ -339,9 +339,7 @@ def test_github_pr_parsing_refusals_and_revision_mismatch(tmp_path, monkeypatch)
     event = cli._github_pr(SimpleNamespace(github_pr="owner/project#7", event_file=None, base=None, head=None))
     assert event["head_sha"] == HEAD
     with pytest.raises(ValueError, match="requested revisions do not match the GitHub PR"):
-        cli._github_pr(
-            SimpleNamespace(github_pr="owner/project#7", event_file=None, base=None, head="c" * 40)
-        )
+        cli._github_pr(SimpleNamespace(github_pr="owner/project#7", event_file=None, base=None, head="c" * 40))
 
 
 def test_event_file_input_prefers_explicit_then_historical_mode(tmp_path):
@@ -381,9 +379,7 @@ def test_historical_check_identity_refusals(tmp_path):
     with pytest.raises(ValueError, match="trusted profile repository"):
         cli._validate_historical_checks({"repository": "not-a-repository"}, document, BASE, HEAD)
     with pytest.raises(ValueError, match="does not match the profile repository and selected head"):
-        cli._validate_historical_checks(
-            profile, _check_document(head_sha="c" * 40), BASE, HEAD
-        )
+        cli._validate_historical_checks(profile, _check_document(head_sha="c" * 40), BASE, HEAD)
     with pytest.raises(ValueError, match="positive captured pull request number"):
         cli._validate_historical_checks(profile, _check_document(pull_request_number=True), BASE, HEAD)
     with pytest.raises(ValueError, match="does not match the selected base"):
@@ -429,9 +425,7 @@ def test_snapshot_rebinding_refuses_malformed_and_dangling_references():
     with pytest.raises(ValueError, match="snapshot file-level location is malformed"):
         cli._rebind_snapshot_evidence_references({"inventory": [{"file_level_location": "x"}]}, {})
     with pytest.raises(ValueError, match="snapshot file-level location is malformed"):
-        cli._rebind_snapshot_evidence_references(
-            {"inventory": [{"file_level_location": {"kind": "line"}}]}, {}
-        )
+        cli._rebind_snapshot_evidence_references({"inventory": [{"file_level_location": {"kind": "line"}}]}, {})
     with pytest.raises(ValueError, match="snapshot file-level location has an unbound evidence ID"):
         cli._rebind_snapshot_evidence_references(
             {"inventory": [{"file_level_location": {"kind": "file", "evidence_id": "old"}}]}, {}
@@ -576,9 +570,7 @@ def test_run_one_refuses_private_capture_flag_combinations(tmp_path):
     with pytest.raises(ValueError, match="current source preflight requires prepare-only PR-457"):
         _invoke_run_one(_run_one_args(private_shadow_current_source_preflight=True))
     with pytest.raises(ValueError, match="private shadow capture requires a fresh local non-resume review"):
-        _invoke_run_one(
-            _run_one_args(private_shadow_capture=str(tmp_path / "capture"), resume=True)
-        )
+        _invoke_run_one(_run_one_args(private_shadow_capture=str(tmp_path / "capture"), resume=True))
 
 
 def test_run_one_refuses_case_mismatch_and_actions_without_pins(tmp_path, monkeypatch):
@@ -640,13 +632,29 @@ PUBLISHER_CASES = [
     ("unknown-key", lambda c, t: {**c, "effect_store_path": "x"}, "publish preview configuration schema is invalid"),
     ("enabled", lambda c, t: {**c, "enabled": "yes"}, "publish preview enabled flag is invalid"),
     ("repositories-empty", lambda c, t: {**c, "allowed_repositories": []}, "publisher repository scope is invalid"),
-    ("repositories-shape", lambda c, t: {**c, "allowed_repositories": ["owner"]}, "publisher repository scope is invalid"),
+    (
+        "repositories-shape",
+        lambda c, t: {**c, "allowed_repositories": ["owner"]},
+        "publisher repository scope is invalid",
+    ),
     ("dispositions-empty", lambda c, t: {**c, "allowed_dispositions": []}, "publisher disposition scope is invalid"),
-    ("dispositions-value", lambda c, t: {**c, "allowed_dispositions": ["MERGE"]}, "publisher disposition scope is invalid"),
+    (
+        "dispositions-value",
+        lambda c, t: {**c, "allowed_dispositions": ["MERGE"]},
+        "publisher disposition scope is invalid",
+    ),
     ("profiles-empty", lambda c, t: {**c, "allowed_profile_versions": []}, "publisher profile scope is invalid"),
     ("profiles-shape", lambda c, t: {**c, "allowed_profile_versions": [1]}, "publisher profile scope is invalid"),
-    ("root-relative", lambda c, t: {**c, "trusted_result_root": "relative/root"}, "trusted result root must be an absolute path"),
-    ("root-missing", lambda c, t: {**c, "trusted_result_root": str(t / "missing")}, "trusted result root is unavailable"),
+    (
+        "root-relative",
+        lambda c, t: {**c, "trusted_result_root": "relative/root"},
+        "trusted result root must be an absolute path",
+    ),
+    (
+        "root-missing",
+        lambda c, t: {**c, "trusted_result_root": str(t / "missing")},
+        "trusted result root is unavailable",
+    ),
     ("root-file", _root_is_file, "trusted result root must be a directory"),
     ("body-bool", lambda c, t: {**c, "max_review_body_bytes": True}, "publisher review body limit is invalid"),
     ("body-range", lambda c, t: {**c, "max_review_body_bytes": 0}, "publisher review body limit is invalid"),
@@ -959,10 +967,7 @@ def test_main_historical_checks_argument_refusals(tmp_path, capsys, offline_conf
     common = ["review", "--repo", str(tmp_path / "repo"), "--profile", str(profile), "--json"]
     checks = _write_json(tmp_path / "checks.json", {})
 
-    assert (
-        cli.main([*common, "--checks-json", str(checks), "--historical-checks-json", str(checks)])
-        == 2
-    )
+    assert cli.main([*common, "--checks-json", str(checks), "--historical-checks-json", str(checks)]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "preflight_rejected"
 
     assert (
@@ -993,10 +998,7 @@ def test_main_recovery_capture_requires_event_and_matching_run_id(tmp_path, monk
     profile = _profile_file(tmp_path)
     common = ["review", "--repo", str(tmp_path / "repo"), "--profile", str(profile), "--json"]
 
-    assert (
-        cli.main([*common, "--base", BASE, "--head", HEAD, "--capture-recovery-inputs", "packet.json"])
-        == 2
-    )
+    assert cli.main([*common, "--base", BASE, "--head", HEAD, "--capture-recovery-inputs", "packet.json"]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "preflight_rejected"
 
     class _NoCheckRuns:

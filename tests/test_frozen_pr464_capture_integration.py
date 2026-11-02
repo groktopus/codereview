@@ -94,10 +94,10 @@ def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _prepare_frozen_pr464(
-    source_repo, tmp_path, monkeypatch, capsys, *, use_active_v3=False, historical_prompt=True
-):
-    plan_name = "model-only-shadow-live-pr464-plan-v3.json" if use_active_v3 else "model-only-shadow-live-pr464-plan-v2.json"
+def _prepare_frozen_pr464(source_repo, tmp_path, monkeypatch, capsys, *, use_active_v3=False, historical_prompt=True):
+    plan_name = (
+        "model-only-shadow-live-pr464-plan-v3.json" if use_active_v3 else "model-only-shadow-live-pr464-plan-v2.json"
+    )
     plan_path = ROOT / "experiments" / plan_name
     plan_raw = plan_path.read_bytes()
     plan = json.loads(plan_raw)
@@ -161,14 +161,8 @@ def test_frozen_pr464_v2_preserves_requests_but_rejects_inactive_plan_hash(tmp_p
     assert prepared["no_target_code_execution"] is True
     assert len(prepared["primary_requests"]) == 10
     fields = ("input_sha256", "input_bytes", "output_bytes_cap", "output_tokens_cap", "lens")
-    expected = {
-        row["task_id"]: tuple(row[field] for field in fields)
-        for row in plan["writer_requests"]
-    }
-    observed = {
-        row["task_id"]: tuple(row[field] for field in fields)
-        for row in prepared["primary_requests"]
-    }
+    expected = {row["task_id"]: tuple(row[field] for field in fields) for row in plan["writer_requests"]}
+    observed = {row["task_id"]: tuple(row[field] for field in fields) for row in prepared["primary_requests"]}
     assert observed == expected
     assert not fake_call_counter.exists()
 
@@ -184,14 +178,8 @@ def test_current_prompt_does_not_match_historical_pr464_request_pins(tmp_path, m
     assert prepared["no_target_code_execution"] is True
     assert len(prepared["primary_requests"]) == len(plan["writer_requests"]) == 10
     fields = ("input_sha256", "input_bytes", "output_bytes_cap", "output_tokens_cap", "lens")
-    expected = {
-        row["task_id"]: tuple(row[field] for field in fields)
-        for row in plan["writer_requests"]
-    }
-    observed = {
-        row["task_id"]: tuple(row[field] for field in fields)
-        for row in prepared["primary_requests"]
-    }
+    expected = {row["task_id"]: tuple(row[field] for field in fields) for row in plan["writer_requests"]}
+    observed = {row["task_id"]: tuple(row[field] for field in fields) for row in prepared["primary_requests"]}
     assert any(observed[task_id][:2] != expected[task_id][:2] for task_id in expected)
     assert all(observed[task_id][2:] == expected[task_id][2:] for task_id in expected)
     assert not fake_call_counter.exists()
@@ -317,22 +305,50 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
     preflight_path.write_text(json.dumps(preflight))
 
     capture_root = tmp_path / "private-capture"
-    assert cli.main([
-        "review", "--repo", str(source_repo), "--base", plan["case"]["base_sha"],
-        "--head", plan["case"]["head_sha"], "--profile", str(profile_path),
-        "--provider-config", str(ROOT / "experiments/model-only-shadow-live-writer-provider-v1.json"),
-        "--limits", str(ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json"),
-        "--historical-checks-json", str(ROOT / "docs/real-case-trial-v1/checks/PR-464.json"),
-        "--output", str(tmp_path / "capture-output"), "--run-id", "writer-live-no-candidate-e2e",
-        "--json", "--private-shadow-capture", str(capture_root), "--private-shadow-case-id", "PR-464",
-        "--private-shadow-plan", str(plan_path), "--private-shadow-preflight-receipt", str(preflight_path),
-    ]) == 0
+    assert (
+        cli.main(
+            [
+                "review",
+                "--repo",
+                str(source_repo),
+                "--base",
+                plan["case"]["base_sha"],
+                "--head",
+                plan["case"]["head_sha"],
+                "--profile",
+                str(profile_path),
+                "--provider-config",
+                str(ROOT / "experiments/model-only-shadow-live-writer-provider-v1.json"),
+                "--limits",
+                str(ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json"),
+                "--historical-checks-json",
+                str(ROOT / "docs/real-case-trial-v1/checks/PR-464.json"),
+                "--output",
+                str(tmp_path / "capture-output"),
+                "--run-id",
+                "writer-live-no-candidate-e2e",
+                "--json",
+                "--private-shadow-capture",
+                str(capture_root),
+                "--private-shadow-case-id",
+                "PR-464",
+                "--private-shadow-plan",
+                str(plan_path),
+                "--private-shadow-preflight-receipt",
+                str(preflight_path),
+            ]
+        )
+        == 0
+    )
     capsys.readouterr()
     writer_dir = tmp_path / "writer-sanitized"
     writer_receipt = sanitizer.sanitize(capture_root, plan_path, preflight_path, writer_dir)
     selection = selector.select(
-        capture_root, plan_path, preflight_path,
-        writer_dir / "writer-receipt.json", writer_dir / "writer-outcomes.json",
+        capture_root,
+        plan_path,
+        preflight_path,
+        writer_dir / "writer-receipt.json",
+        writer_dir / "writer-outcomes.json",
     )
     assert writer_receipt["writer_call_count"] == 10
     assert len(writer_counter.read_bytes()) == 10
@@ -340,16 +356,28 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
     selection_path.write_text(json.dumps(selection))
 
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "provider_id": "operator_openai_compatible",
-        "base_url": shadow_runner.EXPECTED_LLM[0], "model": shadow_runner.EXPECTED_LLM[1],
-        "api_key_env": "LLM_API_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "provider_id": "operator_openai_compatible",
+                "base_url": shadow_runner.EXPECTED_LLM[0],
+                "model": shadow_runner.EXPECTED_LLM[1],
+                "api_key_env": "LLM_API_KEY",
+            }
+        )
+    )
     jev_config = tmp_path / "decision.json"
-    jev_config.write_text(json.dumps({
-        "kind": "typesafe", "endpoint": shadow_runner.EXPECTED_JEV[0],
-        "model": shadow_runner.EXPECTED_JEV[1], "api_key_env": "JEV_API_KEY",
-    }))
+    jev_config.write_text(
+        json.dumps(
+            {
+                "kind": "typesafe",
+                "endpoint": shadow_runner.EXPECTED_JEV[0],
+                "model": shadow_runner.EXPECTED_JEV[1],
+                "api_key_env": "JEV_API_KEY",
+            }
+        )
+    )
     monkeypatch.setenv("LLM_API_KEY", "provider-free-test-token")
     source_dispatches = []
 
@@ -380,16 +408,29 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
             body = json.loads(request.data)
             user = json.loads(body["messages"][1]["content"])
             evidence_id = user["evidence"][0]["evidence_id"]
-            content = json.dumps({
-                "contract_version": "shadow-source-audit.v1", "status": "completed",
-                "records": [{"record_id": "source-record-1", "summary": "A grounded source observation.",
-                             "evidence_refs": [evidence_id]}],
-            }, separators=(",", ":"))
-            envelope = json.dumps({
-                "id": "fake-openai-response", "model": body["model"],
-                "choices": [{"finish_reason": "stop", "message": {"content": content}}],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-            }, separators=(",", ":")).encode()
+            content = json.dumps(
+                {
+                    "contract_version": "shadow-source-audit.v1",
+                    "status": "completed",
+                    "records": [
+                        {
+                            "record_id": "source-record-1",
+                            "summary": "A grounded source observation.",
+                            "evidence_refs": [evidence_id],
+                        }
+                    ],
+                },
+                separators=(",", ":"),
+            )
+            envelope = json.dumps(
+                {
+                    "id": "fake-openai-response",
+                    "model": body["model"],
+                    "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                },
+                separators=(",", ":"),
+            ).encode()
             return FakeHTTPResponse(envelope)
 
     monkeypatch.setattr(providers, "_HTTP_OPENER", FakeOpenAIHTTP())
@@ -397,9 +438,15 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
     audit_receipt_path = tmp_path / "audit-receipt" / "shadow-audit-receipt.json"
     limits_path = ROOT / f"experiments/model-only-shadow-audit-limits-{limits_version}.json"
     receipt = shadow_runner.run(
-        capture_root, provider_config, jev_config, audit_output, audit_receipt_path,
-        plan_path, limits_path,
-        source_only_no_candidate=True, selection_receipt_path=selection_path,
+        capture_root,
+        provider_config,
+        jev_config,
+        audit_output,
+        audit_receipt_path,
+        plan_path,
+        limits_path,
+        source_only_no_candidate=True,
+        selection_receipt_path=selection_path,
     )
     assert selection["plan_sha256"] == _sha(plan_path.read_bytes())
     assert selection["snapshot_sha256"] == "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
@@ -410,20 +457,30 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
     snapshot = selected_packet["snapshot"]
     source_user = {
         "case": {
-            "case_id": selected_packet["case_id"], "snapshot_id": snapshot["snapshot_id"],
-            "snapshot_hash": snapshot["snapshot_hash"], "base_sha": snapshot["base_sha"],
-            "head_sha": snapshot["head_sha"], "profile_id": selected_packet["profile_id"],
+            "case_id": selected_packet["case_id"],
+            "snapshot_id": snapshot["snapshot_id"],
+            "snapshot_hash": snapshot["snapshot_hash"],
+            "base_sha": snapshot["base_sha"],
+            "head_sha": snapshot["head_sha"],
+            "profile_id": selected_packet["profile_id"],
             "profile_hash": snapshot["profile_hash"],
         },
-        "task": selected_packet["source_task"], "evidence": selected_packet["source_evidence"],
+        "task": selected_packet["source_task"],
+        "evidence": selected_packet["source_evidence"],
     }
-    source_provider = OpenAIProvider({
-        **json.loads(provider_config.read_text()), "timeout_seconds": 90,
-        "max_request_bytes": 64_000 if limits_version == "v1" else 96_000,
-        "max_response_bytes": 64_000, "max_output_tokens": 1_800,
-    })
+    source_provider = OpenAIProvider(
+        {
+            **json.loads(provider_config.read_text()),
+            "timeout_seconds": 90,
+            "max_request_bytes": 64_000 if limits_version == "v1" else 96_000,
+            "max_response_bytes": 64_000,
+            "max_output_tokens": 1_800,
+        }
+    )
     source_request = source_provider._serialize_request_body(
-        shadow_audit._SOURCE_SYSTEM, source_user, shadow_audit._schema_source(),
+        shadow_audit._SOURCE_SYSTEM,
+        source_user,
+        shadow_audit._schema_source(),
         {"max_output_tokens": 1_800},
     )
     source_request_sha256 = _sha(source_request)
@@ -441,23 +498,31 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
         assert receipt["audit_provider_calls"] == 0
         assert receipt["roles"]["source_auditor"] == "failed"
         assert receipt["role_dispatched_call_counts"] == {
-            "source_auditor": 0, "jev": 0, "claim_auditor": 0,
+            "source_auditor": 0,
+            "jev": 0,
+            "claim_auditor": 0,
         }
         assert raw_manifest["terminal_state"] == "source_audit_failed"
         assert raw_manifest["terminal_details"]["source_auditor"] == "request_exceeds_limit"
         assert raw_manifest["roles"]["source_auditor"]["calls"] == []
         assert sanitized_receipt["roles"] == {
-            "source_auditor": "failed", "jev": "not_run", "claim_auditor": "not_run",
+            "source_auditor": "failed",
+            "jev": "not_run",
+            "claim_auditor": "not_run",
         }
         assert sanitized_receipt["audit_provider_calls"] == 0
     else:
         assert source_dispatches == [source_request_sha256]
         assert receipt["audit_provider_calls"] == 1
         assert receipt["roles"] == {
-            "source_auditor": "completed", "jev": "not_run", "claim_auditor": "not_run",
+            "source_auditor": "completed",
+            "jev": "not_run",
+            "claim_auditor": "not_run",
         }
         assert receipt["role_dispatched_call_counts"] == {
-            "source_auditor": 1, "jev": 0, "claim_auditor": 0,
+            "source_auditor": 1,
+            "jev": 0,
+            "claim_auditor": 0,
         }
         assert raw_manifest["terminal_state"] == "missing_writer_candidate"
         assert raw_manifest["roles"]["source_auditor"]["status"] == "completed"

@@ -93,7 +93,9 @@ def _identity() -> dict[str, Any]:
     return value
 
 
-def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], Path]:
+def _preflight_bundle(
+    preflight_dir: Path, contract: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], Path]:
     if preflight_dir.is_symlink() or not preflight_dir.is_dir():
         _fail("preflight_directory_invalid")
     preflight_dir = preflight_dir.resolve(strict=True)
@@ -111,11 +113,29 @@ def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[di
     verification, verification_raw = _document(verification_path)
     bundle, _ = _document(bundle_path)
     expected_bundle_fields = {
-        "schema", "job_nonce", "workflow_run_id", "workflow_run_attempt", "repository_path_sha256",
-        "materialization_sha256", "prepared_sha256", "verification_sha256", "request_sha256",
-        "request_bytes", "lens", "output_bytes_cap", "output_tokens_cap", "max_provider_calls",
-        "planned_provider_calls", "dispatched_provider_calls", "retries", "context_retrievals",
-        "followups", "decision_provider", "claim_assessments", "publication_enabled", "target_code_execution",
+        "schema",
+        "job_nonce",
+        "workflow_run_id",
+        "workflow_run_attempt",
+        "repository_path_sha256",
+        "materialization_sha256",
+        "prepared_sha256",
+        "verification_sha256",
+        "request_sha256",
+        "request_bytes",
+        "lens",
+        "output_bytes_cap",
+        "output_tokens_cap",
+        "max_provider_calls",
+        "planned_provider_calls",
+        "dispatched_provider_calls",
+        "retries",
+        "context_retrievals",
+        "followups",
+        "decision_provider",
+        "claim_assessments",
+        "publication_enabled",
+        "target_code_execution",
     }
     if set(bundle) != expected_bundle_fields:
         _fail("preflight_bundle_shape_invalid")
@@ -125,10 +145,19 @@ def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[di
     # by the verifier below; the descriptor digest is checked against the
     # prepared request in _check_capture_and_packet.
     bundle_preflight_keys = {
-        "lens", "output_bytes_cap", "output_tokens_cap", "max_provider_calls",
-        "planned_provider_calls", "dispatched_provider_calls", "retries",
-        "context_retrievals", "followups", "claim_assessments",
-        "publication_enabled", "target_code_execution", "request_sha256",
+        "lens",
+        "output_bytes_cap",
+        "output_tokens_cap",
+        "max_provider_calls",
+        "planned_provider_calls",
+        "dispatched_provider_calls",
+        "retries",
+        "context_retrievals",
+        "followups",
+        "claim_assessments",
+        "publication_enabled",
+        "target_code_execution",
+        "request_sha256",
         "request_bytes",
     }
     expected_bundle = {
@@ -143,14 +172,24 @@ def _preflight_bundle(preflight_dir: Path, contract: dict[str, Any]) -> tuple[di
     }
     if any(bundle.get(key) != value for key, value in expected_bundle.items()):
         _fail("preflight_bundle_mismatch")
-    if (not isinstance(bundle.get("workflow_run_id"), str) or not 1 <= len(bundle["workflow_run_id"]) <= 128
-            or not isinstance(bundle.get("workflow_run_attempt"), str) or not 1 <= len(bundle["workflow_run_attempt"]) <= 32):
+    if (
+        not isinstance(bundle.get("workflow_run_id"), str)
+        or not 1 <= len(bundle["workflow_run_id"]) <= 128
+        or not isinstance(bundle.get("workflow_run_attempt"), str)
+        or not 1 <= len(bundle["workflow_run_attempt"]) <= 32
+    ):
         _fail("preflight_job_identity_invalid")
     if repo.is_symlink():
         _fail("repository_identity_mismatch")
     expected_verification = verify(
-        materialization_path, prepared_path, repo, FIXTURE_DIR,
-        PROFILE_PATH, LIMITS_PATH, PROVIDER_PATH, ROOT,
+        materialization_path,
+        prepared_path,
+        repo,
+        FIXTURE_DIR,
+        PROFILE_PATH,
+        LIMITS_PATH,
+        PROVIDER_PATH,
+        ROOT,
     )
     if verification != expected_verification:
         _fail("preflight_verification_mismatch")
@@ -181,8 +220,7 @@ def _check_configuration(contract: dict[str, Any], verification: dict[str, Any])
         if _hash_file(path, 32_000) != expected[key]:
             _fail("package_configuration_mismatch")
     provider, _ = _document(PROVIDER_PATH)
-    if (provider.get("provider_id") != expected["provider_id"]
-            or provider.get("model") != expected["model"]):
+    if provider.get("provider_id") != expected["provider_id"] or provider.get("model") != expected["model"]:
         _fail("package_provider_identity_mismatch")
     for key in ("runtime", "module_count", "module_tree_sha256", "source_revision"):
         if verification.get(key) != expected[key]:
@@ -194,17 +232,20 @@ def _check_configuration(contract: dict[str, Any], verification: dict[str, Any])
         "max_output_items": provider.get("max_output_items", MAX_ITEMS),
         "max_item_text_bytes": min(provider.get("max_item_text_bytes", MAX_TEXT_BYTES), MAX_TEXT_BYTES),
     }
-    if any(
-        isinstance(value, bool) or not isinstance(value, int) or value < 1
-        for value in validation_limits.values()
-    ) or validation_limits["max_output_items"] > MAX_ITEMS:
+    if (
+        any(isinstance(value, bool) or not isinstance(value, int) or value < 1 for value in validation_limits.values())
+        or validation_limits["max_output_items"] > MAX_ITEMS
+    ):
         _fail("package_provider_validation_limits_invalid")
     return validation_limits
 
 
 def _check_capture_and_packet(
-    capture_root: Path, packet_path: Path, verification: dict[str, Any],
-    prepared: dict[str, Any], contract: dict[str, Any],
+    capture_root: Path,
+    packet_path: Path,
+    verification: dict[str, Any],
+    prepared: dict[str, Any],
+    contract: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     from experiments.harness.cross_model_package import _json
 
@@ -216,45 +257,65 @@ def _check_capture_and_packet(
     snapshot = packet.get("snapshot")
     if not isinstance(snapshot, dict) or any(
         snapshot.get(key) != verification.get(source_key)
-        for key, source_key in (("snapshot_id", "snapshot_id"), ("snapshot_hash", "snapshot_hash"),
-                                ("base_sha", "base_sha"), ("head_sha", "head_sha"))
+        for key, source_key in (
+            ("snapshot_id", "snapshot_id"),
+            ("snapshot_hash", "snapshot_hash"),
+            ("base_sha", "base_sha"),
+            ("head_sha", "head_sha"),
+        )
     ):
         _fail("writer_packet_snapshot_mismatch")
-    if snapshot.get("profile_version") != expected["profile"]["version"] or snapshot.get("profile_hash") != expected["profile"]["sha256"]:
+    if (
+        snapshot.get("profile_version") != expected["profile"]["version"]
+        or snapshot.get("profile_hash") != expected["profile"]["sha256"]
+    ):
         _fail("writer_packet_profile_mismatch")
     writer = packet.get("writer_run")
     packet_calls = writer.get("calls") if isinstance(writer, dict) else None
     capture_calls = capture.get("calls")
-    if (not isinstance(packet_calls, list) or len(packet_calls) != 1
-            or not isinstance(capture_calls, list) or len(capture_calls) != 1
-            or not isinstance(writer, dict) or writer.get("status") != "completed"
-            # The pinned v1 profile has no profile_id; its exporter writes
-            # "unknown" as a fallback, which does not identify a named profile.
-            or packet.get("profile_id") != expected["profile"]["profile_id"]):
+    if (
+        not isinstance(packet_calls, list)
+        or len(packet_calls) != 1
+        or not isinstance(capture_calls, list)
+        or len(capture_calls) != 1
+        or not isinstance(writer, dict)
+        or writer.get("status") != "completed"
+        # The pinned v1 profile has no profile_id; its exporter writes
+        # "unknown" as a fallback, which does not identify a named profile.
+        or packet.get("profile_id") != expected["profile"]["profile_id"]
+    ):
         _fail("writer_call_cardinality_mismatch")
     call = packet_calls[0]
     receipt = capture_calls[0]
-    if (not isinstance(call, dict) or not isinstance(receipt, dict)
-            or not isinstance(call.get("call_id"), str)
-            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", call["call_id"])
-            or call.get("call_id") != receipt.get("call_id")
-            or receipt.get("status") != "completed"):
+    if (
+        not isinstance(call, dict)
+        or not isinstance(receipt, dict)
+        or not isinstance(call.get("call_id"), str)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", call["call_id"])
+        or call.get("call_id") != receipt.get("call_id")
+        or receipt.get("status") != "completed"
+    ):
         _fail("writer_call_identity_mismatch")
-    if (capture.get("snapshot_id") != verification.get("snapshot_id")
-            or capture.get("snapshot_hash") != verification.get("snapshot_hash")):
+    if capture.get("snapshot_id") != verification.get("snapshot_id") or capture.get(
+        "snapshot_hash"
+    ) != verification.get("snapshot_hash"):
         _fail("writer_capture_snapshot_mismatch")
     config = contract["configuration"]
     if capture.get("provider") != {
-        "provider_id": config["provider_id"], "model_id": config["model"],
+        "provider_id": config["provider_id"],
+        "model_id": config["model"],
         "adapter_version": config["adapter_version"],
     }:
         _fail("writer_capture_provider_mismatch")
     request_path = capture_root / "requests" / f"{call['call_id']}.bin"
     request_raw = _read(request_path, 16 * 1024 * 1024)
     preflight = contract["preflight"]
-    if (_sha(request_raw) != preflight["request_sha256"] or len(request_raw) != preflight["request_bytes"]
-            or call.get("request_sha256") != preflight["request_sha256"]
-            or receipt.get("request_sha256") != preflight["request_sha256"]):
+    if (
+        _sha(request_raw) != preflight["request_sha256"]
+        or len(request_raw) != preflight["request_bytes"]
+        or call.get("request_sha256") != preflight["request_sha256"]
+        or receipt.get("request_sha256") != preflight["request_sha256"]
+    ):
         _fail("writer_request_preflight_mismatch")
     primary = prepared.get("primary_requests")
     if not isinstance(primary, list) or len(primary) != 1:
@@ -263,31 +324,43 @@ def _check_capture_and_packet(
     descriptor_sha = _sha(_canonical(descriptor))
     if descriptor_sha != preflight["request_descriptor_sha256"]:
         _fail("prepared_request_descriptor_mismatch")
-    if (descriptor.get("input_sha256") != preflight["request_sha256"]
-            or descriptor.get("input_bytes") != preflight["request_bytes"]
-            or descriptor.get("lens") != preflight["lens"]
-            or descriptor.get("output_bytes_cap") != preflight["output_bytes_cap"]
-            or descriptor.get("output_tokens_cap") != preflight["output_tokens_cap"]):
+    if (
+        descriptor.get("input_sha256") != preflight["request_sha256"]
+        or descriptor.get("input_bytes") != preflight["request_bytes"]
+        or descriptor.get("lens") != preflight["lens"]
+        or descriptor.get("output_bytes_cap") != preflight["output_bytes_cap"]
+        or descriptor.get("output_tokens_cap") != preflight["output_tokens_cap"]
+    ):
         _fail("prepared_request_mismatch")
     expected_rows = descriptor.get("evidence_bindings")
     if not isinstance(expected_rows, list) or not expected_rows:
         _fail("prepared_evidence_bindings_invalid")
     expected_bindings = {}
     for row in expected_rows:
-        if not isinstance(row, dict) or not isinstance(row.get("evidence_id"), str) or row["evidence_id"] in expected_bindings:
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("evidence_id"), str)
+            or row["evidence_id"] in expected_bindings
+        ):
             _fail("prepared_evidence_bindings_invalid")
         expected_bindings[row["evidence_id"]] = (
-            row.get("path"), row.get("content_hash"), row.get("source_kind"),
-            row.get("source_revision"), row.get("content_bytes"),
+            row.get("path"),
+            row.get("content_hash"),
+            row.get("source_kind"),
+            row.get("source_revision"),
+            row.get("content_bytes"),
         )
     source_evidence = packet.get("source_evidence")
     if not isinstance(source_evidence, list) or not source_evidence:
         _fail("writer_source_evidence_invalid")
     observed_bindings = {}
     for row in source_evidence:
-        if (not isinstance(row, dict) or not isinstance(row.get("evidence_id"), str)
-                or row["evidence_id"] in observed_bindings
-                or row.get("path") not in {"auth.py", "caller.py", "contract.md"}):
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("evidence_id"), str)
+            or row["evidence_id"] in observed_bindings
+            or row.get("path") not in {"auth.py", "caller.py", "contract.md"}
+        ):
             _fail("writer_truth_or_unlisted_evidence_rejected")
         if row["path"].lower().endswith("truth.json"):
             _fail("writer_truth_or_unlisted_evidence_rejected")
@@ -298,7 +371,10 @@ def _check_capture_and_packet(
         if content_sha256 != row.get("content_hash"):
             _fail("writer_source_evidence_hash_mismatch")
         observed_bindings[row.get("evidence_id")] = (
-            row.get("path"), content_sha256, row.get("source_kind"), row.get("source_revision"),
+            row.get("path"),
+            content_sha256,
+            row.get("source_kind"),
+            row.get("source_revision"),
             len(content.encode("utf-8")),
         )
     if observed_bindings != expected_bindings:
@@ -307,8 +383,11 @@ def _check_capture_and_packet(
 
 
 def package_synth_001(
-    preflight_dir: Path, capture_root: Path, case_packet_path: Path,
-    shadow_root: Path, output_dir: Path,
+    preflight_dir: Path,
+    capture_root: Path,
+    case_packet_path: Path,
+    shadow_root: Path,
+    output_dir: Path,
 ) -> dict[str, Any]:
     contract = _identity()
     if preflight_dir.is_symlink():
@@ -335,8 +414,11 @@ def package_synth_001(
         "cases": [identity["case"]],
     }
     return build_cross_model_package(
-        corpus_value=corpus, case_packet_path=case_packet_path,
-        capture_root=capture_root, shadow_root=shadow_root, output_dir=output_dir,
+        corpus_value=corpus,
+        case_packet_path=case_packet_path,
+        capture_root=capture_root,
+        shadow_root=shadow_root,
+        output_dir=output_dir,
         writer_validation_limits=writer_validation_limits,
     )
 
@@ -351,23 +433,36 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", required=True)
     args = parser.parse_args(argv)
     try:
-        result = package_synth_001(args.preflight_dir, args.capture_root, args.case_packet,
-                                   args.shadow_root, args.output_dir)
+        result = package_synth_001(
+            args.preflight_dir, args.capture_root, args.case_packet, args.shadow_root, args.output_dir
+        )
     except (PackageError, VerifyError, MaterializeError, EvaluationError, OSError, TypeError, ValueError) as exc:
-        code = str(exc) if isinstance(exc, (PackageError, VerifyError, MaterializeError, EvaluationError)) else "package_input_invalid"
+        code = (
+            str(exc)
+            if isinstance(exc, (PackageError, VerifyError, MaterializeError, EvaluationError))
+            else "package_input_invalid"
+        )
         print(json.dumps({"ok": False, "error_code": code}, sort_keys=True, separators=(",", ":")))
         return 2
     report = result["report"]
-    print(json.dumps({
-        "ok": True,
-        "comparison_id": report["comparison_id"],
-        "case_count": len(report["cases"]),
-        "verified_artifact_count": report["artifact_verification"]["status_counts"]["VERIFIED"],
-        "verified_structured_relation_count": report["assertion_verification"]["verified_structured_relation_count"],
-        "claims": report["claims"],
-        "comparison_path": str(args.output_dir / "comparison-v2.json"),
-        "report_path": str(args.output_dir / "comparison-report.json"),
-    }, sort_keys=True, separators=(",", ":")))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "comparison_id": report["comparison_id"],
+                "case_count": len(report["cases"]),
+                "verified_artifact_count": report["artifact_verification"]["status_counts"]["VERIFIED"],
+                "verified_structured_relation_count": report["assertion_verification"][
+                    "verified_structured_relation_count"
+                ],
+                "claims": report["claims"],
+                "comparison_path": str(args.output_dir / "comparison-v2.json"),
+                "report_path": str(args.output_dir / "comparison-report.json"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 

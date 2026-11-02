@@ -31,9 +31,7 @@ def fixture_repo(tmp_path: Path):
     return repo, base, head, profile
 
 
-def test_core_cli_without_provider_keeps_each_temporary_project_incomplete_and_unstarted(
-    tmp_path, monkeypatch, capsys
-):
+def test_core_cli_without_provider_keeps_each_temporary_project_incomplete_and_unstarted(tmp_path, monkeypatch, capsys):
     from pr_review_harness import cli, providers
 
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
@@ -72,24 +70,27 @@ def test_core_cli_without_provider_keeps_each_temporary_project_incomplete_and_u
             encoding="utf-8",
         )
         output_dir = project_root / "artifacts"
-        assert cli.main(
-            [
-                "review",
-                "--repo",
-                str(repo),
-                "--base",
-                base,
-                "--head",
-                head,
-                "--profile",
-                str(profile),
-                "--run-id",
-                run_id,
-                "--output",
-                str(output_dir),
-                "--json",
-            ]
-        ) == 0
+        assert (
+            cli.main(
+                [
+                    "review",
+                    "--repo",
+                    str(repo),
+                    "--base",
+                    base,
+                    "--head",
+                    head,
+                    "--profile",
+                    str(profile),
+                    "--run-id",
+                    run_id,
+                    "--output",
+                    str(output_dir),
+                    "--json",
+                ]
+            )
+            == 0
+        )
         result = json.loads(capsys.readouterr().out)
         assert result["disposition"] == "INCOMPLETE"
         assert result["coverage_state"] == "NOT_STARTED"
@@ -851,7 +852,9 @@ def test_preflight_rejection_stays_exit_two_without_review_dispatch(tmp_path, mo
     repo, base, _head, profile_path = fixture_repo(tmp_path)
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
-    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("preflight must reject before snapshot"))
+    monkeypatch.setattr(
+        cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("preflight must reject before snapshot")
+    )
     monkeypatch.setattr(
         engine, "run_review", lambda *_args, **_kwargs: pytest.fail("preflight must reject before dispatch")
     )
@@ -889,7 +892,9 @@ def test_prepare_only_without_historical_checks_rejects_ambient_event(tmp_path, 
 
     repo, base, head, profile_path = fixture_repo(tmp_path)
     monkeypatch.setenv("GITHUB_EVENT_PATH", "/runner/ambient/event.json")
-    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("preflight must reject before snapshot"))
+    monkeypatch.setattr(
+        cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("preflight must reject before snapshot")
+    )
     assert (
         cli.main(
             [
@@ -1084,7 +1089,9 @@ def test_run_one_fails_closed_for_positive_claim_cap_without_assessor(tmp_path, 
     from pr_review_harness import cli
 
     args = SimpleNamespace(effect_policy="READ_ONLY", repo=str(tmp_path))
-    monkeypatch.setattr(cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("snapshot collection must not start"))
+    monkeypatch.setattr(
+        cli, "collect_snapshot", lambda *_args, **_kwargs: pytest.fail("snapshot collection must not start")
+    )
     with pytest.raises(ValueError, match="requires a claim assessor"):
         cli._run_one(
             args,
@@ -1651,10 +1658,22 @@ def test_cli_event_rebound_full_head_file_reuses_snapshot_without_retrieval_ipc(
     monkeypatch.setattr(cli, "_configs", lambda _args: (profile, limits, provider, None, None))
     monkeypatch.setattr(cli, "_freshness", lambda _event, expected: _FakeFreshness(expected))
 
-    code = cli.main([
-        "review", "--repo", str(repo), "--profile", str(profile_path), "--event-file", str(event_path),
-        "--run-id", "event-reuse-7", "--output", str(tmp_path / "event-review"), "--json",
-    ])
+    code = cli.main(
+        [
+            "review",
+            "--repo",
+            str(repo),
+            "--profile",
+            str(profile_path),
+            "--event-file",
+            str(event_path),
+            "--run-id",
+            "event-reuse-7",
+            "--output",
+            str(tmp_path / "event-review"),
+            "--json",
+        ]
+    )
     assert code == 0
     result = json.loads(capsys.readouterr().out)
 
@@ -1837,8 +1856,16 @@ def test_resume_rejects_a_changed_recomputed_pr_comparison_baseline(tmp_path, mo
         "max_context_retrievals": 0,
         "max_followup_tasks": 0,
     }
-    args = SimpleNamespace(effect_policy="READ_ONLY", repo=str(repo), mode="AUTO", output=str(tmp_path / "review"), resume=False)
-    event = {"repository": "owner/project", "pull_request_number": 17, "event_id": "run-17", "base_sha": current_base, "head_sha": head}
+    args = SimpleNamespace(
+        effect_policy="READ_ONLY", repo=str(repo), mode="AUTO", output=str(tmp_path / "review"), resume=False
+    )
+    event = {
+        "repository": "owner/project",
+        "pull_request_number": 17,
+        "event_id": "run-17",
+        "base_sha": current_base,
+        "head_sha": head,
+    }
     monkeypatch.setattr(cli, "_freshness", lambda current_event, expected: _FakeFreshness(expected))
     provider = _InertContextProvider()
     first = cli._run_one(args, current_base, head, profile, limits, provider, None, "pr-17", event)
@@ -1857,6 +1884,7 @@ def test_resume_rejects_a_changed_recomputed_pr_comparison_baseline(tmp_path, mo
     use_altered_baseline["value"] = True
     with pytest.raises(EnginePreflightError, match="resume request mismatch"):
         cli._run_one(args, current_base, head, profile, limits, provider, None, "pr-17", event)
+
 
 def test_cli_capture_and_resume_flags_reuse_original_event_and_checks(tmp_path, monkeypatch, capsys):
     from pr_review_harness import cli, github
@@ -1933,9 +1961,7 @@ def test_cli_capture_and_resume_flags_reuse_original_event_and_checks(tmp_path, 
     assert resumed["request_hash"] == first["request_hash"]
 
 
-def test_cli_recovery_settles_provider_entered_before_interruption_without_redispatch(
-    tmp_path, monkeypatch, capsys
-):
+def test_cli_recovery_settles_provider_entered_before_interruption_without_redispatch(tmp_path, monkeypatch, capsys):
     """An entered fake call remains uncertain across CLI resume and is never dispatched twice."""
     from pr_review_harness import cli, engine, github
     from pr_review_harness.budget import IsolatedInvocation as RealIsolatedInvocation
@@ -2002,8 +2028,14 @@ def test_cli_recovery_settles_provider_entered_before_interruption_without_redis
     with pytest.raises(SimulatedControllerCrash):
         cli.main(
             [
-                "review", *common, "--event-file", str(event_path),
-                "--capture-recovery-inputs", str(packet_path), "--output", str(output),
+                "review",
+                *common,
+                "--event-file",
+                str(event_path),
+                "--capture-recovery-inputs",
+                str(packet_path),
+                "--output",
+                str(output),
             ]
         )
 

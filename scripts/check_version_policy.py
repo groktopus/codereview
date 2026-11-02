@@ -236,7 +236,9 @@ def check_repository(
         findings.extend(changelog_findings)
         if not release_for(releases, version):
             findings.append(f"CHANGELOG.md: package version {version!r} has no release section")
-        released = [release for release in releases if release.version != "Unreleased" and SEMVER_RE.match(release.version)]
+        released = [
+            release for release in releases if release.version != "Unreleased" and SEMVER_RE.match(release.version)
+        ]
         if released:
             newest = max(released, key=lambda release: version_key(release.version))
             if newest.version != version:

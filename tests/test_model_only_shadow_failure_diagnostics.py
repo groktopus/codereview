@@ -32,11 +32,13 @@ def test_extractor_returns_only_whitelisted_cli_error_fields(tmp_path: Path):
         ('{"error":"preflight_rejected","exit_code":1}', 2),
         ('{"error":"preflight_rejected","error":"run_id_already_exists","exit_code":2}', 2),
         ('{"error":"preflight_rejected","exit_code":NaN}', 2),
-        ('not json', 2),
+        ("not json", 2),
     ],
 )
 def test_extractor_rejects_unexpected_or_malformed_payload_without_echoing_it(
-    tmp_path: Path, payload: str, exit_code: int,
+    tmp_path: Path,
+    payload: str,
+    exit_code: int,
 ):
     path = tmp_path / "cli-output.json"
     path.write_text(payload, encoding="utf-8")
@@ -45,11 +47,15 @@ def test_extractor_rejects_unexpected_or_malformed_payload_without_echoing_it(
         extractor.extract(path, exit_code)
     completed = subprocess.run(
         [sys.executable, str(SCRIPT), "--input", str(path), "--exit-code", str(exit_code)],
-        check=False, capture_output=True, text=True, timeout=10,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     assert completed.returncode == 0
     assert json.loads(completed.stdout) == {
-        "error": "prepare_failure_diagnostic_unavailable", "exit_code": exit_code,
+        "error": "prepare_failure_diagnostic_unavailable",
+        "exit_code": exit_code,
     }
     assert "private" not in completed.stdout and "injection" not in completed.stdout
 
@@ -70,9 +76,15 @@ def test_extractor_refuses_symlink_and_non_regular_inputs(tmp_path: Path):
 
 def test_extractor_accepts_only_fixed_stage_receipt_and_matching_exit_code(tmp_path: Path):
     path = tmp_path / "stage.json"
-    path.write_text(json.dumps({
-        "schema": "pr-review-prepare-stage-diagnostic.v1", "stage": "snapshot_collection", "exit_code": 2,
-    }))
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "pr-review-prepare-stage-diagnostic.v1",
+                "stage": "snapshot_collection",
+                "exit_code": 2,
+            }
+        )
+    )
     os.chmod(path, 0o600)
     assert extractor.extract_stage(path, 2) == "snapshot_collection"
     for value in (
@@ -95,9 +107,9 @@ def test_live_prepare_uses_sanitized_failure_extractor_before_any_secrets():
     assert "2>/dev/null" in prepare
     assert "run_pr_review_stage_diagnostic.py" in prepare
     assert "extract_pr_review_failure_code.py" in prepare
-    assert "--stage-input \"$RUNNER_TEMP/private-shadow-preparation/stage-diagnostic.json\"" in prepare
-    assert "--input \"$RUNNER_TEMP/private-shadow-preparation/prepared.json\"" in prepare
-    assert "exit \"$cli_exit_code\"" in prepare
+    assert '--stage-input "$RUNNER_TEMP/private-shadow-preparation/stage-diagnostic.json"' in prepare
+    assert '--input "$RUNNER_TEMP/private-shadow-preparation/prepared.json"' in prepare
+    assert 'exit "$cli_exit_code"' in prepare
     assert live.index("run_pr_review_stage_diagnostic.py") < live.index(
         "Check writer secret names and exact configured identity"
     )
@@ -109,6 +121,5 @@ def test_live_prepare_uses_sanitized_failure_extractor_before_any_secrets():
     )[0]
     assert "if: steps.exact-preflight.outputs.verified == 'true'" in identity_step
     assert (
-        "if: steps.exact-preflight.outputs.verified == 'true' && "
-        "steps.provider-identity.outputs.validated == 'true'"
+        "if: steps.exact-preflight.outputs.verified == 'true' && steps.provider-identity.outputs.validated == 'true'"
     ) in writer_step

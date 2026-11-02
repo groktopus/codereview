@@ -15,9 +15,15 @@ def _fake_command(path: Path, name: str, body: str) -> None:
     executable.chmod(0o755)
 
 
-def _fixture(tmp_path: Path, *, fail_first_update: bool = False, always_fail: bool = False,
-             install_strace: bool = True, existing_strace: bool = False,
-             host_strace_canary: bool = False) -> tuple[Path, dict[str, str], Path]:
+def _fixture(
+    tmp_path: Path,
+    *,
+    fail_first_update: bool = False,
+    always_fail: bool = False,
+    install_strace: bool = True,
+    existing_strace: bool = False,
+    host_strace_canary: bool = False,
+) -> tuple[Path, dict[str, str], Path]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name in ("bash", "cat", "chmod", "sleep"):
@@ -65,7 +71,7 @@ def _fixture(tmp_path: Path, *, fail_first_update: bool = False, always_fail: bo
         '  if [[ "$FAKE_FAIL_FIRST_UPDATE" == "1" && "$count" == "1" ]]; then exit 42; fi\n'
         'elif [[ "$action" == "strace" && "$FAKE_INSTALL_STRACE" == "1" ]]; then\n'
         '  printf "#!/bin/sh\\nexit 0\\n" > "$FAKE_BIN/strace"; chmod +x "$FAKE_BIN/strace"\n'
-        'fi\n',
+        "fi\n",
     )
     if existing_strace:
         _fake_command(bin_dir, "strace", "exit 0\n")

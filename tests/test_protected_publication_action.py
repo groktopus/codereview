@@ -22,9 +22,7 @@ def _run_launcher(tmp_path, python_body, *, env_overrides=None, deadline_ms=1000
     marker = tmp_path / "child-ran"
     python = bin_dir / "python"
     python.write_text(
-        "#!/bin/sh\n"
-        f"touch {json.dumps(str(marker))}\n"
-        + python_body,
+        f"#!/bin/sh\ntouch {json.dumps(str(marker))}\n" + python_body,
         encoding="utf-8",
     )
     python.chmod(0o700)
@@ -180,13 +178,13 @@ def test_launcher_python_safe_path_prevents_target_workspace_module_shadowing(tm
     marker = tmp_path / "poison-imported"
     (poison / "protected_publication_runtime.py").write_text(
         f"from pathlib import Path\nPath({str(marker)!r}).write_text('imported')\n"
-        "print('{\\\"schema\\\":\\\"pr-review-protected-publication.v1\\\",\\\"status\\\":\\\"CONFIRMED\\\",\\\"reason\\\":null}')\n",
+        'print(\'{\\"schema\\":\\"pr-review-protected-publication.v1\\",\\"status\\":\\"CONFIRMED\\",\\"reason\\":null}\')\n',
         encoding="utf-8",
     )
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     python_shim = bin_dir / "python"
-    python_shim.write_text(f"#!/bin/sh\nexec {sys.executable!r} \"$@\"\n", encoding="utf-8")
+    python_shim.write_text(f'#!/bin/sh\nexec {sys.executable!r} "$@"\n', encoding="utf-8")
     python_shim.chmod(0o700)
     env = {
         "PATH": f"{bin_dir}:/bin:/usr/bin",
@@ -248,10 +246,7 @@ def test_launcher_forwards_cancellation_to_owned_child_group(tmp_path):
     pid_file = tmp_path / "child-pid"
     python = bin_dir / "python"
     python.write_text(
-        "#!/bin/sh\n"
-        f"touch {json.dumps(str(marker))}\n"
-        f"echo $$ > {json.dumps(str(pid_file))}\n"
-        "exec sleep 15\n",
+        f"#!/bin/sh\ntouch {json.dumps(str(marker))}\necho $$ > {json.dumps(str(pid_file))}\nexec sleep 15\n",
         encoding="utf-8",
     )
     python.chmod(0o700)

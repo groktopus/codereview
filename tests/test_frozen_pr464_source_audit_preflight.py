@@ -43,9 +43,7 @@ def _source_repo() -> Path:
     return repo
 
 
-def test_frozen_pr464_exact_source_audit_capacity_is_visible_before_dispatch(
-    tmp_path, monkeypatch, capsys
-):
+def test_frozen_pr464_exact_source_audit_capacity_is_visible_before_dispatch(tmp_path, monkeypatch, capsys):
     repo = _source_repo()
     plan = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json").read_text())
     profile_path = ROOT / "docs/real-case-trial-v1/profiles/PR-464.json"
@@ -59,13 +57,29 @@ def test_frozen_pr464_exact_source_audit_capacity_is_visible_before_dispatch(
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
 
     args = [
-        "review", "--repo", str(repo), "--base", plan["case"]["base_sha"], "--head", plan["case"]["head_sha"],
-        "--profile", str(profile_path), "--provider-config",
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        plan["case"]["base_sha"],
+        "--head",
+        plan["case"]["head_sha"],
+        "--profile",
+        str(profile_path),
+        "--provider-config",
         str(ROOT / "experiments/model-only-shadow-live-writer-provider-v1.json"),
-        "--limits", str(ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json"),
-        "--historical-checks-json", str(ROOT / "docs/real-case-trial-v1/checks/PR-464.json"),
-        "--output", str(tmp_path / "prepare-output"), "--run-id", "pr464-source-preflight",
-        "--prepare-only", "--private-shadow-preflight-case-id", "PR-464", "--json",
+        "--limits",
+        str(ROOT / "experiments/model-only-shadow-live-writer-limits-v1.json"),
+        "--historical-checks-json",
+        str(ROOT / "docs/real-case-trial-v1/checks/PR-464.json"),
+        "--output",
+        str(tmp_path / "prepare-output"),
+        "--run-id",
+        "pr464-source-preflight",
+        "--prepare-only",
+        "--private-shadow-preflight-case-id",
+        "PR-464",
+        "--json",
     ]
     assert cli.main(args) == 0
     prepared = json.loads(capsys.readouterr().out)
@@ -82,13 +96,15 @@ def test_frozen_pr464_exact_source_audit_capacity_is_visible_before_dispatch(
     proposal = json.loads((ROOT / "experiments/model-only-shadow-live-pr464-plan-v3-proposal.json").read_text())
     proposed_rows = proposal["source_audit_preflight"]["requests"]
     assert [
-        {key: row[key] for key in ("task_id", "input_bytes", "input_sha256")}
-        for row in source["requests"]
+        {key: row[key] for key in ("task_id", "input_bytes", "input_sha256")} for row in source["requests"]
     ] == proposed_rows
     v3_limits = audit_runner._load_limits(ROOT / "experiments/model-only-shadow-audit-limits-v2.json")
     assert v3_limits["max_input_bytes_per_task"] == 96_000
-    serialized = (b'{"max_completion_tokens":1800,"pad":"'
-                  + b"x" * (91_832 - len(b'{"max_completion_tokens":1800,"pad":"') - 2) + b'"}')
+    serialized = (
+        b'{"max_completion_tokens":1800,"pad":"'
+        + b"x" * (91_832 - len(b'{"max_completion_tokens":1800,"pad":"') - 2)
+        + b'"}'
+    )
     AuditDispatchGuard(v3_limits).check("source_auditor", serialized)
     with pytest.raises(AuditPreflightError, match="audit_request_exceeds_limit"):
         AuditDispatchGuard(v3_limits).check("source_auditor", b"x" * 96_001)

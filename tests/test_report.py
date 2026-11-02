@@ -348,13 +348,7 @@ def test_compact_ledger_preserves_all_obligations_and_stable_evidence_mapping():
         )
 
     rendered = render_report(result)
-    evidence_ids = sorted(
-        {
-            evidence_id
-            for row in result["coverage_ledger"]
-            for evidence_id in row["evidence_refs"]
-        }
-    )
+    evidence_ids = sorted({evidence_id for row in result["coverage_ledger"] for evidence_id in row["evidence_refs"]})
     header = [
         "Required",
         "Obligation",
@@ -387,8 +381,7 @@ def test_compact_ledger_preserves_all_obligations_and_stable_evidence_mapping():
         for alias, evidence_id in [line[2:].split(" = ", 1)]
     }
     assert evidence_index == {
-        f"E{position:04d}": evidence_id
-        for position, evidence_id in enumerate(evidence_ids, start=1)
+        f"E{position:04d}": evidence_id for position, evidence_id in enumerate(evidence_ids, start=1)
     }
 
     def safe_cell(value):
@@ -402,7 +395,10 @@ def test_compact_ledger_preserves_all_obligations_and_stable_evidence_mapping():
     assert "<summary>Coverage ledger (48 obligations)</summary>" in rendered
     assert "<pre><code>" not in rendered
     assert r"café\_context\_gap\_\<review\>" in rendered
-    assert "| Required | Obligation | Lens | Scope units | State | Reason | Tasks | Context gaps | Evidence refs |" in rendered
+    assert (
+        "| Required | Obligation | Lens | Scope units | State | Reason | Tasks | Context gaps | Evidence refs |"
+        in rendered
+    )
     assert "## Blockers" in rendered and "Reject invalid caller input" in rendered
     for row in result["coverage_ledger"]:
         rendered_row = table_rows[safe_cell(row["obligation_id"])]
@@ -413,11 +409,7 @@ def test_compact_ledger_preserves_all_obligations_and_stable_evidence_mapping():
         assert rendered_row["Reason"] == safe_cell(row["reason_code"])
         assert rendered_row["Tasks"] == safe_cell(", ".join(row["task_ids"]))
         assert rendered_row["Context gaps"] == safe_cell(", ".join(row["context_gap_ids"]))
-        rendered_refs = [
-            evidence_index[alias]
-            for alias in rendered_row["Evidence refs"].split(", ")
-            if alias
-        ]
+        rendered_refs = [evidence_index[alias] for alias in rendered_row["Evidence refs"].split(", ") if alias]
         assert rendered_refs == row["evidence_refs"]
 
 

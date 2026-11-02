@@ -29,10 +29,13 @@ TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF = (
 TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF = (
     "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
 )
-TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset({
-    TRUSTED_CAPTURE_WORKFLOW_REF, TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF,
-    TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF,
-})
+TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset(
+    {
+        TRUSTED_CAPTURE_WORKFLOW_REF,
+        TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF,
+        TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF,
+    }
+)
 TRUSTED_SHADOW_PLANS = {
     "PR-457": {
         "path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
@@ -130,13 +133,15 @@ def _parser() -> argparse.ArgumentParser:
         help="apply the frozen private-shadow snapshot hash for provider-free prepare-only; creates no capture",
     )
     review.add_argument(
-        "--private-shadow-current-source-preflight", action="store_true",
+        "--private-shadow-current-source-preflight",
+        action="store_true",
         help="use the versioned canonical source-request serializer for the current-source PR-457 plan",
     )
     review.add_argument("--private-shadow-plan", help="trusted exact writer request plan for strict private capture")
     review.add_argument("--private-shadow-preflight-receipt", help="provider-free receipt matching the writer plan")
     review.add_argument(
-        "--private-shadow-current-source-plan", action="store_true",
+        "--private-shadow-current-source-plan",
+        action="store_true",
         help="use closed per-run PR-457 request pins from the trusted main-branch workflow",
     )
     recent = sub.add_parser("recent", help="review recent first-parent commit pairs")
@@ -270,7 +275,10 @@ def _read_private_json(path: str, limit: int) -> tuple[dict, str]:
 
 
 def _load_private_shadow_pins(
-    plan_path: str, receipt_path: str, *, current_source: bool = False,
+    plan_path: str,
+    receipt_path: str,
+    *,
+    current_source: bool = False,
 ) -> tuple[dict[str, dict], dict[str, Any]]:
     plan, plan_hash = _read_private_json(plan_path, 128_000)
     receipt, _receipt_hash = _read_private_json(receipt_path, 16_384)
@@ -288,7 +296,10 @@ def _load_private_shadow_pins(
             raise ValueError("current source capture requires the trusted main-branch workflow")
         try:
             pins, snapshot_pin = validate_plan(
-                plan, receipt, source_sha=source_sha, module_inventory=installed_module_inventory(),
+                plan,
+                receipt,
+                source_sha=source_sha,
+                module_inventory=installed_module_inventory(),
             )
         except CurrentSourceCaptureError as exc:
             raise ValueError("current source plan or receipt mismatch") from exc
@@ -379,7 +390,11 @@ def _canonical_private_input_path(value: str) -> Path:
 
 
 def _validate_trusted_private_plan_paths(
-    plan_path: str, receipt_path: str, case_id: str, *, current_source: bool = False,
+    plan_path: str,
+    receipt_path: str,
+    case_id: str,
+    *,
+    current_source: bool = False,
 ) -> None:
     if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
         return
@@ -892,10 +907,15 @@ def _run_one(
         if current_source and capture_case_id != "PR-457":
             raise ValueError("current source capture is restricted to PR-457")
         _validate_trusted_private_plan_paths(
-            plan_path, receipt_path, capture_case_id, current_source=current_source,
+            plan_path,
+            receipt_path,
+            capture_case_id,
+            current_source=current_source,
         )
         capture_pins, capture_snapshot_pin = _load_private_shadow_pins(
-            plan_path, receipt_path, current_source=current_source,
+            plan_path,
+            receipt_path,
+            current_source=current_source,
         )
         if capture_case_id != capture_snapshot_pin.get("case_id"):
             raise ValueError("private shadow case does not match plan")
@@ -1185,19 +1205,29 @@ def _run_one(
                     if isinstance(bound, dict) and isinstance(bound.get("evidence_id"), str)
                     else []
                 )
-                evidence_hash = _sha256(json.dumps(
-                    check_evidence, sort_keys=True, separators=(",", ":"),
-                    ensure_ascii=False, allow_nan=False,
-                ).encode("utf-8"))
-                task_scope["current_source_input_hash"] = _sha256(json.dumps(
-                    {
-                        "evidence": evidence_hash,
-                        "snapshot_hash": snapshot.get("snapshot_hash"),
-                        "check_binding_id": binding_id,
-                        "check_evidence_ids": check_evidence_ids,
-                    },
-                    sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
-                ).encode("utf-8"))
+                evidence_hash = _sha256(
+                    json.dumps(
+                        check_evidence,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                        allow_nan=False,
+                    ).encode("utf-8")
+                )
+                task_scope["current_source_input_hash"] = _sha256(
+                    json.dumps(
+                        {
+                            "evidence": evidence_hash,
+                            "snapshot_hash": snapshot.get("snapshot_hash"),
+                            "check_binding_id": binding_id,
+                            "check_evidence_ids": check_evidence_ids,
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                        allow_nan=False,
+                    ).encode("utf-8")
+                )
         source_audit_preflight = None
         if preflight_case_id is not None:
             from .source_audit import (
@@ -1231,22 +1261,27 @@ def _run_one(
                     evidence=evidence,
                     limits=audit_limits,
                 )
-                source_audit_rows.append({
-                    "task_id": task["task_id"],
-                    "input_bytes": len(request_bytes),
-                    "input_sha256": _sha256(request_bytes),
-                    "admitted": len(request_bytes) <= audit_limit,
-                })
+                source_audit_rows.append(
+                    {
+                        "task_id": task["task_id"],
+                        "input_bytes": len(request_bytes),
+                        "input_sha256": _sha256(request_bytes),
+                        "admitted": len(request_bytes) <= audit_limit,
+                    }
+                )
             source_audit_preflight = {
                 "source_audit_serializer": (
                     "shadow-source-request.canonical-json.v1"
-                    if current_source_preflight else "shadow-source-request.legacy-order.v1"
+                    if current_source_preflight
+                    else "shadow-source-request.legacy-order.v1"
                 ),
                 "active_input_limit_bytes": audit_limit,
                 "request_count": len(source_audit_rows),
                 "request_bytes_max": max((row["input_bytes"] for row in source_audit_rows), default=0),
                 "requests": source_audit_rows,
-                "status": "ADMITTED" if all(row["admitted"] for row in source_audit_rows) else "REJECTED_BEFORE_WRITER_DISPATCH",
+                "status": "ADMITTED"
+                if all(row["admitted"] for row in source_audit_rows)
+                else "REJECTED_BEFORE_WRITER_DISPATCH",
             }
         report = {
             "command": "review",
@@ -1288,8 +1323,11 @@ def _run_one(
                 ],
                 "base_sha": snapshot.get("base_sha"),
                 "head_sha": snapshot.get("head_sha"),
-                **({"comparison_mode": snapshot["comparison_mode"], "change_base_sha": snapshot["change_base_sha"]}
-                   if snapshot.get("comparison_mode") == "PR_MERGE_BASE" else {}),
+                **(
+                    {"comparison_mode": snapshot["comparison_mode"], "change_base_sha": snapshot["change_base_sha"]}
+                    if snapshot.get("comparison_mode") == "PR_MERGE_BASE"
+                    else {}
+                ),
                 "profile_version": profile.get("version", profile.get("profile_version")),
                 "profile_file_sha256": _sha256(Path(args.profile).read_bytes()),
                 "limits_sha256": _sha256(Path(args.limits).read_bytes()) if args.limits else None,
@@ -1311,9 +1349,11 @@ def _run_one(
                         "obligation_ids": list(task.get("obligation_ids", [task.get("obligation_id")])),
                         "required_context_ids": list(task.get("required_context_ids", [])),
                         "evidence_ids": list(task.get("evidence_ids", [])),
-                        **({"current_source_input_hash": task["current_source_input_hash"]}
-                           if preflight_case_id == "PR-457"
-                           and task.get("task_kind") == "DETERMINISTIC_CHECK" else {}),
+                        **(
+                            {"current_source_input_hash": task["current_source_input_hash"]}
+                            if preflight_case_id == "PR-457" and task.get("task_kind") == "DETERMINISTIC_CHECK"
+                            else {}
+                        ),
                     }
                     for task in plan.get("tasks", [])
                     if isinstance(task, dict)
@@ -1418,9 +1458,7 @@ def _run_one(
             private_capture_request_pins=capture_pins,
             private_capture_snapshot_pin=capture_snapshot_pin,
             private_capture_source_audit_max_bytes=(
-                capture_snapshot_pin["audit_max_input_bytes_per_call"]
-                if capture_snapshot_pin is not None
-                else 64_000
+                capture_snapshot_pin["audit_max_input_bytes_per_call"] if capture_snapshot_pin is not None else 64_000
             ),
             allow_archived_contracts=getattr(args, "allow_archived_contracts", False),
             price_table=price_table,
@@ -1705,9 +1743,13 @@ def main(argv=None) -> int:
                 raise ValueError("--prepare-only requires --provider-config for exact request sizing")
         current_source_plan = bool(getattr(args, "private_shadow_current_source_plan", False))
         if current_source_plan and (
-            args.command != "review" or not args.private_shadow_capture
-            or args.private_shadow_case_id != "PR-457" or not args.private_shadow_plan
-            or not args.private_shadow_preflight_receipt or args.prepare_only or args.dry_run
+            args.command != "review"
+            or not args.private_shadow_capture
+            or args.private_shadow_case_id != "PR-457"
+            or not args.private_shadow_plan
+            or not args.private_shadow_preflight_receipt
+            or args.prepare_only
+            or args.dry_run
         ):
             raise ValueError("current source plan requires a fresh PR-457 private capture")
         if args.command == "review" and args.private_shadow_capture:
@@ -1717,7 +1759,9 @@ def main(argv=None) -> int:
                 raise ValueError("private shadow plan and preflight receipt must be provided together")
             if plan_path and receipt_path:
                 _validate_trusted_private_plan_paths(
-                    plan_path, receipt_path, args.private_shadow_case_id,
+                    plan_path,
+                    receipt_path,
+                    args.private_shadow_case_id,
                     current_source=current_source_plan,
                 )
         if args.dry_run:
@@ -1762,7 +1806,9 @@ def main(argv=None) -> int:
             plan, _ = _read_private_json(args.private_shadow_plan, 128_000)
             receipt, _ = _read_private_json(args.private_shadow_preflight_receipt, 16_384)
             _pins, current_pin = validate_plan(
-                plan, receipt, source_sha=os.environ.get("GITHUB_SHA", ""),
+                plan,
+                receipt,
+                source_sha=os.environ.get("GITHUB_SHA", ""),
                 module_inventory=installed_module_inventory(),
             )
             if provider is None or _sha256(_canonical(provider.identity)) != current_pin["provider_identity_sha256"]:

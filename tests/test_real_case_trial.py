@@ -216,10 +216,30 @@ def test_v2_runtime_verification_uses_its_own_fixed_revision_and_module_tree(tmp
 @pytest.mark.parametrize(
     ("revision", "proof", "inventory_mutation", "expected"),
     [
-        ("0" * 40, {"module_file_count": 28, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256}, False, "trusted_runtime_revision_mismatch"),
-        (trial.RUNTIME_SHA, {"module_file_count": 27, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256}, False, "installed_runtime_identity_mismatch"),
-        (trial.RUNTIME_SHA, {"module_file_count": 28, "module_tree_sha256": "0" * 64}, False, "installed_runtime_identity_mismatch"),
-        (trial.RUNTIME_SHA, {"module_file_count": 28, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256}, True, "installed_runtime_inventory_mismatch"),
+        (
+            "0" * 40,
+            {"module_file_count": 28, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256},
+            False,
+            "trusted_runtime_revision_mismatch",
+        ),
+        (
+            trial.RUNTIME_SHA,
+            {"module_file_count": 27, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256},
+            False,
+            "installed_runtime_identity_mismatch",
+        ),
+        (
+            trial.RUNTIME_SHA,
+            {"module_file_count": 28, "module_tree_sha256": "0" * 64},
+            False,
+            "installed_runtime_identity_mismatch",
+        ),
+        (
+            trial.RUNTIME_SHA,
+            {"module_file_count": 28, "module_tree_sha256": trial.RUNTIME_MODULE_TREE_SHA256},
+            True,
+            "installed_runtime_inventory_mismatch",
+        ),
     ],
 )
 def test_verify_runtime_rejects_wrong_revision_tree_count_or_inventory(
@@ -510,9 +530,7 @@ def test_candidate_projection_preserves_bounded_narrative_and_evidence_binding()
                         "status": "ANSWERED",
                         "native_primitive": "Choice",
                         "choice": sorted(choices)[0],
-                        "probabilities": {
-                            choice: float(choice == sorted(choices)[0]) for choice in choices
-                        },
+                        "probabilities": {choice: float(choice == sorted(choices)[0]) for choice in choices},
                         "confidence": 0.75,
                         "evidence_refs": ["ev-1"],
                         "interpretation": "advisory_uncalibrated",
@@ -716,7 +734,13 @@ def test_project_case_reads_engine_task_results_and_keeps_absent_outcome_unknown
         "ledger": {"candidate_records": []},
         "claim_assessments": [],
         "context_gaps": [gap],
-        "task_results": {"task:followup:0": {"task_id": "task:followup:0", "status": "SKIPPED", "error_code": "PROVIDER_CALL_BUDGET_EXHAUSTED"}},
+        "task_results": {
+            "task:followup:0": {
+                "task_id": "task:followup:0",
+                "status": "SKIPPED",
+                "error_code": "PROVIDER_CALL_BUDGET_EXHAUSTED",
+            }
+        },
     }
     projected = trial.project_case(case, durable, [])
     diagnostic = projected["context_gaps"][0]["diagnostic"]
@@ -920,12 +944,26 @@ def test_claim_dimension_projection_keeps_missing_failed_and_invalid_answers_unk
         "evidence_refs": ["ev-head"],
         "error_code": None,
     }
-    failed = {**valid, "status": "FAILED", "choice": None, "probabilities": None, "confidence": None,
-              "error_code": "malformed_native_response"}
-    omitted = {**valid, "status": "OMITTED", "choice": None, "probabilities": None, "confidence": None,
-               "error_code": "answer_omitted"}
+    failed = {
+        **valid,
+        "status": "FAILED",
+        "choice": None,
+        "probabilities": None,
+        "confidence": None,
+        "error_code": "malformed_native_response",
+    }
+    omitted = {
+        **valid,
+        "status": "OMITTED",
+        "choice": None,
+        "probabilities": None,
+        "confidence": None,
+        "error_code": "answer_omitted",
+    }
     invalid = {**valid, "choice": "credential-canary", "confidence": True}
-    result = trial._project_claim_dimensions({dimension: valid, "consequence_support": failed, "rule_connection_support": omitted, "materiality": invalid})
+    result = trial._project_claim_dimensions(
+        {dimension: valid, "consequence_support": failed, "rule_connection_support": omitted, "materiality": invalid}
+    )
     projected, complete = result
     assert complete is False
     assert projected[dimension]["choice"] == "SUPPORTED"
@@ -1010,7 +1048,7 @@ def test_claim_error_projection_is_additive_finite_and_canary_safe():
     assert safe["reason_code"] == "UNKNOWN"
     assert safe["error_code"] == "invalid_prepared_assessment"
 
-    for invalid in (True, -1, "private-canary \"credential-value\"", "not_a_claim_error"):
+    for invalid in (True, -1, 'private-canary "credential-value"', "not_a_claim_error"):
         projected = trial._project_claim({"status": "FAILED", "error_code": invalid})
         assert projected["error_code"] == "UNKNOWN"
         assert "credential-value" not in json.dumps(projected)
@@ -1280,7 +1318,10 @@ def test_context_followup_plan_preserves_every_frozen_v2_primary_descriptor():
     assert sum(case["expected_primary_count"] for case in cases) == 47
     assert sum(case["expected_scope_count"] for case in cases) == 124
     assert sum(case["expected_primary_serialized_input_bytes"] for case in cases) == 4_002_927
-    assert trial._manifest_schema(trial.CONTEXT_FOLLOWUP_SELECTOR) == "historical-real-case-trial-manifest.context-followup.v1"
+    assert (
+        trial._manifest_schema(trial.CONTEXT_FOLLOWUP_SELECTOR)
+        == "historical-real-case-trial-manifest.context-followup.v1"
+    )
     assert trial._experiment_identity_fields("specialist-input-v2")["input_contract"] == "specialist-input-v2"
     assert trial._experiment_identity_fields(trial.CONTEXT_FOLLOWUP_SELECTOR)["primary_input_identity"] == (
         "FROZEN_V2_DESCRIPTOR_PLAN_SELECTED"
@@ -1487,56 +1528,62 @@ def _context_followup_projection_fixture():
                     "evidence": [{"evidence_id": "ev-retrieved-1"}],
                 }
             },
-            "dynamic_obligations": [{
-                "obligation_id": "obligation-1",
-                "obligation_kind": "REQUIRED_CONTEXT",
-                "required": True,
-                "context_gap_id": "gap-1",
-                "retrieved_evidence_ids": ["ev-retrieved-1"],
-            }],
+            "dynamic_obligations": [
+                {
+                    "obligation_id": "obligation-1",
+                    "obligation_kind": "REQUIRED_CONTEXT",
+                    "required": True,
+                    "context_gap_id": "gap-1",
+                    "retrieved_evidence_ids": ["ev-retrieved-1"],
+                }
+            ],
         },
         "task_results": {"followup-1": task_output},
-        "context_gaps": [{
-            "proposal_id": "gap-1",
-            "retrieval_status": "RESOLVED",
-            "retrieved_evidence_ids": ["ev-retrieved-1"],
-            "followup_task_id": "followup-1",
-        }],
-        "coverage_ledger": [{
-            "obligation_id": "obligation-1",
-            "obligation_kind": "REQUIRED_CONTEXT",
-            "context_gap_id": "gap-1",
-            "task_ids": ["followup-1"],
-            "state": "COMPLETE",
-            "closure_diagnostics": {
-                "schema": "required-context-closure-diagnostics.v1",
-                "state": "OBSERVED",
-                "coverage_note_result": "COVERED",
-                "coverage_note_count": 1,
-                "coverage_note_notes_examined_count": 1,
-                "coverage_note_notes_unexamined_after_match_count": 0,
-                "coverage_note_failure_counts": {
-                    "NOTE_NOT_OBJECT": 0,
-                    "STATE_NOT_COVERED": 0,
-                    "BASIS_NOT_STATIC_REVIEW": 0,
-                    "UNIT_OUT_OF_SCOPE": 0,
-                    "NO_RETRIEVED_EVIDENCE_REFERENCE": 0,
-                    "REFERENCE_NOT_IN_TASK_INPUT": 0,
-                    "MATCH": 1,
-                    "NO_COVERAGE_NOTES": 0,
-                    "UNKNOWN": 0,
+        "context_gaps": [
+            {
+                "proposal_id": "gap-1",
+                "retrieval_status": "RESOLVED",
+                "retrieved_evidence_ids": ["ev-retrieved-1"],
+                "followup_task_id": "followup-1",
+            }
+        ],
+        "coverage_ledger": [
+            {
+                "obligation_id": "obligation-1",
+                "obligation_kind": "REQUIRED_CONTEXT",
+                "context_gap_id": "gap-1",
+                "task_ids": ["followup-1"],
+                "state": "COMPLETE",
+                "closure_diagnostics": {
+                    "schema": "required-context-closure-diagnostics.v1",
+                    "state": "OBSERVED",
+                    "coverage_note_result": "COVERED",
+                    "coverage_note_count": 1,
+                    "coverage_note_notes_examined_count": 1,
+                    "coverage_note_notes_unexamined_after_match_count": 0,
+                    "coverage_note_failure_counts": {
+                        "NOTE_NOT_OBJECT": 0,
+                        "STATE_NOT_COVERED": 0,
+                        "BASIS_NOT_STATIC_REVIEW": 0,
+                        "UNIT_OUT_OF_SCOPE": 0,
+                        "NO_RETRIEVED_EVIDENCE_REFERENCE": 0,
+                        "REFERENCE_NOT_IN_TASK_INPUT": 0,
+                        "MATCH": 1,
+                        "NO_COVERAGE_NOTES": 0,
+                        "UNKNOWN": 0,
+                    },
+                    "required_output_quarantine_count": 0,
+                    "required_output_quarantine_by_kind": {
+                        "finding_candidates": 0,
+                        "context_gap_proposals": 0,
+                        "coverage_notes": 0,
+                        "other_required_kind": 0,
+                    },
+                    "unresolved_context_gap_count": 0,
+                    "unresolved_followup_gap_count": 0,
                 },
-                "required_output_quarantine_count": 0,
-                "required_output_quarantine_by_kind": {
-                    "finding_candidates": 0,
-                    "context_gap_proposals": 0,
-                    "coverage_notes": 0,
-                    "other_required_kind": 0,
-                },
-                "unresolved_context_gap_count": 0,
-                "unresolved_followup_gap_count": 0,
-            },
-        }],
+            }
+        ],
     }
     return durable
 
@@ -1598,7 +1645,13 @@ def test_context_followup_v3_observes_persisted_handoff_without_claiming_deliver
     assert row["actual_provider_calls"] == "UNKNOWN"
     assert "PERSISTED_HANDOFF_BINDING_DOES_NOT_PROVE_TRANSPORT_DELIVERY" in observation["limitations"]
     encoded = json.dumps(projected)
-    for secret in ("ev-retrieved-1", "ev-parent-1", "private-target-canary", "private-rationale-canary", "fake-secret-canary"):
+    for secret in (
+        "ev-retrieved-1",
+        "ev-parent-1",
+        "private-target-canary",
+        "private-rationale-canary",
+        "fake-secret-canary",
+    ):
         assert secret not in encoded
 
 
@@ -1614,12 +1667,13 @@ def test_required_context_coverage_diagnostic_v1_links_partial_coverage_to_note_
 
     v3 = trial.project_case(case, durable, [], include_context_handoff=True)
     with_diagnostic = trial.project_case(
-        case, durable, [], include_context_handoff=True,
+        case,
+        durable,
+        [],
+        include_context_handoff=True,
         include_required_context_coverage_diagnostic=True,
     )
-    diagnostic_only = trial.project_case(
-        case, durable, [], include_required_context_coverage_diagnostic=True
-    )
+    diagnostic_only = trial.project_case(case, durable, [], include_required_context_coverage_diagnostic=True)
     diagnostic = with_diagnostic["required_context_coverage_diagnostic"]
     row = diagnostic["rows"][0]
 
@@ -1636,9 +1690,9 @@ def test_required_context_coverage_diagnostic_v1_links_partial_coverage_to_note_
     assert row["task_ids"] == ["followup-1"]
     assert row["followup_observation_binding"] == "MATCH"
     assert row["closure_observation_binding"] == "MATCH"
-    assert row["linked_followups"] == [{
-        "task_id": "followup-1", "task_status": "SUCCEEDED", "handoff_binding": "VERIFIED"
-    }]
+    assert row["linked_followups"] == [
+        {"task_id": "followup-1", "task_status": "SUCCEEDED", "handoff_binding": "VERIFIED"}
+    ]
     assert row["closure_diagnostics"]["coverage_note_result"] == "NO_COVERING_NOTE"
     assert row["closure_diagnostics"]["coverage_note_failure_counts"]["STATE_NOT_COVERED"] == 1
     assert row["closure_diagnostics"]["coverage_note_failure_counts"]["MATCH"] == 0
@@ -1655,26 +1709,20 @@ def test_required_context_coverage_diagnostic_v1_missing_mismatch_and_malformed_
 
     missing = dict(projected)
     missing.pop("context_followup_observations")
-    missing_row = trial._project_required_context_coverage_diagnostic(
-        missing, durable
-    )["rows"][0]
+    missing_row = trial._project_required_context_coverage_diagnostic(missing, durable)["rows"][0]
     assert missing_row["followup_observation_binding"] == "UNKNOWN"
     assert missing_row["closure_diagnostics"]["state"] == "UNKNOWN"
 
     mismatched = copy.deepcopy(projected)
     mismatched["coverage_ledger"][0]["task_ids"] = ["other-task"]
-    mismatch_row = trial._project_required_context_coverage_diagnostic(
-        mismatched, durable
-    )["rows"][0]
+    mismatch_row = trial._project_required_context_coverage_diagnostic(mismatched, durable)["rows"][0]
     assert mismatch_row["followup_observation_binding"] == "MISMATCH"
     assert mismatch_row["linked_followups"] == []
 
     malformed = copy.deepcopy(projected)
     malformed["coverage_ledger"][0]["reason_code"] = "private-reason-canary"
     malformed["coverage_ledger"][0]["task_ids"] = [{"secret": "private-task-canary"}]
-    malformed_row = trial._project_required_context_coverage_diagnostic(
-        malformed, durable
-    )["rows"][0]
+    malformed_row = trial._project_required_context_coverage_diagnostic(malformed, durable)["rows"][0]
     assert malformed_row["coverage_reason_code"] == "UNKNOWN"
     assert malformed_row["task_ids"] == "UNKNOWN"
     assert malformed_row["followup_observation_binding"] == "UNKNOWN"
@@ -1687,13 +1735,10 @@ def test_required_context_coverage_diagnostic_v1_marks_source_cap_boundary_unkno
     case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
     projected = trial.project_case(case, durable, [], include_context_handoff=True)
     projected["coverage_ledger"].extend(
-        {"obligation_id": f"unit-obligation-{index}", "obligation_kind": "CHANGED_UNIT_LENS"}
-        for index in range(199)
+        {"obligation_id": f"unit-obligation-{index}", "obligation_kind": "CHANGED_UNIT_LENS"} for index in range(199)
     )
 
-    diagnostic = trial._project_required_context_coverage_diagnostic(
-        projected, durable
-    )
+    diagnostic = trial._project_required_context_coverage_diagnostic(projected, durable)
 
     assert diagnostic["coverage_source_completeness"] == "UNKNOWN"
     assert diagnostic["projection_state"] == "PARTIAL"
@@ -1736,9 +1781,7 @@ def test_required_context_coverage_diagnostic_v1_truncated_followup_source_canno
     followup_projection["omitted_followup_task_count"] = 1
     followup_projection["rows"] *= 8
 
-    diagnostic = trial._project_required_context_coverage_diagnostic(
-        projected, durable
-    )
+    diagnostic = trial._project_required_context_coverage_diagnostic(projected, durable)
     row = diagnostic["rows"][0]
 
     assert diagnostic["projection_state"] == "PARTIAL"
@@ -1754,20 +1797,19 @@ def test_required_context_coverage_diagnostic_v1_rejects_ambiguous_case_or_lossy
     durable["coverage_ledger"][0].update(state="PARTIAL", reason_code="REQUIRED_CONTEXT_NOT_COVERED")
     case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
     projected = trial.project_case(
-        case, durable, [], include_context_handoff=True,
+        case,
+        durable,
+        [],
+        include_context_handoff=True,
         include_required_context_coverage_diagnostic=True,
     )
     diagnostic_input = dict(projected)
     diagnostic_input["case_id"] = "not-a-case-id"
-    ambiguous = trial._project_required_context_coverage_diagnostic(
-        diagnostic_input, durable
-    )
+    ambiguous = trial._project_required_context_coverage_diagnostic(diagnostic_input, durable)
     projected_only = trial._project_required_context_coverage_diagnostic(projected, projected)
     malformed_source = copy.deepcopy(durable)
     malformed_source["coverage_ledger"].append("malformed-row-canary")
-    lossy = trial._project_required_context_coverage_diagnostic(
-        projected, malformed_source
-    )
+    lossy = trial._project_required_context_coverage_diagnostic(projected, malformed_source)
 
     assert ambiguous["projection_state"] == "UNKNOWN"
     assert ambiguous["case_id"] == "UNKNOWN"
@@ -1789,14 +1831,26 @@ def test_required_context_coverage_diagnostic_v1_rejects_ambiguous_case_or_lossy
             ),
             "MISMATCH",
         ),
-        (lambda durable: durable["ledger"]["planned_task_inputs"]["followup-1"].update(unit_evidence_bindings=[]), "VERIFIED"),
+        (
+            lambda durable: durable["ledger"]["planned_task_inputs"]["followup-1"].update(unit_evidence_bindings=[]),
+            "VERIFIED",
+        ),
         (lambda durable: durable["task_results"]["followup-1"].pop("input_evidence_ids"), "UNKNOWN"),
         (lambda durable: durable["ledger"]["planned_task_inputs"].pop("followup-1"), "UNKNOWN"),
         (lambda durable: durable["ledger"]["dynamic_tasks"][0].pop("request_input_contract"), "UNKNOWN"),
-        (lambda durable: durable["ledger"]["planned_task_inputs"]["followup-1"].pop("request_input_contract"), "UNKNOWN"),
+        (
+            lambda durable: durable["ledger"]["planned_task_inputs"]["followup-1"].pop("request_input_contract"),
+            "UNKNOWN",
+        ),
         (lambda durable: durable["task_results"]["followup-1"].pop("request_input_contract"), "UNKNOWN"),
-        (lambda durable: durable["ledger"]["dynamic_tasks"][0].update(request_input_contract="specialist-input.v1"), "MISMATCH"),
-        (lambda durable: durable["task_results"]["followup-1"].update(request_input_contract="specialist-input.v1"), "MISMATCH"),
+        (
+            lambda durable: durable["ledger"]["dynamic_tasks"][0].update(request_input_contract="specialist-input.v1"),
+            "MISMATCH",
+        ),
+        (
+            lambda durable: durable["task_results"]["followup-1"].update(request_input_contract="specialist-input.v1"),
+            "MISMATCH",
+        ),
         (
             lambda durable: durable["context_gaps"][0].update(retrieved_evidence_ids=["ev-other-1"]),
             "MISMATCH",
@@ -1808,9 +1862,7 @@ def test_required_context_coverage_diagnostic_v1_rejects_ambiguous_case_or_lossy
             "MISMATCH",
         ),
         (
-            lambda durable: durable["ledger"]["dynamic_obligations"][0].update(
-                retrieved_evidence_ids=["ev-other-1"]
-            ),
+            lambda durable: durable["ledger"]["dynamic_obligations"][0].update(retrieved_evidence_ids=["ev-other-1"]),
             "MISMATCH",
         ),
         (
@@ -1849,22 +1901,27 @@ def test_context_followup_v3_handoff_binding_distinguishes_conflict_from_missing
     assert projected["context_followup_observations"]["projection_state"] == "PARTIAL"
 
 
-
 def test_context_followup_v3_requires_canonical_retrieval_and_obligation_records():
     case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
     missing_entry = _valid_context_followup_handoff_fixture()
     missing_entry["ledger"].pop("retrieved_context")
-    row = trial.project_case(case, missing_entry, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+    row = trial.project_case(case, missing_entry, [], include_context_handoff=True)["context_followup_observations"][
+        "rows"
+    ][0]
     assert row["retrieved_evidence_handoff_binding"] == "UNKNOWN"
 
     unresolved = _valid_context_followup_handoff_fixture()
     unresolved["ledger"]["retrieved_context"]["gap-1"]["result"]["status"] = "UNRESOLVED"
-    row = trial.project_case(case, unresolved, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+    row = trial.project_case(case, unresolved, [], include_context_handoff=True)["context_followup_observations"][
+        "rows"
+    ][0]
     assert row["retrieved_evidence_handoff_binding"] == "MISMATCH"
 
     malformed_obligation = _valid_context_followup_handoff_fixture()
     malformed_obligation["ledger"]["dynamic_obligations"] = []
-    row = trial.project_case(case, malformed_obligation, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+    row = trial.project_case(case, malformed_obligation, [], include_context_handoff=True)[
+        "context_followup_observations"
+    ]["rows"][0]
     assert row["retrieved_evidence_handoff_binding"] == "UNKNOWN"
 
 
@@ -1884,6 +1941,7 @@ def test_context_followup_v3_does_not_claim_unit_binding_validation():
     assert row["retrieved_evidence_handoff_binding"] == "VERIFIED"
     assert "UNIT_EVIDENCE_BINDING_VALIDITY_NOT_ASSESSED" in projected["context_followup_observations"]["limitations"]
 
+
 def test_context_followup_v3_invalid_metadata_is_not_a_handoff_mismatch():
     durable = _valid_context_followup_handoff_fixture()
     for record in (
@@ -1894,7 +1952,9 @@ def test_context_followup_v3_invalid_metadata_is_not_a_handoff_mismatch():
         record["context_followup"].pop("snapshot_id")
     case = {"case_id": "PR-464", "pull_request_number": 464, "base_sha": "a" * 40, "head_sha": "b" * 40}
 
-    row = trial.project_case(case, durable, [], include_context_handoff=True)["context_followup_observations"]["rows"][0]
+    row = trial.project_case(case, durable, [], include_context_handoff=True)["context_followup_observations"]["rows"][
+        0
+    ]
 
     assert row["metadata_contract_validation"] == "INVALID"
     assert row["retrieved_evidence_handoff_binding"] == "UNKNOWN"
@@ -2245,7 +2305,9 @@ def test_v2_family_provider_trial_preflights_prepare_before_any_provider_configu
     monkeypatch.setattr(trial, "_matrix_deadline", lambda _provider_run: trial.time.monotonic() + 10_000)
     monkeypatch.setattr(trial, "selected_cases", lambda _mode, _cases: [case])
     monkeypatch.setattr(trial, "load_locked_cases", lambda _contract: (document, cases))
-    monkeypatch.setattr(trial, "build_prepare_configs", lambda _path: (tmp_path / "provider.json", tmp_path / "decision.json"))
+    monkeypatch.setattr(
+        trial, "build_prepare_configs", lambda _path: (tmp_path / "provider.json", tmp_path / "decision.json")
+    )
     monkeypatch.setattr(
         trial,
         "acquire_bare_case",
@@ -2278,9 +2340,19 @@ def test_v2_family_provider_trial_preflights_prepare_before_any_provider_configu
     artifact_dir = tmp_path / "artifacts"
     result = trial.main(
         [
-            "--mode", "staged-pr464", "--run-provider-trial", "--input-contract", input_contract,
-            "--artifacts", str(artifact_dir), "--cli", str(trial.ROOT / "scripts/run_real_case_trial.py"),
-            "--runtime-source", str(trial.ROOT), "--target-bare", str(target_bare),
+            "--mode",
+            "staged-pr464",
+            "--run-provider-trial",
+            "--input-contract",
+            input_contract,
+            "--artifacts",
+            str(artifact_dir),
+            "--cli",
+            str(trial.ROOT / "scripts/run_real_case_trial.py"),
+            "--runtime-source",
+            str(trial.ROOT),
+            "--target-bare",
+            str(target_bare),
         ]
     )
     assert result == 2
@@ -2296,7 +2368,9 @@ def _patch_three_case_context_preflight(tmp_path, monkeypatch, input_contract=tr
     monkeypatch.setattr(trial, "verify_dispatch_context", lambda _root: "a" * 40)
     monkeypatch.setattr(trial, "verify_runtime", lambda *args: {"module_file_count": 28})
     monkeypatch.setattr(trial, "_matrix_deadline", lambda _provider_run: trial.time.monotonic() + 10_000)
-    monkeypatch.setattr(trial, "build_prepare_configs", lambda _path: (tmp_path / "provider.json", tmp_path / "decision.json"))
+    monkeypatch.setattr(
+        trial, "build_prepare_configs", lambda _path: (tmp_path / "provider.json", tmp_path / "decision.json")
+    )
 
     def acquire(case, path, *_args, **_kwargs):
         path.mkdir()
@@ -2338,12 +2412,24 @@ def test_context_followup_full_matrix_preflights_all_cases_before_provider_confi
             raise trial.TrialError("third_case_descriptor_mismatch")
 
     monkeypatch.setattr(trial, "validate_prepare_v2", validate)
-    monkeypatch.setattr(trial, "build_configs", lambda *_args: pytest.fail("provider config built before all-case preflight"))
-    result = trial.main([
-        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", input_contract,
-        "--artifacts", str(tmp_path / "artifacts"), "--cli", str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
-        "--runtime-source", str(trial.ROOT),
-    ])
+    monkeypatch.setattr(
+        trial, "build_configs", lambda *_args: pytest.fail("provider config built before all-case preflight")
+    )
+    result = trial.main(
+        [
+            "--mode",
+            "full-three-case",
+            "--run-provider-trial",
+            "--input-contract",
+            input_contract,
+            "--artifacts",
+            str(tmp_path / "artifacts"),
+            "--cli",
+            str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
+            "--runtime-source",
+            str(trial.ROOT),
+        ]
+    )
 
     assert result == 2
     assert [case["case_id"] for case in cases] == ["PR-457", "PR-463", "PR-464"]
@@ -2369,11 +2455,21 @@ def test_context_followup_full_matrix_success_reaches_provider_configuration_onl
         raise trial.TrialError("provider_configuration_sentinel")
 
     monkeypatch.setattr(trial, "build_configs", stop_at_provider_config)
-    result = trial.main([
-        "--mode", "full-three-case", "--run-provider-trial", "--input-contract", input_contract,
-        "--artifacts", str(tmp_path / "artifacts"), "--cli", str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
-        "--runtime-source", str(trial.ROOT),
-    ])
+    result = trial.main(
+        [
+            "--mode",
+            "full-three-case",
+            "--run-provider-trial",
+            "--input-contract",
+            input_contract,
+            "--artifacts",
+            str(tmp_path / "artifacts"),
+            "--cli",
+            str(trial.ROOT / "scripts" / "run_real_case_trial.py"),
+            "--runtime-source",
+            str(trial.ROOT),
+        ]
+    )
 
     assert result == 2
     assert calls == validations == ["PR-457", "PR-463", "PR-464"]
@@ -2588,16 +2684,20 @@ def test_projection_is_retained_when_prepare_workspace_cleanup_fails_with_specif
     monkeypatch.setattr(trial, "verify_runtime", lambda cli, source: {"module_file_count": 28})
     monkeypatch.setattr(trial, "validate_prepare", lambda case, prepared, cap: None)
     monkeypatch.setattr(trial, "primary_receipts", lambda prepared: [])
-    monkeypatch.setattr(trial, "acquire_bare_case", lambda case, path, *args, **kwargs: (
-        path.mkdir(),
-        {
-            "patch_sha256": case["patch_sha256"],
-            "isolated_object_count": 1,
-            "isolated_loose_object_count": 1,
-            "isolated_in_pack_object_count": 0,
-            "isolated_pack_kib": 0,
-        },
-    )[1])
+    monkeypatch.setattr(
+        trial,
+        "acquire_bare_case",
+        lambda case, path, *args, **kwargs: (
+            path.mkdir(),
+            {
+                "patch_sha256": case["patch_sha256"],
+                "isolated_object_count": 1,
+                "isolated_loose_object_count": 1,
+                "isolated_in_pack_object_count": 0,
+                "isolated_pack_kib": 0,
+            },
+        )[1],
+    )
     for name, value in {
         "LLM_BASE_URL": trial.EXPECTED_LLM_ENDPOINT,
         "LLM_MODEL": trial.EXPECTED_LLM_MODEL,
@@ -2633,9 +2733,15 @@ def test_projection_is_retained_when_prepare_workspace_cleanup_fails_with_specif
     monkeypatch.setattr(trial.shutil, "rmtree", fail_prepare_cleanup)
     code = trial.main(
         [
-            "--mode", "staged-pr464", "--run-provider-trial", "--artifacts", str(artifact_dir),
-            "--cli", str(repo_root / "scripts" / "run_real_case_trial.py"),
-            "--runtime-source", str(repo_root),
+            "--mode",
+            "staged-pr464",
+            "--run-provider-trial",
+            "--artifacts",
+            str(artifact_dir),
+            "--cli",
+            str(repo_root / "scripts" / "run_real_case_trial.py"),
+            "--runtime-source",
+            str(repo_root),
         ]
     )
 

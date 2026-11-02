@@ -327,15 +327,24 @@ def test_inventory_accepts_only_valid_event_wrapped_snapshot_identity(frozen_pol
         "pull_request_number": 7,
         "event_id": "github-pr:owner/project#7:head-sha",
     }
-    wrapped["snapshot_id"] = "snap-" + hashlib.sha256(json.dumps(event_identity, sort_keys=True).encode()).hexdigest()[:24]
+    wrapped["snapshot_id"] = (
+        "snap-" + hashlib.sha256(json.dumps(event_identity, sort_keys=True).encode()).hexdigest()[:24]
+    )
     old_to_new = {}
     for evidence_id, item in wrapped["evidence"].items():
-        new_id = "ev-" + hashlib.sha256(
-            json.dumps(
-                {"snapshot": wrapped["snapshot_id"], "old_evidence_id": evidence_id, "content_hash": item["content_hash"]},
-                sort_keys=True,
-            ).encode()
-        ).hexdigest()[:24]
+        new_id = (
+            "ev-"
+            + hashlib.sha256(
+                json.dumps(
+                    {
+                        "snapshot": wrapped["snapshot_id"],
+                        "old_evidence_id": evidence_id,
+                        "content_hash": item["content_hash"],
+                    },
+                    sort_keys=True,
+                ).encode()
+            ).hexdigest()[:24]
+        )
         item["evidence_id"] = new_id
         item["snapshot_id"] = wrapped["snapshot_id"]
         old_to_new[evidence_id] = new_id

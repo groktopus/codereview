@@ -1,0 +1,31 @@
+# Pre-commit hooks matching the required CI checks.
+#
+# `ruff-pre-commit` is pinned to the exact ruff release in
+# requirements-dev.lock (ruff==0.17.3). CI runs `ruff check .` and
+# `ruff format --check .`; these hooks apply the same tools, with
+# `ruff check --fix` because pre-commit may modify a working tree.
+#
+# The format hook respects the `[tool.ruff.format] exclude` entries for the
+# sha256-pinned historical compatibility fixtures. `--force-exclude` makes
+# explicitly passed paths honor those excludes too.
+minimum_pre_commit_version: "3.0.0"
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.3
+    hooks:
+      - id: ruff-check
+        name: ruff check (--fix)
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        types_or: [python, pyi]
+
+  - repo: local
+    hooks:
+      - id: complexity-guard
+        name: function-length complexity guard
+        entry: python3 scripts/check_complexity.py
+        language: system
+        pass_filenames: false
+        files: ^(src|scripts|experiments|tests)/.*\.py$

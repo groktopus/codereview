@@ -96,17 +96,11 @@ def test_docs_experiment_reviews_keep_policy_without_unrelated_code_context():
     for unit_id in ("unit-0", "unit-1"):
         assert _context_paths(snapshot, plan, unit_id) == {"AGENTS.md", "CONTRIBUTING.md"}
         task_contexts = [
-            {
-                snapshot["evidence"][evidence_id]["path"]
-                for evidence_id in task["required_context_ids"]
-            }
+            {snapshot["evidence"][evidence_id]["path"] for evidence_id in task["required_context_ids"]}
             for task in plan["tasks"]
             if task.get("task_kind") == "SPECIALIST_FINDINGS" and unit_id in task["unit_ids"]
         ]
-        assert all(
-            not ({"tests/test_mcp_gateway.py", "tests/test_mcp_harness.py"} & paths)
-            for paths in task_contexts
-        )
+        assert all(not ({"tests/test_mcp_gateway.py", "tests/test_mcp_harness.py"} & paths) for paths in task_contexts)
 
 
 def test_dependency_limits_raise_only_per_task_input_ceiling():

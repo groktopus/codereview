@@ -33,10 +33,14 @@ def test_manifest_pins_control_and_one_code_comment_attack_benign_pair():
     selection = manifest["selection"]
     assert selection["repetitions"] == 1
     assert selection["trial_case_ids"] == [
-        "r1-control", "r1-code-comment-attack", "r1-code-comment-benign",
+        "r1-control",
+        "r1-code-comment-attack",
+        "r1-code-comment-benign",
     ]
     assert {case_id.removeprefix("r1-") for case_id in selection["trial_case_ids"]} == {
-        "control", "code-comment-attack", "code-comment-benign",
+        "control",
+        "code-comment-attack",
+        "code-comment-benign",
     }
     assert variants["control"]["kind"] == "control"
     attack, benign = variants["code-comment-attack"], variants["code-comment-benign"]
@@ -80,7 +84,9 @@ def test_manifest_declares_process_gates_and_separate_finite_budget():
     assert writer["run_model_key"] == "solar"
     assert totals["provider_calls_total"] == totals["writer_provider_calls"] + totals["shadow_provider_calls"] == 24
     assert totals["request_bytes_total"] == totals["writer_request_bytes"] + totals["shadow_request_bytes"] == 1_536_000
-    assert totals["response_bytes_total"] == totals["writer_response_bytes"] + totals["shadow_response_bytes"] == 1_067_520
+    assert (
+        totals["response_bytes_total"] == totals["writer_response_bytes"] + totals["shadow_response_bytes"] == 1_067_520
+    )
     assert totals["request_and_response_bytes_total"] == 2_603_520
     assert totals["writer_request_bytes"] == 3 * writer["max_provider_calls"] * writer["max_request_bytes_per_call"]
     assert totals["shadow_request_bytes"] == 3 * audit["max_provider_calls"] * audit["max_input_bytes_per_call"]
@@ -98,7 +104,9 @@ def test_manifest_declares_process_gates_and_separate_finite_budget():
 
 
 def test_secret_config_contract_preserves_exact_secret_supplied_endpoints_and_models():
-    spec = importlib.util.spec_from_file_location("provider_config_from_env", ROOT / "scripts/provider_config_from_env.py")
+    spec = importlib.util.spec_from_file_location(
+        "provider_config_from_env", ROOT / "scripts/provider_config_from_env.py"
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -112,22 +120,37 @@ def test_secret_config_contract_preserves_exact_secret_supplied_endpoints_and_mo
     }
     provider, jev = module.configurations_from_environment(fake)
     assert provider == {
-        "kind": "openai_compatible", "provider_id": "operator_openai_compatible",
-        "base_url": fake["LLM_BASE_URL"], "model": fake["LLM_MODEL"], "api_key_env": "LLM_API_KEY",
+        "kind": "openai_compatible",
+        "provider_id": "operator_openai_compatible",
+        "base_url": fake["LLM_BASE_URL"],
+        "model": fake["LLM_MODEL"],
+        "api_key_env": "LLM_API_KEY",
     }
     assert jev == {
-        "kind": "typesafe", "endpoint": fake["JEV_BASE_URL"] + "/systemone",
-        "model": fake["JEV_MODEL"], "api_key_env": "JEV_API_KEY",
+        "kind": "typesafe",
+        "endpoint": fake["JEV_BASE_URL"] + "/systemone",
+        "model": fake["JEV_MODEL"],
+        "api_key_env": "JEV_API_KEY",
     }
     serialized = json.dumps([provider, jev])
     assert all(value not in serialized for key, value in fake.items() if "API_KEY" in key)
     manifest, _ = _load_contract()
-    assert {manifest["provider_configuration"]["provider_config"][field] for field in (
-        "base_url_secret", "model_secret", "credential_secret",
-    )} == {"LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY"}
-    assert {manifest["provider_configuration"]["jev_config"][field] for field in (
-        "endpoint_secret", "model_secret", "credential_secret",
-    )} == {"JEV_BASE_URL", "JEV_MODEL", "JEV_API_KEY"}
+    assert {
+        manifest["provider_configuration"]["provider_config"][field]
+        for field in (
+            "base_url_secret",
+            "model_secret",
+            "credential_secret",
+        )
+    } == {"LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY"}
+    assert {
+        manifest["provider_configuration"]["jev_config"][field]
+        for field in (
+            "endpoint_secret",
+            "model_secret",
+            "credential_secret",
+        )
+    } == {"JEV_BASE_URL", "JEV_MODEL", "JEV_API_KEY"}
 
 
 def test_model_behavior_categories_are_observations_not_quality_labels():
@@ -140,23 +163,38 @@ def test_model_behavior_categories_are_observations_not_quality_labels():
     assert "typed_disagreement_relation_observed" in behavior["disagreement"]
     assert "no_typed_writer_jev_relation" in behavior["disagreement"]
     assert "no accuracy" in behavior["interpretation"]
-    assert not any("pass" in value.lower() or "accuracy" in value.lower() for values in behavior.values() if isinstance(values, list) for value in values)
+    assert not any(
+        "pass" in value.lower() or "accuracy" in value.lower()
+        for values in behavior.values()
+        if isinstance(values, list)
+        for value in values
+    )
     assert manifest["effects"] == {
-        "publication_enabled": False, "github_writes_enabled": False, "target_execution_enabled": False,
+        "publication_enabled": False,
+        "github_writes_enabled": False,
+        "target_execution_enabled": False,
         "private_raw_artifacts_uploaded": False,
         "retention": "local_private_mode_0700_directory_with_mode_0600_files",
     }
 
 
-@pytest.mark.parametrize("bad_url", ["https://user:pass@example.test/v1", "https://example.test/v1?token=x", "http://example.test/v1"])
+@pytest.mark.parametrize(
+    "bad_url", ["https://user:pass@example.test/v1", "https://example.test/v1?token=x", "http://example.test/v1"]
+)
 def test_secret_endpoint_validation_fails_closed_without_provider_calls(bad_url):
-    spec = importlib.util.spec_from_file_location("provider_config_from_env", ROOT / "scripts/provider_config_from_env.py")
+    spec = importlib.util.spec_from_file_location(
+        "provider_config_from_env", ROOT / "scripts/provider_config_from_env.py"
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     values = {
-        "LLM_BASE_URL": bad_url, "LLM_MODEL": "writer", "LLM_API_KEY": "test-key",
-        "JEV_BASE_URL": "https://jev.example.test/v1", "JEV_MODEL": "jev", "JEV_API_KEY": "jev-key",
+        "LLM_BASE_URL": bad_url,
+        "LLM_MODEL": "writer",
+        "LLM_API_KEY": "test-key",
+        "JEV_BASE_URL": "https://jev.example.test/v1",
+        "JEV_MODEL": "jev",
+        "JEV_API_KEY": "jev-key",
     }
     with pytest.raises(module.ConfigError):
         module.configurations_from_environment(values)

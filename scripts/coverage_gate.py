@@ -82,28 +82,32 @@ def evaluate(measured: Mapping[str, Mapping[str, float]], floors: Mapping[str, f
     rows: list[dict[str, object]] = []
     for name, floor in floors.items():
         if name not in measured:
-            rows.append({
-                "module": name,
-                "percent": None,
-                "covered": 0,
-                "statements": 0,
-                "floor": floor,
-                "target": TARGET_OVERALL if name == "overall" else TARGET_CRITICAL,
-                "passed": False,
-                "missing": True,
-            })
+            rows.append(
+                {
+                    "module": name,
+                    "percent": None,
+                    "covered": 0,
+                    "statements": 0,
+                    "floor": floor,
+                    "target": TARGET_OVERALL if name == "overall" else TARGET_CRITICAL,
+                    "passed": False,
+                    "missing": True,
+                }
+            )
             continue
         value = measured[name]
-        rows.append({
-            "module": name,
-            "percent": value["percent"],
-            "covered": int(value["covered"]),
-            "statements": int(value["statements"]),
-            "floor": floor,
-            "target": TARGET_OVERALL if name == "overall" else TARGET_CRITICAL,
-            "passed": value["percent"] >= floor,
-            "missing": False,
-        })
+        rows.append(
+            {
+                "module": name,
+                "percent": value["percent"],
+                "covered": int(value["covered"]),
+                "statements": int(value["statements"]),
+                "floor": floor,
+                "target": TARGET_OVERALL if name == "overall" else TARGET_CRITICAL,
+                "passed": value["percent"] >= floor,
+                "missing": False,
+            }
+        )
     return rows
 
 
@@ -175,8 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         for row in failed:
             measured_text = "missing" if row["missing"] else f"{float(row['percent']):.2f}%"
             print(
-                f"coverage gate: {row['module']} measured {measured_text} "
-                f"below floor {float(row['floor']):.2f}%",
+                f"coverage gate: {row['module']} measured {measured_text} below floor {float(row['floor']):.2f}%",
                 file=sys.stderr,
             )
         return 1
