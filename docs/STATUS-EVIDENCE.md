@@ -81,7 +81,7 @@ its freshness verdict verbatim and does not rewrite it.
 
 Checker findings:
 
-- STATUS_STALE (docs/STATUS.md:1): evidence revision 8223fd77e3e1 predates source 'src/pr_review_harness/cli.py' at 4a320538562a; refresh the evidence or narrow source_paths to the documented claim
+- STATUS_STALE (docs/STATUS.md:1): evidence revision 8223fd77e3e1 predates source 'src/pr_review_harness/cli.py' at aabec3ace35f; refresh the evidence or narrow source_paths to the documented claim
 
 ## Historical snapshots (immutable; not current)
 
