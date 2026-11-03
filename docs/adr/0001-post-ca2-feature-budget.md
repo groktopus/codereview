@@ -62,6 +62,18 @@ This addendum records a measurement change required by VD-4. The owner approved
 the one-time formatting allowance and the observation-revision refresh; the
 allowance does not relabel the CA-2 result.
 
+### Observation revision refresh
+
+The formatting commit is behavior-preserving, but it rewrites physical bytes in
+three files that `docs/STATUS.md` names as freshness sources. The checked-in
+owner handoff manifest (`scripts/documentation-truth-evidence.v1.json`) therefore
+records its evidence revision as the formatting commit, while `docs/STATUS.md`
+keeps its 2026-11-01 review date and prose. The generated
+`docs/STATUS-EVIDENCE.md` reports the handoff verdict rather than asserting a new
+owner review. The handoff manifest is no longer listed among the derived page's
+own freshness sources because this evidence refresh changes it in the same
+commit; the documentation-truth job checks its freshness directly.
+
 ## Consequences
 
 - OE-2 can ship without deleting working code or falsifying the CA-2 result.

@@ -376,11 +376,9 @@ def test_ci_freshness_fixture_is_explicitly_stale() -> None:
     assert truth.check_status_freshness(ROOT, ROOT / "tests/fixtures/docs_truth/freshness-current.json") == []
 
 
-def test_checked_in_status_handoff_manifest_validates_but_reports_known_staleness() -> None:
+def test_checked_in_status_handoff_manifest_is_current_after_vd4_observation_refresh() -> None:
     findings = truth.check_status_freshness(ROOT, ROOT / "scripts/documentation-truth-evidence.v1.json")
-    assert findings
-    assert {finding.code for finding in findings} == {"STATUS_STALE"}
-    assert {finding.file for finding in findings} == {"docs/STATUS.md"}
+    assert findings == []
 
 
 def test_cli_main_rejects_combined_seeded_documentation_violations(
