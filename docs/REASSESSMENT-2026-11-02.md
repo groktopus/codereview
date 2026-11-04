@@ -1,6 +1,6 @@
 # Reassessment after the A-minus issue program (2026-11-02)
 
-Status: **A− not achieved. 2 of 10 dimensions meet A−.** This note records the
+Status: **A− not achieved. 3 of 10 dimensions meet A− (updated 2026-11-04).** This note records the
 current judgment after the 33-issue remediation program and the merged
 infrastructure PRs. It supersedes the overall judgment in
 [`CODEBASE-ASSESSMENT-2026-11-01.md`](CODEBASE-ASSESSMENT-2026-11-01.md) while
@@ -11,15 +11,23 @@ keeping that document as the original evidence snapshot.
 | Dimension | Grade | Current evidence | What still blocks A− |
 |---|---|---|---|
 | Evidence discipline | **A** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, frozen historical fixtures, exact-byte pins. | None material. |
-| Effect safety | **B+** | Default read-only, typed effect boundaries, fault matrix, publication receipts, fail-closed unknown states. | The documented A− gate requires an exercised canary; the live canary remains NOT EXERCISED (#258), so the fault matrix alone is not enough. |
+| Effect safety | **A−** | Default read-only, typed effect boundaries, 11-test publication fault matrix, publication receipts, fail-closed unknown states, least-privilege App token, and one exercised live canary (review 5763357701 on SlopSearX#1097). | None material; the canary adapter is intentionally narrow and not general publication. |
 | Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | No A− blocker; A would require reducing the 35 functions over 150 lines and tightening module cohesion. |
-| Test depth | **B+** | 3,600+ tests, 88.48% coverage (CI run 41438939529 at PR #302), compatibility suite, fault/invariant suites. | Mutation score is **not established**: the exploratory probe was discarded and no retained report, mutant count, killed count, or survivor triage exists (#252). |
+| Test depth | **B+** | 3,700+ tests, coverage gate, compatibility suite, fault/invariant suites, canonical formatting and a 150-line complexity ratchet. | Mutation score is **not established**: only an exploratory probe exists; no retained report, mutant count, killed count, or survivor triage (#252). |
 | Review completeness | **C−/D+** | Canonical `review-completeness-taxonomy.v1`, per-run summary, fixture baseline, and an active seeded-regression CI gate exist; frozen corpus exists. | No frozen-corpus baseline from real review runs (#241); fixture-only gate does not prove corpus completeness. |
 | Review quality evidence | **F** | Frozen corpus v1 (41 cases), labeling rubric, empty pilot, scorecard/gate infrastructure. | Zero human packets, zero harness predictions, no accepted baseline, no real scorecard run (#243/#244). Quality is unmeasured. |
 | Architecture | **C+/B−** | Typed core boundaries, contract registry, staged pipeline, no runtime dependencies. | Oversized functions remain; `run_review` orchestration is still concentrated; module ownership is documented but not enforced by required review. |
 | Operational readiness | **C+/B−** | Hash-locked dependencies, install matrix, public API/support matrix, SBOM/provenance tooling, release workflow. | No tagged release or release artifact; provenance unsigned; dependency review inactive (#260/#261/#262). |
 | Documentation | **B+** | 180+ indexed documents, 1,200+ links with 0 broken, generated status evidence, ADR index, docs-truth checks. | Owner-reviewed status remains intentionally stale; some operational evidence is CI-defined but unexecuted. |
 | Governance | **C+/D+** | CODEOWNERS coverage 40/40, all issues owned/state-labeled, GA-3 closed, review receipts, decision-record enforcement. | Branch protection absent, so review checks are not required; bus factor 1; no second human (#269/#270). |
+
+## 2026-11-04 update
+
+Since the 2026-11-02 snapshot: RS-4 closed with active dependency review;
+SE-4 closed with a live canary and fault matrix; VD-4's formatting/complexity
+half merged; pilot harness predictions now cover three cases (two complete).
+Effect safety moves to A−. QM-3 remains open because a complete six-case
+baseline is not yet reproducible.
 
 ## What changed since the original assessment
 
