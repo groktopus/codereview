@@ -55,7 +55,9 @@ def test_unavailable_effect_observer_does_not_dispatch_cli_or_later_cases(tmp_pa
         def source_fingerprint(self):
             return source_fingerprint
 
-    monkeypatch.setattr(trial, "_environment_configs", lambda *_args, **_kwargs: (trial.PRIMARY_IDENTITY, trial.DECISION_IDENTITY))
+    monkeypatch.setattr(
+        trial, "_environment_configs", lambda *_args, **_kwargs: (trial.PRIMARY_IDENTITY, trial.DECISION_IDENTITY)
+    )
     monkeypatch.setattr(trial, "_config_identity", lambda path, *, expected, decision: (expected, "c" * 64))
     monkeypatch.setattr(
         trial,
@@ -66,7 +68,13 @@ def test_unavailable_effect_observer_does_not_dispatch_cli_or_later_cases(tmp_pa
     monkeypatch.setattr(
         trial,
         "_trial_input_identity",
-        lambda *_args, **_kwargs: {"runner_sources": {}, "generated_profile": {}, "limits": {}, "provider_config": {}, "decision_config": {}},
+        lambda *_args, **_kwargs: {
+            "runner_sources": {},
+            "generated_profile": {},
+            "limits": {},
+            "provider_config": {},
+            "decision_config": {},
+        },
     )
     monkeypatch.setattr(external_effect_observer.platform, "system", lambda: "Darwin")
 

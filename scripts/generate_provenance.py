@@ -173,7 +173,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-ref", help="source ref; defaults to GITHUB_REF")
     parser.add_argument("--workflow-ref", help="workflow reference; defaults to GITHUB_WORKFLOW_REF")
     parser.add_argument("--workflow-sha", help="workflow commit; defaults to GITHUB_SHA or the source revision")
-    parser.add_argument("--builder-id", help="builder identity URI; derived from the repository and workflow when omitted")
+    parser.add_argument(
+        "--builder-id", help="builder identity URI; derived from the repository and workflow when omitted"
+    )
     parser.add_argument("--builder-image", help="builder image or runner label")
     parser.add_argument("--invocation-id", help="build invocation; defaults to GITHUB_RUN_ID")
     parser.add_argument("--python-version", help="Python version used for the build")
@@ -204,7 +206,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         builder_id = args.builder_id or workflow_identity
         creation = resolved_created(args.created)
-        epoch_text = args.source_date_epoch if args.source_date_epoch is not None else os.environ.get("SOURCE_DATE_EPOCH")
+        epoch_text = (
+            args.source_date_epoch if args.source_date_epoch is not None else os.environ.get("SOURCE_DATE_EPOCH")
+        )
         source_date_epoch = int(epoch_text) if epoch_text not in (None, "") else None
         document = build_provenance(
             args.dist,

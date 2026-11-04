@@ -141,14 +141,19 @@ def _cost_record(budget, currency, estimate_value, estimate_known, estimate_basi
         "reserved_microunits": _nonnegative_int(budget.get("cost_reserved_microunits")),
         "limit_microunits": _nonnegative_int(budget.get("cost_limit_microunits")),
         "estimate": estimate,
-        "billing": {"microunits": billing_value, "known": billing_known,
-                    "basis": _BILLED_KNOWN if billing_known else _BASIS_UNKNOWN},
+        "billing": {
+            "microunits": billing_value,
+            "known": billing_known,
+            "basis": _BILLED_KNOWN if billing_known else _BASIS_UNKNOWN,
+        },
     }
     limit = record["limit_microunits"]
     if limit is not None and "cost_ceiling_basis" in budget:
-        record["ceiling"] = {"limit_microunits": limit, "enforced_pre_dispatch":
-                             budget.get("cost_ceiling_enforced_pre_dispatch") is True,
-                             "currency": _string(budget.get("cost_ceiling_currency")) or currency}
+        record["ceiling"] = {
+            "limit_microunits": limit,
+            "enforced_pre_dispatch": budget.get("cost_ceiling_enforced_pre_dispatch") is True,
+            "currency": _string(budget.get("cost_ceiling_currency")) or currency,
+        }
     return record
 
 
@@ -360,7 +365,9 @@ def build_run_summary(result: Mapping[str, Any]) -> dict[str, Any]:
             "run_elapsed_ms": _nonnegative_number(result.get("run_elapsed_ms")),
             "by_stage": latency_stages,
         },
-        "cost": _cost_record(budget, currency, estimate_value, estimate_known, estimate_basis, billing_value, billing_known),
+        "cost": _cost_record(
+            budget, currency, estimate_value, estimate_known, estimate_basis, billing_value, billing_known
+        ),
     }
     return summary
 
@@ -413,9 +420,7 @@ def summary_is_well_formed(summary: Any, result: Mapping[str, Any] | None = None
             return False
         ledger = result.get("coverage_ledger")
         if isinstance(ledger, list):
-            required = sum(
-                1 for row in ledger if isinstance(row, Mapping) and row.get("required", True) is not False
-            )
+            required = sum(1 for row in ledger if isinstance(row, Mapping) and row.get("required", True) is not False)
             if obligations["required_total"] != required:
                 return False
     return True
@@ -466,9 +471,7 @@ def summarize_results(results: Sequence[Mapping[str, Any]]) -> tuple[list[dict[s
     derived = 0
     for result in results:
         embedded_summary = result.get("run_summary")
-        if not isinstance(result.get("coverage_ledger"), list) and summary_is_well_formed(
-            embedded_summary, result
-        ):
+        if not isinstance(result.get("coverage_ledger"), list) and summary_is_well_formed(embedded_summary, result):
             summaries.append(dict(embedded_summary))
             embedded += 1
         else:
@@ -672,23 +675,19 @@ def aggregate_run_summaries(
             for key, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
         ]
 
-    terminal_states = distribution(
-        _mapping(summary.get("run")).get("terminal_state") for summary in summaries
-    )
+    terminal_states = distribution(_mapping(summary.get("run")).get("terminal_state") for summary in summaries)
     freshness_states = distribution(
         _mapping(_mapping(summary.get("run")).get("freshness")).get("state") for summary in summaries
     )
 
     provider_totals = {}
     for key in ("calls_reserved", "calls_settled", "retries", "tool_calls_reserved"):
-        total_known, known, missing = _sum_known(
-            _mapping(summary.get("providers")).get(key) for summary in summaries
-        )
+        total_known, known, missing = _sum_known(_mapping(summary.get("providers")).get(key) for summary in summaries)
         provider_totals[key] = {"total": total_known, "known_runs": known, "missing_runs": missing}
     provider_totals["request_attempt_unknown"] = {
-        "value": _sum_known(
-            _mapping(summary.get("providers")).get("request_attempt_unknown") for summary in summaries
-        )[0]
+        "value": _sum_known(_mapping(summary.get("providers")).get("request_attempt_unknown") for summary in summaries)[
+            0
+        ]
     }
 
     token_fields: dict[str, dict[str, Any]] = {}
@@ -717,10 +716,7 @@ def aggregate_run_summaries(
 
     run_elapsed = [
         number
-        for number in (
-            _finite_number(_mapping(summary.get("latency")).get("run_elapsed_ms"))
-            for summary in summaries
-        )
+        for number in (_finite_number(_mapping(summary.get("latency")).get("run_elapsed_ms")) for summary in summaries)
         if number is not None and number >= 0
     ]
     stage_values: dict[str, list[float | int]] = {}
@@ -797,7 +793,9 @@ def aggregate_run_summaries(
     profiles: dict[str, dict[str, Any]] = {}
     for summary in summaries:
         version = _string(_mapping(summary.get("profile")).get("project_profile_version")) or "UNKNOWN"
-        row = profiles.setdefault(version, {"project_profile_version": version, "runs": 0, "required": 0, "complete": 0})
+        row = profiles.setdefault(
+            version, {"project_profile_version": version, "runs": 0, "required": 0, "complete": 0}
+        )
         row["runs"] += 1
         row["required"] += _count(_mapping(summary.get("obligations")).get("required_total"))
         row["complete"] += _count(_mapping(summary.get("obligations")).get("complete"))
@@ -833,18 +831,14 @@ def aggregate_run_summaries(
             if _count(_mapping(summary.get("tokens")).get("denominator_calls")) > 0
             and all(
                 _count(
-                    _mapping(_mapping(_mapping(summary.get("tokens")).get("fields")).get(field)).get(
-                        "reported_count"
-                    )
+                    _mapping(_mapping(_mapping(summary.get("tokens")).get("fields")).get(field)).get("reported_count")
                 )
                 == 0
                 for field in TOKEN_FIELDS
             )
         ),
         "runs_without_provider_calls": sum(
-            1
-            for summary in summaries
-            if _count(_mapping(summary.get("tokens")).get("denominator_calls")) == 0
+            1 for summary in summaries if _count(_mapping(summary.get("tokens")).get("denominator_calls")) == 0
         ),
         "cost_estimate_unknown": estimate_unknown,
         "cost_billing_unknown": billing_unknown,
@@ -860,9 +854,7 @@ def aggregate_run_summaries(
             if _string(_mapping(summary.get("profile")).get("project_profile_version")) is None
         ),
         "contract_identity_missing": sum(
-            1
-            for summary in summaries
-            if _string(_mapping(summary.get("contract")).get("review_contract_name")) is None
+            1 for summary in summaries if _string(_mapping(summary.get("contract")).get("review_contract_name")) is None
         ),
         "freshness_unknown": sum(
             1
@@ -917,9 +909,18 @@ def aggregate_run_summaries(
             },
             "by_stage": by_stage,
         },
-        "cost": _aggregate_cost(estimate_values, estimate_unknown, estimate_basis, estimate_revisions,
-                                  billing_values, billing_unknown, billing_basis, included,
-                                  ceiling_runs, ceiling_enforced),
+        "cost": _aggregate_cost(
+            estimate_values,
+            estimate_unknown,
+            estimate_basis,
+            estimate_revisions,
+            billing_values,
+            billing_unknown,
+            billing_basis,
+            included,
+            ceiling_runs,
+            ceiling_enforced,
+        ),
         "profiles": profile_rows,
         "contracts": contract_rows,
         "missing_data": missing_data,
@@ -930,8 +931,18 @@ def aggregate_run_summaries(
 # Rendering and export
 
 
-def _aggregate_cost(estimate_values, estimate_unknown, estimate_basis, estimate_revisions,
-                    billing_values, billing_unknown, billing_basis, included, ceiling_runs, ceiling_enforced):
+def _aggregate_cost(
+    estimate_values,
+    estimate_unknown,
+    estimate_basis,
+    estimate_revisions,
+    billing_values,
+    billing_unknown,
+    billing_basis,
+    included,
+    ceiling_runs,
+    ceiling_enforced,
+):
     """Aggregate cost without summing across currencies; null is its own group."""
     groups: dict[str | None, dict[str, Any]] = {}
     for currency, value in estimate_values:
@@ -939,24 +950,32 @@ def _aggregate_cost(estimate_values, estimate_unknown, estimate_basis, estimate_
         row["known_runs"] += 1
         row["microunits_total_known"] += value
     mixed = len(groups) > 1
+
     def distribution(values):
-        return [{"basis": key, "runs": count} for key, count in sorted(values.items(), key=lambda item: (-item[1], item[0]))]
+        return [
+            {"basis": key, "runs": count} for key, count in sorted(values.items(), key=lambda item: (-item[1], item[0]))
+        ]
+
     return {
         "currency": next(iter(groups)) if len(groups) == 1 else None,
         "currency_mixed": mixed,
         "estimate": {
-            "known_runs": len(estimate_values), "unknown_runs": estimate_unknown,
+            "known_runs": len(estimate_values),
+            "unknown_runs": estimate_unknown,
             "microunits_total_known": (
-                sum(value for _currency, value in estimate_values) if estimate_values and not mixed else None),
+                sum(value for _currency, value in estimate_values) if estimate_values and not mixed else None
+            ),
             "complete_for_all_runs": bool(included) and estimate_unknown == 0,
             "by_currency": sorted(groups.values(), key=lambda row: str(row["currency"])),
             "basis_distribution": distribution(estimate_basis),
             "price_table_revisions": [
                 {"revision": revision, "runs": count}
-                for revision, count in sorted(estimate_revisions.items(), key=lambda item: (-item[1], item[0]))],
+                for revision, count in sorted(estimate_revisions.items(), key=lambda item: (-item[1], item[0]))
+            ],
         },
         "billing": {
-            "known_runs": len(billing_values), "unknown_runs": billing_unknown,
+            "known_runs": len(billing_values),
+            "unknown_runs": billing_unknown,
             "microunits_total_known": sum(billing_values) if billing_values else None,
             "complete_for_all_runs": bool(included) and billing_unknown == 0,
             "basis_distribution": distribution(billing_basis),
@@ -1028,8 +1047,12 @@ def render_stats_text(stats: Mapping[str, Any]) -> str:
         ]
         return ", ".join(parts) or "none"
 
-    lines.append(f"Terminal states (denominator {_count(runs.get('included'))} runs): {distribution_text('terminal_state_distribution')}.")
-    lines.append(f"Freshness (denominator {_count(runs.get('included'))} runs): {distribution_text('freshness_distribution')}.")
+    lines.append(
+        f"Terminal states (denominator {_count(runs.get('included'))} runs): {distribution_text('terminal_state_distribution')}."
+    )
+    lines.append(
+        f"Freshness (denominator {_count(runs.get('included'))} runs): {distribution_text('freshness_distribution')}."
+    )
 
     providers = _mapping(stats.get("providers"))
 

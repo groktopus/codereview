@@ -301,10 +301,10 @@ def _valid_identity(identity: ArtifactIdentity) -> bool:
     if valid_versions:
         try:
             observed_versions = dict(versions)
-            valid_versions = (
-                observed_versions == {"artifact_manifest": "1.0", "review_result": "0.1"}
-                or observed_versions == {"artifact_manifest": "1.0", "review_result": "1.0"}
-            )
+            valid_versions = observed_versions == {
+                "artifact_manifest": "1.0",
+                "review_result": "0.1",
+            } or observed_versions == {"artifact_manifest": "1.0", "review_result": "1.0"}
         except (TypeError, ValueError):
             valid_versions = False
     return (

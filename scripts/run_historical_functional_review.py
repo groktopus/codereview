@@ -141,8 +141,8 @@ V6_PREPARE_OBSERVATION = json.loads(
     'GED_UNIT_LENS","required":true,"scope_unit_ids":["unit-a1b56f57f84276c8a5b6"]},{"check_binding_id":"'
     'external:portal-contract","obligation_id":"check:portal-impact-evidence","obligation_kind":"PROJECT_'
     'CHECK","reason":"Dependency manifests are packaging inputs; base AGENTS requires portal-impact revie'
-    'w and portal-contract CI evidence for packaging changes. Bind evidence to the target repository and '
-    'exact head from the configured GitHub check app; missing or mismatched evidence is UNKNOWN, and a fa'
+    "w and portal-contract CI evidence for packaging changes. Bind evidence to the target repository and "
+    "exact head from the configured GitHub check app; missing or mismatched evidence is UNKNOWN, and a fa"
     'iling check remains FAIL.","required":true,"scope_unit_ids":["unit-085bee8621ac5b68ceb3"]},{"check_b'
     'inding_id":"external:portal-browser","obligation_id":"check:portal-browser-evidence","obligation_kin'
     'd":"PROJECT_CHECK","reason":"Base AGENTS requires portal impact and relevant browser-journey check e'
@@ -499,65 +499,88 @@ def _git(repo: Path, *args: str) -> str:
     return value
 
 
-V5_PREPARE_OBSERVATION = {'status': 'PREPARED_ONLY',
- 'source_revision': '78434b77948e531fbfb7d1f1690ef8d6c95cdb1e',
- 'profile_sha256': 'f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200ee3156',
- 'historical_checks_sha256': 'c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963',
- 'limits_sha256': '964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e',
- 'max_claim_assessments': 1,
- 'max_provider_calls': 10,
- 'max_input_bytes_per_task': 80000,
- 'max_context_bytes': 600000,
- 'no_provider_calls': True,
- 'no_target_code_execution': True,
- 'primary_scope_admission_complete': True,
- 'admitted_obligations': 15,
- 'planned_obligations': 15,
- 'primary_request_count': 7,
- 'total_primary_serialized_input_bytes': 441143,
- 'remaining_call_slots_after_primary': 3,
- 'dynamic_stage_demand': 'UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION',
- 'primary_requests': [{'task_id': 'task-2735ee06f988542a:chunk-1',
-                       'lens': 'correctness',
-                       'input_bytes': 77234,
-                       'input_sha256': '420bbb1390155bf1f639f879f9b9382c1f2561d281a8bb06fa69bb464ce06dbd'},
-                      {'task_id': 'task-d064dd83824e8ee6:chunk-1',
-                       'lens': 'tests',
-                       'input_bytes': 53939,
-                       'input_sha256': '066794516e6f5dfa3b414998acaa9b1dc6200ea51387457b900e07a6d0948d13'},
-                      {'task_id': 'task-7414494eadd41224:chunk-1',
-                       'lens': 'maintainability',
-                       'input_bytes': 51019,
-                       'input_sha256': 'c4a297ad79ea93405fd0af19c71167e323798cff0dcfbe0ec4ac12dfe87c2bd5'},
-                      {'task_id': 'task-76d469ce77f3df5a:chunk-1',
-                       'lens': 'correctness',
-                       'input_bytes': 73530,
-                       'input_sha256': '186319fe6587e767f33cbd404691cc60d6b8569151cada1bbf4cb9cba03d5e18'},
-                      {'task_id': 'task-1b70be284ec5f3b0:chunk-1',
-                       'lens': 'tests',
-                       'input_bytes': 73989,
-                       'input_sha256': 'f31a2eabe7b603ed3474cf5b8463f508bd725a48e2b6468a9129950754fddd97'},
-                      {'task_id': 'task-805e397ed0a1ad57:chunk-1',
-                       'lens': 'maintainability',
-                       'input_bytes': 37345,
-                       'input_sha256': '52e33d7f8b10ba57d9e79fcd63cc9b87249d6bca64e43d485d2f52aa79c584ed'},
-                      {'task_id': 'task-df30f66a227eba98:chunk-1',
-                       'lens': 'security',
-                       'input_bytes': 74087,
-                       'input_sha256': '73fbff93e7752510273bbf37ca36704a6271b8b10fce542580ae62171e7472d4'}],
- 'dependency_projection': {'path': 'pyproject.toml',
-                           'source_kind': 'dependency_projection',
-                           'source_revision': '7bce9dd246f141eb961c52ae96061203a98f083b',
-                           'trust': 'repository_evidence',
-                           'evidence_id': 'ev-bb3be39416ea72e1f34c761f',
-                           'content_bytes': 858,
-                           'content_hash': '75a555a088593a00fe5bea36ef4c819dd035eb55c72c25642052865d81e00b3a',
-                           'included_primary_task_ids': ['task-2735ee06f988542a:chunk-1',
-                                                         'task-d064dd83824e8ee6:chunk-1',
-                                                         'task-76d469ce77f3df5a:chunk-1',
-                                                         'task-1b70be284ec5f3b0:chunk-1',
-                                                         'task-df30f66a227eba98:chunk-1']},
- 'installed_runtime_resolution': 'UNKNOWN_FROM_DECLARATION_PROJECTION'}
+V5_PREPARE_OBSERVATION = {
+    "status": "PREPARED_ONLY",
+    "source_revision": "78434b77948e531fbfb7d1f1690ef8d6c95cdb1e",
+    "profile_sha256": "f1a566359a7a5a9af317159dcc962e8b0223e90513516cc25a4f785200ee3156",
+    "historical_checks_sha256": "c7d3a28b0e12583dceb0021b04814573706f202a188e4cbed2d1ebde821d5963",
+    "limits_sha256": "964a11a8de3bfd47520ea62e358c954dceb1ac7da7f0648ef4db11d6f885870e",
+    "max_claim_assessments": 1,
+    "max_provider_calls": 10,
+    "max_input_bytes_per_task": 80000,
+    "max_context_bytes": 600000,
+    "no_provider_calls": True,
+    "no_target_code_execution": True,
+    "primary_scope_admission_complete": True,
+    "admitted_obligations": 15,
+    "planned_obligations": 15,
+    "primary_request_count": 7,
+    "total_primary_serialized_input_bytes": 441143,
+    "remaining_call_slots_after_primary": 3,
+    "dynamic_stage_demand": "UNKNOWN_UNTIL_PRIMARY_RESULTS_AND_OPTIONAL_STAGE_ADMISSION",
+    "primary_requests": [
+        {
+            "task_id": "task-2735ee06f988542a:chunk-1",
+            "lens": "correctness",
+            "input_bytes": 77234,
+            "input_sha256": "420bbb1390155bf1f639f879f9b9382c1f2561d281a8bb06fa69bb464ce06dbd",
+        },
+        {
+            "task_id": "task-d064dd83824e8ee6:chunk-1",
+            "lens": "tests",
+            "input_bytes": 53939,
+            "input_sha256": "066794516e6f5dfa3b414998acaa9b1dc6200ea51387457b900e07a6d0948d13",
+        },
+        {
+            "task_id": "task-7414494eadd41224:chunk-1",
+            "lens": "maintainability",
+            "input_bytes": 51019,
+            "input_sha256": "c4a297ad79ea93405fd0af19c71167e323798cff0dcfbe0ec4ac12dfe87c2bd5",
+        },
+        {
+            "task_id": "task-76d469ce77f3df5a:chunk-1",
+            "lens": "correctness",
+            "input_bytes": 73530,
+            "input_sha256": "186319fe6587e767f33cbd404691cc60d6b8569151cada1bbf4cb9cba03d5e18",
+        },
+        {
+            "task_id": "task-1b70be284ec5f3b0:chunk-1",
+            "lens": "tests",
+            "input_bytes": 73989,
+            "input_sha256": "f31a2eabe7b603ed3474cf5b8463f508bd725a48e2b6468a9129950754fddd97",
+        },
+        {
+            "task_id": "task-805e397ed0a1ad57:chunk-1",
+            "lens": "maintainability",
+            "input_bytes": 37345,
+            "input_sha256": "52e33d7f8b10ba57d9e79fcd63cc9b87249d6bca64e43d485d2f52aa79c584ed",
+        },
+        {
+            "task_id": "task-df30f66a227eba98:chunk-1",
+            "lens": "security",
+            "input_bytes": 74087,
+            "input_sha256": "73fbff93e7752510273bbf37ca36704a6271b8b10fce542580ae62171e7472d4",
+        },
+    ],
+    "dependency_projection": {
+        "path": "pyproject.toml",
+        "source_kind": "dependency_projection",
+        "source_revision": "7bce9dd246f141eb961c52ae96061203a98f083b",
+        "trust": "repository_evidence",
+        "evidence_id": "ev-bb3be39416ea72e1f34c761f",
+        "content_bytes": 858,
+        "content_hash": "75a555a088593a00fe5bea36ef4c819dd035eb55c72c25642052865d81e00b3a",
+        "included_primary_task_ids": [
+            "task-2735ee06f988542a:chunk-1",
+            "task-d064dd83824e8ee6:chunk-1",
+            "task-76d469ce77f3df5a:chunk-1",
+            "task-1b70be284ec5f3b0:chunk-1",
+            "task-df30f66a227eba98:chunk-1",
+        ],
+    },
+    "installed_runtime_resolution": "UNKNOWN_FROM_DECLARATION_PROJECTION",
+}
+
 
 def _case_spec(case_id: str) -> dict:
     if case_id == "pr466-v1":
@@ -706,8 +729,7 @@ def _validate_source_and_inputs(case_id: str = DEFAULT_CASE, *, allow_unpinned_p
             "diagnostic_scope",
         }
         if case_id == "pr466-v6"
-        else
-        {
+        else {
             "schema",
             "case",
             "profile",
@@ -965,7 +987,11 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
             actual_lenses = {row.get("lens") for row in requests if isinstance(row, dict)}
             planned_scopes = review_scope.get("planned_task_scopes")
             specialist_scopes = (
-                [row for row in planned_scopes if isinstance(row, dict) and row.get("task_kind") == "SPECIALIST_FINDINGS"]
+                [
+                    row
+                    for row in planned_scopes
+                    if isinstance(row, dict) and row.get("task_kind") == "SPECIALIST_FINDINGS"
+                ]
                 if isinstance(planned_scopes, list)
                 else []
             )
@@ -981,7 +1007,7 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
                 task_id = row.get("task_id")
                 if not isinstance(task_id, str) or not task_id.endswith(":chunk-1"):
                     return False
-                planned = scope_by_task.get(task_id[:-len(":chunk-1")])
+                planned = scope_by_task.get(task_id[: -len(":chunk-1")])
                 if not isinstance(planned, dict):
                     return False
                 required_context_ids = planned.get("required_context_ids")
@@ -1015,7 +1041,9 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
                 and len(set(admitted_ids)) == len(admitted_ids)
                 and isinstance(obligation_rows, list)
                 and len(obligation_rows) == planned_count
-                and all(isinstance(item, dict) and isinstance(item.get("obligation_id"), str) for item in obligation_rows)
+                and all(
+                    isinstance(item, dict) and isinstance(item.get("obligation_id"), str) for item in obligation_rows
+                )
                 and {item["obligation_id"] for item in obligation_rows} == set(admitted_ids)
             )
             required_context_shape = (
@@ -1052,18 +1080,25 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
                     and re.fullmatch(r"[0-9a-f]{64}", binding["content_hash"])
                     and isinstance(binding.get("source_kind"), str)
                     and binding["source_kind"] in {"source_window", "diff", "profile_context", "dependency_projection"}
-                    and binding.get("trust") in {
+                    and binding.get("trust")
+                    in {
                         "untrusted_pr_content",
                         "trusted_policy",
                         "repository_evidence",
                     }
                     and (
-                        (binding["source_kind"] in {"source_window", "diff"}
-                         and binding.get("trust") == "untrusted_pr_content")
-                        or (binding["source_kind"] == "profile_context"
-                            and binding.get("trust") in {"trusted_policy", "repository_evidence"})
-                        or (binding["source_kind"] == "dependency_projection"
-                            and binding.get("trust") == "repository_evidence")
+                        (
+                            binding["source_kind"] in {"source_window", "diff"}
+                            and binding.get("trust") == "untrusted_pr_content"
+                        )
+                        or (
+                            binding["source_kind"] == "profile_context"
+                            and binding.get("trust") in {"trusted_policy", "repository_evidence"}
+                        )
+                        or (
+                            binding["source_kind"] == "dependency_projection"
+                            and binding.get("trust") == "repository_evidence"
+                        )
                     )
                     and isinstance(binding.get("content_bytes"), int)
                     and not isinstance(binding.get("content_bytes"), bool)
@@ -1093,16 +1128,14 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
         if case_id == "pr466-v6":
             expected_requests = observation["primary_requests"]
             actual_requests = [
-                {key: row.get(key) for key in ("task_id", "lens", "input_bytes", "input_sha256")}
-                for row in requests
+                {key: row.get(key) for key in ("task_id", "lens", "input_bytes", "input_sha256")} for row in requests
             ]
             if actual_requests != expected_requests:
                 raise SafeFailure("case_prepare_observation_mismatch")
             expected_scopes = [(row["task_id"], row["lens"]) for row in expected_requests]
             actual_scopes = [(row["task_id"], row["lens"]) for row in actual_requests]
             if actual_scopes != expected_scopes or any(
-                not isinstance(row.get("input_sha256"), str)
-                or not re.fullmatch(r"[0-9a-f]{64}", row["input_sha256"])
+                not isinstance(row.get("input_sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", row["input_sha256"])
                 for row in actual_requests
             ):
                 raise SafeFailure("case_prepare_observation_mismatch")
@@ -1142,9 +1175,7 @@ def _validate_prepare(result: dict, case_id: str = DEFAULT_CASE, *, reference_ob
                     raise SafeFailure("dependency_projection_required_context_invalid")
                 binding = matches[0]
                 if any(
-                    binding.get(key) != value
-                    for key, value in projection.items()
-                    if key != "included_primary_task_ids"
+                    binding.get(key) != value for key, value in projection.items() if key != "included_primary_task_ids"
                 ):
                     raise SafeFailure("dependency_projection_required_context_invalid")
                 projection_tasks.append(task_id)

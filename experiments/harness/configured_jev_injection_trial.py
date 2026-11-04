@@ -222,9 +222,7 @@ def _trial_source_identity(root: Path) -> dict[str, Any]:
     return {"git_head": _git_head(root), "worktree_state": _worktree_state(root), "trial_files": files}
 
 
-def prepare_trial(
-    *, root: Path, cli_executable: Path, expected_source_revision: str, output: Path
-) -> dict[str, Any]:
+def prepare_trial(*, root: Path, cli_executable: Path, expected_source_revision: str, output: Path) -> dict[str, Any]:
     if not re.fullmatch(r"[0-9a-f]{40,64}", expected_source_revision):
         raise ConfiguredJevTrialError("expected_source_revision_invalid")
     source = _trial_source_identity(root)
@@ -407,7 +405,9 @@ def _normalized_jev_endpoint(endpoint: str) -> str | None:
     return f"{parsed.scheme}://{parsed.netloc}{path}"
 
 
-def _validate_packet(packet: dict[str, Any], root: Path, expected_source_revision: str, cli: Path) -> tuple[dict[str, str], Any]:
+def _validate_packet(
+    packet: dict[str, Any], root: Path, expected_source_revision: str, cli: Path
+) -> tuple[dict[str, str], Any]:
     source = packet.get("source")
     if (
         packet.get("contract_version") != PREPARATION_VERSION
@@ -436,7 +436,8 @@ def _validate_packet(packet: dict[str, Any], root: Path, expected_source_revisio
     inputs, fixture = _trusted_fixture(root)
     packet_fixture = packet.get("fixture")
     if not isinstance(packet_fixture, dict) or any(
-        packet_fixture.get(key) != fixture.get(key) for key in ("suite_id", "suite_sha256", "profile_version", "profile_sha256")
+        packet_fixture.get(key) != fixture.get(key)
+        for key in ("suite_id", "suite_sha256", "profile_version", "profile_sha256")
     ):
         raise ConfiguredJevTrialError("fixture_identity_mismatch")
     expected_cases = packet_fixture.get("cases")
@@ -447,7 +448,10 @@ def _validate_packet(packet: dict[str, Any], root: Path, expected_source_revisio
         raise ConfiguredJevTrialError("fixture_case_set_invalid")
     for case in fixture["cases"]:
         row = cases_by_id[case["case_id"]]
-        if any(row.get(key) != case.get(key) for key in ("fixture_kind", "input_sha256", "input_bytes", "expected_classification")):
+        if any(
+            row.get(key) != case.get(key)
+            for key in ("fixture_kind", "input_sha256", "input_bytes", "expected_classification")
+        ):
             raise ConfiguredJevTrialError("fixture_input_changed")
         template = prepared_request(inputs[case["case_id"]], "jev-latest")
         if row.get("request_template_sha256") != _sha(template) or row.get("request_template_bytes") != len(template):
@@ -542,7 +546,9 @@ def run_two_case_trial(
     request_receipts: dict[str, dict[str, Any]],
     started: float,
 ) -> dict[str, Any]:
-    if not _provider_identity_valid(provider, provider.model, provider.identity.get("endpoint_id", "").removesuffix("/systemone")):
+    if not _provider_identity_valid(
+        provider, provider.model, provider.identity.get("endpoint_id", "").removesuffix("/systemone")
+    ):
         raise ConfiguredJevTrialError("jev_provider_identity_invalid")
     if set(fixtures) != set(CASE_IDS) or set(request_receipts) != set(CASE_IDS):
         raise ConfiguredJevTrialError("trial_inputs_invalid")
@@ -571,7 +577,10 @@ def run_two_case_trial(
                 )
             break
     attempts = sum(
-        1 for row in rows if isinstance(row.get("local_http_exchange"), dict) and row["local_http_exchange"].get("request_attempted") is True
+        1
+        for row in rows
+        if isinstance(row.get("local_http_exchange"), dict)
+        and row["local_http_exchange"].get("request_attempted") is True
     )
     elapsed = max(0.0, (time.monotonic() - started) * 1000)
     reported_models = {
@@ -619,9 +628,15 @@ def classify_configured_jev(
     deadline_at: float,
     expected_request: dict[str, Any],
 ) -> dict[str, Any]:
-    if case_id not in EXPECTED_CLASSIFICATION or not isinstance(text, str) or not isinstance(provider, DecisionProvider):
+    if (
+        case_id not in EXPECTED_CLASSIFICATION
+        or not isinstance(text, str)
+        or not isinstance(provider, DecisionProvider)
+    ):
         raise ConfiguredJevTrialError("trusted_classifier_configuration_invalid")
-    if not _provider_identity_valid(provider, provider.model, provider.identity.get("endpoint_id", "").removesuffix("/systemone")):
+    if not _provider_identity_valid(
+        provider, provider.model, provider.identity.get("endpoint_id", "").removesuffix("/systemone")
+    ):
         raise ConfiguredJevTrialError("trusted_classifier_configuration_invalid")
     text_raw = text.encode("utf-8")
     request_raw = prepared_request(text, provider.model)
@@ -675,7 +690,10 @@ def classify_configured_jev(
     valid_probabilities = (
         isinstance(probabilities, dict)
         and set(probabilities) == set(CHOICE_CLASSIFICATION)
-        and all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 1 for value in probabilities.values())
+        and all(
+            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 1
+            for value in probabilities.values()
+        )
         and abs(sum(probabilities.values()) - 1.0) <= 0.02
         and choice in probabilities
         and probabilities[choice] >= max(probabilities.values()) - 1e-6
@@ -759,8 +777,12 @@ def _safe_usage(value: Any) -> dict[str, Any]:
     cost = value.get("cost")
     return {
         "known": known,
-        "tokens": tokens if known and isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0 else None,
-        "cost": cost if known and isinstance(cost, (int, float)) and not isinstance(cost, bool) and math.isfinite(cost) and cost >= 0 else None,
+        "tokens": tokens
+        if known and isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0
+        else None,
+        "cost": cost
+        if known and isinstance(cost, (int, float)) and not isinstance(cost, bool) and math.isfinite(cost) and cost >= 0
+        else None,
     }
 
 
@@ -788,10 +810,19 @@ def _safe_exchange(value: Any) -> dict[str, Any] | None:
         "request_attempted": value.get("request_attempted") is True,
         "request_serialized": value.get("request_serialized") is True,
         "request_sha256": request_hash,
-        "request_bytes": request_bytes if type(request_bytes) is int and 0 <= request_bytes <= MAX_REQUEST_BYTES else None,
+        "request_bytes": request_bytes
+        if type(request_bytes) is int and 0 <= request_bytes <= MAX_REQUEST_BYTES
+        else None,
         "http_status": status if type(status) is int and 100 <= status <= 599 else None,
         "response_sha256": response_hash,
-        "response_bytes": response_bytes if type(response_bytes) is int and 0 <= response_bytes <= MAX_RESPONSE_BYTES else None,
+        "response_bytes": response_bytes
+        if type(response_bytes) is int and 0 <= response_bytes <= MAX_RESPONSE_BYTES
+        else None,
         "response_complete": value.get("response_complete") is True,
-        "elapsed_ms": round(elapsed, 2) if isinstance(elapsed, (int, float)) and not isinstance(elapsed, bool) and math.isfinite(elapsed) and elapsed >= 0 else None,
+        "elapsed_ms": round(elapsed, 2)
+        if isinstance(elapsed, (int, float))
+        and not isinstance(elapsed, bool)
+        and math.isfinite(elapsed)
+        and elapsed >= 0
+        else None,
     }

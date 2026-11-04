@@ -51,10 +51,12 @@ def _unique(pairs):
 
 
 def validate(receipt: dict[str, Any]) -> None:
-    if (set(receipt) != {"schema", "case_id", "source_http_attempts"}
-            or receipt.get("schema") != SCHEMA
-            or receipt.get("case_id") != "PR-464"
-            or receipt.get("source_http_attempts") not in STATES):
+    if (
+        set(receipt) != {"schema", "case_id", "source_http_attempts"}
+        or receipt.get("schema") != SCHEMA
+        or receipt.get("case_id") != "PR-464"
+        or receipt.get("source_http_attempts") not in STATES
+    ):
         raise ReceiptError("receipt_contract_invalid")
 
 

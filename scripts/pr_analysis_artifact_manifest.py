@@ -53,9 +53,7 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 CENTRAL_PILOT_CALLER = "groktopus/codereview"
-CENTRAL_PILOT_CALLER_REF = (
-    "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main"
-)
+CENTRAL_PILOT_CALLER_REF = "groktopus/codereview/.github/workflows/slopsearx-pilot.yml@refs/heads/main"
 CENTRAL_PILOT_TARGET = "magnus919/SlopSearX"
 
 

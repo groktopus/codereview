@@ -145,8 +145,14 @@ def test_provider_identity_reads_configured_fields_without_network():
         {**TABLE_DOCUMENT, "unknown": True},
         {key: value for key, value in TABLE_DOCUMENT.items() if key != "providers"},
         {**TABLE_DOCUMENT, "providers": []},
-        {**TABLE_DOCUMENT, "providers": [{**TABLE_DOCUMENT["providers"][0], "input_price_microunits_per_million_tokens": 1.5}]},
-        {**TABLE_DOCUMENT, "providers": [{**TABLE_DOCUMENT["providers"][0], "output_price_microunits_per_million_tokens": True}]},
+        {
+            **TABLE_DOCUMENT,
+            "providers": [{**TABLE_DOCUMENT["providers"][0], "input_price_microunits_per_million_tokens": 1.5}],
+        },
+        {
+            **TABLE_DOCUMENT,
+            "providers": [{**TABLE_DOCUMENT["providers"][0], "output_price_microunits_per_million_tokens": True}],
+        },
         {**TABLE_DOCUMENT, "providers": [{**TABLE_DOCUMENT["providers"][0], "extra": 1}]},
         {**TABLE_DOCUMENT, "providers": [TABLE_DOCUMENT["providers"][0], TABLE_DOCUMENT["providers"][0]]},
     ],

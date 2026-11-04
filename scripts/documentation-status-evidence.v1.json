@@ -3,8 +3,8 @@
   "documents": [
     {
       "document": "docs/STATUS-EVIDENCE.md",
-      "evidence_revision": "8e280cd9ec2e242261acac1fb4411d193bba0b25",
-      "evidence_date": "2026-11-02",
+      "evidence_revision": "58e2f2ad255b3eaa39f75c5150ecf71cd27c1e88",
+      "evidence_date": "2026-11-03",
       "source_paths": [
         "src/pr_review_harness/contract_registry.json",
         "src/pr_review_harness/cli.py",
@@ -12,8 +12,7 @@
         ".github/workflows/codereview-self-pilot.yml",
         "docs/PUBLICATION-READINESS.md",
         "docs/CURRENT-STATUS.md",
-        "docs/STATUS.md",
-        "scripts/documentation-truth-evidence.v1.json"
+        "docs/STATUS.md"
       ],
       "evidence_links": [
         "../scripts/generate_status_evidence.py",

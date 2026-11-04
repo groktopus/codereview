@@ -58,8 +58,11 @@ def test_same_run_provider_free_preflight_emits_exact_bounded_bundle(monkeypatch
     assert result["provider_calls_before_live_stage"] == 0
     assert result["publication_enabled"] is False
     bundle = validate_receipt_bundle(
-        work / "live-preflight-bundle.json", work / "materialization.json",
-        work / "prepared.json", work / "verification.json", repo,
+        work / "live-preflight-bundle.json",
+        work / "materialization.json",
+        work / "prepared.json",
+        work / "verification.json",
+        repo,
     )
     assert bundle["max_provider_calls"] == bundle["planned_provider_calls"] == 1
     assert bundle["dispatched_provider_calls"] == 0
@@ -74,8 +77,11 @@ def test_same_run_provider_free_preflight_emits_exact_bounded_bundle(monkeypatch
 def test_missing_bundle_is_rejected(tmp_path):
     with pytest.raises(RunnerError, match="preflight_bundle_missing_or_invalid"):
         validate_receipt_bundle(
-            tmp_path / "missing.json", tmp_path / "materialization.json",
-            tmp_path / "prepared.json", tmp_path / "verification.json", tmp_path,
+            tmp_path / "missing.json",
+            tmp_path / "materialization.json",
+            tmp_path / "prepared.json",
+            tmp_path / "verification.json",
+            tmp_path,
         )
 
 
@@ -85,8 +91,11 @@ def test_tampered_prepared_receipt_is_rejected_before_consumption(monkeypatch, t
     prepared.write_bytes(prepared.read_bytes() + b" ")
     with pytest.raises(RunnerError, match="preflight_receipt_tampered"):
         validate_receipt_bundle(
-            work / "live-preflight-bundle.json", work / "materialization.json",
-            prepared, work / "verification.json", repo,
+            work / "live-preflight-bundle.json",
+            work / "materialization.json",
+            prepared,
+            work / "verification.json",
+            repo,
         )
 
 
@@ -98,6 +107,9 @@ def test_bundle_bound_to_another_repository_path_is_rejected(monkeypatch, tmp_pa
     bundle_path.write_text(json.dumps(bundle, sort_keys=True, separators=(",", ":")), encoding="utf-8")
     with pytest.raises(RunnerError, match="repository_path_mismatch"):
         validate_receipt_bundle(
-            bundle_path, work / "materialization.json", work / "prepared.json",
-            work / "verification.json", repo,
+            bundle_path,
+            work / "materialization.json",
+            work / "prepared.json",
+            work / "verification.json",
+            repo,
         )

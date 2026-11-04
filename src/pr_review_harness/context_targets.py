@@ -86,7 +86,10 @@ def build_context_target_manifest(task: dict, snapshot: dict, profile: dict) -> 
             and isinstance(object_id, str)
             and _OBJECT_ID.fullmatch(object_id)
             and object_format in {"sha1", "sha256"}
-            and ((object_format == "sha1" and len(object_id) == 40) or (object_format == "sha256" and len(object_id) == 64))
+            and (
+                (object_format == "sha1" and len(object_id) == 40)
+                or (object_format == "sha256" and len(object_id) == 64)
+            )
         ):
             prior = captured.get((path, revision))
             if prior is not None and prior != (object_id, object_format):
@@ -117,7 +120,10 @@ def build_context_target_manifest(task: dict, snapshot: dict, profile: dict) -> 
         if any(isinstance(pattern, str) and fnmatch.fnmatchcase(path, pattern) for pattern in trusted):
             continue
         sources = {
-            revision: {"source_object_id": captured[(path, revision)][0], "source_object_format": captured[(path, revision)][1]}
+            revision: {
+                "source_object_id": captured[(path, revision)][0],
+                "source_object_format": captured[(path, revision)][1],
+            }
             for revision in sorted(set(revisions.values()))
             if isinstance(revision, str) and (path, revision) in captured
         }
@@ -204,31 +210,41 @@ def choice_source_revision(manifest: dict, evidence_kind: str) -> str:
 def validate_context_target_manifest(manifest: Any) -> list[dict[str, str]]:
     """Validate the hash and closed fields before provider schema creation."""
     required = {
-        "version", "snapshot_id", "profile_sha256", "task_id", "revision_by_evidence_kind", "choices", "manifest_sha256"
+        "version",
+        "snapshot_id",
+        "profile_sha256",
+        "task_id",
+        "revision_by_evidence_kind",
+        "choices",
+        "manifest_sha256",
     }
     if not isinstance(manifest, dict) or set(manifest) != required or manifest.get("version") != _VERSION:
         raise ValueError("invalid_context_target_manifest")
     if any(not isinstance(manifest.get(key), str) or not manifest[key] for key in ("snapshot_id", "task_id")):
         raise ValueError("invalid_context_target_manifest_identity")
-    if not isinstance(manifest.get("profile_sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", manifest["profile_sha256"]):
+    if not isinstance(manifest.get("profile_sha256"), str) or not re.fullmatch(
+        r"[0-9a-f]{64}", manifest["profile_sha256"]
+    ):
         raise ValueError("invalid_context_target_manifest_profile_hash")
     choices = manifest.get("choices")
     if not isinstance(choices, list) or len(choices) > 256:
         raise ValueError("invalid_context_target_manifest_choices")
     revisions = manifest.get("revision_by_evidence_kind")
-    if not isinstance(revisions, dict) or set(revisions) != set(_GAP_KINDS) or any(
-        not isinstance(value, str) or not _OBJECT_ID.fullmatch(value) for value in revisions.values()
+    if (
+        not isinstance(revisions, dict)
+        or set(revisions) != set(_GAP_KINDS)
+        or any(not isinstance(value, str) or not _OBJECT_ID.fullmatch(value) for value in revisions.values())
     ):
         raise ValueError("invalid_context_target_manifest_revisions")
-    expected_hash = hashlib.sha256(_canonical({key: value for key, value in manifest.items() if key != "manifest_sha256"})).hexdigest()
+    expected_hash = hashlib.sha256(
+        _canonical({key: value for key, value in manifest.items() if key != "manifest_sha256"})
+    ).hexdigest()
     if manifest.get("manifest_sha256") != expected_hash:
         raise ValueError("invalid_context_target_manifest_hash")
     seen_ids: set[str] = set()
     seen_pairs: set[tuple[str, str]] = set()
     for choice in choices:
-        if not isinstance(choice, dict) or set(choice) != {
-            "choice_id", "kind", "value", "evidence_kinds", "sources"
-        }:
+        if not isinstance(choice, dict) or set(choice) != {"choice_id", "kind", "value", "evidence_kinds", "sources"}:
             raise ValueError("invalid_context_target_manifest_choice")
         if (
             choice.get("kind") not in {"unit", "path"}

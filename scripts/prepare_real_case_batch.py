@@ -69,8 +69,12 @@ def _clean_git_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
-def _bounded_run(argv: list[str], *, env: dict[str, str], timeout: float, stdout_cap: int, stderr_cap: int) -> tuple[bytes, bytes]:
-    process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, start_new_session=True)
+def _bounded_run(
+    argv: list[str], *, env: dict[str, str], timeout: float, stdout_cap: int, stderr_cap: int
+) -> tuple[bytes, bytes]:
+    process = subprocess.Popen(
+        argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, start_new_session=True
+    )
     assert process.stdout is not None and process.stderr is not None
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ, "stdout")
@@ -114,8 +118,11 @@ def _bounded_run(argv: list[str], *, env: dict[str, str], timeout: float, stdout
 
 def git_command(args: list[str], *, env_extra: dict[str, str] | None = None, timeout: float = 60) -> str:
     out, _ = _bounded_run(
-        ["git", *args], env=_clean_git_env(env_extra), timeout=timeout,
-        stdout_cap=4_000_000, stderr_cap=128_000,
+        ["git", *args],
+        env=_clean_git_env(env_extra),
+        timeout=timeout,
+        stdout_cap=4_000_000,
+        stderr_cap=128_000,
     )
     try:
         return out.decode("utf-8", errors="strict").strip()
@@ -131,7 +138,10 @@ def git(repo: Path, *args: str, index_file: Path | None = None) -> str:
 def git_blob(repo: Path, revision: str, path: str) -> bytes:
     out, _ = _bounded_run(
         ["git", "-C", str(repo), "show", f"{revision}:{path}"],
-        env=_clean_git_env(), timeout=30, stdout_cap=2_000_000, stderr_cap=128_000,
+        env=_clean_git_env(),
+        timeout=30,
+        stdout_cap=2_000_000,
+        stderr_cap=128_000,
     )
     return out
 
@@ -183,10 +193,21 @@ def verify_case(root: Path, source_repo: Path, case: dict, experiment_case: dict
         git(source_repo, "cat-file", "-e", f"{revision}^{{commit}}")
     bare = scratch / f"{case_id}.git"
     git_command(["init", "--bare", str(bare)])
-    git_command([
-        "--no-lazy-fetch", "--git-dir", str(bare), "fetch", "--depth=1", "--no-tags", "--no-write-fetch-head",
-        str(source_repo), case["base"], case["head"],
-    ], timeout=120)
+    git_command(
+        [
+            "--no-lazy-fetch",
+            "--git-dir",
+            str(bare),
+            "fetch",
+            "--depth=1",
+            "--no-tags",
+            "--no-write-fetch-head",
+            str(source_repo),
+            case["base"],
+            case["head"],
+        ],
+        timeout=120,
+    )
     object_report = git(bare, "count-objects", "-v")
     object_count = int(re.search(r"^count: (\d+)$", object_report, re.MULTILINE).group(1))
     pack_kib = int(re.search(r"^size-pack: (\d+)$", object_report, re.MULTILINE).group(1))
@@ -262,16 +283,18 @@ def normalize_checks(source: dict, repository: str, pr_number: int, base: str, h
     for run in runs:
         if not isinstance(run, dict):
             raise ValueError("required_check_capture_invalid")
-        normalized.append({
-            "id": run.get("id"),
-            "name": run.get("name"),
-            "app_id": run.get("app_id"),
-            "status": run.get("status"),
-            "conclusion": run.get("conclusion"),
-            "head_sha": run.get("head_sha"),
-            "completed_at": run.get("completed_at"),
-            "details_url": run.get("url"),
-        })
+        normalized.append(
+            {
+                "id": run.get("id"),
+                "name": run.get("name"),
+                "app_id": run.get("app_id"),
+                "status": run.get("status"),
+                "conclusion": run.get("conclusion"),
+                "head_sha": run.get("head_sha"),
+                "completed_at": run.get("completed_at"),
+                "details_url": run.get("url"),
+            }
+        )
     # The pinned source records historical completion timestamps but has no
     # capture timestamp. This is the local normalization-envelope time only.
     document = {
@@ -283,7 +306,11 @@ def normalize_checks(source: dict, repository: str, pr_number: int, base: str, h
         "complete": True,
         "runs": normalized,
     }
-    if source.get("base_sha") != base or source.get("head_sha") != head or source.get("pull_request_number") != pr_number:
+    if (
+        source.get("base_sha") != base
+        or source.get("head_sha") != head
+        or source.get("pull_request_number") != pr_number
+    ):
         raise ValueError("required_check_capture_identity_mismatch")
     dest.write_bytes(canonical(document) + b"\n")
 
@@ -328,7 +355,17 @@ def installed_module_proof(cli_path: Path, source_root: Path) -> dict:
     }
 
 
-def prepare_case(cli_path: Path, root: Path, experiment: dict, case_id: str, case: dict, experiment_case: dict, verified: dict, scratch: Path, input_cap: int) -> dict:
+def prepare_case(
+    cli_path: Path,
+    root: Path,
+    experiment: dict,
+    case_id: str,
+    case: dict,
+    experiment_case: dict,
+    verified: dict,
+    scratch: Path,
+    input_cap: int,
+) -> dict:
     profile_meta = experiment_case["profile"]
     profile_path = root / profile_meta["path"]
     if sha256(profile_path.read_bytes()) != profile_meta["sha256"]:
@@ -345,45 +382,81 @@ def prepare_case(cli_path: Path, root: Path, experiment: dict, case_id: str, cas
 
     limits_doc = scratch / f"{case_id}-limits.json"
     exp_limits = experiment["limits"]
-    limits_doc.write_bytes(canonical({
-        "deadline_seconds": exp_limits["engine_deadline_seconds_per_case"],
-        "max_concurrent_scopes": 1,
-        "max_provider_calls": exp_limits["max_provider_calls_per_case"],
-        "max_retries_per_task": exp_limits["retries_per_task"],
-        "max_context_bytes": exp_limits["max_context_bytes_per_case"],
-        "max_input_bytes_per_task": input_cap,
-        "max_output_bytes_per_task": exp_limits["max_response_bytes_per_call"],
-        "max_output_bytes": exp_limits["max_response_bytes_per_call"] * exp_limits["max_provider_calls_per_case"],
-        "max_output_tokens": exp_limits["max_output_tokens_per_call"],
-        "max_context_retrievals": 8,
-        "max_followup_tasks": 8,
-    }) + b"\n")
+    limits_doc.write_bytes(
+        canonical(
+            {
+                "deadline_seconds": exp_limits["engine_deadline_seconds_per_case"],
+                "max_concurrent_scopes": 1,
+                "max_provider_calls": exp_limits["max_provider_calls_per_case"],
+                "max_retries_per_task": exp_limits["retries_per_task"],
+                "max_context_bytes": exp_limits["max_context_bytes_per_case"],
+                "max_input_bytes_per_task": input_cap,
+                "max_output_bytes_per_task": exp_limits["max_response_bytes_per_call"],
+                "max_output_bytes": exp_limits["max_response_bytes_per_call"]
+                * exp_limits["max_provider_calls_per_case"],
+                "max_output_tokens": exp_limits["max_output_tokens_per_call"],
+                "max_context_retrievals": 8,
+                "max_followup_tasks": 8,
+            }
+        )
+        + b"\n"
+    )
     provider_doc = scratch / f"{case_id}-provider.json"
-    provider_doc.write_bytes(canonical({
-        "kind": "openai_compatible",
-        "provider_id": experiment["primary_identity"]["configured_provider_id"],
-        "base_url": experiment["primary_identity"]["configured_base_url"],
-        "model": experiment["primary_identity"]["configured_model"],
-        "api_key_env": experiment["primary_identity"]["credential_reference"],
-        "max_output_tokens": exp_limits["max_output_tokens_per_call"],
-        "max_response_bytes": exp_limits["max_response_bytes_per_call"],
-        "timeout_seconds": exp_limits["engine_deadline_seconds_per_case"],
-    }) + b"\n")
+    provider_doc.write_bytes(
+        canonical(
+            {
+                "kind": "openai_compatible",
+                "provider_id": experiment["primary_identity"]["configured_provider_id"],
+                "base_url": experiment["primary_identity"]["configured_base_url"],
+                "model": experiment["primary_identity"]["configured_model"],
+                "api_key_env": experiment["primary_identity"]["credential_reference"],
+                "max_output_tokens": exp_limits["max_output_tokens_per_call"],
+                "max_response_bytes": exp_limits["max_response_bytes_per_call"],
+                "timeout_seconds": exp_limits["engine_deadline_seconds_per_case"],
+            }
+        )
+        + b"\n"
+    )
     decision_doc = scratch / f"{case_id}-decision.json"
-    decision_doc.write_bytes(canonical({
-        "kind": "typesafe",
-        "endpoint": experiment["adjudicator_identity"]["configured_base_url"],
-        "model": experiment["adjudicator_identity"]["configured_model"],
-        "api_key_env": experiment["adjudicator_identity"]["credential_reference"],
-    }) + b"\n")
+    decision_doc.write_bytes(
+        canonical(
+            {
+                "kind": "typesafe",
+                "endpoint": experiment["adjudicator_identity"]["configured_base_url"],
+                "model": experiment["adjudicator_identity"]["configured_model"],
+                "api_key_env": experiment["adjudicator_identity"]["credential_reference"],
+            }
+        )
+        + b"\n"
+    )
     output_dir = scratch / f"{case_id}-cli-output"
     args = [
-        str(cli_path), "review", "--repo", verified["bare_repository"],
-        "--base", case["base"], "--head", case["head"], "--profile", str(profile_path),
-        "--limits", str(limits_doc), "--provider-config", str(provider_doc),
-        "--decision-config", str(decision_doc), "--max-claim-assessments", str(exp_limits["max_assessments_per_case"]),
-        "--historical-checks-json", str(checks_doc), "--output", str(output_dir),
-        "--effect-policy", "READ_ONLY", "--prepare-only", "--json",
+        str(cli_path),
+        "review",
+        "--repo",
+        verified["bare_repository"],
+        "--base",
+        case["base"],
+        "--head",
+        case["head"],
+        "--profile",
+        str(profile_path),
+        "--limits",
+        str(limits_doc),
+        "--provider-config",
+        str(provider_doc),
+        "--decision-config",
+        str(decision_doc),
+        "--max-claim-assessments",
+        str(exp_limits["max_assessments_per_case"]),
+        "--historical-checks-json",
+        str(checks_doc),
+        "--output",
+        str(output_dir),
+        "--effect-policy",
+        "READ_ONLY",
+        "--prepare-only",
+        "--json",
     ]
     safe_env = {
         "PATH": os.environ.get("PATH", ""),
@@ -395,8 +468,11 @@ def prepare_case(cli_path: Path, root: Path, experiment: dict, case_id: str, cas
         "GIT_TERMINAL_PROMPT": "0",
     }
     stdout_bytes, stderr_bytes = _bounded_run(
-        args, env=safe_env, timeout=exp_limits["outer_case_deadline_seconds"],
-        stdout_cap=4_000_000, stderr_cap=64_000,
+        args,
+        env=safe_env,
+        timeout=exp_limits["outer_case_deadline_seconds"],
+        stdout_cap=4_000_000,
+        stderr_cap=64_000,
     )
     try:
         result = json.loads(stdout_bytes.decode("utf-8", errors="strict"))
@@ -407,7 +483,9 @@ def prepare_case(cli_path: Path, root: Path, experiment: dict, case_id: str, cas
     return {
         "case_id": case_id,
         "input_bytes_per_task_cap": input_cap,
-        "limit_profile": "EXPERIMENT_BASELINE" if input_cap == exp_limits["max_input_bytes_per_task"] else "SENSITIVITY_ONLY_NOT_DEPLOYED",
+        "limit_profile": "EXPERIMENT_BASELINE"
+        if input_cap == exp_limits["max_input_bytes_per_task"]
+        else "SENSITIVITY_ONLY_NOT_DEPLOYED",
         "repository": case["repository"],
         "pull_request_number": case["number"],
         "base_sha": case["base"],
@@ -432,8 +510,13 @@ def main() -> int:
     parser.add_argument("--source-repo", type=Path, required=True)
     parser.add_argument("--cli", type=Path, required=True, help="installed pr-review executable")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--input-cap", type=int, choices=[64_000, 128_000, 192_000], default=64_000,
-                        help="fixed prepare-only sensitivity point; 64 KB is the frozen baseline")
+    parser.add_argument(
+        "--input-cap",
+        type=int,
+        choices=[64_000, 128_000, 192_000],
+        default=64_000,
+        help="fixed prepare-only sensitivity point; 64 KB is the frozen baseline",
+    )
     args = parser.parse_args()
     cli_path = args.cli.resolve()
     source_repo = args.source_repo.resolve()
@@ -453,7 +536,9 @@ def main() -> int:
         "runner_source_sha256": sha256(Path(__file__).read_bytes()),
         "installed_module_proof": module_proof,
         "input_cap_bytes_per_task": args.input_cap,
-        "limit_profile": "EXPERIMENT_BASELINE" if args.input_cap == experiment["limits"]["max_input_bytes_per_task"] else "SENSITIVITY_ONLY_NOT_DEPLOYED",
+        "limit_profile": "EXPERIMENT_BASELINE"
+        if args.input_cap == experiment["limits"]["max_input_bytes_per_task"]
+        else "SENSITIVITY_ONLY_NOT_DEPLOYED",
         "cases": [],
     }
     with tempfile.TemporaryDirectory(prefix="slopsearx-realcase-prepare-") as scratch_value:
@@ -461,7 +546,19 @@ def main() -> int:
         for case_id, expected in CASES.items():
             experiment_case = next(c for c in experiment["cases"] if c.get("case_id") == case_id)
             verified = verify_case(args.artifacts, source_repo, expected, experiment_case, scratch)
-            output["cases"].append(prepare_case(cli_path, args.artifacts, experiment, case_id, expected, experiment_case, verified, scratch, args.input_cap))
+            output["cases"].append(
+                prepare_case(
+                    cli_path,
+                    args.artifacts,
+                    experiment,
+                    case_id,
+                    expected,
+                    experiment_case,
+                    verified,
+                    scratch,
+                    args.input_cap,
+                )
+            )
     output["status"] = "PREPARED_ONLY_COMPLETE"
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary_name = tempfile.mkstemp(prefix=".prepare-real-case-", dir=args.output.parent)

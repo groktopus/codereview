@@ -55,7 +55,17 @@ EXPORT_ARGS = (
 )
 NAME_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)==(?P<version>[^\s;\\]+)")
 HASH_RE = re.compile(r"--hash=sha256:(?P<digest>[0-9a-f]{64})")
-FORBIDDEN_PREFIXES = ("-e ", "--editable", "-r ", "--requirement", "-c ", "--constraint", "--index-url", "--extra-index-url", "--find-links")
+FORBIDDEN_PREFIXES = (
+    "-e ",
+    "--editable",
+    "-r ",
+    "--requirement",
+    "-c ",
+    "--constraint",
+    "--index-url",
+    "--extra-index-url",
+    "--find-links",
+)
 URL_RE = re.compile(r"\s@\s|://")
 VERSION_RE = re.compile(r"uv (?P<version>[0-9][^\s]*)")
 
@@ -117,7 +127,9 @@ def parse_requirements(path: Path) -> list[Requirement]:
             raise CheckFailure(f"{path.name}:{block_line}: requirement is not exactly pinned: {block[0]!r}")
         if URL_RE.search(block[0].split(";", 1)[0]):
             raise CheckFailure(f"{path.name}:{block_line}: direct URL or local path requirement: {block[0]!r}")
-        hashes = tuple(match_hash.group("digest") for line in block for match_hash in [HASH_RE.search(line)] if match_hash)
+        hashes = tuple(
+            match_hash.group("digest") for line in block for match_hash in [HASH_RE.search(line)] if match_hash
+        )
         if not hashes:
             raise CheckFailure(f"{path.name}:{block_line}: requirement has no sha256 hash: {block[0]!r}")
         if len(set(hashes)) != len(hashes):

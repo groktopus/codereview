@@ -38,9 +38,19 @@ def test_trace_attributor_accounts_only_fixed_labels_and_keeps_no_raw_lines():
     assert attributor.total_line_bytes == sum(attributor.bytes_by_label.values())
     assert seen == [first, second]  # parser receives lines, but retained state is numeric counters only
     assert set(attributor.__dict__) == {
-        "parser", "cwd", "roots", "bytes_by_label", "lines_by_label",
-        "file_path_bytes", "file_path_lines", "target_file_bytes", "target_file_lines",
-        "resumed_file_bytes", "resumed_file_lines", "total_line_bytes", "parse_failures",
+        "parser",
+        "cwd",
+        "roots",
+        "bytes_by_label",
+        "lines_by_label",
+        "file_path_bytes",
+        "file_path_lines",
+        "target_file_bytes",
+        "target_file_lines",
+        "resumed_file_bytes",
+        "resumed_file_lines",
+        "total_line_bytes",
+        "parse_failures",
     }
     assert "private/value" not in repr(attributor.__dict__)
 
@@ -55,11 +65,11 @@ def test_file_path_classes_are_lexical_bounded_and_reconcile_exact_newline_bytes
     )
     lines = [
         '[pid 7] openat(AT_FDCWD, "/tmp/private-case/src/é.py", O_RDONLY) = 3',
-        '[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0',
+        "[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0",
         '[pid 9] openat(AT_FDCWD, "relative/name", O_RDONLY) = 3',
         '[pid 10] newfstatat(AT_FDCWD, "unterminated, {}, 0) = -1 EINVAL (Invalid argument)',
         '[pid 11] openat(AT_FDCWD, "/tmp/private-case/partial", O_RDONLY <unfinished ...>',
-        '[pid 11] <... openat resumed> ) = 3',
+        "[pid 11] <... openat resumed> ) = 3",
         '[pid 12] openat(AT_FDCWD, "/tmp/private-case/truncated...", O_RDONLY) = 3',
     ]
     attributor = diagnostic._LineAttributor(
@@ -89,25 +99,27 @@ def test_file_path_classes_are_lexical_bounded_and_reconcile_exact_newline_bytes
     }
     assert projection["target_lines_by_syscall"] == {"openat": 5, "newfstatat": 2}
     assert projection["target_bytes_by_syscall"] == {
-        syscall: sum(
-            len(line.encode("utf-8")) + 1
-            for line in lines
-            if diagnostic._target_syscall(line) == syscall
-        )
+        syscall: sum(len(line.encode("utf-8")) + 1 for line in lines if diagnostic._target_syscall(line) == syscall)
         for syscall in ("openat", "newfstatat")
     }
     assert "private-case" not in json.dumps(projection)
     assert "relative/name" not in repr(attributor.file_path_bytes)
-    assert diagnostic._path_class_for_line(
-        '[pid 13] openat(AT_FDCWD, "/tmp/private-case-other/file", O_RDONLY) = 3',
-        "openat",
-        roots,
-    ) == "TEMP_ROOT"
-    assert diagnostic._path_class_for_line(
-        '[pid 14] openat(AT_FDCWD, "/tmp/private-case/link/../source.py", O_RDONLY) = 3',
-        "openat",
-        roots,
-    ) == "CASE_WORKDIR"
+    assert (
+        diagnostic._path_class_for_line(
+            '[pid 13] openat(AT_FDCWD, "/tmp/private-case-other/file", O_RDONLY) = 3',
+            "openat",
+            roots,
+        )
+        == "TEMP_ROOT"
+    )
+    assert (
+        diagnostic._path_class_for_line(
+            '[pid 14] openat(AT_FDCWD, "/tmp/private-case/link/../source.py", O_RDONLY) = 3',
+            "openat",
+            roots,
+        )
+        == "CASE_WORKDIR"
+    )
 
 
 def test_file_path_attribution_rejects_mismatch_with_original_syscall_buckets():
@@ -127,7 +139,7 @@ def test_file_path_attribution_rejects_mismatch_with_original_syscall_buckets():
 @pytest.mark.parametrize(
     ("token", "expected"),
     [
-        ('"/repo/a\\\"b"', "REPO_SUPPORT"),
+        ('"/repo/a\\"b"', "REPO_SUPPORT"),
         ('"/repo/a\\\\b"', "REPO_SUPPORT"),
         ('"/repo\\057file"', "REPO_SUPPORT"),
         ('"/repo/invalid\\q"', "UNKNOWN_SYNTAX"),
@@ -142,8 +154,11 @@ def test_strace_c_path_escapes_are_conservative(token, expected):
 @pytest.mark.parametrize(
     ("line", "expected_outcome"),
     [
-        ('[pid 7] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0', "SUCCESS"),
-        ('[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = -1 ENOENT (No such file or directory)', "ERROR"),
+        ("[pid 7] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0", "SUCCESS"),
+        (
+            "[pid 8] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = -1 ENOENT (No such file or directory)",
+            "ERROR",
+        ),
     ],
 )
 def test_raw_newfstatat_uses_real_observer_shape_but_never_claims_path(line, expected_outcome):
@@ -157,7 +172,7 @@ def test_raw_newfstatat_uses_real_observer_shape_but_never_claims_path(line, exp
 @pytest.mark.parametrize(
     "line",
     [
-        '[pid 9] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0x0',
+        "[pid 9] newfstatat(0xffffff9c, 0x7fff00000000, 0x7fff00001000, 0) = 0x0",
         '[pid 10] newfstatat(0xffffff9c, "pathname", 0x7fff00001000, 0) = 0',
     ],
 )
@@ -246,9 +261,7 @@ def test_synthetic_security_response_is_bound_to_control_unit_and_diff_evidence(
 
     assert counters["primary_security_received"] == 1
     assert candidate["unit_id"] == "unit-u0"
-    assert candidate["location"] == {
-        "kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 2, "reason": None
-    }
+    assert candidate["location"] == {"kind": "line", "path": "src/auth.py", "side": "HEAD", "line": 2, "reason": None}
     assert candidate["evidence_refs"] == ["diff:u0"]
     assert payload["coverage_notes"][0]["unit_id"] == "unit-u0"
 
@@ -277,10 +290,15 @@ def test_two_candidate_fixture_response_is_distinct_but_uses_same_bound_unit_and
     candidates = payload["finding_candidates"]
 
     assert len(candidates) == 2
-    assert len({
-        (candidate["title"], candidate["observation"], candidate["consequence"], candidate["rule_or_contract"])
-        for candidate in candidates
-    }) == 2
+    assert (
+        len(
+            {
+                (candidate["title"], candidate["observation"], candidate["consequence"], candidate["rule_or_contract"])
+                for candidate in candidates
+            }
+        )
+        == 2
+    )
     assert all(candidate["unit_id"] == "unit-u0" for candidate in candidates)
     assert all(candidate["location"]["path"] == "src/auth.py" for candidate in candidates)
     assert all(candidate["evidence_refs"] == ["diff:u0"] for candidate in candidates)
@@ -318,9 +336,7 @@ def _cardinality_identity_for_test():
 
 def test_cardinality_identity_accepts_complete_36_module_inventory_and_rejects_bad_shape():
     identity = _cardinality_identity_for_test()
-    identity["runtime_module_hashes"] = {
-        f"pr_review_harness/mod{i}.py": "d" * 64 for i in range(36)
-    }
+    identity["runtime_module_hashes"] = {f"pr_review_harness/mod{i}.py": "d" * 64 for i in range(36)}
     identity["runtime_module_count"] = 36
     assert diagnostic._valid_pair_input_identity(identity)
 
@@ -352,7 +368,14 @@ def _complete_cardinality_arm_for_test(count: int, *, trace_bytes: int = 400_000
                 "SIGNAL": 5,
                 "UNPARSED": 6,
             },
-            "lines_by_syscall": {"newfstatat": 10, "openat": 8, "OTHER": 1, "PROCESS_END": 1, "SIGNAL": 1, "UNPARSED": 1},
+            "lines_by_syscall": {
+                "newfstatat": 10,
+                "openat": 8,
+                "OTHER": 1,
+                "PROCESS_END": 1,
+                "SIGNAL": 1,
+                "UNPARSED": 1,
+            },
             "newline_terminated_line_bytes": trace_bytes,
             "parsed_line_count": 22,
             "parse_failure_count": 0,
@@ -360,7 +383,10 @@ def _complete_cardinality_arm_for_test(count: int, *, trace_bytes: int = 400_000
                 "state": "COMPLETE",
                 "reconciliation": "MATCH",
                 "lines_by_syscall_class": {"openat": {"SYSTEM_ROOT": 8}, "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 10}},
-                "bytes_by_syscall_class": {"openat": {"SYSTEM_ROOT": 800}, "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 1000}},
+                "bytes_by_syscall_class": {
+                    "openat": {"SYSTEM_ROOT": 800},
+                    "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 1000},
+                },
                 "target_lines_by_syscall": {"openat": 8, "newfstatat": 10},
                 "target_bytes_by_syscall": {"openat": 800, "newfstatat": 1000},
             },
@@ -411,8 +437,10 @@ def test_candidate_cardinality_pair_projection_requires_complete_normal_path_and
     [
         ({"candidate_count": 1}, "CANDIDATE_STAGES_INCOMPLETE"),
         ({"protocol_stage_counts": {"primary_security_received": 2}}, "PROTOCOL_STAGE_MISMATCH"),
-        ({"trace_attribution": {"state": "COMPLETE", "trace_bytes": 1_048_577,
-                                "unattributed_or_partial_bytes": 0}}, "TRACE_CAP_EXCEEDED"),
+        (
+            {"trace_attribution": {"state": "COMPLETE", "trace_bytes": 1_048_577, "unattributed_or_partial_bytes": 0}},
+            "TRACE_CAP_EXCEEDED",
+        ),
         ({"trace_attribution": {"state": "UNKNOWN", "trace_bytes": None}}, "TRACE_MEASUREMENT_UNKNOWN"),
     ],
 )
@@ -461,7 +489,10 @@ def test_candidate_cardinality_comparison_recomputes_arm_state_and_projects_boun
     }
     assert result["arms"][0]["trace_parsed_line_count"] == 22
     assert sum(result["arms"][0]["trace_lines_by_syscall"].values()) == result["arms"][0]["trace_parsed_line_count"]
-    assert sum(result["arms"][0]["trace_bytes_by_syscall"].values()) == result["arms"][0]["trace_newline_terminated_line_bytes"]
+    assert (
+        sum(result["arms"][0]["trace_bytes_by_syscall"].values())
+        == result["arms"][0]["trace_newline_terminated_line_bytes"]
+    )
     assert result["arms"][0]["file_path_attribution"]["bytes_by_syscall_class"] == {
         "openat": {"SYSTEM_ROOT": 800},
         "newfstatat": {"UNKNOWN_RAW_ARGUMENTS": 1000},
@@ -534,15 +565,17 @@ def test_second_cardinality_arm_guard_rejects_empty_and_bad_baselines_but_allows
         "protocol_exchange_state": "SERVER_WRITES_SETTLED",
     }
     assert diagnostic._cardinality_baseline_allows_second_arm([no_observer_completed_protocol]) is True
-    cap_failed_protocol = {**no_observer_completed_protocol, "observer_mode": "LINUX_STRACE", "arm_state": "TRACE_CAP_EXCEEDED"}
+    cap_failed_protocol = {
+        **no_observer_completed_protocol,
+        "observer_mode": "LINUX_STRACE",
+        "arm_state": "TRACE_CAP_EXCEEDED",
+    }
     assert diagnostic._cardinality_baseline_allows_second_arm([cap_failed_protocol]) is False
 
 
 def test_native_claim_questions_match_exact_supported_contract_shapes():
     candidate_id = "candidate-17"
-    base_head_questions, _ = _questions(
-        candidate_id, True, PRIMARY_ASSESSMENT_CONTRACT_VERSION
-    )
+    base_head_questions, _ = _questions(candidate_id, True, PRIMARY_ASSESSMENT_CONTRACT_VERSION)
     primary_request = {
         "model": diagnostic.JEV_ALIAS,
         "state": {
@@ -708,11 +741,18 @@ def _complete_transport_arm(transport, *, trace_bytes=500_000):
     stages = {
         name: 1
         for name in (
-            "primary_correctness_received", "primary_security_received", "primary_tests_received",
-            "semantic_adjudication_received", "native_claim_received", "native_summary_received",
-            "primary_correctness_response_writes_completed", "primary_security_response_writes_completed",
-            "primary_tests_response_writes_completed", "semantic_adjudication_response_writes_completed",
-            "native_claim_response_writes_completed", "native_summary_response_writes_completed",
+            "primary_correctness_received",
+            "primary_security_received",
+            "primary_tests_received",
+            "semantic_adjudication_received",
+            "native_claim_received",
+            "native_summary_received",
+            "primary_correctness_response_writes_completed",
+            "primary_security_response_writes_completed",
+            "primary_tests_response_writes_completed",
+            "semantic_adjudication_response_writes_completed",
+            "native_claim_response_writes_completed",
+            "native_summary_response_writes_completed",
         )
     }
     return {
@@ -747,8 +787,11 @@ def _complete_transport_arm(transport, *, trace_bytes=500_000):
         "observer_mode": "LINUX_STRACE",
         "observer_coverage": "SCOPED_COMPLETE",
         "observer_reason": None,
-        "trace_attribution": {"state": "COMPLETE", "trace_bytes": trace_bytes,
-                              "bytes_by_syscall": {"openat": trace_bytes - 100, "connect": 100}},
+        "trace_attribution": {
+            "state": "COMPLETE",
+            "trace_bytes": trace_bytes,
+            "bytes_by_syscall": {"openat": trace_bytes - 100, "connect": 100},
+        },
         "protocol_exchange_state": "SERVER_WRITES_SETTLED",
         "protocol_stage_counts": stages,
         "http_requests_received": 6,
@@ -771,8 +814,14 @@ def _complete_transport_arm(transport, *, trace_bytes=500_000):
                 "response_bytes": 80,
                 "response_sha256": "e" * 64,
             }
-            for stage in ("primary_correctness", "primary_security", "primary_tests",
-                          "semantic_adjudication", "native_claim", "native_summary")
+            for stage in (
+                "primary_correctness",
+                "primary_security",
+                "primary_tests",
+                "semantic_adjudication",
+                "native_claim",
+                "native_summary",
+            )
         },
         "provider_config_sha256": "f" * 64 if transport == "http" else "0" * 64,
         "decision_config_sha256": "a" * 64 if transport == "http" else "b" * 64,
@@ -788,24 +837,40 @@ def _mock_transport_pair_inputs(monkeypatch, tmp_path, run_arms):
     profile = tmp_path / "profile.json"
     profile.write_text("{}\n", encoding="utf-8")
     case = SimpleNamespace(
-        case_id="r1-control", snapshot={"snapshot_id": "snap-fixed", "snapshot_hash": "a" * 64},
-        base_sha="8" * 40, head_sha="9" * 40,
+        case_id="r1-control",
+        snapshot={"snapshot_id": "snap-fixed", "snapshot_hash": "a" * 64},
+        base_sha="8" * 40,
+        head_sha="9" * 40,
     )
     prepared = SimpleNamespace(suite_sha256="5" * 64, profile_path=profile, profile={}, cases=(case,))
     module_files = {f"src/pr_review_harness/m{i}.py": "3" * 64 for i in range(35)}
-    monkeypatch.setattr(diagnostic, "_runtime_provenance", lambda *_: {
-        "runtime_tree_sha256": "1" * 64,
-        "source_fingerprint": {"git_revision": "2" * 40, "working_tree_dirty": False, "file_hashes": module_files},
-    })
-    monkeypatch.setattr(diagnostic, "_diagnostic_checkout_identity", lambda: {
-        "diagnostic_head_sha": "4" * 40, "diagnostic_script_sha256": "5" * 64,
-        "diagnostic_script_differs_from_head": True,
-    })
+    monkeypatch.setattr(
+        diagnostic,
+        "_runtime_provenance",
+        lambda *_: {
+            "runtime_tree_sha256": "1" * 64,
+            "source_fingerprint": {"git_revision": "2" * 40, "working_tree_dirty": False, "file_hashes": module_files},
+        },
+    )
+    monkeypatch.setattr(
+        diagnostic,
+        "_diagnostic_checkout_identity",
+        lambda: {
+            "diagnostic_head_sha": "4" * 40,
+            "diagnostic_script_sha256": "5" * 64,
+            "diagnostic_script_differs_from_head": True,
+        },
+    )
     monkeypatch.setattr(diagnostic, "prepare_suite", lambda *_args, **_kwargs: prepared)
-    monkeypatch.setattr(diagnostic, "plan_review", lambda *_args: {
-        "tasks": [{"task_id": f"task-{i}", "lens": lens}
-                  for i, lens in enumerate(("correctness", "security", "tests"), 1)]
-    })
+    monkeypatch.setattr(
+        diagnostic,
+        "plan_review",
+        lambda *_args: {
+            "tasks": [
+                {"task_id": f"task-{i}", "lens": lens} for i, lens in enumerate(("correctness", "security", "tests"), 1)
+            ]
+        },
+    )
     cert = tmp_path / "ca.pem"
     key = tmp_path / "key.pem"
     cert.write_text("synthetic cert placeholder\n", encoding="utf-8")
@@ -858,7 +923,10 @@ def test_transport_pair_reuses_exact_prepared_case_and_requires_matching_body_ha
     assert calls[0]["_environment_override"] == calls[1]["_environment_override"]
     assert calls[0]["_ssl_context"] is None and calls[1]["_ssl_context"] is not None
 
-    https["transport_payload_hashes"] = {**https["transport_payload_hashes"], "native_claim": {"request_sha256": "f" * 64}}
+    https["transport_payload_hashes"] = {
+        **https["transport_payload_hashes"],
+        "native_claim": {"request_sha256": "f" * 64},
+    }
     result = diagnostic.run_transport_pair(cli, workdir=tmp_path)
     assert result["pair_state"] == "INCOMPLETE"
     assert result["comparison"] is None
@@ -874,9 +942,7 @@ def test_transport_pair_requires_verified_local_tls_certificate_and_explicit_fai
     client_context = ssl.create_default_context(cafile=str(cert))
     client_in, client_out = ssl.MemoryBIO(), ssl.MemoryBIO()
     server_in, server_out = ssl.MemoryBIO(), ssl.MemoryBIO()
-    client = client_context.wrap_bio(
-        client_in, client_out, server_side=False, server_hostname="127.0.0.1"
-    )
+    client = client_context.wrap_bio(client_in, client_out, server_side=False, server_hostname="127.0.0.1")
     server = server_context.wrap_bio(server_in, server_out, server_side=True)
     client_done = server_done = False
     for _ in range(20):

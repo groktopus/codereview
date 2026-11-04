@@ -22,7 +22,13 @@ HASH = re.compile(r"[0-9a-f]{64}\Z")
 TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}\Z")
 ROLE_STATES = {"completed", "abstained", "failed", "incomplete", "not_run", "unavailable"}
 PREDISPATCH_STAGES = {"capture_validation", "plan_binding", "limits_validation", "provider_setup", "audit_validation"}
-PREDISPATCH_CODES = {"capture_invalid", "plan_binding_invalid", "limits_invalid", "provider_setup_invalid", "audit_input_invalid"}
+PREDISPATCH_CODES = {
+    "capture_invalid",
+    "plan_binding_invalid",
+    "limits_invalid",
+    "provider_setup_invalid",
+    "audit_input_invalid",
+}
 CASE_IDS = {"PR-457", "PR-464"}
 
 
@@ -63,33 +69,65 @@ def _valid(receipt: dict[str, Any]) -> None:
     if receipt.get("schema") == "model-only-shadow-audit-predispatch-failure.v1":
         stage = receipt.get("failure_stage")
         code = receipt.get("failure_code")
-        if (set(receipt) != failure_fields or not isinstance(receipt.get("case_id"), str)
-                or receipt.get("case_id") not in CASE_IDS
-                or receipt.get("terminal_state") != "failed_before_dispatch"
-                or not isinstance(stage, str) or stage not in PREDISPATCH_STAGES
-                or not isinstance(code, str) or code not in PREDISPATCH_CODES
-                or isinstance(receipt.get("audit_provider_calls"), bool)
-                or receipt.get("audit_provider_calls") != 0):
+        if (
+            set(receipt) != failure_fields
+            or not isinstance(receipt.get("case_id"), str)
+            or receipt.get("case_id") not in CASE_IDS
+            or receipt.get("terminal_state") != "failed_before_dispatch"
+            or not isinstance(stage, str)
+            or stage not in PREDISPATCH_STAGES
+            or not isinstance(code, str)
+            or code not in PREDISPATCH_CODES
+            or isinstance(receipt.get("audit_provider_calls"), bool)
+            or receipt.get("audit_provider_calls") != 0
+        ):
             raise ReceiptError("predispatch_receipt_invalid")
         matching_codes = {
-            "capture_validation": "capture_invalid", "plan_binding": "plan_binding_invalid",
-            "limits_validation": "limits_invalid", "provider_setup": "provider_setup_invalid",
+            "capture_validation": "capture_invalid",
+            "plan_binding": "plan_binding_invalid",
+            "limits_validation": "limits_invalid",
+            "provider_setup": "provider_setup_invalid",
             "audit_validation": "audit_input_invalid",
         }
         if code != matching_codes[stage]:
             raise ReceiptError("predispatch_receipt_invalid")
         return
-    base = {"schema", "case_id", "terminal_state", "reason", "audit_provider_calls", "candidate_packet_count",
-            "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts",
-            "role_dispatched_call_counts", "role_guard_rejected_counts",
-            "role_post_guard_pretransport_counts", "role_unknown_dispatch_counts", "role_request_sha256"}
+    base = {
+        "schema",
+        "case_id",
+        "terminal_state",
+        "reason",
+        "audit_provider_calls",
+        "candidate_packet_count",
+        "selected_packet_sha256",
+        "capture_manifest_sha256",
+        "roles",
+        "role_call_counts",
+        "role_dispatched_call_counts",
+        "role_guard_rejected_counts",
+        "role_post_guard_pretransport_counts",
+        "role_unknown_dispatch_counts",
+        "role_request_sha256",
+    }
     optional = {"selected_candidate_sha256", "shadow_manifest_sha256"}
     if frozenset(receipt) not in {frozenset(base), frozenset(base | optional)}:
         raise ReceiptError("receipt_fields_invalid")
-    if (receipt.get("schema") != "model-only-shadow-audit-receipt.v1"
-            or not isinstance(receipt.get("case_id"), str) or receipt.get("case_id") not in CASE_IDS
-            or receipt.get("terminal_state") not in {"completed", "claim_audit_abstained", "incomplete", "source_audit_failed", "jev_assessment_failed", "claim_audit_failed"}
-            or receipt.get("reason") not in {"no_writer_candidate", "one_candidate_selected", "bounded_single_candidate_selection"}):
+    if (
+        receipt.get("schema") != "model-only-shadow-audit-receipt.v1"
+        or not isinstance(receipt.get("case_id"), str)
+        or receipt.get("case_id") not in CASE_IDS
+        or receipt.get("terminal_state")
+        not in {
+            "completed",
+            "claim_audit_abstained",
+            "incomplete",
+            "source_audit_failed",
+            "jev_assessment_failed",
+            "claim_audit_failed",
+        }
+        or receipt.get("reason")
+        not in {"no_writer_candidate", "one_candidate_selected", "bounded_single_candidate_selection"}
+    ):
         raise ReceiptError("receipt_identity_invalid")
     calls = receipt.get("audit_provider_calls")
     count = receipt.get("candidate_packet_count")
@@ -110,104 +148,179 @@ def _valid(receipt: dict[str, Any]) -> None:
         "role_post_guard_pretransport_counts": receipt.get("role_post_guard_pretransport_counts"),
         "role_unknown_dispatch_counts": receipt.get("role_unknown_dispatch_counts"),
     }
-    if (not isinstance(role_calls, dict) or set(role_calls) != ROLES
-            or any(isinstance(value, bool) or not isinstance(value, int) or value not in {0, 1}
-                   for value in role_calls.values())
-            or any(not isinstance(count_map, dict) or set(count_map) != ROLES
-                   or any(isinstance(value, bool) or not isinstance(value, int) or value not in {0, 1}
-                          for value in count_map.values()) for count_map in count_maps.values())):
+    if (
+        not isinstance(role_calls, dict)
+        or set(role_calls) != ROLES
+        or any(
+            isinstance(value, bool) or not isinstance(value, int) or value not in {0, 1}
+            for value in role_calls.values()
+        )
+        or any(
+            not isinstance(count_map, dict)
+            or set(count_map) != ROLES
+            or any(
+                isinstance(value, bool) or not isinstance(value, int) or value not in {0, 1}
+                for value in count_map.values()
+            )
+            for count_map in count_maps.values()
+        )
+    ):
         raise ReceiptError("receipt_role_call_counts_invalid")
     dispatched = count_maps["role_dispatched_call_counts"]
     rejected = count_maps["role_guard_rejected_counts"]
     pretransport = count_maps["role_post_guard_pretransport_counts"]
     unknown = count_maps["role_unknown_dispatch_counts"]
     hashes = receipt.get("role_request_sha256")
-    if (not isinstance(hashes, dict) or set(hashes) != ROLES
-            or any((role_calls[role] == 0 and hashes[role] is not None)
-                   or (role_calls[role] == 1 and (not isinstance(hashes[role], str) or not HASH.fullmatch(hashes[role])))
-                   for role in ROLES)
-            or any(role_calls[role] != dispatched[role] + rejected[role] + pretransport[role] + unknown[role]
-                   for role in ROLES)
-            or sum(dispatched.values()) != calls):
+    if (
+        not isinstance(hashes, dict)
+        or set(hashes) != ROLES
+        or any(
+            (role_calls[role] == 0 and hashes[role] is not None)
+            or (role_calls[role] == 1 and (not isinstance(hashes[role], str) or not HASH.fullmatch(hashes[role])))
+            for role in ROLES
+        )
+        or any(
+            role_calls[role] != dispatched[role] + rejected[role] + pretransport[role] + unknown[role] for role in ROLES
+        )
+        or sum(dispatched.values()) != calls
+    ):
         raise ReceiptError("receipt_dispatch_accounting_invalid")
     if any(roles[role] == "not_run" and role_calls[role] != 0 for role in ROLES):
         raise ReceiptError("not_run_role_has_call")
     if count == 0:
-        if set(receipt) != base or receipt["terminal_state"] != "incomplete" or receipt["reason"] != "no_writer_candidate":
+        if (
+            set(receipt) != base
+            or receipt["terminal_state"] != "incomplete"
+            or receipt["reason"] != "no_writer_candidate"
+        ):
             raise ReceiptError("zero_candidate_receipt_invalid")
         # Preserve historical pre-dispatch receipts, and prepare the same v1
         # schema for a future source-only run plus at most one advisory source
         # record Jev call. Candidate claim assessment is never part of this
         # path. Per-role attempts are already capped at one above, so retries
         # are structurally impossible and dispatched calls cannot exceed two.
-        legacy_not_run = calls == 0 and set(roles.values()) == {"not_run"} and all(
-            role_calls[role] == dispatched[role] == rejected[role] == pretransport[role] == unknown[role] == 0
-            for role in ROLES
+        legacy_not_run = (
+            calls == 0
+            and set(roles.values()) == {"not_run"}
+            and all(
+                role_calls[role] == dispatched[role] == rejected[role] == pretransport[role] == unknown[role] == 0
+                for role in ROLES
+            )
         )
         source, jev, claim = (roles["source_auditor"], roles["jev"], roles["claim_auditor"])
         source_failed_before_attempt = (
-            calls == 0 and source == "failed" and jev == claim == "not_run"
+            calls == 0
+            and source == "failed"
+            and jev == claim == "not_run"
             and all(role_calls[role] == 0 for role in ROLES)
             and all(count_map[role] == 0 for count_map in count_maps.values() for role in ROLES)
             and all(hashes[role] is None for role in ROLES)
         )
         source_attempted, jev_attempted, claim_attempted = (
-            role_calls["source_auditor"], role_calls["jev"], role_calls["claim_auditor"]
+            role_calls["source_auditor"],
+            role_calls["jev"],
+            role_calls["claim_auditor"],
         )
         source_completed = source in {"completed", "abstained"}
         source_failure = source in {"failed", "incomplete"}
         source_dispatch_evidence = (
-            dispatched["source_auditor"] + rejected["source_auditor"]
-            + pretransport["source_auditor"] + unknown["source_auditor"]
+            dispatched["source_auditor"]
+            + rejected["source_auditor"]
+            + pretransport["source_auditor"]
+            + unknown["source_auditor"]
         )
-        jev_dispatch_evidence = (
-            dispatched["jev"] + rejected["jev"] + pretransport["jev"] + unknown["jev"]
-        )
+        jev_dispatch_evidence = dispatched["jev"] + rejected["jev"] + pretransport["jev"] + unknown["jev"]
         source_valid = (
-            source_attempted == 1 and source_dispatch_evidence == 1
-            and ((source_completed and dispatched["source_auditor"] == 1
-                  and rejected["source_auditor"] == pretransport["source_auditor"] == unknown["source_auditor"] == 0)
-                 or (source_failure and dispatched["source_auditor"] in {0, 1}))
+            source_attempted == 1
+            and source_dispatch_evidence == 1
+            and (
+                (
+                    source_completed
+                    and dispatched["source_auditor"] == 1
+                    and rejected["source_auditor"] == pretransport["source_auditor"] == unknown["source_auditor"] == 0
+                )
+                or (source_failure and dispatched["source_auditor"] in {0, 1})
+            )
         )
         jev_not_run = jev == "not_run" and jev_attempted == jev_dispatch_evidence == 0
         jev_ran_after_source = (
-            source == "completed" and jev_attempted == jev_dispatch_evidence == 1
+            source == "completed"
+            and jev_attempted == jev_dispatch_evidence == 1
             and jev in {"completed", "abstained", "failed", "incomplete"}
-            and (jev not in {"completed", "abstained"} or
-                 (dispatched["jev"] == 1 and rejected["jev"] == pretransport["jev"] == unknown["jev"] == 0))
+            and (
+                jev not in {"completed", "abstained"}
+                or (dispatched["jev"] == 1 and rejected["jev"] == pretransport["jev"] == unknown["jev"] == 0)
+            )
         )
         new_source_only = (
-            calls <= 2 and claim == "not_run" and claim_attempted == 0
+            calls <= 2
+            and claim == "not_run"
+            and claim_attempted == 0
             and all(count_maps[field]["claim_auditor"] == 0 for field in count_maps)
-            and source_valid and (jev_not_run or jev_ran_after_source)
+            and source_valid
+            and (jev_not_run or jev_ran_after_source)
         )
         if not (legacy_not_run or source_failed_before_attempt or new_source_only):
             raise ReceiptError("zero_candidate_receipt_invalid")
     else:
-        if (set(receipt) != base | optional or not isinstance(receipt["selected_candidate_sha256"], str)
-                or not HASH.fullmatch(receipt["selected_candidate_sha256"])
-                or not isinstance(receipt["shadow_manifest_sha256"], str)
-                or not HASH.fullmatch(receipt["shadow_manifest_sha256"])):
+        if (
+            set(receipt) != base | optional
+            or not isinstance(receipt["selected_candidate_sha256"], str)
+            or not HASH.fullmatch(receipt["selected_candidate_sha256"])
+            or not isinstance(receipt["shadow_manifest_sha256"], str)
+            or not HASH.fullmatch(receipt["shadow_manifest_sha256"])
+        ):
             raise ReceiptError("selected_candidate_receipt_invalid")
         if receipt["reason"] != ("one_candidate_selected" if count == 1 else "bounded_single_candidate_selection"):
             raise ReceiptError("candidate_selection_reason_mismatch")
         terminal = receipt["terminal_state"]
         source, jev, claim = (roles["source_auditor"], roles["jev"], roles["claim_auditor"])
         source_calls, jev_calls, claim_calls = (
-            dispatched["source_auditor"], dispatched["jev"], dispatched["claim_auditor"]
+            dispatched["source_auditor"],
+            dispatched["jev"],
+            dispatched["claim_auditor"],
         )
         eligible = {"completed", "abstained"}
         consistent = (
-            (terminal == "completed" and source in eligible and jev in eligible and claim == "completed"
-             and (source_calls, jev_calls, claim_calls) == (1, 1, 1))
-            or (terminal == "claim_audit_abstained" and source in eligible and jev in eligible and claim == "abstained"
-                and (source_calls, jev_calls, claim_calls) == (1, 1, 1))
-            or (terminal == "source_audit_failed" and source == "failed" and jev == "not_run" and claim == "not_run"
-                and source_calls in {0, 1} and jev_calls == claim_calls == 0)
-            or (terminal == "jev_assessment_failed" and source in eligible and jev in {"failed", "incomplete"} and claim == "not_run"
-                and source_calls == 1 and jev_calls in {0, 1} and claim_calls == 0)
-            or (terminal == "claim_audit_failed" and source in eligible and jev in eligible and claim == "failed"
-                and source_calls == jev_calls == 1 and claim_calls in {0, 1})
+            (
+                terminal == "completed"
+                and source in eligible
+                and jev in eligible
+                and claim == "completed"
+                and (source_calls, jev_calls, claim_calls) == (1, 1, 1)
+            )
+            or (
+                terminal == "claim_audit_abstained"
+                and source in eligible
+                and jev in eligible
+                and claim == "abstained"
+                and (source_calls, jev_calls, claim_calls) == (1, 1, 1)
+            )
+            or (
+                terminal == "source_audit_failed"
+                and source == "failed"
+                and jev == "not_run"
+                and claim == "not_run"
+                and source_calls in {0, 1}
+                and jev_calls == claim_calls == 0
+            )
+            or (
+                terminal == "jev_assessment_failed"
+                and source in eligible
+                and jev in {"failed", "incomplete"}
+                and claim == "not_run"
+                and source_calls == 1
+                and jev_calls in {0, 1}
+                and claim_calls == 0
+            )
+            or (
+                terminal == "claim_audit_failed"
+                and source in eligible
+                and jev in eligible
+                and claim == "failed"
+                and source_calls == jev_calls == 1
+                and claim_calls in {0, 1}
+            )
         )
         if not consistent:
             raise ReceiptError("terminal_role_accounting_mismatch")

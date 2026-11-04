@@ -687,7 +687,10 @@ def test_stateless_publication_requires_durable_receipt_before_single_post(monke
     ("failure", "expected_reason"),
     [
         (PublicationAdmissionUnavailable("github_api_request_failed"), "github_api_request_failed"),
-        (PublicationAdmissionUnavailable("secret_key_aabbccddeeff00112233445566778899"), "publication_admission_unavailable"),
+        (
+            PublicationAdmissionUnavailable("secret_key_aabbccddeeff00112233445566778899"),
+            "publication_admission_unavailable",
+        ),
         (PublicationAdmissionUnavailable("ghp_" + "a" * 32), "publication_admission_unavailable"),
     ],
 )
@@ -851,9 +854,7 @@ def test_incomplete_receipt_history_can_replay_only_exact_fully_scanned_review_w
         scanned_pages=1,
         reviews_complete=True,
     )
-    outcome, writer, history, calls, _ = _publish_stateless(
-        history=FakeReceiptHistory([scan]), admission=admission
-    )
+    outcome, writer, history, calls, _ = _publish_stateless(history=FakeReceiptHistory([scan]), admission=admission)
     assert outcome["status"] == "CONFIRMED"
     assert outcome["reason"] == "confirmed_from_complete_review_history"
     assert outcome["effect_observation"] == {
@@ -870,7 +871,10 @@ def test_incomplete_receipt_history_can_replay_only_exact_fully_scanned_review_w
 @pytest.mark.parametrize(
     ("scan_factory", "expected_status"),
     [
-        (lambda match: HistoryScan(HistoryStatus.INCOMPLETE, reviews=(match,), reason_code="review_history_limit"), "UNKNOWN"),
+        (
+            lambda match: HistoryScan(HistoryStatus.INCOMPLETE, reviews=(match,), reason_code="review_history_limit"),
+            "UNKNOWN",
+        ),
         (
             lambda match: HistoryScan(
                 HistoryStatus.INCOMPLETE,

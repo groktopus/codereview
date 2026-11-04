@@ -74,10 +74,7 @@ def test_injected_runner_failures_are_typed(runner):
 def _fake_gh(tmp_path, body: str, *, exit_code: int = 0, sleep: float = 0.0):
     script = tmp_path / "gh"
     script.write_text(
-        "#!/bin/sh\n"
-        f"sleep {sleep if sleep else 0.1}\n"
-        f"printf '%s' '{body}'\n"
-        f"exit {exit_code}\n",
+        f"#!/bin/sh\nsleep {sleep if sleep else 0.1}\nprintf '%s' '{body}'\nexit {exit_code}\n",
         encoding="utf-8",
     )
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
@@ -279,13 +276,19 @@ def test_lookup_effect_skips_non_records_and_classifies_multiplicity():
     marker = f"<!-- pr-review-harness:{key} -->"
     matching = {"body": marker, "commit_id": HEAD, "user": {"login": "bot"}}
     runner = Runner([[matching]])
-    assert GitHubReviewPublisher("owner/repo", 7, HEAD, "bot", GitHubPRAdapter(runner)).lookup_effect(key) == "confirmed"
+    assert (
+        GitHubReviewPublisher("owner/repo", 7, HEAD, "bot", GitHubPRAdapter(runner)).lookup_effect(key) == "confirmed"
+    )
     runner = Runner([[matching, matching]])
     assert GitHubReviewPublisher("owner/repo", 7, HEAD, "bot", GitHubPRAdapter(runner)).lookup_effect(key) == "unknown"
     runner = Runner([[{"body": marker, "commit_id": HEAD, "user": {"login": "other"}}]])
-    assert GitHubReviewPublisher("owner/repo", 7, HEAD, "bot", GitHubPRAdapter(runner)).lookup_effect(key) == "not_found"
+    assert (
+        GitHubReviewPublisher("owner/repo", 7, HEAD, "bot", GitHubPRAdapter(runner)).lookup_effect(key) == "not_found"
+    )
     runner = Runner([["not a record"]])
-    assert GitHubReviewPublisher("owner/repo", 7, HEAD, "bot", GitHubPRAdapter(runner)).lookup_effect(key) == "not_found"
+    assert (
+        GitHubReviewPublisher("owner/repo", 7, HEAD, "bot", GitHubPRAdapter(runner)).lookup_effect(key) == "not_found"
+    )
 
 
 @pytest.mark.parametrize(

@@ -53,6 +53,8 @@ python3 scripts/check_dev_lock.py
 python3 -m pytest -q -m "not compatibility"
 python3 -m pytest -q -m compatibility
 ruff check .
+ruff format --check .
+python3 scripts/check_complexity.py
 python3 scripts/check_changelog.py
 python3 scripts/check_version_policy.py
 python3 scripts/check_docs_index.py

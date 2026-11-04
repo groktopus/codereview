@@ -46,8 +46,11 @@ UNIT_IDS = [
     "unit-a375830d2b400d606450",
 ]
 TARGET_LENS = "maintainability"
-HISTORICAL_OLD_ERROR = {"status": 400, "response_bytes": 211,
-                        "response_sha256": "63770a1ce1eb574d5791e070af9a4caf18754328f806e076e7d2cac6ae0ccffc"}
+HISTORICAL_OLD_ERROR = {
+    "status": 400,
+    "response_bytes": 211,
+    "response_sha256": "63770a1ce1eb574d5791e070af9a4caf18754328f806e076e7d2cac6ae0ccffc",
+}
 PROFILE_PATH = "profiles/slopsearx-v17-context-target-manifest-candidate.json"
 LIMITS_PATH = "profiles/ordinary-review-limits-v3.json"
 OUTPUT_NAME = "context-target-schema-probe-summary.json"
@@ -152,12 +155,16 @@ def _safe_exchange_fields(exchange: dict[str, Any] | None) -> dict[str, Any]:
         return value if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) else None
 
     elapsed = exchange.get("elapsed_ms") if exchange is not None else None
-    elapsed = elapsed if (
-        isinstance(elapsed, (int, float))
-        and not isinstance(elapsed, bool)
-        and math.isfinite(elapsed)
-        and elapsed >= 0
-    ) else None
+    elapsed = (
+        elapsed
+        if (
+            isinstance(elapsed, (int, float))
+            and not isinstance(elapsed, bool)
+            and math.isfinite(elapsed)
+            and elapsed >= 0
+        )
+        else None
+    )
     status = exchange.get("http_status") if exchange is not None else None
     status = status if type(status) is int and 100 <= status <= 599 else None
     attempted = exchange.get("request_attempted") if exchange is not None else None
@@ -189,7 +196,9 @@ def _run_variant(provider, *, system, user, schema, limits, body) -> dict:
             **_safe_exchange_fields(_exchange_receipt(metadata)),
         }
     except ProviderError as exc:
-        code = exc.code if isinstance(exc.code, str) and re.fullmatch(r"[a-z0-9_]{1,100}", exc.code) else "provider_error"
+        code = (
+            exc.code if isinstance(exc.code, str) and re.fullmatch(r"[a-z0-9_]{1,100}", exc.code) else "provider_error"
+        )
         return {
             "state": "PROVIDER_ERROR",
             "error_code": code,
@@ -333,7 +342,8 @@ def run_probe(prepare_only: bool = False) -> dict:
     plan = plan_review(snapshot, profile, "FOCUSED")
     prepared, _skipped = prepare_plan_tasks(snapshot, plan, profile, limits, provider)
     scoped = [
-        row for row in prepared
+        row
+        for row in prepared
         if row.get("unit_ids") == UNIT_IDS
         and row.get("obligation_ids")
         and all(f":lens:{TARGET_LENS}" in obligation for obligation in row["obligation_ids"])
@@ -385,10 +395,7 @@ def run_probe(prepare_only: bool = False) -> dict:
             actual = preparation.get(key)
             if key == "variants":
                 actual = {
-                    variant: {
-                        field: preparation.get("variants", {}).get(variant, {}).get(field)
-                        for field in fields
-                    }
+                    variant: {field: preparation.get("variants", {}).get(variant, {}).get(field) for field in fields}
                     for variant, fields in value.items()
                 }
             if actual != value:
@@ -398,19 +405,17 @@ def run_probe(prepare_only: bool = False) -> dict:
         old_result = {"state": "NOT_CALLED"}
         new_result = {"state": "NOT_CALLED"}
     else:
-        old_result = _run_variant(
-            provider, system=system, user=user, schema=old_schema, limits=limits, body=old_body
-        )
-        new_result = _run_variant(
-            provider, system=system, user=user, schema=new_schema, limits=limits, body=new_body
-        )
+        old_result = _run_variant(provider, system=system, user=user, schema=old_schema, limits=limits, body=old_body)
+        new_result = _run_variant(provider, system=system, user=user, schema=new_schema, limits=limits, body=new_body)
     return {
         "contract_version": "context-target-schema-compatibility-probe.v1",
         "state": "PREPARED_ONLY" if prepare_only else "COMPLETE",
         "target_repository": TARGET_REPOSITORY,
         "base_sha": BASE_SHA,
         "head_sha": HEAD_SHA,
-        "probe_source_sha": os.environ.get("GITHUB_SHA") if re.fullmatch(r"[0-9a-f]{40}", os.environ.get("GITHUB_SHA", "")) else None,
+        "probe_source_sha": os.environ.get("GITHUB_SHA")
+        if re.fullmatch(r"[0-9a-f]{40}", os.environ.get("GITHUB_SHA", ""))
+        else None,
         "snapshot_id": snapshot.get("snapshot_id"),
         "profile_sha256": PROFILE_SHA256,
         "limits_sha256": LIMITS_SHA256,
@@ -448,9 +453,7 @@ def main() -> int:
     if sys.argv[1:] and not prepare_only:
         print(json.dumps({"state": "REJECTED", "error_code": "probe_arguments_forbidden"}, separators=(",", ":")))
         return 2
-    output = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / (
-        PREPARATION_NAME if prepare_only else OUTPUT_NAME
-    )
+    output = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / (PREPARATION_NAME if prepare_only else OUTPUT_NAME)
     try:
         required = () if prepare_only else ("LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY")
         if any(not os.environ.get(name) for name in required):
@@ -458,8 +461,14 @@ def main() -> int:
         result = run_probe(prepare_only)
         exit_code = 0
     except Exception as exc:
-        code = str(exc) if isinstance(exc, ValueError) and re.fullmatch(r"[a-z0-9_]{1,100}", str(exc)) else "probe_failed"
-        result = {"contract_version": "context-target-schema-compatibility-probe.v1", "state": "NOT_RUN", "error_code": code}
+        code = (
+            str(exc) if isinstance(exc, ValueError) and re.fullmatch(r"[a-z0-9_]{1,100}", str(exc)) else "probe_failed"
+        )
+        result = {
+            "contract_version": "context-target-schema-compatibility-probe.v1",
+            "state": "NOT_RUN",
+            "error_code": code,
+        }
         exit_code = 1
     output.write_text(json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
     os.chmod(output, 0o600)

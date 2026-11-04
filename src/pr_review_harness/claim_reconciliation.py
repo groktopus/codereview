@@ -102,8 +102,10 @@ def classify_reconciliation(
         if answer.get("status") != "ANSWERED" or not isinstance(choice, str) or choice not in choices:
             return {**base, "state": "PARTIAL", "reason_code": "CLAIM_ASSESSMENT_INVALID"}
         if dimension == "materiality":
-            expected = "MATERIAL" if primary.get("material_consequence") is True else (
-                "NOT_MATERIAL" if primary.get("material_consequence") is False else None
+            expected = (
+                "MATERIAL"
+                if primary.get("material_consequence") is True
+                else ("NOT_MATERIAL" if primary.get("material_consequence") is False else None)
             )
         elif dimension == "missing_context":
             uncompared.append(dimension)

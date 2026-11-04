@@ -241,7 +241,9 @@ def _run_evidence(root: Path, spec: Any, page_path: Path) -> dict[str, Any]:
         raise ValueError(f"run summary run.completed_at is not an ISO-8601 timestamp: {completed_at!r}") from error
     contract = data.get("contract") if isinstance(data.get("contract"), dict) else {}
     contract_fields = {
-        key: contract[key] for key in ("review_contract_name", "review_contract_version", "limits_name", "limits_version") if isinstance(contract.get(key), str)
+        key: contract[key]
+        for key in ("review_contract_name", "review_contract_version", "limits_name", "limits_version")
+        if isinstance(contract.get(key), str)
     }
     return {
         "state": state,
@@ -297,9 +299,7 @@ def _publication_decisions(root: Path, values: Any, page_path: Path) -> list[dic
     return records
 
 
-def _owner_records(
-    root: Path, manifest_value: Any, head: str
-) -> tuple[list[dict[str, Any]], list[Finding], Path]:
+def _owner_records(root: Path, manifest_value: Any, head: str) -> tuple[list[dict[str, Any]], list[Finding], Path]:
     path = _existing_file(root, manifest_value, "owner_review_manifest")
     data = _read_json(path, "owner-review evidence manifest")
     if not isinstance(data, dict) or data.get("schema_version") != EVIDENCE_SCHEMA:
@@ -395,7 +395,9 @@ def _render_page(
     handoff_link = _relative_link(page_path, owner_manifest_path)
 
     counts = registry["counts"]
-    count_text = ", ".join(f"{counts.get(key, 0)} {key}" for key in ("supported", "experimental", "deprecated", "archived"))
+    count_text = ", ".join(
+        f"{counts.get(key, 0)} {key}" for key in ("supported", "experimental", "deprecated", "archived")
+    )
     if run["state"] == "RECORDED":
         run_value = (
             f"{run['run_id']} at {run['head_short']}, terminal {run['terminal_state']}, "
@@ -507,7 +509,9 @@ def _render_page(
         for finding in generated.owner_findings:
             lines.append(f"- {finding.code} ({finding.file}:{finding.line}): {finding.message}")
     else:
-        lines.extend(["", "No freshness findings at the checked-out head. This is still derived evidence, not an owner review."])
+        lines.extend(
+            ["", "No freshness findings at the checked-out head. This is still derived evidence, not an owner review."]
+        )
     lines.extend(
         [
             "",
@@ -603,7 +607,9 @@ def build(
     if any(path.is_relative_to((root / "docs" / "history").resolve()) for path in (page_path, manifest_path)):
         raise ValueError("refusing to write historical evidence paths")
     inputs = _load_inputs(inputs_path)
-    observation = _commit(root, (inputs.get("observation") or {}).get("revision") if isinstance(inputs.get("observation"), dict) else None)
+    observation = _commit(
+        root, (inputs.get("observation") or {}).get("revision") if isinstance(inputs.get("observation"), dict) else None
+    )
     registry = _registry(root, inputs.get("contract_registry"), observation, page_path)
     run = _run_evidence(root, inputs.get("last_verified_run"), page_path)
     decisions = _publication_decisions(root, inputs.get("publication_decisions"), page_path)
@@ -652,7 +658,14 @@ def _validate_markdown(root: Path, markdown: str, page_path: Path) -> list[Findi
     findings: list[Finding] = []
     file = _repo_relative(root, page_path)
     if "Derived evidence, not an owner review" not in markdown:
-        findings.append(Finding("STATUS_EVIDENCE_DERIVED_BANNER_MISSING", file, 1, "the page must state that it is derived evidence, not an owner review"))
+        findings.append(
+            Finding(
+                "STATUS_EVIDENCE_DERIVED_BANNER_MISSING",
+                file,
+                1,
+                "the page must state that it is derived evidence, not an owner review",
+            )
+        )
     for match in INLINE_HEX_RE.finditer(markdown):
         findings.append(
             Finding(
@@ -676,13 +689,29 @@ def _validate_markdown(root: Path, markdown: str, page_path: Path) -> list[Findi
             continue
         labels.add(cells[0])
         if not any("](" in cell for cell in cells[1:]):
-            findings.append(Finding("STATUS_EVIDENCE_CLAIM_UNLINKED", file, number, f"status row {cells[0]!r} has no artifact or test link"))
+            findings.append(
+                Finding(
+                    "STATUS_EVIDENCE_CLAIM_UNLINKED",
+                    file,
+                    number,
+                    f"status row {cells[0]!r} has no artifact or test link",
+                )
+            )
     for label in REQUIRED_FIELD_LABELS:
         if label not in labels:
-            findings.append(Finding("STATUS_EVIDENCE_FIELD_MISSING", file, 1, f"required status field {label!r} is missing"))
+            findings.append(
+                Finding("STATUS_EVIDENCE_FIELD_MISSING", file, 1, f"required status field {label!r} is missing")
+            )
     historical_heading = "## Historical snapshots (immutable; not current)"
     if historical_heading not in markdown:
-        findings.append(Finding("STATUS_EVIDENCE_HISTORICAL_UNLABELED", file, 1, "historical snapshots must be labelled immutable and not current"))
+        findings.append(
+            Finding(
+                "STATUS_EVIDENCE_HISTORICAL_UNLABELED",
+                file,
+                1,
+                "historical snapshots must be labelled immutable and not current",
+            )
+        )
     broken = []
     if page_path.is_file():
         _, broken = check_paths(root, [page_path])
@@ -710,9 +739,14 @@ def check(
     root = root.resolve()
     generated = build(root, inputs_path, page_path, manifest_path, head)
     findings: list[Finding] = []
-    for label, path, expected in (("page", page_path, generated.page_text), ("manifest", manifest_path, generated.manifest_text)):
+    for label, path, expected in (
+        ("page", page_path, generated.page_text),
+        ("manifest", manifest_path, generated.manifest_text),
+    ):
         if not path.is_file():
-            findings.append(Finding("STATUS_EVIDENCE_MISSING", _repo_relative(root, path), 1, f"generated {label} is missing"))
+            findings.append(
+                Finding("STATUS_EVIDENCE_MISSING", _repo_relative(root, path), 1, f"generated {label} is missing")
+            )
         elif path.read_text(encoding="utf-8") != expected:
             findings.append(
                 Finding(

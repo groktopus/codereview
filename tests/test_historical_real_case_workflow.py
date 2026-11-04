@@ -113,8 +113,8 @@ def test_runtime_pin_resolver_selects_only_exact_trusted_input_contract_identiti
         else:
             if contract == trial.CONTEXT_FOLLOWUP_SELECTOR:
                 expected_paths = (
-                "historical-real-case-trial-context-followup-v1",
-                "historical-real-case-trial-123-context-followup-v1",
+                    "historical-real-case-trial-context-followup-v1",
+                    "historical-real-case-trial-123-context-followup-v1",
                 )
             else:
                 expected_paths = (
@@ -136,6 +136,6 @@ def test_runtime_pin_resolver_selects_only_exact_trusted_input_contract_identiti
 
     # V1 keeps the original operator-facing paths and artifact name; each
     # experiment gets only the fixed suffix emitted by the trusted resolver.
-    assert 'historical-real-case-trial$ARTIFACT_SUFFIX' in text
-    assert 'historical-real-case-trial-${{ github.run_id }}${{ steps.runtime-pins.outputs.artifact_suffix }}' in text
+    assert "historical-real-case-trial$ARTIFACT_SUFFIX" in text
+    assert "historical-real-case-trial-${{ github.run_id }}${{ steps.runtime-pins.outputs.artifact_suffix }}" in text
     assert "historical-real-case-trial-v2" not in text

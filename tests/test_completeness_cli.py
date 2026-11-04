@@ -22,9 +22,7 @@ def test_summary_only_text_and_json(capsys):
     assert payload["status"] == "SUMMARY"
     assert payload["results"][0]["completeness_summary"]["schema"]
 
-    assert gate.main(
-        ["--result", str(FIXTURES / "good-result.json"), "--summary-only", "--quiet"]
-    ) == 0
+    assert gate.main(["--result", str(FIXTURES / "good-result.json"), "--summary-only", "--quiet"]) == 0
     assert capsys.readouterr().out == ""
 
 

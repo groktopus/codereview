@@ -142,9 +142,18 @@ class EnginePreflightError(BoundaryValueError):
         "claim assessment cap does not match the registered combination",
     }
     _LIMIT_NAMES = {
-        "deadline_seconds", "max_concurrent_scopes", "max_provider_calls", "max_retries_per_task",
-        "max_context_bytes", "max_input_bytes_per_task", "max_output_bytes_per_task", "max_output_bytes",
-        "max_context_retrievals", "max_followup_tasks", "max_snapshot_context_bytes", "max_cost_microunits",
+        "deadline_seconds",
+        "max_concurrent_scopes",
+        "max_provider_calls",
+        "max_retries_per_task",
+        "max_context_bytes",
+        "max_input_bytes_per_task",
+        "max_output_bytes_per_task",
+        "max_output_bytes",
+        "max_context_retrievals",
+        "max_followup_tasks",
+        "max_snapshot_context_bytes",
+        "max_cost_microunits",
         "max_retrieval_result_bytes",
     }
 
@@ -257,13 +266,17 @@ def _required_context_note_match(
     if not isinstance(note, dict):
         return False, "NOTE_NOT_OBJECT"
     checks = (
-        (("UNIT_OUT_OF_SCOPE", lambda: note.get("unit_id") in scope_unit_ids),
-         ("STATE_NOT_COVERED", lambda: note.get("state") == "COVERED"),
-         ("BASIS_NOT_STATIC_REVIEW", lambda: note.get("coverage_basis") == "STATIC_REVIEW"))
+        (
+            ("UNIT_OUT_OF_SCOPE", lambda: note.get("unit_id") in scope_unit_ids),
+            ("STATE_NOT_COVERED", lambda: note.get("state") == "COVERED"),
+            ("BASIS_NOT_STATIC_REVIEW", lambda: note.get("coverage_basis") == "STATIC_REVIEW"),
+        )
         if predicate_order == "followup_resolution"
-        else (("STATE_NOT_COVERED", lambda: note.get("state") == "COVERED"),
-              ("BASIS_NOT_STATIC_REVIEW", lambda: note.get("coverage_basis") == "STATIC_REVIEW"),
-              ("UNIT_OUT_OF_SCOPE", lambda: note.get("unit_id") in scope_unit_ids))
+        else (
+            ("STATE_NOT_COVERED", lambda: note.get("state") == "COVERED"),
+            ("BASIS_NOT_STATIC_REVIEW", lambda: note.get("coverage_basis") == "STATIC_REVIEW"),
+            ("UNIT_OUT_OF_SCOPE", lambda: note.get("unit_id") in scope_unit_ids),
+        )
     )
     if predicate_order not in {"followup_resolution", "final_coverage"}:
         raise ValueError("required_context_predicate_order_invalid")
@@ -323,15 +336,7 @@ def _coverage_note_observation(
                 break
         if not notes:
             counts["NO_COVERAGE_NOTES"] = 1
-    result = (
-        "UNKNOWN"
-        if not observable
-        else "COVERED"
-        if matched
-        else "NO_COVERING_NOTE"
-        if notes
-        else "NO_NOTES"
-    )
+    result = "UNKNOWN" if not observable else "COVERED" if matched else "NO_COVERING_NOTE" if notes else "NO_NOTES"
     return matched, {
         "state": "OBSERVED" if observable else "UNKNOWN",
         "result": result,
@@ -557,9 +562,7 @@ def validate_limits(limits: dict) -> None:
             value = limits[key]
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError(f"invalid limit: {key}")
-    if (
-        limits.get("max_retrieval_result_bytes", 0) > limits["max_input_bytes_per_task"]
-    ):
+    if limits.get("max_retrieval_result_bytes", 0) > limits["max_input_bytes_per_task"]:
         raise ValueError("invalid limit: max_retrieval_result_bytes")
     if limits.get("max_cost_microunits") is not None:
         if (
@@ -829,7 +832,11 @@ def _bind_specialist_input(task: dict, snapshot: dict, profile: dict, evidence: 
             if not isinstance(source_ids, list) or any(not isinstance(value, str) for value in source_ids):
                 raise ValueError("invalid_specialist_unit_evidence")
             selected_set = set(source_ids)
-            selected_ids = [evidence_id for evidence_id in task_evidence_ids if evidence_id in selected_set and evidence_id in delivered]
+            selected_ids = [
+                evidence_id
+                for evidence_id in task_evidence_ids
+                if evidence_id in selected_set and evidence_id in delivered
+            ]
             binding_status = "VERIFIED"
         bindings.append({"unit_id": unit_id, "binding_status": binding_status, "evidence_ids": selected_ids})
     bound = {
@@ -905,8 +912,7 @@ def _context_followup_metadata(
         raise ValueError("invalid_context_followup_target")
     target_values = [target.get(key) for key in ("target_unit_id", "target_path", "target_symbol")]
     if any(
-        value is not None
-        and (not isinstance(value, str) or not value.strip() or len(value.encode("utf-8")) > 2_000)
+        value is not None and (not isinstance(value, str) or not value.strip() or len(value.encode("utf-8")) > 2_000)
         for value in target_values
     ):
         raise ValueError("invalid_context_followup_target")
@@ -940,7 +946,9 @@ def _context_followup_metadata(
         not isinstance(retrieved, dict)
         or retrieved.get("status") != "RESOLVED"
         or not isinstance(retrieved_evidence, list)
-        or any(not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str) for item in retrieved_evidence)
+        or any(
+            not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str) for item in retrieved_evidence
+        )
         or not isinstance(retrieved_ids, list)
         or not retrieved_ids
         or any(not isinstance(evidence_id, str) for evidence_id in retrieved_ids)
@@ -961,7 +969,9 @@ def _context_followup_metadata(
         )
     ):
         raise ValueError("invalid_context_followup_parent_obligations")
-    scope_unit_ids = [record["resolved_unit_id"]] if record.get("resolved_unit_id") else list(parent_task.get("unit_ids", []))
+    scope_unit_ids = (
+        [record["resolved_unit_id"]] if record.get("resolved_unit_id") else list(parent_task.get("unit_ids", []))
+    )
     if not scope_unit_ids or any(not isinstance(uid, str) or not uid for uid in scope_unit_ids):
         raise ValueError("invalid_context_followup_scope")
     obligation_id = f"context:{proposal_id}"
@@ -1038,9 +1048,7 @@ def _validate_context_followup_task(
     if not isinstance(marker, str) or "context_followup" not in task:
         raise ValueError("invalid_context_followup_contract")
     records = [
-        item
-        for item in ledger.get("context_gaps", [])
-        if isinstance(item, dict) and item.get("proposal_id") == marker
+        item for item in ledger.get("context_gaps", []) if isinstance(item, dict) and item.get("proposal_id") == marker
     ]
     if len(records) != 1:
         raise ValueError("invalid_context_followup_gap_record")
@@ -1485,13 +1493,11 @@ def run_review(
     allow_archived_contracts: bool = False,
     price_table: Any = None,
 ) -> ReviewResult:
-
     """Run bounded provider tasks and persist an integrity-checked review result.
 
     This controller never executes reviewed code. A lack of provider capability
     yields explicit NOT_STARTED coverage; it cannot be interpreted as no findings.
     """
-
 
     state = RunState(
         snapshot=snapshot,

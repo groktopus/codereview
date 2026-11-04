@@ -319,11 +319,7 @@ def _duplicate_obligations(value):
             "review disposition cannot be published",
         ),
         (
-            lambda: _mutated(
-                lambda value: value.update(
-                    coverage_ledger=[{"required": True, "state": "COMPLETE"}]
-                )
-            ),
+            lambda: _mutated(lambda value: value.update(coverage_ledger=[{"required": True, "state": "COMPLETE"}])),
             "review coverage ledger is invalid",
         ),
         (lambda: _mutated(_duplicate_obligations), "review coverage ledger is invalid"),
@@ -337,9 +333,7 @@ def _duplicate_obligations(value):
         ),
         (
             lambda: _mutated(
-                lambda value: value.update(
-                    coverage_ledger=[{"obligation_id": "o", "required": True, "state": "BOGUS"}]
-                )
+                lambda value: value.update(coverage_ledger=[{"obligation_id": "o", "required": True, "state": "BOGUS"}])
             ),
             "review coverage ledger is invalid",
         ),
@@ -353,9 +347,7 @@ def _duplicate_obligations(value):
             "review coverage state is inconsistent",
         ),
         (
-            lambda: _mutated(
-                lambda value: value.update(findings=[{"status": "MAYBE", "blocking_class": "BLOCKING"}])
-            ),
+            lambda: _mutated(lambda value: value.update(findings=[{"status": "MAYBE", "blocking_class": "BLOCKING"}])),
             "review findings are invalid",
         ),
         (
@@ -950,9 +942,7 @@ def _review_overflow(value):
     ("scan_factory", "status", "reason"),
     [
         (
-            lambda value: HistoryScan(
-                HistoryStatus.COMPLETE, receipts=(_receipt(value), _receipt(value))
-            ),
+            lambda value: HistoryScan(HistoryStatus.COMPLETE, receipts=(_receipt(value), _receipt(value))),
             "UNKNOWN",
             "multiple_attempt_receipts_for_slot",
         ),
@@ -1058,9 +1048,7 @@ def test_stateless_persistence_refusals_never_post(writer_factory, reason):
         ),
     ],
 )
-def test_stateless_ambiguous_or_unbound_submit_is_reconciled_once(
-    monkeypatch, submit_factory, history, status, reason
-):
+def test_stateless_ambiguous_or_unbound_submit_is_reconciled_once(monkeypatch, submit_factory, history, status, reason):
     _freeze_receipt_clock(monkeypatch)
     policy = _stateless_config()
     provider = FakeAdmissionProvider(policy, preview(result(), policy))
@@ -1165,9 +1153,7 @@ def test_stateless_mismatched_admission_context_is_rejected_without_posting():
     ],
 )
 def test_stateless_incomplete_or_over_limit_history_never_posts(scan, status, reason):
-    outcome, calls, writer, _ = _run_stateless(
-        history=FakeReceiptHistory([scan]), limits=ScanLimits(max_runs=1)
-    )
+    outcome, calls, writer, _ = _run_stateless(history=FakeReceiptHistory([scan]), limits=ScanLimits(max_runs=1))
     assert outcome["status"] == status
     assert outcome["reason"] == reason
     assert calls == []
@@ -1335,7 +1321,6 @@ def test_stateless_confirmed_response_reports_observed_effect_when_credential_bo
     }
     assert len(calls) == 1
     assert len(writer.receipts) == 1
-
 
 
 def _heads(sequence):
@@ -1520,4 +1505,3 @@ def test_legacy_publication_failure_branches(overrides, status, reason, submit_c
     assert outcome["status"] == status
     assert outcome["reason"] == reason
     assert sum(1 for entry in calls if entry[0] == "submit") == submit_calls
-

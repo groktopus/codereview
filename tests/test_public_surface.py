@@ -55,10 +55,7 @@ def test_documented_stable_names_are_importable_and_described():
     documented = {
         f"{manifest['review_orchestrator']['module']}:{manifest['review_orchestrator']['function']}",
         *manifest["internal_stage_functions"],
-        *(
-            f"{entry['module']}:{entry['function']}"
-            for entry in manifest["guarded_effect_entrypoints"]
-        ),
+        *(f"{entry['module']}:{entry['function']}" for entry in manifest["guarded_effect_entrypoints"]),
     }
     text = PUBLIC_API.read_text(encoding="utf-8")
     for entry in sorted(documented):
@@ -113,9 +110,7 @@ def test_documented_surface_imports_without_loading_experiments(tmp_path: Path):
         "import pr_review_harness\n"
         "assert pr_review_harness.__version__\n"
         "public = [name for name in dir(pr_review_harness) if not name.startswith('_')]\n"
-        "assert public == [], public\n"
-        + "\n".join(probes)
-        + "\nimport sys\n"
+        "assert public == [], public\n" + "\n".join(probes) + "\nimport sys\n"
         "loaded = sorted(name for name in sys.modules if name == 'experiments' or name.startswith('experiments.'))\n"
         "assert not loaded, loaded\n"
         "print('OK')\n"

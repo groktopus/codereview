@@ -4,6 +4,7 @@
 This command never authorizes resume, calls a provider, or writes a checkpoint.
 The engine's normal resume preflight remains authoritative.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,7 +28,14 @@ def _digest(data: bytes) -> str:
 def _checkpoint(root: Path, identity: dict[str, Any]) -> tuple[dict[str, Any], int]:
     path = root / "review" / f"{identity['run_id']}.json"
     value = manifest._parse_json(manifest._read_regular(path, manifest.MAX_FILE_BYTES), "recovery_checkpoint_invalid")
-    if _digest(json.dumps({k: v for k, v in value.items() if k != "result_hash"}, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()) != value.get("result_hash"):
+    if _digest(
+        json.dumps(
+            {k: v for k, v in value.items() if k != "result_hash"},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode()
+    ) != value.get("result_hash"):
         raise manifest.ManifestError("recovery_checkpoint_integrity_mismatch")
     ledger = value.get("ledger")
     if (
@@ -44,7 +52,14 @@ def _checkpoint(root: Path, identity: dict[str, Any]) -> tuple[dict[str, Any], i
     if not isinstance(events, list):
         raise manifest.ManifestError("recovery_checkpoint_integrity_mismatch")
     for event in events:
-        if not isinstance(event, dict) or _digest(json.dumps({k: v for k, v in event.items() if k != "event_hash"}, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()) != event.get("event_hash"):
+        if not isinstance(event, dict) or _digest(
+            json.dumps(
+                {k: v for k, v in event.items() if k != "event_hash"},
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode()
+        ) != event.get("event_hash"):
             raise manifest.ManifestError("recovery_checkpoint_integrity_mismatch")
     budget = ledger.get("budget")
     reservations = budget.get("reservations") if isinstance(budget, dict) else None
@@ -65,9 +80,7 @@ def _checkpoint(root: Path, identity: dict[str, Any]) -> tuple[dict[str, Any], i
     if any(not isinstance(settlement, dict) for settlement in settlements.values()):
         raise manifest.ManifestError("recovery_reservation_ledger_invalid")
     unsettled_provider_calls = sum(
-        1
-        for key, reservation in reservations.items()
-        if reservation["provider_calls"] > 0 and key not in settlements
+        1 for key, reservation in reservations.items() if reservation["provider_calls"] > 0 and key not in settlements
     )
     return value, unsettled_provider_calls
 
@@ -87,17 +100,27 @@ def preview(
     try:
         current_source_sha = subprocess.run(
             ["git", "-C", str(source_repository), "rev-parse", "--verify", "HEAD"],
-            check=True, capture_output=True, text=True, timeout=5,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
         ).stdout.strip()
         dirty = subprocess.run(
             ["git", "-C", str(source_repository), "status", "--porcelain"],
-            check=True, capture_output=True, text=True, timeout=5,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
         ).stdout
     except (OSError, subprocess.SubprocessError):
         raise manifest.ManifestError("recovery_current_source_unavailable") from None
     if dirty or current_source_sha != identity["harness_sha"]:
         raise manifest.ManifestError("recovery_current_source_mismatch")
-    for path, key in ((profile, "profile_sha256"), (provider_config, "provider_config_sha256"), (decision_config, "decision_config_sha256")):
+    for path, key in (
+        (profile, "profile_sha256"),
+        (provider_config, "provider_config_sha256"),
+        (decision_config, "decision_config_sha256"),
+    ):
         raw = manifest._read_regular(path, manifest.MAX_FILE_BYTES)
         if _digest(raw) != identity[key]:
             raise manifest.ManifestError("recovery_current_config_mismatch")
@@ -115,21 +138,29 @@ def preview(
         base_sha=identity["base_sha"],
         head_sha=identity["head_sha"],
     )
-    if artifact_raw != packet_canonical(artifact_packet) or current_raw != artifact_raw or current_packet != artifact_packet:
+    if (
+        artifact_raw != packet_canonical(artifact_packet)
+        or current_raw != artifact_raw
+        or current_packet != artifact_packet
+    ):
         raise manifest.ManifestError("recovery_current_inputs_mismatch")
     checkpoint, unsettled_provider_calls = _checkpoint(artifact_root, identity)
     ambiguous = unsettled_provider_calls > 0
     return {
         "status": "AMBIGUOUS_INFLIGHT_REQUIRES_ENGINE_RECONCILIATION" if ambiguous else "CONSISTENCY_PREVIEW_PASSED",
         "resume_authorized": False,
-        "resume_attempt_assessment": "ambiguous_provider_call_requires_engine_reconciliation" if ambiguous else "pins_and_checkpoint_consistent_only",
+        "resume_attempt_assessment": "ambiguous_provider_call_requires_engine_reconciliation"
+        if ambiguous
+        else "pins_and_checkpoint_consistent_only",
         "engine_reconciliation_expected": ambiguous,
         "engine_preflight_required": True,
         "current_pr_head_revalidated": False,
         "remaining_checks": ["engine_resume_preflight", "current_pr_head_freshness"],
         "provider_calls": 0,
         "checkpoint_writes": 0,
-        "checkpoint_sha256": _digest(manifest._read_regular(artifact_root / "review" / f"{identity['run_id']}.json", manifest.MAX_FILE_BYTES)),
+        "checkpoint_sha256": _digest(
+            manifest._read_regular(artifact_root / "review" / f"{identity['run_id']}.json", manifest.MAX_FILE_BYTES)
+        ),
         "request_hash": checkpoint["request_hash"],
         "recovery_packet_sha256": _digest(artifact_raw),
         "reservations": len(checkpoint["ledger"]["budget"]["reservations"]),
@@ -140,7 +171,9 @@ def preview(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact-root", type=Path, required=True)
-    parser.add_argument("--identity-json", type=Path, required=True, help="trusted identity from the recovery controller")
+    parser.add_argument(
+        "--identity-json", type=Path, required=True, help="trusted identity from the recovery controller"
+    )
     parser.add_argument("--source-repository", type=Path, required=True)
     parser.add_argument("--profile", type=Path, required=True)
     parser.add_argument("--provider-config", type=Path, required=True)
@@ -148,7 +181,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--recovery-inputs", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        identity = manifest._parse_json(manifest._read_regular(args.identity_json, 64 * 1024), "recovery_identity_invalid")
+        identity = manifest._parse_json(
+            manifest._read_regular(args.identity_json, 64 * 1024), "recovery_identity_invalid"
+        )
         result = preview(
             args.artifact_root,
             expected_identity=identity,
@@ -160,7 +195,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (manifest.ManifestError, RecoveryInputError, OSError, TypeError, KeyError, AttributeError) as exc:
         code = str(exc) if isinstance(exc, (manifest.ManifestError, RecoveryInputError)) else "recovery_preview_failed"
-        print(json.dumps({"error": code, "consistency_preview_passed": False, "resume_authorized": False}, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps(
+                {"error": code, "consistency_preview_passed": False, "resume_authorized": False}, separators=(",", ":")
+            ),
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps(result, separators=(",", ":")))
     return 0

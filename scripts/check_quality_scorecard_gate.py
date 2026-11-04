@@ -26,7 +26,9 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", required=True, help="accepted baseline scorecard JSON")
     parser.add_argument("--current", required=True, help="current scorecard JSON")
-    parser.add_argument("--json", action="store_true", required=True, help="emit exactly one machine-readable JSON object")
+    parser.add_argument(
+        "--json", action="store_true", required=True, help="emit exactly one machine-readable JSON object"
+    )
     return parser
 
 

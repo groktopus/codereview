@@ -95,7 +95,11 @@ def _validate_call(call: Any) -> dict[str, Any]:
 def validate_cross_model_comparison_v2(value: Any, corpus_value: Any) -> dict[str, Any]:
     """Validate role/run/call provenance and relation reference structure."""
     corpus = validate_corpus(corpus_value)
-    comparison = _exact(value, {"contract_version", "comparison_id", "corpus_id", "dataset_version", "procedure", "cases"}, "invalid_cross_model_v2_contract")
+    comparison = _exact(
+        value,
+        {"contract_version", "comparison_id", "corpus_id", "dataset_version", "procedure", "cases"},
+        "invalid_cross_model_v2_contract",
+    )
     if comparison["contract_version"] != CONTRACT_VERSION:
         _fail("unsupported_cross_model_v2_contract")
     if comparison["corpus_id"] != corpus["corpus_id"] or comparison["dataset_version"] != corpus["dataset_version"]:
@@ -126,7 +130,22 @@ def validate_cross_model_comparison_v2(value: Any, corpus_value: Any) -> dict[st
         by_role: dict[str, dict[str, Any]] = {}
         all_calls: dict[tuple[str, str], dict[str, Any]] = {}
         for run in runs:
-            run = _exact(run, {"role", "status", "run_id", "provider_id", "model_id", "runtime_id", "prompt_revision", "rubric_revision", "calls", "calls_manifest_sha256"}, "invalid_role_run")
+            run = _exact(
+                run,
+                {
+                    "role",
+                    "status",
+                    "run_id",
+                    "provider_id",
+                    "model_id",
+                    "runtime_id",
+                    "prompt_revision",
+                    "rubric_revision",
+                    "calls",
+                    "calls_manifest_sha256",
+                },
+                "invalid_role_run",
+            )
             role = run["role"]
             status = run["status"]
             if role not in ROLES or role in by_role or status not in RUN_STATUSES:
@@ -188,7 +207,22 @@ def validate_cross_model_comparison_v2(value: Any, corpus_value: Any) -> dict[st
             _fail("invalid_assertions")
         assertion_ids: set[str] = set()
         for assertion in assertions:
-            assertion = _exact(assertion, {"assertion_id", "pair", "relation", "reporter_role", "reporter_run_id", "reporter_call_id", "response_artifact_id", "json_pointer", "left_record_id", "right_record_id"}, "invalid_relation_assertion")
+            assertion = _exact(
+                assertion,
+                {
+                    "assertion_id",
+                    "pair",
+                    "relation",
+                    "reporter_role",
+                    "reporter_run_id",
+                    "reporter_call_id",
+                    "response_artifact_id",
+                    "json_pointer",
+                    "left_record_id",
+                    "right_record_id",
+                },
+                "invalid_relation_assertion",
+            )
             aid = _id(assertion["assertion_id"], "invalid_assertion_id")
             if aid in assertion_ids:
                 _fail("duplicate_assertion_id")
@@ -210,7 +244,11 @@ def validate_cross_model_comparison_v2(value: Any, corpus_value: Any) -> dict[st
             if call is None or call["response_artifact_id"] != assertion["response_artifact_id"]:
                 _fail("reporter_call_mismatch")
             pointer = assertion["json_pointer"]
-            if not isinstance(pointer, str) or (pointer and not pointer.startswith("/")) or len(pointer.encode("utf-8")) > 2048:
+            if (
+                not isinstance(pointer, str)
+                or (pointer and not pointer.startswith("/"))
+                or len(pointer.encode("utf-8")) > 2048
+            ):
                 _fail("invalid_json_pointer")
             for field, role in (("left_record_id", left_role), ("right_record_id", right_role)):
                 value = assertion[field]
@@ -218,12 +256,19 @@ def validate_cross_model_comparison_v2(value: Any, corpus_value: Any) -> dict[st
                     _id(value, f"invalid_{field}")
                     if (role, value) not in record_ids:
                         _fail("unresolved_relation_record")
-            if relation in {"MATCH", "DISAGREEMENT"} and (assertion["left_record_id"] is None or assertion["right_record_id"] is None):
+            if relation in {"MATCH", "DISAGREEMENT"} and (
+                assertion["left_record_id"] is None or assertion["right_record_id"] is None
+            ):
                 _fail("relation_record_required")
-            if relation == "NO_COUNTERPART" and (assertion["left_record_id"] is None) == (assertion["right_record_id"] is None):
+            if relation == "NO_COUNTERPART" and (assertion["left_record_id"] is None) == (
+                assertion["right_record_id"] is None
+            ):
                 _fail("no_counterpart_shape_invalid")
             counterpart_statuses = (by_role[left_role]["status"], by_role[right_role]["status"])
-            if relation in {"MATCH", "DISAGREEMENT", "NO_COUNTERPART"} and counterpart_statuses != ("completed", "completed"):
+            if relation in {"MATCH", "DISAGREEMENT", "NO_COUNTERPART"} and counterpart_statuses != (
+                "completed",
+                "completed",
+            ):
                 _fail("relation_conflicts_with_run_status")
             if relation == "ABSTAINED" and "abstained" not in counterpart_statuses:
                 _fail("relation_conflicts_with_run_status")
@@ -236,7 +281,9 @@ def validate_cross_model_comparison_v2(value: Any, corpus_value: Any) -> dict[st
     return comparison
 
 
-def _read_artifact(path: Path, expected_hash: str, byte_budget: int, per_file_limit: int) -> tuple[str, str | None, bytes, int]:
+def _read_artifact(
+    path: Path, expected_hash: str, byte_budget: int, per_file_limit: int
+) -> tuple[str, str | None, bytes, int]:
     """Read one local regular file without following symlinks or blocking on FIFOs."""
     try:
         if ".." in path.parts:
@@ -300,7 +347,9 @@ def _pointer(value: Any, pointer: str) -> Any:
     return current
 
 
-def compare_cross_model_v2(value: Any, corpus_value: Any, *, artifacts: dict[str, Path] | None = None) -> dict[str, Any]:
+def compare_cross_model_v2(
+    value: Any, corpus_value: Any, *, artifacts: dict[str, Path] | None = None
+) -> dict[str, Any]:
     """Verify response-byte relation references and report advisory denominators."""
     comparison = validate_cross_model_comparison_v2(value, corpus_value)
     artifacts = artifacts or {}
@@ -322,7 +371,9 @@ def compare_cross_model_v2(value: Any, corpus_value: Any, *, artifacts: dict[str
             status, observed, raw, size = "NOT_PROVIDED", None, b"", 0
         else:
             per_file_limit = MAX_RESPONSE_BYTES if kind == "response" else MAX_REQUEST_BYTES
-            status, observed, raw, size = _read_artifact(artifacts[artifact_id], digest, MAX_TOTAL_BYTES - total_bytes, per_file_limit)
+            status, observed, raw, size = _read_artifact(
+                artifacts[artifact_id], digest, MAX_TOTAL_BYTES - total_bytes, per_file_limit
+            )
         total_bytes += size
         parsed = None
         if kind == "response" and status == "VERIFIED":
@@ -330,7 +381,15 @@ def compare_cross_model_v2(value: Any, corpus_value: Any, *, artifacts: dict[str
                 parsed = parse_bounded_json(raw, "response")
             except EvaluationError:
                 status = "MALFORMED_JSON"
-        verification[artifact_id] = {"artifact_id": artifact_id, "role": role, "kind": kind, "status": status, "declared_sha256": digest, "observed_sha256": observed, "parsed": parsed}
+        verification[artifact_id] = {
+            "artifact_id": artifact_id,
+            "role": role,
+            "kind": kind,
+            "status": status,
+            "declared_sha256": digest,
+            "observed_sha256": observed,
+            "parsed": parsed,
+        }
     relation_counts: dict[str, Counter[str]] = {pair: Counter({r: 0 for r in RELATIONS}) for pair in PAIRS}
     assertion_status_counts: Counter[str] = Counter()
     verified_assertion_count = 0
@@ -356,19 +415,48 @@ def compare_cross_model_v2(value: Any, corpus_value: Any, *, artifacts: dict[str
                         }
                         if not isinstance(target, dict):
                             result = "TARGET_NOT_OBJECT"
-                        elif any(key not in target or target[key] != expected_relation[key] for key in expected_relation):
+                        elif any(
+                            key not in target or target[key] != expected_relation[key] for key in expected_relation
+                        ):
                             result = "RESPONSE_MISMATCH"
                         else:
                             result = "VERIFIED_STRUCTURED_RELATION"
                             verified_assertion_count += 1
                 assertion_status_counts[result] += 1
-                rows.append({"assertion_id": assertion["assertion_id"], "pair": assertion["pair"], "relation": assertion["relation"], "reporter_role": assertion["reporter_role"], "reporter_run_id": assertion["reporter_run_id"], "reporter_call_id": assertion["reporter_call_id"], "response_artifact_id": assertion["response_artifact_id"], "status": result, "relation_emitted": result == "VERIFIED_STRUCTURED_RELATION"})
-        case_rows.append({"case_id": case["case_id"], "assertions": rows, "assertion_denominator": len(rows), "zero_assertions": len(rows) == 0})
+                rows.append(
+                    {
+                        "assertion_id": assertion["assertion_id"],
+                        "pair": assertion["pair"],
+                        "relation": assertion["relation"],
+                        "reporter_role": assertion["reporter_role"],
+                        "reporter_run_id": assertion["reporter_run_id"],
+                        "reporter_call_id": assertion["reporter_call_id"],
+                        "response_artifact_id": assertion["response_artifact_id"],
+                        "status": result,
+                        "relation_emitted": result == "VERIFIED_STRUCTURED_RELATION",
+                    }
+                )
+        case_rows.append(
+            {
+                "case_id": case["case_id"],
+                "assertions": rows,
+                "assertion_denominator": len(rows),
+                "zero_assertions": len(rows) == 0,
+            }
+        )
     role_counts = {}
     for role in ROLES:
         statuses = Counter(run["status"] for case in comparison["cases"] for run in case["runs"] if run["role"] == role)
         role_runs = [run for case in comparison["cases"] for run in case["runs"] if run["role"] == role]
-        role_counts[role] = {"denominator": len(comparison["cases"]), "status_counts": {status: statuses[status] for status in RUN_STATUSES}, "zero_call_runs": sum(not run["calls"] for run in role_runs), "call_denominator": sum(len(run["calls"]) for run in role_runs), "calls_without_response": sum(call["response_artifact_id"] is None for run in role_runs for call in run["calls"])}
+        role_counts[role] = {
+            "denominator": len(comparison["cases"]),
+            "status_counts": {status: statuses[status] for status in RUN_STATUSES},
+            "zero_call_runs": sum(not run["calls"] for run in role_runs),
+            "call_denominator": sum(len(run["calls"]) for run in role_runs),
+            "calls_without_response": sum(
+                call["response_artifact_id"] is None for run in role_runs for call in run["calls"]
+            ),
+        }
     report = {
         "contract_version": CONTRACT_VERSION,
         "comparison_id": comparison["comparison_id"],
@@ -382,15 +470,70 @@ def compare_cross_model_v2(value: Any, corpus_value: Any, *, artifacts: dict[str
         "role_record_counts": {
             role: {
                 "case_denominator": len(comparison["cases"]),
-                "cases_with_records": sum(any(record["role"] == role for record in case["records"]) for case in comparison["cases"]),
-                "cases_with_zero_records": sum(not any(record["role"] == role for record in case["records"]) for case in comparison["cases"]),
-                "record_denominator": sum(record["role"] == role for case in comparison["cases"] for record in case["records"]),
+                "cases_with_records": sum(
+                    any(record["role"] == role for record in case["records"]) for case in comparison["cases"]
+                ),
+                "cases_with_zero_records": sum(
+                    not any(record["role"] == role for record in case["records"]) for case in comparison["cases"]
+                ),
+                "record_denominator": sum(
+                    record["role"] == role for case in comparison["cases"] for record in case["records"]
+                ),
             }
             for role in ROLES
         },
-        "relation_counts": {pair: {"denominator": sum(counts.values()), "status_counts": dict(counts)} for pair, counts in relation_counts.items()},
-        "assertion_verification": {"denominator": sum(assertion_status_counts.values()), "status_counts": {key: assertion_status_counts[key] for key in ("VERIFIED_STRUCTURED_RELATION", "NOT_PROVIDED", "UNREADABLE", "SYMLINK", "NOT_REGULAR", "TOO_LARGE", "CHECK_LIMIT", "PATH_TRAVERSAL", "HASH_MISMATCH", "MALFORMED_JSON", "POINTER_MISSING", "TARGET_NOT_OBJECT", "RESPONSE_MISMATCH")}, "verified_structured_relation_count": verified_assertion_count},
-        "artifact_verification": {"scope": "bounded supplied local bytes", "denominator": len(verification), "status_counts": {status: sum(row["status"] == status for row in verification.values()) for status in ("VERIFIED", "HASH_MISMATCH", "NOT_PROVIDED", "UNREADABLE", "SYMLINK", "NOT_REGULAR", "TOO_LARGE", "CHECK_LIMIT", "MALFORMED_JSON", "PATH_TRAVERSAL")}, "artifacts": [{key: row[key] for key in ("artifact_id", "role", "kind", "status", "declared_sha256", "observed_sha256")} for row in verification.values()]},
+        "relation_counts": {
+            pair: {"denominator": sum(counts.values()), "status_counts": dict(counts)}
+            for pair, counts in relation_counts.items()
+        },
+        "assertion_verification": {
+            "denominator": sum(assertion_status_counts.values()),
+            "status_counts": {
+                key: assertion_status_counts[key]
+                for key in (
+                    "VERIFIED_STRUCTURED_RELATION",
+                    "NOT_PROVIDED",
+                    "UNREADABLE",
+                    "SYMLINK",
+                    "NOT_REGULAR",
+                    "TOO_LARGE",
+                    "CHECK_LIMIT",
+                    "PATH_TRAVERSAL",
+                    "HASH_MISMATCH",
+                    "MALFORMED_JSON",
+                    "POINTER_MISSING",
+                    "TARGET_NOT_OBJECT",
+                    "RESPONSE_MISMATCH",
+                )
+            },
+            "verified_structured_relation_count": verified_assertion_count,
+        },
+        "artifact_verification": {
+            "scope": "bounded supplied local bytes",
+            "denominator": len(verification),
+            "status_counts": {
+                status: sum(row["status"] == status for row in verification.values())
+                for status in (
+                    "VERIFIED",
+                    "HASH_MISMATCH",
+                    "NOT_PROVIDED",
+                    "UNREADABLE",
+                    "SYMLINK",
+                    "NOT_REGULAR",
+                    "TOO_LARGE",
+                    "CHECK_LIMIT",
+                    "MALFORMED_JSON",
+                    "PATH_TRAVERSAL",
+                )
+            },
+            "artifacts": [
+                {
+                    key: row[key]
+                    for key in ("artifact_id", "role", "kind", "status", "declared_sha256", "observed_sha256")
+                }
+                for row in verification.values()
+            ],
+        },
         "cases": case_rows,
     }
     encoded = _canonical(report)

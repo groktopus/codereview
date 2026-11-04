@@ -242,17 +242,22 @@ def test_slopsearx_dependency_portal_check_uses_trusted_exact_head_binding():
     def outcome(*, head_sha=HEAD, app_id=15368, runs=True):
         rows = []
         if runs:
-            rows.append({
-                "id": 901,
-                "name": "portal-contract",
-                "status": "completed",
-                "conclusion": "success",
-                "head_sha": head_sha,
-                "app_id": app_id,
-                "completed_at": "2026-09-30T19:00:00Z",
-            })
+            rows.append(
+                {
+                    "id": 901,
+                    "name": "portal-contract",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "head_sha": head_sha,
+                    "app_id": app_id,
+                    "completed_at": "2026-09-30T19:00:00Z",
+                }
+            )
         document = make_check_runs_document(
-            request["repository"], request["pull_request_number"], request["head_sha"], rows,
+            request["repository"],
+            request["pull_request_number"],
+            request["head_sha"],
+            rows,
             captured_at="2026-09-30T19:01:00Z",
         )
         return ingest_check_runs(document, request, ingest_binding)["results"][binding["id"]]["outcome"]
@@ -436,15 +441,11 @@ def test_local_checks_do_not_consume_provider_call_cap(tmp_path):
     assert result["budget"]["local_check_reservations"] == 2
     assert result["budget"]["local_check_input_bytes_reserved"] < 8_192 * 2
     check_results = [
-        result["task_results"][task["task_id"]]
-        for task in plan["tasks"]
-        if task["task_kind"] == "DETERMINISTIC_CHECK"
+        result["task_results"][task["task_id"]] for task in plan["tasks"] if task["task_kind"] == "DETERMINISTIC_CHECK"
     ]
     assert len(check_results) == 2
     assert all(item["status"] == "SUCCEEDED" for item in check_results)
-    specialist_task_ids = {
-        task["task_id"] for task in plan["tasks"] if task["task_kind"] == "SPECIALIST_FINDINGS"
-    }
+    specialist_task_ids = {task["task_id"] for task in plan["tasks"] if task["task_kind"] == "SPECIALIST_FINDINGS"}
     specialist_results = [
         item
         for item in result["task_results"].values()

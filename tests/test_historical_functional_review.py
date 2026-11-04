@@ -104,13 +104,7 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
                         "admitted": True,
                         "context_omissions": [],
                         "evidence_bindings": (
-                            [
-                                {
-                                    key: value
-                                    for key, value in projection.items()
-                                    if key != "included_primary_task_ids"
-                                }
-                            ]
+                            [{key: value for key, value in projection.items() if key != "included_primary_task_ids"}]
                             if row["task_id"] in projection["included_primary_task_ids"]
                             else []
                         ),
@@ -132,9 +126,7 @@ def test_actual_prepare_main_uses_only_prepare_boundary_and_no_live_config(
             result["scope"] = scope
             result["capacity"] = {
                 "exact_primary_call_demand": len(result["primary_requests"]),
-                "exact_primary_serialized_input_bytes": sum(
-                    row["input_bytes"] for row in result["primary_requests"]
-                ),
+                "exact_primary_serialized_input_bytes": sum(row["input_bytes"] for row in result["primary_requests"]),
             }
             return result
         return {
@@ -253,7 +245,6 @@ def test_v3_prepare_observation_descriptors_match_committed_packet() -> None:
 def test_v4_prepare_observation_descriptors_match_committed_packet() -> None:
     packet = json.loads(review.V4_MANIFEST.read_text(encoding="utf-8"))
     assert review.V4_PREPARE_OBSERVATION == packet["prepare_observation"]
-
 
 
 def test_v5_prepare_observation_descriptors_match_committed_packet() -> None:
@@ -383,8 +374,7 @@ def _v6_prepare_fixture():
         )
     scope["admitted_obligation_ids"].extend(f"check:fixture-{index}" for index in range(11))
     scope["coverage_obligations"] = [
-        {"obligation_id": obligation_id}
-        for obligation_id in scope["admitted_obligation_ids"]
+        {"obligation_id": obligation_id} for obligation_id in scope["admitted_obligation_ids"]
     ]
     scope["planned_task_scopes"] = planned_scopes
     result = {
@@ -429,8 +419,7 @@ def test_v6_live_prepare_binds_exact_body_hash_and_complete_scope(monkeypatch, m
         "V6_PREPARE_OBSERVATION",
         {
             "primary_requests": [
-                {key: row[key] for key in ("task_id", "lens", "input_bytes", "input_sha256")}
-                for row in rows
+                {key: row[key] for key in ("task_id", "lens", "input_bytes", "input_sha256")} for row in rows
             ],
             "scope": scope,
         },
@@ -441,6 +430,7 @@ def test_v6_live_prepare_binds_exact_body_hash_and_complete_scope(monkeypatch, m
         result["scope"] = {**scope, "admitted_obligations": 0}
     with pytest.raises(review.SafeFailure, match="case_prepare_observation_mismatch"):
         review._validate_prepare(result, "pr466-v6", reference_observation=False)
+
 
 def test_prepare_rejects_missing_execution_invariants() -> None:
     with pytest.raises(review.SafeFailure, match="prepare_invariant_failed"):
@@ -580,7 +570,6 @@ def test_v4_live_prepare_allows_provider_specific_sizes_without_changing_scope()
     review._validate_prepare(result, "pr466-v4", reference_observation=False)
 
 
-
 def _valid_v5_prepare_result() -> dict:
     requests = []
     for row in review.V5_PREPARE_OBSERVATION["primary_requests"]:
@@ -637,6 +626,7 @@ def test_v5_live_prepare_allows_provider_specific_sizes_without_changing_scope()
     with pytest.raises(review.SafeFailure, match="case_prepare_observation_mismatch"):
         review._validate_prepare(result, "pr466-v5")
     review._validate_prepare(result, "pr466-v5", reference_observation=False)
+
 
 def test_custom_manifest_directory_cannot_replace_registered_case(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setattr(review, "_configs", lambda *args, **kwargs: pytest.fail("config reached before case binding"))

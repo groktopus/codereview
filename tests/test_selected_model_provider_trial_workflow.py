@@ -71,7 +71,10 @@ def test_workflow_is_manual_main_only_read_only_and_bounded():
     assert "checks: write" not in source
     assert "pull-requests: write" not in source
     assert "actions: write" not in source
-    assert "if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'" in source
+    assert (
+        "if: github.event_name == 'workflow_dispatch' && github.repository == 'groktopus/codereview' && github.ref == 'refs/heads/main'"
+        in source
+    )
     assert "group: selected-model-provider-trial" in source
     assert "cancel-in-progress: false" in source
     assert "timeout-minutes: 20" in source
@@ -92,7 +95,9 @@ def test_trusted_runner_is_checked_out_and_verified_at_the_same_full_sha():
     assert f"EXPECTED_RUNNER_SHA: {PIN}" in verify
     assert '["git", "-C", source, "rev-parse", "HEAD"]' in verify
     assert "result.stdout.strip() != expected" in verify
-    assert source.index("Verify the exact trusted source revision") < source.index("Build the wheel from the verified trusted source")
+    assert source.index("Verify the exact trusted source revision") < source.index(
+        "Build the wheel from the verified trusted source"
+    )
     assert source.index("Build the wheel from the verified trusted source") < source.index("Install the verified wheel")
     assert source.index("Install the verified wheel") < source.index("Run the fixed provider trial")
     assert source.index("Install the verified wheel") < source.index("Preflight the bounded effect observer")
@@ -108,7 +113,7 @@ def test_trusted_runner_is_checked_out_and_verified_at_the_same_full_sha():
     compile(_python_block(preflight), "<effect-observer-preflight>", "exec")
     assert "pip wheel --no-deps" in build
     assert '"pip", "install", "--no-deps"' in install
-    assert "--cli-executable \"$(command -v pr-review)\"" in trial
+    assert '--cli-executable "$(command -v pr-review)"' in trial
     assert "--observe-effects" in trial
 
 
@@ -198,14 +203,14 @@ def test_only_one_bounded_step_receives_six_secrets_and_runs_helper_then_fixed_t
     assert source.count("secrets.") == len(SECRET_NAMES)
     assert "GITHUB_TOKEN" not in source
     assert "github.token" not in source
-    assert "private_config_dir=\"$RUNNER_TEMP/selected-model-provider-config\"" in trial
-    assert "--output-dir \"$private_config_dir\" --json >/dev/null" in trial
+    assert 'private_config_dir="$RUNNER_TEMP/selected-model-provider-config"' in trial
+    assert '--output-dir "$private_config_dir" --json >/dev/null' in trial
     assert "scripts/provider_config_from_env.py" in trial
     assert "--run-provider-trial" in trial
     assert "scripts/run_selected_model_trial.py" in trial
-    assert "--output \"$trial_output_dir\"" in trial
-    assert "--provider-config \"$private_config_dir/provider.json\"" in trial
-    assert "--decision-config \"$private_config_dir/decision.json\"" in trial
+    assert '--output "$trial_output_dir"' in trial
+    assert '--provider-config "$private_config_dir/provider.json"' in trial
+    assert '--decision-config "$private_config_dir/decision.json"' in trial
     assert trial.index("scripts/provider_config_from_env.py") < trial.index("scripts/run_selected_model_trial.py")
     for selector in ("--model", "--case", "--max-provider-calls", "--max-retries", "--timeout-seconds"):
         assert selector not in trial
@@ -222,7 +227,9 @@ def test_always_cleanup_is_confined_to_the_private_config_files():
     assert "path.unlink()" in cleanup
     assert "config_dir.rmdir()" in cleanup
     assert "rmtree" not in cleanup and "rm -rf" not in cleanup
-    assert source.index("Remove only the private configs") < source.index("Upload only the sanitized summary and manifest")
+    assert source.index("Remove only the private configs") < source.index(
+        "Upload only the sanitized summary and manifest"
+    )
 
 
 def test_cleanup_script_removes_created_configs_without_touching_neighbor_paths(tmp_path):
@@ -237,7 +244,9 @@ def test_cleanup_script_removes_created_configs_without_touching_neighbor_paths(
     neighbor.mkdir()
     sentinel = neighbor / "keep.txt"
     sentinel.write_text("keep", encoding="utf-8")
-    result = subprocess.run([sys.executable, "-c", script], env={"RUNNER_TEMP": str(tmp_path)}, capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", script], env={"RUNNER_TEMP": str(tmp_path)}, capture_output=True, text=True
+    )
     assert result.returncode == 0
     assert not private_dir.exists()
     assert sentinel.read_text(encoding="utf-8") == "keep"
@@ -275,7 +284,14 @@ def test_action_pins_are_full_sha_and_prepare_only_workflow_remains_secretless()
 def test_workflow_does_not_fetch_pr_data_execute_target_code_or_publish_reviews():
     source = _source()
     for forbidden in (
-        "SlopSearX", "pull_request_number", "gh api", "git clone", "target_repository",
-        "pr-analysis.yml", "pr-publish.yml", "PUBLISH_REVIEW", "secrets: inherit",
+        "SlopSearX",
+        "pull_request_number",
+        "gh api",
+        "git clone",
+        "target_repository",
+        "pr-analysis.yml",
+        "pr-publish.yml",
+        "PUBLISH_REVIEW",
+        "secrets: inherit",
     ):
         assert forbidden not in source

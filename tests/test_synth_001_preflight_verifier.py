@@ -29,6 +29,8 @@ CURRENT_PYTHON_IDENTITY = {
     "implementation": sys.implementation.name,
     "version": sys.version.split()[0],
 }
+
+
 def _setup(tmp_path: Path) -> tuple[Path, Path]:
     repo = tmp_path / "repo"
     receipt = materialize(FIXTURE, repo)
@@ -47,15 +49,23 @@ def _verify(
 ) -> dict:
     document = json.loads(prepared.read_text())
     snapshot = collect_snapshot(
-        str(repo), "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
-        "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0", json.loads(profile.read_text()),
+        str(repo),
+        "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1",
+        "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0",
+        json.loads(profile.read_text()),
         _read_limits(SimpleNamespace(limits=str(LIMITS))),
     )
     document["snapshot"]["snapshot_hash"] = snapshot["snapshot_hash"]
     adjusted = receipt.parent / "prepared-at-current-path.json"
     adjusted.write_text(json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n")
     return verify(
-        receipt, adjusted, repo, FIXTURE, profile, LIMITS, PROVIDER,
+        receipt,
+        adjusted,
+        repo,
+        FIXTURE,
+        profile,
+        LIMITS,
+        PROVIDER,
         # `source_root` is the historical implementation pin under test. The
         # verifier still checks its fixed CPython 3.14.7 runtime identity.
         build_frozen_runtime_root(receipt.parent) if source_root is None else source_root,
@@ -134,19 +144,41 @@ def test_current_cli_output_is_stable_but_rejected_by_historical_prepare_pin(tmp
         # explicit historical SHAs, and prepare-only intentionally rejects any
         # GitHub event input, so remove it from the isolated local CLI process.
         for name in (
-            "LLM_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_EVENT_PATH",
+            "LLM_API_KEY",
+            "OPENAI_API_KEY",
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+            "GITHUB_EVENT_PATH",
         ):
             env.pop(name, None)
         completed = subprocess.run(
             [
-                sys.executable, "-m", "pr_review_harness", "review",
-                "--repo", str(repo), "--base", materialization["base_sha"],
-                "--head", materialization["head_sha"], "--profile", str(PROFILE),
-                "--provider-config", str(PROVIDER), "--limits", str(LIMITS),
-                "--prepare-only", "--json",
+                sys.executable,
+                "-m",
+                "pr_review_harness",
+                "review",
+                "--repo",
+                str(repo),
+                "--base",
+                materialization["base_sha"],
+                "--head",
+                materialization["head_sha"],
+                "--profile",
+                str(PROFILE),
+                "--provider-config",
+                str(PROVIDER),
+                "--limits",
+                str(LIMITS),
+                "--prepare-only",
+                "--json",
             ],
-            cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False,
+            cwd=ROOT,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
         )
         assert completed.returncode == 0, completed.stderr.decode("utf-8", errors="replace")[:500]
         assert len(completed.stdout) <= 32_000
@@ -161,8 +193,15 @@ def test_current_cli_output_is_stable_but_rejected_by_historical_prepare_pin(tmp
         outputs.append(output)
         with pytest.raises(VerifyError, match="prepared_capacity_mismatch"):
             verify(
-                receipt, prepared_path, repo, FIXTURE, PROFILE, LIMITS, PROVIDER,
-                historical_runtime, expected_python_identity=CURRENT_PYTHON_IDENTITY,
+                receipt,
+                prepared_path,
+                repo,
+                FIXTURE,
+                PROFILE,
+                LIMITS,
+                PROVIDER,
+                historical_runtime,
+                expected_python_identity=CURRENT_PYTHON_IDENTITY,
             )
     assert request_hashes[0] == request_hashes[1]
     assert request_hashes[0] != "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
@@ -187,6 +226,13 @@ def test_verifier_rejects_forged_path_bound_snapshot_hash(tmp_path: Path):
     forged.write_text(json.dumps(prepared, sort_keys=True, separators=(",", ":")) + "\n")
     with pytest.raises(VerifyError, match="snapshot_identity_mismatch"):
         verify(
-            receipt, forged, repo, FIXTURE, PROFILE, LIMITS, PROVIDER,
-            build_frozen_runtime_root(tmp_path), expected_python_identity=CURRENT_PYTHON_IDENTITY,
+            receipt,
+            forged,
+            repo,
+            FIXTURE,
+            PROFILE,
+            LIMITS,
+            PROVIDER,
+            build_frozen_runtime_root(tmp_path),
+            expected_python_identity=CURRENT_PYTHON_IDENTITY,
         )

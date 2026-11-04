@@ -330,9 +330,7 @@ def _summarize_arm(
     completed_runs = statuses.get("completed", 0)
     status = _arm_status(present_runs, expected_cases, completed_runs)
     missing_case_ids = list(metric.get("_missing_case_ids", []))
-    complete_by_kind = {
-        kind: len(set(expected_case_ids) & complete_cases[kind]) for kind in LABEL_ARMS
-    }
+    complete_by_kind = {kind: len(set(expected_case_ids) & complete_cases[kind]) for kind in LABEL_ARMS}
     candidate_findings: int | None = None if status == "missing" else int(metric["candidate_findings"])
     label_arms = {
         kind: _label_arm_rates(
@@ -379,9 +377,7 @@ def _summarize_arm(
     }
 
 
-def _kind_label_state(
-    packets: list[dict[str, Any]], kind: str, corpus_case_ids: set[str]
-) -> dict[str, Any]:
+def _kind_label_state(packets: list[dict[str, Any]], kind: str, corpus_case_ids: set[str]) -> dict[str, Any]:
     kind_packets = [packet for packet in packets if packet["reviewer"]["reviewer_kind"] == kind]
     independent = [packet for packet in kind_packets if packet["label_role"] == "independent"]
     adjudicated = [packet for packet in kind_packets if packet["label_role"] == "adjudicated"]
@@ -489,25 +485,19 @@ def build_scorecard(
     case_by_id = {case["identity"]["case_id"]: case for case in corpus["cases"]}
     run_by_key = {(run["case_id"], run["arm"]): run for run in predictions["runs"]}
     label_state = _label_state(labels, set(case_by_id))
-    complete_cases = {
-        kind: set(label_state["arms"][kind]["complete_case_ids"]) for kind in LABEL_ARMS
-    }
+    complete_cases = {kind: set(label_state["arms"][kind]["complete_case_ids"]) for kind in LABEL_ARMS}
     metrics = report["metrics"]
     splits: dict[str, Any] = {}
     arms: dict[str, Any] = {}
     for split in sorted({case["identity"]["split"] for case in corpus["cases"]}):
-        split_case_ids = [
-            case["identity"]["case_id"] for case in corpus["cases"] if case["identity"]["split"] == split
-        ]
+        split_case_ids = [case["identity"]["case_id"] for case in corpus["cases"] if case["identity"]["split"] == split]
         split_arms: dict[str, Any] = {}
         for arm in corpus["expected_arms"]:
             key = f"{split}/{arm}"
             if key not in metrics:
                 continue
             metric = dict(metrics[key])
-            metric["_missing_case_ids"] = [
-                case_id for case_id in split_case_ids if (case_id, arm) not in run_by_key
-            ]
+            metric["_missing_case_ids"] = [case_id for case_id in split_case_ids if (case_id, arm) not in run_by_key]
             split_arms[arm] = _summarize_arm(split_case_ids, arm, metric, complete_cases)
         splits[split] = {"expected_cases": len(split_case_ids), "arms": split_arms}
 
@@ -554,9 +544,7 @@ def build_scorecard(
     present_runs = sum(arm["present_runs"] for arm in arms.values())
     completed_runs = sum(arm["completed_runs"] for arm in arms.values())
     missing_arm_cases = sum(arm["missing_cases"] for arm in arms.values())
-    complete_adjudicated_packets = sum(
-        label_state["arms"][kind]["complete_adjudicated_packets"] for kind in LABEL_ARMS
-    )
+    complete_adjudicated_packets = sum(label_state["arms"][kind]["complete_adjudicated_packets"] for kind in LABEL_ARMS)
     reasons: list[str] = []
     if complete_adjudicated_packets == 0:
         reasons.append("no_complete_adjudicated_human_or_synthetic_label_packets")
@@ -648,9 +636,7 @@ def build_scorecard(
             "reasons": reasons,
             "arms": top_level_missing_arms,
             "complete_adjudicated_human_packets": label_state["arms"]["human"]["complete_adjudicated_packets"],
-            "complete_adjudicated_synthetic_packets": label_state["arms"]["synthetic"][
-                "complete_adjudicated_packets"
-            ],
+            "complete_adjudicated_synthetic_packets": label_state["arms"]["synthetic"]["complete_adjudicated_packets"],
             "present_runs": present_runs,
             "missing_case_arm_runs": missing_arm_cases,
         },
@@ -734,9 +720,7 @@ def _compare_label_arm(
         else:
             current_denominator = baseline_denominator = None
         if current_value is None or baseline_value is None:
-            checks.append(
-                _check(f"{check_id}:{arm}:{kind}", "NOT_EVALUATED", reason="missing_metric_or_denominator")
-            )
+            checks.append(_check(f"{check_id}:{arm}:{kind}", "NOT_EVALUATED", reason="missing_metric_or_denominator"))
             continue
         if direction == "higher":
             regressed = float(current_value) + 1e-9 < float(baseline_value)

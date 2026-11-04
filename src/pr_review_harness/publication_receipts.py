@@ -336,8 +336,16 @@ class NoEffectReceipt:
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
             raise ReceiptContractError("no-effect receipt JSON is invalid") from None
         keys = {
-            "schema_version", "state", "post_started", "policy_hash", "publisher_run",
-            "pull_request_number", "base_sha", "head_sha", "upstream_run_id", "upstream_run_attempt",
+            "schema_version",
+            "state",
+            "post_started",
+            "policy_hash",
+            "publisher_run",
+            "pull_request_number",
+            "base_sha",
+            "head_sha",
+            "upstream_run_id",
+            "upstream_run_attempt",
         }
         if not isinstance(data, dict) or set(data) != keys:
             raise ReceiptContractError("no-effect receipt fields are invalid")

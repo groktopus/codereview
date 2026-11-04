@@ -47,19 +47,21 @@ def _prepared(plan: dict) -> dict:
     remaining_slots = 10 - request_count
     requests = []
     for row in plan["writer_requests"]:
-        requests.append({
-            **row,
-            "admitted": True,
-            "context_omissions": [],
-            "evidence_bindings": [],
-            "evidence_ids": [],
-            "obligation_ids": [],
-            "request_input_contract": "specialist-input-v2",
-            "required_context_ids": [],
-            "required_context_omissions": [],
-            "unit_evidence_bindings": [],
-            "unit_ids": [],
-        })
+        requests.append(
+            {
+                **row,
+                "admitted": True,
+                "context_omissions": [],
+                "evidence_bindings": [],
+                "evidence_ids": [],
+                "obligation_ids": [],
+                "request_input_contract": "specialist-input-v2",
+                "required_context_ids": [],
+                "required_context_omissions": [],
+                "unit_evidence_bindings": [],
+                "unit_ids": [],
+            }
+        )
     return {
         "capacity": {
             "configured_max_provider_calls": 10,
@@ -143,9 +145,7 @@ def test_case_plan_cannot_be_cross_bound_or_extended(frozen_preflight_root: Path
 
 
 @pytest.mark.parametrize("mutation", ["snapshot", "missing_request", "request_hash", "extra_request"])
-def test_changed_snapshot_or_writer_dispatch_set_fails_closed(
-    mutation: str, frozen_preflight_root: Path
-):
+def test_changed_snapshot_or_writer_dispatch_set_fails_closed(mutation: str, frozen_preflight_root: Path):
     plan, raw = _plan()
     prepared = _prepared(plan)
     if mutation == "snapshot":

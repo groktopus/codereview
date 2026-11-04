@@ -99,9 +99,7 @@ def test_binding_without_check_name_or_app_is_unknown_without_evidence():
     result = ingest_check_runs(document([run()]), REQUEST, [{"id": "unit-tests"}])
     assert result["results"]["unit-tests"] == {"outcome": "UNKNOWN", "reason": "github_check_name_not_configured"}
     assert result["evidence"] == {}
-    result = ingest_check_runs(
-        document([run()]), REQUEST, [{"id": "unit-tests", "github_check_name": "unit-tests"}]
-    )
+    result = ingest_check_runs(document([run()]), REQUEST, [{"id": "unit-tests", "github_check_name": "unit-tests"}])
     assert result["results"]["unit-tests"]["reason"] == "app_identity_not_configured"
     assert result["evidence"] == {}
 

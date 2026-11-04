@@ -320,9 +320,7 @@ class ReviewResult(TypedDict, total=False):
 
 
 class PlannerBoundary(Protocol):
-    def __call__(
-        self, snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "AUTO"
-    ) -> PlanRecord: ...
+    def __call__(self, snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "AUTO") -> PlanRecord: ...
 
 
 class StageBoundary(Protocol):
@@ -351,7 +349,6 @@ class ReconcileBoundary(Protocol):
 
 class ReportBoundary(Protocol):
     def __call__(self, result: ReviewResult, /) -> str: ...
-
 
 
 class RunState:

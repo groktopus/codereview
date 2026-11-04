@@ -58,12 +58,15 @@ def test_source_call_classification_requires_unambiguous_evidence():
     assert SOURCE.classify_source_call({"source_auditor": {"calls": [{}, {}]}}) == "unknown"
 
 
-@pytest.mark.parametrize("receipt", [
-    {"schema": "source-dispatch-accounting.v1", "case_id": "PR-464", "source_http_attempts": "1", "raw": "secret"},
-    {"schema": "source-dispatch-accounting.v1", "case_id": "PR-464", "source_http_attempts": 1},
-    {"schema": "source-dispatch-accounting.v1", "case_id": "PR-457", "source_http_attempts": "0"},
-    {"schema": "source-dispatch-accounting.v1", "case_id": "PR-464", "source_http_attempts": "2"},
-])
+@pytest.mark.parametrize(
+    "receipt",
+    [
+        {"schema": "source-dispatch-accounting.v1", "case_id": "PR-464", "source_http_attempts": "1", "raw": "secret"},
+        {"schema": "source-dispatch-accounting.v1", "case_id": "PR-464", "source_http_attempts": 1},
+        {"schema": "source-dispatch-accounting.v1", "case_id": "PR-457", "source_http_attempts": "0"},
+        {"schema": "source-dispatch-accounting.v1", "case_id": "PR-464", "source_http_attempts": "2"},
+    ],
+)
 def test_sanitizer_rejects_invalid_or_sensitive_receipt_fields(receipt):
     with pytest.raises(SANITIZER.ReceiptError):
         SANITIZER.validate(receipt)

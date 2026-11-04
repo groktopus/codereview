@@ -21,9 +21,7 @@ from typing import Any
 FIXTURE_ID = "SYNTH-001"
 SEED = 457001
 EXPECTED_VISIBLE = ["contract.md", "caller.py", "base/auth.py", "head/auth.py"]
-EXPECTED_FILES = {
-    "seed.json", "truth.json", "contract.md", "caller.py", "base/auth.py", "head/auth.py"
-}
+EXPECTED_FILES = {"seed.json", "truth.json", "contract.md", "caller.py", "base/auth.py", "head/auth.py"}
 PINNED_TRUTH_SHA256 = "3453536603c7fb9d4c8f0dd24f36481cb5d51b1c6fbdb10b9a88bfe566bd9b5d"
 PINNED_HASHES = {
     "seed.json": "604bf9fa0ebd44002a6950e657c935ef122f3a755a7a4478dc83765d1084d743",
@@ -50,8 +48,12 @@ def _read_regular(root: Path, relative: str) -> bytes:
         fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
-                    or opened.st_ino != before.st_ino or opened.st_size > MAX_FILE_BYTES):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size > MAX_FILE_BYTES
+            ):
                 raise MaterializeError("fixture_file_invalid")
             data = bytearray()
             while len(data) <= MAX_FILE_BYTES:
@@ -119,12 +121,17 @@ def _validated_fixture(root: Path) -> tuple[dict[str, bytes], str]:
         if hashlib.sha256(files[name]).hexdigest() != expected:
             raise MaterializeError("fixture_hash_mismatch")
     seed = _json(files["seed.json"])
-    if seed != {"schema": "seeded-writer-fixture.v1", "fixture_id": FIXTURE_ID,
-                "seed": SEED, "visible_files": EXPECTED_VISIBLE}:
+    if seed != {
+        "schema": "seeded-writer-fixture.v1",
+        "fixture_id": FIXTURE_ID,
+        "seed": SEED,
+        "visible_files": EXPECTED_VISIBLE,
+    }:
         raise MaterializeError("seed_allowlist_invalid")
     payload_files = {name: files[name].decode("utf-8") for name in EXPECTED_VISIBLE}
-    payload = json.dumps({"fixture_id": FIXTURE_ID, "seed": SEED, "files": payload_files},
-                         sort_keys=True, separators=(",", ":")).encode("utf-8")
+    payload = json.dumps(
+        {"fixture_id": FIXTURE_ID, "seed": SEED, "files": payload_files}, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     payload_sha = hashlib.sha256(payload).hexdigest()
     if payload_sha != PINNED_PAYLOAD_SHA256:
         raise MaterializeError("payload_identity_mismatch")
@@ -134,8 +141,14 @@ def _validated_fixture(root: Path) -> tuple[dict[str, bytes], str]:
 def _git(repo: Path, *args: str, env: dict[str, str]) -> str:
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo), *args], check=True, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, timeout=15,
+            ["git", "-C", str(repo), *args],
+            check=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            timeout=15,
         )
     except (OSError, subprocess.SubprocessError):
         raise MaterializeError("git_materialization_failed") from None
@@ -175,8 +188,18 @@ def materialize(fixture_dir: Path, target_dir: Path) -> dict[str, str]:
         (target_dir / name).write_bytes(files[name])
     (target_dir / "auth.py").write_bytes(files["base/auth.py"])
     _git(target_dir, "add", "--", "contract.md", "caller.py", "auth.py", env=env)
-    _git(target_dir, "-c", f"core.hooksPath={os.devnull}", "-c", "commit.gpgSign=false",
-         "commit", "--quiet", "-m", "synthetic base", env=env)
+    _git(
+        target_dir,
+        "-c",
+        f"core.hooksPath={os.devnull}",
+        "-c",
+        "commit.gpgSign=false",
+        "commit",
+        "--quiet",
+        "-m",
+        "synthetic base",
+        env=env,
+    )
     base_sha = _git(target_dir, "rev-parse", "HEAD", env=env)
     if not SAFE_SHA.fullmatch(base_sha):
         raise MaterializeError("git_materialization_failed")
@@ -184,8 +207,18 @@ def materialize(fixture_dir: Path, target_dir: Path) -> dict[str, str]:
     env["GIT_COMMITTER_DATE"] = "2026-01-01T00:00:01+00:00"
     (target_dir / "auth.py").write_bytes(files["head/auth.py"])
     _git(target_dir, "add", "--", "auth.py", env=env)
-    _git(target_dir, "-c", f"core.hooksPath={os.devnull}", "-c", "commit.gpgSign=false",
-         "commit", "--quiet", "-m", "synthetic change", env=env)
+    _git(
+        target_dir,
+        "-c",
+        f"core.hooksPath={os.devnull}",
+        "-c",
+        "commit.gpgSign=false",
+        "commit",
+        "--quiet",
+        "-m",
+        "synthetic change",
+        env=env,
+    )
     head_sha = _git(target_dir, "rev-parse", "HEAD", env=env)
     if not SAFE_SHA.fullmatch(head_sha):
         raise MaterializeError("git_materialization_failed")
@@ -213,8 +246,12 @@ def main(argv: list[str] | None = None) -> int:
         receipt = materialize(args.fixture_dir, args.target_dir)
     except (MaterializeError, OSError) as exc:
         code = str(exc) if isinstance(exc, MaterializeError) else "materialization_failed"
-        print(json.dumps({"schema": "seeded-writer-materialization.v1", "error": code},
-                         sort_keys=True, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps(
+                {"schema": "seeded-writer-materialization.v1", "error": code}, sort_keys=True, separators=(",", ":")
+            ),
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps(receipt, sort_keys=True, separators=(",", ":")))
     return 0

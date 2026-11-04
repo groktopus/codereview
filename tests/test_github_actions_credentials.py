@@ -108,4 +108,3 @@ def test_invalid_token_is_rejected_without_rendering_secret(token):
 def test_actions_policy_cannot_grant_permissions_beyond_review_publication():
     with pytest.raises(GitHubPublicationError, match="actions_token_policy_invalid"):
         make_policy(permissions=(("actions", "read"), ("contents", "write")))
-

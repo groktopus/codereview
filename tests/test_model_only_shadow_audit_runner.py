@@ -28,7 +28,8 @@ _PROFILE_SNAPSHOT_SHA256 = hashlib.sha256(
     json.dumps(_PROFILE_OBJECT, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
 ).hexdigest()
 SANITIZER_SPEC = importlib.util.spec_from_file_location(
-    "shadow_audit_receipt_sanitizer", Path(__file__).resolve().parents[1] / "scripts/sanitize_model_only_shadow_audit_receipt.py"
+    "shadow_audit_receipt_sanitizer",
+    Path(__file__).resolve().parents[1] / "scripts/sanitize_model_only_shadow_audit_receipt.py",
 )
 SANITIZER = importlib.util.module_from_spec(SANITIZER_SPEC)
 assert SANITIZER_SPEC.loader is not None
@@ -37,8 +38,12 @@ POLICY_PATH_RESOLVER = RUNNER.case_for_plan_path
 POLICY_VALIDATOR = RUNNER.validate_plan_binding
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CASE_IDENTITY = {
-    "snapshot_id": "snap-test", "snapshot_hash": "a" * 64, "base_sha": "b" * 40,
-    "head_sha": "c" * 40, "profile_version": "profile-v1", "profile_hash": _PROFILE_SNAPSHOT_SHA256,
+    "snapshot_id": "snap-test",
+    "snapshot_hash": "a" * 64,
+    "base_sha": "b" * 40,
+    "head_sha": "c" * 40,
+    "profile_version": "profile-v1",
+    "profile_hash": _PROFILE_SNAPSHOT_SHA256,
 }
 AUDIT_ROLES = ("source_auditor", "jev", "claim_auditor")
 
@@ -60,8 +65,11 @@ def test_existing_final_receipt_blocks_before_capture_or_provider_setup(tmp_path
     monkeypatch.setattr(RUNNER, "run_shadow_audit", unexpected)
     with pytest.raises(ValueError, match="receipt_already_exists"):
         RUNNER.run(
-            tmp_path / "missing-capture", tmp_path / "missing-provider.json", None,
-            tmp_path / "private-output", receipt,
+            tmp_path / "missing-capture",
+            tmp_path / "missing-provider.json",
+            None,
+            tmp_path / "private-output",
+            receipt,
         )
     if occupied_kind == "file":
         assert receipt.read_bytes() == original
@@ -84,25 +92,36 @@ def _receipt_dispatch_fields(accounting):
     }
 
 
-def _candidate_free_receipt(*, source_status="completed", jev_status="not_run",
-                            source_state="http_attempted", jev_state=None):
+def _candidate_free_receipt(
+    *, source_status="completed", jev_status="not_run", source_state="http_attempted", jev_state=None
+):
     accounting = {}
     states = {"source_auditor": source_state, "jev": jev_state, "claim_auditor": None}
     for role, state in states.items():
-        row = {"attempted": int(state is not None), "dispatched": 0, "guard_rejected": 0,
-               "post_guard_pretransport": 0, "unknown": 0,
-               "request_sha256": hashlib.sha256(role.encode()).hexdigest() if state is not None else None}
+        row = {
+            "attempted": int(state is not None),
+            "dispatched": 0,
+            "guard_rejected": 0,
+            "post_guard_pretransport": 0,
+            "unknown": 0,
+            "request_sha256": hashlib.sha256(role.encode()).hexdigest() if state is not None else None,
+        }
         if state is not None:
             key = {
-                "http_attempted": "dispatched", "guard_rejected": "guard_rejected",
-                "post_guard_pretransport": "post_guard_pretransport", "unknown": "unknown",
+                "http_attempted": "dispatched",
+                "guard_rejected": "guard_rejected",
+                "post_guard_pretransport": "post_guard_pretransport",
+                "unknown": "unknown",
             }[state]
             row[key] = 1
         accounting[role] = row
     return {
-        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
-        "terminal_state": "incomplete", "reason": "no_writer_candidate",
-        "candidate_packet_count": 0, "selected_packet_sha256": "a" * 64,
+        "schema": "model-only-shadow-audit-receipt.v1",
+        "case_id": "PR-464",
+        "terminal_state": "incomplete",
+        "reason": "no_writer_candidate",
+        "candidate_packet_count": 0,
+        "selected_packet_sha256": "a" * 64,
         "capture_manifest_sha256": "b" * 64,
         "roles": {"source_auditor": source_status, "jev": jev_status, "claim_auditor": "not_run"},
         **_receipt_dispatch_fields(accounting),
@@ -121,30 +140,41 @@ def trusted_profile_file(tmp_path, monkeypatch):
 
 
 def _packet(case_id: str, candidate_id: str | None, task_id: str) -> dict:
-    return {"contract_version": "model-only-shadow-case.v1", "case_id": case_id,
-            "snapshot": dict(CASE_IDENTITY),
-            "source_task": {"task_id": task_id},
-            "writer_candidate": None if candidate_id is None else {"candidate_id": candidate_id}}
+    return {
+        "contract_version": "model-only-shadow-case.v1",
+        "case_id": case_id,
+        "snapshot": dict(CASE_IDENTITY),
+        "source_task": {"task_id": task_id},
+        "writer_candidate": None if candidate_id is None else {"candidate_id": candidate_id},
+    }
 
 
 def _plan(task_ids: list[str], *, budget: dict | None = None) -> dict:
-    return {"schema": "model-only-shadow-live-writer-plan.v2",
-            "budget": budget or {
-                "audit_max_deadline_seconds_per_call": 90,
-                "audit_max_input_bytes_per_call": 96000,
-                "audit_max_output_tokens_per_llm_call": 1800,
-                "audit_max_provider_calls": 3,
-                "audit_max_response_bytes_per_call": 64000,
-                "audit_max_retries": 0,
-                "total_provider_deadline_seconds_max": 870,
-                "writer_deadline_seconds": 600,
-            },
-            "case": {"case_id": "PR-464", "snapshot_id": CASE_IDENTITY["snapshot_id"],
-                     "snapshot_sha256": CASE_IDENTITY["snapshot_hash"], "base_sha": CASE_IDENTITY["base_sha"],
-                     "head_sha": CASE_IDENTITY["head_sha"], "profile_version": CASE_IDENTITY["profile_version"],
-                     "profile_file_sha256": _PROFILE_FILE_SHA256},
-            "prepare_contract": {"profile_path": RUNNER.PROFILE_RELATIVE_PATH},
-            "writer_requests": [{"task_id": task_id} for task_id in task_ids]}
+    return {
+        "schema": "model-only-shadow-live-writer-plan.v2",
+        "budget": budget
+        or {
+            "audit_max_deadline_seconds_per_call": 90,
+            "audit_max_input_bytes_per_call": 96000,
+            "audit_max_output_tokens_per_llm_call": 1800,
+            "audit_max_provider_calls": 3,
+            "audit_max_response_bytes_per_call": 64000,
+            "audit_max_retries": 0,
+            "total_provider_deadline_seconds_max": 870,
+            "writer_deadline_seconds": 600,
+        },
+        "case": {
+            "case_id": "PR-464",
+            "snapshot_id": CASE_IDENTITY["snapshot_id"],
+            "snapshot_sha256": CASE_IDENTITY["snapshot_hash"],
+            "base_sha": CASE_IDENTITY["base_sha"],
+            "head_sha": CASE_IDENTITY["head_sha"],
+            "profile_version": CASE_IDENTITY["profile_version"],
+            "profile_file_sha256": _PROFILE_FILE_SHA256,
+        },
+        "prepare_contract": {"profile_path": RUNNER.PROFILE_RELATIVE_PATH},
+        "writer_requests": [{"task_id": task_id} for task_id in task_ids],
+    }
 
 
 def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer-live-123-1") -> Path:
@@ -157,11 +187,18 @@ def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer
         raw = json.dumps(packet).encode()
         path.write_bytes(raw)
         inventory.append({"path": path.name, "sha256": hashlib.sha256(raw).hexdigest()})
-    (root / "manifest.json").write_text(json.dumps({
-        "contract_version": "model-only-shadow-case.v1", "case_id": manifest_case_id, "private_artifacts": True,
-        "snapshot_id": CASE_IDENTITY["snapshot_id"], "snapshot_hash": CASE_IDENTITY["snapshot_hash"],
-        "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": inventory},
-    }))
+    (root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "contract_version": "model-only-shadow-case.v1",
+                "case_id": manifest_case_id,
+                "private_artifacts": True,
+                "snapshot_id": CASE_IDENTITY["snapshot_id"],
+                "snapshot_hash": CASE_IDENTITY["snapshot_hash"],
+                "case_packet_inventory": {"schema": "model-only-shadow-packet-inventory.v1", "packets": inventory},
+            }
+        )
+    )
     return root
 
 
@@ -190,6 +227,7 @@ def test_current_pr457_plan_accepts_current_audit_limits():
 def test_pr457_v3_audit_limit_admits_measured_source_request_with_headroom():
     limits = RUNNER._load_limits(REPO_ROOT / "experiments/model-only-shadow-audit-limits-v3.json")
     assert limits["max_input_bytes_per_task"] == 120_000
+
     def request_of_length(length: int) -> bytes:
         prefix, suffix = b'{"max_completion_tokens":1800,"pad":"', b'"}'
         assert length > len(prefix) + len(suffix)
@@ -205,8 +243,14 @@ def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, 
     monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-457", policy))
     receipt_path = tmp_path / "receipt" / "failure.json"
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
-        RUNNER.run(tmp_path / "missing-capture", tmp_path / "provider.json", tmp_path / "jev.json",
-                   tmp_path / "raw-audit", receipt_path, tmp_path / "plan.json")
+        RUNNER.run(
+            tmp_path / "missing-capture",
+            tmp_path / "provider.json",
+            tmp_path / "jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            tmp_path / "plan.json",
+        )
     assert error.value.stage == "capture_validation"
     receipt = json.loads(receipt_path.read_text())
     assert receipt["case_id"] == "PR-457"
@@ -216,8 +260,10 @@ def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, 
 
 
 def test_packet_inventory_detects_missing_packet_from_multi_candidate_task(tmp_path):
-    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-first"),
-                                             _packet("PR-464", "candidate-b", "task-first")])
+    root = _capture(
+        tmp_path / "capture",
+        [_packet("PR-464", "candidate-a", "task-first"), _packet("PR-464", "candidate-b", "task-first")],
+    )
     (root / "case-packets" / "packet-1.json").unlink()
     with pytest.raises(ValueError, match="capture_packet_inventory_mismatch"):
         RUNNER._packet_candidates(root)
@@ -263,16 +309,24 @@ def test_tampered_packet_corpus_identity_fails_before_provider_setup_and_writes_
 
     monkeypatch.setattr(RUNNER, "OpenAIProvider", forbidden_provider)
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
-        RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
-                   tmp_path / "raw-audit", receipt_path, plan)
+        RUNNER.run(
+            root,
+            tmp_path / "missing-provider.json",
+            tmp_path / "missing-jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            plan,
+        )
 
     assert error.value.stage == "plan_binding"
     assert not (tmp_path / "raw-audit").exists()
     failure = json.loads(receipt_path.read_text())
     assert failure == {
         "schema": "model-only-shadow-audit-predispatch-failure.v1",
-        "case_id": "PR-464", "terminal_state": "failed_before_dispatch",
-        "failure_stage": "plan_binding", "failure_code": "plan_binding_invalid",
+        "case_id": "PR-464",
+        "terminal_state": "failed_before_dispatch",
+        "failure_stage": "plan_binding",
+        "failure_code": "plan_binding_invalid",
         "audit_provider_calls": 0,
     }
     sanitized = tmp_path / "sanitized-failure"
@@ -297,8 +351,14 @@ def test_unhashable_packet_identity_fails_closed_with_plan_binding_receipt(tmp_p
 
     monkeypatch.setattr(RUNNER, "OpenAIProvider", forbidden_provider)
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
-        RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
-                   tmp_path / "raw-audit", receipt_path, plan)
+        RUNNER.run(
+            root,
+            tmp_path / "missing-provider.json",
+            tmp_path / "missing-jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            plan,
+        )
 
     assert error.value.stage == "plan_binding"
     assert error.value.code == "plan_binding_invalid"
@@ -316,21 +376,35 @@ def test_audit_input_rejection_writes_receipt_only_when_dispatch_guard_is_unspen
     plan = tmp_path / "plan.json"
     plan_value = _plan(["task-first"])
     # Keep budget validation valid so this case reaches malformed audit input.
-    plan_value["budget"].update({
-        "audit_max_input_bytes_per_call": 96_000,
-        "total_provider_deadline_seconds_max": 870,
-    })
+    plan_value["budget"].update(
+        {
+            "audit_max_input_bytes_per_call": 96_000,
+            "total_provider_deadline_seconds_max": 870,
+        }
+    )
     plan.write_text(json.dumps(plan_value))
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": RUNNER.EXPECTED_LLM[0],
-        "model": RUNNER.EXPECTED_LLM[1], "api_key_env": "LLM_API_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": RUNNER.EXPECTED_LLM[0],
+                "model": RUNNER.EXPECTED_LLM[1],
+                "api_key_env": "LLM_API_KEY",
+            }
+        )
+    )
     jev_config = tmp_path / "jev.json"
-    jev_config.write_text(json.dumps({
-        "kind": "typesafe", "endpoint": RUNNER.EXPECTED_JEV[0],
-        "model": RUNNER.EXPECTED_JEV[1], "api_key_env": "JEV_API_KEY",
-    }))
+    jev_config.write_text(
+        json.dumps(
+            {
+                "kind": "typesafe",
+                "endpoint": RUNNER.EXPECTED_JEV[0],
+                "model": RUNNER.EXPECTED_JEV[1],
+                "api_key_env": "JEV_API_KEY",
+            }
+        )
+    )
     receipt_path = tmp_path / "receipt" / "failure.json"
 
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
@@ -346,15 +420,18 @@ def test_audit_input_rejection_writes_receipt_only_when_dispatch_guard_is_unspen
     SANITIZER.sanitize(receipt_path, sanitized)
 
 
-@pytest.mark.parametrize(("actual", "cap", "cap_value", "actual_value"), [
-    ("deadline_seconds", "audit_max_deadline_seconds_per_call", 89, 90),
-    ("max_input_bytes_per_task", "audit_max_input_bytes_per_call", 63999, 64000),
-    ("max_output_bytes_per_task", "audit_max_response_bytes_per_call", 63999, 64000),
-    ("max_output_tokens", "audit_max_output_tokens_per_llm_call", 1799, 1800),
-    ("max_provider_calls", "audit_max_provider_calls", 2, 3),
-    ("max_retries", "audit_max_retries", 0, 1),
-    ("total_provider_deadline_seconds", "total_provider_deadline_seconds_max", 869, 270),
-])
+@pytest.mark.parametrize(
+    ("actual", "cap", "cap_value", "actual_value"),
+    [
+        ("deadline_seconds", "audit_max_deadline_seconds_per_call", 89, 90),
+        ("max_input_bytes_per_task", "audit_max_input_bytes_per_call", 63999, 64000),
+        ("max_output_bytes_per_task", "audit_max_response_bytes_per_call", 63999, 64000),
+        ("max_output_tokens", "audit_max_output_tokens_per_llm_call", 1799, 1800),
+        ("max_provider_calls", "audit_max_provider_calls", 2, 3),
+        ("max_retries", "audit_max_retries", 0, 1),
+        ("total_provider_deadline_seconds", "total_provider_deadline_seconds_max", 869, 270),
+    ],
+)
 def test_over_budget_audit_fails_before_provider_config_or_transport(
     tmp_path, monkeypatch, actual, cap, cap_value, actual_value
 ):
@@ -382,28 +459,42 @@ def test_over_budget_audit_fails_before_provider_config_or_transport(
         raise AssertionError("provider construction must not occur for an over-budget plan")
 
     monkeypatch.setattr(RUNNER, "OpenAIProvider", forbidden_provider)
-    monkeypatch.setattr(RUNNER.ClaimTransport, "from_decision_config",
-                        lambda _config: (_ for _ in ()).throw(AssertionError("transport setup must not occur")))
+    monkeypatch.setattr(
+        RUNNER.ClaimTransport,
+        "from_decision_config",
+        lambda _config: (_ for _ in ()).throw(AssertionError("transport setup must not occur")),
+    )
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
-        RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
-                   tmp_path / "raw-audit", receipt_path, plan)
+        RUNNER.run(
+            root,
+            tmp_path / "missing-provider.json",
+            tmp_path / "missing-jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            plan,
+        )
 
     assert error.value.stage == "budget_validation"
     assert error.value.code == "audit_budget_exceeded"
     assert not (tmp_path / "raw-audit").exists()
     assert json.loads(receipt_path.read_text()) == {
         "schema": "model-only-shadow-audit-predispatch-failure.v1",
-        "case_id": "PR-464", "terminal_state": "failed_before_dispatch",
-        "failure_stage": "budget_validation", "failure_code": "audit_budget_exceeded",
+        "case_id": "PR-464",
+        "terminal_state": "failed_before_dispatch",
+        "failure_stage": "budget_validation",
+        "failure_code": "audit_budget_exceeded",
         "audit_provider_calls": 0,
     }
 
 
 def test_budget_guard_accepts_exact_caps_and_rejects_each_over_limit_dimension():
     limits = {
-        "deadline_seconds": 90, "max_input_bytes_per_task": 64000,
-        "max_output_bytes_per_task": 64000, "max_output_tokens": 1800,
-        "max_provider_calls": 3, "max_retries": 0,
+        "deadline_seconds": 90,
+        "max_input_bytes_per_task": 64000,
+        "max_output_bytes_per_task": 64000,
+        "max_output_tokens": 1800,
+        "max_provider_calls": 3,
+        "max_retries": 0,
         "total_provider_deadline_seconds": 270,
     }
     plan_budget = {
@@ -436,8 +527,10 @@ def test_budget_guard_accepts_exact_caps_and_rejects_each_over_limit_dimension()
 
 
 def test_selection_uses_pinned_task_order_then_packet_digest(tmp_path):
-    root = _capture(tmp_path / "capture", [_packet("PR-464", "candidate-a", "task-late"),
-                                             _packet("PR-464", "candidate-z", "task-first")])
+    root = _capture(
+        tmp_path / "capture",
+        [_packet("PR-464", "candidate-a", "task-late"), _packet("PR-464", "candidate-z", "task-first")],
+    )
     _, _, rows = RUNNER._packet_candidates(root)
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps(_plan(["task-first", "task-late"])))
@@ -461,8 +554,14 @@ def test_candidate_free_capture_emits_incomplete_hash_only_receipt_without_provi
     receipt_path = tmp_path / "sanitized" / "shadow-receipt.json"
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps(_plan(["task-first"])))
-    receipt = RUNNER.run(root, tmp_path / "missing-provider.json", tmp_path / "missing-jev.json",
-                         tmp_path / "raw-audit", receipt_path, plan)
+    receipt = RUNNER.run(
+        root,
+        tmp_path / "missing-provider.json",
+        tmp_path / "missing-jev.json",
+        tmp_path / "raw-audit",
+        receipt_path,
+        plan,
+    )
     assert receipt["terminal_state"] == "incomplete"
     assert receipt["reason"] == "no_writer_candidate"
     assert receipt["audit_provider_calls"] == 0
@@ -474,39 +573,62 @@ def test_candidate_free_capture_emits_incomplete_hash_only_receipt_without_provi
     assert '"writer_candidate":' not in raw and "source_evidence" not in raw and "selected_candidate_id" not in raw
 
 
-@pytest.mark.parametrize(("source_status", "audit_terminal"), [
-    ("completed", "missing_writer_candidate"),
-    ("abstained", "missing_writer_candidate"),
-    ("failed", "source_audit_failed"),
-])
+@pytest.mark.parametrize(
+    ("source_status", "audit_terminal"),
+    [
+        ("completed", "missing_writer_candidate"),
+        ("abstained", "missing_writer_candidate"),
+        ("failed", "source_audit_failed"),
+    ],
+)
 def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never_claim(
-        tmp_path, monkeypatch, source_status, audit_terminal):
+    tmp_path, monkeypatch, source_status, audit_terminal
+):
     root = _capture(tmp_path / "capture", [_packet("PR-464", None, "task-first")])
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps(_plan(["task-first"])))
     packet_path = root / "case-packets" / "packet-0.json"
     selection_path = tmp_path / "selection.json"
-    selection_path.write_text(json.dumps({
-        "schema": "frozen-pr464-no-candidate-selection.v1", "case_id": "PR-464",
-        "packet_path": "case-packets/packet-0.json",
-        "selected_packet_sha256": hashlib.sha256(packet_path.read_bytes()).hexdigest(),
-        "capture_manifest_sha256": hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
-        "plan_sha256": hashlib.sha256(plan.read_bytes()).hexdigest(),
-        "snapshot_sha256": CASE_IDENTITY["snapshot_hash"],
-        "selected_task_sha256": hashlib.sha256(b"task-first").hexdigest(),
-        "writer_calls": 10, "audit_provider_calls": 0,
-        "publication_enabled": False, "target_code_execution": False,
-    }))
+    selection_path.write_text(
+        json.dumps(
+            {
+                "schema": "frozen-pr464-no-candidate-selection.v1",
+                "case_id": "PR-464",
+                "packet_path": "case-packets/packet-0.json",
+                "selected_packet_sha256": hashlib.sha256(packet_path.read_bytes()).hexdigest(),
+                "capture_manifest_sha256": hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
+                "plan_sha256": hashlib.sha256(plan.read_bytes()).hexdigest(),
+                "snapshot_sha256": CASE_IDENTITY["snapshot_hash"],
+                "selected_task_sha256": hashlib.sha256(b"task-first").hexdigest(),
+                "writer_calls": 10,
+                "audit_provider_calls": 0,
+                "publication_enabled": False,
+                "target_code_execution": False,
+            }
+        )
+    )
     provider_config = tmp_path / "provider.json"
-    provider_config.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": RUNNER.EXPECTED_LLM[0],
-        "model": RUNNER.EXPECTED_LLM[1], "api_key_env": "LLM_API_KEY",
-    }))
+    provider_config.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": RUNNER.EXPECTED_LLM[0],
+                "model": RUNNER.EXPECTED_LLM[1],
+                "api_key_env": "LLM_API_KEY",
+            }
+        )
+    )
     jev_config = tmp_path / "jev.json"
-    jev_config.write_text(json.dumps({
-        "kind": "typesafe", "endpoint": RUNNER.EXPECTED_JEV[0],
-        "model": RUNNER.EXPECTED_JEV[1], "api_key_env": "JEV_API_KEY",
-    }))
+    jev_config.write_text(
+        json.dumps(
+            {
+                "kind": "typesafe",
+                "endpoint": RUNNER.EXPECTED_JEV[0],
+                "model": RUNNER.EXPECTED_JEV[1],
+                "api_key_env": "JEV_API_KEY",
+            }
+        )
+    )
     receipt_path = tmp_path / "receipt" / "source-only.json"
     request = b'{"source_only":"one-call"}'
     request_hash = hashlib.sha256(request).hexdigest()
@@ -535,9 +657,18 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
             assert role == "source_auditor"
             assert raw == request
 
-    def source_only_audit(packet, *, source_provider, jev_transport, claim_provider, limits,
-                          output_dir, before_dispatch, on_source_http_attempt=None,
-                          source_request_serializer=RUNNER.SOURCE_AUDIT_SERIALIZER_LEGACY):
+    def source_only_audit(
+        packet,
+        *,
+        source_provider,
+        jev_transport,
+        claim_provider,
+        limits,
+        output_dir,
+        before_dispatch,
+        on_source_http_attempt=None,
+        source_request_serializer=RUNNER.SOURCE_AUDIT_SERIALIZER_LEGACY,
+    ):
         assert packet["writer_candidate"] is None
         assert source_provider is not claim_provider
         assert jev_transport.timeout_seconds == limits["deadline_seconds"]
@@ -548,9 +679,15 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
         manifest = {
             "terminal_state": audit_terminal,
             "roles": {
-                "source_auditor": {"status": source_status, "calls": [{
-                    "dispatch_state": "http_attempted", "request_sha256": request_hash,
-                }]},
+                "source_auditor": {
+                    "status": source_status,
+                    "calls": [
+                        {
+                            "dispatch_state": "http_attempted",
+                            "request_sha256": request_hash,
+                        }
+                    ],
+                },
                 "jev": {"status": "not_run", "calls": []},
                 "claim_auditor": {"status": "not_run", "calls": []},
             },
@@ -564,14 +701,18 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
     monkeypatch.setattr(RUNNER, "run_shadow_audit", source_only_audit)
     source_dispatch_path = tmp_path / "source-accounting" / "source-dispatch-accounting.json"
     receipt = RUNNER.run(
-        root, provider_config, jev_config, tmp_path / "raw-audit", receipt_path, plan,
-        source_only_no_candidate=True, selection_receipt_path=selection_path,
+        root,
+        provider_config,
+        jev_config,
+        tmp_path / "raw-audit",
+        receipt_path,
+        plan,
+        source_only_no_candidate=True,
+        selection_receipt_path=selection_path,
         source_dispatch_receipt_path=source_dispatch_path,
     )
     assert observed == [request_hash]
-    raw_terminal = json.loads(
-        (tmp_path / "raw-audit" / "shadow-audit-manifest.json").read_text()
-    )["terminal_state"]
+    raw_terminal = json.loads((tmp_path / "raw-audit" / "shadow-audit-manifest.json").read_text())["terminal_state"]
     assert raw_terminal == audit_terminal
     assert receipt["reason"] == "no_writer_candidate"
     assert receipt["terminal_state"] == "incomplete"
@@ -582,10 +723,21 @@ def test_opt_in_candidate_free_source_stage_dispatches_one_source_call_and_never
     assert receipt["role_dispatched_call_counts"] == {"source_auditor": 1, "jev": 0, "claim_auditor": 0}
     assert json.loads(source_dispatch_path.read_text())["source_http_attempts"] == "1"
     assert set(receipt) == {
-        "schema", "case_id", "terminal_state", "reason", "audit_provider_calls", "candidate_packet_count",
-        "selected_packet_sha256", "capture_manifest_sha256", "roles", "role_call_counts",
-        "role_dispatched_call_counts", "role_guard_rejected_counts", "role_post_guard_pretransport_counts",
-        "role_unknown_dispatch_counts", "role_request_sha256",
+        "schema",
+        "case_id",
+        "terminal_state",
+        "reason",
+        "audit_provider_calls",
+        "candidate_packet_count",
+        "selected_packet_sha256",
+        "capture_manifest_sha256",
+        "roles",
+        "role_call_counts",
+        "role_dispatched_call_counts",
+        "role_guard_rejected_counts",
+        "role_post_guard_pretransport_counts",
+        "role_unknown_dispatch_counts",
+        "role_request_sha256",
     }
     sanitized = tmp_path / "sanitized-source-only"
     SANITIZER.sanitize(receipt_path, sanitized)
@@ -599,11 +751,22 @@ def test_source_only_selection_mismatch_fails_before_provider_setup(tmp_path, mo
     selection = tmp_path / "selection.json"
     selection.write_text(json.dumps({"schema": "wrong"}))
     receipt_path = tmp_path / "receipt" / "source-only.json"
-    monkeypatch.setattr(RUNNER, "OpenAIProvider", lambda _config: (_ for _ in ()).throw(
-        AssertionError("selection mismatch must fail before provider setup")))
+    monkeypatch.setattr(
+        RUNNER,
+        "OpenAIProvider",
+        lambda _config: (_ for _ in ()).throw(AssertionError("selection mismatch must fail before provider setup")),
+    )
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
-        RUNNER.run(root, tmp_path / "provider.json", tmp_path / "jev.json", tmp_path / "raw-audit",
-                   receipt_path, plan, source_only_no_candidate=True, selection_receipt_path=selection)
+        RUNNER.run(
+            root,
+            tmp_path / "provider.json",
+            tmp_path / "jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            plan,
+            source_only_no_candidate=True,
+            selection_receipt_path=selection,
+        )
     assert error.value.code == "capture_invalid"
     assert json.loads(receipt_path.read_text())["audit_provider_calls"] == 0
     assert not (tmp_path / "raw-audit").exists()
@@ -614,11 +777,21 @@ def test_source_only_opt_in_fails_before_provider_setup_when_candidate_exists(tm
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps(_plan(["task-first"])))
     receipt_path = tmp_path / "receipt" / "source-only.json"
-    monkeypatch.setattr(RUNNER, "OpenAIProvider", lambda _config: (_ for _ in ()).throw(
-        AssertionError("candidate presence must fail before provider setup")))
+    monkeypatch.setattr(
+        RUNNER,
+        "OpenAIProvider",
+        lambda _config: (_ for _ in ()).throw(AssertionError("candidate presence must fail before provider setup")),
+    )
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
-        RUNNER.run(root, tmp_path / "provider.json", tmp_path / "jev.json", tmp_path / "raw-audit",
-                   receipt_path, plan, source_only_no_candidate=True)
+        RUNNER.run(
+            root,
+            tmp_path / "provider.json",
+            tmp_path / "jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            plan,
+            source_only_no_candidate=True,
+        )
     assert error.value.code == "capture_invalid"
     assert not (tmp_path / "raw-audit").exists()
     failure = json.loads(receipt_path.read_text())
@@ -626,8 +799,9 @@ def test_source_only_opt_in_fails_before_provider_setup_when_candidate_exists(tm
 
 
 def test_plan_order_and_hash_tie_break_do_not_use_candidate_text(tmp_path):
-    root = _capture(tmp_path / "capture", [_packet("PR-464", "zzz", "task-first"),
-                                             _packet("PR-464", "aaa", "task-first")])
+    root = _capture(
+        tmp_path / "capture", [_packet("PR-464", "zzz", "task-first"), _packet("PR-464", "aaa", "task-first")]
+    )
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps(_plan(["task-first"])))
     _, _, rows = RUNNER._packet_candidates(root)
@@ -638,11 +812,19 @@ def test_plan_order_and_hash_tie_break_do_not_use_candidate_text(tmp_path):
 
 
 def test_provider_identity_is_pinned_before_audit_dispatch():
-    provider = {"kind": "openai_compatible", "provider_id": "operator_openai_compatible",
-                "base_url": "https://inference-api.nousresearch.com/v1", "model": "openai/gpt-6-luna",
-                "api_key_env": "LLM_API_KEY"}
-    jev = {"kind": "typesafe", "endpoint": "https://api.typesafe.ai/v1/systemone",
-           "model": "jev-latest", "api_key_env": "JEV_API_KEY"}
+    provider = {
+        "kind": "openai_compatible",
+        "provider_id": "operator_openai_compatible",
+        "base_url": "https://inference-api.nousresearch.com/v1",
+        "model": "openai/gpt-6-luna",
+        "api_key_env": "LLM_API_KEY",
+    }
+    jev = {
+        "kind": "typesafe",
+        "endpoint": "https://api.typesafe.ai/v1/systemone",
+        "model": "jev-latest",
+        "api_key_env": "JEV_API_KEY",
+    }
     RUNNER._validate_provider_identity(provider, jev)
     provider["model"] = "unreviewed-alias"
     try:
@@ -655,15 +837,28 @@ def test_provider_identity_is_pinned_before_audit_dispatch():
 
 def test_sanitizer_rejects_untrusted_case_text_and_accepts_zero_candidate_receipt(tmp_path):
     receipt = {
-        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
-        "terminal_state": "incomplete", "reason": "no_writer_candidate",
-        "audit_provider_calls": 0, "candidate_packet_count": 0,
-        "selected_packet_sha256": "a" * 64, "capture_manifest_sha256": "b" * 64,
+        "schema": "model-only-shadow-audit-receipt.v1",
+        "case_id": "PR-464",
+        "terminal_state": "incomplete",
+        "reason": "no_writer_candidate",
+        "audit_provider_calls": 0,
+        "candidate_packet_count": 0,
+        "selected_packet_sha256": "a" * 64,
+        "capture_manifest_sha256": "b" * 64,
         "roles": {role: "not_run" for role in AUDIT_ROLES},
-        **_receipt_dispatch_fields({role: {
-            "attempted": 0, "dispatched": 0, "guard_rejected": 0,
-            "post_guard_pretransport": 0, "unknown": 0, "request_sha256": None,
-        } for role in AUDIT_ROLES}),
+        **_receipt_dispatch_fields(
+            {
+                role: {
+                    "attempted": 0,
+                    "dispatched": 0,
+                    "guard_rejected": 0,
+                    "post_guard_pretransport": 0,
+                    "unknown": 0,
+                    "request_sha256": None,
+                }
+                for role in AUDIT_ROLES
+            }
+        ),
     }
     source = tmp_path / "input.json"
     source.write_text(json.dumps(receipt))
@@ -681,13 +876,16 @@ def test_sanitizer_rejects_untrusted_case_text_and_accepts_zero_candidate_receip
         raise AssertionError("untrusted case text was accepted")
 
 
-@pytest.mark.parametrize(("receipt",), [
-    (_candidate_free_receipt(),),
-    (_candidate_free_receipt(source_status="completed", jev_status="completed", jev_state="http_attempted"),),
-    (_candidate_free_receipt(source_status="completed", jev_status="failed", jev_state="post_guard_pretransport"),),
-    (_candidate_free_receipt(source_status="abstained", jev_status="not_run", jev_state=None),),
-    (_candidate_free_receipt(source_status="failed", jev_status="not_run", source_state="unknown"),),
-])
+@pytest.mark.parametrize(
+    ("receipt",),
+    [
+        (_candidate_free_receipt(),),
+        (_candidate_free_receipt(source_status="completed", jev_status="completed", jev_state="http_attempted"),),
+        (_candidate_free_receipt(source_status="completed", jev_status="failed", jev_state="post_guard_pretransport"),),
+        (_candidate_free_receipt(source_status="abstained", jev_status="not_run", jev_state=None),),
+        (_candidate_free_receipt(source_status="failed", jev_status="not_run", source_state="unknown"),),
+    ],
+)
 def test_sanitizer_accepts_bounded_source_only_no_candidate_receipt(receipt):
     SANITIZER._valid(receipt)
     assert receipt["candidate_packet_count"] == 0
@@ -713,24 +911,31 @@ def test_sanitizer_accepts_only_consistent_zero_attempt_source_failure(tmp_path)
         {**receipt, "audit_provider_calls": 1},
         {**receipt, "roles": {**receipt["roles"], "jev": "completed"}},
         {**receipt, "roles": {**receipt["roles"], "source_auditor": "abstained"}},
-        {**receipt, "role_request_sha256": {
-            **receipt["role_request_sha256"], "source_auditor": "c" * 64,
-        }},
+        {
+            **receipt,
+            "role_request_sha256": {
+                **receipt["role_request_sha256"],
+                "source_auditor": "c" * 64,
+            },
+        },
     ]
     for invalid in contradictory:
         with pytest.raises(SANITIZER.ReceiptError):
             SANITIZER._valid(invalid)
 
 
-@pytest.mark.parametrize("mutate", [
-    lambda receipt: receipt.update(disposition="PASS"),
-    lambda receipt: receipt["roles"].update(claim_auditor="completed"),
-    lambda receipt: receipt["role_call_counts"].update(claim_auditor=1),
-    lambda receipt: receipt["role_call_counts"].update(source_auditor=2),
-    lambda receipt: receipt.update(audit_provider_calls=3),
-    lambda receipt: receipt.update(audit_provider_calls=1),
-    lambda receipt: receipt["role_dispatched_call_counts"].update(source_auditor=0),
-])
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda receipt: receipt.update(disposition="PASS"),
+        lambda receipt: receipt["roles"].update(claim_auditor="completed"),
+        lambda receipt: receipt["role_call_counts"].update(claim_auditor=1),
+        lambda receipt: receipt["role_call_counts"].update(source_auditor=2),
+        lambda receipt: receipt.update(audit_provider_calls=3),
+        lambda receipt: receipt.update(audit_provider_calls=1),
+        lambda receipt: receipt["role_dispatched_call_counts"].update(source_auditor=0),
+    ],
+)
 def test_sanitizer_rejects_false_or_inconsistent_no_candidate_receipts(mutate):
     receipt = _candidate_free_receipt(source_status="completed", jev_status="completed", jev_state="http_attempted")
     mutate(receipt)
@@ -749,16 +954,30 @@ def test_sanitizer_rejects_jev_call_without_completed_source_or_after_abstention
 
 def test_sanitizer_rejects_contradictory_terminal_call_and_candidate_accounting():
     receipt = {
-        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
-        "terminal_state": "completed", "reason": "one_candidate_selected",
-        "audit_provider_calls": 3, "candidate_packet_count": 1,
-        "selected_candidate_sha256": "c" * 64, "selected_packet_sha256": "a" * 64,
-        "capture_manifest_sha256": "b" * 64, "shadow_manifest_sha256": "d" * 64,
+        "schema": "model-only-shadow-audit-receipt.v1",
+        "case_id": "PR-464",
+        "terminal_state": "completed",
+        "reason": "one_candidate_selected",
+        "audit_provider_calls": 3,
+        "candidate_packet_count": 1,
+        "selected_candidate_sha256": "c" * 64,
+        "selected_packet_sha256": "a" * 64,
+        "capture_manifest_sha256": "b" * 64,
+        "shadow_manifest_sha256": "d" * 64,
         "roles": {role: "completed" for role in AUDIT_ROLES},
-        **_receipt_dispatch_fields({role: {
-            "attempted": 1, "dispatched": 1, "guard_rejected": 0,
-            "post_guard_pretransport": 0, "unknown": 0, "request_sha256": str(index) * 64,
-        } for index, role in enumerate(AUDIT_ROLES, 1)}),
+        **_receipt_dispatch_fields(
+            {
+                role: {
+                    "attempted": 1,
+                    "dispatched": 1,
+                    "guard_rejected": 0,
+                    "post_guard_pretransport": 0,
+                    "unknown": 0,
+                    "request_sha256": str(index) * 64,
+                }
+                for index, role in enumerate(AUDIT_ROLES, 1)
+            }
+        ),
     }
     SANITIZER._valid(receipt)
     invalid = dict(receipt, reason="no_writer_candidate")
@@ -783,23 +1002,36 @@ def test_guard_rejection_is_not_counted_as_http_call_and_survives_sanitization(t
             dispatch_state, status = "guard_rejected", "failed"
         else:
             dispatch_state, status = None, "not_run"
-        call = [] if dispatch_state is None else [{
-            "dispatch_state": dispatch_state, "request_sha256": hashlib.sha256(role.encode()).hexdigest(),
-        }]
+        call = (
+            []
+            if dispatch_state is None
+            else [
+                {
+                    "dispatch_state": dispatch_state,
+                    "request_sha256": hashlib.sha256(role.encode()).hexdigest(),
+                }
+            ]
+        )
         roles[role] = {"status": status, "calls": call}
 
     accounting = RUNNER._dispatch_accounting(roles)
     fields = _receipt_dispatch_fields(accounting)
     receipt = {
-        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
+        "schema": "model-only-shadow-audit-receipt.v1",
+        "case_id": "PR-464",
         "terminal_state": {
-            "source_auditor": "source_audit_failed", "jev": "jev_assessment_failed",
+            "source_auditor": "source_audit_failed",
+            "jev": "jev_assessment_failed",
             "claim_auditor": "claim_audit_failed",
         }[rejected_role],
-        "reason": "one_candidate_selected", "candidate_packet_count": 1,
-        "selected_candidate_sha256": "c" * 64, "selected_packet_sha256": "a" * 64,
-        "capture_manifest_sha256": "b" * 64, "shadow_manifest_sha256": "d" * 64,
-        "roles": {role: data["status"] for role, data in roles.items()}, **fields,
+        "reason": "one_candidate_selected",
+        "candidate_packet_count": 1,
+        "selected_candidate_sha256": "c" * 64,
+        "selected_packet_sha256": "a" * 64,
+        "capture_manifest_sha256": "b" * 64,
+        "shadow_manifest_sha256": "d" * 64,
+        "roles": {role: data["status"] for role, data in roles.items()},
+        **fields,
     }
     sanitized_dir = tmp_path / rejected_role
     input_path = tmp_path / f"{rejected_role}.json"
@@ -814,18 +1046,26 @@ def test_guard_rejection_is_not_counted_as_http_call_and_survives_sanitization(t
 
 @pytest.mark.parametrize("role", ("source_auditor", "claim_auditor"))
 def test_openai_guard_rejection_preserves_request_hash_without_http_attempt(role):
-    provider = OpenAIProvider({
-        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
-        "model": "fixture", "api_key_env": "AUDIT_TEST_KEY",
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://example.invalid/v1",
+            "model": "fixture",
+            "api_key_env": "AUDIT_TEST_KEY",
+        }
+    )
 
     def reject(_raw):
         raise AuditPreflightError("audit_request_exceeds_limit")
 
     with pytest.raises(ProviderError) as caught:
         provider.audit_json(
-            system=f"{role} fixture", user={"role": role}, schema={"type": "object"},
-            limits={"max_output_tokens": 8}, contract_version="guard-test.v1", before_dispatch=reject,
+            system=f"{role} fixture",
+            user={"role": role},
+            schema={"type": "object"},
+            limits={"max_output_tokens": 8},
+            contract_version="guard-test.v1",
+            before_dispatch=reject,
             on_http_attempt=lambda: (_ for _ in ()).throw(AssertionError("opener was not entered")),
         )
     exchange = caught.value.meta["audit_exchange"]
@@ -836,9 +1076,10 @@ def test_openai_guard_rejection_preserves_request_hash_without_http_attempt(role
 
 def test_jev_guard_rejection_preserves_request_hash_without_transport_entry():
     transport_calls = []
-    capture = _CapturingNativeCall(lambda *_args: transport_calls.append(True) or b"response", lambda _raw: (
-        (_ for _ in ()).throw(AuditPreflightError("audit_request_exceeds_limit"))
-    ))
+    capture = _CapturingNativeCall(
+        lambda *_args: transport_calls.append(True) or b"response",
+        lambda _raw: (_ for _ in ()).throw(AuditPreflightError("audit_request_exceeds_limit")),
+    )
     request = b'{"model":"fixture","questions":{}}'
     with pytest.raises(AuditPreflightError):
         capture(request, 1, 128)
@@ -884,20 +1125,32 @@ class _FailingHttpOpener:
 
 
 def test_openai_success_receipt_confirms_http_attempt_at_opener_boundary(monkeypatch):
-    opener = _FakeHttpOpener(json.dumps({
-        "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
-        "usage": {}, "model": "fixture",
-    }).encode())
+    opener = _FakeHttpOpener(
+        json.dumps(
+            {
+                "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                "usage": {},
+                "model": "fixture",
+            }
+        ).encode()
+    )
     monkeypatch.setattr(providers, "_HTTP_OPENER", opener)
     monkeypatch.setenv("AUDIT_TEST_KEY", "test-key-only")
-    provider = OpenAIProvider({
-        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
-        "model": "fixture", "api_key_env": "AUDIT_TEST_KEY",
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://example.invalid/v1",
+            "model": "fixture",
+            "api_key_env": "AUDIT_TEST_KEY",
+        }
+    )
     events = []
     result = provider.audit_json(
-        system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
-        limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+        system="fixture",
+        user={"role": "source_auditor"},
+        schema={"type": "object"},
+        limits={"max_output_tokens": 8},
+        contract_version="guard-test.v1",
         before_dispatch=lambda _raw: None,
         on_http_attempt=lambda: events.append("attempt"),
     )
@@ -910,16 +1163,23 @@ def test_openai_opener_exception_still_persists_one_attempt(monkeypatch, tmp_pat
     opener = _FailingHttpOpener()
     monkeypatch.setattr(providers, "_HTTP_OPENER", opener)
     monkeypatch.setenv("AUDIT_TEST_KEY", "test-key-only")
-    provider = OpenAIProvider({
-        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
-        "model": "fixture", "api_key_env": "AUDIT_TEST_KEY",
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://example.invalid/v1",
+            "model": "fixture",
+            "api_key_env": "AUDIT_TEST_KEY",
+        }
+    )
     receipt_path = tmp_path / "accounting" / "source.json"
     RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "unknown", create=True)
     with pytest.raises(ProviderError):
         provider.audit_json(
-            system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
-            limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+            system="fixture",
+            user={"role": "source_auditor"},
+            schema={"type": "object"},
+            limits={"max_output_tokens": 8},
+            contract_version="guard-test.v1",
             before_dispatch=lambda _raw: None,
             on_http_attempt=lambda: RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "1"),
         )
@@ -930,10 +1190,14 @@ def test_openai_opener_exception_still_persists_one_attempt(monkeypatch, tmp_pat
 def test_pretransport_callback_failure_leaves_attempt_unknown(monkeypatch, tmp_path):
     opener = _FakeHttpOpener(b"{}")
     monkeypatch.setattr(providers, "_HTTP_OPENER", opener)
-    provider = OpenAIProvider({
-        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
-        "model": "fixture", "api_key_env": "AUDIT_MISSING_KEY",
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://example.invalid/v1",
+            "model": "fixture",
+            "api_key_env": "AUDIT_MISSING_KEY",
+        }
+    )
     receipt_path = tmp_path / "accounting" / "source.json"
     RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "unknown", create=True)
 
@@ -942,8 +1206,11 @@ def test_pretransport_callback_failure_leaves_attempt_unknown(monkeypatch, tmp_p
 
     with pytest.raises(ProviderError):
         provider.audit_json(
-            system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
-            limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+            system="fixture",
+            user={"role": "source_auditor"},
+            schema={"type": "object"},
+            limits={"max_output_tokens": 8},
+            contract_version="guard-test.v1",
             before_dispatch=reject,
             on_http_attempt=lambda: RUNNER.source_dispatch_accounting.write(receipt_path, "PR-464", "1"),
         )
@@ -953,15 +1220,22 @@ def test_pretransport_callback_failure_leaves_attempt_unknown(monkeypatch, tmp_p
 
 def test_openai_missing_credential_is_post_guard_pretransport_not_a_call(monkeypatch):
     monkeypatch.delenv("AUDIT_MISSING_KEY", raising=False)
-    provider = OpenAIProvider({
-        "kind": "openai_compatible", "base_url": "https://example.invalid/v1",
-        "model": "fixture", "api_key_env": "AUDIT_MISSING_KEY",
-    })
+    provider = OpenAIProvider(
+        {
+            "kind": "openai_compatible",
+            "base_url": "https://example.invalid/v1",
+            "model": "fixture",
+            "api_key_env": "AUDIT_MISSING_KEY",
+        }
+    )
     events = []
     with pytest.raises(ProviderError) as caught:
         provider.audit_json(
-            system="fixture", user={"role": "source_auditor"}, schema={"type": "object"},
-            limits={"max_output_tokens": 8}, contract_version="guard-test.v1",
+            system="fixture",
+            user={"role": "source_auditor"},
+            schema={"type": "object"},
+            limits={"max_output_tokens": 8},
+            contract_version="guard-test.v1",
             before_dispatch=lambda _raw: None,
             on_http_attempt=lambda: events.append("attempt"),
         )
@@ -976,10 +1250,13 @@ def test_jev_success_receipt_confirms_http_attempt_at_opener_boundary(monkeypatc
     monkeypatch.setattr(claim_transport, "_HTTP_OPENER", opener)
     monkeypatch.setattr(claim_transport, "_parse_request", lambda _raw: {"model": "fixture"})
     monkeypatch.setenv("AUDIT_TEST_KEY", "test-key-only")
-    transport = ClaimTransport({
-        "endpoint": "http://127.0.0.1:12345/v1/systemone", "model": "fixture",
-        "api_key_env": "AUDIT_TEST_KEY",
-    })
+    transport = ClaimTransport(
+        {
+            "endpoint": "http://127.0.0.1:12345/v1/systemone",
+            "model": "fixture",
+            "api_key_env": "AUDIT_TEST_KEY",
+        }
+    )
     capture = _CapturingNativeCall(transport)
     assert capture(b'{"model":"fixture"}', 1, 128) == b"{}"
     assert opener.calls == 1
@@ -989,10 +1266,13 @@ def test_jev_success_receipt_confirms_http_attempt_at_opener_boundary(monkeypatc
 def test_jev_missing_credential_is_post_guard_pretransport_not_a_call(monkeypatch):
     monkeypatch.setattr(claim_transport, "_parse_request", lambda _raw: {"model": "fixture"})
     monkeypatch.delenv("AUDIT_MISSING_KEY", raising=False)
-    transport = ClaimTransport({
-        "endpoint": "http://127.0.0.1:12345/v1/systemone", "model": "fixture",
-        "api_key_env": "AUDIT_MISSING_KEY",
-    })
+    transport = ClaimTransport(
+        {
+            "endpoint": "http://127.0.0.1:12345/v1/systemone",
+            "model": "fixture",
+            "api_key_env": "AUDIT_MISSING_KEY",
+        }
+    )
     capture = _CapturingNativeCall(transport)
     with pytest.raises(ProviderError):
         capture(b'{"model":"fixture"}', 1, 128)
@@ -1002,16 +1282,29 @@ def test_jev_missing_credential_is_post_guard_pretransport_not_a_call(monkeypatc
 
 def test_completed_sanitized_receipt_cannot_include_unconfirmed_role_call():
     receipt = {
-        "schema": "model-only-shadow-audit-receipt.v1", "case_id": "PR-464",
-        "terminal_state": "completed", "reason": "one_candidate_selected",
-        "candidate_packet_count": 1, "selected_candidate_sha256": "c" * 64,
-        "selected_packet_sha256": "a" * 64, "capture_manifest_sha256": "b" * 64,
+        "schema": "model-only-shadow-audit-receipt.v1",
+        "case_id": "PR-464",
+        "terminal_state": "completed",
+        "reason": "one_candidate_selected",
+        "candidate_packet_count": 1,
+        "selected_candidate_sha256": "c" * 64,
+        "selected_packet_sha256": "a" * 64,
+        "capture_manifest_sha256": "b" * 64,
         "shadow_manifest_sha256": "d" * 64,
         "roles": {role: "completed" for role in AUDIT_ROLES},
-        **_receipt_dispatch_fields({role: {
-            "attempted": 1, "dispatched": 1, "guard_rejected": 0,
-            "post_guard_pretransport": 0, "unknown": 0, "request_sha256": str(index) * 64,
-        } for index, role in enumerate(AUDIT_ROLES, 1)}),
+        **_receipt_dispatch_fields(
+            {
+                role: {
+                    "attempted": 1,
+                    "dispatched": 1,
+                    "guard_rejected": 0,
+                    "post_guard_pretransport": 0,
+                    "unknown": 0,
+                    "request_sha256": str(index) * 64,
+                }
+                for index, role in enumerate(AUDIT_ROLES, 1)
+            }
+        ),
     }
     receipt["role_dispatched_call_counts"]["jev"] = 0
     receipt["role_guard_rejected_counts"]["jev"] = 1
@@ -1023,31 +1316,45 @@ def test_completed_sanitized_receipt_cannot_include_unconfirmed_role_call():
 def _pr457_test_plan(task_ids: list[str]) -> dict:
     value = _plan(task_ids)
     value["case"]["case_id"] = "PR-457"
-    value["budget"].update({
-        "audit_max_input_bytes_per_call": 96_000,
-        "audit_max_provider_calls": 3,
-        "audit_max_retries": 0,
-        "audit_max_deadline_seconds_per_call": 90,
-        "audit_max_response_bytes_per_call": 64_000,
-        "audit_max_output_tokens_per_llm_call": 1_800,
-        "total_provider_deadline_seconds_max": 870,
-    })
+    value["budget"].update(
+        {
+            "audit_max_input_bytes_per_call": 96_000,
+            "audit_max_provider_calls": 3,
+            "audit_max_retries": 0,
+            "audit_max_deadline_seconds_per_call": 90,
+            "audit_max_response_bytes_per_call": 64_000,
+            "audit_max_output_tokens_per_llm_call": 1_800,
+            "total_provider_deadline_seconds_max": 870,
+        }
+    )
     return value
 
 
 def _write_audit_configs(tmp_path: Path, *, with_jev: bool) -> tuple[Path, Path | None]:
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps({
-        "kind": "openai_compatible", "base_url": RUNNER.EXPECTED_LLM[0],
-        "model": RUNNER.EXPECTED_LLM[1], "api_key_env": "LLM_API_KEY",
-    }))
+    provider.write_text(
+        json.dumps(
+            {
+                "kind": "openai_compatible",
+                "base_url": RUNNER.EXPECTED_LLM[0],
+                "model": RUNNER.EXPECTED_LLM[1],
+                "api_key_env": "LLM_API_KEY",
+            }
+        )
+    )
     if not with_jev:
         return provider, None
     jev = tmp_path / "jev.json"
-    jev.write_text(json.dumps({
-        "kind": "typesafe", "endpoint": RUNNER.EXPECTED_JEV[0],
-        "model": RUNNER.EXPECTED_JEV[1], "api_key_env": "JEV_API_KEY",
-    }))
+    jev.write_text(
+        json.dumps(
+            {
+                "kind": "typesafe",
+                "endpoint": RUNNER.EXPECTED_JEV[0],
+                "model": RUNNER.EXPECTED_JEV[1],
+                "api_key_env": "JEV_API_KEY",
+            }
+        )
+    )
     return provider, jev
 
 
@@ -1055,21 +1362,29 @@ def _bind_pr457_runner(monkeypatch, audit_rows: dict[str, bytes]) -> None:
     policy = {**RUNNER.CASE_POLICY["PR-464"], "profile_sha256": _PROFILE_FILE_SHA256}
     monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-457", policy))
     monkeypatch.setattr(RUNNER, "validate_plan_binding", lambda _plan, _raw: ("PR-457", policy))
-    monkeypatch.setattr(RUNNER, "_load_current_source_plan", lambda _path: {
-        "case_id": "PR-457", "source_audit_requests": {
-            task_id: {"task_id": task_id, "input_bytes": len(raw),
-                      "input_sha256": hashlib.sha256(raw).hexdigest()}
-            for task_id, raw in audit_rows.items()
+    monkeypatch.setattr(
+        RUNNER,
+        "_load_current_source_plan",
+        lambda _path: {
+            "case_id": "PR-457",
+            "source_audit_requests": {
+                task_id: {"task_id": task_id, "input_bytes": len(raw), "input_sha256": hashlib.sha256(raw).hexdigest()}
+                for task_id, raw in audit_rows.items()
+            },
+            "audit_max_input_bytes_per_call": 96_000,
+            "source_audit_serializer": RUNNER.SOURCE_AUDIT_SERIALIZER_CANONICAL,
         },
-        "audit_max_input_bytes_per_call": 96_000,
-        "source_audit_serializer": RUNNER.SOURCE_AUDIT_SERIALIZER_CANONICAL,
-    })
+    )
 
 
 def test_current_source_zero_candidate_selects_first_plan_task_and_dispatches_source_only(tmp_path, monkeypatch):
-    root = _capture(tmp_path / "capture", [
-        _packet("PR-457", None, "task-second"), _packet("PR-457", None, "task-first"),
-    ])
+    root = _capture(
+        tmp_path / "capture",
+        [
+            _packet("PR-457", None, "task-second"),
+            _packet("PR-457", None, "task-first"),
+        ],
+    )
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps(_pr457_test_plan(["task-first", "task-second"])))
     provider, jev = _write_audit_configs(tmp_path, with_jev=False)
@@ -1093,9 +1408,18 @@ def test_current_source_zero_candidate_selects_first_plan_task_and_dispatches_so
 
     observed = {}
 
-    def fake_source_audit(packet, *, source_provider, jev_transport, claim_provider, limits,
-                          output_dir, before_dispatch, on_source_http_attempt=None,
-                          source_request_serializer=RUNNER.SOURCE_AUDIT_SERIALIZER_LEGACY):
+    def fake_source_audit(
+        packet,
+        *,
+        source_provider,
+        jev_transport,
+        claim_provider,
+        limits,
+        output_dir,
+        before_dispatch,
+        on_source_http_attempt=None,
+        source_request_serializer=RUNNER.SOURCE_AUDIT_SERIALIZER_LEGACY,
+    ):
         observed["task_id"] = packet["source_task"]["task_id"]
         assert source_request_serializer == RUNNER.SOURCE_AUDIT_SERIALIZER_CANONICAL
         observed["same_provider"] = source_provider is claim_provider
@@ -1103,21 +1427,44 @@ def test_current_source_zero_candidate_selects_first_plan_task_and_dispatches_so
         before_dispatch("source_auditor", pinned_request)
         if on_source_http_attempt:
             on_source_http_attempt()
-        return {"manifest": {"roles": {
-            "source_auditor": {"status": "completed", "calls": [{
-                "dispatch_state": "http_attempted",
-                "request_sha256": hashlib.sha256(pinned_request).hexdigest(),
-            }]}, "jev": {"status": "not_run", "calls": []},
-            "claim_auditor": {"status": "not_run", "calls": []}}, "terminal_state": "missing_writer_candidate"}}
+        return {
+            "manifest": {
+                "roles": {
+                    "source_auditor": {
+                        "status": "completed",
+                        "calls": [
+                            {
+                                "dispatch_state": "http_attempted",
+                                "request_sha256": hashlib.sha256(pinned_request).hexdigest(),
+                            }
+                        ],
+                    },
+                    "jev": {"status": "not_run", "calls": []},
+                    "claim_auditor": {"status": "not_run", "calls": []},
+                },
+                "terminal_state": "missing_writer_candidate",
+            }
+        }
 
     monkeypatch.setattr(RUNNER, "OpenAIProvider", FakeProvider)
     monkeypatch.setattr(RUNNER, "AuditDispatchGuard", FakeDispatchGuard)
     monkeypatch.setattr(RUNNER, "run_shadow_audit", fake_source_audit)
-    monkeypatch.setattr(RUNNER.ClaimTransport, "from_decision_config",
-                        lambda _config: (_ for _ in ()).throw(AssertionError("Jev is N/A without a candidate")))
+    monkeypatch.setattr(
+        RUNNER.ClaimTransport,
+        "from_decision_config",
+        lambda _config: (_ for _ in ()).throw(AssertionError("Jev is N/A without a candidate")),
+    )
 
-    result = RUNNER.run(root, provider, jev, tmp_path / "private-output", receipt_path,
-                        plan, RUNNER.DEFAULT_LIMITS, current_source_plan_path=current_plan)
+    result = RUNNER.run(
+        root,
+        provider,
+        jev,
+        tmp_path / "private-output",
+        receipt_path,
+        plan,
+        RUNNER.DEFAULT_LIMITS,
+        current_source_plan_path=current_plan,
+    )
 
     assert observed["task_id"] == "task-first"
     assert observed["same_provider"] is True
@@ -1154,8 +1501,16 @@ def test_current_source_candidate_path_rejects_changed_source_request_before_tra
     monkeypatch.setattr(RUNNER.ClaimTransport, "from_decision_config", lambda _config: lambda *_args: b"")
 
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
-        RUNNER.run(root, provider, jev, tmp_path / "private-output", receipt_path,
-                   plan, RUNNER.DEFAULT_LIMITS, current_source_plan_path=current_plan)
+        RUNNER.run(
+            root,
+            provider,
+            jev,
+            tmp_path / "private-output",
+            receipt_path,
+            plan,
+            RUNNER.DEFAULT_LIMITS,
+            current_source_plan_path=current_plan,
+        )
     assert error.value.stage == "audit_validation"
     assert error.value.code == "audit_input_invalid"
     assert not (tmp_path / "private-output").exists()

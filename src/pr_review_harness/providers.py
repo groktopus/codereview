@@ -962,9 +962,7 @@ class OpenAIProvider:
                 choices = validate_context_target_manifest(manifest)
             except ValueError as exc:
                 raise ProviderError("invalid_context_target_manifest") from exc
-            target_pairs = list(
-                {(choice["kind"], choice["value"]) for choice in choices}
-            )
+            target_pairs = list({(choice["kind"], choice["value"]) for choice in choices})
         if target_pairs:
             target_schema = {
                 "anyOf": [
@@ -1005,9 +1003,7 @@ class OpenAIProvider:
             {
                 item["evidence_id"]
                 for item in evidence
-                if isinstance(item, dict)
-                and isinstance(item.get("evidence_id"), str)
-                and item["evidence_id"]
+                if isinstance(item, dict) and isinstance(item.get("evidence_id"), str) and item["evidence_id"]
             }
         )
         # Bind citation-shaped output to this exact request. Keep the adapter's
@@ -1120,7 +1116,9 @@ class OpenAIProvider:
                                         "other",
                                     ],
                                 },
-                                "target": target_schema if target_schema is not None else {
+                                "target": target_schema
+                                if target_schema is not None
+                                else {
                                     "type": "object",
                                     "additionalProperties": False,
                                     "required": ["kind", "value"],
@@ -1332,7 +1330,12 @@ class OpenAIProvider:
             task_id = task.get("task_id") if isinstance(task, dict) else None
             expected_task_id = capture_spec.get("expected_task_id")
             expected_request_sha256 = capture_spec.get("expected_request_sha256")
-            if not isinstance(task_id, str) or not task_id or not isinstance(expected_task_id, str) or not expected_task_id:
+            if (
+                not isinstance(task_id, str)
+                or not task_id
+                or not isinstance(expected_task_id, str)
+                or not expected_task_id
+            ):
                 raise ProviderError("request_task_binding_missing")
             if task_id != expected_task_id:
                 raise ProviderError("request_task_binding_mismatch")
@@ -1361,9 +1364,8 @@ class OpenAIProvider:
                     request_bytes,
                     response_content,
                     status,
-                    response_envelope_sha256 or (
-                        hashlib.sha256(response_envelope).hexdigest() if response_envelope is not None else None
-                    ),
+                    response_envelope_sha256
+                    or (hashlib.sha256(response_envelope).hexdigest() if response_envelope is not None else None),
                     "openai-chat-completions.message-content.utf8.v1",
                 )
             except Exception as exc:
@@ -1373,8 +1375,12 @@ class OpenAIProvider:
                     raise
                 raise ProviderError("capture_sink_failed") from None
             fields = {
-                "call_id", "request_sha256", "request_artifact_id", "response_sha256",
-                "response_artifact_id", "status",
+                "call_id",
+                "request_sha256",
+                "request_artifact_id",
+                "response_sha256",
+                "response_artifact_id",
+                "status",
             }
             if not isinstance(receipt, dict) or set(receipt) != fields:
                 raise ProviderError("capture_receipt_invalid")
@@ -1384,19 +1390,26 @@ class OpenAIProvider:
             response_hash = receipt.get("response_sha256")
             response_artifact = receipt.get("response_artifact_id")
             if (
-                not isinstance(call_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", call_id)
-                or not isinstance(request_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", request_hash)
+                not isinstance(call_id, str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", call_id)
+                or not isinstance(request_hash, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", request_hash)
                 or request_hash != hashlib.sha256(request_bytes).hexdigest()
-                or not isinstance(request_artifact, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", request_artifact)
+                or not isinstance(request_artifact, str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", request_artifact)
                 or receipt["status"] != status
                 or (response_hash is None) != (response_artifact is None)
                 or (response_content is None and response_hash is not None)
                 or (response_content is not None and response_hash != hashlib.sha256(response_content).hexdigest())
-                or (response_hash is not None and (
-                    not isinstance(response_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", response_hash)
-                    or not isinstance(response_artifact, str)
-                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", response_artifact)
-                ))
+                or (
+                    response_hash is not None
+                    and (
+                        not isinstance(response_hash, str)
+                        or not re.fullmatch(r"[0-9a-f]{64}", response_hash)
+                        or not isinstance(response_artifact, str)
+                        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", response_artifact)
+                    )
+                )
             ):
                 raise ProviderError("capture_receipt_invalid")
             return receipt
@@ -1450,8 +1463,10 @@ class OpenAIProvider:
                     if isinstance(observed_hash, str) and re.fullmatch(r"[0-9a-f]{64}", observed_hash):
                         response_envelope_sha256 = observed_hash
             status = (
-                "incomplete" if exc.code == "model_output_incomplete"
-                else "unavailable" if exc.code in {"transport_failed", "provider_deadline_exceeded", "credential_unavailable"}
+                "incomplete"
+                if exc.code == "model_output_incomplete"
+                else "unavailable"
+                if exc.code in {"transport_failed", "provider_deadline_exceeded", "credential_unavailable"}
                 else "failed"
             )
             if not sink_called:

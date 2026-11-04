@@ -291,7 +291,11 @@ def validate_context_followup_metadata(item: Any) -> dict[str, Any]:
         raise ContractIssue("invalid_context_followup_target")
     if not _is_text(value["rationale"], MAX_GAP_TEXT_BYTES):
         raise ContractIssue("invalid_context_followup_rationale")
-    for key, allow_empty in (("related_candidate_ids", True), ("related_evidence_ids", True), ("retrieved_evidence_ids", False)):
+    for key, allow_empty in (
+        ("related_candidate_ids", True),
+        ("related_evidence_ids", True),
+        ("retrieved_evidence_ids", False),
+    ):
         refs = value[key]
         if (
             not isinstance(refs, list)

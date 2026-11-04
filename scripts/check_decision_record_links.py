@@ -492,10 +492,12 @@ def fetch_changed_files(repository: str, number: int, token: str) -> list[dict[s
         if not isinstance(payload, list):
             raise ChangedFilesError("CHANGED_FILES_API_INVALID", f"API page {page} is not a JSON list")
         for index, entry in enumerate(payload):
-            if not isinstance(entry, dict) or not isinstance(entry.get("filename"), str) or not entry["filename"].strip():
-                raise ChangedFilesError(
-                    "CHANGED_FILES_API_INVALID", f"API page {page} entry {index} has no filename"
-                )
+            if (
+                not isinstance(entry, dict)
+                or not isinstance(entry.get("filename"), str)
+                or not entry["filename"].strip()
+            ):
+                raise ChangedFilesError("CHANGED_FILES_API_INVALID", f"API page {page} entry {index} has no filename")
             item = {"filename": normalize_path(entry["filename"])}
             previous = entry.get("previous_filename")
             if isinstance(previous, str) and previous.strip():
@@ -609,7 +611,9 @@ def verify_decision_records(
         filename = _index_record_file(row, record_id)
         if filename is None:
             failures.append(
-                _failure("RECORD_FILE_UNRESOLVED", f"the {INDEX_PATH} row for {record_id} does not link its record file")
+                _failure(
+                    "RECORD_FILE_UNRESOLVED", f"the {INDEX_PATH} row for {record_id} does not link its record file"
+                )
             )
             continue
         if named_path is not None and named_path != f"docs/adr/{filename}":
@@ -629,9 +633,7 @@ def verify_decision_records(
             )
             continue
         if text is None:
-            failures.append(
-                _failure("RECORD_MISSING", f"docs/adr/{filename} is missing on the base revision")
-            )
+            failures.append(_failure("RECORD_MISSING", f"docs/adr/{filename} is missing on the base revision"))
             continue
 
         record = adr.parse_record_text(text, filename)
@@ -651,9 +653,7 @@ def verify_decision_records(
             continue
         title = str(record["title"])
         if not title.startswith(f"# {record_id}"):
-            failures.append(
-                _failure("RECORD_INVALID", f"docs/adr/{filename} title must start with '# {record_id}'")
-            )
+            failures.append(_failure("RECORD_INVALID", f"docs/adr/{filename} title must start with '# {record_id}'"))
     return failures, tuple(checked)
 
 

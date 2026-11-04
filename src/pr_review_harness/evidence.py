@@ -304,7 +304,9 @@ def retrieve_context_gap(
     evidence_id = (
         "ev-"
         + hashlib.sha256(
-            _ipc_canonical({"snapshot_id": snapshot_id, "revision": revision, "path": requested_path, "hash": content_hash})
+            _ipc_canonical(
+                {"snapshot_id": snapshot_id, "revision": revision, "path": requested_path, "hash": content_hash}
+            )
         ).hexdigest()[:24]
     )
     evidence = {

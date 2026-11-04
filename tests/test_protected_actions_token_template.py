@@ -34,7 +34,11 @@ def test_actions_token_templates_are_bounded_inert_and_match_policy():
             "ref": "owner/repo/.github/workflows/pr-analysis.yml@refs/heads/main",
         },
         called_harness={"repository": "harness/repo", "path": ".github/workflows/pr-analysis.yml", "sha": "a" * 40},
-        profile={"version": "v1", "sha256": "b" * 64, "provider_configuration_identity": "provider-identity-sha256:" + "c" * 64},
+        profile={
+            "version": "v1",
+            "sha256": "b" * 64,
+            "provider_configuration_identity": "provider-identity-sha256:" + "c" * 64,
+        },
         artifact_redirect_hosts=["downloads.example.test"],
     )
     assert not ProtectedPublicationPolicy.parse(policy).enabled
@@ -79,9 +83,7 @@ def test_v5_template_is_disabled_and_validates_both_publication_modes():
     wrong_mode["publication"]["allowed_dispositions"] = ["COMMENT", "APPROVE", "REQUEST_CHANGES"]
     disposition_policy = ProtectedPublicationPolicy.parse(wrong_mode)
     assert disposition_policy.publication_config()["publication_mode"] == "DISPOSITION"
-    assert disposition_policy.publication_config()["allowed_dispositions"] == [
-        "COMMENT", "APPROVE", "REQUEST_CHANGES"
-    ]
+    assert disposition_policy.publication_config()["allowed_dispositions"] == ["COMMENT", "APPROVE", "REQUEST_CHANGES"]
 
     unknown_mode = json.loads(json.dumps(policy))
     unknown_mode["publication_mode"] = "AUTOMATIC_MERGE"

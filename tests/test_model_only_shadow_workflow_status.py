@@ -19,17 +19,29 @@ assert _SPEC is not None and _SPEC.loader is not None
 STATUS = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(STATUS)
 EXPECTED_STAGES = {
-    "trusted_checkout", "trusted_identity", "case_selection", "exact_preflight",
-    "provider_identity", "writer", "writer_sanitize", "audit_config", "shadow_audit",
-    "audit_sanitize", "source_accounting_sanitize", "source_accounting_upload",
-    "writer_artifact_upload", "audit_artifact_upload",
+    "trusted_checkout",
+    "trusted_identity",
+    "case_selection",
+    "exact_preflight",
+    "provider_identity",
+    "writer",
+    "writer_sanitize",
+    "audit_config",
+    "shadow_audit",
+    "audit_sanitize",
+    "source_accounting_sanitize",
+    "source_accounting_upload",
+    "writer_artifact_upload",
+    "audit_artifact_upload",
 }
 
 
 def _env(**values: str) -> dict[str, str]:
     env = {
-        "STATUS_CASE_ID": "PR-457", "STATUS_RUN_ID": "12345",
-        "STATUS_RUN_ATTEMPT": "2", "STATUS_JOB": "failure",
+        "STATUS_CASE_ID": "PR-457",
+        "STATUS_RUN_ID": "12345",
+        "STATUS_RUN_ATTEMPT": "2",
+        "STATUS_JOB": "failure",
     }
     env.update({f"STATUS_{key.upper()}": value for key, value in values.items()})
     return env
@@ -54,18 +66,25 @@ def test_status_projection_handles_missing_and_unrecognized_values_fail_closed()
     assert hostile["writer_call_state"] == "unknown"
 
 
-@pytest.mark.parametrize(("writer", "writer_sanitize", "upload", "expected"), [
-    ("skipped", "skipped", "skipped", "not_started"),
-    ("failure", "skipped", "skipped", "unknown"),
-    ("success", "unknown", "skipped", "unknown"),
-    ("success", "success", "failure", "unknown"),
-    ("success", "success", "skipped", "unknown"),
-    ("success", "success", "success", "accounted_by_sanitized_receipt"),
-])
+@pytest.mark.parametrize(
+    ("writer", "writer_sanitize", "upload", "expected"),
+    [
+        ("skipped", "skipped", "skipped", "not_started"),
+        ("failure", "skipped", "skipped", "unknown"),
+        ("success", "unknown", "skipped", "unknown"),
+        ("success", "success", "failure", "unknown"),
+        ("success", "success", "skipped", "unknown"),
+        ("success", "success", "success", "accounted_by_sanitized_receipt"),
+    ],
+)
 def test_writer_call_state_requires_sanitization_and_successful_upload(writer, writer_sanitize, upload, expected):
-    receipt = STATUS.build_receipt(_env(
-        writer=writer, writer_sanitize=writer_sanitize, writer_artifact_upload=upload,
-    ))
+    receipt = STATUS.build_receipt(
+        _env(
+            writer=writer,
+            writer_sanitize=writer_sanitize,
+            writer_artifact_upload=upload,
+        )
+    )
     assert receipt["writer_call_state"] == expected
 
 
@@ -74,13 +93,21 @@ def test_audit_call_state_requires_a_sanitized_receipt_or_proves_it_never_starte
     assert skipped["audit_call_state"] == "not_started"
     failed = STATUS.build_receipt(_env(shadow_audit="failure", audit_sanitize="skipped"))
     assert failed["audit_call_state"] == "unknown"
-    missing_upload = STATUS.build_receipt(_env(
-        shadow_audit="failure", audit_sanitize="success", audit_artifact_upload="skipped",
-    ))
+    missing_upload = STATUS.build_receipt(
+        _env(
+            shadow_audit="failure",
+            audit_sanitize="success",
+            audit_artifact_upload="skipped",
+        )
+    )
     assert missing_upload["audit_call_state"] == "unknown"
-    recorded = STATUS.build_receipt(_env(
-        shadow_audit="failure", audit_sanitize="success", audit_artifact_upload="success",
-    ))
+    recorded = STATUS.build_receipt(
+        _env(
+            shadow_audit="failure",
+            audit_sanitize="success",
+            audit_artifact_upload="success",
+        )
+    )
     assert recorded["audit_call_state"] == "accounted_by_sanitized_receipt"
 
 
@@ -89,22 +116,40 @@ def test_source_attempt_projection_requires_sanitized_receipt_and_upload(attempt
     values = {"source_accounting_sanitize": "success", "source_accounting_upload": "success"}
     recorded = STATUS.build_receipt(_env(**values, source_http_attempts=attempts))
     assert recorded["source_http_attempts"] == attempts
-    missing_upload = STATUS.build_receipt(_env(
-        source_accounting_sanitize="success", source_accounting_upload="skipped",
-        source_http_attempts=attempts,
-    ))
+    missing_upload = STATUS.build_receipt(
+        _env(
+            source_accounting_sanitize="success",
+            source_accounting_upload="skipped",
+            source_http_attempts=attempts,
+        )
+    )
     assert missing_upload["source_http_attempts"] == "unknown"
     invalid = STATUS.build_receipt(_env(**values, source_http_attempts="2"))
     assert invalid["source_http_attempts"] == "unknown"
 
 
 def test_trusted_projection_records_every_stage_when_outcomes_are_present():
-    env = _env(**{name: "success" for name in (
-        "trusted_checkout", "trusted_identity", "case_selection", "exact_preflight",
-        "provider_identity", "writer", "writer_sanitize", "audit_config", "shadow_audit",
-        "audit_sanitize", "source_accounting_sanitize", "source_accounting_upload",
-        "writer_artifact_upload", "audit_artifact_upload",
-    )})
+    env = _env(
+        **{
+            name: "success"
+            for name in (
+                "trusted_checkout",
+                "trusted_identity",
+                "case_selection",
+                "exact_preflight",
+                "provider_identity",
+                "writer",
+                "writer_sanitize",
+                "audit_config",
+                "shadow_audit",
+                "audit_sanitize",
+                "source_accounting_sanitize",
+                "source_accounting_upload",
+                "writer_artifact_upload",
+                "audit_artifact_upload",
+            )
+        }
+    )
     receipt = STATUS.build_receipt(env)
     assert receipt["projection_mode"] == "trusted_projector"
     assert set(receipt["stages"]) == EXPECTED_STAGES
@@ -123,9 +168,12 @@ def test_status_case_binding_uses_the_selected_case_and_real_selection_step():
     assert "id: case" in live
     assert "case_selection" in STATUS.STAGE_ENV
     for case_id in ("PR-457", "PR-464"):
-        receipt = STATUS.build_receipt({
-            "STATUS_CASE_ID": case_id, "STATUS_CASE_SELECTION": "success",
-        })
+        receipt = STATUS.build_receipt(
+            {
+                "STATUS_CASE_ID": case_id,
+                "STATUS_CASE_SELECTION": "success",
+            }
+        )
         assert receipt["case_id"] == case_id
         assert receipt["stages"]["case_selection"] == "success"
 
@@ -174,7 +222,7 @@ def test_workflow_status_is_a_separate_always_artifact_and_preserves_receipt_gat
     )[0]
     assert "if: always()" in status
     assert "sanitize_model_only_shadow_workflow_status.py" in status
-    assert "projection_mode\": \"conservative_fallback\"" in status
+    assert 'projection_mode": "conservative_fallback"' in status
     assert '"writer_call_state": "unknown"' in status
     assert '"audit_call_state": "unknown"' in status
     assert "if: always() && steps.workflow-status.outputs.validated == 'true'" in upload
@@ -198,9 +246,13 @@ def test_checkout_failure_uses_conservative_inline_fallback(tmp_path):
         **os.environ,
         "RUNNER_TEMP": str(tmp_path),
         "GITHUB_OUTPUT": str(tmp_path / "github-output"),
-        "STATUS_CASE_ID": "PR-457", "STATUS_RUN_ID": "9", "STATUS_RUN_ATTEMPT": "1",
-        "STATUS_JOB": "failure", "STATUS_TRUSTED_CHECKOUT": "failure",
-        "STATUS_TRUSTED_IDENTITY": "skipped", "STATUS_WRITER": "",
+        "STATUS_CASE_ID": "PR-457",
+        "STATUS_RUN_ID": "9",
+        "STATUS_RUN_ATTEMPT": "1",
+        "STATUS_JOB": "failure",
+        "STATUS_TRUSTED_CHECKOUT": "failure",
+        "STATUS_TRUSTED_IDENTITY": "skipped",
+        "STATUS_WRITER": "",
     }
     result = subprocess.run(["bash", "-e", "-u", "-o", "pipefail", "-c", script], env=env, check=False)
     assert result.returncode == 0
@@ -227,9 +279,13 @@ def test_inline_fallback_refuses_preexisting_symlink_directory(tmp_path):
     (tmp_path / "private-shadow-status").symlink_to(external, target_is_directory=True)
     env = {
         **os.environ,
-        "RUNNER_TEMP": str(tmp_path), "GITHUB_OUTPUT": str(tmp_path / "github-output"),
-        "STATUS_CASE_ID": "PR-457", "STATUS_RUN_ID": "9", "STATUS_RUN_ATTEMPT": "1",
-        "STATUS_JOB": "failure", "STATUS_TRUSTED_CHECKOUT": "failure",
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_OUTPUT": str(tmp_path / "github-output"),
+        "STATUS_CASE_ID": "PR-457",
+        "STATUS_RUN_ID": "9",
+        "STATUS_RUN_ATTEMPT": "1",
+        "STATUS_JOB": "failure",
+        "STATUS_TRUSTED_CHECKOUT": "failure",
         "STATUS_TRUSTED_IDENTITY": "skipped",
     }
     result = subprocess.run(["bash", "-e", "-u", "-o", "pipefail", "-c", script], env=env, check=False)

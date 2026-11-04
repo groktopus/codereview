@@ -74,8 +74,7 @@ CODE_REVIEW_CONTRACTS = {
 }
 ALL_CONTRACTS = {**CONTRACTS, **CODE_REVIEW_CONTRACTS}
 TARGET_CONTRACTS = {
-    repository: frozenset(target["review_contracts"])
-    for repository, target in _REGISTRY["targets"].items()
+    repository: frozenset(target["review_contracts"]) for repository, target in _REGISTRY["targets"].items()
 }
 CONTRACT_STATUS = {name: entry["status"] for name, entry in _REGISTRY_ENTRIES.items()}
 CONTRACT_REPLACED_BY = {name: entry["replaced_by"] for name, entry in _REGISTRY_ENTRIES.items()}
@@ -225,7 +224,10 @@ def main(argv: list[str] | None = None) -> int:
         _write_binding(args.binding_artifact, binding)
         _write_outputs(args.github_output, binding)
     except ProfileBindingError as exc:
-        print(json.dumps({"status": "REJECTED", "error": exc.code}, sort_keys=True, separators=(",", ":")), file=sys.stderr)
+        print(
+            json.dumps({"status": "REJECTED", "error": exc.code}, sort_keys=True, separators=(",", ":")),
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps({"status": "RESOLVED", **binding}, sort_keys=True, separators=(",", ":")))
     return 0

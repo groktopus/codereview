@@ -46,7 +46,9 @@ def test_default_body_matches_legacy_chat_completions_shape_byte_for_byte():
         ],
     }
     expected = json.dumps(old_body, ensure_ascii=False, separators=(",", ":")).encode()
-    actual = provider.serialize_review_request({"task_id": "t1", "unit_ids": ["u1"]}, [{"evidence_id": "ev1"}], _limits())
+    actual = provider.serialize_review_request(
+        {"task_id": "t1", "unit_ids": ["u1"]}, [{"evidence_id": "ev1"}], _limits()
+    )
     assert actual == expected
     assert hashlib.sha256(actual).hexdigest() == hashlib.sha256(expected).hexdigest()
     assert len(actual) == provider.review_input_bytes(

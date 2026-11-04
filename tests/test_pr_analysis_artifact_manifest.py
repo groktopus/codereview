@@ -65,9 +65,7 @@ def _fixture(tmp_path: Path, *, central_pilot: bool = False):
             {
                 "workflow_repository": "groktopus/codereview",
                 "run_workflow_ref": manifest.CENTRAL_PILOT_CALLER_REF,
-                "called_workflow_ref": (
-                    f"groktopus/codereview/.github/workflows/pr-analysis.yml@{CENTRAL_PILOT_SHA}"
-                ),
+                "called_workflow_ref": (f"groktopus/codereview/.github/workflows/pr-analysis.yml@{CENTRAL_PILOT_SHA}"),
                 "called_workflow_sha": CENTRAL_PILOT_SHA,
                 "called_workflow_repository": "groktopus/codereview",
                 "target_repository": "magnus919/SlopSearX",
@@ -701,14 +699,17 @@ def test_central_pilot_manifest_survives_authenticated_fetch_and_offline_intake(
     assert f"{api}/repos/magnus919/SlopSearX/pulls/7" in urls
     assert f"{api}/repos/groktopus/codereview/actions/runs/42/artifacts?per_page=100" in urls
     assert urls[-1] == storage_url
-    assert manifest.verify_manifest(
-        tmp_path / "central-fetched" / "artifact",
-        {
-            **manifest._identity(intake._unpack_archive(archive)[1]["identity"]),
-            "base_sha": "a" * 40,
-            "head_sha": "b" * 40,
-        },
-    )["identity"]["target_repository"] == "magnus919/SlopSearX"
+    assert (
+        manifest.verify_manifest(
+            tmp_path / "central-fetched" / "artifact",
+            {
+                **manifest._identity(intake._unpack_archive(archive)[1]["identity"]),
+                "base_sha": "a" * 40,
+                "head_sha": "b" * 40,
+            },
+        )["identity"]["target_repository"]
+        == "magnus919/SlopSearX"
+    )
 
 
 def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_capture(tmp_path, capsys):
@@ -778,11 +779,13 @@ def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_c
         "head_sha": "e" * 40,
         "repository": {"id": 99, "full_name": "owner/caller"},
         "pull_requests": [],
-        "referenced_workflows": [{
-            "path": identity["called_workflow_ref"],
-            "sha": identity["called_workflow_sha"],
-            "ref": "refs/heads/main",
-        }],
+        "referenced_workflows": [
+            {
+                "path": identity["called_workflow_ref"],
+                "sha": identity["called_workflow_sha"],
+                "ref": "refs/heads/main",
+            }
+        ],
     }
     pull = {
         "number": 7,
@@ -809,19 +812,23 @@ def test_v3_manifest_cli_archive_authenticated_fetch_and_intake_preserve_exact_c
     storage_url = "https://productionresultssa12.blob.core.windows.net/actions-results/signed?sig=synthetic"
     listing = {
         "total_count": 1,
-        "artifacts": [{
-            "id": 501,
-            "name": "pr-review-7-42-2",
-            "size_in_bytes": len(archive),
-            "expired": False,
-            "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
-            "workflow_run": {"id": 42, "repository_id": 99, "head_sha": "e" * 40},
-        }],
+        "artifacts": [
+            {
+                "id": 501,
+                "name": "pr-review-7-42-2",
+                "size_in_bytes": len(archive),
+                "expired": False,
+                "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+                "workflow_run": {"id": 42, "repository_id": 99, "head_sha": "e" * 40},
+            }
+        ],
     }
     routes = {
         f"{api}/repos/owner/caller/actions/runs/42/attempts/2": fetch.HttpResponse(200, {}, json.dumps(run).encode()),
         f"{api}/repos/owner/caller/pulls/7": fetch.HttpResponse(200, {}, json.dumps(pull).encode()),
-        f"{api}/repos/owner/caller/actions/runs/42/artifacts?per_page=100": fetch.HttpResponse(200, {}, json.dumps(listing).encode()),
+        f"{api}/repos/owner/caller/actions/runs/42/artifacts?per_page=100": fetch.HttpResponse(
+            200, {}, json.dumps(listing).encode()
+        ),
         f"{api}/repos/owner/caller/actions/artifacts/501/zip": fetch.HttpResponse(302, {"Location": storage_url}, b""),
         storage_url: fetch.HttpResponse(200, {}, archive),
     }
@@ -1012,23 +1019,35 @@ def test_recovery_preview_checks_current_pins_and_reports_no_authority(tmp_path)
     root, identity, checkpoint_path, profile, provider, decision = _fixture(tmp_path)
     source_repository = _preview_source(tmp_path, identity)
     checkpoint = {
-        "run_id": identity["run_id"], "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
-        "snapshot_id": identity["snapshot_id"], "request_hash": identity["request_hash"],
-        "project_profile_version": identity["profile_version"], "ledger": {
+        "run_id": identity["run_id"],
+        "base_sha": identity["base_sha"],
+        "head_sha": identity["head_sha"],
+        "snapshot_id": identity["snapshot_id"],
+        "request_hash": identity["request_hash"],
+        "project_profile_version": identity["profile_version"],
+        "ledger": {
             "identity": {"snapshot_id": identity["snapshot_id"], "profile_version": identity["profile_version"]},
-            "request_hash": identity["request_hash"], "events": [],
+            "request_hash": identity["request_hash"],
+            "events": [],
             "budget": {"reservations": {"retrieval": {"provider_calls": 0}}, "settlements": {}},
         },
     }
     _seal_checkpoint(checkpoint_path, checkpoint)
-    manifest.create_manifest(root, identity, checkpoint=checkpoint_path, profile=profile,
-                             provider_config=provider, decision_config=decision)
+    manifest.create_manifest(
+        root, identity, checkpoint=checkpoint_path, profile=profile, provider_config=provider, decision_config=decision
+    )
     packet = tmp_path / "current-packet.json"
     packet.write_bytes((root / "recovery-inputs.json").read_bytes())
 
-    result = preview.preview(root, expected_identity=identity, source_repository=source_repository,
-                             profile=profile, provider_config=provider, decision_config=decision,
-                             current_recovery_inputs=packet)
+    result = preview.preview(
+        root,
+        expected_identity=identity,
+        source_repository=source_repository,
+        profile=profile,
+        provider_config=provider,
+        decision_config=decision,
+        current_recovery_inputs=packet,
+    )
 
     assert result["status"] == "CONSISTENCY_PREVIEW_PASSED"
     assert result["remaining_checks"] == ["engine_resume_preflight", "current_pr_head_freshness"]
@@ -1045,30 +1064,63 @@ def test_recovery_preview_fails_closed_on_source_drift_and_unsettled_reservation
     root, identity, checkpoint_path, profile, provider, decision = _fixture(tmp_path)
     source_repository = _preview_source(tmp_path, identity)
     checkpoint = {
-        "run_id": identity["run_id"], "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
-        "snapshot_id": identity["snapshot_id"], "request_hash": identity["request_hash"],
-        "project_profile_version": identity["profile_version"], "ledger": {
+        "run_id": identity["run_id"],
+        "base_sha": identity["base_sha"],
+        "head_sha": identity["head_sha"],
+        "snapshot_id": identity["snapshot_id"],
+        "request_hash": identity["request_hash"],
+        "project_profile_version": identity["profile_version"],
+        "ledger": {
             "identity": {"snapshot_id": identity["snapshot_id"], "profile_version": identity["profile_version"]},
-            "request_hash": identity["request_hash"], "events": [],
+            "request_hash": identity["request_hash"],
+            "events": [],
             "budget": {"reservations": {"task:review:0": {"provider_calls": 1}}, "settlements": {}},
         },
     }
     _seal_checkpoint(checkpoint_path, checkpoint)
-    manifest.create_manifest(root, identity, checkpoint=checkpoint_path, profile=profile,
-                             provider_config=provider, decision_config=decision)
+    manifest.create_manifest(
+        root, identity, checkpoint=checkpoint_path, profile=profile, provider_config=provider, decision_config=decision
+    )
     packet = tmp_path / "current-packet.json"
     packet.write_bytes((root / "recovery-inputs.json").read_bytes())
     drifted_source = _preview_source(tmp_path / "drift", {**identity})
     (drifted_source / "source.txt").write_text("drifted source\n", encoding="utf-8")
     import subprocess
+
     subprocess.run(["git", "-C", str(drifted_source), "add", "source.txt"], check=True)
-    subprocess.run(["git", "-C", str(drifted_source), "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "drift"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(drifted_source),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "drift",
+        ],
+        check=True,
+    )
     with pytest.raises(manifest.ManifestError, match="recovery_current_source_mismatch"):
-        preview.preview(root, expected_identity=identity, source_repository=drifted_source, profile=profile,
-                        provider_config=provider, decision_config=decision, current_recovery_inputs=packet)
+        preview.preview(
+            root,
+            expected_identity=identity,
+            source_repository=drifted_source,
+            profile=profile,
+            provider_config=provider,
+            decision_config=decision,
+            current_recovery_inputs=packet,
+        )
     ambiguous = preview.preview(
-        root, expected_identity=identity, source_repository=source_repository, profile=profile,
-        provider_config=provider, decision_config=decision, current_recovery_inputs=packet,
+        root,
+        expected_identity=identity,
+        source_repository=source_repository,
+        profile=profile,
+        provider_config=provider,
+        decision_config=decision,
+        current_recovery_inputs=packet,
     )
     assert ambiguous["status"] == "AMBIGUOUS_INFLIGHT_REQUIRES_ENGINE_RECONCILIATION"
     assert ambiguous["resume_authorized"] is False
@@ -1085,8 +1137,24 @@ def _preview_source(tmp_path: Path, identity: dict) -> Path:
     subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
     (repo / "source.txt").write_text("pinned source\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", "source.txt"], check=True)
-    subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "source"], check=True)
-    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "source",
+        ],
+        check=True,
+    )
+    sha = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
     identity["harness_sha"] = sha
     identity["called_workflow_sha"] = sha
     return repo
@@ -1099,19 +1167,32 @@ def test_recovery_preview_rejects_malformed_reservation_ledger(tmp_path, reserva
     root, identity, checkpoint_path, profile, provider, decision = _fixture(tmp_path)
     source_repository = _preview_source(tmp_path, identity)
     checkpoint = {
-        "run_id": identity["run_id"], "base_sha": identity["base_sha"], "head_sha": identity["head_sha"],
-        "snapshot_id": identity["snapshot_id"], "request_hash": identity["request_hash"],
-        "project_profile_version": identity["profile_version"], "ledger": {
+        "run_id": identity["run_id"],
+        "base_sha": identity["base_sha"],
+        "head_sha": identity["head_sha"],
+        "snapshot_id": identity["snapshot_id"],
+        "request_hash": identity["request_hash"],
+        "project_profile_version": identity["profile_version"],
+        "ledger": {
             "identity": {"snapshot_id": identity["snapshot_id"], "profile_version": identity["profile_version"]},
-            "request_hash": identity["request_hash"], "events": [],
+            "request_hash": identity["request_hash"],
+            "events": [],
             "budget": {"reservations": {"bad": reservation}, "settlements": {}},
         },
     }
     _seal_checkpoint(checkpoint_path, checkpoint)
-    manifest.create_manifest(root, identity, checkpoint=checkpoint_path, profile=profile,
-                             provider_config=provider, decision_config=decision)
+    manifest.create_manifest(
+        root, identity, checkpoint=checkpoint_path, profile=profile, provider_config=provider, decision_config=decision
+    )
     packet = tmp_path / "current-packet.json"
     packet.write_bytes((root / "recovery-inputs.json").read_bytes())
     with pytest.raises(manifest.ManifestError, match="recovery_reservation_ledger_invalid"):
-        preview.preview(root, expected_identity=identity, source_repository=source_repository, profile=profile,
-                        provider_config=provider, decision_config=decision, current_recovery_inputs=packet)
+        preview.preview(
+            root,
+            expected_identity=identity,
+            source_repository=source_repository,
+            profile=profile,
+            provider_config=provider,
+            decision_config=decision,
+            current_recovery_inputs=packet,
+        )

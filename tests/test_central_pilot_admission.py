@@ -45,9 +45,13 @@ class FakeTransport:
 
 def _candidate(tmp_path, contract_name="legacy-v14"):
     root, identity, checkpoint, _fixture_profile, provider, decision = fixtures._fixture(tmp_path, central_pilot=True)
-    identity.update({"called_workflow_sha": admission.REUSABLE_SHA,
-                     "harness_sha": admission.REUSABLE_SHA,
-                     "called_workflow_ref": f"{admission.CALLER}/{admission.REUSABLE_PATH}@{admission.REUSABLE_SHA}"})
+    identity.update(
+        {
+            "called_workflow_sha": admission.REUSABLE_SHA,
+            "harness_sha": admission.REUSABLE_SHA,
+            "called_workflow_ref": f"{admission.CALLER}/{admission.REUSABLE_PATH}@{admission.REUSABLE_SHA}",
+        }
+    )
     contract = admission.review_contracts.CONTRACTS[contract_name]
     profile = ROOT / contract["profile_path"]
     profile_doc = json.loads(profile.read_text(encoding="utf-8"))
@@ -72,42 +76,78 @@ def _candidate(tmp_path, contract_name="legacy-v14"):
     (root / "profile-binding.json").write_text(
         json.dumps(profile_binding, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
     )
-    manifest.create_manifest(root, identity, checkpoint=checkpoint, profile=profile,
-                             provider_config=provider, decision_config=decision)
+    manifest.create_manifest(
+        root, identity, checkpoint=checkpoint, profile=profile, provider_config=provider, decision_config=decision
+    )
     archive = _archive(root)
     run = {
-        "id": 42, "run_attempt": 2, "event": "workflow_dispatch", "path": admission.CALLER_PATH,
-        "head_branch": "main", "head_sha": "e" * 40, "status": "completed", "conclusion": "success",
-        "workflow_id": 123, "repository": {"id": 99, "full_name": admission.CALLER},
-        "referenced_workflows": [{"path": f"{admission.CALLER}/{admission.REUSABLE_PATH}@{admission.REUSABLE_SHA}", "sha": admission.REUSABLE_SHA}],
+        "id": 42,
+        "run_attempt": 2,
+        "event": "workflow_dispatch",
+        "path": admission.CALLER_PATH,
+        "head_branch": "main",
+        "head_sha": "e" * 40,
+        "status": "completed",
+        "conclusion": "success",
+        "workflow_id": 123,
+        "repository": {"id": 99, "full_name": admission.CALLER},
+        "referenced_workflows": [
+            {
+                "path": f"{admission.CALLER}/{admission.REUSABLE_PATH}@{admission.REUSABLE_SHA}",
+                "sha": admission.REUSABLE_SHA,
+            }
+        ],
     }
-    pr = {"number": 7, "state": "open", "draft": False,
-          "base": {"ref": "main", "sha": "a" * 40, "repo": {"full_name": admission.TARGET}},
-          "head": {"sha": "b" * 40}}
-    artifact = {"id": 55, "name": "pr-review-7-42-2", "expired": False,
-                "size_in_bytes": len(archive), "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
-                "workflow_run": {"id": 42, "repository_id": 99, "head_sha": "e" * 40}}
+    pr = {
+        "number": 7,
+        "state": "open",
+        "draft": False,
+        "base": {"ref": "main", "sha": "a" * 40, "repo": {"full_name": admission.TARGET}},
+        "head": {"sha": "b" * 40},
+    }
+    artifact = {
+        "id": 55,
+        "name": "pr-review-7-42-2",
+        "expired": False,
+        "size_in_bytes": len(archive),
+        "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
+        "workflow_run": {"id": 42, "repository_id": 99, "head_sha": "e" * 40},
+    }
     api = "https://api.github.com"
     paths = {
         f"{api}/repos/groktopus/codereview/actions/runs/42/attempts/2": run,
         f"{api}/repos/magnus919/SlopSearX/pulls/7": pr,
-        f"{api}/repos/groktopus/codereview/actions/runs/42/artifacts?per_page=100": {"total_count": 1, "artifacts": [artifact]},
+        f"{api}/repos/groktopus/codereview/actions/runs/42/artifacts?per_page=100": {
+            "total_count": 1,
+            "artifacts": [artifact],
+        },
     }
     responses = {url: admission.fetch.HttpResponse(200, {}, json.dumps(value).encode()) for url, value in paths.items()}
     artifact_url = f"{api}/repos/groktopus/codereview/actions/artifacts/55/zip"
     storage_url = "https://productionresultssa1.blob.core.windows.net/signed.zip?sig=fixture"
     responses[artifact_url] = admission.fetch.HttpResponse(302, {"Location": storage_url}, b"")
     responses[storage_url] = admission.fetch.HttpResponse(200, {}, archive)
-    event = {"repository": {"id": 99, "full_name": admission.CALLER}, "workflow_run": {
-        "id": 42, "run_attempt": 2, "workflow_id": 123, "event": "workflow_dispatch",
-        "path": admission.CALLER_PATH, "head_branch": "main", "head_sha": "e" * 40}}
+    event = {
+        "repository": {"id": 99, "full_name": admission.CALLER},
+        "workflow_run": {
+            "id": 42,
+            "run_attempt": 2,
+            "workflow_id": 123,
+            "event": "workflow_dispatch",
+            "path": admission.CALLER_PATH,
+            "head_branch": "main",
+            "head_sha": "e" * 40,
+        },
+    }
     return json.dumps(event).encode(), FakeTransport(responses)
 
 
 @pytest.mark.parametrize("contract_name", ["legacy-v14", "bounded-production-v16", "bounded-production-v17"])
 def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_path, contract_name):
     event, transport = _candidate(tmp_path, contract_name)
-    receipt = admission.verify_candidate(event_bytes=event, pull_request_number=7, token="fake-read-token", transport=transport)
+    receipt = admission.verify_candidate(
+        event_bytes=event, pull_request_number=7, token="fake-read-token", transport=transport
+    )
     assert receipt["status"] == "CONSISTENCY_VALIDATED"
     assert receipt["review_contract"] == contract_name
     expected_contract = admission.review_contracts.CONTRACTS[contract_name]
@@ -119,7 +159,9 @@ def test_central_dispatch_candidate_yields_hash_only_receipt_without_writes(tmp_
     assert receipt["publication_authorized"] is False
     assert all("sha256" in key for key in receipt if key.endswith("_sha256"))
     assert not any("text" in key.lower() for key in receipt)
-    assert all(call[1]["Authorization"] == "Bearer fake-read-token" for call in transport.calls if "blob.core" not in call[0])
+    assert all(
+        call[1]["Authorization"] == "Bearer fake-read-token" for call in transport.calls if "blob.core" not in call[0]
+    )
     assert len(transport.calls) == 5
 
 
@@ -187,8 +229,12 @@ def test_trusted_reusable_pin_matches_pilot_caller_and_runtime_identity():
 def test_source_checkout_entrypoint_loads_recovery_validator_without_pythonpath(tmp_path):
     root, identity, checkpoint, profile, provider, decision = fixtures._fixture(tmp_path, central_pilot=True)
     manifest.create_manifest(
-        root, identity, checkpoint=checkpoint, profile=profile,
-        provider_config=provider, decision_config=decision,
+        root,
+        identity,
+        checkpoint=checkpoint,
+        profile=profile,
+        provider_config=provider,
+        decision_config=decision,
     )
     identity_path = tmp_path / "identity.json"
     identity_path.write_text(json.dumps(identity), encoding="utf-8")
@@ -208,7 +254,12 @@ print(json.dumps(record, sort_keys=True, separators=(',', ':')))
     environment.pop("PYTHONPATH", None)
     completed = subprocess.run(
         [sys.executable, "-S", "-c", code, str(root), str(identity_path)],
-        cwd=ROOT, env=environment, capture_output=True, text=True, timeout=15, check=False,
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
     )
     assert completed.returncode == 0, completed.stderr
     record = json.loads(completed.stdout)
@@ -217,14 +268,27 @@ print(json.dumps(record, sort_keys=True, separators=(',', ':')))
     assert record["checks_document_sha256"]
 
 
-@pytest.mark.parametrize("change", [
-    {"event": "pull_request"}, {"head_branch": "attacker"},
-    {"path": ".github/workflows/other.yml@refs/heads/main"},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"event": "pull_request"},
+        {"head_branch": "attacker"},
+        {"path": ".github/workflows/other.yml@refs/heads/main"},
+    ],
+)
 def test_dispatch_event_binding_fails_closed(change):
-    event = {"repository": {"full_name": admission.CALLER}, "workflow_run": {
-        "id": 42, "run_attempt": 1, "workflow_id": 123, "event": "workflow_dispatch",
-        "path": admission.CALLER_PATH, "head_branch": "main", "head_sha": "e" * 40}}
+    event = {
+        "repository": {"full_name": admission.CALLER},
+        "workflow_run": {
+            "id": 42,
+            "run_attempt": 1,
+            "workflow_id": 123,
+            "event": "workflow_dispatch",
+            "path": admission.CALLER_PATH,
+            "head_branch": "main",
+            "head_sha": "e" * 40,
+        },
+    }
     event["repository"]["id"] = 99
     event["workflow_run"].update(change)
     with pytest.raises(admission.AdmissionError):
@@ -268,9 +332,14 @@ def test_duplicate_retained_artifact_is_rejected(tmp_path):
     assert len(transport.calls) == 3
 
 
-@pytest.mark.parametrize("field,value", [
-    ("id", "42"), ("workflow_id", True), ("repository_id", "99"),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("id", "42"),
+        ("workflow_id", True),
+        ("repository_id", "99"),
+    ],
+)
 def test_source_run_rejects_malformed_numeric_identity(tmp_path, field, value):
     event, transport = _candidate(tmp_path)
     run_url = "https://api.github.com/repos/groktopus/codereview/actions/runs/42/attempts/2"
@@ -285,9 +354,14 @@ def test_source_run_rejects_malformed_numeric_identity(tmp_path, field, value):
     assert len(transport.calls) == 1
 
 
-@pytest.mark.parametrize("field,value", [
-    ("base_full_name", 99), ("base_sha", 99), ("head_sha", True),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("base_full_name", 99),
+        ("base_sha", 99),
+        ("head_sha", True),
+    ],
+)
 def test_target_pr_rejects_malformed_identity_types(tmp_path, field, value):
     event, transport = _candidate(tmp_path)
     pr_url = "https://api.github.com/repos/magnus919/SlopSearX/pulls/7"
@@ -323,18 +397,27 @@ def test_artifact_name_is_the_only_pr_number_source_and_must_be_unique(tmp_path)
         admission.discover_pr_number(event_bytes=event, token="fake", transport=transport)
 
 
-@pytest.mark.parametrize(("event_name", "expected"), [
-    ("workflow_run", "OBSERVED_EVENT_PAYLOAD"),
-    ("workflow_dispatch", "NOT_ESTABLISHED_BY_MANUAL_REHEARSAL"),
-])
+@pytest.mark.parametrize(
+    ("event_name", "expected"),
+    [
+        ("workflow_run", "OBSERVED_EVENT_PAYLOAD"),
+        ("workflow_dispatch", "NOT_ESTABLISHED_BY_MANUAL_REHEARSAL"),
+    ],
+)
 def test_manual_rehearsal_receipt_is_distinct_from_trigger_evidence(tmp_path, event_name, expected):
     event, transport = _candidate(tmp_path)
     receipt_path = tmp_path / "candidate-receipt.json"
-    kwargs = ({"event_bytes": event, "run_id": None, "attempt": None}
-              if event_name == "workflow_run"
-              else {"event_bytes": None, "run_id": "42", "attempt": "2"})
+    kwargs = (
+        {"event_bytes": event, "run_id": None, "attempt": None}
+        if event_name == "workflow_run"
+        else {"event_bytes": None, "run_id": "42", "attempt": "2"}
+    )
     receipt = admission.run_canary(
-        event_name=event_name, token="fake", transport=transport, receipt_path=receipt_path, **kwargs,
+        event_name=event_name,
+        token="fake",
+        transport=transport,
+        receipt_path=receipt_path,
+        **kwargs,
     )
     assert receipt["trigger_mode"] == ("workflow_run" if event_name == "workflow_run" else "manual_rehearsal")
     assert receipt["workflow_run_trigger_evidence"] == expected

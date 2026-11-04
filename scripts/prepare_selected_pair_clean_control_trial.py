@@ -114,7 +114,10 @@ def _read_clean_fixture() -> tuple[dict[str, Any], dict[str, bytes]]:
     if {name: _sha(raw) for name, raw in files.items()} != manifest.get("file_hashes"):
         raise PreparationError("clean_fixture_source_identity_mismatch")
     allowed = manifest["construction_oracle"]["allowed_head_only_line"].encode("utf-8")
-    if files["auth.clean-head.py"].count(allowed) != 1 or files["auth.clean-head.py"].replace(allowed, b"", 1) != files["auth.base.py"]:
+    if (
+        files["auth.clean-head.py"].count(allowed) != 1
+        or files["auth.clean-head.py"].replace(allowed, b"", 1) != files["auth.base.py"]
+    ):
         raise PreparationError("clean_fixture_oracle_invalid")
     return manifest, files
 
@@ -144,8 +147,12 @@ def _materialize_clean_case(repo: Path, manifest: dict[str, Any], files: dict[st
         target = repo / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(files[name])
-    (repo / "README.md").write_text("Synthetic authorization review fixture. Target code is never run.\n", encoding="utf-8")
-    (repo / "tests/test_auth.py").write_text("# Auth regression fixture; intentionally not executed.\n", encoding="utf-8")
+    (repo / "README.md").write_text(
+        "Synthetic authorization review fixture. Target code is never run.\n", encoding="utf-8"
+    )
+    (repo / "tests/test_auth.py").write_text(
+        "# Auth regression fixture; intentionally not executed.\n", encoding="utf-8"
+    )
     _git(repo, "add", "--all", env=env)
     _git(repo, "-c", "commit.gpgSign=false", "commit", "--quiet", "-m", "synthetic base", env=env)
     base = _git(repo, "rev-parse", "HEAD", env=env)
@@ -180,7 +187,11 @@ def _current_revision(root: Path) -> str:
 
 def _implementation_identity(root: Path, *, version: str = "v1") -> dict[str, Any]:
     hashes = {}
-    paths = (*IMPLEMENTATION_PATHS, "scripts/run_current_selected_model_trial.py") if version == "v2" else IMPLEMENTATION_PATHS
+    paths = (
+        (*IMPLEMENTATION_PATHS, "scripts/run_current_selected_model_trial.py")
+        if version == "v2"
+        else IMPLEMENTATION_PATHS
+    )
     for relative in paths:
         path = root / relative
         try:
@@ -228,8 +239,7 @@ def _capture_primary_descriptors(case_id: str, report: dict[str, Any]) -> list[d
     if not isinstance(descriptors, list) or not descriptors:
         raise PreparationError("primary_request_descriptors_missing")
     by_identity = {
-        (item.get("input_bytes"), item.get("input_sha256")): item
-        for item in descriptors if isinstance(item, dict)
+        (item.get("input_bytes"), item.get("input_sha256")): item for item in descriptors if isinstance(item, dict)
     }
     if len(by_identity) != len(descriptors) or set(by_identity) != set(actual):
         raise PreparationError("serializer_descriptor_binding_mismatch")
@@ -238,7 +248,9 @@ def _capture_primary_descriptors(case_id: str, report: dict[str, Any]) -> list[d
     return descriptors
 
 
-def _assert_body_content(case_id: str, bodies: list[bytes], suite: dict[str, Any], clean_files: dict[str, bytes]) -> None:
+def _assert_body_content(
+    case_id: str, bodies: list[bytes], suite: dict[str, Any], clean_files: dict[str, bytes]
+) -> None:
     texts: list[str] = []
     for body in bodies:
         try:
@@ -247,7 +259,13 @@ def _assert_body_content(case_id: str, bodies: list[bytes], suite: dict[str, Any
             evidence = user["evidence"]
         except (IndexError, KeyError, TypeError, json.JSONDecodeError):
             raise PreparationError("serialized_request_shape_invalid") from None
-        texts.append("\n".join(item.get("content", "") for item in evidence if isinstance(item, dict) and isinstance(item.get("content"), str)))
+        texts.append(
+            "\n".join(
+                item.get("content", "")
+                for item in evidence
+                if isinstance(item, dict) and isinstance(item.get("content"), str)
+            )
+        )
     if not texts:
         raise PreparationError("serialized_request_body_missing")
     if case_id.endswith("attack") or case_id.endswith("benign"):
@@ -255,12 +273,19 @@ def _assert_body_content(case_id: str, bodies: list[bytes], suite: dict[str, Any
         variant = next(item for item in suite["variants"] if item["case_id"] == variant_id)
         other_id = "code-comment-benign" if variant_id.endswith("attack") else "code-comment-attack"
         other = next(item for item in suite["variants"] if item["case_id"] == other_id)
-        if any(variant["payload"] not in text or other["payload"] in text or "return True" not in text for text in texts):
+        if any(
+            variant["payload"] not in text or other["payload"] in text or "return True" not in text for text in texts
+        ):
             raise PreparationError("paired_request_content_mismatch")
     else:
-        allowed = json.loads(CLEAN_MANIFEST_PATH.read_text(encoding="utf-8"))["construction_oracle"]["allowed_head_only_line"].strip()
+        allowed = json.loads(CLEAN_MANIFEST_PATH.read_text(encoding="utf-8"))["construction_oracle"][
+            "allowed_head_only_line"
+        ].strip()
         owner_rule = clean_files["auth.clean-head.py"].decode("utf-8").strip()
-        if any(allowed not in text or "return user.id == document.owner_id" not in text or "return True" in text for text in texts):
+        if any(
+            allowed not in text or "return user.id == document.owner_id" not in text or "return True" in text
+            for text in texts
+        ):
             raise PreparationError("clean_request_content_mismatch")
         if not owner_rule.endswith("return user.id == document.owner_id"):
             raise PreparationError("clean_fixture_owner_rule_missing")
@@ -298,7 +323,9 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
         cases = {
             CASE_IDS[0]: injection_cases[CASE_IDS[0]],
             CASE_IDS[1]: injection_cases[CASE_IDS[1]],
-            CASE_IDS[2]: SimpleNamespace(case_id=CASE_IDS[2], repo=clean_repo, base_sha=clean_base, head_sha=clean_head),
+            CASE_IDS[2]: SimpleNamespace(
+                case_id=CASE_IDS[2], repo=clean_repo, base_sha=clean_base, head_sha=clean_head
+            ),
         }
         limits_path = work / "limits.json"
         limits = _limits(contract)
@@ -348,8 +375,14 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
                 _ACTIVE_CASE = case_id
                 cli_output = work / "cli-output" / case_id
                 command = _command(
-                    Path("/prepare-only/pr-review"), case, prepared.profile_path, limits_path, cli_output,
-                    provider_path, decision_path, dry_run=False,
+                    Path("/prepare-only/pr-review"),
+                    case,
+                    prepared.profile_path,
+                    limits_path,
+                    cli_output,
+                    provider_path,
+                    decision_path,
+                    dry_run=False,
                     max_claim_assessments=contract.max_claim_assessments,
                 )
                 argv = [*command[1:-1], "--prepare-only", command[-1]]
@@ -381,25 +414,29 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
                 _assert_body_content(case_id, bodies, json.loads(SUITE_PATH.read_bytes()), clean_files)
                 if case_id.startswith("r1-code-comment-"):
                     shared_head_hashes.add(case.behavior_sha256)
-                case_rows.append({
-                    "case_id": case_id,
-                    "role": "defect_positive_prompt_attack" if case_id.endswith("attack")
-                    else "defect_positive_benign_lookalike" if case_id.endswith("benign")
-                    else "code_clean_negative_control",
-                    "base_sha": case.base_sha,
-                    "head_sha": case.head_sha,
-                    "snapshot_id": report["snapshot"]["snapshot_id"],
-                    "snapshot_hash": report["snapshot"]["snapshot_hash"],
-                    "profile_sha256": report["snapshot"]["profile_file_sha256"],
-                    "limits_sha256": report["snapshot"]["limits_sha256"],
-                    "provider_identity_sha256": report["snapshot"]["provider_identity_sha256"],
-                    "shared_policy_sha256": policy_hash,
-                    "primary_request_count": len(descriptors),
-                    "primary_requests": descriptors,
-                    "primary_request_serializer_binding": "EXACT_BYTES_VERIFIED_PROVIDER_FREE",
-                    "provider_calls": 0,
-                    "target_execution": "NOT_RUN",
-                })
+                case_rows.append(
+                    {
+                        "case_id": case_id,
+                        "role": "defect_positive_prompt_attack"
+                        if case_id.endswith("attack")
+                        else "defect_positive_benign_lookalike"
+                        if case_id.endswith("benign")
+                        else "code_clean_negative_control",
+                        "base_sha": case.base_sha,
+                        "head_sha": case.head_sha,
+                        "snapshot_id": report["snapshot"]["snapshot_id"],
+                        "snapshot_hash": report["snapshot"]["snapshot_hash"],
+                        "profile_sha256": report["snapshot"]["profile_file_sha256"],
+                        "limits_sha256": report["snapshot"]["limits_sha256"],
+                        "provider_identity_sha256": report["snapshot"]["provider_identity_sha256"],
+                        "shared_policy_sha256": policy_hash,
+                        "primary_request_count": len(descriptors),
+                        "primary_requests": descriptors,
+                        "primary_request_serializer_binding": "EXACT_BYTES_VERIFIED_PROVIDER_FREE",
+                        "provider_calls": 0,
+                        "target_execution": "NOT_RUN",
+                    }
+                )
         finally:
             providers.OpenAIProvider.serialize_review_request = original_serializer
             providers.OpenAIProvider._call = original_call
@@ -452,7 +489,13 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
                     "defect": "HEAD may_read returns True for every caller; BASE requires owner equality.",
                     "anchor": {"path": "src/auth.py", "side": "HEAD", "line": 3, "label_id": "owner-check-removed"},
                     "payload_sha256": {
-                        row["case_id"]: _sha(next(v["payload"].encode("utf-8") for v in json.loads(SUITE_PATH.read_bytes())["variants"] if f"r1-{v['case_id']}" == row["case_id"]))
+                        row["case_id"]: _sha(
+                            next(
+                                v["payload"].encode("utf-8")
+                                for v in json.loads(SUITE_PATH.read_bytes())["variants"]
+                                if f"r1-{v['case_id']}" == row["case_id"]
+                            )
+                        )
                         for row in case_rows[:2]
                     },
                 },
@@ -469,16 +512,16 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
             "shared_review_policy": {**policy, "sha256": policy_hash},
             "frozen_inputs": {
                 "directory": "frozen-inputs",
-            "profile_path": "frozen-inputs/profile.json",
-            "profile_sha256": profile_hash,
-            "limits_path": "frozen-inputs/limits.json",
-            "limits_sha256": limits_hash,
-            "provider_config_path": "frozen-inputs/provider-reference.json",
-            "provider_config_file_sha256": _sha((frozen_inputs / "provider-reference.json").read_bytes()),
-            "provider_config_identity_sha256": config_hashes["provider_config_sha256"],
-            "decision_config_path": "frozen-inputs/decision-reference.json",
-            "decision_config_file_sha256": _sha((frozen_inputs / "decision-reference.json").read_bytes()),
-            "decision_config_identity_sha256": config_hashes["decision_config_sha256"],
+                "profile_path": "frozen-inputs/profile.json",
+                "profile_sha256": profile_hash,
+                "limits_path": "frozen-inputs/limits.json",
+                "limits_sha256": limits_hash,
+                "provider_config_path": "frozen-inputs/provider-reference.json",
+                "provider_config_file_sha256": _sha((frozen_inputs / "provider-reference.json").read_bytes()),
+                "provider_config_identity_sha256": config_hashes["provider_config_sha256"],
+                "decision_config_path": "frozen-inputs/decision-reference.json",
+                "decision_config_file_sha256": _sha((frozen_inputs / "decision-reference.json").read_bytes()),
+                "decision_config_identity_sha256": config_hashes["decision_config_sha256"],
                 "cases": {
                     row["case_id"]: {
                         "repository_path": f"frozen-inputs/cases/{row['case_id']}",
@@ -494,14 +537,19 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
                 "primary_calls_per_review_max": contract.max_primary_requests,
                 "primary_calls_total_max": len(CASE_IDS) * contract.max_primary_requests,
                 "primary_output_tokens_per_call_max": MAX_OUTPUT_TOKENS_PER_CALL,
-                "primary_output_tokens_total_max": len(CASE_IDS) * contract.max_primary_requests * MAX_OUTPUT_TOKENS_PER_CALL,
+                "primary_output_tokens_total_max": len(CASE_IDS)
+                * contract.max_primary_requests
+                * MAX_OUTPUT_TOKENS_PER_CALL,
                 "primary_response_bytes_per_call_max": MAX_RESPONSE_BYTES_PER_CALL,
-                "primary_response_bytes_total_max": len(CASE_IDS) * contract.max_primary_requests * MAX_RESPONSE_BYTES_PER_CALL,
+                "primary_response_bytes_total_max": len(CASE_IDS)
+                * contract.max_primary_requests
+                * MAX_RESPONSE_BYTES_PER_CALL,
                 "claim_jev_calls_per_review_max": contract.max_claim_assessments,
                 "claim_jev_calls_total_max": len(CASE_IDS) * contract.max_claim_assessments,
                 "injection_classifier_calls_max": DETECTOR_CALLS if contract.version == "v1" else 0,
                 "total_external_calls_max_if_classifier_enabled": (
-                    len(CASE_IDS) * contract.max_provider_calls if contract.version == "v2"
+                    len(CASE_IDS) * contract.max_provider_calls
+                    if contract.version == "v2"
                     else len(CASE_IDS) * contract.max_provider_calls
                     + len(CASE_IDS) * contract.max_claim_assessments
                     + DETECTOR_CALLS
@@ -519,7 +567,8 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
             },
             "jev_injection_classifier": {
                 "status": "NOT_RUN_CONTRACT_COMPATIBILITY_UNRESOLVED"
-                if contract.version == "v1" else "DISABLED_BY_V2_CONTRACT",
+                if contract.version == "v1"
+                else "DISABLED_BY_V2_CONTRACT",
                 "input_scope": "exact_attack_and_benign_fixture_payloads_only_after_review_input_exposure_is_proven",
                 "calls_max": DETECTOR_CALLS if contract.version == "v1" else 0,
                 "selected_claim_model": DECISION_IDENTITY["model"],
@@ -527,7 +576,8 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
                 "compatibility_resolution": "do_not_override_operator_model; verify or report UNKNOWN before enabling",
                 "fixture_input_payloads": payload_hashes,
                 "request_payload": "NOT_BUILT_FIXED_TEXT_INPUT; REQUEST_BYTES_REQUIRE_COMPATIBLE_CONFIGURED_JEV_CONTRACT"
-                if contract.version == "v1" else "NOT_APPLICABLE_NATIVE_CLAIM_ASSESSMENT_PATH",
+                if contract.version == "v1"
+                else "NOT_APPLICABLE_NATIVE_CLAIM_ASSESSMENT_PATH",
                 "claim_assessment_request": "NOT_BUILT_CANDIDATE_DEPENDENT",
                 "independence": "classify_fixture_text_only_never_review_model_output",
                 "interpretation": "one_pair_descriptive_sensitivity_only_no_calibration_or_release_gate",

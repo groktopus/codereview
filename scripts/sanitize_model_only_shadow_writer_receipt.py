@@ -33,8 +33,7 @@ class ReceiptError(ValueError):
 
 
 def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-                      allow_nan=False).encode("utf-8")
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -50,14 +49,21 @@ def _read_regular(path: Path, limit: int, *, private: bool = False) -> bytes:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
         before = path.lstat()
-        if (not stat.S_ISREG(before.st_mode) or before.st_size > limit
-                or (private and stat.S_IMODE(before.st_mode) != 0o600)):
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size > limit
+            or (private and stat.S_IMODE(before.st_mode) != 0o600)
+        ):
             raise ReceiptError("input_unavailable")
         fd = os.open(path, flags)
         try:
             opened = os.fstat(fd)
-            if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != before.st_dev
-                    or opened.st_ino != before.st_ino or opened.st_size > limit):
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size > limit
+            ):
                 raise ReceiptError("input_unavailable")
             if private and stat.S_IMODE(opened.st_mode) != 0o600:
                 raise ReceiptError("input_unavailable")
@@ -81,7 +87,8 @@ def _read_json(path: Path, limit: int) -> tuple[dict[str, Any], bytes]:
     raw = _read_regular(path, limit)
     try:
         value = json.loads(
-            raw.decode("utf-8"), object_pairs_hook=_pairs,
+            raw.decode("utf-8"),
+            object_pairs_hook=_pairs,
             parse_constant=lambda _v: (_ for _ in ()).throw(ReceiptError("invalid_json_constant")),
         )
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ReceiptError):
@@ -108,18 +115,25 @@ def _write_private(path: Path, data: bytes) -> None:
 
 def _validate_packet_inventory(root: Path, manifest: dict[str, Any]) -> None:
     inventory = manifest.get("case_packet_inventory")
-    if (not isinstance(inventory, dict) or set(inventory) != {"schema", "packets"}
-            or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
-            or not isinstance(inventory.get("packets"), list)
-            or not 1 <= len(inventory["packets"]) <= 128):
+    if (
+        not isinstance(inventory, dict)
+        or set(inventory) != {"schema", "packets"}
+        or inventory.get("schema") != "model-only-shadow-packet-inventory.v1"
+        or not isinstance(inventory.get("packets"), list)
+        or not 1 <= len(inventory["packets"]) <= 128
+    ):
         raise ReceiptError("capture_packet_inventory_invalid")
     expected: dict[str, str] = {}
     for row in inventory["packets"]:
-        if (not isinstance(row, dict) or set(row) != {"path", "sha256"}
-                or not isinstance(row.get("path"), str)
-                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\.json", row["path"])
-                or not isinstance(row.get("sha256"), str) or not SHA256.fullmatch(row["sha256"])
-                or row["path"] in expected):
+        if (
+            not isinstance(row, dict)
+            or set(row) != {"path", "sha256"}
+            or not isinstance(row.get("path"), str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\.json", row["path"])
+            or not isinstance(row.get("sha256"), str)
+            or not SHA256.fullmatch(row["sha256"])
+            or row["path"] in expected
+        ):
             raise ReceiptError("capture_packet_inventory_invalid")
         expected[row["path"]] = row["sha256"]
     packet_dir = root / "case-packets"
@@ -141,9 +155,13 @@ def _validate_packet_inventory(root: Path, manifest: dict[str, Any]) -> None:
             raise ReceiptError("capture_packet_inventory_mismatch")
 
 
-def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: str,
-                              response_rows: dict[str, dict[str, Any]],
-                              request_rows: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _writer_outcome_accounting(
+    root: Path,
+    manifest: dict[str, Any],
+    plan_hash: str,
+    response_rows: dict[str, dict[str, Any]],
+    request_rows: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Summarize the model-output to packet boundary without retaining content."""
     inventory = manifest["case_packet_inventory"]["packets"]
     if len(inventory) > 128:
@@ -169,13 +187,18 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
             raise ReceiptError("capture_packet_source_invalid")
         unit_ids = source_task.get("unit_ids", [])
         evidence_ids = source_task.get("evidence_ids", [])
-        if (not isinstance(unit_ids, list) or len(unit_ids) > 128
-                or any(not isinstance(value, str) or not value for value in unit_ids)
-                or not isinstance(evidence_ids, list) or len(evidence_ids) > 512
-                or any(not isinstance(value, str) or not value for value in evidence_ids)
-                or len(source_evidence) > 512
-                or any(not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str)
-                       for item in source_evidence)):
+        if (
+            not isinstance(unit_ids, list)
+            or len(unit_ids) > 128
+            or any(not isinstance(value, str) or not value for value in unit_ids)
+            or not isinstance(evidence_ids, list)
+            or len(evidence_ids) > 512
+            or any(not isinstance(value, str) or not value for value in evidence_ids)
+            or len(source_evidence) > 512
+            or any(
+                not isinstance(item, dict) or not isinstance(item.get("evidence_id"), str) for item in source_evidence
+            )
+        ):
             raise ReceiptError("capture_packet_source_invalid")
         if evidence_ids != [item["evidence_id"] for item in source_evidence]:
             raise ReceiptError("capture_packet_source_invalid")
@@ -212,86 +235,93 @@ def _writer_outcome_accounting(root: Path, manifest: dict[str, Any], plan_hash: 
             outcome = "candidate_reconciliation_or_filtering"
         else:
             outcome = "candidates_preserved_in_packets"
-        rows.append({
-            "task_id_sha256": hashlib.sha256(task_id.encode("utf-8")).hexdigest(),
-            "response_sha256": response["response_sha256"],
-            "response_parse_status": response["response_parse_status"],
-            "returned_candidate_count": returned,
-            "packet_candidate_count": packet_count,
-            "candidate_packet_count": packet_counts.get(task_id, 0),
-            "outcome": outcome,
-        })
+        rows.append(
+            {
+                "task_id_sha256": hashlib.sha256(task_id.encode("utf-8")).hexdigest(),
+                "response_sha256": response["response_sha256"],
+                "response_parse_status": response["response_parse_status"],
+                "returned_candidate_count": returned,
+                "packet_candidate_count": packet_count,
+                "candidate_packet_count": packet_counts.get(task_id, 0),
+                "outcome": outcome,
+            }
+        )
     diagnostic_rows = []
     for task_id in sorted(response_rows):
         response = response_rows[task_id]
         request = request_rows[task_id]
         source = packet_diagnostics[task_id]
-        diagnostic_rows.append({
-            "task_id_sha256": hashlib.sha256(task_id.encode("utf-8")).hexdigest(),
-            "lens": request["lens"],
-            "unit_hashes": source["unit_hashes"],
-            "evidence_count": source["evidence_count"],
-            "evidence_ids_sha256": source["evidence_ids_sha256"],
-            "evidence_bytes": source["evidence_bytes"],
-            "request_bytes": request["input_bytes"],
-            "response_bytes": response["response_bytes"],
-            "response_parse_status": response["response_parse_status"],
-            "returned_candidate_count": response["returned_candidate_count"],
-            "context_gap_count": response["context_gap_count"],
-            "coverage_note_count": response["coverage_note_count"],
-            "attempt": response["attempt"],
-            "completion_state": response["completion_state"],
-            "provider_completion_metadata": "not_captured",
-        })
+        diagnostic_rows.append(
+            {
+                "task_id_sha256": hashlib.sha256(task_id.encode("utf-8")).hexdigest(),
+                "lens": request["lens"],
+                "unit_hashes": source["unit_hashes"],
+                "evidence_count": source["evidence_count"],
+                "evidence_ids_sha256": source["evidence_ids_sha256"],
+                "evidence_bytes": source["evidence_bytes"],
+                "request_bytes": request["input_bytes"],
+                "response_bytes": response["response_bytes"],
+                "response_parse_status": response["response_parse_status"],
+                "returned_candidate_count": response["returned_candidate_count"],
+                "context_gap_count": response["context_gap_count"],
+                "coverage_note_count": response["coverage_note_count"],
+                "attempt": response["attempt"],
+                "completion_state": response["completion_state"],
+                "provider_completion_metadata": "not_captured",
+            }
+        )
     diagnostics = {
         "schema": "model-only-shadow-live-task-diagnostics.v1",
         "plan_sha256": plan_hash,
-        "capture_manifest_sha256": hashlib.sha256(
-            (root / "manifest.json").read_bytes()
-        ).hexdigest(),
+        "capture_manifest_sha256": hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
         "tasks": diagnostic_rows,
     }
     outcomes = {
         "schema": "model-only-shadow-live-writer-outcomes.v1",
         "plan_sha256": plan_hash,
-        "capture_manifest_sha256": hashlib.sha256(
-            (root / "manifest.json").read_bytes()
-        ).hexdigest(),
+        "capture_manifest_sha256": hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
         "tasks": rows,
         "returned_candidate_count_total": sum(row["returned_candidate_count"] for row in rows),
         "packet_candidate_count_total": sum(row["packet_candidate_count"] for row in rows),
         "outcome_counts": {
             status: sum(row["outcome"] == status for row in rows)
             for status in (
-                "zero_findings_returned", "parse_failure",
-                "candidate_reconciliation_or_filtering", "candidates_preserved_in_packets",
+                "zero_findings_returned",
+                "parse_failure",
+                "candidate_reconciliation_or_filtering",
+                "candidates_preserved_in_packets",
             )
         },
     }
     return outcomes, diagnostics
 
 
-def _current_source_plan(plan: dict[str, Any], preflight: dict[str, Any], plan_path: Path,
-                         preflight_path: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _current_source_plan(
+    plan: dict[str, Any], preflight: dict[str, Any], plan_path: Path, preflight_path: Path
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     try:
         from pr_review_harness.current_source_capture import installed_module_inventory, validate_plan
+
         module = __import__("pr_review_harness.current_source_capture", fromlist=["__file__"])
         module_path = Path(module.__file__).resolve()
         if module_path.is_relative_to((ROOT / "src").resolve()):
             raise ValueError("installed_runtime_required")
         if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
             runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
-            if (plan_path.absolute() != runner_temp / "pr457-current-source-plan.json"
-                    or preflight_path.absolute() != runner_temp / "pr457-current-source-receipt.json"
-                    or os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview"
-                    or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
-                    or os.environ.get("GITHUB_REF") != "refs/heads/main"
-                    or os.environ.get("GITHUB_WORKFLOW_REF") != (
-                        "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
-                    )):
+            if (
+                plan_path.absolute() != runner_temp / "pr457-current-source-plan.json"
+                or preflight_path.absolute() != runner_temp / "pr457-current-source-receipt.json"
+                or os.environ.get("GITHUB_REPOSITORY") != "groktopus/codereview"
+                or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+                or os.environ.get("GITHUB_REF") != "refs/heads/main"
+                or os.environ.get("GITHUB_WORKFLOW_REF")
+                != ("groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main")
+            ):
                 raise ValueError("current_source_context_invalid")
         writer_pins, snapshot = validate_plan(
-            plan, preflight, source_sha=os.environ.get("GITHUB_SHA", ""),
+            plan,
+            preflight,
+            source_sha=os.environ.get("GITHUB_SHA", ""),
             module_inventory=installed_module_inventory(),
         )
     except (OSError, KeyError, TypeError, ValueError, RecursionError):
@@ -299,8 +329,11 @@ def _current_source_plan(plan: dict[str, Any], preflight: dict[str, Any], plan_p
     target = plan.get("target")
     if not isinstance(target, dict):
         raise ReceiptError("current_source_plan_invalid")
-    projected_case = {"case_id": "PR-457", "snapshot_id": target.get("snapshot_id"),
-                      "snapshot_sha256": target.get("snapshot_sha256")}
+    projected_case = {
+        "case_id": "PR-457",
+        "snapshot_id": target.get("snapshot_id"),
+        "snapshot_sha256": target.get("snapshot_sha256"),
+    }
     projected_plan = {
         "case": projected_case,
         "writer_requests": list(writer_pins.values()),
@@ -309,8 +342,9 @@ def _current_source_plan(plan: dict[str, Any], preflight: dict[str, Any], plan_p
     return projected_plan, {"writer_calls": 6}, snapshot
 
 
-def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_dir: Path, *,
-             current_source: bool = False) -> dict[str, Any]:
+def sanitize(
+    capture_root: Path, plan_path: Path, preflight_path: Path, output_dir: Path, *, current_source: bool = False
+) -> dict[str, Any]:
     runner_temp_value = os.environ.get("RUNNER_TEMP")
     if not runner_temp_value:
         raise ReceiptError("runner_temp_unavailable")
@@ -318,8 +352,13 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     root = capture_root.absolute()
     output_path = output_dir.absolute()
     if (
-        root.parent != runner_temp or output_path.parent != runner_temp or root == output_path
-        or not root.exists() or output_path.exists() or root.is_symlink() or output_path.is_symlink()
+        root.parent != runner_temp
+        or output_path.parent != runner_temp
+        or root == output_path
+        or not root.exists()
+        or output_path.exists()
+        or root.is_symlink()
+        or output_path.is_symlink()
     ):
         raise ReceiptError("private_paths_invalid")
     root_info = root.lstat()
@@ -331,14 +370,19 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
     plan_hash = hashlib.sha256(plan_bytes).hexdigest()
     if current_source:
         projection_plan, case_policy, current_snapshot = _current_source_plan(
-            plan, preflight, plan_path, preflight_path,
+            plan,
+            preflight,
+            plan_path,
+            preflight_path,
         )
         case = projection_plan["case"]
         requests = projection_plan["writer_requests"]
         case_id = "PR-457"
-        if (current_snapshot.get("case_id") != case_id
-                or current_snapshot.get("snapshot_id") != case.get("snapshot_id")
-                or current_snapshot.get("snapshot_sha256") != case.get("snapshot_sha256")):
+        if (
+            current_snapshot.get("case_id") != case_id
+            or current_snapshot.get("snapshot_id") != case.get("snapshot_id")
+            or current_snapshot.get("snapshot_sha256") != case.get("snapshot_sha256")
+        ):
             raise ReceiptError("current_source_plan_invalid")
     else:
         try:
@@ -353,10 +397,13 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
         requests = plan.get("writer_requests")
         if (
             plan.get("schema") != case_policy["plan_schema"]
-            or not isinstance(case, dict) or case.get("case_id") != case_id
-            or not isinstance(budget, dict) or budget.get("writer_exact_call_count") != case_policy["writer_calls"]
+            or not isinstance(case, dict)
+            or case.get("case_id") != case_id
+            or not isinstance(budget, dict)
+            or budget.get("writer_exact_call_count") != case_policy["writer_calls"]
             or budget.get("writer_max_retries_per_task") != 0
-            or not isinstance(requests, list) or len(requests) != case_policy["writer_calls"]
+            or not isinstance(requests, list)
+            or len(requests) != case_policy["writer_calls"]
             or preflight.get("schema") != "model-only-shadow-live-preflight-receipt.v1"
             or preflight.get("status") != "PLAN_MATCHED_PROVIDER_FREE"
             or preflight.get("plan_sha256") != plan_hash
@@ -369,15 +416,30 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
             raise ReceiptError("preflight_binding_invalid")
     expected = {}
     for row in requests:
-        if (not isinstance(row, dict) or not isinstance(row.get("task_id"), str)
-                or row["task_id"] in expected or not SHA256.fullmatch(str(row.get("input_sha256")))
-                or isinstance(row.get("input_bytes"), bool) or not isinstance(row.get("input_bytes"), int)
-                or not 1 <= row["input_bytes"] <= 128_000):
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("task_id"), str)
+            or row["task_id"] in expected
+            or not SHA256.fullmatch(str(row.get("input_sha256")))
+            or isinstance(row.get("input_bytes"), bool)
+            or not isinstance(row.get("input_bytes"), int)
+            or not 1 <= row["input_bytes"] <= 128_000
+        ):
             raise ReceiptError("plan_request_invalid")
         expected[row["task_id"]] = row
 
     manifest, _manifest_bytes = _read_json(root / "manifest.json", 256_000)
-    allowed_manifest_keys = {"contract_version", "case_id", "snapshot_id", "snapshot_hash", "source_task", "provider", "calls", "private_artifacts", "case_packet_inventory"}
+    allowed_manifest_keys = {
+        "contract_version",
+        "case_id",
+        "snapshot_id",
+        "snapshot_hash",
+        "source_task",
+        "provider",
+        "calls",
+        "private_artifacts",
+        "case_packet_inventory",
+    }
     if set(manifest) != allowed_manifest_keys or manifest.get("contract_version") != "model-only-shadow-case.v1":
         raise ReceiptError("capture_manifest_invalid")
     if (
@@ -390,7 +452,9 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
         raise ReceiptError("capture_identity_mismatch")
     provider = manifest.get("provider")
     expected_provider = {
-        "provider_id": "operator_openai_compatible", "model_id": "openai/gpt-6-luna", "adapter_version": "0.2",
+        "provider_id": "operator_openai_compatible",
+        "model_id": "openai/gpt-6-luna",
+        "adapter_version": "0.2",
     }
     if provider != expected_provider:
         raise ReceiptError("provider_identity_mismatch")
@@ -409,9 +473,21 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
         raise ReceiptError("capture_run_identity_mismatch")
     for call in calls:
         required_call_fields = {
-            "call_id", "case_id", "run_id", "snapshot_id", "snapshot_hash", "task_id", "attempt",
-            "provider", "status", "request_artifact_id", "request_sha256", "response_artifact_id",
-            "response_sha256", "response_envelope_sha256", "content_transform",
+            "call_id",
+            "case_id",
+            "run_id",
+            "snapshot_id",
+            "snapshot_hash",
+            "task_id",
+            "attempt",
+            "provider",
+            "status",
+            "request_artifact_id",
+            "request_sha256",
+            "response_artifact_id",
+            "response_sha256",
+            "response_envelope_sha256",
+            "content_transform",
         }
         if not isinstance(call, dict) or set(call) != required_call_fields:
             raise ReceiptError("capture_call_invalid")
@@ -419,10 +495,16 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
         descriptor = expected.get(task_id)
         call_id = call.get("call_id")
         if (
-            descriptor is None or task_id in seen or not isinstance(call_id, str) or not CALL_ID.fullmatch(call_id)
-            or call.get("case_id") != run_id or call.get("run_id") != run_id
-            or call.get("snapshot_id") != case["snapshot_id"] or call.get("snapshot_hash") != case["snapshot_sha256"]
-            or call.get("attempt") != 0 or call.get("status") != "completed"
+            descriptor is None
+            or task_id in seen
+            or not isinstance(call_id, str)
+            or not CALL_ID.fullmatch(call_id)
+            or call.get("case_id") != run_id
+            or call.get("run_id") != run_id
+            or call.get("snapshot_id") != case["snapshot_id"]
+            or call.get("snapshot_hash") != case["snapshot_sha256"]
+            or call.get("attempt") != 0
+            or call.get("status") != "completed"
             or call.get("provider") != expected_provider
             or call.get("request_artifact_id") != "request-" + call_id
             or call.get("response_artifact_id") != "response-" + call_id
@@ -441,8 +523,10 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
         request = _read_regular(request_dir / f"{call_id}.bin", 128_000, private=True)
         response = _read_regular(response_dir / f"{call_id}.bin", 32_768, private=True)
         if (
-            len(request) != descriptor["input_bytes"] or hashlib.sha256(request).hexdigest() != call["request_sha256"]
-            or len(response) > 32_768 or hashlib.sha256(response).hexdigest() != call["response_sha256"]
+            len(request) != descriptor["input_bytes"]
+            or hashlib.sha256(request).hexdigest() != call["request_sha256"]
+            or len(response) > 32_768
+            or hashlib.sha256(response).hexdigest() != call["response_sha256"]
         ):
             raise ReceiptError("capture_bytes_mismatch")
         try:
@@ -453,14 +537,28 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
             raise ReceiptError("structured_response_invalid")
         parse_status = "valid_specialist_report"
         returned_candidate_count = 0
-        if (set(parsed) != {
-                "contract_version", "finding_candidates", "context_gap_proposals", "coverage_notes",
-                "specific_strengths", "future_guidance",
-        } or parsed.get("contract_version") != "specialist-findings.v4"
-                or any(not isinstance(parsed.get(field), list) for field in (
-                    "finding_candidates", "context_gap_proposals", "coverage_notes",
-                    "specific_strengths", "future_guidance",
-                ))):
+        if (
+            set(parsed)
+            != {
+                "contract_version",
+                "finding_candidates",
+                "context_gap_proposals",
+                "coverage_notes",
+                "specific_strengths",
+                "future_guidance",
+            }
+            or parsed.get("contract_version") != "specialist-findings.v4"
+            or any(
+                not isinstance(parsed.get(field), list)
+                for field in (
+                    "finding_candidates",
+                    "context_gap_proposals",
+                    "coverage_notes",
+                    "specific_strengths",
+                    "future_guidance",
+                )
+            )
+        ):
             parse_status = "invalid_specialist_report"
         if isinstance(parsed.get("finding_candidates"), list):
             returned_candidate_count = len(parsed["finding_candidates"])
@@ -472,44 +570,63 @@ def sanitize(capture_root: Path, plan_path: Path, preflight_path: Path, output_d
             "response_parse_status": parse_status,
             "returned_candidate_count": returned_candidate_count,
             "context_gap_count": len(parsed["context_gap_proposals"])
-            if isinstance(parsed.get("context_gap_proposals"), list) else None,
+            if isinstance(parsed.get("context_gap_proposals"), list)
+            else None,
             "coverage_note_count": len(parsed["coverage_notes"])
-            if isinstance(parsed.get("coverage_notes"), list) else None,
+            if isinstance(parsed.get("coverage_notes"), list)
+            else None,
             "response_bytes": len(response),
             "attempt": call["attempt"],
             "completion_state": call["status"],
         }
-        receipts.append({
-            "task_id": task_id,
-            "request_sha256": call["request_sha256"], "request_bytes": len(request),
-            "response_sha256": call["response_sha256"], "response_bytes": len(response),
-        })
+        receipts.append(
+            {
+                "task_id": task_id,
+                "request_sha256": call["request_sha256"],
+                "request_bytes": len(request),
+                "response_sha256": call["response_sha256"],
+                "response_bytes": len(response),
+            }
+        )
     if seen != set(expected):
         raise ReceiptError("capture_task_set_mismatch")
     output = {
         "schema": "model-only-shadow-live-writer-receipt.v1",
         "status": "WRITER_TRANSPORT_CAPTURED",
-        "case_id": case["case_id"], "snapshot_id": case["snapshot_id"],
-        "snapshot_sha256": case["snapshot_sha256"], "plan_sha256": plan_hash,
-        "provider_id": expected_provider["provider_id"], "model_id": expected_provider["model_id"],
-        "writer_call_count": len(receipts), "writer_request_bytes_total": total_request_bytes,
+        "case_id": case["case_id"],
+        "snapshot_id": case["snapshot_id"],
+        "snapshot_sha256": case["snapshot_sha256"],
+        "plan_sha256": plan_hash,
+        "provider_id": expected_provider["provider_id"],
+        "model_id": expected_provider["model_id"],
+        "writer_call_count": len(receipts),
+        "writer_request_bytes_total": total_request_bytes,
         "writer_response_bytes_total": total_response_bytes,
         "calls": sorted(receipts, key=lambda item: item["task_id"]),
-        "target_code_execution": False, "publication_enabled": False,
+        "target_code_execution": False,
+        "publication_enabled": False,
         "audit_or_jev_dispatched": False,
     }
     output_path.mkdir(mode=0o700)
     os.chmod(output_path, 0o700)
     outcomes, diagnostics = _writer_outcome_accounting(root, manifest, plan_hash, response_rows, expected)
-    _write_private(output_path / "writer-receipt.json", json.dumps(
-        output, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    ).encode("utf-8") + b"\n")
-    _write_private(output_path / "writer-outcomes.json", json.dumps(
-        outcomes, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    ).encode("utf-8") + b"\n")
-    _write_private(output_path / "writer-task-diagnostics.json", json.dumps(
-        diagnostics, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    ).encode("utf-8") + b"\n")
+    _write_private(
+        output_path / "writer-receipt.json",
+        json.dumps(output, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+        + b"\n",
+    )
+    _write_private(
+        output_path / "writer-outcomes.json",
+        json.dumps(outcomes, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+        + b"\n",
+    )
+    _write_private(
+        output_path / "writer-task-diagnostics.json",
+        json.dumps(diagnostics, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode(
+            "utf-8"
+        )
+        + b"\n",
+    )
     return output
 
 
@@ -519,12 +636,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--preflight", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--current-source", action="store_true",
-                        help="validate the closed per-run PR-457 plan and receipt")
+    parser.add_argument(
+        "--current-source", action="store_true", help="validate the closed per-run PR-457 plan and receipt"
+    )
     args = parser.parse_args(argv)
     try:
-        sanitize(args.capture_root, args.plan, args.preflight, args.output_dir,
-                 current_source=args.current_source)
+        sanitize(args.capture_root, args.plan, args.preflight, args.output_dir, current_source=args.current_source)
     except (OSError, ReceiptError) as exc:
         code = str(exc) if isinstance(exc, ReceiptError) else "input_unavailable"
         print(json.dumps({"ok": False, "error_code": code}, separators=(",", ":")), file=sys.stderr)

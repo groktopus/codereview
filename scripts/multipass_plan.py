@@ -5,6 +5,7 @@ providers, runs target code, or establishes semantic review correctness. The
 ledger is a local coordination contract, not authenticated provenance: callers
 must persist each reservation before any future external dispatch.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -169,9 +170,7 @@ def build_plan(prepared: dict[str, Any]) -> dict[str, Any]:
         check_tasks.append({"task_id": task_id, "obligation_ids": list(ids)})
 
     context_obligations = {
-        obligation_id
-        for obligation_id, row in obligations.items()
-        if row.get("obligation_kind") == "REQUIRED_CONTEXT"
+        obligation_id for obligation_id, row in obligations.items() if row.get("obligation_kind") == "REQUIRED_CONTEXT"
     }
     classified = request_obligations | check_obligations | context_obligations
     if classified != set(obligations):
@@ -300,11 +299,7 @@ def validate_plan(plan: dict[str, Any]) -> None:
         raise PlanError("duplicate_check_task_id")
     for task in check_tasks:
         ids = task.get("obligation_ids")
-        if (
-            not isinstance(ids, list)
-            or not ids
-            or any(not isinstance(value, str) or not value for value in ids)
-        ):
+        if not isinstance(ids, list) or not ids or any(not isinstance(value, str) or not value for value in ids):
             raise PlanError("invalid_check_task_obligations")
     context_tasks = plan.get("context_tasks")
     if not isinstance(context_tasks, list) or any(not isinstance(task, dict) for task in context_tasks):
@@ -326,7 +321,11 @@ def validate_plan(plan: dict[str, Any]) -> None:
     if len(external_check_ids) != len(set(external_check_ids)):
         raise PlanError("duplicate_external_check_id")
     limits = plan.get("limits", {})
-    if limits.get("calls_per_pass") != MAX_CALLS_PER_PASS or limits.get("input_bytes_per_pass") != MAX_BYTES_PER_PASS or limits.get("input_bytes_per_task") != MAX_BYTES_PER_TASK:
+    if (
+        limits.get("calls_per_pass") != MAX_CALLS_PER_PASS
+        or limits.get("input_bytes_per_pass") != MAX_BYTES_PER_PASS
+        or limits.get("input_bytes_per_task") != MAX_BYTES_PER_TASK
+    ):
         raise PlanError("plan_limits_mismatch")
     seen_tasks: set[str] = set()
     seen_obligations: set[str] = set()
@@ -374,11 +373,7 @@ def validate_plan(plan: dict[str, Any]) -> None:
         for row in required_rows
         if isinstance(row, dict) and row.get("obligation_kind") == "PROJECT_CHECK"
     }
-    assigned_check_rows = [
-        obligation_id
-        for task in check_tasks
-        for obligation_id in task.get("obligation_ids", [])
-    ]
+    assigned_check_rows = [obligation_id for task in check_tasks for obligation_id in task.get("obligation_ids", [])]
     if len(assigned_check_rows) != len(set(assigned_check_rows)):
         raise PlanError("duplicate_assigned_check_obligation_id")
     assigned_check = set(assigned_check_rows)
@@ -434,16 +429,16 @@ def _validate_ledger(plan: dict[str, Any], ledger: dict[str, Any]) -> None:
         raise PlanError("invalid_task_state")
     if not set(ledger["check_states"].values()).issubset({"PENDING", "PASS", "FAIL", "UNKNOWN", "INVALID"}):
         raise PlanError("invalid_check_state")
-    if not set(ledger["external_check_states"].values()).issubset(
-        {"PENDING", "PASS", "FAIL", "UNKNOWN", "INVALID"}
-    ):
+    if not set(ledger["external_check_states"].values()).issubset({"PENDING", "PASS", "FAIL", "UNKNOWN", "INVALID"}):
         raise PlanError("invalid_external_check_state")
     if not set(ledger["context_states"].values()).issubset({"PENDING", "RESOLVED", "UNKNOWN"}):
         raise PlanError("invalid_context_state")
     reserved = {"RESERVED_UNKNOWN", "SUCCEEDED", "FAILED", "INVALID", "UNKNOWN"}
     tasks_by_id = {task["task_id"]: task for task in plan["task_manifest"]}
     calls = sum(state in reserved for state in ledger["task_states"].values())
-    byte_count = sum(tasks_by_id[task_id]["input_bytes"] for task_id, state in ledger["task_states"].items() if state in reserved)
+    byte_count = sum(
+        tasks_by_id[task_id]["input_bytes"] for task_id, state in ledger["task_states"].items() if state in reserved
+    )
     if ledger.get("reserved_calls") != calls or ledger.get("reserved_input_bytes") != byte_count:
         raise PlanError("ledger_accounting_mismatch")
     usage = {pass_data["pass_id"]: {"calls": 0, "input_bytes": 0} for pass_data in plan["passes"]}
@@ -468,7 +463,10 @@ def reserve_task(plan: dict[str, Any], ledger: dict[str, Any], task_id: str) -> 
     usage = ledger["pass_usage"][pass_data["pass_id"]]
     if usage["calls"] + 1 > MAX_CALLS_PER_PASS or usage["input_bytes"] + task["input_bytes"] > MAX_BYTES_PER_PASS:
         raise PlanError("pass_budget_exceeded")
-    if ledger["reserved_calls"] + 1 > plan["limits"]["primary_calls_total"] or ledger["reserved_input_bytes"] + task["input_bytes"] > plan["limits"]["primary_input_bytes_total"]:
+    if (
+        ledger["reserved_calls"] + 1 > plan["limits"]["primary_calls_total"]
+        or ledger["reserved_input_bytes"] + task["input_bytes"] > plan["limits"]["primary_input_bytes_total"]
+    ):
         raise PlanError("global_budget_exceeded")
     ledger["task_states"][task_id] = "RESERVED_UNKNOWN"
     ledger["reserved_calls"] += 1
@@ -476,7 +474,12 @@ def reserve_task(plan: dict[str, Any], ledger: dict[str, Any], task_id: str) -> 
     usage["calls"] += 1
     usage["input_bytes"] += task["input_bytes"]
     _validate_ledger(plan, ledger)
-    return {"task_id": task_id, "request_sha256": task["input_sha256"], "pass_id": pass_data["pass_id"], "input_bytes": task["input_bytes"]}
+    return {
+        "task_id": task_id,
+        "request_sha256": task["input_sha256"],
+        "pass_id": pass_data["pass_id"],
+        "input_bytes": task["input_bytes"],
+    }
 
 
 def record_task_result(plan: dict[str, Any], ledger: dict[str, Any], result: dict[str, Any]) -> None:
@@ -534,7 +537,13 @@ def record_external_check_result(
 
 
 def record_context_result(
-    plan: dict[str, Any], ledger: dict[str, Any], *, obligation_id: str, status: str, snapshot_id: str, evidence_sha256: str | None
+    plan: dict[str, Any],
+    ledger: dict[str, Any],
+    *,
+    obligation_id: str,
+    status: str,
+    snapshot_id: str,
+    evidence_sha256: str | None,
 ) -> None:
     _validate_ledger(plan, ledger)
     if obligation_id not in ledger["context_states"] or ledger["context_states"][obligation_id] != "PENDING":

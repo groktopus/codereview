@@ -210,7 +210,9 @@ class GitHubPRAdapter:
             raise GitHubReadError("comparison identity is invalid")
         data = self._api_json(f"repos/{repository}/compare/{base_sha}...{head_sha}?per_page=1")
         returned_base = data.get("base_commit", {}).get("sha") if isinstance(data.get("base_commit"), dict) else None
-        merge_base = data.get("merge_base_commit", {}).get("sha") if isinstance(data.get("merge_base_commit"), dict) else None
+        merge_base = (
+            data.get("merge_base_commit", {}).get("sha") if isinstance(data.get("merge_base_commit"), dict) else None
+        )
         ahead_by, behind_by = data.get("ahead_by"), data.get("behind_by")
         if (
             not isinstance(merge_base, str)

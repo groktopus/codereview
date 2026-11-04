@@ -50,31 +50,48 @@ def test_projects_only_bounded_counts_and_explicit_non_claims(tmp_path):
     receipt = module.project(summary, output, "PR-464")
 
     assert set(receipt) == {
-        "schema", "case_id", "package_status", "comparison_id", "case_count",
-        "verified_artifact_count", "verified_structured_relation_count",
-        "semantic_accuracy_claimed", "ground_truth_claimed", "calibration_claimed", "correctness_claimed",
+        "schema",
+        "case_id",
+        "package_status",
+        "comparison_id",
+        "case_count",
+        "verified_artifact_count",
+        "verified_structured_relation_count",
+        "semantic_accuracy_claimed",
+        "ground_truth_claimed",
+        "calibration_claimed",
+        "correctness_claimed",
     }
     assert receipt["schema"] == "model-only-shadow-cross-model-package-receipt.v1"
     assert receipt["case_id"] == "PR-464"
     assert receipt["package_status"] == "byte_verified"
     assert receipt["verified_artifact_count"] == 8
-    assert all(receipt[key] is False for key in (
-        "semantic_accuracy_claimed", "ground_truth_claimed", "calibration_claimed", "correctness_claimed",
-    ))
+    assert all(
+        receipt[key] is False
+        for key in (
+            "semantic_accuracy_claimed",
+            "ground_truth_claimed",
+            "calibration_claimed",
+            "correctness_claimed",
+        )
+    )
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
     text = output.read_text(encoding="utf-8")
     assert "/runner/private" not in text
     assert "comparison_path" not in text and "report_path" not in text
 
 
-@pytest.mark.parametrize("override", [
-    {"case_count": 2},
-    {"verified_artifact_count": 7},
-    {"comparison_id": "pkg-not-a-hash"},
-    {"claims": {"accuracy": 0.9, "ground_truth": None, "calibration": None, "correctness": None}},
-    {"verified_structured_relation_count": True},
-    {"ok": False},
-])
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"case_count": 2},
+        {"verified_artifact_count": 7},
+        {"comparison_id": "pkg-not-a-hash"},
+        {"claims": {"accuracy": 0.9, "ground_truth": None, "calibration": None, "correctness": None}},
+        {"verified_structured_relation_count": True},
+        {"ok": False},
+    ],
+)
 def test_rejects_wrong_package_identity_or_claims(tmp_path, override):
     summary = tmp_path / "summary.json"
     summary.write_text(json.dumps(_summary(**override)), encoding="utf-8")
@@ -105,19 +122,19 @@ def test_workflow_packages_both_frozen_cases_privately_and_cleans_outputs_withou
     assert "steps.package-selection.outputs.eligible == 'true'" in package
     assert "select_model_only_shadow_package_packet.py" in package
     assert "package_cross_model_v2.py" in package
-    assert "--case-id \"${{ steps.case.outputs.case_id }}\"" in package
+    assert '--case-id "${{ steps.case.outputs.case_id }}"' in package
     selector_source = (ROOT / "scripts/select_model_only_shadow_package_packet.py").read_text(encoding="utf-8")
     assert 'capture_root / "manifest.json"' in selector_source
     assert 'capture_root / "capture-manifest.json"' not in selector_source
     assert "sanitize_model_only_shadow_package_receipt.py" in package
-    assert "--case-id \"${{ steps.case.outputs.case_id }}\"" in package
+    assert '--case-id "${{ steps.case.outputs.case_id }}"' in package
     assert "upload-artifact" not in package
-    assert "package-receipt.json" not in live.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1]
+    assert (
+        "package-receipt.json" not in live.split("- name: Upload only the hash-only writer accounting artifacts", 1)[1]
+    )
     cleanup = live.split("- name: Remove private live-writer workspace", 1)[1]
     assert '"private-cross-model-package"' in cleanup
-    case_selection = live.split("- name: Select one fixed live case", 1)[1].split(
-        "- name: Set up Python", 1
-    )[0]
+    case_selection = live.split("- name: Select one fixed live case", 1)[1].split("- name: Set up Python", 1)[0]
     assert '"examples/evaluation/model-only-shadow-pr457-v3/corpus.json"' in case_selection
     assert '"examples/evaluation/model-only-shadow-pr464-v3/corpus.json"' in case_selection
     assert '"audit_limits_path": "experiments/model-only-shadow-audit-limits-v3.json"' in case_selection
@@ -194,7 +211,10 @@ def test_pr457_receipt_retains_requested_case_identity(tmp_path):
     assert receipt["case_id"] == "PR-457"
 
 
-@pytest.mark.parametrize("terminal", ["incomplete", "claim_audit_abstained", "source_audit_failed", "jev_assessment_failed", "claim_audit_failed"])
+@pytest.mark.parametrize(
+    "terminal",
+    ["incomplete", "claim_audit_abstained", "source_audit_failed", "jev_assessment_failed", "claim_audit_failed"],
+)
 def test_noncompleted_audit_states_are_explicit_package_skips(tmp_path, terminal):
     capture, audit_path, _ = _selection_fixture(tmp_path, terminal=terminal)
 
@@ -240,11 +260,14 @@ def test_completed_receipt_with_incomplete_roles_is_explicit_package_skip(tmp_pa
         selector.select(capture, audit_path, "PR-464")
 
 
-@pytest.mark.parametrize("field,value", [
-    ("candidate_packet_count", 0),
-    ("selected_candidate_sha256", None),
-    ("reason", "no_writer_candidate"),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("candidate_packet_count", 0),
+        ("selected_candidate_sha256", None),
+        ("reason", "no_writer_candidate"),
+    ],
+)
 def test_completed_receipt_with_missing_or_invalid_candidate_fails_closed(tmp_path, field, value):
     capture, audit_path, audit = _selection_fixture(tmp_path)
     audit[field] = value

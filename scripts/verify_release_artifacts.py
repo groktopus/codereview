@@ -115,7 +115,9 @@ def _sbom_failures(sbom_path: Path, expected: dict[str, str], dist: Path) -> lis
     return failures
 
 
-def _provenance_result(provenance_path: Path, expected: dict[str, str], require_signed: bool) -> tuple[list[str], bool, list[str]]:
+def _provenance_result(
+    provenance_path: Path, expected: dict[str, str], require_signed: bool
+) -> tuple[list[str], bool, list[str]]:
     failures: list[str] = []
     notes: list[str] = []
     if not provenance_path.is_file():
@@ -210,16 +212,14 @@ def verify(
             document = json.loads(provenance.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             document = {}
-        external = (
-            document.get("predicate", {})
-            .get("buildDefinition", {})
-            .get("externalParameters", {})
-        )
+        external = document.get("predicate", {}).get("buildDefinition", {}).get("externalParameters", {})
         recorded_revision = external.get("source", {}).get("revision")
         recorded_workflow = external.get("workflow", {}).get("ref")
         identity_failures: list[str] = []
         if source_revision and recorded_revision != source_revision:
-            identity_failures.append(f"provenance source revision {recorded_revision!r} != expected {source_revision!r}")
+            identity_failures.append(
+                f"provenance source revision {recorded_revision!r} != expected {source_revision!r}"
+            )
         if workflow_ref and recorded_workflow != workflow_ref:
             identity_failures.append(f"provenance workflow ref {recorded_workflow!r} != expected {workflow_ref!r}")
         failures.extend(identity_failures)
@@ -243,7 +243,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--checksums", type=Path, help="SHA256SUMS asset")
     parser.add_argument("--source-revision", help="expected source commit recorded in provenance")
     parser.add_argument("--workflow-ref", help="expected workflow reference recorded in provenance")
-    parser.add_argument("--require-signed", action="store_true", help="always fail until cryptographic signature verification is implemented")
+    parser.add_argument(
+        "--require-signed",
+        action="store_true",
+        help="always fail until cryptographic signature verification is implemented",
+    )
     parser.add_argument("--json", action="store_true", help="print the full result as JSON")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)

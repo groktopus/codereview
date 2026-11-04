@@ -126,13 +126,23 @@ def test_metadata_job_binds_exact_open_pr_base_and_head_without_provider_secrets
     [
         ({"state": "closed"}, "target_pull_request_not_open_ready"),
         ({"draft": True}, "target_pull_request_not_open_ready"),
-        ({"base": {"ref": "release", "sha": "1d4903dab34b0c51e8f3805803872c3b98e2a96c", "repo": {"full_name": "groktopus/codereview"}}}, "target_pull_request_repository_or_base_mismatch"),
-        ({"head": {"sha": "8e6ef508df6fff36ac681ea96b2cc01f749b67d8", "repo": {"full_name": "attacker/codereview"}}}, "target_pull_request_repository_or_base_mismatch"),
+        (
+            {
+                "base": {
+                    "ref": "release",
+                    "sha": "1d4903dab34b0c51e8f3805803872c3b98e2a96c",
+                    "repo": {"full_name": "groktopus/codereview"},
+                }
+            },
+            "target_pull_request_repository_or_base_mismatch",
+        ),
+        (
+            {"head": {"sha": "8e6ef508df6fff36ac681ea96b2cc01f749b67d8", "repo": {"full_name": "attacker/codereview"}}},
+            "target_pull_request_repository_or_base_mismatch",
+        ),
     ],
 )
-def test_metadata_job_rejects_closed_draft_or_cross_repository_prs(
-    monkeypatch, tmp_path, overrides, expected
-):
+def test_metadata_job_rejects_closed_draft_or_cross_repository_prs(monkeypatch, tmp_path, overrides, expected):
     namespace = {"__name__": "test_codereview_workflow_metadata"}
     exec(compile(_metadata_script(_source()), "codereview-self-pilot metadata", "exec"), namespace)
     output = tmp_path / "github-output"

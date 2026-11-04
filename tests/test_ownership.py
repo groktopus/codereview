@@ -101,7 +101,9 @@ def test_effective_group_must_match_module_map(tmp_path: Path) -> None:
 def test_missing_ownership_section_fails(tmp_path: Path) -> None:
     make_repo(tmp_path)
     path = tmp_path / "docs" / "OWNERSHIP.md"
-    path.write_text(path.read_text(encoding="utf-8").replace("## Credential and access ownership", "## Other"), encoding="utf-8")
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("## Credential and access ownership", "## Other"), encoding="utf-8"
+    )
     errors = ownership.check(tmp_path)["errors"]
     assert any("missing required section: ## Credential and access ownership" in error for error in errors)
 
@@ -138,8 +140,7 @@ def test_duplicate_module_map_entry_fails(tmp_path: Path) -> None:
     make_repo(tmp_path)
     path = tmp_path / "docs" / "OWNERSHIP.md"
     path.write_text(
-        path.read_text(encoding="utf-8")
-        + "\n| `security-credentials` | `core.py` | `@magnus919` |\n",
+        path.read_text(encoding="utf-8") + "\n| `security-credentials` | `core.py` | `@magnus919` |\n",
         encoding="utf-8",
     )
     errors = ownership.check(tmp_path)["errors"]

@@ -37,10 +37,15 @@ def _run_action(tmp_path: Path, child_body: str, *, deadline_ms: int = 2_000):
     )
     fake_python.chmod(0o700)
     env = {
-        "PATH": str(bin_dir), "HOME": str(tmp_path), "TMPDIR": str(tmp_path),
-        "RUNNER_TEMP": str(runner_temp), "GITHUB_WORKSPACE": str(workspace),
-        "GITHUB_REPOSITORY": "groktopus/codereview", "GITHUB_RUN_ID": "42",
-        "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": "refs/heads/main",
+        "PATH": str(bin_dir),
+        "HOME": str(tmp_path),
+        "TMPDIR": str(tmp_path),
+        "RUNNER_TEMP": str(runner_temp),
+        "GITHUB_WORKSPACE": str(workspace),
+        "GITHUB_REPOSITORY": "groktopus/codereview",
+        "GITHUB_RUN_ID": "42",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_REF": "refs/heads/main",
         "GITHUB_SHA": "a" * 40,
         "GITHUB_WORKFLOW_REF": "groktopus/codereview/.github/workflows/hosted-recovery-rehearsal.yml@refs/heads/main",
         "GITHUB_EVENT_PATH": str(tmp_path / "enclosing-workflow-event.json"),
@@ -50,8 +55,11 @@ def _run_action(tmp_path: Path, child_body: str, *, deadline_ms: int = 2_000):
         "GITHUB_TOKEN": "synthetic-github-token-canary",
         "HOSTED_RECOVERY_FAKE_KEY": "synthetic-provider-key-canary",
         "OPENAI_API_KEY": "synthetic-openai-key-canary",
-        "INPUT_MODE": "hosted-recovery-run-a", "INPUT_ROOT": str(root),
-        "INPUT_STAGE": str(stage), "INPUT_SOURCE_ROOT": str(workspace), "INPUT_WHEEL": str(wheel),
+        "INPUT_MODE": "hosted-recovery-run-a",
+        "INPUT_ROOT": str(root),
+        "INPUT_STAGE": str(stage),
+        "INPUT_SOURCE_ROOT": str(workspace),
+        "INPUT_WHEEL": str(wheel),
     }
     runner = (
         "import {runHostedRecovery} from " + json.dumps(ACTION_SCRIPT.as_uri()) + "; "
@@ -60,7 +68,12 @@ def _run_action(tmp_path: Path, child_body: str, *, deadline_ms: int = 2_000):
     )
     completed = subprocess.run(
         [NODE, "--input-type=module", "-e", runner],
-        cwd=workspace, env=env, capture_output=True, text=True, timeout=5, check=False,
+        cwd=workspace,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
     )
     return completed, capture
 
@@ -69,16 +82,31 @@ def test_hosted_action_passes_runtime_allowlist_but_not_github_or_provider_secre
     completed, captured = _run_action(tmp_path, "print('helper_started')")
     assert completed.returncode == 0
     assert completed.stdout == "helper_started\n"
-    assert all(secret not in completed.stdout + completed.stderr for secret in (
-        "synthetic-runtime-token-canary", "synthetic-github-token-canary",
-        "synthetic-provider-key-canary", "synthetic-openai-key-canary",
-    ))
+    assert all(
+        secret not in completed.stdout + completed.stderr
+        for secret in (
+            "synthetic-runtime-token-canary",
+            "synthetic-github-token-canary",
+            "synthetic-provider-key-canary",
+            "synthetic-openai-key-canary",
+        )
+    )
     data = json.loads(captured.read_text(encoding="utf-8"))
     forwarded = data["env"]
     expected_environment = {
-        "PATH", "HOME", "TMPDIR", "GITHUB_WORKSPACE", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
-        "GITHUB_RUN_ATTEMPT", "GITHUB_REF", "GITHUB_SHA", "GITHUB_WORKFLOW_REF",
-        "ACTIONS_RUNTIME_TOKEN", "ACTIONS_RESULTS_URL", "ACTIONS_RUNTIME_URL",
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "GITHUB_WORKSPACE",
+        "GITHUB_REPOSITORY",
+        "GITHUB_RUN_ID",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_REF",
+        "GITHUB_SHA",
+        "GITHUB_WORKFLOW_REF",
+        "ACTIONS_RUNTIME_TOKEN",
+        "ACTIONS_RESULTS_URL",
+        "ACTIONS_RUNTIME_URL",
     }
     # CPython on macOS may add these process-local locale/encoding values at startup.
     assert set(forwarded) - expected_environment <= {"LC_CTYPE", "__CF_USER_TEXT_ENCODING"}
@@ -88,11 +116,16 @@ def test_hosted_action_passes_runtime_allowlist_but_not_github_or_provider_secre
     assert "OPENAI_API_KEY" not in forwarded
     assert "GITHUB_EVENT_PATH" not in forwarded
     assert data["argv"] == [
-        str(tmp_path / "workspace" / "scripts" / "hosted_recovery_rehearsal.py"), "run-a",
-        "--root", str(tmp_path / "runner-temp" / "root"),
-        "--stage", str(tmp_path / "runner-temp" / "stage"),
-        "--source-root", str(tmp_path / "workspace"),
-        "--wheel", str(tmp_path / "runner-temp" / "recovery.whl"),
+        str(tmp_path / "workspace" / "scripts" / "hosted_recovery_rehearsal.py"),
+        "run-a",
+        "--root",
+        str(tmp_path / "runner-temp" / "root"),
+        "--stage",
+        str(tmp_path / "runner-temp" / "stage"),
+        "--source-root",
+        str(tmp_path / "workspace"),
+        "--wheel",
+        str(tmp_path / "runner-temp" / "recovery.whl"),
     ]
 
 
@@ -121,34 +154,41 @@ def _nested_cli_helper_body(tmp_path: Path, *, emit_overflow: bool) -> str:
         f"open({str(pid_file)!r},'w',encoding='ascii').write(str(child.pid))\n"
         "signal.signal(signal.SIGTERM,recovery._sigterm_as_keyboard_interrupt)\n",
     ]
-    parts.extend([
-        "try:\n"
-        " startup_deadline=time.monotonic()+1.0\n"
-        f" started_marker={str(started_marker)!r}\n"
-        " while not os.path.exists(started_marker) and time.monotonic()<startup_deadline: time.sleep(0.01)\n"
-        " if not os.path.exists(started_marker): raise RuntimeError('nested_cli_did_not_start')\n",
-    ])
+    parts.extend(
+        [
+            "try:\n"
+            " startup_deadline=time.monotonic()+1.0\n"
+            f" started_marker={str(started_marker)!r}\n"
+            " while not os.path.exists(started_marker) and time.monotonic()<startup_deadline: time.sleep(0.01)\n"
+            " if not os.path.exists(started_marker): raise RuntimeError('nested_cli_did_not_start')\n",
+        ]
+    )
     if emit_overflow:
         parts.append(" print('x' * 70000, flush=True)\n")
-    parts.extend([
-        " while True: time.sleep(0.05)\n"
-        "except KeyboardInterrupt:\n"
-        " pass\n"
-        "finally:\n"
-        " recovery._terminate(child)\n",
-    ])
+    parts.extend(
+        [
+            " while True: time.sleep(0.05)\nexcept KeyboardInterrupt:\n pass\nfinally:\n recovery._terminate(child)\n",
+        ]
+    )
     return "".join(parts)
 
 
-@pytest.mark.parametrize(("emit_overflow", "deadline_ms", "expected_error"), [
-    (True, 3_000, "hosted_recovery_action_output_exceeded"),
-    (False, 1_500, "hosted_recovery_action_deadline_exhausted"),
-])
+@pytest.mark.parametrize(
+    ("emit_overflow", "deadline_ms", "expected_error"),
+    [
+        (True, 3_000, "hosted_recovery_action_output_exceeded"),
+        (False, 1_500, "hosted_recovery_action_deadline_exhausted"),
+    ],
+)
 def test_abnormal_stop_cleans_nested_detached_fake_cli(
-    tmp_path, emit_overflow, deadline_ms, expected_error,
+    tmp_path,
+    emit_overflow,
+    deadline_ms,
+    expected_error,
 ):
     completed, _capture = _run_action(
-        tmp_path, _nested_cli_helper_body(tmp_path, emit_overflow=emit_overflow),
+        tmp_path,
+        _nested_cli_helper_body(tmp_path, emit_overflow=emit_overflow),
         deadline_ms=deadline_ms,
     )
     assert completed.returncode != 0
@@ -157,6 +197,7 @@ def test_abnormal_stop_cleans_nested_detached_fake_cli(
     assert (tmp_path / "detached-cli-started").read_text(encoding="ascii") == "started"
     marker = tmp_path / "detached-cli-survived"
     import time
+
     time.sleep(2.7)
     assert not marker.exists()
 

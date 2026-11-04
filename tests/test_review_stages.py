@@ -169,9 +169,7 @@ def advance_to_dispatch(state):
 # ---------------------------------------------------------------------------
 def test_run_review_is_a_thin_coordinator_without_nested_functions():
     tree = ast.parse(Path(engine_module.__file__).read_text(encoding="utf-8"))
-    run_review = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run_review"
-    )
+    run_review = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run_review")
     assert run_review.end_lineno - run_review.lineno + 1 <= 300
     nested = [node for node in ast.walk(run_review) if isinstance(node, ast.FunctionDef) and node is not run_review]
     assert nested == []
@@ -251,11 +249,7 @@ def test_every_stage_is_importable_and_takes_explicit_state():
     source = Path(stages.__file__).read_text(encoding="utf-8")
     assert "nonlocal" not in source
     tree = ast.parse(source)
-    nested = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node not in tree.body
-    ]
+    nested = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node not in tree.body]
     assert nested == []
 
 
@@ -308,9 +302,7 @@ def test_request_identity_is_deterministic_and_bound_before_dispatch(tmp_path):
     assert [event["event"] for event in first.ledger["events"]] == ["RUN_STARTED"]
     for state in (first, second):
         event = state.ledger["events"][0]
-        expected_event_hash = engine_module._hash(
-            {key: value for key, value in event.items() if key != "event_hash"}
-        )
+        expected_event_hash = engine_module._hash({key: value for key, value in event.items() if key != "event_hash"})
         assert event["event_hash"] == expected_event_hash
     assert first.ledger["budget"]["reservations"] == {}
 
@@ -371,9 +363,7 @@ def test_reserve_provider_call_protects_required_claim_capacity(tmp_path):
     # One reserved call must leave room for the still-required assessment.
     cap_state = prepared(tmp_path / "cap", {**LIMITS, "deadline_seconds": 60, "max_provider_calls": 1})
     with pytest.raises(BudgetExhausted) as cap_error:
-        cap_state.reserve_provider_call(
-            "task-1:judge:0", cap_state.provider, "SEMANTIC_ADJUDICATION", {}, [], 10
-        )
+        cap_state.reserve_provider_call("task-1:judge:0", cap_state.provider, "SEMANTIC_ADJUDICATION", {}, [], 10)
     assert "REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED" in str(cap_error.value)
     assert cap_state.budget.state["reservations"] == {}
 
@@ -460,10 +450,14 @@ def test_real_collected_snapshot_keys_are_declared_in_typed_contracts(tmp_path):
     (repo / "module.py").write_text("value = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "module.py"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo, check=True)
-    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
     (repo / "module.py").write_text("value = 2\n", encoding="utf-8")
     subprocess.run(["git", "commit", "-qam", "head"], cwd=repo, check=True)
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
     snapshot = collect_snapshot(str(repo), base, head, make_profile(), {"max_context_bytes": 100000})
     plan = plan_review(snapshot, make_profile())
     assert set(snapshot) <= set(SnapshotRecord.__annotations__)

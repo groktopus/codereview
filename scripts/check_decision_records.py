@@ -188,9 +188,7 @@ def _check_legacy(root: Path, index_text: str, errors: list[str]) -> int:
     legacy = sorted(path for path in legacy_dir.glob("*.md") if LEGACY_RE.match(path.name))
     for path in legacy:
         if path.name not in index_text:
-            errors.append(
-                f"docs/adr/README.md: legacy design ADR {path.name} must be reconciled by reference"
-            )
+            errors.append(f"docs/adr/README.md: legacy design ADR {path.name} must be reconciled by reference")
     return len(legacy)
 
 

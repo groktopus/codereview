@@ -130,7 +130,11 @@ def _readiness_artifact_name(run_id: str) -> str:
 
 
 def _upload_readiness_receipt(
-    *, source_root: Path, receipt: dict[str, Any], content: bytes, uploader: Any = None,
+    *,
+    source_root: Path,
+    receipt: dict[str, Any],
+    content: bytes,
+    uploader: Any = None,
 ) -> dict[str, Any]:
     """Publish one small readiness receipt through the locked Actions artifact bridge."""
     if len(content) > 2048 or canonical(receipt) != content:
@@ -151,8 +155,11 @@ def _upload_readiness_receipt(
         raise DrillError("readiness_artifact_upload_deadline_exhausted")
     try:
         result = uploader.upload(
-            run_id=int(run_id), artifact_name=name, filename="readiness.json",
-            content=content, timeout_seconds=remaining,
+            run_id=int(run_id),
+            artifact_name=name,
+            filename="readiness.json",
+            content=content,
+            timeout_seconds=remaining,
         )
     except Exception:
         raise DrillError("readiness_artifact_upload_failed") from None
@@ -163,7 +170,11 @@ def _upload_readiness_receipt(
         or result.artifact_id < 1
     ):
         reason = getattr(result, "reason_code", None)
-        code = "readiness_artifact_upload_deadline_exhausted" if reason == "artifact_upload_deadline_exhausted" else "readiness_artifact_upload_failed"
+        code = (
+            "readiness_artifact_upload_deadline_exhausted"
+            if reason == "artifact_upload_deadline_exhausted"
+            else "readiness_artifact_upload_failed"
+        )
         raise DrillError(code)
     return {
         "artifact_id": result.artifact_id,
@@ -173,10 +184,16 @@ def _upload_readiness_receipt(
     }
 
 
-def _validate_readiness_receipt(stage: Path, manifest: dict[str, Any], *, expected_run_id: str,
-                                expected_sha: str, readiness_artifact_id: int,
-                                retrieved_receipt_sha256: str | None = None,
-                                retrieved_receipt_bytes: int | None = None) -> dict[str, Any]:
+def _validate_readiness_receipt(
+    stage: Path,
+    manifest: dict[str, Any],
+    *,
+    expected_run_id: str,
+    expected_sha: str,
+    readiness_artifact_id: int,
+    retrieved_receipt_sha256: str | None = None,
+    retrieved_receipt_bytes: int | None = None,
+) -> dict[str, Any]:
     path = stage / "readiness.json"
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 2048:
         raise DrillError("readiness_receipt_missing_or_invalid")
@@ -226,8 +243,7 @@ def _validate_readiness_receipt(stage: Path, manifest: dict[str, Any], *, expect
     if manifest.get("files", {}).get("readiness.json") != hashlib.sha256(raw).hexdigest():
         raise DrillError("readiness_receipt_manifest_hash_mismatch")
     if retrieved_receipt_sha256 is not None and (
-        retrieved_receipt_sha256 != hashlib.sha256(raw).hexdigest()
-        or retrieved_receipt_bytes != len(raw)
+        retrieved_receipt_sha256 != hashlib.sha256(raw).hexdigest() or retrieved_receipt_bytes != len(raw)
     ):
         raise DrillError("readiness_artifact_content_mismatch")
     return receipt
@@ -258,8 +274,9 @@ def _sigterm_as_keyboard_interrupt(_signum: int, _frame: Any) -> None:
     raise KeyboardInterrupt
 
 
-def _run(argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float,
-         output_limit: int = MAX_COMMAND_OUTPUT_BYTES) -> str:
+def _run(
+    argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float, output_limit: int = MAX_COMMAND_OUTPUT_BYTES
+) -> str:
     """Run with a shared wall deadline and bounded stdout memory."""
     deadline = _effective_deadline(timeout)
     output = bytearray()
@@ -310,8 +327,9 @@ def _run(argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float,
         raise DrillError("bounded_command_output_invalid") from None
 
 
-def _run_to_file(argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float, destination: Path,
-                 byte_limit: int) -> int:
+def _run_to_file(
+    argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float, destination: Path, byte_limit: int
+) -> int:
     """Stream a bounded binary response to a new file without buffering it."""
     deadline = _effective_deadline(timeout)
     if destination.exists() or destination.is_symlink():
@@ -319,9 +337,15 @@ def _run_to_file(argv: list[str], *, cwd: Path, env: dict[str, str], timeout: fl
     proc: subprocess.Popen[bytes] | None = None
     total = 0
     try:
-        proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                start_new_session=(os.name == "posix"))
+        proc = subprocess.Popen(
+            argv,
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            start_new_session=(os.name == "posix"),
+        )
         assert proc.stdout is not None
         with destination.open("xb") as stream, selectors.DefaultSelector() as selector:
             selector.register(proc.stdout, selectors.EVENT_READ)
@@ -390,8 +414,9 @@ def _extract_allowlisted_archive(archive: Path, destination: Path) -> None:
         raise DrillError("artifact_archive_invalid") from None
 
 
-def _download_canceled_run_artifact(source_run_id: str, expected_sha: str, destination: Path,
-                                    *, repository: str, token: str) -> dict[str, Any]:
+def _download_canceled_run_artifact(
+    source_run_id: str, expected_sha: str, destination: Path, *, repository: str, token: str
+) -> dict[str, Any]:
     """Authenticate the run metadata, then cap the archive before safe extraction."""
     if repository != CANONICAL_REPOSITORY or not re.fullmatch(r"[0-9]{1,20}", source_run_id):
         raise DrillError("source_run_identity_invalid")
@@ -402,8 +427,15 @@ def _download_canceled_run_artifact(source_run_id: str, expected_sha: str, desti
         raise DrillError("download_directory_not_empty")
     env = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "/tmp"), "GH_TOKEN": token}
     prefix = f"repos/{CANONICAL_REPOSITORY}"
-    run_doc = json.loads(_run(["gh", "api", f"{prefix}/actions/runs/{source_run_id}"], cwd=destination, env=env,
-                              timeout=30, output_limit=256_000))
+    run_doc = json.loads(
+        _run(
+            ["gh", "api", f"{prefix}/actions/runs/{source_run_id}"],
+            cwd=destination,
+            env=env,
+            timeout=30,
+            output_limit=256_000,
+        )
+    )
     repo_info = run_doc.get("repository", {})
     path = run_doc.get("path", "")
     if (
@@ -414,7 +446,8 @@ def _download_canceled_run_artifact(source_run_id: str, expected_sha: str, desti
         or run_doc.get("conclusion") != "cancelled"
         or run_doc.get("head_branch") != "main"
         or run_doc.get("head_sha") != expected_sha
-        or path not in {
+        or path
+        not in {
             WORKFLOW_PATH,
             WORKFLOW_PATH + "@main",
             WORKFLOW_PATH + "@refs/heads/main",
@@ -424,17 +457,35 @@ def _download_canceled_run_artifact(source_run_id: str, expected_sha: str, desti
     workflow_id = run_doc.get("workflow_id")
     if isinstance(workflow_id, bool) or not isinstance(workflow_id, int) or workflow_id < 1:
         raise DrillError("source_workflow_identity_invalid")
-    workflow_doc = json.loads(_run(["gh", "api", f"{prefix}/actions/workflows/{workflow_id}"], cwd=destination, env=env,
-                                   timeout=30, output_limit=128_000))
+    workflow_doc = json.loads(
+        _run(
+            ["gh", "api", f"{prefix}/actions/workflows/{workflow_id}"],
+            cwd=destination,
+            env=env,
+            timeout=30,
+            output_limit=128_000,
+        )
+    )
     if workflow_doc.get("path") != WORKFLOW_PATH:
         raise DrillError("source_workflow_identity_invalid")
-    artifacts_doc = json.loads(_run(["gh", "api", f"{prefix}/actions/runs/{source_run_id}/artifacts?per_page=100"],
-                                    cwd=destination, env=env, timeout=30, output_limit=256_000))
+    artifacts_doc = json.loads(
+        _run(
+            ["gh", "api", f"{prefix}/actions/runs/{source_run_id}/artifacts?per_page=100"],
+            cwd=destination,
+            env=env,
+            timeout=30,
+            output_limit=256_000,
+        )
+    )
     artifacts = artifacts_doc.get("artifacts", [])
-    matches = [item for item in artifacts if isinstance(item, dict)
-               and item.get("name") == f"hosted-recovery-{source_run_id}"]
-    readiness_matches = [item for item in artifacts if isinstance(item, dict)
-                         and item.get("name") == _readiness_artifact_name(source_run_id)]
+    matches = [
+        item for item in artifacts if isinstance(item, dict) and item.get("name") == f"hosted-recovery-{source_run_id}"
+    ]
+    readiness_matches = [
+        item
+        for item in artifacts
+        if isinstance(item, dict) and item.get("name") == _readiness_artifact_name(source_run_id)
+    ]
     if len(matches) != 1 or len(readiness_matches) != 1:
         raise DrillError("source_artifact_missing_or_ambiguous")
     item = matches[0]
@@ -443,28 +494,41 @@ def _download_canceled_run_artifact(source_run_id: str, expected_sha: str, desti
     artifact_id = item.get("id")
     size = item.get("size_in_bytes")
     if (
-        isinstance(artifact_id, bool) or not isinstance(artifact_id, int) or artifact_id < 1
-        or not isinstance(artifact_run, dict) or str(artifact_run.get("id")) != source_run_id
+        isinstance(artifact_id, bool)
+        or not isinstance(artifact_id, int)
+        or artifact_id < 1
+        or not isinstance(artifact_run, dict)
+        or str(artifact_run.get("id")) != source_run_id
         or item.get("expired") is not False
-        or isinstance(size, bool) or not isinstance(size, int) or size < 1 or size > MAX_BYTES
+        or isinstance(size, bool)
+        or not isinstance(size, int)
+        or size < 1
+        or size > MAX_BYTES
     ):
         raise DrillError("source_artifact_metadata_invalid")
     readiness_artifact_id = readiness_item.get("id")
     readiness_run = readiness_item.get("workflow_run")
     readiness_size = readiness_item.get("size_in_bytes")
     if (
-        isinstance(readiness_artifact_id, bool) or not isinstance(readiness_artifact_id, int)
-        or readiness_artifact_id < 1 or not isinstance(readiness_run, dict)
+        isinstance(readiness_artifact_id, bool)
+        or not isinstance(readiness_artifact_id, int)
+        or readiness_artifact_id < 1
+        or not isinstance(readiness_run, dict)
         or str(readiness_run.get("id")) != source_run_id
         or readiness_item.get("expired") is not False
-        or isinstance(readiness_size, bool) or not isinstance(readiness_size, int)
-        or readiness_size < 1 or readiness_size > READINESS_ARTIFACT_MAX_BYTES
+        or isinstance(readiness_size, bool)
+        or not isinstance(readiness_size, int)
+        or readiness_size < 1
+        or readiness_size > READINESS_ARTIFACT_MAX_BYTES
     ):
         raise DrillError("source_readiness_artifact_metadata_invalid")
     readiness_archive = destination.parent / f".hosted-recovery-ready-{source_run_id}.zip"
     readiness_archive_bytes = _run_to_file(
         ["gh", "api", f"repos/{CANONICAL_REPOSITORY}/actions/artifacts/{readiness_artifact_id}/zip"],
-        cwd=destination, env=env, timeout=60, destination=readiness_archive,
+        cwd=destination,
+        env=env,
+        timeout=60,
+        destination=readiness_archive,
         byte_limit=READINESS_ARTIFACT_MAX_BYTES,
     )
     if readiness_archive_bytes != readiness_size:
@@ -477,7 +541,11 @@ def _download_canceled_run_artifact(source_run_id: str, expected_sha: str, desti
     archive = destination.parent / f".hosted-recovery-{source_run_id}.zip"
     downloaded = _run_to_file(
         ["gh", "api", f"repos/{CANONICAL_REPOSITORY}/actions/artifacts/{artifact_id}/zip"],
-        cwd=destination, env=env, timeout=MAX_ARCHIVE_SECONDS, destination=archive, byte_limit=MAX_BYTES,
+        cwd=destination,
+        env=env,
+        timeout=MAX_ARCHIVE_SECONDS,
+        destination=archive,
+        byte_limit=MAX_BYTES,
     )
     if downloaded != size:
         archive.unlink(missing_ok=True)
@@ -489,13 +557,19 @@ def _download_canceled_run_artifact(source_run_id: str, expected_sha: str, desti
     checked = validate_stage(destination)
     if checked["total_bytes"] > MAX_BYTES:
         raise DrillError("artifact_total_size_exceeded")
-    return {"run_id": source_run_id, "workflow_id": workflow_id, "artifact_id": artifact_id,
-            "artifact_name": item["name"], "artifact_bytes": size, "head_sha": expected_sha,
-            "readiness_artifact_id": readiness_artifact_id,
-            "readiness_artifact_name": readiness_item["name"],
-            "readiness_artifact_bytes": readiness_size,
-            "readiness_receipt_sha256": readiness_sha256,
-            "readiness_receipt_bytes": len(readiness_bytes)}
+    return {
+        "run_id": source_run_id,
+        "workflow_id": workflow_id,
+        "artifact_id": artifact_id,
+        "artifact_name": item["name"],
+        "artifact_bytes": size,
+        "head_sha": expected_sha,
+        "readiness_artifact_id": readiness_artifact_id,
+        "readiness_artifact_name": readiness_item["name"],
+        "readiness_artifact_bytes": readiness_size,
+        "readiness_receipt_sha256": readiness_sha256,
+        "readiness_receipt_bytes": len(readiness_bytes),
+    }
 
 
 def _read_readiness_receipt_archive(archive_path: Path) -> tuple[bytes, str]:
@@ -534,7 +608,9 @@ def _make_fixture(root: Path, stage: Path, source_root: Path, wheel: Path) -> tu
     env = {
         "PATH": os.environ.get("PATH", ""),
         "HOME": os.environ.get("HOME", str(root)),
-        "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_AUTHOR_NAME": "Recovery Fixture",
         "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
         "GIT_COMMITTER_NAME": "Recovery Fixture",
@@ -548,7 +624,12 @@ def _make_fixture(root: Path, stage: Path, source_root: Path, wheel: Path) -> tu
     for content, message in (("VALUE = 1\n", "base"), ("VALUE = 2\n", "head")):
         sample.write_text(content, encoding="utf-8")
         _run(["git", "-C", str(repo), "add", "sample.py"], cwd=root, env=env, timeout=10)
-        _run(["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "commit", "-m", message], cwd=root, env=env, timeout=10)
+        _run(
+            ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "commit", "-m", message],
+            cwd=root,
+            env=env,
+            timeout=10,
+        )
         if message == "base":
             base = _run(["git", "-C", str(repo), "rev-parse", "HEAD"], cwd=root, env=env, timeout=10)
         else:
@@ -556,29 +637,51 @@ def _make_fixture(root: Path, stage: Path, source_root: Path, wheel: Path) -> tu
     bundle = stage / "fixture.bundle"
     _run(["git", "-C", str(repo), "bundle", "create", str(bundle), "--all"], cwd=root, env=env, timeout=10)
     profile = root / "profile.json"
-    profile.write_bytes(canonical({
-        "version": "hosted-recovery-profile-v1",
-        "repository": IDENTITY["repository"],
-        "allow_empty_approve": True,
-        "required_lenses": ["correctness", "security"],
-        "context_paths": [],
-    }))
+    profile.write_bytes(
+        canonical(
+            {
+                "version": "hosted-recovery-profile-v1",
+                "repository": IDENTITY["repository"],
+                "allow_empty_approve": True,
+                "required_lenses": ["correctness", "security"],
+                "context_paths": [],
+            }
+        )
+    )
     limits = root / "limits.json"
-    limits.write_bytes(canonical({
-        "schema_version": "1.0", "deadline_seconds": 540,
-        "max_concurrent_scopes": 1, "max_provider_calls": 2,
-        "max_retries_per_task": 0, "max_context_bytes": 32000,
-        "max_input_bytes_per_task": 32000, "max_output_bytes_per_task": 8000,
-        "max_output_bytes": 16000, "max_output_tokens": 256,
-        "max_context_retrievals": 0, "max_followup_tasks": 0,
-    }))
+    limits.write_bytes(
+        canonical(
+            {
+                "schema_version": "1.0",
+                "deadline_seconds": 540,
+                "max_concurrent_scopes": 1,
+                "max_provider_calls": 2,
+                "max_retries_per_task": 0,
+                "max_context_bytes": 32000,
+                "max_input_bytes_per_task": 32000,
+                "max_output_bytes_per_task": 8000,
+                "max_output_bytes": 16000,
+                "max_output_tokens": 256,
+                "max_context_retrievals": 0,
+                "max_followup_tasks": 0,
+            }
+        )
+    )
     config = root / "provider.json"
-    config.write_bytes(canonical({
-        "kind": "openai_compatible", "base_url": f"http://127.0.0.1:{PROVIDER_PORT}/v1",
-        "model": MODEL, "api_key_env": "HOSTED_RECOVERY_FAKE_KEY",
-        "timeout_seconds": 480, "max_request_bytes": 32000,
-        "max_response_bytes": 8000, "max_output_tokens": 256,
-    }))
+    config.write_bytes(
+        canonical(
+            {
+                "kind": "openai_compatible",
+                "base_url": f"http://127.0.0.1:{PROVIDER_PORT}/v1",
+                "model": MODEL,
+                "api_key_env": "HOSTED_RECOVERY_FAKE_KEY",
+                "timeout_seconds": 480,
+                "max_request_bytes": 32000,
+                "max_response_bytes": 8000,
+                "max_output_tokens": 256,
+            }
+        )
+    )
     if wheel.name != WHEEL_NAME:
         raise DrillError("wheel_filename_invalid")
     shutil.copyfile(wheel, stage / WHEEL_NAME)
@@ -618,22 +721,32 @@ def _provider(state: _State) -> _Server:
         def do_POST(self) -> None:  # noqa: N802
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(min(max(length, 0), 128000))
-            if self.path != "/v1/chat/completions" or self.headers.get("Authorization") != f"Bearer {API_KEY}" or length > 128000:
+            if (
+                self.path != "/v1/chat/completions"
+                or self.headers.get("Authorization") != f"Bearer {API_KEY}"
+                or length > 128000
+            ):
                 self.send_error(401)
                 return
             ordinal = 1 + sum(event["event"] == "request_entered" for event in state.events)
-            state.add({"event": "request_entered", "ordinal": ordinal, "request_sha256": hashlib.sha256(raw).hexdigest()})
+            state.add(
+                {"event": "request_entered", "ordinal": ordinal, "request_sha256": hashlib.sha256(raw).hexdigest()}
+            )
             if ordinal == 1:
                 try:
                     local_payload = local._specialist_payload(json.loads(raw))
                 except (ValueError, TypeError, json.JSONDecodeError):
                     self.send_error(400)
                     return
-                body = json.dumps({
-                    "id": "hosted-recovery-fake-1", "model": MODEL,
-                    "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(local_payload)}}],
-                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-                }, separators=(",", ":")).encode()
+                body = json.dumps(
+                    {
+                        "id": "hosted-recovery-fake-1",
+                        "model": MODEL,
+                        "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(local_payload)}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                    },
+                    separators=(",", ":"),
+                ).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
@@ -699,7 +812,12 @@ def run_a(*, root: Path, stage: Path, wheel: Path, source_root: Path, readiness_
     host_env = {"PATH": os.environ.get("PATH", ""), "HOME": str(home), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
     _run([sys.executable, "-m", "venv", str(venv)], cwd=work, env=host_env, timeout=60)
     cli = venv / "bin" / "pr-review"
-    _run([str(venv / "bin" / "python"), "-m", "pip", "install", "--no-deps", str(wheel)], cwd=work, env=host_env, timeout=90)
+    _run(
+        [str(venv / "bin" / "python"), "-m", "pip", "install", "--no-deps", str(wheel)],
+        cwd=work,
+        env=host_env,
+        timeout=90,
+    )
     modules = sorted((venv / "lib").glob("python*/site-packages/pr_review_harness/*.py"))
     installed = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in modules if p.is_file()}
     if installed != source:
@@ -716,17 +834,43 @@ def run_a(*, root: Path, stage: Path, wheel: Path, source_root: Path, readiness_
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = _synthetic_cli_environment(
-        f"{venv / 'bin'}:{os.environ.get('PATH', '')}", str(home), api_key=API_KEY,
+        f"{venv / 'bin'}:{os.environ.get('PATH', '')}",
+        str(home),
+        api_key=API_KEY,
     )
-    cmd = [str(cli), "review", "--repo", str(repo), "--base", base, "--head", head,
-           "--profile", str(profile), "--limits", str(limits), "--provider-config", str(config),
-           "--output", str(output), "--run-id", run_id, "--json"]
+    cmd = [
+        str(cli),
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile),
+        "--limits",
+        str(limits),
+        "--provider-config",
+        str(config),
+        "--output",
+        str(output),
+        "--run-id",
+        run_id,
+        "--json",
+    ]
     previous_sigterm_handler = signal.signal(signal.SIGTERM, _sigterm_as_keyboard_interrupt)
     process: subprocess.Popen[bytes] | None = None
     try:
-        process = subprocess.Popen(cmd, cwd=work, env=env, stdin=subprocess.DEVNULL,
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                   start_new_session=True)
+        process = subprocess.Popen(
+            cmd,
+            cwd=work,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         deadline = started + 180
         if not state.wait(2, max(0, deadline - time.monotonic())):
             raise DrillError("provider_inflight_readiness_timeout")
@@ -742,7 +886,12 @@ def run_a(*, root: Path, stage: Path, wheel: Path, source_root: Path, readiness_
         if process.poll() is not None or len(prior) != 1 or len(uncertain) != 1:
             raise DrillError("checkpoint_inflight_state_invalid")
         events = state.events
-        if [event["event"] for event in events] != ["request_entered", "response_sent", "request_entered", "held_in_flight"]:
+        if [event["event"] for event in events] != [
+            "request_entered",
+            "response_sent",
+            "request_entered",
+            "held_in_flight",
+        ]:
             raise DrillError("provider_readiness_ledger_invalid")
         shutil.copyfile(checkpoint, stage / "checkpoint.json")
         ledger = {"events": events, "completed_requests": 1, "historical_requests": 2, "new_resume_requests": 0}
@@ -755,35 +904,51 @@ def run_a(*, root: Path, stage: Path, wheel: Path, source_root: Path, readiness_
         held_deadline_unix = int(time.time() + max(0, started + 450 - time.monotonic()))
         readiness = {
             "schema_version": "hosted-recovery-readiness.v1",
-            "run_id": int(run_id_text), "run_attempt": int(run_attempt_text),
-            "repository": CANONICAL_REPOSITORY, "workflow_path": WORKFLOW_PATH,
-            "workflow_ref": "refs/heads/main", "harness_sha": harness_sha,
+            "run_id": int(run_id_text),
+            "run_attempt": int(run_attempt_text),
+            "repository": CANONICAL_REPOSITORY,
+            "workflow_path": WORKFLOW_PATH,
+            "workflow_ref": "refs/heads/main",
+            "harness_sha": harness_sha,
             "source_modules_sha256": source_inventory_digest(source),
-            "state": "READY_TO_CANCEL", "provider_ordinal": 2, "provider_in_flight": True,
-            "completed_reservations": 1, "uncertain_reservations": 1,
-            "historical_provider_requests": 2, "new_resume_requests_expected": 0,
+            "state": "READY_TO_CANCEL",
+            "provider_ordinal": 2,
+            "provider_in_flight": True,
+            "completed_reservations": 1,
+            "uncertain_reservations": 1,
+            "historical_provider_requests": 2,
+            "new_resume_requests_expected": 0,
             "checkpoint_sha256": digest(stage / "checkpoint.json"),
             "checkpoint_bytes": (stage / "checkpoint.json").stat().st_size,
-            "snapshot_id": snapshot_id, "request_hash": request_hash,
+            "snapshot_id": snapshot_id,
+            "request_hash": request_hash,
             "held_deadline_unix": held_deadline_unix,
         }
         readiness_bytes = canonical(readiness)
         (stage / "readiness.json").write_bytes(readiness_bytes)
-        hashes = {name: digest(stage / name) for name in (
-            "checkpoint.json", "fixture.bundle", "provider-ledger.json", "readiness.json", WHEEL_NAME
-        )}
+        hashes = {
+            name: digest(stage / name)
+            for name in ("checkpoint.json", "fixture.bundle", "provider-ledger.json", "readiness.json", WHEEL_NAME)
+        }
         manifest = {
-            "schema_version": "hosted-recovery.v1", **IDENTITY,
+            "schema_version": "hosted-recovery.v1",
+            **IDENTITY,
             "run_id": os.environ.get("GITHUB_RUN_ID", "local-test"),
             "run_attempt": int(run_attempt_text),
-            "harness_sha": harness_sha, "workflow_ref": os.environ.get("GITHUB_REF"),
-            "source_modules": source, "wheel_sha256": digest(stage / WHEEL_NAME),
-            "profile_sha256": digest(profile), "limits_sha256": digest(limits),
-            "base_sha": base, "head_sha": head, "run_identity": run_id,
+            "harness_sha": harness_sha,
+            "workflow_ref": os.environ.get("GITHUB_REF"),
+            "source_modules": source,
+            "wheel_sha256": digest(stage / WHEEL_NAME),
+            "profile_sha256": digest(profile),
+            "limits_sha256": digest(limits),
+            "base_sha": base,
+            "head_sha": head,
+            "run_identity": run_id,
             "snapshot_id": snapshot_id,
             "request_hash": request_hash,
             "reservations": {"completed": len(prior), "uncertain": len(uncertain)},
-            "historical_provider_requests": 2, "new_resume_requests_expected": 0,
+            "historical_provider_requests": 2,
+            "new_resume_requests_expected": 0,
             "files": hashes,
         }
         (stage / "manifest.json").write_bytes(canonical(manifest))
@@ -791,7 +956,10 @@ def run_a(*, root: Path, stage: Path, wheel: Path, source_root: Path, readiness_
         if checked["total_bytes"] > MAX_BYTES:
             raise DrillError("artifact_total_size_exceeded")
         publication = _upload_readiness_receipt(
-            source_root=source_root, receipt=readiness, content=readiness_bytes, uploader=readiness_uploader,
+            source_root=source_root,
+            receipt=readiness,
+            content=readiness_bytes,
+            uploader=readiness_uploader,
         )
         manifest["readiness_publication"] = publication
         (stage / "manifest.json").write_bytes(canonical(manifest))
@@ -800,9 +968,24 @@ def run_a(*, root: Path, stage: Path, wheel: Path, source_root: Path, readiness_
             raise DrillError("artifact_total_size_exceeded")
         # This appears only after the artifact SDK confirms the upload. The operator still
         # gates cancellation on live API list+download+receipt verification.
-        print(f"::notice::HOSTED_RECOVERY_READY run={manifest['run_id']} readiness_artifact_id={publication['artifact_id']} receipt_sha256={publication['receipt_sha256']} checkpoint_sha256={hashes['checkpoint.json']} provider_ordinal=2 in_flight=true held_deadline_unix={held_deadline_unix}", flush=True)
-        print(canonical({"status": "readiness_uploaded", "run_id": manifest["run_id"], **publication,
-                         "checkpoint_sha256": hashes["checkpoint.json"], "staged_bytes": checked["total_bytes"]}).decode().strip(), flush=True)
+        print(
+            f"::notice::HOSTED_RECOVERY_READY run={manifest['run_id']} readiness_artifact_id={publication['artifact_id']} receipt_sha256={publication['receipt_sha256']} checkpoint_sha256={hashes['checkpoint.json']} provider_ordinal=2 in_flight=true held_deadline_unix={held_deadline_unix}",
+            flush=True,
+        )
+        print(
+            canonical(
+                {
+                    "status": "readiness_uploaded",
+                    "run_id": manifest["run_id"],
+                    **publication,
+                    "checkpoint_sha256": hashes["checkpoint.json"],
+                    "staged_bytes": checked["total_bytes"],
+                }
+            )
+            .decode()
+            .strip(),
+            flush=True,
+        )
         deadline = started + 450
         while time.monotonic() < deadline and process.poll() is None:
             time.sleep(1)
@@ -820,8 +1003,16 @@ def run_a(*, root: Path, stage: Path, wheel: Path, source_root: Path, readiness_
         thread.join(timeout=1)
 
 
-def run_b(*, root: Path, stage: Path, expected_run_id: str, expected_sha: str,
-          repository: str, source_root: Path, output: Path) -> None:
+def run_b(
+    *,
+    root: Path,
+    stage: Path,
+    expected_run_id: str,
+    expected_sha: str,
+    repository: str,
+    source_root: Path,
+    output: Path,
+) -> None:
     started = time.monotonic()
     global _PHASE_DEADLINE
     _PHASE_DEADLINE = started + 540  # Includes metadata, archive, install, resume and cleanup.
@@ -839,13 +1030,20 @@ def run_b(*, root: Path, stage: Path, expected_run_id: str, expected_sha: str,
     if retrieval.get("readiness_artifact_id") == retrieval.get("artifact_id"):
         raise DrillError("readiness_artifact_identity_reused")
     _validate_readiness_receipt(
-        stage, manifest, expected_run_id=expected_run_id, expected_sha=expected_sha,
+        stage,
+        manifest,
+        expected_run_id=expected_run_id,
+        expected_sha=expected_sha,
         readiness_artifact_id=retrieval["readiness_artifact_id"],
         retrieved_receipt_sha256=retrieval["readiness_receipt_sha256"],
         retrieved_receipt_bytes=retrieval["readiness_receipt_bytes"],
     )
-    source_sha = _run(["git", "rev-parse", "HEAD"], cwd=source_root,
-                      env={"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "/tmp")}, timeout=5)
+    source_sha = _run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source_root,
+        env={"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", "/tmp")},
+        timeout=5,
+    )
     if manifest.get("harness_sha") != source_sha or source_sha != expected_sha:
         raise DrillError("harness_revision_identity_mismatch")
     if manifest.get("workflow_ref") != "refs/heads/main" or manifest.get("run_identity") != RUN_ID:
@@ -888,7 +1086,12 @@ def run_b(*, root: Path, stage: Path, expected_run_id: str, expected_sha: str,
     venv = work / "venv"
     host_env = {"PATH": os.environ.get("PATH", ""), "HOME": str(home), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
     _run([sys.executable, "-m", "venv", str(venv)], cwd=work, env=host_env, timeout=60)
-    _run([str(venv / "bin" / "python"), "-m", "pip", "install", "--no-deps", str(wheel)], cwd=work, env=host_env, timeout=90)
+    _run(
+        [str(venv / "bin" / "python"), "-m", "pip", "install", "--no-deps", str(wheel)],
+        cwd=work,
+        env=host_env,
+        timeout=90,
+    )
     cli = venv / "bin" / "pr-review"
     modules = sorted((venv / "lib").glob("python*/site-packages/pr_review_harness/*.py"))
     installed = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in modules if p.is_file()}
@@ -901,32 +1104,64 @@ def run_b(*, root: Path, stage: Path, expected_run_id: str, expected_sha: str,
         raise DrillError("synthetic_fixture_path_already_exists") from None
     env = host_env
     _run(["git", "init", "--bare", str(repo)], cwd=work, env=env, timeout=10)
-    _run(["git", "-C", str(repo), "fetch", str(stage / "fixture.bundle"), "+refs/heads/rehearsal:refs/heads/rehearsal"], cwd=work, env=env, timeout=10)
+    _run(
+        ["git", "-C", str(repo), "fetch", str(stage / "fixture.bundle"), "+refs/heads/rehearsal:refs/heads/rehearsal"],
+        cwd=work,
+        env=env,
+        timeout=10,
+    )
     base, head = manifest["base_sha"], manifest["head_sha"]
     for ref, sha in (("refs/heads/rehearsal~1", base), ("refs/heads/rehearsal", head)):
         if _run(["git", "-C", str(repo), "rev-parse", ref], cwd=work, env=env, timeout=10) != sha:
             raise DrillError("fixture_revision_mismatch")
     profile = work / "profile.json"
-    profile.write_bytes(canonical({
-        "version": "hosted-recovery-profile-v1", "repository": IDENTITY["repository"],
-        "allow_empty_approve": True, "required_lenses": ["correctness", "security"], "context_paths": [],
-    }))
+    profile.write_bytes(
+        canonical(
+            {
+                "version": "hosted-recovery-profile-v1",
+                "repository": IDENTITY["repository"],
+                "allow_empty_approve": True,
+                "required_lenses": ["correctness", "security"],
+                "context_paths": [],
+            }
+        )
+    )
     limits = work / "limits.json"
-    limits.write_bytes(canonical({
-        "schema_version": "1.0", "deadline_seconds": 540, "max_concurrent_scopes": 1,
-        "max_provider_calls": 2, "max_retries_per_task": 0, "max_context_bytes": 32000,
-        "max_input_bytes_per_task": 32000, "max_output_bytes_per_task": 8000,
-        "max_output_bytes": 16000, "max_output_tokens": 256,
-        "max_context_retrievals": 0, "max_followup_tasks": 0,
-    }))
+    limits.write_bytes(
+        canonical(
+            {
+                "schema_version": "1.0",
+                "deadline_seconds": 540,
+                "max_concurrent_scopes": 1,
+                "max_provider_calls": 2,
+                "max_retries_per_task": 0,
+                "max_context_bytes": 32000,
+                "max_input_bytes_per_task": 32000,
+                "max_output_bytes_per_task": 8000,
+                "max_output_bytes": 16000,
+                "max_output_tokens": 256,
+                "max_context_retrievals": 0,
+                "max_followup_tasks": 0,
+            }
+        )
+    )
     if digest(profile) != manifest.get("profile_sha256") or digest(limits) != manifest.get("limits_sha256"):
         raise DrillError("request_configuration_identity_mismatch")
     config = work / "provider.json"
-    config.write_bytes(canonical({
-        "kind": "openai_compatible", "base_url": f"http://127.0.0.1:{PROVIDER_PORT}/v1",
-        "model": MODEL, "api_key_env": "HOSTED_RECOVERY_FAKE_KEY", "timeout_seconds": 480,
-        "max_request_bytes": 32000, "max_response_bytes": 8000, "max_output_tokens": 256,
-    }))
+    config.write_bytes(
+        canonical(
+            {
+                "kind": "openai_compatible",
+                "base_url": f"http://127.0.0.1:{PROVIDER_PORT}/v1",
+                "model": MODEL,
+                "api_key_env": "HOSTED_RECOVERY_FAKE_KEY",
+                "timeout_seconds": 480,
+                "max_request_bytes": 32000,
+                "max_response_bytes": 8000,
+                "max_output_tokens": 256,
+            }
+        )
+    )
     output.mkdir(mode=0o700)
     checkpoint = stage / "checkpoint.json"
     (output / f"{RUN_ID}.json").write_bytes(checkpoint.read_bytes())
@@ -938,14 +1173,41 @@ def run_b(*, root: Path, stage: Path, expected_run_id: str, expected_sha: str,
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     run_env = _synthetic_cli_environment(
-        f"{venv / 'bin'}:{env['PATH']}", env["HOME"], api_key=API_KEY,
+        f"{venv / 'bin'}:{env['PATH']}",
+        env["HOME"],
+        api_key=API_KEY,
     )
-    cmd = [str(cli), "review", "--repo", str(repo), "--base", base, "--head", head,
-           "--profile", str(profile), "--limits", str(limits), "--provider-config", str(config),
-           "--output", str(output), "--run-id", RUN_ID, "--resume", "--json"]
+    cmd = [
+        str(cli),
+        "review",
+        "--repo",
+        str(repo),
+        "--base",
+        base,
+        "--head",
+        head,
+        "--profile",
+        str(profile),
+        "--limits",
+        str(limits),
+        "--provider-config",
+        str(config),
+        "--output",
+        str(output),
+        "--run-id",
+        RUN_ID,
+        "--resume",
+        "--json",
+    ]
     try:
-        result = local._run_cli(cli, cmd[1:], cwd=work, env=run_env, timeout_seconds=local.MAX_CLI_SECONDS,
-                               deadline_at=time.monotonic() + 120)
+        result = local._run_cli(
+            cli,
+            cmd[1:],
+            cwd=work,
+            env=run_env,
+            timeout_seconds=local.MAX_CLI_SECONDS,
+            deadline_at=time.monotonic() + 120,
+        )
     finally:
         server.shutdown()
         server.server_close()
@@ -961,23 +1223,47 @@ def run_b(*, root: Path, stage: Path, expected_run_id: str, expected_sha: str,
     errors = [item.get("error_code") for item in result.get("task_results", {}).values() if isinstance(item, dict)]
     if sorted(outcomes) != ["FAILED", "SUCCEEDED"] or "INTERRUPTED_UNKNOWN" not in errors:
         raise DrillError("uncertain_reservation_not_preserved")
-    (output / "resume-evidence.json").write_bytes(canonical({
-        "schema_version": "hosted-recovery-resume.v1", "source_run_id": expected_run_id,
-        "artifact_retrieval": retrieval,
-        "harness_sha": manifest["harness_sha"], "wheel_sha256": manifest["wheel_sha256"],
-        "source_modules": manifest["source_modules"], "run_identity": RUN_ID,
-        "base_sha": base, "head_sha": head, "snapshot_id": manifest["snapshot_id"],
-        "request_hash": manifest["request_hash"], "disposition": result["disposition"],
-        "manifest_sha256": digest(stage / "manifest.json"),
-        "checkpoint_sha256": digest(stage / "checkpoint.json"),
-        "prior_provider_ledger_sha256": digest(stage / "provider-ledger.json"),
-        "readiness_sha256": digest(stage / "readiness.json"),
-        "outcomes": sorted(outcomes), "interrupted_unknown_present": True,
-        "historical_requests": 2, "new_resume_requests": len(state.events),
-        "provider_events": state.events,
-    }))
-    print(canonical({"status": "resumed_incomplete", "historical_requests": 2, "new_resume_requests": 0,
-                     "snapshot_id": manifest["snapshot_id"], "wheel_sha256": manifest["wheel_sha256"]}).decode().strip(), flush=True)
+    (output / "resume-evidence.json").write_bytes(
+        canonical(
+            {
+                "schema_version": "hosted-recovery-resume.v1",
+                "source_run_id": expected_run_id,
+                "artifact_retrieval": retrieval,
+                "harness_sha": manifest["harness_sha"],
+                "wheel_sha256": manifest["wheel_sha256"],
+                "source_modules": manifest["source_modules"],
+                "run_identity": RUN_ID,
+                "base_sha": base,
+                "head_sha": head,
+                "snapshot_id": manifest["snapshot_id"],
+                "request_hash": manifest["request_hash"],
+                "disposition": result["disposition"],
+                "manifest_sha256": digest(stage / "manifest.json"),
+                "checkpoint_sha256": digest(stage / "checkpoint.json"),
+                "prior_provider_ledger_sha256": digest(stage / "provider-ledger.json"),
+                "readiness_sha256": digest(stage / "readiness.json"),
+                "outcomes": sorted(outcomes),
+                "interrupted_unknown_present": True,
+                "historical_requests": 2,
+                "new_resume_requests": len(state.events),
+                "provider_events": state.events,
+            }
+        )
+    )
+    print(
+        canonical(
+            {
+                "status": "resumed_incomplete",
+                "historical_requests": 2,
+                "new_resume_requests": 0,
+                "snapshot_id": manifest["snapshot_id"],
+                "wheel_sha256": manifest["wheel_sha256"],
+            }
+        )
+        .decode()
+        .strip(),
+        flush=True,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1001,9 +1287,15 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if args.output is None:
                 raise DrillError("output_argument_required")
-            run_b(root=args.root, stage=args.stage, expected_run_id=args.source_run_id,
-                  expected_sha=args.expected_sha, repository=args.repository,
-                  source_root=args.source_root.resolve(strict=True), output=args.output)
+            run_b(
+                root=args.root,
+                stage=args.stage,
+                expected_run_id=args.source_run_id,
+                expected_sha=args.expected_sha,
+                repository=args.repository,
+                source_root=args.source_root.resolve(strict=True),
+                output=args.output,
+            )
     except (DrillError, OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         code = str(exc) if isinstance(exc, DrillError) else "rehearsal_failed"
         if os.environ.get("HOSTED_RECOVERY_DEBUG") == "1" and not isinstance(exc, DrillError):
@@ -1013,7 +1305,11 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:
         if os.environ.get("HOSTED_RECOVERY_DEBUG") == "1":
             traceback.print_exc()
-        print(canonical({"status": "failed", "error_code": "rehearsal_unexpected_failure"}).decode().strip(), file=sys.stderr, flush=True)
+        print(
+            canonical({"status": "failed", "error_code": "rehearsal_unexpected_failure"}).decode().strip(),
+            file=sys.stderr,
+            flush=True,
+        )
         return 1
     return 0
 

@@ -14,16 +14,22 @@ import run_selected_model_trial as cli  # noqa: E402
 def _base_args(tmp_path: Path) -> list[str]:
     return [
         "--run-provider-trial",
-        "--output", str(tmp_path / "output"),
-        "--cli-executable", str(tmp_path / "pr-review"),
-        "--provider-config", str(tmp_path / "provider.json"),
-        "--decision-config", str(tmp_path / "decision.json"),
+        "--output",
+        str(tmp_path / "output"),
+        "--cli-executable",
+        str(tmp_path / "pr-review"),
+        "--provider-config",
+        str(tmp_path / "provider.json"),
+        "--decision-config",
+        str(tmp_path / "decision.json"),
     ]
 
 
 def test_prepared_plan_is_forwarded_only_when_supplied_to_provider_trial(tmp_path, monkeypatch, capsys):
     calls: list[dict] = []
-    monkeypatch.setattr(cli, "run_provider_trial", lambda **kwargs: calls.append(kwargs) or {"status": "PROCESS_COMPLETED"})
+    monkeypatch.setattr(
+        cli, "run_provider_trial", lambda **kwargs: calls.append(kwargs) or {"status": "PROCESS_COMPLETED"}
+    )
 
     assert cli.main(_base_args(tmp_path)) == 0
     assert "prepared_plan" not in calls[-1]
@@ -42,12 +48,13 @@ def test_prepare_only_rejects_prepared_plan_before_any_runner_call(tmp_path, mon
     monkeypatch.setattr(cli, "prepare_only", unexpected_call)
     args = [
         "--prepare-only",
-        "--output", str(tmp_path / "output"),
-        "--cli-executable", str(tmp_path / "pr-review"),
-        "--prepared-plan", str(tmp_path / "prepared-plan.json"),
+        "--output",
+        str(tmp_path / "output"),
+        "--cli-executable",
+        str(tmp_path / "pr-review"),
+        "--prepared-plan",
+        str(tmp_path / "prepared-plan.json"),
     ]
 
     assert cli.main(args) == 2
-    assert json.loads(capsys.readouterr().out) == {
-        "status": "FAILED", "error": "prepare_only_rejects_prepared_plan"
-    }
+    assert json.loads(capsys.readouterr().out) == {"status": "FAILED", "error": "prepare_only_rejects_prepared_plan"}

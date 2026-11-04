@@ -91,7 +91,7 @@ def test_resolved_slopsearx_profile_enforces_bounded_required_claim_policy():
     assert profile["profile_status"] == "context_selection_candidate_not_quality_validated"
 
     workflow = (ROOT / ".github/workflows/pr-analysis.yml").read_text(encoding="utf-8")
-    assert 'MAX_CLAIM_ASSESSMENTS: ${{ steps.resolve-profile.outputs.max_claim_assessments }}' in workflow
+    assert "MAX_CLAIM_ASSESSMENTS: ${{ steps.resolve-profile.outputs.max_claim_assessments }}" in workflow
     assert "default: legacy-v14" in workflow
     assert "PROFILE: ${{ steps.resolve-profile.outputs.profile_path }}" in workflow
     assert "EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}" in workflow
@@ -138,9 +138,7 @@ def test_distinct_temporary_repository_bindings_resolve_without_cross_project_fa
 def test_temporary_trusted_digest_does_not_allow_cross_repository_profile_reuse(tmp_path: Path):
     root, _profile_bytes = _temporary_binding_root(tmp_path)
     profile_path = root / "profiles/beta.json"
-    mismatched_raw = json.dumps(
-        {"repository": "fixture-alpha/alpha", "version": "beta-profile-v1"}
-    ).encode("utf-8")
+    mismatched_raw = json.dumps({"repository": "fixture-alpha/alpha", "version": "beta-profile-v1"}).encode("utf-8")
     profile_path.write_bytes(mismatched_raw)
     map_path = root / "profiles/targets.json"
     mapping = json.loads(map_path.read_text(encoding="utf-8"))
@@ -206,11 +204,13 @@ def test_trusted_mapping_cannot_escape_profiles_directory(tmp_path: Path):
 
 def test_duplicate_mapping_keys_are_rejected(tmp_path: Path):
     root = _temporary_root(tmp_path)
-    target_row = json.dumps({
-        "profile_path": "profiles/slopsearx.json",
-        "profile_sha256": "a" * 64,
-        "profile_version": "profile-v1",
-    })
+    target_row = json.dumps(
+        {
+            "profile_path": "profiles/slopsearx.json",
+            "profile_sha256": "a" * 64,
+            "profile_version": "profile-v1",
+        }
+    )
     (root / "profiles/targets.json").write_text(
         '{"contract_version":"target-profile-bindings.v1","targets":{"'
         + TARGET

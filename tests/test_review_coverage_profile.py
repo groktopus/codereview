@@ -45,27 +45,31 @@ def _dependency_snapshot(profile: dict, *, missing_test_path: str | None = None)
         refs.append(evidence_id)
     gaps = []
     if missing_test_path:
-        gaps.append({
-            "gap_id": "missing-test-source",
-            "path": missing_test_path,
-            "source_kind": "profile_context",
-            "reason": "missing_from_base",
-            "required": True,
-            "unit_ids": ["dep-unit"],
-            "lenses": ["tests"],
-        })
+        gaps.append(
+            {
+                "gap_id": "missing-test-source",
+                "path": missing_test_path,
+                "source_kind": "profile_context",
+                "reason": "missing_from_base",
+                "required": True,
+                "unit_ids": ["dep-unit"],
+                "lenses": ["tests"],
+            }
+        )
     return {
         "snapshot_id": "static-review-test",
         "snapshot_hash": "c" * 64,
         "profile_version": profile["version"],
         "base_sha": "a" * 40,
         "head_sha": "b" * 40,
-        "inventory": [{
-            "unit_id": "dep-unit",
-            "path": "requirements-dev.txt",
-            "kind": "config",
-            "evidence_ids": ["diff:dependency"],
-        }],
+        "inventory": [
+            {
+                "unit_id": "dep-unit",
+                "path": "requirements-dev.txt",
+                "kind": "config",
+                "evidence_ids": ["diff:dependency"],
+            }
+        ],
         "trusted_context_refs": refs,
         "evidence": evidence,
         "gaps": gaps,
@@ -87,22 +91,15 @@ def test_dependency_profile_routes_static_test_security_and_only_the_bound_porta
     assert specialists["security"]["review_criteria"] == profile["review_criteria"]["security"]
 
     test_context_paths = {
-        snapshot["evidence"][evidence_id]["path"]
-        for evidence_id in specialists["tests"]["required_context_ids"]
+        snapshot["evidence"][evidence_id]["path"] for evidence_id in specialists["tests"]["required_context_ids"]
     }
     assert {"tests/test_mcp_gateway.py", "tests/test_mcp_harness.py"} <= test_context_paths
 
-    required_check_ids = {
-        task["check_id"]
-        for task in plan["tasks"]
-        if task["task_kind"] == "DETERMINISTIC_CHECK"
-    }
+    required_check_ids = {task["check_id"] for task in plan["tasks"] if task["task_kind"] == "DETERMINISTIC_CHECK"}
     assert required_check_ids == {"portal-impact-evidence"}
-    assert {
-        row["obligation_id"]
-        for row in plan["not_applicable"]
-        if row["obligation_kind"] == "PROJECT_CHECK"
-    } == {"check:portal-browser-evidence"}
+    assert {row["obligation_id"] for row in plan["not_applicable"] if row["obligation_kind"] == "PROJECT_CHECK"} == {
+        "check:portal-browser-evidence"
+    }
 
 
 def test_missing_bound_test_source_remains_a_required_context_obligation():
