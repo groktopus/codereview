@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -30,6 +31,7 @@ RECEIPT_URL = "https://github.com/magnus919/SlopSearX/pull/1097#pullrequestrevie
 NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
 REPO = "magnus919/SlopSearX"
 PR = 1097
+EXPECTED_BODY = f"Canary review body.\n\n{canary.MARKER}\n"
 
 
 @dataclass
@@ -59,14 +61,18 @@ def _review(
     head: str = HEAD,
     state: str = "COMMENTED",
     submitted_at: str = "2026-11-04T12:01:00Z",
+    login: str = canary.CANARY_REVIEW_AUTHOR,
+    user_type: str = "Bot",
+    body: str | None = None,
 ) -> dict[str, object]:
     return {
         "id": review_id,
         "commit_id": head,
         "state": state,
         "html_url": RECEIPT_URL if review_id == 9001 else f"https://github.com/reviews/{review_id}",
-        "body": f"Canary review body.\n\n{canary.MARKER}\n",
+        "body": EXPECTED_BODY if body is None else body,
         "submitted_at": submitted_at,
+        "user": {"login": login, "type": user_type},
     }
 
 
@@ -80,11 +86,17 @@ class FakeGitHub:
         reviews_before: dict[int, list[dict[str, object]]] | None = None,
         post_response: dict[str, object] | None = None,
         reviews_after: dict[int, list[dict[str, object]]] | None = None,
+        token_permissions: dict[str, str] | None = None,
+        token_expires_at: str = "2026-11-04T13:00:00Z",
     ) -> None:
         self.pull_request = pull_request if pull_request is not None else _pull_request()
         self.reviews_before = reviews_before if reviews_before is not None else {1: []}
         self.post_response = post_response
         self.reviews_after = reviews_after if reviews_after is not None else {1: []}
+        self.token_permissions = (
+            token_permissions if token_permissions is not None else {"metadata": "read", "pull_requests": "write"}
+        )
+        self.token_expires_at = token_expires_at
         self.calls: list[Call] = []
         self.posted = False
 
@@ -97,7 +109,8 @@ class FakeGitHub:
                 201,
                 {
                     "token": TOKEN,
-                    "permissions": {"actions": "read", "metadata": "read", "pull_requests": "write"},
+                    "permissions": self.token_permissions,
+                    "expires_at": self.token_expires_at,
                 },
             )
         if method == "GET" and path.endswith(f"/repos/{REPO}/pulls/{PR}"):
@@ -189,14 +202,14 @@ def test_success_posts_one_review_and_writes_verified_receipt(
     payload = json.loads(posts[0].body)
     assert payload["event"] == "COMMENT"
     assert payload["commit_id"] == HEAD
-    assert canary.MARKER in payload["body"]
+    assert payload["body"] == EXPECTED_BODY
     assert payload["body"].count(canary.MARKER) == 1
 
     mint_calls = [call for call in fake.calls if call.url.endswith("/access_tokens")]
     assert len(mint_calls) == 1
     assert json.loads(mint_calls[0].body) == {
         "repository_ids": [canary.CANARY_REPOSITORY_ID],
-        "permissions": {"actions": "read", "pull_requests": "write"},
+        "permissions": {"pull_requests": "write"},
     }
 
     token_headers = [call.headers["Authorization"] for call in fake.calls if not call.url.endswith("/access_tokens")]
@@ -207,7 +220,7 @@ def test_success_posts_one_review_and_writes_verified_receipt(
     assert TOKEN not in captured.out + captured.err
 
 
-def test_duplicate_marker_returns_already_published_without_posting(
+def test_duplicate_marker_returns_already_published_with_receipt(
     tmp_path: Path, environ: dict[str, str], capsys: pytest.CaptureFixture[str]
 ) -> None:
     fake = FakeGitHub(reviews_before={1: [_review(9001)]}, post_response=None)
@@ -216,7 +229,19 @@ def test_duplicate_marker_returns_already_published_without_posting(
 
     assert code == canary.EXIT_VERIFIED
     assert _review_posts(fake) == []
-    assert not (tmp_path / "receipt.json").exists()
+    receipt_path = tmp_path / "receipt.json"
+    assert receipt_path.exists()
+    assert stat.S_IMODE(receipt_path.stat().st_mode) == 0o600
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt == {
+        "repo": REPO,
+        "pr": PR,
+        "head": HEAD,
+        "review_id": 9001,
+        "html_url": RECEIPT_URL,
+        "published_at": "2026-11-04T12:01:00Z",
+        "status": "ALREADY_PUBLISHED",
+    }
     captured = capsys.readouterr()
     assert "status=ALREADY_PUBLISHED" in captured.out
     assert "review_id=9001" in captured.out
@@ -316,3 +341,125 @@ def test_bounded_pagination_finds_marker_on_second_page(
     review_gets = [call.url for call in fake.calls if "/reviews?" in call.url]
     assert any("page=2" in url for url in review_gets)
     assert "status=ALREADY_PUBLISHED" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("review", "expected_code"),
+    [
+        (_review(9001, login="intruder[bot]"), "existing_review_author_mismatch"),
+        (_review(9001, user_type="User"), "existing_review_author_mismatch"),
+        (_review(9001, state="PENDING"), "existing_review_state_mismatch"),
+        (_review(9001, body=f"tampered\n\n{canary.MARKER}\n"), "existing_review_body_mismatch"),
+    ],
+)
+def test_existing_marker_requires_author_state_and_exact_body(
+    tmp_path: Path,
+    environ: dict[str, str],
+    review: dict[str, object],
+    expected_code: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake = FakeGitHub(reviews_before={1: [review]}, post_response=None)
+
+    code = canary.run(_args(tmp_path), transport=fake, environ=environ, now=NOW)
+
+    assert code == canary.EXIT_UNKNOWN
+    assert _review_posts(fake) == []
+    assert not (tmp_path / "receipt.json").exists()
+    assert f"error={expected_code}" in capsys.readouterr().err
+
+
+def test_multiple_marker_reviews_are_ambiguous(
+    tmp_path: Path, environ: dict[str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = FakeGitHub(reviews_before={1: [_review(9001), _review(9002)]}, post_response=None)
+
+    code = canary.run(_args(tmp_path), transport=fake, environ=environ, now=NOW)
+
+    assert code == canary.EXIT_UNKNOWN
+    assert _review_posts(fake) == []
+    assert not (tmp_path / "receipt.json").exists()
+    assert "error=duplicate_marker_ambiguous" in capsys.readouterr().err
+
+
+def test_receipt_directory_is_preflighted_before_minting(
+    tmp_path: Path, environ: dict[str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = FakeGitHub()
+    receipt_out = tmp_path / "missing-directory" / "receipt.json"
+
+    code = canary.run(
+        _args(tmp_path, "--receipt-out", str(receipt_out)),
+        transport=fake,
+        environ=environ,
+        now=NOW,
+    )
+
+    assert code == canary.EXIT_REFUSED
+    assert fake.calls == []
+    assert not receipt_out.exists()
+    assert "error=receipt_path_unwritable" in capsys.readouterr().err
+
+
+def test_symlinked_private_key_is_refused(
+    tmp_path: Path, private_key_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    link = tmp_path / "github-app-link.pem"
+    link.symlink_to(private_key_path)
+    fake = FakeGitHub()
+
+    code = canary.run(
+        _args(tmp_path),
+        transport=fake,
+        environ={canary.ENV_KEY_PATH: str(link)},
+        now=NOW,
+    )
+
+    assert code == canary.EXIT_REFUSED
+    assert fake.calls == []
+    assert not (tmp_path / "receipt.json").exists()
+    assert "error=private_key_symlink" in capsys.readouterr().err
+
+
+def test_token_permissions_outside_allowed_set_are_rejected(
+    tmp_path: Path, environ: dict[str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = FakeGitHub(token_permissions={"metadata": "read", "pull_requests": "write", "contents": "write"})
+
+    code = canary.run(_args(tmp_path), transport=fake, environ=environ, now=NOW)
+
+    assert code == canary.EXIT_UNKNOWN
+    assert len(fake.calls) == 1
+    assert _review_posts(fake) == []
+    assert not (tmp_path / "receipt.json").exists()
+    assert "error=token_permissions_unsafe" in capsys.readouterr().err
+
+
+def test_expired_token_is_rejected(tmp_path: Path, environ: dict[str, str], capsys: pytest.CaptureFixture[str]) -> None:
+    fake = FakeGitHub(token_expires_at="2026-11-04T11:00:00Z")
+
+    code = canary.run(_args(tmp_path), transport=fake, environ=environ, now=NOW)
+
+    assert code == canary.EXIT_UNKNOWN
+    assert len(fake.calls) == 1
+    assert _review_posts(fake) == []
+    assert "error=token_expired" in capsys.readouterr().err
+
+
+def test_readback_body_tamper_exits_unknown_without_receipt(
+    tmp_path: Path, environ: dict[str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    created = _review(9001)
+    readback = _review(9001, body=f"tampered\n\n{canary.MARKER}\n")
+    fake = FakeGitHub(
+        reviews_before={1: []},
+        post_response=created,
+        reviews_after={1: [readback]},
+    )
+
+    code = canary.run(_args(tmp_path), transport=fake, environ=environ, now=NOW)
+
+    assert code == canary.EXIT_UNKNOWN
+    assert len(_review_posts(fake)) == 1
+    assert not (tmp_path / "receipt.json").exists()
+    assert "error=review_verification_failed" in capsys.readouterr().err

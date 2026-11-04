@@ -2,11 +2,11 @@
 """Publish one canary review to magnus919/SlopSearX pull request 1097.
 
 This is a deliberately narrow, one-shot adapter, not a general publisher. It
-mints a GitHub App installation token with only ``actions:read`` and
-``pull_requests:write``, verifies that the pull request is open at the exact
-expected head, refuses to post unless ``--authorize-publish`` is present,
-posts exactly one ``COMMENT`` review, then reads the review back and writes a
-verification receipt.
+mints a repository-scoped GitHub App installation token with only
+``pull_requests:write`` (the adapter never calls the Actions API), verifies that
+the pull request is open at the exact expected head, refuses to post unless
+``--authorize-publish`` is present, posts exactly one ``COMMENT`` review, then
+reads the review back and writes a verification receipt.
 
 There are no retries. Every failure is projected to a fixed code so credential
 material, tokens, API bodies, and pull request content are never printed.
@@ -35,6 +35,8 @@ receipt.
 from __future__ import annotations
 
 import argparse
+import errno
+import hashlib
 import json
 import os
 import re
@@ -42,7 +44,7 @@ import stat
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 from urllib.error import HTTPError, URLError
@@ -55,6 +57,7 @@ CANARY_APP_ID = 5_605_904
 CANARY_INSTALLATION_ID = 178_426_239
 CANARY_REPOSITORY_ID = 1_263_452_316
 CANARY_APP_SLUG = "codereview-canary"
+CANARY_REVIEW_AUTHOR = f"{CANARY_APP_SLUG}[bot]"
 
 MARKER = "<!-- codereview-canary:v1 -->"
 API_ROOT = "https://api.github.com"
@@ -75,6 +78,15 @@ REQUEST_TIMEOUT_SECONDS = 20.0
 EXIT_VERIFIED = 0
 EXIT_REFUSED = 2
 EXIT_UNKNOWN = 3
+
+# A token may return these permissions; anything else is rejected. ``actions``
+# is not requested because this adapter never reads Actions data, but it is
+# tolerated if GitHub includes it.
+ALLOWED_TOKEN_PERMISSIONS = {
+    "actions": "read",
+    "metadata": "read",
+    "pull_requests": "write",
+}
 
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
@@ -221,20 +233,56 @@ def _read_body_file(path: Path) -> str:
     return composed
 
 
-def _load_private_key(path: Path) -> str:
+def _body_hash(body: str) -> str:
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def _parse_utc(value: object, code: str) -> datetime:
+    if not isinstance(value, str) or not value:
+        raise Unknown(code)
     try:
-        info = path.stat()
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise Unknown(code) from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise Unknown(code)
+    return parsed.astimezone(timezone.utc)
+
+
+def _load_private_key(path: Path) -> str:
+    """Read the PEM without following symlinks; require a regular file we own."""
+
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise Refused("private_key_symlink") from None
+        raise Refused("private_key_unreadable") from None
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            raise Refused("private_key_unreadable")
+        if info.st_uid != os.geteuid():
+            raise Refused("private_key_owner_mismatch")
+        if stat.S_IMODE(info.st_mode) & 0o077:
+            raise Refused("private_key_permissions")
+        if info.st_size > MAX_PRIVATE_KEY_BYTES:
+            raise Refused("private_key_too_large")
+        raw = bytearray()
+        while True:
+            chunk = os.read(descriptor, 4096)
+            if not chunk:
+                break
+            raw.extend(chunk)
+            if len(raw) > MAX_PRIVATE_KEY_BYTES:
+                raise Refused("private_key_too_large")
     except OSError:
         raise Refused("private_key_unreadable") from None
-    if not stat.S_ISREG(info.st_mode):
-        raise Refused("private_key_unreadable")
-    if stat.S_IMODE(info.st_mode) & 0o077:
-        raise Refused("private_key_permissions")
-    if info.st_size > MAX_PRIVATE_KEY_BYTES:
-        raise Refused("private_key_too_large")
+    finally:
+        os.close(descriptor)
     try:
-        pem = path.read_text(encoding="ascii")
-    except (OSError, UnicodeDecodeError):
+        pem = bytes(raw).decode("ascii")
+    except UnicodeDecodeError:
         raise Refused("private_key_unreadable") from None
     if "PRIVATE KEY" not in pem:
         raise Refused("private_key_invalid")
@@ -257,12 +305,12 @@ def _sign_app_jwt(private_key_pem: str, app_id: int, now: datetime) -> str:
     return token
 
 
-def _mint_installation_token(transport: Transport, app_jwt: str, installation_id: int) -> str:
+def _mint_installation_token(transport: Transport, app_jwt: str, installation_id: int, now: datetime) -> str:
     url = f"{API_ROOT}/app/installations/{installation_id}/access_tokens"
     body = json.dumps(
         {
             "repository_ids": [CANARY_REPOSITORY_ID],
-            "permissions": {"actions": "read", "pull_requests": "write"},
+            "permissions": {"pull_requests": "write"},
         }
     ).encode("utf-8")
     try:
@@ -274,12 +322,19 @@ def _mint_installation_token(transport: Transport, app_jwt: str, installation_id
     if not isinstance(token, str) or not token or len(token) > MAX_TOKEN_BYTES:
         raise Unknown("token_response_invalid")
     permissions = value.get("permissions")
-    if (
-        not isinstance(permissions, dict)
-        or permissions.get("actions") != "read"
-        or permissions.get("pull_requests") != "write"
-    ):
+    if not isinstance(permissions, dict):
         raise Unknown("token_permissions_insufficient")
+    for name, level in permissions.items():
+        if not isinstance(name, str) or not isinstance(level, str) or ALLOWED_TOKEN_PERMISSIONS.get(name) != level:
+            raise Unknown("token_permissions_unsafe")
+    if permissions.get("pull_requests") != "write":
+        raise Unknown("token_permissions_insufficient")
+    expiry = _parse_utc(value.get("expires_at"), "token_expiry_invalid")
+    current = now.astimezone(timezone.utc)
+    if expiry <= current:
+        raise Unknown("token_expired")
+    if expiry > current + timedelta(hours=2):
+        raise Unknown("token_expiry_invalid")
     return token
 
 
@@ -335,18 +390,34 @@ def _post_review(transport: Transport, token: str, repo: str, pr: int, head: str
 
 
 def _parse_submitted_at(value: object) -> str:
-    if not isinstance(value, str) or not value:
-        raise Unknown("review_timestamp_invalid")
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        raise Unknown("review_timestamp_invalid") from None
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise Unknown("review_timestamp_invalid")
-    return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return _parse_utc(value, "review_timestamp_invalid").strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _verify_readback(reviews: list[dict[str, Any]], *, review_id: int, head: str) -> tuple[str, str]:
+def _verify_existing_review(review: Mapping[str, Any], *, head: str, expected_body_sha256: str) -> tuple[int, str, str]:
+    """Verify an existing marker review as our exact, completed publication."""
+
+    review_id = review.get("id")
+    if not _positive_int(review_id):
+        raise Unknown("existing_review_invalid")
+    if review.get("commit_id") != head:
+        raise Refused("existing_review_head_mismatch")
+    user = review.get("user")
+    if not isinstance(user, Mapping) or user.get("login") != CANARY_REVIEW_AUTHOR or user.get("type") != "Bot":
+        raise Unknown("existing_review_author_mismatch")
+    if review.get("state") != "COMMENTED":
+        raise Unknown("existing_review_state_mismatch")
+    body = review.get("body")
+    if not isinstance(body, str) or _body_hash(body) != expected_body_sha256:
+        raise Unknown("existing_review_body_mismatch")
+    html_url = review.get("html_url")
+    if not isinstance(html_url, str) or not html_url:
+        raise Unknown("existing_review_invalid")
+    return review_id, html_url, _parse_submitted_at(review.get("submitted_at"))
+
+
+def _verify_readback(
+    reviews: list[dict[str, Any]], *, review_id: int, head: str, expected_body_sha256: str
+) -> tuple[str, str]:
     matches = [review for review in reviews if review.get("id") == review_id]
     if len(matches) != 1:
         raise Unknown("review_readback_missing")
@@ -356,6 +427,7 @@ def _verify_readback(reviews: list[dict[str, Any]], *, review_id: int, head: str
         review.get("commit_id") != head
         or review.get("state") != "COMMENTED"
         or not isinstance(body, str)
+        or _body_hash(body) != expected_body_sha256
         or MARKER not in body
     ):
         raise Unknown("review_verification_failed")
@@ -363,6 +435,27 @@ def _verify_readback(reviews: list[dict[str, Any]], *, review_id: int, head: str
     if not isinstance(html_url, str) or not html_url:
         raise Unknown("review_verification_failed")
     return html_url, _parse_submitted_at(review.get("submitted_at"))
+
+
+def _preflight_receipt_path(path: Path) -> None:
+    """Prove the receipt directory can create and remove a file before any mint/post."""
+
+    directory = path.parent if str(path.parent) else Path(".")
+    temporary = ""
+    try:
+        if path.exists() and path.is_dir():
+            raise OSError("receipt_path_is_directory")
+        descriptor, temporary = tempfile.mkstemp(dir=directory, prefix=f".{path.name}.", suffix=".tmp")
+        os.close(descriptor)
+        os.unlink(temporary)
+        temporary = ""
+    except OSError:
+        if temporary:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+        raise Refused("receipt_path_unwritable") from None
 
 
 def _write_receipt(path: Path, receipt: Mapping[str, object]) -> None:
@@ -377,6 +470,11 @@ def _write_receipt(path: Path, receipt: Mapping[str, object]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        directory_descriptor = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
     except OSError:
         if temporary:
             try:
@@ -439,10 +537,12 @@ def _run(
         raise Refused("expected_head_invalid")
     if not _REPO.fullmatch(args.repo):
         raise Refused("repository_not_allowed")
+    _preflight_receipt_path(args.receipt_out)
 
     app_id = _int_env(env, ENV_APP_ID, CANARY_APP_ID)
     installation_id = _int_env(env, ENV_INSTALLATION_ID, CANARY_INSTALLATION_ID)
     review_body = _read_body_file(args.body_file)
+    expected_body_sha256 = _body_hash(review_body)
     key_path = Path(env.get(ENV_KEY_PATH, DEFAULT_KEY_PATH)).expanduser()
     private_key_pem = _load_private_key(key_path)
     if signer is not None:
@@ -451,7 +551,7 @@ def _run(
         app_jwt = _sign_app_jwt(private_key_pem, app_id, current)
     http = transport if transport is not None else UrllibTransport()
 
-    token = _mint_installation_token(http, app_jwt, installation_id)
+    token = _mint_installation_token(http, app_jwt, installation_id, current)
     pull_request = _get_pull_request(http, token, args.repo, args.pr)
     if pull_request.get("number") != args.pr:
         raise Refused("pull_request_identity_mismatch")
@@ -465,20 +565,34 @@ def _run(
     if len(existing) > 1:
         raise Unknown("duplicate_marker_ambiguous")
     if existing:
-        review = existing[0]
-        if review.get("commit_id") != args.expected_head:
-            raise Refused("existing_review_head_mismatch")
-        review_id = review.get("id")
-        if not _positive_int(review_id):
-            raise Unknown("duplicate_marker_invalid")
-        print(f"canary_publish_review status=ALREADY_PUBLISHED review_id={review_id}")
+        review_id, html_url, published_at = _verify_existing_review(
+            existing[0],
+            head=args.expected_head,
+            expected_body_sha256=expected_body_sha256,
+        )
+        receipt = {
+            "repo": args.repo,
+            "pr": args.pr,
+            "head": args.expected_head,
+            "review_id": review_id,
+            "html_url": html_url,
+            "published_at": published_at,
+            "status": "ALREADY_PUBLISHED",
+        }
+        _write_receipt(args.receipt_out, receipt)
+        print(f"canary_publish_review status=ALREADY_PUBLISHED review_id={review_id} receipt={args.receipt_out}")
         return EXIT_VERIFIED
 
     created = _post_review(http, token, args.repo, args.pr, args.expected_head, review_body)
     review_id = created["id"]
 
     reviewed = _fetch_reviews(http, token, args.repo, args.pr)
-    html_url, published_at = _verify_readback(reviewed, review_id=review_id, head=args.expected_head)
+    html_url, published_at = _verify_readback(
+        reviewed,
+        review_id=review_id,
+        head=args.expected_head,
+        expected_body_sha256=expected_body_sha256,
+    )
     receipt = {
         "repo": args.repo,
         "pr": args.pr,

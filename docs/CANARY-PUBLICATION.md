@@ -19,7 +19,7 @@ It has no retries and refuses to post unless `--authorize-publish` is present.
 | App | `codereview-canary` (id `5605904`) |
 | Installation | `178426239` |
 | Marker | `<!-- codereview-canary:v1 -->` |
-| Requested permissions | `actions:read`, `pull_requests:write` |
+| Requested permissions | `pull_requests:write` (`actions:read` is deliberately not requested; the adapter never reads Actions data) |
 
 The repository and pull request are pinned in the script. Any other
 `--repo`/`--pr` value is refused with exit code 2.
@@ -28,16 +28,22 @@ The repository and pull request are pinned in the script. Any other
 
 1. The private key exists at
    `~/.config/codereview-credentials/github-app.pem` with mode `0600`, or at the
-   path named by `PR_REVIEW_GITHUB_APP_PRIVATE_KEY_FILE`. The script refuses a
-   key that is group/world readable.
-2. The App installation still grants `actions:read` and `pull_requests:write`
-   on `magnus919/SlopSearX`. The script verifies the permissions returned by the
-   installation-token response and stops if they differ.
+   path named by `PR_REVIEW_GITHUB_APP_PRIVATE_KEY_FILE`. The script opens it
+   with `O_NOFOLLOW`, requires a regular file owned by the effective user, and
+   refuses symlinks, foreign ownership, or group/world-readable modes.
+2. The App installation still grants `pull_requests:write` on
+   `magnus919/SlopSearX`. The script rejects any returned token permission
+   outside `{actions:read, metadata:read, pull_requests:write}`, requires
+   `pull_requests:write`, and requires a valid future `expires_at` no more than
+   two hours ahead.
 3. The review body is already written to a UTF-8 file. It must not contain the
    marker; the script appends the marker exactly once.
 4. The exact current pull request head SHA is known from a trusted read, not
    from the body file or a receipt.
-5. `PyJWT[crypto]` is importable by the interpreter running the script.
+5. The `--receipt-out` parent directory exists and is writable. The script
+   proves this by creating and removing a temporary file before it mints a
+   token or posts anything.
+6. `PyJWT[crypto]` is importable by the interpreter running the script.
 
 Optional environment overrides (defaults are the canary constants):
 
@@ -72,19 +78,25 @@ The script performs these steps in order, stopping at the first failure:
 4. Load the PEM and sign an RS256 App JWT (9-minute lifetime, 60-second
    backdate).
 5. Mint a single installation token scoped to repository id `1263452316` with
-   `actions:read` and `pull_requests:write`; the token is held in memory only.
+   only `pull_requests:write`; the token is held in memory only.
 6. `GET` the pull request and require `state == "open"` and
    `head.sha == --expected-head`. Anything else is refused before a review is
    posted.
 7. `GET` reviews with bounded pagination (100 per page, at most 10 pages) and
    search for the marker.
-8. If exactly one marker review exists with the expected `commit_id`, report
-   `ALREADY_PUBLISHED`, post nothing, write no receipt, and exit 0.
+8. If exactly one marker review exists, require `commit_id == expected head`,
+   `user.login == "codereview-canary[bot]"`, `user.type == "Bot"`,
+   `state == "COMMENTED"`, and an exact SHA-256 match of the review body against
+   the composed body file plus marker. On success report `ALREADY_PUBLISHED`,
+   post nothing, and write an `ALREADY_PUBLISHED` receipt. Any mismatch is
+   refused or exits 3 without posting.
 9. Otherwise `POST` exactly one review with `event: COMMENT` and
    `commit_id: <expected head>`; there are no retries.
 10. Re-read reviews, locate the exact returned review id, and verify
-    `commit_id`, the marker, and `state == "COMMENTED"`.
-11. Atomically write the verification receipt with mode `0600`.
+    `commit_id`, `state == "COMMENTED"`, the marker, and an exact SHA-256 body
+    hash match against the composed body.
+11. Atomically write the verification receipt with mode `0600` and fsync the
+    receipt directory after the rename.
 
 Expected output:
 
@@ -95,7 +107,7 @@ canary_publish_review status=VERIFIED review_id=<id> receipt=<path>
 or, when a marker review already exists:
 
 ```text
-canary_publish_review status=ALREADY_PUBLISHED review_id=<id>
+canary_publish_review status=ALREADY_PUBLISHED review_id=<id> receipt=<path>
 ```
 
 Failures print only a fixed code, for example
@@ -105,8 +117,9 @@ printed.
 
 ## Receipt
 
-The receipt is written only after a newly posted review is read back and
-verified:
+The receipt is written after a newly posted review is read back and verified,
+and also when an existing marker review passes every identity and body-hash
+check:
 
 ```json
 {
@@ -120,16 +133,17 @@ verified:
 }
 ```
 
-`published_at` is the review's `submitted_at` normalized to UTC. The file is
-written with `fsync` to a temporary file in the destination directory and then
-atomically replaced at `--receipt-out`. The destination directory must already
-exist.
+`published_at` is the review's `submitted_at` normalized to UTC. `status` is
+`VERIFIED` for a new review and `ALREADY_PUBLISHED` for a verified idempotent
+match. The file is written with `fsync` to a temporary file in the destination
+directory, atomically replaced at `--receipt-out`, and the directory is fsynced
+after the rename. The destination directory must already exist and be writable.
 
 ## Exit codes and safe failure behavior
 
 | Exit | Meaning | Safe action |
 |---|---|---|
-| `0` | New review verified, or an existing marker review already matches the head | Record the receipt or the `ALREADY_PUBLISHED` line |
+| `0` | New review verified, or an existing marker review passed every identity and body-hash check | Keep the receipt |
 | `2` | Refused by a local or server-side precondition; no review was posted | Fix the precondition and re-run deliberately |
 | `3` | Transport, token, receipt, or verification state is unknown | Do not assume publication succeeded; inspect the pull request and review list manually before any retry |
 
@@ -143,9 +157,12 @@ Specific rules:
 - Exit `3` can occur after a POST, for example when read-back verification or
   the receipt write fails. The review may exist even though no receipt was
   written. Inspect the pull request before re-running.
-- Re-running is marker-idempotent: if the review did land, the next run reports
-  `ALREADY_PUBLISHED` and posts nothing. If a marker exists at a different
-  commit, the script refuses with exit 2 rather than posting a second review.
+- Re-running is marker-idempotent only when the existing review is exactly
+  ours: matching commit, bot author, `COMMENTED` state, and body hash. It then
+  reports `ALREADY_PUBLISHED`, posts nothing, and writes an
+  `ALREADY_PUBLISHED` receipt. A marker at a different commit is refused with
+  exit 2; a marker with a different author, state, or body exits 3. Neither
+  case posts a second review.
 - If pagination exceeds 10 pages of 100 reviews, absence of the marker cannot
   be established and the script exits 3 without posting.
 
