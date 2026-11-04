@@ -11,9 +11,11 @@ import pytest
 
 ACTION = Path(__file__).parents[1] / "scripts/actions-artifact-uploader"
 NODE = shutil.which("node")
-# Outer test-process bounds include interpreter/Node startup and scheduling;
+# Outer test-process bounds include interpreter/Node startup and CI scheduling.
+# The observed post-merge failure had no stage records, which points at startup
+# starvation rather than an action deadlock; 30s keeps the outer guard while
 # action-level deadlines and elapsed-time assertions remain independently tight.
-NODE_HARNESS_PROCESS_TIMEOUT = 15
+NODE_HARNESS_PROCESS_TIMEOUT = 30
 NODE_PRELOAD_PROCESS_TIMEOUT = 10
 
 _STAGE_PRELOAD = r"""
