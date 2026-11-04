@@ -86,6 +86,7 @@ implementation.
 | [Publication artifact intake boundary](ARTIFACT-INTAKE.md) | Publication artifact intake boundary compatible with stateless execution. |
 | [OpenAI-compatible review provider](OPENAI-COMPATIBLE-PROVIDER.md) | OpenAI-compatible provider adapter contract. |
 | [GitHub App credential provider](GITHUB-APP-CREDENTIAL-PROVIDER.md) | GitHub App credential-provider contract. |
+| [Canary-only live review publication](CANARY-PUBLICATION.md) | One-shot, pinned-repository review-publication procedure for `magnus919/SlopSearX` PR 1094; not a general publisher integration. |
 | [Linux external effect observer v3](EXTERNAL-EFFECT-OBSERVER.md) | Linux external-effect observer v3 event, aggregate, and coverage contract. |
 | [Context target manifest v1](CONTEXT-TARGET-MANIFEST.md) | Context target manifest v1 schema and identity rules. |
 | [Bounded context selection](CONTEXT-SELECTION.md) | Bounded context selection and evidence-window rules. |
