@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -16,8 +16,8 @@ from pr_review_harness.planner import plan_review
 from pr_review_harness.report import render_report
 from pr_review_harness.waiver import WaiverError, apply_waivers, load_waiver, validate_waiver_targets
 
-NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
-LATER = datetime(2100, 1, 1, 0, 0, tzinfo=timezone.utc)
+NOW = datetime.now(timezone.utc).replace(microsecond=0)
+LATER = NOW + timedelta(days=31)
 
 
 def waiver_document(target, *, base_sha="b" * 40, head_sha="c" * 40, repository="owner/repo"):
@@ -28,8 +28,8 @@ def waiver_document(target, *, base_sha="b" * 40, head_sha="c" * 40, repository=
         "repository": repository,
         "base_sha": base_sha,
         "head_sha": head_sha,
-        "issued_at": "2026-11-04T11:00:00Z",
-        "expires_at": "2099-11-04T12:00:00Z",
+        "issued_at": (NOW - timedelta(hours=1)).isoformat(),
+        "expires_at": (NOW + timedelta(days=30)).isoformat(),
         "waivers": [target],
     }
 
@@ -75,7 +75,7 @@ def plan_for(snapshot):
     return plan_review(snapshot, profile(), "AUTO")
 
 
-def run(tmp_path: Path, run_id: str, provider, *, waiver_path=None, plan=None, snapshot=None):
+def run(tmp_path: Path, run_id: str, provider, *, waiver_path=None, plan=None, snapshot=None, resume=False):
     snapshot = snapshot if snapshot is not None else snapshot_with_repository()
     plan = plan if plan is not None else plan_for(snapshot)
     return run_review(
@@ -87,6 +87,7 @@ def run(tmp_path: Path, run_id: str, provider, *, waiver_path=None, plan=None, s
         LIMITS,
         str(tmp_path),
         run_id,
+        resume=resume,
         waiver_path=waiver_path,
     )
 
@@ -110,8 +111,8 @@ def test_valid_waiver_resolves_exact_gap_and_stays_visible(tmp_path):
     assert summary["waived"] == 1
     assert summary["complete"] == 0
     assert summary["waived_obligations"][0]["obligation_id"] == obligation_id
-    assert result["coverage_state"] == "COMPLETE"
-    assert result["disposition"] != "INCOMPLETE"
+    assert result["coverage_state"] == "COMPLETE_WITH_WAIVERS"
+    assert result["disposition"] == "COMMENT"
     applied = result["waivers_applied"][0]
     assert applied["target"]["id"] == obligation_id
     assert applied["reviewer"] == "owner/reviewer"
@@ -205,8 +206,8 @@ def test_wrong_revision_or_repository_is_rejected(tmp_path, field, value, messag
 
 def test_expired_waiver_is_rejected_and_never_applied_after_expiry(tmp_path):
     document = waiver_document(target_for("unit:u0:lens:correctness"))
-    document["issued_at"] = "2026-11-04T10:00:00Z"
-    document["expires_at"] = "2026-11-04T11:00:00Z"
+    document["issued_at"] = (NOW - timedelta(hours=2)).isoformat()
+    document["expires_at"] = (NOW - timedelta(hours=1)).isoformat()
     path = write_waiver(tmp_path, document)
     with pytest.raises(WaiverError, match="expired"):
         load_waiver(
@@ -217,7 +218,7 @@ def test_expired_waiver_is_rejected_and_never_applied_after_expiry(tmp_path):
             now=NOW,
         )
 
-    document["expires_at"] = "2026-11-04T13:00:00Z"
+    document["expires_at"] = (NOW + timedelta(hours=1)).isoformat()
     path = write_waiver(tmp_path, document)
     loaded = load_waiver(
         str(path),
@@ -431,6 +432,206 @@ def test_publisher_accepts_a_sealed_result_with_waived_coverage(tmp_path):
         },
     )
 
-    assert preview["review_payload"]["event"] == "APPROVE"
-    assert result["coverage_state"] == "COMPLETE"
+    assert preview["review_payload"]["event"] == "COMMENT"
+    assert result["coverage_state"] == "COMPLETE_WITH_WAIVERS"
     assert result["coverage_ledger"][0]["state"] == "WAIVED"
+
+
+def test_schema_accepts_exact_id_and_reason_code_targets():
+    from jsonschema import Draft202012Validator
+
+    schema = json.loads(
+        (Path(__file__).resolve().parents[1] / "schemas/review-evidence-waiver.v1.schema.json").read_text()
+    )
+    validator = Draft202012Validator(schema)
+
+    id_document = waiver_document(target_for("unit:u0:lens:correctness"))
+    validator.validate(id_document)
+
+    reason_document = waiver_document(
+        {
+            "kind": "coverage_note",
+            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+            "justification": "The exact reason is the only missing-evidence target.",
+        }
+    )
+    validator.validate(reason_document)
+
+    both = target_for("unit:u0:lens:correctness")
+    both["reason_code"] = "PARTIAL_REVIEW_COVERAGE"
+    assert list(validator.iter_errors(waiver_document(both)))
+
+
+def test_waiver_lifetime_is_capped_and_issued_time_cannot_be_in_the_future(tmp_path):
+    document = waiver_document(target_for("unit:u0:lens:correctness"))
+    document["issued_at"] = (NOW + timedelta(days=1)).isoformat()
+    document["expires_at"] = (NOW + timedelta(days=2)).isoformat()
+    with pytest.raises(WaiverError, match="future"):
+        load_waiver(
+            str(write_waiver(tmp_path, document)),
+            repository="owner/repo",
+            base_sha="b" * 40,
+            head_sha="c" * 40,
+            now=NOW,
+        )
+
+    document["issued_at"] = (NOW - timedelta(hours=1)).isoformat()
+    document["expires_at"] = (NOW + timedelta(days=91)).isoformat()
+    with pytest.raises(WaiverError, match="90 days"):
+        load_waiver(
+            str(write_waiver(tmp_path, document)),
+            repository="owner/repo",
+            base_sha="b" * 40,
+            head_sha="c" * 40,
+            now=NOW,
+        )
+
+
+def test_reason_code_target_rejects_multiple_matching_obligations():
+    rows = [
+        {
+            "obligation_id": "unit:u0:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+        },
+        {
+            "obligation_id": "unit:u1:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+        },
+    ]
+    document = waiver_document(
+        {
+            "kind": "coverage_note",
+            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+            "justification": "This reason must identify exactly one incomplete obligation.",
+        }
+    )
+    document["source_sha256"] = "a" * 64
+
+    with pytest.raises(WaiverError, match="overbroad"):
+        apply_waivers(rows, document, now=NOW)
+    assert {row["state"] for row in rows} == {"PARTIAL"}
+
+
+def test_reducer_caps_waived_reviews_at_comment():
+    result = {
+        "findings": [],
+        "coverage_state": "COMPLETE_WITH_WAIVERS",
+        "freshness": "CURRENT",
+        "budget": {},
+        "completeness_summary": {"waived": 1},
+        "waivers_applied": [{"waiver_id": "wvr-test"}],
+    }
+    assert _reduce(result, True, True) == "COMMENT"
+
+    result["findings"] = [{"status": "ACCEPTED", "blocking_class": "BLOCKING"}]
+    assert _reduce(result, True, True) == "REQUEST_CHANGES"
+
+
+def test_publisher_rejects_approval_of_a_waived_review(tmp_path):
+    from pr_review_harness.engine import _hash
+    from pr_review_harness.publisher import PublicationRejected, preview_publication
+
+    snapshot = snapshot_with_repository()
+    snapshot["pull_request_number"] = 7
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    path = write_waiver(tmp_path, waiver_document(target_for(obligation_id)))
+    result = run(
+        tmp_path, "waiver-publish-reject", PartialProvider(), waiver_path=str(path), plan=plan, snapshot=snapshot
+    )
+    result["disposition"] = "APPROVE"
+    result["result_hash"] = _hash({key: value for key, value in result.items() if key != "result_hash"})
+
+    with pytest.raises(PublicationRejected, match="cannot approve"):
+        preview_publication(
+            result,
+            {
+                "schema_version": "1.0",
+                "allowed_repositories": ["owner/repo"],
+                "allowed_dispositions": ["APPROVE", "COMMENT"],
+            },
+        )
+
+
+def test_resume_rejects_changed_waiver_presence_and_hash(tmp_path):
+    snapshot = snapshot_with_repository()
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    first = tmp_path / "first.json"
+    first.write_text(json.dumps(waiver_document(target_for(obligation_id))), encoding="utf-8")
+    result = run(
+        tmp_path, "waiver-resume-presence", PartialProvider(), waiver_path=str(first), plan=plan, snapshot=snapshot
+    )
+
+    with pytest.raises(EnginePreflightError) as without:
+        run(
+            tmp_path,
+            "waiver-resume-presence",
+            PartialProvider(),
+            waiver_path=None,
+            plan=plan,
+            snapshot=snapshot,
+            resume=True,
+        )
+    assert without.value.reason == "resume_state_invalid"
+
+    no_waiver_dir = tmp_path / "no-waiver"
+    no_waiver_dir.mkdir()
+    run(no_waiver_dir, "waiver-resume-added", PartialProvider(), plan=plan, snapshot=snapshot)
+    with pytest.raises(EnginePreflightError) as added:
+        run(
+            no_waiver_dir,
+            "waiver-resume-added",
+            PartialProvider(),
+            waiver_path=str(first),
+            plan=plan,
+            snapshot=snapshot,
+            resume=True,
+        )
+    assert added.value.reason == "resume_state_invalid"
+
+    changed = dict(waiver_document(target_for(obligation_id)))
+    changed["reason"] = "A different owner-approved reason changes the waiver file digest."
+    second = tmp_path / "second.json"
+    second.write_text(json.dumps(changed), encoding="utf-8")
+    with pytest.raises(EnginePreflightError) as changed_hash:
+        run(
+            tmp_path,
+            "waiver-resume-presence",
+            PartialProvider(),
+            waiver_path=str(second),
+            plan=plan,
+            snapshot=snapshot,
+            resume=True,
+        )
+    assert changed_hash.value.reason == "resume_state_invalid"
+    assert result["waiver_receipt"]["source_sha256"] == hashlib.sha256(first.read_bytes()).hexdigest()
+
+
+def test_resume_with_the_same_waiver_binding_is_allowed(tmp_path):
+    snapshot = snapshot_with_repository()
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    path = write_waiver(tmp_path, waiver_document(target_for(obligation_id)))
+    first = run(tmp_path, "waiver-resume-same", PartialProvider(), waiver_path=str(path), plan=plan, snapshot=snapshot)
+
+    provider = PartialProvider()
+    resumed = run(
+        tmp_path,
+        "waiver-resume-same",
+        provider,
+        waiver_path=str(path),
+        plan=plan,
+        snapshot=snapshot,
+        resume=True,
+    )
+
+    assert resumed["request_hash"] == first["request_hash"]
+    assert resumed["waiver_receipt"]["source_sha256"] == first["waiver_receipt"]["source_sha256"]
+    assert provider.calls == 0

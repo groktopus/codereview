@@ -250,7 +250,7 @@ def _validate_result(result: dict) -> None:
         or not isinstance(result.get("task_results"), dict)
         or not isinstance(result.get("ledger"), dict)
         or not isinstance(result.get("evidence_index"), dict)
-        or result.get("coverage_state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED", "WAIVED"}
+        or result.get("coverage_state") not in {"COMPLETE", "COMPLETE_WITH_WAIVERS", "PARTIAL", "NOT_STARTED", "WAIVED"}
     ):
         raise PublicationRejected("review result contract is invalid")
     if result.get("freshness") != "CURRENT":
@@ -289,6 +289,8 @@ def _validate_result(result: dict) -> None:
         raise PublicationRejected("review waiver metadata is invalid")
     aggregate = (
         "COMPLETE"
+        if all(entry["state"] == "COMPLETE" for entry in required)
+        else "COMPLETE_WITH_WAIVERS"
         if all(entry["state"] in {"COMPLETE", "WAIVED"} for entry in required)
         else "NOT_STARTED"
         if not any(entry["state"] != "NOT_STARTED" for entry in required)
@@ -296,6 +298,8 @@ def _validate_result(result: dict) -> None:
     )
     if aggregate != result["coverage_state"]:
         raise PublicationRejected("review coverage state is inconsistent")
+    if any(entry["state"] == "WAIVED" for entry in required) and result.get("disposition") == "APPROVE":
+        raise PublicationRejected("review with waivers cannot approve")
     if any(
         not isinstance(finding, dict)
         or finding.get("status") not in {"ACCEPTED", "NEEDS_EVIDENCE", "CONTRADICTED", "UNSUPPORTED"}

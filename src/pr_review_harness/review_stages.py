@@ -956,8 +956,6 @@ def preflight_review(state: RunState) -> None:
         raise EnginePreflightError("invalid_review_request")
     state.obligations = list(state.obligations)
     if state.waiver_path is not None:
-        if state.resume:
-            raise EnginePreflightError("review_waiver_rejected", "--waiver cannot be combined with --resume")
         try:
             from .waiver import load_waiver, validate_waiver_targets
 
@@ -1007,6 +1005,38 @@ def _reseal_resumed_result(saved: dict) -> None:
     saved["result_hash"] = _hash({key: value for key, value in saved.items() if key != "result_hash"})
 
 
+def _waiver_request_binding(state: RunState) -> dict[str, Any]:
+    if state.waiver is None:
+        return {"present": False}
+    return {"present": True, "source_sha256": state.waiver["source_sha256"]}
+
+
+def _initial_run_ledger(state: RunState) -> dict[str, Any]:
+    from .engine import _core_contract_hash, _hash, review_contracts, time
+
+    return {
+        "ledger_version": "0.2",
+        "request_hash": state.request_hash,
+        "run_started_at_epoch": time.time(),
+        "events": [],
+        "outputs": {},
+        "candidate_records": [],
+        "budget": {"reservations": {}, "settlements": {}, "context_retrievals": 0, "followup_tasks": 0},
+        "deadline_epoch": state.deadline_epoch,
+        "identity": {
+            "snapshot_id": state.snapshot.get("snapshot_id"),
+            "profile_version": state.profile.get("version", state.profile.get("profile_version")),
+            "question_versions": sorted({str(t.get("question_version", "0.1")) for t in state.tasks}),
+            "provider_identity_hash": _hash(state.provider_identity),
+            "plan_hash": _hash(state.plan),
+            "primary_task_inputs_hash": _hash(state.primary_task_inputs),
+            "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
+            "core_contract_hash": _core_contract_hash(),
+            "effective_contracts": state.contracts,
+        },
+    }
+
+
 def resume_completed_review(state: RunState) -> dict | None:
     """Build request identity, open the ledger, and load a prior result.
 
@@ -1043,6 +1073,7 @@ def resume_completed_review(state: RunState) -> dict | None:
         "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
         "core_contract_hash": _core_contract_hash(),
     }
+    state.request_basis["evidence_waiver"] = _waiver_request_binding(state)
     if state.price_table is not None:
         # A resumed run must be costed against the same operator table; the
         # request hash therefore binds the revision and content digest.
@@ -1058,27 +1089,7 @@ def resume_completed_review(state: RunState) -> dict | None:
         state.request_basis["claim_reconciliation"] = state.reconciliation_policy
     state.request_hash = _hash(state.request_basis)
     state.deadline_epoch = time.time() + float(state.limits["deadline_seconds"])
-    state.ledger = {
-        "ledger_version": "0.2",
-        "request_hash": state.request_hash,
-        "run_started_at_epoch": time.time(),
-        "events": [],
-        "outputs": {},
-        "candidate_records": [],
-        "budget": {"reservations": {}, "settlements": {}, "context_retrievals": 0, "followup_tasks": 0},
-        "deadline_epoch": state.deadline_epoch,
-        "identity": {
-            "snapshot_id": state.snapshot.get("snapshot_id"),
-            "profile_version": state.profile.get("version", state.profile.get("profile_version")),
-            "question_versions": sorted({str(t.get("question_version", "0.1")) for t in state.tasks}),
-            "provider_identity_hash": _hash(state.provider_identity),
-            "plan_hash": _hash(state.plan),
-            "primary_task_inputs_hash": _hash(state.primary_task_inputs),
-            "request_input_contract": review_contracts.SPECIALIST_INPUT_V2,
-            "core_contract_hash": _core_contract_hash(),
-            "effective_contracts": state.contracts,
-        },
-    }
+    state.ledger = _initial_run_ledger(state)
     if state.max_claim_assessments > 0:
         state.ledger["identity"]["claim_assessment"] = {
             "assessor_identity_hash": state.claim_assessor_identity_hash,
@@ -1099,6 +1110,7 @@ def resume_completed_review(state: RunState) -> dict | None:
             state.obligations,
             state.input_ceiling,
             state.profile,
+            state.request_basis["evidence_waiver"],
         )
         if state.saved.get("completed_at"):
             if callable(state.freshness_check):
@@ -3216,6 +3228,8 @@ def _finalize_coverage_state(state: RunState) -> None:
     state.required_cov = [c for c in state.coverage if c.get("required", True)]
     state.coverage_state = (
         "COMPLETE"
+        if all(c["state"] == "COMPLETE" for c in state.required_cov)
+        else "COMPLETE_WITH_WAIVERS"
         if all(c["state"] in {"COMPLETE", "WAIVED"} for c in state.required_cov)
         else "NOT_STARTED"
         if not any(c["state"] != "NOT_STARTED" for c in state.required_cov)

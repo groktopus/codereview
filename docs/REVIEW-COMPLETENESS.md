@@ -121,9 +121,11 @@ Rules:
   remain in `required_total`, are counted in `waived`, and are listed in
   `waived_obligations` with the waiver id, reviewer, reason, expiry, target,
   and original state/reason. `coverage_state` is `COMPLETE` only when every
-  required row is `COMPLETE` or `WAIVED`; the deterministic disposition still
+  required row is `COMPLETE` or `WAIVED`. When at least one required row is
+  `WAIVED`, that state is `COMPLETE_WITH_WAIVERS`, not `COMPLETE`; it still
   follows findings, freshness, policy validity, budget breaches, and unresolved
-  findings.
+  findings, and the reducer caps a waived review at `COMMENT` (an existing
+  blocker still returns `REQUEST_CHANGES`).
 
 The advisory report renders one concise completeness line under `Coverage`,
 including counts, denominator, incomplete reasons, taxonomy version, and a link
@@ -206,17 +208,21 @@ either:
 - `id`: the exact planned coverage obligation id (for `check`, its exact check
   binding or check id is also accepted), or
 - `reason_code`: an exact reason code that classifies into that target kind's
-  family.
+  family and matches exactly one required incomplete obligation. A multi-row
+  reason-code match is rejected as overbroad.
 
 Target kinds are `context_gap`, `check`, and `coverage_note`. `context_gap`
 covers rows whose canonical reason is `CONTEXT_GAP_UNRESOLVED`; `check` covers
 `CHECK_EVIDENCE_UNAVAILABLE`/`CHECK_EVIDENCE_INVALID`; `coverage_note` covers
 `COVERAGE_NOTE_MISSING`, `COVERAGE_NOTE_INVALID`, `SPECIALIST_COVERAGE_PARTIAL`,
 and `CONTEXT_NOT_COVERED`. A reason code outside its kind's family, a wildcard,
-both `id` and `reason_code`, or an empty identifier is rejected.
+both `id` and `reason_code`, or an empty identifier is rejected. A reason code
+that would match more than one incomplete obligation is rejected, so a waiver
+never silently clears a 1:N set of gaps.
 
-The file is loaded and validated before provider dispatch. An invalid,
-expired, out-of-scope, duplicate, or unknown-target waiver raises
+The file is loaded and validated before provider dispatch. `issued_at` cannot
+be in the future, and the lifetime is capped at 90 days. An invalid, expired,
+out-of-scope, duplicate, or unknown-target waiver raises
 `review_waiver_rejected` (CLI exit `2`) and writes no result. If a valid waiver
 expires during a long run, it is reported as `EXPIRED_AT_USE` in
 `waivers_not_applied` and is not honored. The exact schema is
@@ -226,9 +232,10 @@ A waived row in `coverage_ledger` keeps `state: "WAIVED"`, the original state an
 reason in `waived_from_state`/`waived_from_reason_code`, and a `waiver` object
 with the waiver id, reviewer, reason, justification, expiry, target, and source
 file SHA-256. The result also carries `waiver_receipt`, `waivers_applied`, and
-`waivers_not_applied`. The rendered report prints the waived count and one line
-per waived obligation. The deterministic reducer is not consulted for waivers;
-an accepted blocker still yields `REQUEST_CHANGES`.
+`waivers_not_applied`. The rendered report prints `Coverage:
+COMPLETE_WITH_WAIVERS`, the waived count, and one line per waived obligation.
+The deterministic reducer caps a waived review at `COMMENT`; findings still win,
+so an accepted blocker still yields `REQUEST_CHANGES`.
 
 ## 5. Wiring and tests
 
@@ -245,9 +252,11 @@ an accepted blocker still yields `REQUEST_CHANGES`.
   comparison pass/fail, stale-summary rejection, CLI exit codes, and
   disposition preservation.
 - `tests/test_waiver.py` covers valid exact-gap resolution, default deny,
-  wrong head/repository, expired-at-load and expired-at-use, unknown target
-  before provider dispatch, duplicate/overbroad targets, reason-code scoping,
-  visibility in the result/summary/report, and blocker preservation.
+  wrong head/repository, expired-at-load and expired-at-use, future `issued_at`,
+  the 90-day TTL, unknown target before provider dispatch,
+  duplicate/overbroad targets, schema validation, 1:N reason-code rejection,
+  resume waiver-binding mismatches, visibility in the result/summary/report,
+  and blocker preservation.
 
 
 

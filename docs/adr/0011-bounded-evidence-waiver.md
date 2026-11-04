@@ -58,11 +58,15 @@ The schema file is authoritative. The loader additionally enforces:
 - `repository` matches the snapshot repository exactly.
 - `base_sha` and `head_sha` are exact 40-character lowercase hex and match the
   snapshot revisions exactly.
-- `issued_at`/`expires_at` are timezone-aware, `expires_at > issued_at`, and
-  `expires_at > now` when loaded and again when applied.
+- `issued_at`/`expires_at` are timezone-aware, `issued_at <= now` when loaded,
+  `expires_at > issued_at`, `expires_at > now` when loaded and again when
+  applied, and the lifetime is at most 90 days.
 - At least one and at most 64 targets; duplicate targets are rejected.
 - Each target has exactly one of `id` or `reason_code`. Supplying both is
-  rejected as overbroad; wildcards and empty identifiers are rejected.
+  rejected as overbroad; wildcards and empty identifiers are rejected. An `id`
+  target is exact. A `reason_code` target is accepted only when exactly one
+  required incomplete obligation matches; a multi-row match is rejected rather
+  than waived 1:N.
 - Target kinds are `context_gap`, `check`, and `coverage_note`. A reason code
   must classify into that kind's exact reason family.
 - An `id` target must name a required planned obligation (or, for `check`, its
@@ -77,18 +81,22 @@ The schema file is authoritative. The loader additionally enforces:
   reason are retained in `waived_from_state` and `waived_from_reason_code`, and
   the row carries the waiver id, reviewer, reason, justification, expiry, target,
   and source file SHA-256.
-- A reason-code target applies only to rows whose exact canonical reason is in
-  that target kind's family. ID targets are exact to one obligation.
+- A reason-code target applies only to the single row whose exact canonical
+  reason is in that target kind's family. More than one match is an error. ID
+  targets are exact to one obligation.
 - No waiver changes `findings`, a finding's status or blocking class, the
   deterministic reducer, freshness, policy validity, budget breaches, or
   unresolved findings. An existing accepted blocker still produces
   `REQUEST_CHANGES`.
 - `coverage_state` is `COMPLETE` only when every required obligation is
-  `COMPLETE` or `WAIVED`. Waivers are recorded as a non-zero `waived` count and
-  listed in `completeness_summary.waived_obligations`; `complete_ratio` still
-  counts only `COMPLETE`, so a waiver cannot be reported as complete evidence.
+  `COMPLETE`; it is `COMPLETE_WITH_WAIVERS` when every required obligation is
+  `COMPLETE` or `WAIVED` and at least one is `WAIVED`. Waivers are recorded as a
+  non-zero `waived` count and listed in
+  `completeness_summary.waived_obligations`; `complete_ratio` still counts only
+  `COMPLETE`, so a waiver cannot be reported as complete evidence.
   `resolved_ratio` includes `WAIVED` because the obligation is explicitly
-  resolved by the named waiver.
+  resolved by the named waiver. The deterministic reducer caps a waived review
+  at `COMMENT`; an existing accepted blocker still returns `REQUEST_CHANGES`.
 - The result carries `waiver_receipt`, `waivers_applied`, and
   `waivers_not_applied`. A waiver that expires during a long run is reported as
   `EXPIRED_AT_USE` and is not applied; the obligation stays incomplete.
@@ -105,13 +113,14 @@ behavior is unchanged: missing evidence remains incomplete.
 
 ## Source-line budget consequence
 
-This feature adds 565 physical source lines: the strict waiver loader/validator/applier
-and receipt builder, plus integration in review preflight, coverage reduction,
-completeness, metrics, report, publisher, CLI, and typed records. The measured
-`src/pr_review_harness` tree is 32,290 lines (−20.64% against the 40,686 CA-2
-base). The prior ceiling was 31,869 lines, so 421 lines must be explicitly
-allowed; the owner approved a one-time 565-line allowance, exactly matching the
-measured cost, leaving 144 lines of bounded headroom.
+This feature adds 607 physical source lines after review fixes: the strict waiver
+loader/validator/applier and receipt builder, plus integration in review
+preflight, coverage reduction, completeness, metrics, report, publisher, CLI,
+and typed records. The measured `src/pr_review_harness` tree is 32,332 lines
+(−20.53% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
+463 lines must be explicitly allowed; the owner approved a one-time 565-line
+allowance, with the other 42 lines coming from the 144 lines of prior headroom,
+leaving 102 lines of bounded headroom.
 
 [ADR 0001](0001-post-ca2-feature-budget.md) permits further growth only through a
 new decision record. This record therefore adds a separate, one-time
@@ -119,7 +128,7 @@ new decision record. This record therefore adds a separate, one-time
 gate includes that term and records the honest live measurement. This allowance
 is scoped to the bounded-waiver feature, does not renew the 500-line general
 feature budget, and is not available for unrelated growth. The resulting
-one-time ceiling is 32,434 lines, leaving 144 lines of headroom.
+one-time ceiling is 32,434 lines, leaving 102 lines of headroom.
 
 ## Consequences
 
@@ -131,7 +140,9 @@ one-time ceiling is 32,434 lines, leaving 144 lines of headroom.
   hash. This is the intended safety/cost tradeoff.
 - A waived obligation is not evidence. `waived > 0` is an explicit annotation,
   not a quality signal, and the run still says `complete_ratio = 0` when every
-  obligation was waived.
+  obligation was waived. Such a run is `coverage_state:
+  COMPLETE_WITH_WAIVERS` and cannot use `APPROVE`; the reducer caps it at
+  `COMMENT`.
 - The publisher accepts sealed `WAIVED` rows because the result hash binds the
   waiver receipt; it still rejects missing waiver metadata, inconsistent
   coverage state, stale freshness, and non-current dispositions.
@@ -164,4 +175,6 @@ duplicate/overbroad targets, reason-code scoping, visible `WAIVED` rows, the
 SUMMARY/report/result receipts, and preservation of findings and blockers.
 `tests/test_surface_consolidation.py` verifies the recorded source measurement,
 the 565-line waiver-feature allowance, and the resulting ceiling.
-`scripts/check_decision_records.py` validates this record and its index row.
+Schema validation uses `Draft202012Validator`, including both the exact-`id` and
+`reason_code` target shapes. `scripts/check_decision_records.py` validates this
+record and its index row.

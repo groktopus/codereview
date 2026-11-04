@@ -23,7 +23,7 @@ import json
 import os
 import re
 import stat
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -36,6 +36,7 @@ MAX_WAIVER_BYTES = 256_000
 MAX_TARGETS = 64
 MIN_REASON_LENGTH = 20
 MIN_JUSTIFICATION_LENGTH = 10
+MAX_WAIVER_LIFETIME = timedelta(days=90)
 _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _SHA_RE = re.compile(r"[0-9a-f]{40}")
 _ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}")
@@ -235,10 +236,12 @@ def load_waiver(
     issued = _parse_timestamp(normalized["issued_at"], "issued_at")
     expires = _parse_timestamp(normalized["expires_at"], "expires_at")
     current = _now(now)
+    if issued > current:
+        raise WaiverError("review waiver issued_at is in the future")
     if expires <= current:
         raise WaiverError("review waiver is expired")
-    if issued >= expires:
-        raise WaiverError("review waiver expires_at must be after issued_at")
+    if expires - issued > MAX_WAIVER_LIFETIME:
+        raise WaiverError("review waiver lifetime exceeds 90 days")
     normalized["source_sha256"] = hashlib.sha256(data).hexdigest()
     return normalized
 
@@ -376,10 +379,15 @@ def apply_waivers(
     source_sha256 = document.get("source_sha256")
     if not isinstance(source_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", source_sha256) is None:
         raise WaiverError("review waiver source digest is invalid")
-    applied: list[dict[str, Any]] = []
-    unapplied: list[dict[str, Any]] = []
+    planned: list[tuple[int, Mapping[str, Any], list[dict[str, Any]]]] = []
     for index, target in enumerate(document.get("waivers", [])):
         matches = [row for row in rows if _target_matches(row, target)]
+        if len(matches) > 1:
+            raise WaiverError("review waiver target is overbroad")
+        planned.append((index, target, matches))
+    applied: list[dict[str, Any]] = []
+    unapplied: list[dict[str, Any]] = []
+    for index, target, matches in planned:
         if not matches:
             unapplied.append({"target": dict(target), "status": "NO_MATCHING_INCOMPLETE_OBLIGATION"})
             continue

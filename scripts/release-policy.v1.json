@@ -23,6 +23,7 @@
       "schemas/contract-registry.v1.schema.json",
       "schemas/review-cross-model-comparison.v1.schema.json",
       "schemas/review-cross-model-comparison.v2.schema.json",
+      "schemas/review-evidence-waiver.v1.schema.json",
       "schemas/review-price-table.v1.schema.json",
       "schemas/review-run-summary.v1.schema.json"
     ]
