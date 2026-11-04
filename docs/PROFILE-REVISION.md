@@ -11,3 +11,14 @@ Retrieval still defaults to BASE. HEAD retrieval requires a separate explicit tr
 The check-binding revision is based on retained read-only GitHub evidence for PR 464 at head `bffc26f9e4bf95aca0c252e88a2396d03ece854c`: the complete 20-run envelope contains exactly one completed successful `portal-contract` run and one completed successful `portal-browser` run, both from GitHub App ID `15368`. The profile keeps the existing `portal-impact-evidence` ID attached only to `portal-contract` and adds `portal-browser-evidence` for the browser journey. The two checks remain separate evidence; neither is represented as a combined semantic pass. Ingestion against the retained envelope yields PASS for each exact binding. This is CI evidence for that immutable head only, not code-review quality, target execution by this harness, or a release gate.
 
 Context-selection experiments are documented in [CONTEXT-SELECTION.md](CONTEXT-SELECTION.md). A full-applicability preflight did not fit the existing per-request limit; a narrower trial that omitted applicable policy was rejected. No context-selection experiment is enabled in this profile.
+
+## Optional path scope
+
+A profile may add `scope_paths`, a nonempty list of `fnmatch` patterns that
+filters changed units before routing. The scope is a run input, not a new lens
+or risk rule: the planner still applies every configured lens, risk rule,
+required check, and policy setting to the matching units. A pattern that matches
+no changed unit raises an explicit error, and snapshot gaps or explicit check
+bindings outside the scope are not promoted into scoped obligations. See
+[SHARDED-REVIEW.md](SHARDED-REVIEW.md) for the file-batch orchestration that uses
+this contract.

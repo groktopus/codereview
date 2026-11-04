@@ -95,6 +95,7 @@ implementation.
 | [Opt-in claim reconciliation](CLAIM-RECONCILIATION.md) | Opt-in claim reconciliation contract. |
 | [Native Claim Screen Runner](CLAIM-SCREEN-RUNNER.md) | Native claim-screen runner contract. |
 | [Production context profile revision](PROFILE-REVISION.md) | Production context-profile revision. |
+| [Path-scoped sharded review](SHARDED-REVIEW.md) | File-batch sharding with the full profile, exact-path `scope_paths`, union assertions, and blocker-preserving merging. |
 | [Provider contract revision](PROVIDER-CONTRACT-REVISION.md) | Provider contract revision. |
 | [Review evaluation toolkit](EVALUATION-TOOLKIT.md) | Review evaluation toolkit. |
 | [Quality labeling and adjudication protocol](QUALITY-LABELING-PROTOCOL.md) | QM-2 severity/introducedness rubric, evidence, abstention, reviewer-kind, synthetic adjudication, provenance, and relabeling protocol; a retained six-packet synthetic pilot exists with five complete cases and one incomplete case, and no human packets. |

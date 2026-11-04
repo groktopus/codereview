@@ -8,6 +8,10 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+
+- Path-scoped sharded review: profiles may set an optional `scope_paths` fnmatch allowlist that filters changed units before routing; `scripts/sharded_review.py` partitions the exact immutable diff into file batches, runs the full profile once per batch with `--effect-policy READ_ONLY` and a sanitized environment, asserts exact union/non-overlap, and merges findings/gaps with blocker-preserving disposition precedence into `review-sharded-result.v1` (see [SHARDED-REVIEW.md](docs/SHARDED-REVIEW.md)).
+
 ## [0.1.2] - 2026-11-04
 
 ### Added

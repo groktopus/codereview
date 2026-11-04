@@ -80,6 +80,27 @@ def validate_profile_lenses(profile: dict) -> None:
         raise ValueError("profile review_criteria values must be strings")
 
 
+def validate_profile_scope(profile: dict) -> list[str] | None:
+    """Validate the optional changed-unit path scope.
+
+    ``scope_paths`` is an operator-authored fnmatch allowlist. It narrows the
+    changed units before routing, so a shard keeps every configured lens and
+    risk rule but cannot create obligations outside its assigned paths. Every
+    supplied pattern must match at least one changed unit; an unmatched pattern
+    is an explicit configuration error rather than a silently empty review.
+    """
+    if "scope_paths" not in profile:
+        return None
+    patterns = profile["scope_paths"]
+    if not isinstance(patterns, list) or not patterns:
+        raise ValueError("profile scope_paths must be a nonempty list of fnmatch patterns")
+    if any(not isinstance(pattern, str) or not pattern.strip() for pattern in patterns):
+        raise ValueError("profile scope_paths must contain nonempty string patterns")
+    if len(set(patterns)) != len(patterns):
+        raise ValueError("profile scope_paths must be unique")
+    return list(patterns)
+
+
 def allow_empty_approve(profile: dict) -> bool:
     """Return the explicitly configured empty-review approval authority.
 
@@ -238,6 +259,69 @@ def _safe_profile_path(path: Any) -> bool:
         and ".." not in path.split("/")
         and not any(ch in path for ch in "*?[]")
     )
+
+
+def _scope_matches(patterns: list[str], path: str) -> bool:
+    """Match a changed path against the profile scope using fnmatch only."""
+    return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+
+
+def _apply_profile_scope(
+    inventory: list[Any], gaps: Any, scope_patterns: list[str] | None
+) -> tuple[list[Any], set[str], list[Any]]:
+    """Filter changed units and their gaps before any obligation is planned."""
+    if scope_patterns is None:
+        return inventory, set(), gaps
+    if any(not isinstance(unit, dict) or not unit.get("unit_id") for unit in inventory):
+        raise ValueError("each inventory unit requires unit_id")
+    if not isinstance(gaps, list):
+        raise ValueError("snapshot.gaps must be an array")
+    scoped_ids = {
+        str(unit["unit_id"])
+        for unit in inventory
+        if isinstance(unit, dict) and unit.get("unit_id") and _scope_matches(scope_patterns, str(unit.get("path", "")))
+    }
+    unmatched = [
+        pattern
+        for pattern in scope_patterns
+        if not any(
+            isinstance(unit, dict) and _scope_matches([pattern], str(unit.get("path", ""))) for unit in inventory
+        )
+    ]
+    if unmatched:
+        raise ValueError(f"profile scope_paths pattern did not match any changed unit: {unmatched[0]}")
+    scoped_inventory = [unit for unit in inventory if isinstance(unit, dict) and str(unit.get("unit_id")) in scoped_ids]
+    scoped_gaps = [gap for gap in gaps if not isinstance(gap, dict) or _gap_in_scope(gap, scope_patterns, scoped_ids)]
+    return scoped_inventory, scoped_ids, scoped_gaps
+
+
+def _filter_scoped_check_units(
+    check: dict, units: list[Any], scope_patterns: list[str] | None, scoped_ids: set[str]
+) -> tuple[list[Any], dict | None]:
+    """Restrict explicit check unit bindings and explain a fully out-of-scope binding."""
+    if scope_patterns is None or not units:
+        return units, None
+    filtered = [uid for uid in units if isinstance(uid, str) and uid in scoped_ids]
+    if filtered:
+        return filtered, None
+    return [], {
+        "obligation_id": f"check:{check.get('id', check.get('check_id'))}",
+        "obligation_kind": "PROJECT_CHECK",
+        "reason": "configured_unit_binding_outside_scope",
+        "profile_rationale": check.get("reason"),
+        "state": "NOT_APPLICABLE",
+    }
+
+
+def _gap_in_scope(gap: dict, patterns: list[str], unit_ids: set[str]) -> bool:
+    """Keep a snapshot gap only when it belongs to the scoped changed units."""
+    gap_units = gap.get("unit_ids")
+    if isinstance(gap_units, list) and gap_units:
+        return any(isinstance(uid, str) and uid in unit_ids for uid in gap_units)
+    path = gap.get("path")
+    if isinstance(path, str) and path:
+        return _scope_matches(patterns, path)
+    return True
 
 
 def _canonical(value: Any) -> str:
@@ -464,6 +548,7 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
         raise ValueError("snapshot and profile must be objects")
     allow_empty_approve(profile)
     validate_profile_lenses(profile)
+    scope_patterns = validate_profile_scope(profile)
     validate_claim_reconciliation_policy(profile)
     context_selection = validate_context_selection(profile)
     validate_context_target_manifest_profile(profile)
@@ -477,7 +562,7 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
     inventory = snapshot.get("inventory")
     if not isinstance(inventory, list):
         raise ValueError("snapshot.inventory must be an array")
-
+    inventory, scoped_ids, snapshot_gaps = _apply_profile_scope(inventory, snapshot.get("gaps", []), scope_patterns)
     profile_valid = bool(
         profile.get("version")
         or profile.get("profile_version")
@@ -490,7 +575,7 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
         floor = "FOCUSED"
         reasons.append("unknown_profile_minimum_mode")
         profile_valid = False
-    if any(isinstance(gap, dict) and gap.get("required") is True for gap in snapshot.get("gaps", [])):
+    if any(isinstance(gap, dict) and gap.get("required") is True for gap in snapshot_gaps):
         floor = max((floor, "DEEP"), key=lambda x: _MODE_ORDER[x])
         reasons.append("snapshot_context_gap_raises_depth_floor")
     scopes: list[dict] = []
@@ -809,6 +894,10 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
         check_id = check.get("id", check.get("check_id"))
         oid = f"check:{check_id}"
         units = list(check.get("unit_ids", []))
+        units, scoped_out = _filter_scoped_check_units(check, units, scope_patterns, scoped_ids)
+        if scoped_out is not None:
+            not_applicable.append(scoped_out)
+            continue
         if not units and check.get("patterns"):
             units = [
                 u.get("unit_id")
@@ -853,7 +942,7 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
             }
         )
 
-    for index, gap in enumerate(snapshot.get("gaps", []) or []):
+    for index, gap in enumerate(snapshot_gaps or []):
         if isinstance(gap, dict) and gap.get("required") is True:
             oid = f"context:{gap.get('gap_id', index)}"
             scopes.append(

@@ -375,7 +375,7 @@
     {
       "path": "src/pr_review_harness/planner.py",
       "qualname": "plan_review",
-      "lines": 442
+      "lines": 447
     },
     {
       "path": "src/pr_review_harness/protected_publication_runtime.py",
