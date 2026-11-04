@@ -83,6 +83,7 @@ implementation.
 | [Test and production model policy](TEST-MODEL-POLICY.md) | Test-versus-production model policy and rotation boundaries. |
 | [Bounded free-model test matrix](TEST-MATRIX.md) | Bounded free-model test matrix. |
 | [Coverage gates](COVERAGE-GATES.md) | Coverage-gate requirements and incomplete-coverage handling. |
+| [Lens-sharded review wrapper](SHARDED-REVIEW.md) | One read-only review per lens, deterministic merge, and fail-closed incomplete handling for large changes. |
 | [Publication artifact intake boundary](ARTIFACT-INTAKE.md) | Publication artifact intake boundary compatible with stateless execution. |
 | [OpenAI-compatible review provider](OPENAI-COMPATIBLE-PROVIDER.md) | OpenAI-compatible provider adapter contract. |
 | [GitHub App credential provider](GITHUB-APP-CREDENTIAL-PROVIDER.md) | GitHub App credential-provider contract. |
