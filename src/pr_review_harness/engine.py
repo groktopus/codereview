@@ -80,12 +80,18 @@ _SYSTEM_ONE_ADVISORY_QUESTION = (
 class EnginePreflightError(BoundaryValueError):
     """A closed, deterministic rejection found before provider dispatch or writes."""
 
-    _PUBLIC_REASONS = {"invalid_review_request", "run_id_already_exists", "resume_state_invalid"}
+    _PUBLIC_REASONS = {
+        "invalid_review_request",
+        "run_id_already_exists",
+        "resume_state_invalid",
+        "review_waiver_rejected",
+    }
 
     _DETAILS = {
         "invalid_review_request": "review request is invalid",
         "run_id_already_exists": "run_id already exists; resume explicitly",
         "resume_state_invalid": "resume ledger invalid",
+        "review_waiver_rejected": "review waiver rejected",
     }
     _RESUME_DETAILS = {
         "resume request mismatch",
@@ -1492,6 +1498,7 @@ def run_review(
     private_capture_source_audit_max_bytes: int = 64_000,
     allow_archived_contracts: bool = False,
     price_table: Any = None,
+    waiver_path: str | None = None,
 ) -> ReviewResult:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1521,6 +1528,7 @@ def run_review(
         private_capture_source_audit_max_bytes=private_capture_source_audit_max_bytes,
         allow_archived_contracts=allow_archived_contracts,
         price_table=price_table,
+        waiver_path=waiver_path,
     )
     # Deterministic stage order; the coordinator makes no review decisions and
     # never dispatches on model output.  Invariants that hold across the whole

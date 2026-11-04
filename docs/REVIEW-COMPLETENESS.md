@@ -9,7 +9,10 @@ reach a complete, evidence-backed state?** It does not answer whether the review
 found the right defects, whether findings are true, or whether a change is safe
 to merge. A complete review can still miss a defect; an incomplete review is not
 evidence that a change is harmless. Missing and partial obligations stay missing
-and partial in every artifact and in the disposition.
+and partial in every artifact and in the disposition unless a named reviewer
+applies an explicit, bounded, unexpired evidence waiver (section 4). A waiver
+marks the obligation `WAIVED`; it never marks it `COMPLETE` and never changes a
+finding or an existing blocker.
 
 ## 1. Canonical reason taxonomy
 
@@ -66,7 +69,9 @@ Schema `review-completeness-summary.v1`:
   "partial": 2,
   "not_started": 1,
   "unknown_state": 0,
+  "waived": 0,
   "not_applicable": 1,
+  "waived_obligations": [],
   "incomplete_total": 3,
   "zero_obligations": false,
   "complete_ratio": 0.4,
@@ -91,8 +96,10 @@ Rules:
 
 - **Denominators.** `required_total` counts coverage rows with `required: true`
   (the schema default). `complete_ratio = complete / required_total` and
-  `resolved_ratio = (complete + partial) / required_total`. Only `COMPLETE`
-  counts toward completion; `PARTIAL` never does.
+  `resolved_ratio = (complete + partial + waived) / required_total`. Only
+  `COMPLETE` counts toward completion; `PARTIAL` and `WAIVED` never do. A waiver
+  is an explicit resolution of a named gap, not evidence that the gap was
+  filled.
 - **Reason denominators.** `reason_distribution_denominator` equals
   `partial + not_started + unknown_state`. Each reason item carries
   `share_of_incomplete` (relative to that denominator) and `share_of_required`.
@@ -109,6 +116,14 @@ Rules:
   completion denominator.
 - **Unknown state.** A malformed state is counted as `unknown_state`, included
   in the incomplete denominator, and never promoted to complete.
+- **Waived state.** `WAIVED` is a distinct state, not a reason. Waived required
+  rows are excluded from `incomplete_total` and the reason distribution, but
+  remain in `required_total`, are counted in `waived`, and are listed in
+  `waived_obligations` with the waiver id, reviewer, reason, expiry, target,
+  and original state/reason. `coverage_state` is `COMPLETE` only when every
+  required row is `COMPLETE` or `WAIVED`; the deterministic disposition still
+  follows findings, freshness, policy validity, budget breaches, and unresolved
+  findings.
 
 The advisory report renders one concise completeness line under `Coverage`,
 including counts, denominator, incomplete reasons, taxonomy version, and a link
@@ -179,7 +194,43 @@ must be regenerated from real frozen-corpus results before it is used to make a
 quality or adoption judgement. This gate measures completeness only, not review
 quality.
 
-## 4. Wiring and tests
+## 4. Bounded evidence waiver
+
+`review --waiver FILE` accepts a strict `review-evidence-waiver.v1` JSON object.
+No waiver is the default and leaves the behavior above unchanged. A waiver is
+bound to one exact repository and 40-hex base/head pair, a named reviewer, a
+written reason, an issue time, and an expiry. It must contain at least one
+explicit target and cannot contain duplicate or overbroad targets. A target is
+either:
+
+- `id`: the exact planned coverage obligation id (for `check`, its exact check
+  binding or check id is also accepted), or
+- `reason_code`: an exact reason code that classifies into that target kind's
+  family.
+
+Target kinds are `context_gap`, `check`, and `coverage_note`. `context_gap`
+covers rows whose canonical reason is `CONTEXT_GAP_UNRESOLVED`; `check` covers
+`CHECK_EVIDENCE_UNAVAILABLE`/`CHECK_EVIDENCE_INVALID`; `coverage_note` covers
+`COVERAGE_NOTE_MISSING`, `COVERAGE_NOTE_INVALID`, `SPECIALIST_COVERAGE_PARTIAL`,
+and `CONTEXT_NOT_COVERED`. A reason code outside its kind's family, a wildcard,
+both `id` and `reason_code`, or an empty identifier is rejected.
+
+The file is loaded and validated before provider dispatch. An invalid,
+expired, out-of-scope, duplicate, or unknown-target waiver raises
+`review_waiver_rejected` (CLI exit `2`) and writes no result. If a valid waiver
+expires during a long run, it is reported as `EXPIRED_AT_USE` in
+`waivers_not_applied` and is not honored. The exact schema is
+[`schemas/review-evidence-waiver.v1.schema.json`](../schemas/review-evidence-waiver.v1.schema.json).
+
+A waived row in `coverage_ledger` keeps `state: "WAIVED"`, the original state and
+reason in `waived_from_state`/`waived_from_reason_code`, and a `waiver` object
+with the waiver id, reviewer, reason, justification, expiry, target, and source
+file SHA-256. The result also carries `waiver_receipt`, `waivers_applied`, and
+`waivers_not_applied`. The rendered report prints the waived count and one line
+per waived obligation. The deterministic reducer is not consulted for waivers;
+an accepted blocker still yields `REQUEST_CHANGES`.
+
+## 5. Wiring and tests
 
 - Taxonomy, summary, baseline, and comparison live in
   `src/pr_review_harness/completeness.py`.
@@ -193,7 +244,11 @@ quality.
   obligations, reason mapping and unknown fallback, report section presence,
   comparison pass/fail, stale-summary rejection, CLI exit codes, and
   disposition preservation.
+- `tests/test_waiver.py` covers valid exact-gap resolution, default deny,
+  wrong head/repository, expired-at-load and expired-at-use, unknown target
+  before provider dispatch, duplicate/overbroad targets, reason-code scoping,
+  visibility in the result/summary/report, and blocker preservation.
 
 
 
-Gate finding `PARTIAL_OBLIGATION_REGRESSION` fires when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN` (normalized state). Case identity is `case_id`, then top-level `snapshot_id`, then `run_id`; corpus runs should set a stable `case_id`. Baseline schema/taxonomy version must match the current constants.
+Gate finding `PARTIAL_OBLIGATION_REGRESSION` fires when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN` (normalized state). `KNOWN_COMPLETE_REGRESSION` also catches a baseline `COMPLETE` obligation that becomes `WAIVED`, so a waiver cannot silently replace previously complete evidence. Case identity is `case_id`, then top-level `snapshot_id`, then `run_id`; corpus runs should set a stable `case_id`. Baseline schema/taxonomy version must match the current constants.

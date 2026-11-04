@@ -264,6 +264,9 @@ class ReviewResult(TypedDict, total=False):
     advisory_assessment: dict[str, object]
     run_summary: dict[str, object]
     completeness_summary: dict[str, object]
+    waiver_receipt: dict[str, object] | None
+    waivers_applied: list[dict[str, object]]
+    waivers_not_applied: list[dict[str, object]]
     request_hash: str
     result_hash: str
     disposition: str

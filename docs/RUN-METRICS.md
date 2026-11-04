@@ -70,6 +70,7 @@ authoritative.
     "partial": 1,
     "not_started": 1,
     "unknown_state": 0,
+    "waived": 0,
     "incomplete_total": 2,
     "not_applicable": 0,
     "non_required": 0,
@@ -144,7 +145,11 @@ Notes on the fields:
   non-approval disposition (and vice versa for historical snapshots).
 - `obligations` and `completion` come from the completeness summary (RC-3).
   `reason_codes` is the incomplete-obligation distribution with its canonical
-  taxonomy code, obligation count, state split, and shares.
+  taxonomy code, obligation count, state split, and shares. `waived` records
+  obligations explicitly waived by an unexpired, exact-scope waiver; it is a
+  distinct state and is not counted as `complete` or as an incomplete reason.
+  `resolved_ratio` includes waived obligations, while `complete_ratio` does
+  not. Old summaries without `waived` read as `0`.
 - `providers` carries the budget ledger's reserved/settled/retry/tool counts.
   Old results without observation receipts leave settled/retry values `null`.
 - `tokens` is per token field. `reported_sum` is the sum over calls that
@@ -240,6 +245,7 @@ and covered by the fixture tests.
     "partial_obligations": 1,
     "not_started_obligations": 1,
     "unknown_state_obligations": 0,
+    "waived_obligations": 0,
     "incomplete_obligations_total": 2,
     "not_applicable_obligations": 0,
     "complete_ratio_by_obligations": 0.6,

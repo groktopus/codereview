@@ -130,6 +130,9 @@ class CoverageRow(TypedDict, total=False):
     lens: str
     state: str
     reason_code: str
+    waived_from_state: str
+    waived_from_reason_code: str
+    waiver: dict[str, object]
     context_gap_ids: list[str]
     task_ids: list[str]
     evidence_refs: list[str]
@@ -287,6 +290,9 @@ class ReviewResult(TypedDict, total=False):
     advisory_assessment: dict[str, object]
     run_summary: dict[str, object]
     completeness_summary: dict[str, object]
+    waiver_receipt: dict[str, object] | None
+    waivers_applied: list[dict[str, object]]
+    waivers_not_applied: list[dict[str, object]]
     request_hash: str
     result_hash: str
     disposition: str
@@ -375,6 +381,7 @@ class RunState:
     private_capture_request_pins: dict[str, dict] | None
     private_capture_snapshot_pin: dict[str, Any] | None
     private_capture_source_audit_max_bytes: int
+    waiver_path: str | None
 
     # Fields populated by stages, in execution order.
     _: Any
@@ -499,6 +506,9 @@ class RunState:
     finding: dict[str, Any]
     finding_by_candidate: Any
     findings: Any
+    waiver: dict[str, Any] | None
+    waivers_applied: list[dict[str, Any]]
+    waivers_not_applied: list[dict[str, Any]]
     finish_attempt: Any
     followup_evidence: Any
     followup_id: Any
@@ -746,6 +756,7 @@ class RunState:
         private_capture_source_audit_max_bytes: int,
         allow_archived_contracts: bool = False,
         price_table: Any = None,
+        waiver_path: str | None = None,
     ) -> None:
         self.snapshot = snapshot
         self.plan = plan
@@ -767,5 +778,9 @@ class RunState:
         self.private_capture_request_pins = private_capture_request_pins
         self.private_capture_snapshot_pin = private_capture_snapshot_pin
         self.private_capture_source_audit_max_bytes = private_capture_source_audit_max_bytes
+        self.waiver_path = waiver_path
+        self.waiver = None
+        self.waivers_applied = []
+        self.waivers_not_applied = []
         self.contracts = {}
         self.allow_archived_contracts = allow_archived_contracts

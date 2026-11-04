@@ -8,6 +8,10 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Added
+
+- Owner-approved bounded evidence waivers for `pr-review review`: `--waiver FILE` accepts a strict `review-evidence-waiver.v1` object bound to a named reviewer, written reason, exact repository/base/head, and timezone-aware issue/expiry. Exact planned obligations or narrowly scoped reason codes can turn only the matching required `PARTIAL`/`NOT_STARTED`/`UNKNOWN` rows into `WAIVED`; they never become `COMPLETE`, never clear findings or blockers, and are rejected before provider dispatch when invalid, expired, out of scope, duplicated, overbroad, or unknown. Results and reports expose `waiver_receipt`, `waivers_applied`, `waivers_not_applied`, and waived completeness entries with the source file SHA-256. The completeness taxonomy and run metrics add a distinct `WAIVED` count; `complete_ratio` still counts only complete evidence. The feature records a scoped, one-time 565-line source allowance in [ADR 0011](docs/adr/0011-bounded-evidence-waiver.md); the general feature budget is not renewed. See [review completeness](docs/REVIEW-COMPLETENESS.md#4-bounded-evidence-waiver).
+
 ## [0.1.2] - 2026-11-04
 
 ### Added

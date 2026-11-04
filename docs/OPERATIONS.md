@@ -22,6 +22,12 @@ pr-review review --repo /tmp/target.git --base BASE_SHA --head HEAD_SHA \
 
 Normal `review` and `recent` commands remain read-only; `--effect-policy PUBLISH_REVIEW` is rejected on those paths. The separate `publish` command is also read-only: it validates and previews a canonical sealed PR review but does not submit it. Live publication remains unavailable. `INCOMPLETE`, `PARTIAL`, `UNKNOWN`, or `STALE` is not a passing review.
 
+### Bounded evidence waiver
+
+`review --waiver FILE` is the only way to accept a specific missing-evidence obligation without weakening every gap. It is unavailable on `recent`, `publish`, and `stats`, and cannot be combined with `--resume`. The waiver is loaded and validated before provider dispatch; schema, reviewer, reason length, exact repository, exact 40-hex base/head, issue/expiry, target, duplicate, and scope failures return `review_waiver_rejected` (exit 2) and write no result.
+
+No waiver means the existing fail-closed behavior. A valid, unexpired waiver changes only an exact required `PARTIAL`/`NOT_STARTED`/`UNKNOWN` obligation to `WAIVED`; it does not make it `COMPLETE`, remove it from the completeness denominator, or edit findings. The result records `waiver_receipt`, `waivers_applied`, `waivers_not_applied`, and `completeness_summary.waived_obligations`; the report prints each waived obligation. A waiver that expires during the run is recorded as `EXPIRED_AT_USE` and is not honored. See [review completeness](REVIEW-COMPLETENESS.md#4-bounded-evidence-waiver) and [ADR 0011](adr/0011-bounded-evidence-waiver.md).
+
 ### Historical check evidence
 
 For a deliberately historical run, `review --historical-checks-json PATH` accepts a captured check-run document only with explicit full `--base` and `--head` revisions and a trusted profile containing the canonical `repository`. The document must bind the same repository, PR number, and head; if it includes a base SHA, that must match the explicit base too. This mode is mutually exclusive with `--checks-json`, `--github-pr`, and GitHub event inputs. It reads the supplied artifact locally and does not query GitHub for current checks or PR freshness. Results are labeled `HISTORICAL_SNAPSHOT`; the captured checks describe the capture, not current status.

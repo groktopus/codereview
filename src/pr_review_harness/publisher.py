@@ -250,7 +250,7 @@ def _validate_result(result: dict) -> None:
         or not isinstance(result.get("task_results"), dict)
         or not isinstance(result.get("ledger"), dict)
         or not isinstance(result.get("evidence_index"), dict)
-        or result.get("coverage_state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED"}
+        or result.get("coverage_state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED", "WAIVED"}
     ):
         raise PublicationRejected("review result contract is invalid")
     if result.get("freshness") != "CURRENT":
@@ -273,11 +273,23 @@ def _validate_result(result: dict) -> None:
     # Empty-diff publishing needs a separately versioned immutable authority.
     if not required:
         raise PublicationRejected("review has no required coverage obligations")
-    if any(entry.get("state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED"} for entry in required):
+    if any(entry.get("state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED", "WAIVED"} for entry in required):
         raise PublicationRejected("review coverage ledger is invalid")
+    if any(
+        entry["state"] == "WAIVED"
+        and (
+            not isinstance(entry.get("waiver"), dict)
+            or not isinstance(entry["waiver"].get("waiver_id"), str)
+            or not entry["waiver"].get("waiver_id")
+            or not isinstance(entry["waiver"].get("reviewer"), str)
+            or not entry["waiver"].get("reviewer")
+        )
+        for entry in required
+    ):
+        raise PublicationRejected("review waiver metadata is invalid")
     aggregate = (
         "COMPLETE"
-        if all(entry["state"] == "COMPLETE" for entry in required)
+        if all(entry["state"] in {"COMPLETE", "WAIVED"} for entry in required)
         else "NOT_STARTED"
         if not any(entry["state"] != "NOT_STARTED" for entry in required)
         else "PARTIAL"

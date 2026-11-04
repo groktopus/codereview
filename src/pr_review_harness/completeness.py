@@ -41,8 +41,9 @@ COMPLETE = "COMPLETE"
 PARTIAL = "PARTIAL"
 NOT_STARTED = "NOT_STARTED"
 UNKNOWN_STATE = "UNKNOWN"
+WAIVED = "WAIVED"
 
-_STATES = (COMPLETE, PARTIAL, NOT_STARTED, UNKNOWN_STATE)
+_STATES = (COMPLETE, PARTIAL, NOT_STARTED, UNKNOWN_STATE, WAIVED)
 
 # Canonical reason definitions.  ``code`` is the stable machine value; the
 # descriptions are the human contract.  ``legacy_codes`` contains every
@@ -485,6 +486,21 @@ def _share(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator, 6)
 
 
+def _waived_obligation(row: Mapping[str, Any]) -> dict[str, Any]:
+    waiver = row.get("waiver")
+    waiver = waiver if isinstance(waiver, Mapping) else {}
+    return {
+        "obligation_id": row.get("obligation_id"),
+        "waiver_id": waiver.get("waiver_id"),
+        "reviewer": waiver.get("reviewer"),
+        "reason": waiver.get("reason"),
+        "expires_at": waiver.get("expires_at"),
+        "target": waiver.get("target"),
+        "waived_from_state": row.get("waived_from_state"),
+        "waived_from_reason_code": row.get("waived_from_reason_code"),
+    }
+
+
 def build_completeness_summary(
     coverage_rows: Iterable[Mapping[str, Any]],
     not_applicable: Iterable[Mapping[str, Any]] | None = None,
@@ -506,11 +522,12 @@ def build_completeness_summary(
 
     required_total = len(required_rows)
     incomplete_total = counts[PARTIAL] + counts[NOT_STARTED] + counts[UNKNOWN_STATE]
+    waived_rows = [row for row in required_rows if _coverage_state(row) == WAIVED]
 
     reasons: dict[str, dict[str, Any]] = {}
     for row in required_rows:
         state = _coverage_state(row)
-        if state == COMPLETE:
+        if state in {COMPLETE, WAIVED}:
             continue
         reported = row.get("reason_code")
         canonical = classify_reason(reported)
@@ -520,7 +537,7 @@ def build_completeness_summary(
                 "canonical_code": canonical,
                 "description": _DEFINITION_BY_CODE.get(canonical, {}).get("description", ""),
                 "obligations": 0,
-                "states": {state_name: 0 for state_name in _STATES},
+                "states": {state_name: 0 for state_name in (COMPLETE, PARTIAL, NOT_STARTED, UNKNOWN_STATE)},
                 "legacy_codes": {},
             },
         )
@@ -557,12 +574,14 @@ def build_completeness_summary(
         "partial": counts[PARTIAL],
         "not_started": counts[NOT_STARTED],
         "unknown_state": counts[UNKNOWN_STATE],
+        "waived": counts[WAIVED],
+        "waived_obligations": [_waived_obligation(row) for row in waived_rows],
         "not_applicable": len(not_applicable_rows),
         "non_required": ledger_total - required_total,
         "incomplete_total": incomplete_total,
         "zero_obligations": required_total == 0,
         "complete_ratio": _share(counts[COMPLETE], required_total),
-        "resolved_ratio": _share(counts[COMPLETE] + counts[PARTIAL], required_total),
+        "resolved_ratio": _share(counts[COMPLETE] + counts[PARTIAL] + counts[WAIVED], required_total),
         "reason_distribution": distribution,
         "reason_distribution_denominator": incomplete_total,
         "unclassified_obligations": sum(
@@ -616,6 +635,10 @@ def summary_is_consistent(result: Mapping[str, Any], summary: Mapping[str, Any])
         "non_required",
     )
     if not all(stored.get(key) == summary.get(key) for key in keys):
+        return False
+    if stored.get("waived", 0) != summary.get("waived", 0):
+        return False
+    if stored.get("waived_obligations", []) != summary.get("waived_obligations", []):
         return False
     stored_distribution = stored.get("reason_distribution")
     if not isinstance(stored_distribution, list):
@@ -672,6 +695,7 @@ def build_baseline(
             "partial": summary["partial"],
             "not_started": summary["not_started"],
             "unknown_state": summary["unknown_state"],
+            "waived": summary["waived"],
             "not_applicable": summary["not_applicable"],
             "zero_obligations": summary["zero_obligations"],
             "complete_ratio": summary["complete_ratio"],
@@ -925,7 +949,8 @@ def render_summary_text(summary: Mapping[str, Any]) -> str:
     return (
         f"Completeness ({taxonomy}): {summary.get('complete')}/{required} required complete "
         f"({percent}); {summary.get('partial')} partial, {summary.get('not_started')} not started, "
-        f"{summary.get('unknown_state')} unknown; {summary.get('not_applicable')} not applicable; "
+        f"{summary.get('unknown_state')} unknown, {summary.get('waived')} waived; "
+        f"{summary.get('not_applicable')} not applicable; "
         f"incomplete reasons ({summary.get('reason_distribution_denominator')}/{required} required): {reasons}."
     )
 

@@ -62,6 +62,34 @@ This addendum records a measurement change required by VD-4. The owner approved
 the one-time formatting allowance and the observation-revision refresh; the
 allowance does not relabel the CA-2 result.
 
+### Bounded-evidence-waiver feature allowance (2026-11-04)
+
+The owner-approved bounded evidence waiver in [ADR 0011](0011-bounded-evidence-waiver.md)
+adds a new strict waiver contract, preflight/application logic, result receipts,
+completeness state, report rendering, publisher acceptance, and tests. It adds
+**565 physical source lines**, taking the measured tree from 31,725 to 32,290
+lines (−20.64%). The owner approved a one-time **565-line allowance**, exactly
+matching the measured feature cost. The new measurement exceeds the prior
+31,869 ceiling by 421 lines.
+
+Because ADR 0001 requires a new decision record for further growth, ADR 0011
+records a separate, one-time `waiver_feature_allowance_lines: 565` in
+`docs/public-surface.json`. It is scoped to this feature, is not a renewal or
+increase of the 500-line general feature budget, and does not relabel the CA-2
+result. The gate becomes:
+
+```
+current_src_lines <= base_src_lines * (1 - required_reduction)
+                     + feature_budget
+                     + formatting_normalization_allowance
+                     + waiver_feature_allowance
+```
+
+i.e. 32,434 lines. The recorded measurement is updated to the honest live count
+(32,290), and `tests/test_surface_consolidation.py` checks all four terms. The
+remaining headroom after this feature is 144 physical lines against that
+one-time ceiling; it is not permission for unrelated growth.
+
 ### Observation revision refresh
 
 The formatting commit is behavior-preserving, but it rewrites physical bytes in
@@ -78,9 +106,9 @@ commit; the documentation-truth job checks its freshness directly.
 
 - OE-2 can ship without deleting working code or falsifying the CA-2 result.
 - The original 25% outcome remains recorded and is not relabeled as met.
-- Remaining headroom is visible (144 lines at 31,725 against the 31,869
-  effective ceiling); further features require a new decision record or real
-  reduction elsewhere.
+- Remaining headroom is visible (144 lines at 32,290 against the 32,434
+  effective ceiling after the bounded-waiver allowance); further features
+  require a new decision record or real reduction elsewhere.
 - The budget is one-time for this migration period, not a permanent growth
   allowance.
 

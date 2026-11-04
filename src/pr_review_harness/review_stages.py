@@ -955,6 +955,21 @@ def preflight_review(state: RunState) -> None:
     if not isinstance(state.tasks, list) or not isinstance(state.obligations, list):
         raise EnginePreflightError("invalid_review_request")
     state.obligations = list(state.obligations)
+    if state.waiver_path is not None:
+        if state.resume:
+            raise EnginePreflightError("review_waiver_rejected", "--waiver cannot be combined with --resume")
+        try:
+            from .waiver import load_waiver, validate_waiver_targets
+
+            state.waiver = load_waiver(
+                state.waiver_path,
+                repository=state.snapshot.get("repository"),
+                base_sha=state.snapshot.get("base_sha"),
+                head_sha=state.snapshot.get("head_sha"),
+            )
+            validate_waiver_targets(state.waiver, state.plan)
+        except ValueError as exc:
+            raise EnginePreflightError("review_waiver_rejected", str(exc)) from None
     try:
         state.input_ceiling = effective_task_input_ceiling(state.limits, state.provider)
         state.primary_tasks, state.split_skips = prepare_plan_tasks(
@@ -3192,6 +3207,22 @@ def assess_claims(state: RunState) -> None:
                 state.checkpoint()
 
 
+def _finalize_coverage_state(state: RunState) -> None:
+    from .waiver import apply_waivers
+
+    state.waivers_applied, state.waivers_not_applied = [], []
+    if state.waiver is not None:
+        state.waivers_applied, state.waivers_not_applied = apply_waivers(state.coverage, state.waiver)
+    state.required_cov = [c for c in state.coverage if c.get("required", True)]
+    state.coverage_state = (
+        "COMPLETE"
+        if all(c["state"] in {"COMPLETE", "WAIVED"} for c in state.required_cov)
+        else "NOT_STARTED"
+        if not any(c["state"] != "NOT_STARTED" for c in state.required_cov)
+        else "PARTIAL"
+    )
+
+
 def reduce_coverage(state: RunState) -> None:
     """Reconcile findings, compute coverage and freshness, and preserve blockers.
 
@@ -3565,14 +3596,7 @@ def reduce_coverage(state: RunState) -> None:
                 "updated_at": _now(),
             }
         )
-    state.required_cov = [c for c in state.coverage if c.get("required", True)]
-    state.coverage_state = (
-        "COMPLETE"
-        if all(c["state"] == "COMPLETE" for c in state.required_cov)
-        else "NOT_STARTED"
-        if not any(c["state"] != "NOT_STARTED" for c in state.required_cov)
-        else "PARTIAL"
-    )
+    _finalize_coverage_state(state)
     state.freshness = "UNKNOWN"
     state.freshness_details = {"expected_head_sha": state.snapshot.get("head_sha"), "observed_head_sha": None}
     if callable(state.freshness_check):
@@ -3600,6 +3624,28 @@ def install_report_notes(state: RunState) -> None:
     state.report_notes = functools.partial(report_notes_stage, state)
 
 
+def _accepted_improvements(state: RunState) -> list[dict[str, Any]]:
+    return [
+        finding
+        for finding in state.findings
+        if finding.get("status") == "ACCEPTED" and finding.get("blocking_class") == "NON_BLOCKING"
+    ]
+
+
+def _waiver_result_fields(state: RunState) -> dict[str, Any]:
+    from .waiver import build_waiver_receipt
+
+    return {
+        "waiver_receipt": build_waiver_receipt(
+            state.waiver,
+            state.waivers_applied,
+            state.waivers_not_applied,
+        ),
+        "waivers_applied": state.waivers_applied,
+        "waivers_not_applied": state.waivers_not_applied,
+    }
+
+
 def build_and_persist_result(state: RunState) -> ReviewResult:
     """Assemble result, disposition, and advisory assessment, then persist.
 
@@ -3622,9 +3668,7 @@ def build_and_persist_result(state: RunState) -> ReviewResult:
         time,
     )
 
-    state.accepted_improvements = [
-        f for f in state.findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "NON_BLOCKING"
-    ]
+    state.accepted_improvements = _accepted_improvements(state)
     state.report_sections = {
         "blockers": [
             {
@@ -3695,6 +3739,7 @@ def build_and_persist_result(state: RunState) -> ReviewResult:
             state.coverage,
             state.plan.get("not_applicable", []),
         ),
+        **_waiver_result_fields(state),
         "report_sections": state.report_sections,
         "created_at": state.ledger.get("created_at", _now()),
         "completed_at": _now(),

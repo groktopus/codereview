@@ -113,6 +113,7 @@
         "partial": { "$ref": "#/$defs/count" },
         "not_started": { "$ref": "#/$defs/count" },
         "unknown_state": { "$ref": "#/$defs/count" },
+        "waived": { "$ref": "#/$defs/count" },
         "incomplete_total": { "$ref": "#/$defs/count" },
         "not_applicable": { "$ref": "#/$defs/count" },
         "non_required": { "$ref": "#/$defs/count" },
