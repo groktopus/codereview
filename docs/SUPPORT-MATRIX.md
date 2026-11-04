@@ -11,10 +11,10 @@ replacement, or production-readiness claim; see [`STATUS.md`](STATUS.md) and
 
 | Python | Support | What is verified |
 |---|---|---|
-| 3.11 | Supported, minimum | Full pytest suite + Ruff + mypy on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
-| 3.12 | Supported | Full pytest suite + Ruff on Linux |
-| 3.13 | Supported | Full pytest suite + Ruff on Linux; build, documentation, and supply-chain jobs |
-| 3.14 | Supported | Full pytest suite + Ruff on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
+| 3.11 | Supported, minimum | Non-compatibility pytest suite + Ruff + mypy on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
+| 3.12 | Supported | Non-compatibility pytest suite + Ruff on Linux |
+| 3.13 | Supported | Non-compatibility pytest suite + Ruff on Linux; compatibility suite; build, documentation, and supply-chain jobs |
+| 3.14 | Supported | Non-compatibility pytest suite + Ruff on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
 
 Python 3.10 and earlier are not supported. Free-threaded builds
 (`python3.14t`) and PyPy are not tested and are not supported.
@@ -143,13 +143,15 @@ is enabled. It runs on every pull request, reviews dependency manifest changes,
 and fails on high or critical known vulnerabilities. It never posts a comment
 (`comment-summary-in-pr: never`) and keeps `contents: read`.
 
-This repository has no runtime dependencies. The graph's parsing of `uv.lock`
-revision 5 / `requirements-dev.lock` was exercised by the activating pull
-request (#314), where `Dependency review` passed.
+This repository has no runtime dependencies. The dependency-graph SBOM endpoint
+reports 198 packages, including all 26 `requirements-dev.lock` pins at their
+exact locked versions, so the graph parses the locked set. `Dependency review`
+also ran and passed on PRs #314 and #321.
 
-If the graph or variable is later disabled, the `dependency-review-guidance` job
-emits a warning annotation and step summary rather than failing silently. The
-activation commands remain:
+If `DEPENDENCY_GRAPH_ENABLED` is unset while the graph is enabled, the job skips
+and `dependency-review-guidance` emits a warning annotation and step summary. If
+the variable stays `true` but the graph is disabled, the action fails rather than
+skipping; the graph must be restored. The activation commands remain:
 
 1. Enable **Settings → Code security → Dependency graph**.
 2. `gh variable set DEPENDENCY_GRAPH_ENABLED --repo groktopus/codereview --body true`.
