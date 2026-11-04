@@ -180,4 +180,14 @@ Do not create tags, GitHub Releases, or version bumps outside the
 
 ## Historical compatibility pins (VD-3)
 
-Historical evidence is pinned under `tests/fixtures/frozen-runtime-7d550b6` and checked with `pytest -m compatibility`; CI runs that suite as a separate job. These pins are immutable evidence: do not edit a fixture or the manifest to make a current test pass. A legitimate historical migration requires a reviewed change that updates the fixture set, tree pins, verifier literals, and any plan artifacts together. The refresh tooling is tracked separately and is not part of this repository's supported workflow yet.
+Historical evidence is pinned under `tests/fixtures/frozen-runtime-7d550b6` and checked with `pytest -m compatibility`; CI runs that suite as a separate job. These pins are immutable evidence: do not edit a fixture or the manifest to make a current test pass. A legitimate historical migration requires a reviewed change that updates the fixture set, tree pins, verifier literals, and any plan artifacts together.
+
+Refresh the file pins with [`scripts/refresh_compatibility_pins.py`](scripts/refresh_compatibility_pins.py). It is dry-run by default, performs no network access, and prints only sanitized names and digests:
+
+```sh
+python scripts/refresh_compatibility_pins.py \
+  --reason "Reviewed migration of the historical fixture set" \
+  --source-revision <40-hex-commit>
+```
+
+Review the reported old and new hashes, then re-run with `--confirm` to rewrite [`pins.json`](tests/fixtures/frozen-runtime-7d550b6/pins.json) atomically. The tool appends the changed file's `name`, `old_sha256`, `new_sha256`, `timestamp`, `reason`, and `source_revision` to `refresh_history` and updates `pins` plus `pin_revisions` only for changed files; it preserves the schema and historical revision. It refuses to run without a reason of at least 10 characters, a 40-hex source revision, and at least one changed pin, and it also refuses missing files or an unchanged pin set. Pins require reviewed provenance: never run `--confirm` merely to make a compatibility test pass.
