@@ -8,7 +8,7 @@ changes.
 
 Source snapshot: [`backlog-open-issues.json`](backlog-open-issues.json), captured
 with `gh issue list --repo groktopus/codereview --state open` at branch base
-`5becb81`. The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
+`0b0aca2`. The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
 and exit criteria are in [issues/README.md](issues/README.md).
 
 ## Why this exists
@@ -36,7 +36,7 @@ its state label; the closure record is the evidence.
 | `awaiting-evidence` | Implementation merged, but one or more exit criteria still lack observable evidence. | `state:awaiting-evidence` | The evidence is linked and checked (`done`), or the remaining work returns to `ready`. |
 | `done` | Closed because the exit criteria are met and linked. | none (closed) | Reopen with new evidence if the claim regresses. |
 
-`triage` is not a resting state for this snapshot: all 12 issues have a
+`triage` is not a resting state for this snapshot: all 10 issues have a
 state below. Use it for new intake until the owner has read the issue.
 
 ## Labels
