@@ -11,11 +11,11 @@ keeping that document as the original evidence snapshot.
 | Dimension | Grade | Current evidence | What still blocks A− |
 |---|---|---|---|
 | Evidence discipline | **A** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, frozen historical fixtures, exact-byte pins. | None material. |
-| Effect safety | **A−** | Default read-only, typed effect boundaries, 11-test publication fault matrix, publication receipts, fail-closed unknown states, least-privilege App token, and one exercised live canary ([receipt](evidence/canary-review-5763357701.json), review 5763357701 on SlopSearX#1097). | None material; the canary adapter is intentionally narrow and not general publication. |
+| Effect safety | **A−** | Default read-only, typed effect boundaries, 11-test publication fault matrix, publication receipts, fail-closed unknown states, least-privilege App token, and one exercised live canary through the narrow one-shot adapter ([receipt](evidence/canary-review-5763357701.json), review 5763357701 on SlopSearX#1097). | The general protected runtime remains intentionally unexercised; the canary proves the external review effect, not general publication. |
 | Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | No A− blocker; A would require reducing the 35 functions over 150 lines and tightening module cohesion. |
 | Test depth | **B+** | 3,600+ tests, 88.48% coverage (CI run 41438939529 at PR #302), compatibility suite, fault/invariant suites. | Mutation score is **not established**: the exploratory probe was discarded and no retained report, mutant count, killed count, or survivor triage exists (#252). |
 | Review completeness | **C−/D+** | Canonical `review-completeness-taxonomy.v1`, per-run summary, fixture baseline, and an active seeded-regression CI gate exist; frozen corpus exists. | No frozen-corpus baseline from real review runs (#241); fixture-only gate does not prove corpus completeness. |
-| Review quality evidence | **F** | Frozen corpus v1 (41 cases), synthetic labeling rubric (ADR 0010), retained six-packet synthetic pilot, scorecard/gate infrastructure, and pilot harness predictions for three cases (two complete). | No accepted six-case baseline; large PRs still return bounded `INCOMPLETE` on missing evidence/coverage (#243/#244). Quality remains unmeasured as a complete baseline. |
+| Review quality evidence | **F** | Frozen corpus v1 (41 cases), synthetic labeling rubric (ADR 0010), retained six-packet synthetic pilot, and scorecard/gate infrastructure. | No checked-in predictions or accepted six-case baseline; exploratory runs are not retained, and large PRs still return bounded `INCOMPLETE` on missing evidence/coverage (#243/#244). |
 | Architecture | **C+/B−** | Typed core boundaries, contract registry, staged pipeline, no runtime dependencies. | Oversized functions remain; `run_review` orchestration is still concentrated; module ownership is documented but not enforced by required review. |
 | Operational readiness | **B−/B** | Hash-locked dependencies, install matrix, public API/support matrix, SBOM/provenance tooling, release workflow, active dependency review. | `v0.1.0` and attested `v0.1.1` releases exist with wheel/sdist, SBOM, checksums, and reproducibility reports; dependency review is active (#262 closed). |
 | Documentation | **B+** | 180+ indexed documents, 1,200+ links with 0 broken, generated status evidence, ADR index, docs-truth checks. | Owner-reviewed status remains intentionally stale; some operational evidence is CI-defined but unexecuted. |
@@ -42,9 +42,9 @@ publication fault matrix passes and one live canary was exercised and verified
 (review 5763357701 on `magnus919/SlopSearX#1097`, reproduced in the retained
 receipt). The remaining gaps are:
 
-1. **Quality measurement (QM-2/QM-3).** The retained synthetic pilot and three
-   pilot predictions exist, but there is no complete six-case baseline and no
-   accepted scorecard baseline. Large PRs still return bounded `INCOMPLETE`.
+1. **Quality measurement (QM-2/QM-3).** The retained synthetic pilot exists, but
+   there is no checked-in prediction set, complete six-case baseline, or accepted
+   scorecard baseline. Large PRs still return bounded `INCOMPLETE`.
 2. **Completeness baseline (RC-1/RC-3).** The taxonomy, summary, and fixture
    gate are active; a frozen-corpus baseline from real review runs is missing.
 3. **Mutation/static depth (VD-2/VD-4).** Mutation score is **not established**;
@@ -55,6 +55,9 @@ receipt). The remaining gaps are:
    evidence is intentionally stale.
 5. **Governance (C+/B−).** Branch protection is active, but it has not been
    exercised by a non-admin merge; bus factor remains one.
+6. **Operational readiness (B−/B).** Releases, locks, install matrix, and
+   dependency review are active, but there is no general production deployment,
+   on-call/runbook exercise, or non-canary publication operation.
 
 ## Bottom line
 
@@ -62,6 +65,7 @@ The harness is materially stronger than the 2026-11-01 snapshot. Evidence
 discipline, the deterministic control plane, and effect safety meet A−. It is
 not an A− codebase overall: quality remains unmeasured as a complete baseline,
 completeness lacks a frozen-corpus baseline, mutation and typing depth are not
-established, and architecture/governance have structural gaps. The first release
+established, and architecture, governance, and operational readiness have
+structural gaps. The first release
 is unsigned by design (`v0.1.1` is attested), and branch protection has not been
 exercised by a non-admin merge.

@@ -57,7 +57,7 @@ may be a worker, but the assignee remains the accountable human.
 
 ## Owners
 
-- Accountable owner for all 12 open issues: `@magnus919`.
+- Accountable owner for all 10 open issues: `@magnus919`.
 - An implementing agent, when one is used, is a worker on a branch under the
   owner's direction. It is not the assignee and cannot close the issue.
 - If the owner is unavailable, do not reassign to an agent or to a placeholder.
@@ -106,7 +106,7 @@ The checker validates that the table below stays consistent with the open-issue
 snapshot and the filed-issue map. It cannot validate the truth of a closure
 record; a reviewer must do that.
 
-## Mapping for the 12 open issues
+## Mapping for the 10 open issues
 
 Existing labels stay. "Labels to add" is the applied state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
@@ -125,12 +125,10 @@ the concrete move, not a schedule.
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |
 | #253 | VD-3 | [VD-3] Isolate historical pins in a compatibility suite | `@magnus919` | `ready` | `state:ready` | Dependency #248 is closed. The compatibility marker exists; the refresh tool and manifest work remain. |
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |
-| #258 | SE-4 | [SE-4] Prove effect-boundary behavior with a fault matrix and canary | `@magnus919` | `ready` | `state:ready` | Dependencies #255, #256, #247 are closed. Build the parameterized matrix; live publication stays disabled. |
-| #262 | RS-4 | [RS-4] Lock dependencies and publish the package contract | `@magnus919` | `ready` | `state:ready` | Dependency #259 is closed. The package has no runtime dependencies; lock and publish the contract deliberately. |
 <!-- backlog-table:end -->
 
-Summary: **8 `ready`, 4 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
-12 open issues, all with one owner and one state.
+Summary: **6 `ready`, 4 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
+10 open issues, all with one owner and one state.
 
 ## Board and issue-template configuration
 
