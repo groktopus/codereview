@@ -40,6 +40,7 @@ STAGE_NAMES = [
     "quote_monetary_budget",
     "install_attempt_lifecycle",
     "dispatch_tasks",
+    "repair_coverage_notes",
     "prepare_followups",
     "install_followup_runner",
     "run_followups",

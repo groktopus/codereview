@@ -879,6 +879,83 @@ class ProviderBoundaryTests(unittest.TestCase):
         assert "specific_strengths" in schema["required"] and "future_guidance" in schema["required"]
         assert result["usage"]["total_tokens"] == 38
 
+    def test_coverage_repair_schema_binds_units_and_rejects_duplicates_without_dispatch(self):
+        provider = self._oai()
+        request = {
+            "contract_version": "coverage-repair.v1",
+            "requested_units": [
+                {
+                    "unit_id": "u1",
+                    "evidence_ids": ["ev-1"],
+                    "prior_state": None,
+                    "prior_reason_code": None,
+                },
+                {
+                    "unit_id": "u2",
+                    "evidence_ids": ["ev-2"],
+                    "prior_state": "PARTIAL",
+                    "prior_reason_code": "NO_LOCAL_EVIDENCE",
+                },
+            ],
+        }
+        task = {"task_id": "t-repair", "unit_ids": ["u1", "u2"], "coverage_repair": request}
+        evidence = [
+            {"evidence_id": "ev-1", "content": "unit one source"},
+            {"evidence_id": "ev-2", "content": "unit two source"},
+        ]
+        limits = self._limits()
+        body = provider.serialize_repair_request(task, evidence, limits)
+        self.assertEqual(provider.repair_input_bytes(task, evidence, limits), len(body))
+        schema = json.loads(body)["response_format"]["json_schema"]["schema"]
+        notes_schema = schema["properties"]["coverage_notes"]
+        self.assertEqual(notes_schema["minItems"], 2)
+        self.assertEqual(notes_schema["maxItems"], 2)
+        self.assertEqual(notes_schema["items"]["properties"]["unit_id"]["enum"], ["u1", "u2"])
+        estimate = provider.estimate_call("SPECIALIST_COVERAGE_REPAIR", task, evidence, limits)
+        self.assertEqual(estimate["contract_version"], "coverage-repair.v1")
+        self.assertEqual(estimate["provider_calls"], 1)
+
+        valid = {
+            "contract_version": "coverage-repair.v1",
+            "coverage_notes": [
+                {
+                    "unit_id": "u1",
+                    "state": "COVERED",
+                    "reason_code": "STATIC_REVIEW",
+                    "evidence_refs": ["ev-1"],
+                    "coverage_basis": "STATIC_REVIEW",
+                },
+                {
+                    "unit_id": "u2",
+                    "state": "PARTIAL",
+                    "reason_code": "NO_LOCAL_EVIDENCE",
+                    "evidence_refs": ["ev-2"],
+                    "coverage_basis": "STATIC_REVIEW",
+                },
+            ],
+        }
+        with patch.object(provider, "_call", return_value=(valid, {"provenance": {}})):
+            result = provider.repair_coverage(task, evidence, limits)
+        self.assertEqual([note["unit_id"] for note in result["payload"]["coverage_notes"]], ["u1", "u2"])
+
+        duplicate = {
+            "contract_version": "coverage-repair.v1",
+            "coverage_notes": [valid["coverage_notes"][0], valid["coverage_notes"][0]],
+        }
+        with patch.object(provider, "_call", return_value=(duplicate, {"provenance": {}})):
+            with self.assertRaisesRegex(ProviderError, "coverage_repair_duplicate_unit"):
+                provider.repair_coverage(task, evidence, limits)
+        cross_unit = {
+            "contract_version": "coverage-repair.v1",
+            "coverage_notes": [
+                {**valid["coverage_notes"][0], "evidence_refs": ["ev-2"]},
+                valid["coverage_notes"][1],
+            ],
+        }
+        with patch.object(provider, "_call", return_value=(cross_unit, {"provenance": {}})):
+            with self.assertRaisesRegex(ProviderError, "coverage_repair_cross_unit_evidence"):
+                provider.repair_coverage(task, evidence, limits)
+
     def test_estimate_call_exposes_finite_limits_and_separates_estimate_from_bound(self):
         provider = self._oai(
             input_price_per_million=0.1,

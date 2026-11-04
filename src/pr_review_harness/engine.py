@@ -65,6 +65,7 @@ from .review_stages import (
     prepare_followups,
     quote_monetary_budget,
     reduce_coverage,
+    repair_coverage_notes,
     resume_completed_review,
     run_followups,
 )
@@ -491,6 +492,7 @@ def _core_contract_hash() -> str:
         "planner.py",
         "providers.py",
         "contracts.py",
+        "coverage_repair.py",
         "reconcile.py",
         "budget.py",
         "claim_reconciliation.py",
@@ -1537,6 +1539,7 @@ def run_review(
     quote_monetary_budget(state)
     install_attempt_lifecycle(state)
     dispatch_tasks(state)
+    repair_coverage_notes(state)
     prepare_followups(state)
     install_followup_runner(state)
     run_followups(state)

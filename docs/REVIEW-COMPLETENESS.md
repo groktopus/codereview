@@ -34,7 +34,7 @@ defined once in `src/pr_review_harness/completeness.py` and exposed by
 | `PROVIDER_UNAVAILABLE` | No configured provider was available to perform the required obligation. | `PROVIDER_UNAVAILABLE`, `NOT_SUPPORTED`, `NOT_CONFIGURED` |
 | `BUDGET_EXHAUSTED` | A bounded budget prevented the required obligation from running or completing. | `RUN_CONTEXT_BUDGET_EXHAUSTED`, `PROVIDER_CALL_BUDGET_EXHAUSTED`, `CONTEXT_BYTE_BUDGET_EXHAUSTED`, `CONTEXT_RETRIEVAL_BUDGET_EXHAUSTED`, `FOLLOWUP_TASK_BUDGET_EXHAUSTED`, `MONETARY_BUDGET_EXHAUSTED`, `MONETARY_BOUND_UNAVAILABLE`, `REQUIRED_CLAIM_ASSESSMENT_CAP_RESERVED`, `REQUIRED_CLAIM_ASSESSMENT_DEADLINE_RESERVED`, `CLAIM_ASSESSMENT_BUDGET_UNAVAILABLE`, `CLAIM_ASSESSMENT_CAP_EXHAUSTED`, `context_budget_exhausted` |
 | `DEADLINE_EXHAUSTED` | The run or call deadline expired before the required obligation completed. | `DEADLINE_EXHAUSTED`, `DEADLINE_EXCEEDED` |
-| `TASK_FAILED` | A dispatch, worker, transport, or provider failure ended the required task without a usable result. | `WORKER_START_FAILED`, `WORKER_CANCELLED`, `WORKER_EXITED_WITHOUT_RESULT`, `INVALID_PROVIDER_RESULT`, `INVALID_PROVIDER_ESTIMATE`, `RESPONSE_SCHEMA_INVALID`, `INTERRUPTED_UNKNOWN`, `TIMED_OUT`, `SHADOW_DISPATCH_UNCERTAIN`, `PRIOR_SHADOW_ATTEMPT_UNSETTLED`, `PRIOR_SHADOW_RESERVATION_EXISTS`, `TRANSPORT_FAILURE`, `HTTP_ERROR_RESPONSE`, `request_exceeds_limit` |
+| `TASK_FAILED` | A dispatch, worker, transport, or provider failure ended the required task without a usable result. | `WORKER_START_FAILED`, `WORKER_CANCELLED`, `WORKER_EXITED_WITHOUT_RESULT`, `INVALID_PROVIDER_RESULT`, `INVALID_PROVIDER_ESTIMATE`, `RESPONSE_SCHEMA_INVALID`, `INTERRUPTED_UNKNOWN`, `TIMED_OUT`, `SHADOW_DISPATCH_UNCERTAIN`, `PRIOR_SHADOW_ATTEMPT_UNSETTLED`, `PRIOR_SHADOW_RESERVATION_EXISTS`, `TRANSPORT_FAILURE`, `HTTP_ERROR_RESPONSE`, `request_exceeds_limit`, `invalid_coverage_repair_request` |
 | `CLAIM_RECONCILIATION_INCOMPLETE` | A required typed claim assessment was unavailable, invalid, mismatched, or incomplete, so reconciliation could not complete. | `PRIMARY_CANDIDATE_INVALID`, `PRIMARY_ASSESSMENT_UNAVAILABLE`, `CLAIM_ASSESSMENT_INCOMPLETE`, `PRIMARY_ASSESSMENT_BINDING_MISMATCH`, `CLAIM_ASSESSMENT_INVALID`, `CLAIM_ASSESSMENT_DIMENSION_UNAVAILABLE`, `RECONCILIATION_QUALIFIER_UNSATISFIED`, `CLAIM_ASSESSMENT_DISAGREES` |
 | `MISSING_RESULT` | No result row was produced for the required obligation. | `MISSING_RESULT`, `MISSING` |
 | `MISSING_REASON` | The obligation is incomplete but no reason code was recorded. | none |
@@ -194,6 +194,76 @@ quality.
   comparison pass/fail, stale-summary rejection, CLI exit codes, and
   disposition preservation.
 
+## 5. Bounded coverage-note repair pass
 
+`review_stages.repair_coverage_notes` runs after specialist report parsing and
+before follow-up binding. It is a bounded repair path, not a weaker validation
+rule: the original notes remain authoritative unless one complete repair
+response validates against the exact request.
+
+Candidate selection is deterministic and local to one chunk (one specialist
+task):
+
+1. Compute the chunk's expected `unit_ids` and the units covered by a valid
+   `COVERED` note. A note counts as covering only when its
+   `coverage_basis` is `STATIC_REVIEW`, its references are a non-empty subset of
+   the evidence actually dispatched to that task, and at least one reference is
+   local to the unit's snapshot inventory entry.
+2. Request repair for a unit only when it is not covered and either has no note
+   or has a `PARTIAL`/`NOT_COVERED` note.
+3. Drop a candidate that has no supplied unit-local evidence reference. The
+   pass never invents evidence and never requests a note it cannot validate
+   against the original task input.
+
+The repair call sends the same evidence list as the specialist task and a
+closed request shape: the exact requested unit IDs, each unit's local
+evidence IDs, and the prior state/reason when present. Its strict schema
+requires exactly one `coverage_repair.v1` note per requested unit; every note
+has `unit_id`, `state`, `reason_code`, `evidence_refs`, and
+`coverage_basis: STATIC_REVIEW`. Validation requires:
+
+- one note per requested unit, with no duplicate, unknown, or omitted unit;
+- references that were actually supplied to the task, with at least one local
+  reference when any references are present;
+- `COVERED` only with non-empty local references; `PARTIAL` and `NOT_COVERED`
+  remain valid because they preserve uncertainty.
+
+A response that fails any check is rejected as a whole. Transport errors,
+invalid output, and validation failures are recorded once and are never
+retried. The failure changes no coverage note, so the obligation remains
+incomplete.
+
+Merging is by `unit_id`. A repair replaces the original note for a requested
+unit; units that were already covered keep their original note. Duplicate
+repair units are rejected rather than merged. Repaired `COVERED` notes must
+reference evidence actually supplied for that unit, so the completeness
+reducer applies the same evidence checks before the obligation can be
+`COMPLETE`.
+
+Bounds and accounting:
+
+| Setting | Default | Hard bound |
+| --- | --- | --- |
+| `profile.coverage_repair.max_calls_per_chunk` | `1` | `1` (one additional call per chunk) |
+| `profile.coverage_repair.max_calls_per_run` | `4` | `4` (attempt above the hard bound fails closed) |
+
+Each call reserves and settles the provider-call, input-byte, output-byte, and
+monetary budgets through the shared `BudgetLedger` before dispatch. The
+run-level cap is checked before every call, including calls for later chunks.
+The repair ledger (`ledger.coverage_repairs`) records the requested and
+repaired unit IDs, the original notes and output hash, the repair output hash,
+the reservation key, and one terminal status: `REPAIRED`, `REJECTED`,
+`FAILED`, or `SKIPPED`. A reservation left unsettled by an interrupted run is
+not retried on resume.
+
+The implementation lives in
+[coverage_repair.py](../src/pr_review_harness/coverage_repair.py) and
+[review_stages.py](../src/pr_review_harness/review_stages.py). Regression
+coverage in
+[test_coverage_repair.py](../tests/test_coverage_repair.py) exercises missing
+notes, partial notes, a repair that remains partial, a unit without supplied
+evidence, the run-level cap, provider failure without retry, duplicate
+repair units, and a repair claiming coverage with unsupplied evidence. Provider contract coverage is in
+[test_providers.py](../tests/test_providers.py).
 
 Gate finding `PARTIAL_OBLIGATION_REGRESSION` fires when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN` (normalized state). Case identity is `case_id`, then top-level `snapshot_id`, then `run_id`; corpus runs should set a stable `case_id`. Baseline schema/taxonomy version must match the current constants.

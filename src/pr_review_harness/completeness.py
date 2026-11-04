@@ -320,6 +320,7 @@ PROVIDER_CODE_MAP: dict[str, str] = {
     "invalid_coverage_note_reason_code": "TASK_FAILED",
     "invalid_coverage_note_state": "TASK_FAILED",
     "invalid_coverage_note_unit_id": "TASK_FAILED",
+    "invalid_coverage_repair_request": "TASK_FAILED",
     "invalid_credential_reference": "TASK_FAILED",
     "invalid_decision_config": "TASK_FAILED",
     "invalid_endpoint": "TASK_FAILED",

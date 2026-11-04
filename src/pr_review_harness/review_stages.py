@@ -1648,6 +1648,277 @@ def dispatch_tasks(state: RunState) -> None:
     state.ledger["outputs"] = state.task_results
 
 
+def _record_coverage_repair(state: RunState, repairs: dict, task_id: str, record: dict) -> None:
+    repairs[task_id] = {"task_id": task_id, **record}
+    state.checkpoint()
+
+
+def _reserve_coverage_repair(
+    state: RunState, task_id: str, request: dict, evidence: list
+) -> tuple[dict | None, dict | None, str | None, str | None]:
+    """Reserve one repair call and return its task, reservation, key, or skip code."""
+    from .engine import BudgetExhausted, _canonical
+    from .providers import ProviderError
+
+    requested_unit_ids = [row["unit_id"] for row in request["requested_units"]]
+    repair_task = {
+        "task_id": f"{task_id}:coverage-repair",
+        "task_kind": "SPECIALIST_COVERAGE_REPAIR",
+        "lens": state.task.get("lens"),
+        "unit_ids": requested_unit_ids,
+        "coverage_repair": request,
+    }
+    reservation_key = f"{task_id}:coverage-repair:0"
+    try:
+        measure = getattr(state.provider, "repair_input_bytes", None)
+        required_size = (
+            measure(repair_task, evidence, state.remaining_call_limits()) + 1024
+            if callable(measure)
+            else len(_canonical({"task": repair_task, "evidence": evidence})) + 1024
+        )
+    except (KeyError, OSError, TypeError, ValueError, ProviderError):
+        required_size = len(_canonical({"task": repair_task, "evidence": evidence})) + 1024
+    if required_size > int(state.input_ceiling):
+        return None, None, None, "INPUT_BYTE_LIMIT_EXCEEDED"
+    if reservation_key in state.budget.state["reservations"]:
+        return None, None, None, "PRIOR_COVERAGE_REPAIR_ATTEMPT_UNSETTLED"
+    try:
+        reservation = state.reserve_provider_call(
+            reservation_key,
+            state.provider,
+            "SPECIALIST_COVERAGE_REPAIR",
+            repair_task,
+            evidence,
+            required_size,
+        )
+    except BudgetExhausted as exc:
+        return None, None, None, str(exc)
+    except (ProviderError, ValueError) as exc:
+        return None, None, None, getattr(exc, "code", "INVALID_PROVIDER_ESTIMATE")
+    return repair_task, reservation, reservation_key, None
+
+
+def _invoke_coverage_repair(
+    state: RunState,
+    repair_task: dict,
+    evidence: list,
+    reservation: dict,
+    request: dict,
+    supplied_ids: set,
+) -> tuple[dict, dict, list, dict, dict]:
+    """Run one isolated repair call and validate its bounded response."""
+    from .coverage_repair import validate_repair_payload
+    from .engine import IsolatedInvocation, _canonical, _unwrap
+
+    invocation_limits = {**state.remaining_call_limits(), "attempt_index": 0}
+    invocation = IsolatedInvocation(
+        state.provider,
+        "repair_coverage",
+        (repair_task, evidence, invocation_limits),
+        deadline_seconds=min(
+            float(reservation.get("deadline_seconds", state.remaining_call_limits()["deadline_seconds"])),
+            state.remaining_call_limits()["deadline_seconds"],
+        ),
+        output_limit=int(reservation["max_output_bytes"]),
+    )
+    while not invocation.poll() and state.budget.remaining_seconds() > 0:
+        invocation.wait_for_ready(timeout=state.budget.remaining_seconds())
+    if not invocation.poll():
+        invocation.cancel()
+        raise TimeoutError("DEADLINE_EXHAUSTED")
+    response = invocation.result()
+    if len(_canonical(response)) > int(reservation["max_output_bytes"]):
+        raise ValueError("output_limit")
+    payload, usage, provenance = _unwrap(response)
+    notes = validate_repair_payload(payload, request, supplied_ids)
+    return payload, response, notes, usage, provenance
+
+
+def _settle_coverage_repair_failure(
+    state: RunState,
+    repairs: dict,
+    task_id: str,
+    result: dict,
+    requested_unit_ids: list[str],
+    reservation_key: str,
+    exc: Exception,
+    started: float,
+) -> None:
+    from .engine import _now, _settlement_observation, time
+    from .providers import ProviderError
+
+    meta = getattr(exc, "meta", {})
+    safe_meta = meta if isinstance(meta, dict) else {}
+    invalid = isinstance(exc, ValueError) or (
+        isinstance(exc, ProviderError) and getattr(exc, "code", "").startswith("coverage_repair_")
+    )
+    try:
+        state.budget.settle(
+            reservation_key,
+            output_bytes=safe_meta.get("actual_output_bytes"),
+            usage=safe_meta.get("usage", {}),
+            status="TIMED_OUT" if isinstance(exc, TimeoutError) else "INVALID" if invalid else "FAILED",
+            observation=_settlement_observation(
+                "coverage_repair",
+                safe_meta.get("usage", {}),
+                error_meta=safe_meta,
+                call_elapsed_ms=(time.monotonic() - started) * 1000,
+            ),
+        )
+    except (ValueError, KeyError):
+        pass
+    _record_coverage_repair(
+        state,
+        repairs,
+        task_id,
+        {
+            "status": "REJECTED" if invalid else "FAILED",
+            "error_code": "INVALID_REPAIR_RESULT" if invalid else str(exc)[:120],
+            "error_summary": type(exc).__name__,
+            "requested_unit_ids": requested_unit_ids,
+            "original_coverage_notes": list(result.get("payload", {}).get("coverage_notes", [])),
+            "provider_call": True,
+            "reservation_key": reservation_key,
+            "finished_at": _now(),
+        },
+    )
+
+
+def repair_coverage_notes(state: RunState) -> None:
+    """Repair missing/partial unit notes with at most one bounded call per chunk.
+
+    Contract: repair never invents evidence, never retries, and changes nothing
+    unless one complete repair response validates.  A repaired note is merged
+    only for a unit that originally lacked a covering note or reported
+    PARTIAL/NOT_COVERED, and only when the original task supplied evidence
+    local to that unit.  Every call is reserved and settled against the shared
+    provider/input/output budget, and the run-level hard cap is enforced here.
+    """
+    from .coverage_repair import (
+        build_repair_request,
+        coverage_repair_policy,
+        merge_coverage_notes,
+    )
+    from .engine import IsolatedCallError, _canonical, _hash, _now, _settlement_observation, time
+    from .providers import ProviderError
+
+    if not callable(getattr(state.provider, "repair_coverage", None)):
+        return
+    per_chunk, per_run = coverage_repair_policy(state.profile)
+    if per_chunk == 0 or per_run == 0:
+        return
+    repairs = state.ledger.setdefault("coverage_repairs", {})
+    if not isinstance(repairs, dict):
+        raise ValueError("invalid_coverage_repair_ledger")
+    calls = sum(1 for row in repairs.values() if isinstance(row, dict) and row.get("provider_call") is True)
+    for state.task in state.tasks:
+        task_id = state.task.get("task_id")
+        if (
+            not isinstance(task_id, str)
+            or ":followup:" in task_id
+            or task_id in repairs
+            or state.task.get("task_kind", "SPECIALIST_FINDINGS") != "SPECIALIST_FINDINGS"
+        ):
+            continue
+        result = state.task_results.get(task_id)
+        if not isinstance(result, dict) or result.get("status") != "SUCCEEDED":
+            continue
+        request = build_repair_request(state.task, result, state.snapshot)
+        if request is None:
+            continue
+        requested_unit_ids = [row["unit_id"] for row in request["requested_units"]]
+        if calls >= per_run:
+            _record_coverage_repair(
+                state,
+                repairs,
+                task_id,
+                {
+                    "status": "SKIPPED",
+                    "reason_code": "COVERAGE_REPAIR_CAP",
+                    "requested_unit_ids": requested_unit_ids,
+                    "provider_call": False,
+                },
+            )
+            continue
+        evidence = state.evidence_cache.get(task_id)
+        if not isinstance(evidence, list):
+            continue
+        repair_task, reservation, reservation_key, skip = _reserve_coverage_repair(state, task_id, request, evidence)
+        if skip is not None:
+            _record_coverage_repair(
+                state,
+                repairs,
+                task_id,
+                {
+                    "status": "SKIPPED",
+                    "reason_code": skip,
+                    "requested_unit_ids": requested_unit_ids,
+                    "provider_call": False,
+                },
+            )
+            continue
+        calls += 1
+        supplied_ids = {
+            item.get("evidence_id") for item in evidence if isinstance(item, dict) and item.get("evidence_id")
+        }
+        started = time.monotonic()
+        try:
+            payload, response, notes, usage, provenance = _invoke_coverage_repair(
+                state, repair_task, evidence, reservation, request, supplied_ids
+            )
+            state.budget.settle(
+                reservation_key,
+                output_bytes=len(_canonical(response)),
+                usage=usage,
+                status="SUCCEEDED",
+                observation=_settlement_observation(
+                    "coverage_repair",
+                    usage,
+                    provenance,
+                    call_elapsed_ms=(time.monotonic() - started) * 1000,
+                ),
+            )
+        except (IsolatedCallError, OSError, ProviderError, ValueError, KeyError) as exc:
+            _settle_coverage_repair_failure(
+                state,
+                repairs,
+                task_id,
+                result,
+                requested_unit_ids,
+                reservation_key,
+                exc,
+                started,
+            )
+            continue
+        original_notes = list(result.get("payload", {}).get("coverage_notes", []))
+        original_output_hash = result.get("output_hash")
+        merged_payload = {
+            **result["payload"],
+            "coverage_notes": merge_coverage_notes(original_notes, notes, requested_unit_ids),
+        }
+        result["payload"] = merged_payload
+        result["output_hash"] = _hash(merged_payload)
+        _record_coverage_repair(
+            state,
+            repairs,
+            task_id,
+            {
+                "status": "REPAIRED",
+                "requested_unit_ids": requested_unit_ids,
+                "repaired_unit_ids": [note["unit_id"] for note in notes],
+                "original_coverage_notes": original_notes,
+                "original_output_hash": original_output_hash,
+                "repair_contract_version": payload.get("contract_version"),
+                "repair_output_hash": _hash(payload),
+                "provider_call": True,
+                "reservation_key": reservation_key,
+                "finished_at": _now(),
+            },
+        )
+        state.ledger["outputs"] = state.task_results
+        state.checkpoint()
+
+
 def prepare_followups(state: RunState) -> None:
     """Index existing results, evidence, and units for follow-up binding."""
     state.checkpoint()

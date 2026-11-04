@@ -22,6 +22,7 @@ from .contracts import (
     SPECIALIST_V3,
     SPECIALIST_V4,
 )
+from .coverage_repair import COVERAGE_REPAIR_VERSION
 from .errors import BoundaryRuntimeError
 
 _PROVIDER_CONTRACT_VERSIONS = frozenset(
@@ -33,6 +34,7 @@ _PROVIDER_CONTRACT_VERSIONS = frozenset(
         SPECIALIST_V2,
         SPECIALIST_V3,
         SPECIALIST_V4,
+        COVERAGE_REPAIR_VERSION,
     }
 )
 _MAX_PROVIDER_RESPONSE_BYTES = 64 * 1024 * 1024 + 1
@@ -498,6 +500,7 @@ _OBSERVATION_STAGES = frozenset(
         "semantic_adjudication",
         "claim_assessment",
         "advisory",
+        "coverage_repair",
         "deterministic_check",
         "context_retrieval",
         "other",
@@ -565,6 +568,8 @@ def _stage_for_reservation(reservation: dict) -> str:
     if isinstance(key, str):
         if ":review:" in key:
             return "followup" if ":followup:" in key else "primary"
+        if ":coverage-repair:" in key:
+            return "coverage_repair"
         if ":adjudicate:" in key:
             return "semantic_adjudication"
         if key.startswith("claim-assessment:"):
