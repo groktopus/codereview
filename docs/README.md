@@ -129,7 +129,7 @@ banner; evidence that already lived under `docs/experiments/` or a
 | Document | What it records |
 |---|---|
 | [Codebase assessment — PR Review Harness](CODEBASE-ASSESSMENT-2026-11-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
-| [Release notes — 0.1.1](releases/0.1.1.md) | Prepared release notes for the `0.1.1` source release: keyless GitHub OIDC build provenance attestations, verification commands, and the unsigned `provenance.json`/SBOM limit. Not evidence that a tag or GitHub Release exists. |
+| [Release notes — 0.1.2](releases/0.1.2.md) | Prepared release notes for `0.1.2`: keyless GitHub OIDC build provenance attestations, verification commands, and the unsigned `provenance.json`/SBOM limit. Not evidence that a tag or GitHub Release exists. |
 | [Release notes — 0.1.0](releases/0.1.0.md) | Prepared release notes for the `0.1.0` source release: scope, verification commands, and the unsigned-provenance limit. `v0.1.0` remains unsigned. Not evidence that a tag or GitHub Release exists. |
 | [Complete requirement audit — 2026-10-01](COMPLETE-REQUIREMENT-AUDIT-2026-10-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Local hard-termination recovery qualification — 2026-10-01](HARD-TERMINATION-LOCAL-RECOVERY-QUALIFICATION-2026-10-01.md) | Dated evidence, audit, trial, or review note; not current guidance. |

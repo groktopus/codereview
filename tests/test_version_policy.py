@@ -75,24 +75,24 @@ def test_repository_release_metadata_is_consistent() -> None:
 
 def test_repository_version_has_attestation_notes() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    assert project["version"] == "0.1.1"
+    assert project["version"] == "0.1.2"
 
     releases, findings = parse_changelog(ROOT / "CHANGELOG.md")
     assert findings == []
-    release = release_for(releases, "0.1.1")
+    release = release_for(releases, "0.1.2")
     assert release is not None
     added = " ".join(text for _, text in release.categories.get("Added", []))
     assert "attest-build-provenance" in added
     assert "unsigned" in added.lower()
 
-    notes_path = ROOT / "docs/releases/0.1.1.md"
+    notes_path = ROOT / "docs/releases/0.1.2.md"
     assert notes_path.is_file()
     notes = notes_path.read_text(encoding="utf-8")
     assert "gh attestation verify" in notes
     assert "--repo groktopus/codereview" in notes
     assert "v0.1.0" in notes and "remains unsigned" in notes.lower()
     index = (ROOT / "docs/README.md").read_text(encoding="utf-8")
-    assert "(releases/0.1.1.md)" in index
+    assert "(releases/0.1.2.md)" in index
 
 
 def test_temporary_repository_passes_all_checks(tmp_path: Path) -> None:
