@@ -265,10 +265,10 @@ python3 -m venv /tmp/pr-review-release-venv
   `uv audit --locked` against the hash-locked set on the weekly schedule and on
   manual dispatch only. It is not a pull-request gate, so a newly published
   advisory cannot make an unrelated PR flaky; a failing scan identifies the
-  advisory in its output and retained artifact. Dependency review is opt-in via
+  advisory in its output and retained artifact. Dependency review is active via
   the `DEPENDENCY_GRAPH_ENABLED` repository variable; the activation steps and
   the compensating guidance job are documented in
-  [`SUPPORT-MATRIX.md`](SUPPORT-MATRIX.md#dependency-review-conditional-variable).
+  [`SUPPORT-MATRIX.md`](SUPPORT-MATRIX.md#dependency-review-active).
 
 ## Residual gaps
 

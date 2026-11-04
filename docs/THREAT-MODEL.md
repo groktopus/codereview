@@ -150,7 +150,7 @@ Tests cover remote HTTP rejection for both families, HTTPS acceptance, loopback 
 | Job | Tool | Trigger | Failure semantics | Data flow |
 |---|---|---|---|---|
 | `codeql` | CodeQL for Python, `security-and-quality` queries | PR, main, schedule | SARIF is uploaded; alerts are reported by code scanning. CodeQL does not itself fail the build on an alert. | Repository source is analyzed on the runner; SARIF goes to this repository's code scanning. |
-| `dependency-review` | `actions/dependency-review-action` | PR only, and only when the dependency graph is enabled and `DEPENDENCY_GRAPH_ENABLED=true`; otherwise skipped (**AR-7**) | Fails on high or critical known vulnerabilities when it runs; currently skipped until the graph is enabled. | Dependency diff is evaluated through GitHub's dependency review API. |
+| `dependency-review` | `actions/dependency-review-action` | PR only, and only when the dependency graph is enabled and `DEPENDENCY_GRAPH_ENABLED=true`; otherwise skipped (**AR-7**) | Fails on high or critical known vulnerabilities when it runs; active since 2026-11-04 after the dependency graph was enabled. | Dependency diff is evaluated through GitHub's dependency review API. |
 | `secret-scan` | TruffleHog `3.99.7` | PR and push to `main`; skipped on schedule/dispatch (empty base/head) | Fails on any non-excluded detector match, plus the credential-URL grep outside `tests/`. | Scanner runs locally on the runner; `--no-verification` prevents sending a found credential to its issuer. |
 
 ### 7.1 Action pins
@@ -183,9 +183,9 @@ No pin is unresolved.
 | Scanning the working tree without excluding the `URI` detector | 9 unverified matches in test fixtures: synthetic credential-bearing example URLs (basic auth in the userinfo component). `URI` is excluded for those fixtures, and a compensating `git grep` rejects that class outside tests; see **AR-1**. |
 | Seeded credential in a two-commit temporary Git repository, scanned with the action's PR range (`--since-commit BASE --branch HEAD`) | Exit 183, so a pull request carrying that credential fails the job. |
 | Secret scan on schedule/dispatch | Not run. The pinned action maps those events to empty base/head ranges, so the job is restricted to `pull_request`/`push`. |
-| CodeQL and dependency-review execution | CodeQL passed on the PR workflow run; dependency review failed because the repository dependency graph is disabled. The job is gated on `DEPENDENCY_GRAPH_ENABLED` until the maintainer enables the graph (**AR-7**). |
+| CodeQL and dependency-review execution | CodeQL passed on the PR workflow run. Dependency review initially failed because the repository dependency graph was disabled; it is now active (`DEPENDENCY_GRAPH_ENABLED=true`, graph enabled) and passed on #314/#321 (**AR-7**). |
 
-Repository-level security settings observed on 2026-11-01: GitHub private vulnerability reporting is disabled, secret scanning is disabled, and Dependabot security updates are disabled. This is why the workflow adds secret scanning, the credential-URL grep, and a prepared dependency-review job (gated until the graph is enabled); it does not replace repository-level Dependabot updates or private reporting (**AR-8**).
+Repository-level security settings observed on 2026-11-01: GitHub private vulnerability reporting is disabled, secret scanning is disabled, and Dependabot security updates are disabled. This is why the workflow adds secret scanning, the credential-URL grep, and a prepared dependency-review job (active since 2026-11-04); it does not replace repository-level Dependabot updates or private reporting (**AR-8**).
 
 ## 8. Residual risks, accepted risks, and non-goals
 

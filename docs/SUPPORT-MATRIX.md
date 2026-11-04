@@ -11,10 +11,10 @@ replacement, or production-readiness claim; see [`STATUS.md`](STATUS.md) and
 
 | Python | Support | What is verified |
 |---|---|---|
-| 3.11 | Supported, minimum | Full pytest suite + Ruff + mypy on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
-| 3.12 | Supported | Full pytest suite + Ruff on Linux |
-| 3.13 | Supported | Full pytest suite + Ruff on Linux; build, documentation, and supply-chain jobs |
-| 3.14 | Supported | Full pytest suite + Ruff on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
+| 3.11 | Supported, minimum | Non-compatibility pytest suite + Ruff + mypy on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
+| 3.12 | Supported | Non-compatibility pytest suite + Ruff on Linux |
+| 3.13 | Supported | Non-compatibility pytest suite + Ruff on Linux; compatibility suite; build, documentation, and supply-chain jobs |
+| 3.14 | Supported | Non-compatibility pytest suite + Ruff on Linux; wheel install and `pr-review --help` on Linux, macOS, and Windows |
 
 Python 3.10 and earlier are not supported. Free-threaded builds
 (`python3.14t`) and PyPy are not tested and are not supported.
@@ -135,32 +135,27 @@ The checker prefers the pinned `uv` installed in the current interpreter
   with the advisory identity instead. `uv` is installed from the same
   hash-locked dev set.
 
-### Dependency review (conditional variable)
+### Dependency review (active)
 
-The `dependency-review` job in `.github/workflows/security.yml` requires the
-repository dependency graph to be enabled. It is off until the repository
-variable `DEPENDENCY_GRAPH_ENABLED` is set to `true`, because the action fails
-(not skips) when the graph is unavailable. To make it active:
+The `dependency-review` job in `.github/workflows/security.yml` is active: the
+repository variable `DEPENDENCY_GRAPH_ENABLED` is `true` and the dependency graph
+is enabled. It runs on every pull request, reviews dependency manifest changes,
+and fails on high or critical known vulnerabilities. It never posts a comment
+(`comment-summary-in-pr: never`) and keeps `contents: read`.
 
-1. Enable **Settings → Code security and analysis → Dependency graph** for the
-   repository (and Dependabot alerts if policy allows).
-2. Set the repository variable, for example:
+This repository has no runtime dependencies. The dependency-graph SBOM endpoint
+reports 198 packages, including all 26 `requirements-dev.lock` pins at their
+exact locked versions, so the graph parses the locked set. `Dependency review`
+also ran and passed on PRs #314 and #321.
 
-   ```sh
-   gh variable set DEPENDENCY_GRAPH_ENABLED --repo groktopus/codereview --body true
-   ```
+If `DEPENDENCY_GRAPH_ENABLED` is unset while the graph is enabled, the job skips
+and `dependency-review-guidance` emits a warning annotation and step summary. If
+the variable stays `true` but the graph is disabled, the action fails rather than
+skipping; the graph must be restored. The activation commands remain:
 
-3. Re-run a pull request or the workflow. The job then reviews dependency
-   manifest changes and fails a PR on high or critical known vulnerabilities; it
-   never posts a comment (`comment-summary-in-pr: never`) and keeps
-   `contents: read`.
-
-Until the variable is set, the `dependency-review-guidance` job emits a warning
-annotation and a step-summary note containing these instructions, so the skipped
-gate is visible and actionable rather than silent. This repository currently has
-no runtime dependencies. Whether GitHub's dependency graph parses `uv.lock`
-revision 5 and `requirements-dev.lock` is unverified until dependency review
-actually runs; the gate remains inactive until the repository variable is set.
+1. Enable **Settings → Code security → Dependency graph**.
+2. `gh variable set DEPENDENCY_GRAPH_ENABLED --repo groktopus/codereview --body true`.
+3. Re-run a pull request.
 
 ## Verification map
 
