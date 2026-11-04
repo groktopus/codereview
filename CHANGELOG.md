@@ -8,8 +8,11 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-04
+
 ### Added
 
+- Release `0.1.2` retains the SHA-pinned `actions/attest-build-provenance` v2.4.0 action for wheel and sdist attestations; `v0.1.0` remains unsigned while `v0.1.1` and `v0.1.2` carry keyless GitHub OIDC provenance.
 - Owner-accepted synthetic model-teacher adjudication ([ADR 0010](docs/adr/0010-synthetic-model-teacher-adjudication.md)): a `reviewer_kind: synthetic` labels extension with exact model/prompt/rubric/run/hash provenance, separate human and synthetic arms, and rejection of synthetic packets mislabelled as human. Human packets remain optional.
 - `review-evaluation-scorecard.v2` and `review-evaluation-scorecard-gate.v2`: per-evaluation-arm `human` and `synthetic` label arms, synthetic-only `COMPLETE` without human packets, synthetic metrics scoped as non-human, and arm-specific regression checks (`<metric>:<arm>:<label-arm>`).
 - Retained synthetic QM-2 pilot over the fixed six-case subset: the six exact diffs, exact teacher prompt, request binding prompt/diff hashes and byte counts, raw teacher response, six-packet teacher output, and `labels-synthetic-v1.json` with `reviewer_kind: synthetic` packets. Five complete cases are `NO_KNOWN_MATERIAL_DEFECTS` with empty findings; `qm1-slopsearx-pr770` is `INCOMPLETE`/`INCONCLUSIVE` because the frozen manifest records incomplete evidence. The scorecard remains `MISSING_DATA` without prediction runs, and the pilot makes no human-truth, quality, or replacement claim.
@@ -74,6 +77,8 @@ evidence that a tag or GitHub Release exists.
 - Provider credentials are referenced through environment variable names and are never written to configuration files or logs.
 - Target code, hooks, tests, and builds are not executed during review.
 
-[Unreleased]: https://github.com/groktopus/codereview/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/groktopus/codereview/compare/v0.1.2...HEAD
 [0.1.1]: https://github.com/groktopus/codereview/releases/tag/v0.1.1
 [0.1.0]: https://github.com/groktopus/codereview/releases/tag/v0.1.0
+
+[0.1.2]: https://github.com/groktopus/codereview/releases/tag/v0.1.2

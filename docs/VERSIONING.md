@@ -6,7 +6,7 @@ This repository versions two different things independently:
 
 | Surface | Version source | Current value |
 |---|---|---|
-| Python package and CLI | `pyproject.toml` `project.version` | `0.1.1` |
+| Python package and CLI | `pyproject.toml` `project.version` | `0.1.2` |
 | Contract identities | [`contract_registry.json`](../src/pr_review_harness/contract_registry.json) | `contract-registry.v1` |
 
 A package version is a statement about the installed distribution. A contract
