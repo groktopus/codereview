@@ -28,7 +28,7 @@ keeping that document as the original evidence snapshot.
 - Review evidence: receipt protocol enforced on merged PRs (#293, #295, #297,
   #298, #300); decision-record links enforced for future safety-invariant
   changes (#300).
-- Ownership/backlog: GA-3 closed with current 10-issue snapshot (#301).
+- Ownership/backlog: GA-3 closed with the then-current 16-issue snapshot (#301); the board now has 10 open issues.
 - Quality measurement: frozen corpus, versioned labeling protocol, retained
   synthetic pilot, deterministic scorecard, missing-data semantics, seeded
   regression gate (#298, #302, #316).
