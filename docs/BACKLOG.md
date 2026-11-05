@@ -8,7 +8,7 @@ changes.
 
 Source snapshot: [`backlog-open-issues.json`](backlog-open-issues.json), captured
 with `gh issue list --repo groktopus/codereview --state open --limit 100` and
-re-captured after the RC-1 close (`2026-11-05T22:07:30Z`). The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
+re-captured after the RC-3 close (`2026-11-05T23:04:15Z`). The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
 and exit criteria are in [issues/README.md](issues/README.md).
 
 ## Why this exists
@@ -117,7 +117,7 @@ the concrete move, not a schedule.
 |---|---|---|---|---|---|---|
 | #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `ready` | `state:ready` | RC-1 is closed; the frozen corpus is available for measurement. |
 | #243 | QM-2 | [QM-2] Establish the human labeling and adjudication protocol | `@magnus919` | `ready` | `state:ready` | Protocol, rubric, and a retained six-packet synthetic pilot exist; owner accepted synthetic model-teacher adjudication (ADR 0010) and human packets are optional. Needs prediction runs, resolution of the incomplete `qm1-slopsearx-pr770` case, and a run that adjudicates a material finding. |
-| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241 and #243; two-arm scorecard/gate infrastructure and a retained synthetic label set exist, but prediction runs, a complete label set, and an accepted baseline remain. |
+| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243 (QM-2); two-arm scorecard/gate infrastructure and a retained synthetic label set exist, but prediction runs, a complete label set, and an accepted baseline remain. |
 | #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
 | #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |
