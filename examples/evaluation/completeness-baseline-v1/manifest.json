@@ -5,12 +5,7 @@
     "results/qm1-codereview-pr285.json",
     "results/qm1-codereview-pr289.json",
     "results/qm1-slopsearx-pr745.json",
-    "results/qm1-slopsearx-pr759.json"
-  ],
-  "excluded": [
-    {
-      "case_id": "qm1-slopsearx-pr770",
-      "reason": "frozen corpus merge-base 282cf846 does not match the PR base dfcb164a; rerun would change the frozen case identity"
-    }
+    "results/qm1-slopsearx-pr759.json",
+    "results/qm1-slopsearx-pr770.json"
   ]
 }

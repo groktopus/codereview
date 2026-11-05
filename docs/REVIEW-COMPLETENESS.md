@@ -298,3 +298,12 @@ so an accepted blocker still yields `REQUEST_CHANGES`.
 
 
 Gate finding `PARTIAL_OBLIGATION_REGRESSION` fires when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN` (normalized state). `KNOWN_COMPLETE_REGRESSION` also catches a baseline `COMPLETE` obligation that becomes `WAIVED`, so a waiver cannot silently replace previously complete evidence. Case identity is `case_id`, then top-level `snapshot_id`, then `run_id`; corpus runs should set a stable `case_id`. Baseline schema/taxonomy version must match the current constants.
+
+
+## Frozen-corpus baseline
+
+`examples/evaluation/completeness-baseline-v1/` records six natural corpus cases,
+including the incomplete `qm1-slopsearx-pr770` case. CI checks the stored results
+against the recorded baseline and fails on any per-case completion drop. The
+absolute floor is 0.0 because the baseline intentionally includes an incomplete
+case; the zero-drop rule is the regression control.
