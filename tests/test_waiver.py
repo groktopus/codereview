@@ -1071,10 +1071,19 @@ def test_publisher_waiver_integrity_rejects_inconsistent_metadata(tmp_path):
         lambda r: r["coverage_ledger"][0]["waiver"].__setitem__("target", {"kind": "coverage_note", "id": "bogus"}),
         lambda r: r["waivers_applied"][0].__setitem__("reviewer", ""),
         lambda r: r["waivers_applied"][0]["target"].__setitem__("kind", "bogus"),
-        lambda r: r["waivers_applied"][0].__setitem__("target", {"kind": "execution_failure", "id": "x", "reason_code": "DEADLINE_EXHAUSTED", "justification": "long enough text"}),
+        lambda r: r["waivers_applied"][0].__setitem__(
+            "target",
+            {
+                "kind": "execution_failure",
+                "id": "x",
+                "reason_code": "DEADLINE_EXHAUSTED",
+                "justification": "long enough text",
+            },
+        ),
         lambda r: r["waivers_applied"][0]["target"].__setitem__("justification", "short"),
-        lambda r: r["waivers_applied"][0].__setitem__("target", {"kind": "execution_failure", "reason_code": "BOGUS", "justification": "long enough text"}),
-
+        lambda r: r["waivers_applied"][0].__setitem__(
+            "target", {"kind": "execution_failure", "reason_code": "BOGUS", "justification": "long enough text"}
+        ),
     ]
     for mutate in mutations:
         candidate = copy.deepcopy(result)
