@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from test_engine import LIMITS, make_snapshot, profile
+from test_engine import LIMITS, EmptyProvider, make_snapshot, profile
 from waiver_providers import PartialFindingProvider, PartialProvider
 
 from pr_review_harness.completeness import build_completeness_summary
@@ -790,3 +790,23 @@ def test_preflight_rejects_ambiguous_check_alias_before_any_provider_call(tmp_pa
 
     assert raised.value.reason == "review_waiver_rejected"
     assert provider.calls == 0
+
+
+def test_publisher_rejects_stray_waiver_metadata_without_waived_rows(tmp_path):
+    from pr_review_harness.publisher import PublicationRejected, preview_publication
+
+    snapshot = snapshot_with_repository()
+    snapshot["pull_request_number"] = 7
+    plan = plan_for(snapshot)
+    complete = run(tmp_path, "publisher-complete-no-waivers", EmptyProvider(), plan=plan, snapshot=snapshot)
+    assert complete["coverage_state"] == "COMPLETE"
+    assert complete["waiver_receipt"] is None
+
+    stray_source = _sealed_waived_publish_result(tmp_path, "waiver-stray-source")
+    complete["waiver_receipt"] = stray_source["waiver_receipt"]
+    complete["waivers_applied"] = stray_source["waivers_applied"]
+    complete["waivers_not_applied"] = []
+    _reseal(complete)
+
+    with pytest.raises(PublicationRejected, match="metadata is present"):
+        preview_publication(complete, _publisher_config())

@@ -237,10 +237,12 @@ def _validate_waiver_integrity(result: dict) -> None:
 
     ledger = result["coverage_ledger"]
     waived_rows = [entry for entry in ledger if entry.get("state") == "WAIVED"]
-    if not waived_rows and result.get("coverage_state") != "COMPLETE_WITH_WAIVERS":
-        return
     receipt = result.get("waiver_receipt")
     applied = result.get("waivers_applied")
+    if not waived_rows and result.get("coverage_state") != "COMPLETE_WITH_WAIVERS":
+        if receipt is not None or applied or result.get("waivers_not_applied"):
+            raise PublicationRejected("review waiver metadata is present without waived coverage")
+        return
     if (
         not isinstance(receipt, dict)
         or receipt.get("schema") != _WAIVER_RECEIPT_SCHEMA
@@ -287,7 +289,6 @@ def _validate_waiver_integrity(result: dict) -> None:
         ):
             raise PublicationRejected("review waiver applied record identity is invalid")
         applied_by_id[waiver_id] = record
-
     rows_by_waiver: dict[str, set[str]] = {}
     for row in waived_rows:
         waiver = row.get("waiver")

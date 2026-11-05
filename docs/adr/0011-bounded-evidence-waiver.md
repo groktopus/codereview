@@ -123,13 +123,14 @@ behavior is unchanged: missing evidence remains incomplete.
 
 ## Source-line budget consequence
 
-This feature adds 708 physical source lines after review fixes: the strict waiver
+This feature adds 709 physical source lines after review fixes: the strict waiver
 loader/validator/applier and receipt builder, plus integration in review
 preflight, coverage reduction, completeness, metrics, report, publisher, CLI,
-and typed records. The measured `src/pr_review_harness` tree is 32,433 lines
+and typed records. The measured `src/pr_review_harness` tree is 32,434 lines
 (−20.28% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
 565 lines must be explicitly allowed; the owner approved a one-time 565-line
-allowance, with 143 lines coming from the prior headroom and 1 line remaining.
+allowance, with the other 144 lines coming from the prior headroom and no further
+headroom remaining.
 
 [ADR 0001](0001-post-ca2-feature-budget.md) permits further growth only through a
 new decision record. This record therefore adds a separate, one-time
@@ -137,7 +138,7 @@ new decision record. This record therefore adds a separate, one-time
 gate includes that term and records the honest live measurement. This allowance
 is scoped to the bounded-waiver feature, does not renew the 500-line general
 feature budget, and is not available for unrelated growth. The resulting
-one-time ceiling is 32,434 lines, with 1 line of headroom.
+one-time ceiling is 32,434 lines, with no further headroom.
 
 ## Consequences
 
