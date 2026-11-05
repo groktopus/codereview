@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -810,3 +811,50 @@ def test_publisher_rejects_stray_waiver_metadata_without_waived_rows(tmp_path):
 
     with pytest.raises(PublicationRejected, match="metadata is present"):
         preview_publication(complete, _publisher_config())
+
+
+def test_publisher_waiver_integrity_rejects_inconsistent_metadata(tmp_path):
+    from pr_review_harness import publisher
+
+    snapshot = snapshot_with_repository()
+    snapshot["pull_request_number"] = 7
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    path = write_waiver(tmp_path, waiver_document(target_for(obligation_id)))
+    result = run(tmp_path, "waiver-integrity", PartialProvider(), waiver_path=str(path), plan=plan, snapshot=snapshot)
+
+    mutations = [
+        lambda r: r["waiver_receipt"].__setitem__("repository", "other/repo"),
+        lambda r: r["waiver_receipt"].__setitem__("reviewer", ""),
+        lambda r: r["coverage_ledger"][0].__setitem__("obligation_id", 7),
+        lambda r: r["coverage_ledger"][0]["waiver"].__setitem__("waiver_id", "missing"),
+        lambda r: r["coverage_ledger"][0]["waiver"].__setitem__("reason", "different"),
+        lambda r: r["coverage_ledger"][0]["waiver"].__setitem__("target", {"kind": "coverage_note", "id": "bogus"}),
+        lambda r: r["waivers_applied"][0].__setitem__("reviewer", ""),
+    ]
+    for mutate in mutations:
+        candidate = copy.deepcopy(result)
+        mutate(candidate)
+        with pytest.raises(Exception):
+            publisher._validate_waiver_integrity(candidate)
+
+
+def test_publisher_rejects_reducer_contract_failure(tmp_path, monkeypatch):
+    from pr_review_harness import engine as engine_module
+    from pr_review_harness import publisher
+
+    snapshot = snapshot_with_repository()
+    snapshot["pull_request_number"] = 7
+    plan = plan_for(snapshot)
+    result = run(tmp_path, "waiver-reducer", PartialProvider(), plan=plan, snapshot=snapshot)
+    result["disposition"] = "COMMENT"
+
+    def broken(*args, **kwargs):
+        raise TypeError("broken reducer")
+
+    monkeypatch.setattr(engine_module, "_reduce", broken)
+    with pytest.raises(publisher.PublicationRejected):
+        publisher.preview_publication(
+            result,
+            {"schema_version": "1.0", "allowed_repositories": ["owner/repo"], "allowed_dispositions": ["COMMENT"]},
+        )
