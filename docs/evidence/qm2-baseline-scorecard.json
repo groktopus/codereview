@@ -1,0 +1,12 @@
+{
+  "schema": "review-issue-closure-evidence.v1",
+  "issue": 243,
+  "issue_id": "QM-2",
+  "closed_at": "2026-11-05T23:42:38Z",
+  "disposition": "CLOSED_WITH_SYNTHETIC_SCORECARD",
+  "owner_decision": "https://github.com/groktopus/codereview/issues/243#issuecomment-6672490659",
+  "artifacts": "examples/evaluation/qm2-baseline-scorecard-v1/",
+  "cases": 5,
+  "missing_case": "qm1-slopsearx-pr770",
+  "notes": "Synthetic arm present; accuracy refused; no quality claim."
+}

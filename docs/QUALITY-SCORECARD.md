@@ -232,4 +232,4 @@ packets are `reviewer_kind: synthetic`; the scorecard reports the human arm as
 - The RC-3 dependency and the owner decision on what, if anything, constitutes
   a release gate.
 
-The CI job is infrastructure evidence only. QM-3 stays open and blocked.
+The CI job is infrastructure evidence only. QM-3 is ready; an owner-accepted baseline and scheduled full-corpus run remain.
