@@ -263,10 +263,10 @@ Add `execution_failure` as a fourth bounded target kind.
 ### Source-line budget consequence
 
 The initial bounded-waiver allowance left zero headroom at 32,434 measured
-source lines. This addendum adds 113 physical source lines (net) in
+source lines. This addendum adds 107 physical source lines (net) in
 `waiver.py` and `publisher.py`; the measured tree is now 32,541 lines
 (−20.0192% against the 40,686 CA-2 base). A separate, one-time
-`execution_failure_allowance_lines: 113` is recorded in
+`execution_failure_allowance_lines: 107` is recorded in
 `docs/public-surface.json`, and the surface test includes it in the effective
 ceiling. It is scoped to this target kind, does not renew the 500-line general
 feature budget, and is not available for unrelated growth. The resulting
