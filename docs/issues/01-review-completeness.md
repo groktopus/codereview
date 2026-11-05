@@ -45,6 +45,8 @@
 
 ## RC-3 — Make completeness measurable and regression-gated
 
+**Status: Closed 2026-11-05.** Five-case comparable baseline, stored results, CI gate, and seeded-regression proof are merged at `7b5dd8e`. Evidence: [rc3-completeness-baseline.json](../evidence/rc3-completeness-baseline.json).
+
 - **Priority:** P0
 - **Dimensions:** Review completeness; Evidence discipline
 - **Problem:** Completeness is reported per run but not aggregated or compared. Reason codes (`CONTEXT_GAP_UNRESOLVED`, `ipc_envelope_truncated`, `CHECK_RESULT_UNAVAILABLE`, …) are strings scattered across modules, and no gate prevents a change from making reviews less complete.

@@ -1,0 +1,19 @@
+{
+  "schema": "review-issue-closure-evidence.v1",
+  "issue": 241,
+  "issue_id": "RC-3",
+  "closed_at": "2026-11-05T23:05:00Z",
+  "disposition": "CLOSED_WITH_COMPARABLE_BASELINE",
+  "owner_decision": "https://github.com/groktopus/codereview/issues/241#issuecomment-6671832104",
+  "baseline": "examples/evaluation/completeness-baseline-v1/baseline.json",
+  "manifest": "examples/evaluation/completeness-baseline-v1/manifest.json",
+  "cases": 5,
+  "disclosed_not_included": [
+    {
+      "case_id": "qm1-slopsearx-pr770",
+      "reason": "stored result is a 38-unit rerun with no comparison base; frozen case is 31 units"
+    }
+  ],
+  "gate": ".github/workflows/test.yml runs scripts/check_completeness.py against the five stored results; seeded fixture regression exits 1.",
+  "not_claimed": "This is a five-case comparable subset, not all six frozen cases."
+}
