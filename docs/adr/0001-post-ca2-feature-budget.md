@@ -67,10 +67,10 @@ allowance does not relabel the CA-2 result.
 The owner-approved bounded evidence waiver in [ADR 0011](0011-bounded-evidence-waiver.md)
 adds a new strict waiver contract, preflight/application logic, result receipts,
 completeness state, report rendering, publisher acceptance, and tests. It adds
-**704 physical source lines** after review fixes, taking the measured tree from
-31,725 to 32,429 lines (−20.29%). The owner approved a one-time **565-line
-allowance**; 139 of the 144 prior-headroom lines were also used. The new
-measurement exceeds the prior 31,869 ceiling by 560 lines.
+**708 physical source lines** after review fixes, taking the measured tree from
+31,725 to 32,433 lines (−20.28%). The owner approved a one-time **565-line
+allowance**; 143 of the 144 prior-headroom lines were also used. The new
+measurement exceeds the prior 31,869 ceiling by 564 lines.
 
 Because ADR 0001 requires a new decision record for further growth, ADR 0011
 records a separate, one-time `waiver_feature_allowance_lines: 565` in
@@ -86,8 +86,8 @@ current_src_lines <= base_src_lines * (1 - required_reduction)
 ```
 
 i.e. 32,434 lines. The recorded measurement is updated to the honest live count
-(32,429), and `tests/test_surface_consolidation.py` checks all four terms. Five
-lines remain under that one-time ceiling; unrelated growth requires a new
+(32,433), and `tests/test_surface_consolidation.py` checks all four terms. One
+line remains under that one-time ceiling; unrelated growth requires a new
 decision or real reduction.
 
 ### Observation revision refresh
@@ -106,7 +106,7 @@ commit; the documentation-truth job checks its freshness directly.
 
 - OE-2 can ship without deleting working code or falsifying the CA-2 result.
 - The original 25% outcome remains recorded and is not relabeled as met.
-- Headroom is nearly exhausted (32,429 lines against the 32,434
+- Headroom is nearly exhausted (32,433 lines against the 32,434
   effective ceiling after the bounded-waiver allowance); further features
   require a new decision record or real reduction elsewhere.
 - The budget is one-time for this migration period, not a permanent growth

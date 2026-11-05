@@ -300,6 +300,10 @@ def _validate_waiver_integrity(result: dict) -> None:
             raise PublicationRejected("review waiver row binding is invalid")
         if any(waiver.get(key) != record.get(key) for key in ("reviewer", "reason", "expires_at", "source_sha256")):
             raise PublicationRejected("review waiver row binding is invalid")
+        if not isinstance(record.get("target"), dict) or waiver.get("target") != record["target"]:
+            raise PublicationRejected("review waiver row target is invalid")
+        if waiver.get("justification") != record["target"].get("justification"):
+            raise PublicationRejected("review waiver row target is invalid")
         if obligation_id not in record["obligation_ids"]:
             raise PublicationRejected("review waiver row obligation is missing from its applied record")
         rows_by_waiver.setdefault(waiver_id, set()).add(obligation_id)

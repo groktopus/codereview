@@ -110,15 +110,15 @@ measured with `find src -name '*.py' -exec wc -l {} + | tail -1`.
 | Consolidated on CA-2 + OE-1 + SE-3 | 39 | 30,030 |
 | After OE-2 cost model | 40 | 30,870 |
 | After VD-4 canonical formatting | 40 | 31,725 |
-| After bounded evidence waiver (ADR 0011) | 41 | 32,429 |
-| Delta vs base | −7 | −8,257 (−20.29%) |
+| After bounded evidence waiver (ADR 0011) | 41 | 32,433 |
+| Delta vs base | −7 | −8,253 (−20.28%) |
 
 CA-2's 25% outcome was measured at merge. A documented 500-line post-CA-2
 feature budget, a one-time 855-line VD-4 formatter allowance, and a separate
 one-time 565-line bounded-waiver feature allowance (see
 [ADR 0001](adr/0001-post-ca2-feature-budget.md) and
 [ADR 0011](adr/0011-bounded-evidence-waiver.md)) keep new features from silently
-erasing it; the current effective ceiling is 32,434 lines and 5 remain. The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
+erasing it; the current effective ceiling is 32,434 lines and 1 remains. The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
 orchestrator, two are internal stages of it, and one is the guarded publication
 executor. The installed wheel contains no module from `experiments/`.
 

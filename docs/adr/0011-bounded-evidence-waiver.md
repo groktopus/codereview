@@ -123,13 +123,13 @@ behavior is unchanged: missing evidence remains incomplete.
 
 ## Source-line budget consequence
 
-This feature adds 704 physical source lines after review fixes: the strict waiver
+This feature adds 708 physical source lines after review fixes: the strict waiver
 loader/validator/applier and receipt builder, plus integration in review
 preflight, coverage reduction, completeness, metrics, report, publisher, CLI,
-and typed records. The measured `src/pr_review_harness` tree is 32,429 lines
-(−20.29% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
+and typed records. The measured `src/pr_review_harness` tree is 32,433 lines
+(−20.28% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
 565 lines must be explicitly allowed; the owner approved a one-time 565-line
-allowance, with 139 lines coming from the prior headroom and 5 lines remaining.
+allowance, with 143 lines coming from the prior headroom and 1 line remaining.
 
 [ADR 0001](0001-post-ca2-feature-budget.md) permits further growth only through a
 new decision record. This record therefore adds a separate, one-time
@@ -137,7 +137,7 @@ new decision record. This record therefore adds a separate, one-time
 gate includes that term and records the honest live measurement. This allowance
 is scoped to the bounded-waiver feature, does not renew the 500-line general
 feature budget, and is not available for unrelated growth. The resulting
-one-time ceiling is 32,434 lines, with 5 lines of headroom.
+one-time ceiling is 32,434 lines, with 1 line of headroom.
 
 ## Consequences
 
@@ -154,9 +154,9 @@ one-time ceiling is 32,434 lines, with 5 lines of headroom.
   `COMMENT`.
 - The publisher accepts sealed `WAIVED` rows only after revalidating the
   receipt schema, source SHA-256, counts, reviewer/reason/expiry/repository/
-  revision identity, and the exact row-to-applied-record mapping. Fabricated
-  rows, missing/extra/duplicate records, and mismatched counts are rejected even
-  when the result has been rehashed. It still rejects inconsistent coverage
+  revision identity, and the exact row-to-applied-record mapping, including the target and justification.
+  Fabricated rows or targets, missing/extra/duplicate records, and mismatched
+  counts are rejected even when the result has been rehashed. It still rejects inconsistent coverage
   state, stale freshness, and non-current dispositions.
 - The completeness regression gate treats a baseline `COMPLETE` obligation that
   becomes `WAIVED` as a regression (`KNOWN_COMPLETE_REGRESSION`), so a waiver

@@ -677,12 +677,14 @@ def _sealed_waived_publish_result(tmp_path, run_id):
         "record_missing_obligation",
         "duplicate_record",
         "extra_record",
+        "bogus_row_target",
+        "bogus_row_justification",
     ],
 )
 def test_publisher_rejects_inconsistent_waiver_receipts(tmp_path, mutation):
     from pr_review_harness.publisher import PublicationRejected, preview_publication
 
-    result = _sealed_waived_publish_result(tmp_path, f"waiver-publish-{mutation}")
+    result = json.loads(json.dumps(_sealed_waived_publish_result(tmp_path, f"waiver-publish-{mutation}")))
     receipt = result["waiver_receipt"]
     applied = result["waivers_applied"]
 
@@ -706,6 +708,10 @@ def test_publisher_rejects_inconsistent_waiver_receipts(tmp_path, mutation):
             }
         )
         receipt["applied_count"] = len(applied)
+    elif mutation == "bogus_row_target":
+        result["coverage_ledger"][0]["waiver"]["target"]["id"] = "unit:forged"
+    elif mutation == "bogus_row_justification":
+        result["coverage_ledger"][0]["waiver"]["justification"] = "A forged row justification."
     _reseal(result)
 
     with pytest.raises(PublicationRejected, match="waiver"):
