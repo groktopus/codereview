@@ -136,7 +136,7 @@
                   "CONTEXT_EVIDENCE_TRUNCATED",
                   "PROVIDER_UNAVAILABLE",
                   "CONTEXT_GAP_UNRESOLVED",
-                  "CONTEXT_NOT_COVERED"
+                  "CONTEXT_NOT_COVERED", "PARTIAL_REVIEW_COVERAGE", "COVERAGE_NOTE_MISSING", "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT", "REQUIRED_CONTEXT_NOT_COVERED"
                 ]
               }
             }
