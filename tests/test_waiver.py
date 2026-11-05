@@ -1111,3 +1111,48 @@ def test_publisher_rejects_reducer_contract_failure(tmp_path, monkeypatch):
             result,
             {"schema_version": "1.0", "allowed_repositories": ["owner/repo"], "allowed_dispositions": ["COMMENT"]},
         )
+
+
+def test_execution_failure_reason_waives_all_matching_rows_and_records_each():
+    rows = [
+        {
+            "obligation_id": "unit:u0:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+        },
+        {
+            "obligation_id": "unit:u1:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+        },
+    ]
+    document = waiver_document(execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED"))
+    document["source_sha256"] = "a" * 64
+    applied, unapplied = apply_waivers(rows, document, now=NOW)
+
+    assert not unapplied
+    assert applied[0]["obligation_ids"] == ["unit:u0:lens:correctness", "unit:u1:lens:correctness"]
+    assert {row["state"] for row in rows} == {"WAIVED"}
+
+
+def test_execution_failure_reason_rejects_overlap_with_id_target():
+    rows = [
+        {
+            "obligation_id": "unit:u0:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+        }
+    ]
+    document = waiver_document(execution_target(obligation_id="unit:u0:lens:correctness"))
+    document["waivers"].append(execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED"))
+    document["source_sha256"] = "a" * 64
+
+    with pytest.raises(WaiverError, match="overlaps"):
+        apply_waivers(rows, document, now=NOW)
+    assert rows[0]["state"] == "PARTIAL"
