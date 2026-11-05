@@ -25,3 +25,20 @@ class PartialFindingProvider(FindingProvider):
         result["coverage_notes"][0]["state"] = "PARTIAL"
         result["coverage_notes"][0]["reason_code"] = "STATIC_TEST_CONTEXT_INSUFFICIENT"
         return result
+
+
+class QuarantinedCoverageProvider(EmptyProvider):
+    """Produce a required-output execution failure without a provider call failure."""
+
+    def review(self, task, evidence, limits):
+        result = super().review(task, evidence, limits)
+        result["payload"]["coverage_notes"] = []
+        result["payload"]["quarantined_items"] = [
+            {
+                "kind": "coverage_notes",
+                "index": 0,
+                "reason_code": "invalid_coverage_note_state",
+                "item_hash": "a" * 64,
+            }
+        ]
+        return result

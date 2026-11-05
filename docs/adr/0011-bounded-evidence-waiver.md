@@ -187,7 +187,97 @@ expired-at-load and expired-at-use, unknown targets before provider dispatch,
 duplicate/overbroad targets, reason-code scoping, visible `WAIVED` rows, the
 SUMMARY/report/result receipts, and preservation of findings and blockers.
 `tests/test_surface_consolidation.py` verifies the recorded source measurement,
-the 565-line waiver-feature allowance, and the resulting ceiling.
-Schema validation uses `Draft202012Validator`, including both the exact-`id` and
-`reason_code` target shapes. `scripts/check_decision_records.py` validates this
-record and its index row.
+the 565-line waiver-feature allowance, the 107-line execution-failure allowance,
+and the resulting ceiling. Schema validation uses `Draft202012Validator`,
+including the exact-`id` and `reason_code` target shapes. `scripts/check_decision_records.py`
+validates this record and its index row.
+
+## Addendum — 2026-11-05: execution-failure target kind
+
+- **Decision authority:** Repository owner, exercised through the direct
+  implementation instruction of 2026-11-05 ("owner-approved
+  `execution_failure` target kind for obligations that are incomplete because
+  of execution/context failures, not missing evidence"). The original
+  authorization in [AGENTS.md](../../AGENTS.md) remains the standing authority;
+  this addendum does not broaden the general waiver or any effect authority.
+- **Scope:** The fourth target kind `execution_failure`, its exact reason
+  allowlist, preflight/application resolution, schema, tests, and docs. The
+  existing `context_gap`, `check`, and `coverage_note` kinds, the `WAIVED`
+  state, and all publisher/receipt rules are unchanged.
+- **Evidence:** `src/pr_review_harness/waiver.py`;
+  `src/pr_review_harness/publisher.py`;
+  [`schemas/review-evidence-waiver.v1.schema.json`](../../schemas/review-evidence-waiver.v1.schema.json);
+  `tests/test_waiver.py`; `tests/waiver_providers.py`;
+  `tests/test_surface_consolidation.py`.
+- **Reversal/expiry:** Supersede this addendum if a reviewer can use
+  `execution_failure` without naming one exact required obligation or one
+  allowlisted exact reason, if it can be used as a wildcard/family waiver, if
+  reason resolution is not bounded to one required incomplete row, or if the
+  waiver can change `COMPLETE`, a finding, an existing blocker, or an
+  `APPROVE` disposition.
+
+The original decision treated a waiver as an exception for *missing evidence*.
+It did not distinguish that from an obligation that was planned and required
+but did not complete because execution itself failed (deadline, provider,
+quarantine, missing result, output budget, truncated context) or because the
+required context contract never reached a covering note. Treating those as
+missing evidence forced a reviewer to either overstate the evidence gap or
+leave a genuinely execution-blocked obligation permanently incomplete.
+
+### Decision
+
+Add `execution_failure` as a fourth bounded target kind.
+
+- An `id` target must name exactly one required planned obligation id. At
+  application the row must still be required, in `PARTIAL`, `NOT_STARTED`, or
+  `UNKNOWN`, and its reported reason must classify into the execution-failure
+  family. If it does not, the target is unapplied and the row stays incomplete.
+- A `reason_code` target must use one exact code from this closed allowlist:
+  `DEADLINE_EXHAUSTED`, `REQUIRED_OUTPUT_QUARANTINED`, `MISSING_RESULT`,
+  `OUTPUT_BYTE_BUDGET_EXHAUSTED`, `CONTEXT_EVIDENCE_TRUNCATED`,
+  `PROVIDER_UNAVAILABLE`, `CONTEXT_GAP_UNRESOLVED`, `CONTEXT_NOT_COVERED`.
+  There is no wildcard, prefix, suffix, family, or blanket form. The target is
+  matched against the row's exact reported reason code, so naming
+  `OUTPUT_BYTE_BUDGET_EXHAUSTED` does not silently waive every
+  `CONTEXT_EVIDENCE_TRUNCATED` row.
+- Preflight validates the allowlist and resolves every determinable target to
+  exactly one required planned obligation. When the plan does not yet record
+  runtime reasons, a reason target is deferred rather than guessed: exactly one
+  matching required row must be found at application, zero matches leave it
+  unapplied, and multiple matches are rejected as overbroad. Any two targets
+  that can be resolved to the same row are rejected as overlapping before
+  application, and application re-checks overlap before mutating any row.
+- The runtime semantics are otherwise the original waiver semantics. The row
+  becomes `WAIVED`, never `COMPLETE`; it records `waived_from_state`,
+  `waived_from_reason_code`, and the full target; the receipt and
+  `waived_obligations` entry are unchanged in shape; `complete_ratio` still
+  counts only `COMPLETE` and `resolved_ratio` includes `WAIVED`; coverage is
+  `COMPLETE_WITH_WAIVERS` when every required row is complete or waived; and
+  the deterministic reducer caps the disposition at `COMMENT` (an accepted
+  blocker still returns `REQUEST_CHANGES`).
+- The publisher continues to reject any waived review claiming `APPROVE`,
+  revalidates the receipt/row/record identity, and additionally rejects a
+  forged applied target with an unknown kind, malformed target shape, or an
+  execution-failure reason outside the allowlist.
+
+### Source-line budget consequence
+
+The initial bounded-waiver allowance left zero headroom at 32,434 measured
+source lines. This addendum adds 113 physical source lines (net) in
+`waiver.py` and `publisher.py`; the measured tree is now 32,541 lines
+(−20.0192% against the 40,686 CA-2 base). A separate, one-time
+`execution_failure_allowance_lines: 113` is recorded in
+`docs/public-surface.json`, and the surface test includes it in the effective
+ceiling. It is scoped to this target kind, does not renew the 500-line general
+feature budget, and is not available for unrelated growth. The resulting
+one-time ceiling is 32,541 lines with no further headroom.
+
+### Confirmation
+
+The focused evidence is
+`PYTHONPATH=src python3 -m pytest -q tests/test_waiver.py tests/test_surface_consolidation.py`.
+It covers the exact-id and exact-reason execution waivers, wrong target kind,
+non-allowlisted reasons, overlapping id/reason targets, expired-at-use,
+publisher rejection of `APPROVE` and of a forged execution-failure reason,
+summary/receipt counts, and the rendered report line showing the
+`execution_failure` target.

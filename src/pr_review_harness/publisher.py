@@ -235,6 +235,8 @@ def _validate_waiver_integrity(result: dict) -> None:
     applied record may exist without the WAIVED rows it claims.
     """
 
+    from .waiver import EXECUTION_FAILURE_REASON_CODES, TARGET_KINDS
+
     ledger = result["coverage_ledger"]
     waived_rows = [entry for entry in ledger if entry.get("state") == "WAIVED"]
     receipt = result.get("waiver_receipt")
@@ -288,6 +290,16 @@ def _validate_waiver_integrity(result: dict) -> None:
             for key in ("reviewer", "reason", "issued_at", "expires_at", "source_sha256")
         ):
             raise PublicationRejected("review waiver applied record identity is invalid")
+        target = record.get("target")
+        if not isinstance(target, dict) or target.get("kind") not in TARGET_KINDS:
+            raise PublicationRejected("review waiver target is invalid")
+        if ("id" in target) == ("reason_code" in target):
+            raise PublicationRejected("review waiver target is invalid")
+        if not isinstance(target.get("justification"), str) or len(target["justification"].strip()) < 10:
+            raise PublicationRejected("review waiver target is invalid")
+        if target["kind"] == "execution_failure" and "reason_code" in target:
+            if target.get("reason_code") not in EXECUTION_FAILURE_REASON_CODES:
+                raise PublicationRejected("review waiver execution-failure reason is invalid")
         applied_by_id[waiver_id] = record
     rows_by_waiver: dict[str, set[str]] = {}
     for row in waived_rows:

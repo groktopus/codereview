@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/groktopus/codereview/schemas/review-evidence-waiver.v1.schema.json",
   "title": "Review evidence waiver v1",
-  "description": "A named reviewer's bounded, expiring exception for exact missing-evidence obligations. Missing evidence is denied by default. A waiver never changes a finding or an existing blocker.",
+  "description": "A named reviewer's bounded, expiring exception for exact missing-evidence or execution-failure obligations. Missing evidence is denied by default. A waiver never changes a finding or an existing blocker.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -73,7 +73,8 @@
           "enum": [
             "context_gap",
             "check",
-            "coverage_note"
+            "coverage_note",
+            "execution_failure"
           ]
         },
         "justification": {
@@ -112,7 +113,37 @@
           }
         }
       ],
-      "description": "Exactly one id or reason_code. An id is an exact planned obligation target. A reason_code is accepted only when exactly one required incomplete obligation matches; a multi-row reason-code match is rejected as overbroad."
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "execution_failure"
+              }
+            },
+            "required": [
+              "reason_code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "enum": [
+                  "DEADLINE_EXHAUSTED",
+                  "REQUIRED_OUTPUT_QUARANTINED",
+                  "MISSING_RESULT",
+                  "OUTPUT_BYTE_BUDGET_EXHAUSTED",
+                  "CONTEXT_EVIDENCE_TRUNCATED",
+                  "PROVIDER_UNAVAILABLE",
+                  "CONTEXT_GAP_UNRESOLVED",
+                  "CONTEXT_NOT_COVERED"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "description": "Exactly one id or reason_code. An id is an exact planned obligation target. A reason_code is accepted only when exactly one required incomplete obligation matches; a multi-row reason-code match is rejected as overbroad. An execution_failure reason_code must be one exact allowlisted code and targets exactly one required incomplete row by its reported reason; there is no wildcard, prefix, or whole-family form."
     }
   }
 }

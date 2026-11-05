@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 from test_engine import LIMITS, EmptyProvider, make_snapshot, profile
-from waiver_providers import PartialFindingProvider, PartialProvider
+from waiver_providers import PartialFindingProvider, PartialProvider, QuarantinedCoverageProvider
 
 from pr_review_harness.completeness import build_completeness_summary
 from pr_review_harness.engine import EnginePreflightError, _reduce, run_review
@@ -76,6 +76,34 @@ def run(tmp_path: Path, run_id: str, provider, *, waiver_path=None, plan=None, s
         resume=resume,
         waiver_path=waiver_path,
     )
+
+
+def execution_target(*, obligation_id=None, reason_code=None):
+    target = {
+        "kind": "execution_failure",
+        "justification": "The obligation is incomplete only because execution failed; evidence is not missing.",
+    }
+    if obligation_id is not None:
+        target["id"] = obligation_id
+    if reason_code is not None:
+        target["reason_code"] = reason_code
+    return target
+
+
+def run_execution_waiver(tmp_path: Path, run_id: str, target: dict):
+    snapshot = snapshot_with_repository()
+    snapshot["pull_request_number"] = 7
+    plan = plan_for(snapshot)
+    path = write_waiver(tmp_path, waiver_document(target))
+    result = run(
+        tmp_path,
+        run_id,
+        QuarantinedCoverageProvider(),
+        waiver_path=str(path),
+        plan=plan,
+        snapshot=snapshot,
+    )
+    return result, plan
 
 
 def test_valid_waiver_resolves_exact_gap_and_stays_visible(tmp_path):
@@ -165,6 +193,154 @@ def test_reason_code_target_is_scoped_to_its_kind_and_exact_reason():
     assert not unapplied
     assert applied[0]["target"]["reason_code"] == "SPECIALIST_COVERAGE_PARTIAL"
     assert row["state"] == "WAIVED"
+
+
+def test_execution_failure_id_waiver_records_the_exact_obligation_and_preserves_audit(tmp_path):
+    snapshot = snapshot_with_repository()
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    result, _ = run_execution_waiver(tmp_path, "waiver-execution-id", execution_target(obligation_id=obligation_id))
+    row = result["coverage_ledger"][0]
+    summary = result["completeness_summary"]
+
+    assert row["state"] == "WAIVED"
+    assert row["waived_from_state"] == "PARTIAL"
+    assert row["waived_from_reason_code"] == "REQUIRED_OUTPUT_QUARANTINED"
+    assert row["waiver"]["target"] == execution_target(obligation_id=obligation_id)
+    assert summary["waived"] == 1
+    assert summary["complete"] == 0
+    assert summary["complete_ratio"] == 0.0
+    assert summary["resolved_ratio"] == 1.0
+    assert summary["waived_obligations"][0]["obligation_id"] == obligation_id
+    assert result["coverage_state"] == "COMPLETE_WITH_WAIVERS"
+    assert result["disposition"] == "COMMENT"
+    assert "reason_code" not in result["waivers_applied"][0]["target"]
+    assert result["waiver_receipt"]["applied_count"] == 1
+    assert result["waiver_receipt"]["waived_obligation_count"] == 1
+    rendered = render_report(result)
+    assert "1 waived" in rendered
+    assert f"WAIVED {obligation_id}: execution\\_failure {obligation_id}" in rendered
+
+
+def test_execution_failure_reason_waiver_targets_one_exact_reported_reason(tmp_path):
+    result, _ = run_execution_waiver(
+        tmp_path,
+        "waiver-execution-reason",
+        execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED"),
+    )
+    row = result["coverage_ledger"][0]
+
+    assert row["state"] == "WAIVED"
+    assert row["waived_from_reason_code"] == "REQUIRED_OUTPUT_QUARANTINED"
+    assert result["waivers_applied"][0]["target"] == execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED")
+    assert result["coverage_state"] == "COMPLETE_WITH_WAIVERS"
+    assert result["disposition"] == "COMMENT"
+
+
+def test_execution_failure_id_waiver_does_not_apply_to_a_missing_evidence_reason():
+    row = {
+        "obligation_id": "unit:u0:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": True,
+        "state": "PARTIAL",
+        "reason_code": "PARTIAL_REVIEW_COVERAGE",
+    }
+    document = waiver_document(execution_target(obligation_id="unit:u0:lens:correctness"))
+    document["source_sha256"] = "a" * 64
+    applied, unapplied = apply_waivers([row], document, now=NOW)
+
+    assert applied == []
+    assert unapplied[0]["status"] == "NO_MATCHING_INCOMPLETE_OBLIGATION"
+    assert row["state"] == "PARTIAL"
+
+
+def test_execution_failure_reason_waiver_does_not_match_a_different_family():
+    row = {
+        "obligation_id": "unit:u0:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": True,
+        "state": "PARTIAL",
+        "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+    }
+    document = waiver_document(execution_target(reason_code="CONTEXT_EVIDENCE_TRUNCATED"))
+    document["source_sha256"] = "a" * 64
+    applied, unapplied = apply_waivers([row], document, now=NOW)
+
+    assert applied == []
+    assert unapplied[0]["status"] == "NO_MATCHING_INCOMPLETE_OBLIGATION"
+    assert row["state"] == "PARTIAL"
+
+
+@pytest.mark.parametrize(
+    ("kind", "reason_code", "message"),
+    [
+        ("check", "REQUIRED_OUTPUT_QUARANTINED", "outside its target kind"),
+        ("execution_failure", "CHECK_EVIDENCE_UNAVAILABLE", "not allowlisted"),
+        ("execution_failure", "TASK_FAILED", "not allowlisted"),
+        ("execution_failure", "PARTIAL_REVIEW_COVERAGE", "not allowlisted"),
+    ],
+)
+def test_execution_failure_target_rejects_wrong_kind_and_nonallowlisted_reason(tmp_path, kind, reason_code, message):
+    target = {
+        "kind": kind,
+        "reason_code": reason_code,
+        "justification": "The named reason is asserted as the exact accepted failure.",
+    }
+    with pytest.raises(WaiverError, match=message):
+        load_waiver(
+            str(write_waiver(tmp_path, waiver_document(target))),
+            repository="owner/repo",
+            base_sha="b" * 40,
+            head_sha="c" * 40,
+            now=NOW,
+        )
+
+
+def test_execution_failure_id_and_reason_targets_overlap_the_same_obligation():
+    snapshot = snapshot_with_repository()
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    plan["coverage_obligations"][0]["reason_code"] = "REQUIRED_OUTPUT_QUARANTINED"
+    document = waiver_document(execution_target(obligation_id=obligation_id))
+    document["waivers"].append(execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED"))
+
+    with pytest.raises(WaiverError, match="overlaps"):
+        validate_waiver_targets(document, plan)
+
+    row = {
+        "obligation_id": obligation_id,
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": True,
+        "state": "PARTIAL",
+        "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+    }
+    document["source_sha256"] = "a" * 64
+    with pytest.raises(WaiverError, match="overlaps"):
+        apply_waivers([row], document, now=NOW)
+    assert row["state"] == "PARTIAL"
+
+
+def test_execution_failure_waiver_expired_at_use_is_never_applied(tmp_path):
+    document = waiver_document(execution_target(reason_code="DEADLINE_EXHAUSTED"))
+    loaded = load_waiver(
+        str(write_waiver(tmp_path, document)),
+        repository="owner/repo",
+        base_sha="b" * 40,
+        head_sha="c" * 40,
+        now=NOW,
+    )
+    row = {
+        "obligation_id": "unit:u0:lens:correctness",
+        "obligation_kind": "CHANGED_UNIT_LENS",
+        "required": True,
+        "state": "PARTIAL",
+        "reason_code": "DEADLINE_EXHAUSTED",
+    }
+    applied, unapplied = apply_waivers([row], loaded, now=LATER)
+
+    assert applied == []
+    assert unapplied[0]["status"] == "EXPIRED_AT_USE"
+    assert row["state"] == "PARTIAL"
 
 
 @pytest.mark.parametrize(
@@ -453,6 +629,19 @@ def test_schema_accepts_exact_id_and_reason_code_targets():
     assert list(validator.iter_errors(waiver_document(both)))
 
 
+def test_schema_accepts_execution_failure_targets_only_with_an_allowlisted_reason():
+    from jsonschema import Draft202012Validator
+
+    schema = json.loads(
+        (Path(__file__).resolve().parents[1] / "schemas/review-evidence-waiver.v1.schema.json").read_text()
+    )
+    validator = Draft202012Validator(schema)
+
+    validator.validate(waiver_document(execution_target(obligation_id="unit:u0:lens:correctness")))
+    validator.validate(waiver_document(execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED")))
+    assert list(validator.iter_errors(waiver_document(execution_target(reason_code="TASK_FAILED"))))
+
+
 def test_waiver_lifetime_is_capped_and_issued_time_cannot_be_in_the_future(tmp_path):
     document = waiver_document(target_for("unit:u0:lens:correctness"))
     document["issued_at"] = (NOW + timedelta(days=1)).isoformat()
@@ -546,6 +735,56 @@ def test_publisher_rejects_approval_of_a_waived_review(tmp_path):
                 "schema_version": "1.0",
                 "allowed_repositories": ["owner/repo"],
                 "allowed_dispositions": ["APPROVE", "COMMENT"],
+            },
+        )
+
+
+def test_publisher_rejects_approval_of_an_execution_failure_waived_review(tmp_path):
+    from pr_review_harness.engine import _hash
+    from pr_review_harness.publisher import PublicationRejected, preview_publication
+
+    snapshot = snapshot_with_repository()
+    snapshot["pull_request_number"] = 7
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    result, _ = run_execution_waiver(
+        tmp_path, "waiver-execution-publish-reject", execution_target(obligation_id=obligation_id)
+    )
+    result["disposition"] = "APPROVE"
+    result["result_hash"] = _hash({key: value for key, value in result.items() if key != "result_hash"})
+
+    with pytest.raises(PublicationRejected, match="cannot approve"):
+        preview_publication(
+            result,
+            {
+                "schema_version": "1.0",
+                "allowed_repositories": ["owner/repo"],
+                "allowed_dispositions": ["APPROVE", "COMMENT"],
+            },
+        )
+
+
+def test_publisher_rejects_a_forged_execution_failure_target_reason(tmp_path):
+    from pr_review_harness.engine import _hash
+    from pr_review_harness.publisher import PublicationRejected, preview_publication
+
+    result, _ = run_execution_waiver(
+        tmp_path,
+        "waiver-execution-forged-target",
+        execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED"),
+    )
+    forged = {"kind": "execution_failure", "reason_code": "TASK_FAILED", "justification": "forged target"}
+    result["waivers_applied"][0]["target"] = forged
+    result["coverage_ledger"][0]["waiver"]["target"] = forged
+    result["result_hash"] = _hash({key: value for key, value in result.items() if key != "result_hash"})
+
+    with pytest.raises(PublicationRejected, match="execution-failure reason"):
+        preview_publication(
+            result,
+            {
+                "schema_version": "1.0",
+                "allowed_repositories": ["owner/repo"],
+                "allowed_dispositions": ["COMMENT"],
             },
         )
 
