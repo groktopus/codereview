@@ -61,7 +61,27 @@
       "status": "completed",
       "disposition": "REQUEST_CHANGES",
       "detector_result": "NOT_RUN",
-      "findings": []
+      "findings": [
+        {
+          "finding_id": "finding-3f7881cf2cb13ab9866e",
+          "materiality": "MATERIAL",
+          "introducedness": "INTRODUCED",
+          "evidence_refs": [
+            "ev-65caf97aaf68619f1bb3c486",
+            "ev-77077a35f910eb81cd54d283"
+          ]
+        },
+        {
+          "finding_id": "finding-8d526c3ef61b9d01161f",
+          "materiality": "MATERIAL",
+          "introducedness": "INTRODUCED",
+          "evidence_refs": [
+            "ev-65caf97aaf68619f1bb3c486",
+            "ev-77077a35f910eb81cd54d283",
+            "ev-7d7cc02ef7fb99ee534f8f97"
+          ]
+        }
+      ]
     },
     {
       "case_id": "qm1-codereview-pr289",
@@ -91,7 +111,17 @@
       "status": "completed",
       "disposition": "REQUEST_CHANGES",
       "detector_result": "NOT_RUN",
-      "findings": []
+      "findings": [
+        {
+          "finding_id": "finding-d4188eab88d967d29c09",
+          "materiality": "MATERIAL",
+          "introducedness": "INTRODUCED",
+          "evidence_refs": [
+            "ev-b42a624349a312bf19e4d19d",
+            "ev-bfbe0a17102c1785dc7adfa7"
+          ]
+        }
+      ]
     },
     {
       "case_id": "qm1-slopsearx-pr759",
@@ -151,7 +181,17 @@
       "status": "completed",
       "disposition": "REQUEST_CHANGES",
       "detector_result": "NOT_RUN",
-      "findings": []
+      "findings": [
+        {
+          "finding_id": "finding-c09f2b4cab097043c5de",
+          "materiality": "MATERIAL",
+          "introducedness": "INTRODUCED",
+          "evidence_refs": [
+            "ev-7fb75c700b756db7030829f7",
+            "ev-c90a72b213941dc96670aa3f"
+          ]
+        }
+      ]
     }
   ]
 }

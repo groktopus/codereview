@@ -4,7 +4,8 @@
   "labels": "../qm2-labeling-pilot-v1/labels-synthetic-v1.json",
   "content_hashes": {
     "README.md": "2a947570bb5ec24780adb48d1e3af4550ef77f9e565806ec0d713bf5750f0790",
-    "scorecard.json": "e20b9237e07b9544f33936415ebe677a75e7aea61870fdcc998f2ddae42d1687",
-    "predictions.json": "660f3d3f2d0559dc35df513bc9ac701d47ea2e4a963710385624d0591b3a32e3"
+    "scorecard.json": "bd424e07728cbc5006fcd56cb167592ab7bea7b2475908ea197c90b01ed52e50",
+    "manifest.json": "27260a91276c18266db8c465fcf361a7f85e764d2d9d49396329b104e2b28dcb",
+    "predictions.json": "767047839940b415622e4e09cb4622b16bd83c0850e9247dfc205d6d08da9ea0"
   }
 }
