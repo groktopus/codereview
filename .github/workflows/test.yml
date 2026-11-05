@@ -430,6 +430,13 @@ jobs:
             --baseline tests/fixtures/completeness/baseline.v1.json \
             --result tests/fixtures/completeness/good-result.json \
             --json | tee completeness-good-verdict.json
+      - name: Gate the frozen-corpus completeness baseline
+        run: |
+          set -euo pipefail
+          python scripts/check_completeness.py \
+            --baseline examples/evaluation/completeness-baseline-v1/baseline.json \
+            --results-manifest examples/evaluation/completeness-baseline-v1/manifest.json \
+            --json | tee completeness-frozen-baseline-verdict.json
       - name: Prove the gate rejects a seeded completeness regression
         run: |
           set -euo pipefail
