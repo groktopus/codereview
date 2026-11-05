@@ -341,65 +341,37 @@ adds the digest only after the response bytes are fixed. Never hash the output
 record itself and copy that value into its own packets.
 
 The empty findings are conservative adjudications of bounded inputs, not a
-clean-review claim. The scorecard reports `MISSING_DATA`: there are no prediction
-runs, and the synthetic label arm is `partial` because one case is incomplete.
-The human label arm is `missing`. The test-only fixture
-[tests/fixtures/quality_scorecard/labels-synthetic.json](../tests/fixtures/quality_scorecard/labels-synthetic.json)
-still exercises contract and scorecard arithmetic; it is not this pilot run.
+clean-review claim. The **empty pilot fixture** at
+`examples/evaluation/qm2-labeling-pilot-v1/predictions.json` still reports
+`MISSING_DATA`; it is retained unchanged as a contract fixture.
 
-## Retained run and next run
-
-The first retained run is present. Its request, prompt, response, output, and
-labels are immutable inputs; a correction needs a new labels file and a new run
-identity.
-
-1. **Freeze the case.** Use the exact corpus identity and the retained diff.
-   `request.json` binds each diff hash and byte count, and the frozen manifest
-   supplies the evidence-completeness status.
-2. **Run and retain the output.** Record `run_id`, model identity, prompt
-   revision, timestamp, and the retained response bytes before writing labels. The
-   response digest binds `teacher-response.txt`.
-3. **Emit one adjudicated packet per case** with evidence references on every
-   finding label and adjudication. An incomplete case stays `INCOMPLETE` and
-   `INCONCLUSIVE`; the contract rejects `NO_KNOWN_MATERIAL_DEFECTS` for it.
-4. **Validate and score** against the empty predictions, then against real
-   predictions when they exist:
+The **five-case baseline** is separate and is the QM-2 closure evidence:
 
 ```sh
 python3 scripts/evaluate_reviews.py \
   --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
-  --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
+  --predictions examples/evaluation/qm2-baseline-scorecard-v1/predictions.json \
   --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
   --json
 
 python3 scripts/generate_quality_scorecard.py \
   --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
-  --predictions examples/evaluation/qm2-labeling-pilot-v1/predictions.json \
+  --predictions examples/evaluation/qm2-baseline-scorecard-v1/predictions.json \
   --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
   --json
 ```
 
-The current result is a synthetic label arm that is `partial` (five complete of
-six) and a human arm that is `missing`. Predictions are retained for five complete cases, so each
-prediction arm has no synthetic precision or recall denominator and the
-scorecard stays `MISSING_DATA`. This is not a quality or replacement claim.
+That scorecard is `PARTIAL`: the harness arm completed 5 of 6 cases
+(`qm1-slopsearx-pr770` missing and not imputed), the synthetic label arm is
+`present` with 5 complete adjudicated packets of 6, synthetic precision has a
+4/4 denominator with 4 unadjudicated findings, and accuracy is refused. The
+human arm is `missing`.
 
-## What remains for QM-2
+## What remains for QM-3
 
-- Prediction runs for both arms so synthetic precision and recall have
-  denominators.
-- Resolution or replacement of the incomplete `qm1-slopsearx-pr770` case, or an
-  explicit decision to report it as an excluded incomplete case.
-- A synthetic run that adjudicates at least one material finding, so the pilot
-  exercises the finding-label and adjudication paths rather than only empty
-  finding lists.
-- A retained synthetic scorecard baseline with an owner-accepted gate.
-- Optional: human independent and adjudicated packets as a separate arm, with
-  disagreement counts.
-
-QM-2 is closed. The owner decision and the contract are recorded; the five-case
-scorecard is retained separately. Neither is evidence of calibrated accuracy.
-
+QM-2 is closed. The remaining quality work belongs to QM-3: a second prediction
+arm, an owner-accepted baseline, a decision on the incomplete `pr770` case, and a
+scheduled full-corpus run that adjudicates at least one material finding.
 ## Validation
 
 ```sh
