@@ -7,9 +7,12 @@ evidence obligation or one exact reason category.  It is not a blanket
 * no waiver is the default, and missing evidence remains missing;
 * the waiver file is bound to one repository and one exact base/head pair;
 * the reviewer, reason, issue time, and expiry are required;
-* every target is scoped to one of ``context_gap``, ``check``, or
-  ``coverage_note`` and to an exact planned obligation id or an exact reason
-  code in that category;
+* every target is scoped to one of ``context_gap``, ``check``,
+  ``coverage_note``, or ``execution_failure`` and to an exact planned
+  obligation id or an exact reason code in that category;
+* ``execution_failure`` additionally requires one exact allowlisted reason
+  code.  It can never be used as a wildcard or blanket execution-failure
+  waiver;
 * an expired waiver is never applied, even if it was valid when the run
   started;
 * a waived obligation becomes ``WAIVED``, never ``COMPLETE``.  Findings and
@@ -31,7 +34,35 @@ from .completeness import classify_reason
 
 WAIVER_SCHEMA = "review-evidence-waiver.v1"
 RECEIPT_SCHEMA = "review-evidence-waiver-receipt.v1"
-TARGET_KINDS = ("context_gap", "check", "coverage_note")
+TARGET_KINDS = ("context_gap", "check", "coverage_note", "execution_failure")
+# Execution/context failures that may be waived.  These are exact reported
+# reason codes, not prefixes or families: a reviewer must name the one failure
+# mode being accepted.  ``OUTPUT_BYTE_BUDGET_EXHAUSTED`` is retained as an
+# exact legacy code even though the completeness taxonomy canonicalizes it to
+# ``CONTEXT_EVIDENCE_TRUNCATED``; a broader family target is not accepted.
+EXECUTION_FAILURE_REASON_CODES = frozenset(
+    {
+        "DEADLINE_EXHAUSTED",
+        "REQUIRED_OUTPUT_QUARANTINED",
+        "MISSING_RESULT",
+        "OUTPUT_BYTE_BUDGET_EXHAUSTED",
+        "CONTEXT_EVIDENCE_TRUNCATED",
+        "PROVIDER_UNAVAILABLE",
+        "CONTEXT_GAP_UNRESOLVED",
+        "CONTEXT_NOT_COVERED",
+    }
+)
+_EXECUTION_FAILURE_CANONICAL = frozenset(
+    {
+        "DEADLINE_EXHAUSTED",
+        "REQUIRED_OUTPUT_QUARANTINED",
+        "MISSING_RESULT",
+        "CONTEXT_EVIDENCE_TRUNCATED",
+        "PROVIDER_UNAVAILABLE",
+        "CONTEXT_GAP_UNRESOLVED",
+        "CONTEXT_NOT_COVERED",
+    }
+)
 MAX_WAIVER_BYTES = 256_000
 MAX_TARGETS = 64
 MIN_REASON_LENGTH = 20
@@ -124,6 +155,10 @@ def _validate_target(target: Any) -> dict[str, Any]:
     reason_code = target.get("reason_code")
     if not isinstance(reason_code, str) or _REASON_RE.fullmatch(reason_code) is None:
         raise WaiverError("review waiver target reason_code is invalid")
+    if kind == "execution_failure":
+        if reason_code not in EXECUTION_FAILURE_REASON_CODES:
+            raise WaiverError("review waiver target reason_code is not allowlisted for execution_failure")
+        return {"kind": kind, "reason_code": reason_code, "justification": target["justification"]}
     canonical = classify_reason(reason_code)
     if canonical not in _REASON_FAMILIES[kind]:
         raise WaiverError("review waiver target reason_code is outside its target kind")
@@ -264,6 +299,37 @@ def _check_aliases(obligation: Mapping[str, Any]) -> set[str]:
     }
 
 
+def _execution_failure_candidates(
+    by_id: Mapping[str, Mapping[str, Any]], target: Mapping[str, Any]
+) -> tuple[set[str], bool]:
+    """Resolve an execution-failure target against the planned obligations.
+
+    An exact id identifies one required obligation.  A reason target can only
+    be resolved here when the plan already records a reason for every required
+    obligation; otherwise resolution is deferred to application, where exactly
+    one required row must still report that exact reason.  This rejects every
+    determinable unknown/ambiguous/overlap case before provider spend without
+    pretending that a not-yet-executed plan knows its runtime failure reason.
+    """
+
+    required = {
+        obligation_id: obligation for obligation_id, obligation in by_id.items() if obligation.get("required") is True
+    }
+    if "id" in target:
+        return ({target["id"]} if target["id"] in required else set()), False
+    planned = {
+        obligation_id: obligation.get("reason_code")
+        for obligation_id, obligation in required.items()
+        if isinstance(obligation.get("reason_code"), str) and obligation.get("reason_code")
+    }
+    if len(planned) == len(required):
+        return (
+            {obligation_id for obligation_id, reason_code in planned.items() if reason_code == target["reason_code"]},
+            False,
+        )
+    return set(required), True
+
+
 def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]) -> None:
     """Resolve every target to exactly one planned obligation before dispatch."""
 
@@ -286,7 +352,10 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
         if not isinstance(target, Mapping):
             raise WaiverError("review waiver target is invalid")
         kind = target.get("kind")
-        if "id" in target:
+        deferred = False
+        if kind == "execution_failure":
+            candidates, deferred = _execution_failure_candidates(by_id, target)
+        elif "id" in target:
             identifier = target["id"]
             if kind == "check":
                 candidates = set(aliases.get(identifier, set()))
@@ -303,15 +372,28 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
             }
         if not candidates:
             raise WaiverError("review waiver target is unknown")
+        if deferred and len(candidates) != 1:
+            # The plan is not yet executed, so its runtime failure reasons are
+            # unknown. Application resolves the reason to exactly one matching
+            # required row and rejects zero or multiple matches there.
+            continue
         if len(candidates) != 1:
             raise WaiverError("review waiver target is ambiguous")
         obligation_id = next(iter(candidates))
         obligation = by_id[obligation_id]
         if obligation.get("required") is not True:
             raise WaiverError("review waiver target is unknown")
-        if kind == "check" and obligation.get("obligation_kind") != "PROJECT_CHECK":
+        if kind == "execution_failure":
+            planned_reason = obligation.get("reason_code")
+            if (
+                isinstance(planned_reason, str)
+                and planned_reason
+                and classify_reason(planned_reason) not in _EXECUTION_FAILURE_CANONICAL
+            ):
+                raise WaiverError("review waiver target kind is out of scope")
+        elif kind == "check" and obligation.get("obligation_kind") != "PROJECT_CHECK":
             raise WaiverError("review waiver target kind is out of scope")
-        if kind in {"context_gap", "coverage_note"} and obligation.get("obligation_kind") not in {
+        elif kind in {"context_gap", "coverage_note"} and obligation.get("obligation_kind") not in {
             "CHANGED_UNIT_LENS",
             "REQUIRED_CONTEXT",
         }:
@@ -350,6 +432,14 @@ def _target_matches(row: Mapping[str, Any], target: Mapping[str, Any]) -> bool:
         if "id" in target:
             return target["id"] == row.get("obligation_id")
         return classify_reason(target["reason_code"]) == canonical
+    if kind == "execution_failure":
+        if canonical not in _EXECUTION_FAILURE_CANONICAL:
+            return False
+        if "id" in target:
+            return target["id"] == row.get("obligation_id")
+        # Reason targets name one exact reported failure mode; they never waive
+        # the whole canonical family or every obligation that failed.
+        return row.get("reason_code") == target["reason_code"]
     return False
 
 
@@ -384,10 +474,15 @@ def apply_waivers(
     if not isinstance(source_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", source_sha256) is None:
         raise WaiverError("review waiver source digest is invalid")
     planned: list[tuple[int, Mapping[str, Any], list[dict[str, Any]]]] = []
+    claimed_positions: set[int] = set()
     for index, target in enumerate(document.get("waivers", [])):
         matches = [row for row in rows if _target_matches(row, target)]
         if len(matches) > 1:
             raise WaiverError("review waiver target is overbroad")
+        positions = {id(row) for row in matches}
+        if claimed_positions & positions:
+            raise WaiverError("review waiver target overlaps another target")
+        claimed_positions.update(positions)
         planned.append((index, target, matches))
     applied: list[dict[str, Any]] = []
     unapplied: list[dict[str, Any]] = []

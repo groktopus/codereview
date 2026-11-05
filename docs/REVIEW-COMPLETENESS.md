@@ -218,14 +218,41 @@ target is rejected as unknown or ambiguous. Any two targets that resolve to the
 same planned obligation are rejected as overlapping. At application a reason
 target must still match that obligation’s exact canonical reason.
 
-Target kinds are `context_gap`, `check`, and `coverage_note`. `context_gap`
-covers rows whose canonical reason is `CONTEXT_GAP_UNRESOLVED`; `check` covers
-`CHECK_EVIDENCE_UNAVAILABLE`/`CHECK_EVIDENCE_INVALID`; `coverage_note` covers
-`COVERAGE_NOTE_MISSING`, `COVERAGE_NOTE_INVALID`, `SPECIALIST_COVERAGE_PARTIAL`,
-and `CONTEXT_NOT_COVERED`. A reason code outside its kind's family, a wildcard,
-both `id` and `reason_code`, or an empty identifier is rejected. A target that
-resolves to more than one planned obligation is rejected, so a waiver never
-silently clears a 1:N set of gaps.
+`execution_failure` is a separate kind for an obligation that was planned and
+required but is incomplete because execution or context failed, not because
+evidence is missing. It may use an exact required obligation `id`, or one exact
+`reason_code` from this closed allowlist:
+
+| Allowlisted `execution_failure` reason | Meaning |
+| --- | --- |
+| `DEADLINE_EXHAUSTED` | The run or call deadline expired first. |
+| `REQUIRED_OUTPUT_QUARANTINED` | Required output was quarantined. |
+| `MISSING_RESULT` | No result row was produced. |
+| `OUTPUT_BYTE_BUDGET_EXHAUSTED` | The output-byte budget ended the obligation. |
+| `CONTEXT_EVIDENCE_TRUNCATED` | Required context was cut short by a limit. |
+| `PROVIDER_UNAVAILABLE` | No configured provider could run the obligation. |
+| `CONTEXT_GAP_UNRESOLVED` | A linked required context gap stayed unresolved. |
+| `CONTEXT_NOT_COVERED` | Required context never received a covering note. |
+
+There is no wildcard, prefix, family, or blanket form. A reason target matches
+the row's exact reported reason code, so it cannot silently waive every row in
+a canonical family. An `id` target still applies only when the required row is
+`PARTIAL`/`NOT_STARTED`/`UNKNOWN` and its reason is in the execution-failure
+family; otherwise the target is unapplied and the row stays incomplete. When
+the plan does not yet record runtime reasons, a reason target is deferred to
+application rather than guessed: exactly one matching required row must be
+found, zero matches leave it unapplied, and multiple matches are rejected as
+overbroad. Application re-checks overlap before mutating any row.
+
+The other target kinds are `context_gap`, `check`, and `coverage_note`.
+`context_gap` covers rows whose canonical reason is `CONTEXT_GAP_UNRESOLVED`;
+`check` covers `CHECK_EVIDENCE_UNAVAILABLE`/`CHECK_EVIDENCE_INVALID`;
+`coverage_note` covers `COVERAGE_NOTE_MISSING`, `COVERAGE_NOTE_INVALID`,
+`SPECIALIST_COVERAGE_PARTIAL`, and `CONTEXT_NOT_COVERED`. These existing kinds
+are unchanged. A reason code outside its kind's family, a wildcard, both `id`
+and `reason_code`, or an empty identifier is rejected. A target that resolves to
+more than one planned obligation is rejected, so a waiver never silently clears
+a 1:N set of gaps.
 
 The file is loaded and validated before provider dispatch. `issued_at` cannot
 be in the future, and the lifetime is capped at 90 days. An invalid, expired,
@@ -261,9 +288,12 @@ so an accepted blocker still yields `REQUEST_CHANGES`.
 - `tests/test_waiver.py` covers valid exact-gap resolution, default deny,
   wrong head/repository, expired-at-load and expired-at-use, future `issued_at`,
   the 90-day TTL, unknown target before provider dispatch,
-  duplicate/overbroad/overlapping targets, schema validation, 1:N reason-code rejection,
-  resume waiver-binding mismatches, visibility in the result/summary/report,
-  and blocker preservation.
+  duplicate/overbroad/overlapping targets, schema validation, 1:N reason-code
+  rejection, execution-failure `id` and allowlisted-reason targets, wrong target
+  kind, non-allowlisted execution reasons, execution-target overlap, a forged
+  execution target at publication, ability to reject `APPROVE`, visibility in
+  the result/summary/report, resume waiver-binding mismatches, and blocker
+  preservation.
 
 
 
