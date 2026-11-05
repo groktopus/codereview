@@ -208,17 +208,24 @@ either:
 - `id`: the exact planned coverage obligation id (for `check`, its exact check
   binding or check id is also accepted), or
 - `reason_code`: an exact reason code that classifies into that target kind's
-  family and matches exactly one required incomplete obligation. A multi-row
-  reason-code match is rejected as overbroad.
+  family.
+
+Every target is resolved during preflight to required planned obligation ids.
+An `id` uses the exact obligation id plus matching check aliases; a
+`reason_code` uses the required planned obligations whose kind is compatible
+with that target kind. Exactly one planned obligation must match, otherwise the
+target is rejected as unknown or ambiguous. Any two targets that resolve to the
+same planned obligation are rejected as overlapping. At application a reason
+target must still match that obligation’s exact canonical reason.
 
 Target kinds are `context_gap`, `check`, and `coverage_note`. `context_gap`
 covers rows whose canonical reason is `CONTEXT_GAP_UNRESOLVED`; `check` covers
 `CHECK_EVIDENCE_UNAVAILABLE`/`CHECK_EVIDENCE_INVALID`; `coverage_note` covers
 `COVERAGE_NOTE_MISSING`, `COVERAGE_NOTE_INVALID`, `SPECIALIST_COVERAGE_PARTIAL`,
 and `CONTEXT_NOT_COVERED`. A reason code outside its kind's family, a wildcard,
-both `id` and `reason_code`, or an empty identifier is rejected. A reason code
-that would match more than one incomplete obligation is rejected, so a waiver
-never silently clears a 1:N set of gaps.
+both `id` and `reason_code`, or an empty identifier is rejected. A target that
+resolves to more than one planned obligation is rejected, so a waiver never
+silently clears a 1:N set of gaps.
 
 The file is loaded and validated before provider dispatch. `issued_at` cannot
 be in the future, and the lifetime is capped at 90 days. An invalid, expired,

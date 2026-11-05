@@ -63,14 +63,18 @@ The schema file is authoritative. The loader additionally enforces:
   applied, and the lifetime is at most 90 days.
 - At least one and at most 64 targets; duplicate targets are rejected.
 - Each target has exactly one of `id` or `reason_code`. Supplying both is
-  rejected as overbroad; wildcards and empty identifiers are rejected. An `id`
-  target is exact. A `reason_code` target is accepted only when exactly one
-  required incomplete obligation matches; a multi-row match is rejected rather
-  than waived 1:N.
-- An `id` target and a `reason_code` target that can resolve to the same
-  obligation are rejected as overlapping during preflight. Two reason targets
-  with the same canonical reason are also rejected. Overlap is never resolved by
-  applying whichever target is encountered first.
+  rejected as overbroad; wildcards and empty identifiers are rejected. Every
+  target is resolved during preflight to required planned obligation ids:
+  `id` uses the exact obligation id plus any matching `check_binding_id`/
+  `check_id` aliases; `reason_code` uses the required planned obligations whose
+  kind is compatible with that target kind. Exactly one planned obligation must
+  match, otherwise the target is rejected as unknown or ambiguous. At
+  application the reason target must still match that obligation’s exact
+  canonical reason.
+- Any two targets that resolve to the same planned obligation are rejected as
+  overlapping during preflight, including an `id` plus a `reason_code` and two
+  reason targets. Overlap is never resolved by applying whichever target is
+  encountered first.
 - Target kinds are `context_gap`, `check`, and `coverage_note`. A reason code
   must classify into that kind's exact reason family.
 - An `id` target must name a required planned obligation (or, for `check`, its
@@ -119,14 +123,13 @@ behavior is unchanged: missing evidence remains incomplete.
 
 ## Source-line budget consequence
 
-This feature adds 709 physical source lines after review fixes: the strict waiver
+This feature adds 704 physical source lines after review fixes: the strict waiver
 loader/validator/applier and receipt builder, plus integration in review
 preflight, coverage reduction, completeness, metrics, report, publisher, CLI,
-and typed records. The measured `src/pr_review_harness` tree is 32,434 lines
-(−20.28% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
+and typed records. The measured `src/pr_review_harness` tree is 32,429 lines
+(−20.29% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
 565 lines must be explicitly allowed; the owner approved a one-time 565-line
-allowance, with the other 144 lines coming from the prior headroom, leaving no
-further headroom.
+allowance, with 139 lines coming from the prior headroom and 5 lines remaining.
 
 [ADR 0001](0001-post-ca2-feature-budget.md) permits further growth only through a
 new decision record. This record therefore adds a separate, one-time
@@ -134,7 +137,7 @@ new decision record. This record therefore adds a separate, one-time
 gate includes that term and records the honest live measurement. This allowance
 is scoped to the bounded-waiver feature, does not renew the 500-line general
 feature budget, and is not available for unrelated growth. The resulting
-one-time ceiling is 32,434 lines, with no further headroom.
+one-time ceiling is 32,434 lines, with 5 lines of headroom.
 
 ## Consequences
 

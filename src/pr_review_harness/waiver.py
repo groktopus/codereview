@@ -265,13 +265,13 @@ def _check_aliases(obligation: Mapping[str, Any]) -> set[str]:
 
 
 def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]) -> None:
-    """Reject unknown, non-required, or wrong-kind targets before dispatch."""
+    """Resolve every target to exactly one planned obligation before dispatch."""
 
     obligations = plan.get("coverage_obligations")
     if not isinstance(obligations, list):
         raise WaiverError("review waiver target is unknown")
     by_id: dict[str, Mapping[str, Any]] = {}
-    aliases: dict[str, list[str]] = {}
+    aliases: dict[str, set[str]] = {}
     for obligation in obligations:
         if not isinstance(obligation, Mapping):
             continue
@@ -280,32 +280,34 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
             continue
         by_id[obligation_id] = obligation
         for alias in _check_aliases(obligation):
-            aliases.setdefault(alias, []).append(obligation_id)
-    resolved: dict[str, Mapping[str, Any]] = {}
-    reason_targets: list[tuple[Mapping[str, Any], set[str], str]] = []
+            aliases.setdefault(alias, set()).add(obligation_id)
+    claimed: set[str] = set()
     for target in document.get("waivers", []):
         if not isinstance(target, Mapping):
             raise WaiverError("review waiver target is invalid")
         kind = target.get("kind")
-        if "id" not in target:
-            allowed_kinds = {"PROJECT_CHECK"} if kind == "check" else {"CHANGED_UNIT_LENS", "REQUIRED_CONTEXT"}
-            if not any(
-                obligation.get("required") is True and obligation.get("obligation_kind") in allowed_kinds
-                for obligation in by_id.values()
-            ):
-                raise WaiverError("review waiver target is unknown")
-            reason_targets.append((target, allowed_kinds, classify_reason(target["reason_code"])))
-            continue
-        identifier = target["id"]
-        if kind == "check":
-            candidates = [identifier] if identifier in by_id else aliases.get(identifier, [])
-            if len(candidates) != 1:
-                raise WaiverError("review waiver target is unknown")
-            obligation_id = candidates[0]
+        if "id" in target:
+            identifier = target["id"]
+            if kind == "check":
+                candidates = set(aliases.get(identifier, set()))
+                if identifier in by_id:
+                    candidates.add(identifier)
+            else:
+                candidates = {identifier} if identifier in by_id else set()
         else:
-            obligation_id = identifier
-        obligation = by_id.get(obligation_id)
-        if obligation is None or obligation.get("required") is not True:
+            allowed_kinds = {"PROJECT_CHECK"} if kind == "check" else {"CHANGED_UNIT_LENS", "REQUIRED_CONTEXT"}
+            candidates = {
+                obligation_id
+                for obligation_id, obligation in by_id.items()
+                if obligation.get("required") is True and obligation.get("obligation_kind") in allowed_kinds
+            }
+        if not candidates:
+            raise WaiverError("review waiver target is unknown")
+        if len(candidates) != 1:
+            raise WaiverError("review waiver target is ambiguous")
+        obligation_id = next(iter(candidates))
+        obligation = by_id[obligation_id]
+        if obligation.get("required") is not True:
             raise WaiverError("review waiver target is unknown")
         if kind == "check" and obligation.get("obligation_kind") != "PROJECT_CHECK":
             raise WaiverError("review waiver target kind is out of scope")
@@ -314,16 +316,9 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
             "REQUIRED_CONTEXT",
         }:
             raise WaiverError("review waiver target kind is out of scope")
-        if obligation_id in resolved:
-            raise WaiverError("review waiver target is duplicated")
-        resolved[obligation_id] = obligation
-    seen_reasons: set[str] = set()
-    for _target, allowed_kinds, canonical in reason_targets:
-        if any(obligation.get("obligation_kind") in allowed_kinds for obligation in resolved.values()):
+        if obligation_id in claimed:
             raise WaiverError("review waiver target overlaps another target")
-        if canonical in seen_reasons:
-            raise WaiverError("review waiver target overlaps another target")
-        seen_reasons.add(canonical)
+        claimed.add(obligation_id)
 
 
 def _target_matches(row: Mapping[str, Any], target: Mapping[str, Any]) -> bool:

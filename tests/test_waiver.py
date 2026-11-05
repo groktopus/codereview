@@ -724,3 +724,63 @@ def test_publisher_rejects_a_fabricated_waived_row_without_a_receipt(tmp_path):
 
     with pytest.raises(PublicationRejected, match="waiver receipt"):
         preview_publication(result, _publisher_config())
+
+
+def test_preflight_rejects_id_reason_overlap_before_any_provider_call(tmp_path):
+    snapshot = snapshot_with_repository()
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    document = waiver_document(target_for(obligation_id))
+    document["waivers"].append(
+        {
+            "kind": "coverage_note",
+            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+            "justification": "This reason resolves to the same planned obligation as the id target.",
+        }
+    )
+    path = write_waiver(tmp_path, document)
+    provider = PartialProvider()
+
+    with pytest.raises(EnginePreflightError) as raised:
+        run(tmp_path, "waiver-overlap-preflight", provider, waiver_path=str(path), plan=plan, snapshot=snapshot)
+
+    assert raised.value.reason == "review_waiver_rejected"
+    assert provider.calls == 0
+
+
+def test_preflight_rejects_ambiguous_check_alias_before_any_provider_call(tmp_path):
+    snapshot = snapshot_with_repository()
+    plan = plan_for(snapshot)
+    plan["coverage_obligations"].extend(
+        [
+            {
+                "obligation_id": "check:a",
+                "obligation_kind": "PROJECT_CHECK",
+                "required": True,
+                "scope_unit_ids": ["u0"],
+                "check_binding_id": "ambiguous",
+            },
+            {
+                "obligation_id": "ambiguous",
+                "obligation_kind": "PROJECT_CHECK",
+                "required": True,
+                "scope_unit_ids": ["u0"],
+                "check_binding_id": "b",
+            },
+        ]
+    )
+    document = waiver_document(
+        {
+            "kind": "check",
+            "id": "ambiguous",
+            "justification": "The identifier is both an obligation id and another check alias.",
+        }
+    )
+    path = write_waiver(tmp_path, document)
+    provider = PartialProvider()
+
+    with pytest.raises(EnginePreflightError) as raised:
+        run(tmp_path, "waiver-ambiguous-check", provider, waiver_path=str(path), plan=plan, snapshot=snapshot)
+
+    assert raised.value.reason == "review_waiver_rejected"
+    assert provider.calls == 0
