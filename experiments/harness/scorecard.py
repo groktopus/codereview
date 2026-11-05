@@ -267,7 +267,7 @@ def _label_arm_rates(
                 "verified_matches_lower_bound": verified,
                 "unresolved_findings_upper_bound_addition": unresolved_recall,
                 "definitively_unmatched_findings": int(recall["definitively_unmatched_findings"]),
-                "findings_without_final_adjudication": int(recall["findings_without_final_adjudication"]),
+                "findings_without_final_adjudication": unadjudicated,
                 "completed_fully_adjudicated_runs": int(recall["completed_fully_adjudicated_runs"]),
             },
             "abstention": {
@@ -287,10 +287,10 @@ def _label_arm_rates(
             },
             "unadjudicated": {
                 "status": "present",
-                "findings_without_final_adjudication": int(recall["findings_without_final_adjudication"]),
+                "findings_without_final_adjudication": unadjudicated,
                 "denominator": candidate_findings,
                 "rate": _rate(
-                    int(recall["findings_without_final_adjudication"]),
+                    unadjudicated,
                     candidate_findings,
                     "no_candidate_findings_for_arm",
                 ),
