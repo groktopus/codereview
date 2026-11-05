@@ -188,13 +188,10 @@ obligation, and a 0.5 completion floor. The matching
 `1` on that file. This is the deliberate seeded-regression probe required by
 RC-3; it proves the gate is not a no-op.
 
-**Honest limitation:** this checked-in baseline is built from a deterministic
-fixture, not from the frozen natural corpus, because no frozen-corpus result
-receipts are stored in this checkout. The baseline format and the
-`--write-baseline --results-dir` path are ready for that corpus; the baseline
-must be regenerated from real frozen-corpus results before it is used to make a
-quality or adoption judgement. This gate measures completeness only, not review
-quality.
+**Scope:** this fixture remains the deterministic seeded-regression probe. The
+five-case natural baseline is stored in
+`examples/evaluation/completeness-baseline-v1/`; it measures completeness only,
+not review quality.
 
 ## 4. Bounded evidence waiver
 
@@ -298,15 +295,6 @@ so an accepted blocker still yields `REQUEST_CHANGES`.
 
 
 Gate finding `PARTIAL_OBLIGATION_REGRESSION` fires when a baseline `PARTIAL` obligation becomes `NOT_STARTED` or `UNKNOWN` (normalized state). `KNOWN_COMPLETE_REGRESSION` also catches a baseline `COMPLETE` obligation that becomes `WAIVED`, so a waiver cannot silently replace previously complete evidence. Case identity is `case_id`, then top-level `snapshot_id`, then `run_id`; corpus runs should set a stable `case_id`. Baseline schema/taxonomy version must match the current constants.
-
-
-## Frozen-corpus baseline
-
-`examples/evaluation/completeness-baseline-v1/` records six natural corpus cases,
-including the incomplete `qm1-slopsearx-pr770` case. CI checks the stored results
-against the recorded baseline and fails on any per-case completion drop. The
-absolute floor is 0.0 because the baseline intentionally includes an incomplete
-case; the zero-drop rule is the regression control.
 
 
 ## Comparable-subset completeness baseline
