@@ -497,3 +497,18 @@ def test_partial_obligation_regressing_to_not_started_fails_the_gate():
     assert verdict["status"] == "FAIL"
     codes = {finding["code"] for finding in verdict["findings"]}
     assert "PARTIAL_OBLIGATION_REGRESSION" in codes
+
+
+def test_only_accepted_unresolved_findings_gate_the_disposition():
+    base = {"coverage_state": "COMPLETE", "freshness": "CURRENT", "findings": []}
+    unsupported = {
+        **base,
+        "findings": [{"status": "UNSUPPORTED", "blocking_class": "UNRESOLVED"}],
+    }
+    accepted = {
+        **base,
+        "findings": [{"status": "ACCEPTED", "blocking_class": "UNRESOLVED"}],
+    }
+
+    assert _reduce(unsupported, True, True) == "COMMENT"
+    assert _reduce(accepted, True, True) == "INCOMPLETE"
