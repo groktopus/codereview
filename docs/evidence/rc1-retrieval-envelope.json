@@ -2,9 +2,9 @@
   "schema": "review-issue-closure-evidence.v1",
   "issue": 239,
   "issue_id": "RC-1",
-  "closed_at": "2026-11-05T21:30:00Z",
+  "closed_at": "2026-11-05T22:07:21Z",
   "disposition": "CLOSED_WITH_TEST_BASED_RECEIPT",
-  "reason": "The original frozen PR305 revision and inputs were not retained. The owner approved closing against the dedicated retrieval-envelope tests and shipping-limit evidence instead of claiming a frozen-case rerun.",
+  "reason": "The original frozen PR305 revision and inputs were not retained. The owner approved closing against the dedicated retrieval-envelope tests instead of claiming a frozen-case rerun.",
   "evidence": [
     {
       "path": "src/pr_review_harness/engine.py",
@@ -32,7 +32,7 @@
   "not_claimed": "No frozen PR305 rerun receipt exists. The closure does not claim zero ipc_envelope_truncated on that case.",
   "owner_decision": {
     "recorded_on_issue": "https://github.com/groktopus/codereview/issues/239#issuecomment-6670793251",
-    "approved_at": "2026-11-05T22:07:21Z",
+    "approved_at": "2026-11-05T22:07:20Z",
     "text": "Owner approved recording the existing retrieval-envelope tests as the closure receipt and closing RC-1 without the original frozen PR305 case."
   },
   "pull_request": "https://github.com/groktopus/codereview/pull/334",
