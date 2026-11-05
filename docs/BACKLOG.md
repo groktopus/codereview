@@ -164,7 +164,7 @@ for state in triage ready in-progress blocked awaiting-evidence; do
 done
 
 # Example: apply one row. Repeat only for the rows the owner accepts.
-gh issue edit 239 --repo groktopus/codereview \
+gh issue edit 240 --repo groktopus/codereview \
   --add-assignee magnus919 --add-label state:ready
 ```
 

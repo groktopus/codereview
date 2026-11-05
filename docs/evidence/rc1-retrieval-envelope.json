@@ -25,7 +25,18 @@
   ],
   "tests": [
     "test_retrieval_uses_input_ceiling_so_symbol_at_end_of_large_file_is_retained",
-    "tests validating max_retrieval_result_bytes bounds"
+    "test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispatch",
+    "test_optional_retrieval_result_budget_accepts_absent_or_positive_integer",
+    "test_retrieval_result_budget_cannot_exceed_task_input_budget"
   ],
-  "not_claimed": "No frozen PR305 rerun receipt exists. The closure does not claim zero ipc_envelope_truncated on that case."
+  "not_claimed": "No frozen PR305 rerun receipt exists. The closure does not claim zero ipc_envelope_truncated on that case.",
+  "owner_decision": {
+    "recorded_on_issue": "https://github.com/groktopus/codereview/issues/239#issuecomment-6670793251",
+    "approved_at": "2026-11-05T22:07:21Z",
+    "text": "Owner approved recording the existing retrieval-envelope tests as the closure receipt and closing RC-1 without the original frozen PR305 case."
+  },
+  "reviewed_head_sha": "962d4b4c3174305acea832cee9ade98165060ee7",
+  "pull_request": "https://github.com/groktopus/codereview/pull/334",
+  "command": "PYTHONPATH=src python3 -m pytest -q tests/test_engine.py::test_retrieval_uses_input_ceiling_so_symbol_at_end_of_large_file_is_retained tests/test_engine.py::test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispatch tests/test_evidence.py",
+  "observed_result": "20 passed"
 }
