@@ -1,0 +1,42 @@
+{
+  "schema": "review-issue-closure-evidence.v1",
+  "issue": 239,
+  "issue_id": "RC-1",
+  "closed_at": "2026-11-05T22:07:21Z",
+  "disposition": "CLOSED_WITH_TEST_BASED_RECEIPT",
+  "reason": "The original frozen PR305 revision and inputs were not retained. The owner approved closing against the dedicated retrieval-envelope tests instead of claiming a frozen-case rerun.",
+  "evidence": [
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "fact": "max_retrieval_result_bytes is a distinct limit, defaulted to max_input_bytes_per_task and capped by it."
+    },
+    {
+      "path": "src/pr_review_harness/evidence.py",
+      "fact": "Retrieval sizing uses max_retrieval_result_bytes, not the provider output budget."
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "fact": "The retrieval limit is threaded through the isolated invocation."
+    },
+    {
+      "path": "tests/test_engine.py",
+      "fact": "The 40 KB symbol-at-end test retains the trailing symbol; invalid retrieval limits are rejected."
+    }
+  ],
+  "tests": [
+    "test_retrieval_uses_input_ceiling_so_symbol_at_end_of_large_file_is_retained",
+    "test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispatch",
+    "test_optional_retrieval_result_budget_accepts_absent_or_positive_integer",
+    "test_retrieval_result_budget_cannot_exceed_task_input_budget"
+  ],
+  "not_claimed": "No frozen PR305 rerun receipt exists. The closure does not claim zero ipc_envelope_truncated on that case.",
+  "owner_decision": {
+    "recorded_on_issue": "https://github.com/groktopus/codereview/issues/239#issuecomment-6670793251",
+    "approved_at": "2026-11-05T22:07:20Z",
+    "text": "Owner approved recording the existing retrieval-envelope tests as the closure receipt and closing RC-1 without the original frozen PR305 case."
+  },
+  "pull_request": "https://github.com/groktopus/codereview/pull/334",
+  "command": "PYTHONPATH=src python3 -m pytest -q tests/test_engine.py::test_retrieval_uses_input_ceiling_so_symbol_at_end_of_large_file_is_retained tests/test_engine.py::test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispatch tests/test_evidence.py",
+  "observed_result": "18 passed",
+  "review_note": "The PR receipt binds the reviewed head; this evidence file records the tests, not a self-referential SHA."
+}

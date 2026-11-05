@@ -1,12 +1,11 @@
 {
   "schema": "review-harness-backlog-snapshot.v1",
   "repository": "groktopus/codereview",
-  "captured_at": "2026-11-04T07:20:00Z",
+  "captured_at": "2026-11-05T22:07:30Z",
   "source": "gh issue list --repo groktopus/codereview --state open --limit 100",
   "state": "open",
   "total_filed": 33,
   "open_issue_numbers": [
-    239,
     240,
     241,
     243,
@@ -17,5 +16,5 @@
     253,
     254
   ],
-  "notes": "Snapshot at 10 open issues after RS-4 and SE-4 close."
+  "notes": "Snapshot at 9 open issues after RC-1 (#239) was closed with a recorded owner waiver and test-based receipt."
 }

@@ -78,7 +78,7 @@ def test_repository_ownership_record_passes() -> None:
     assert result["errors"] == []
     assert result["production_modules"] == 41
     assert result["modules_mapped"] == 41
-    assert result["open_issues"] == 10
+    assert result["open_issues"] == 9
 
 
 def test_production_module_covered_only_by_default_fails(tmp_path: Path) -> None:
