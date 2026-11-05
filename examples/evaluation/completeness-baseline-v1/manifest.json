@@ -5,7 +5,12 @@
     "results/qm1-codereview-pr285.json",
     "results/qm1-codereview-pr289.json",
     "results/qm1-slopsearx-pr745.json",
-    "results/qm1-slopsearx-pr759.json",
-    "results/qm1-slopsearx-pr770.json"
+    "results/qm1-slopsearx-pr759.json"
+  ],
+  "disclosed_not_included": [
+    {
+      "case_id": "qm1-slopsearx-pr770",
+      "reason": "The stored #770 result is a 38-unit rerun whose comparison base is None; the frozen case is 31 units. It is not comparable, so this five-case baseline does not claim it."
+    }
   ]
 }
