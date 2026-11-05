@@ -1196,7 +1196,7 @@ def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
     required_incomplete = (
         result["coverage_state"] not in {"COMPLETE", "COMPLETE_WITH_WAIVERS"}
         or not policy_valid
-        or any(f.get("blocking_class") == "UNRESOLVED" for f in findings)
+        or any(f.get("status") != "UNSUPPORTED" and f.get("blocking_class") == "UNRESOLVED" for f in findings)
         or bool(result.get("budget", {}).get("budget_breaches"))
     )
     if required_incomplete or result["freshness"] != "CURRENT":
