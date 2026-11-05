@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from test_engine import LIMITS, EmptyProvider, FindingProvider, make_snapshot, profile
+from test_engine import LIMITS, make_snapshot, profile
+from waiver_providers import PartialFindingProvider, PartialProvider
 
 from pr_review_harness.completeness import build_completeness_summary
 from pr_review_harness.engine import EnginePreflightError, _reduce, run_review
@@ -46,23 +48,6 @@ def write_waiver(tmp_path: Path, document: dict) -> Path:
     path = tmp_path / "waiver.json"
     path.write_text(json.dumps(document, sort_keys=True), encoding="utf-8")
     return path
-
-
-class PartialProvider(EmptyProvider):
-    def review(self, task, evidence, limits):
-        result = super().review(task, evidence, limits)
-        for note in result["payload"]["coverage_notes"]:
-            note["state"] = "PARTIAL"
-            note["reason_code"] = "STATIC_TEST_CONTEXT_INSUFFICIENT"
-        return result
-
-
-class PartialFindingProvider(FindingProvider):
-    def review(self, task, evidence, limits):
-        result = super().review(task, evidence, limits)
-        result["coverage_notes"][0]["state"] = "PARTIAL"
-        result["coverage_notes"][0]["reason_code"] = "STATIC_TEST_CONTEXT_INSUFFICIENT"
-        return result
 
 
 def snapshot_with_repository(units=1):
@@ -360,7 +345,7 @@ def test_waiver_does_not_change_the_finding_reducer():
     assert _reduce(result, True, True) == "REQUEST_CHANGES"
 
 
-def test_cli_rejects_an_out_of_scope_waiver_with_preflight_exit_2(tmp_path, capsys):
+def test_cli_rejects_an_out_of_scope_waiver_with_preflight_exit_2(tmp_path, capsys, monkeypatch):
     from test_cli import fixture_repo
 
     from pr_review_harness import cli
@@ -384,6 +369,11 @@ def test_cli_rejects_an_out_of_scope_waiver_with_preflight_exit_2(tmp_path, caps
         head_sha="d" * 40,
     )
     path = write_waiver(tmp_path, document)
+    for name in ("GITHUB_EVENT_PATH", "GITHUB_TOKEN", "GH_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    for name in list(os.environ):
+        if name.startswith("ACTIONS_"):
+            monkeypatch.delenv(name, raising=False)
 
     code = cli.main(
         [
@@ -635,3 +625,102 @@ def test_resume_with_the_same_waiver_binding_is_allowed(tmp_path):
     assert resumed["request_hash"] == first["request_hash"]
     assert resumed["waiver_receipt"]["source_sha256"] == first["waiver_receipt"]["source_sha256"]
     assert provider.calls == 0
+
+
+def test_id_and_reason_targets_cannot_overlap_the_same_obligation():
+    snapshot = snapshot_with_repository()
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    document = waiver_document(target_for(obligation_id))
+    document["waivers"].append(
+        {
+            "kind": "coverage_note",
+            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+            "justification": "This reason is intended to match the same incomplete obligation.",
+        }
+    )
+
+    with pytest.raises(WaiverError, match="overlaps"):
+        validate_waiver_targets(document, plan)
+
+
+def _reseal(result):
+    from pr_review_harness.engine import _hash
+
+    result["result_hash"] = _hash({key: value for key, value in result.items() if key != "result_hash"})
+    return result
+
+
+def _publisher_config():
+    return {
+        "schema_version": "1.0",
+        "allowed_repositories": ["owner/repo"],
+        "allowed_dispositions": ["APPROVE", "COMMENT"],
+    }
+
+
+def _sealed_waived_publish_result(tmp_path, run_id):
+    snapshot = snapshot_with_repository()
+    snapshot["pull_request_number"] = 7
+    plan = plan_for(snapshot)
+    obligation_id = plan["coverage_obligations"][0]["obligation_id"]
+    path = write_waiver(tmp_path, waiver_document(target_for(obligation_id)))
+    return run(tmp_path, run_id, PartialProvider(), waiver_path=str(path), plan=plan, snapshot=snapshot)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "no_receipt",
+        "count_mismatch",
+        "source_hash_mismatch",
+        "record_missing_obligation",
+        "duplicate_record",
+        "extra_record",
+    ],
+)
+def test_publisher_rejects_inconsistent_waiver_receipts(tmp_path, mutation):
+    from pr_review_harness.publisher import PublicationRejected, preview_publication
+
+    result = _sealed_waived_publish_result(tmp_path, f"waiver-publish-{mutation}")
+    receipt = result["waiver_receipt"]
+    applied = result["waivers_applied"]
+
+    if mutation == "no_receipt":
+        result.pop("waiver_receipt")
+    elif mutation == "count_mismatch":
+        receipt["applied_count"] += 1
+    elif mutation == "source_hash_mismatch":
+        receipt["source_sha256"] = "d" * 64
+    elif mutation == "record_missing_obligation":
+        applied[0]["obligation_ids"] = ["unit:other"]
+    elif mutation == "duplicate_record":
+        applied.append(dict(applied[0]))
+        receipt["applied_count"] = len(applied)
+    elif mutation == "extra_record":
+        applied.append(
+            {
+                **applied[0],
+                "waiver_id": "wvr-extra",
+                "obligation_ids": ["unit:extra"],
+            }
+        )
+        receipt["applied_count"] = len(applied)
+    _reseal(result)
+
+    with pytest.raises(PublicationRejected, match="waiver"):
+        preview_publication(result, _publisher_config())
+
+
+def test_publisher_rejects_a_fabricated_waived_row_without_a_receipt(tmp_path):
+    from pr_review_harness.publisher import PublicationRejected, preview_publication
+
+    result = _sealed_waived_publish_result(tmp_path, "waiver-fabricated-row")
+    result.pop("waiver_receipt")
+    result.pop("waivers_applied")
+    result["coverage_state"] = "COMPLETE_WITH_WAIVERS"
+    result["disposition"] = "COMMENT"
+    _reseal(result)
+
+    with pytest.raises(PublicationRejected, match="waiver receipt"):
+        preview_publication(result, _publisher_config())

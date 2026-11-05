@@ -281,7 +281,8 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
         by_id[obligation_id] = obligation
         for alias in _check_aliases(obligation):
             aliases.setdefault(alias, []).append(obligation_id)
-    resolved: set[str] = set()
+    resolved: dict[str, Mapping[str, Any]] = {}
+    reason_targets: list[tuple[Mapping[str, Any], set[str], str]] = []
     for target in document.get("waivers", []):
         if not isinstance(target, Mapping):
             raise WaiverError("review waiver target is invalid")
@@ -293,6 +294,7 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
                 for obligation in by_id.values()
             ):
                 raise WaiverError("review waiver target is unknown")
+            reason_targets.append((target, allowed_kinds, classify_reason(target["reason_code"])))
             continue
         identifier = target["id"]
         if kind == "check":
@@ -314,7 +316,14 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
             raise WaiverError("review waiver target kind is out of scope")
         if obligation_id in resolved:
             raise WaiverError("review waiver target is duplicated")
-        resolved.add(obligation_id)
+        resolved[obligation_id] = obligation
+    seen_reasons: set[str] = set()
+    for _target, allowed_kinds, canonical in reason_targets:
+        if any(obligation.get("obligation_kind") in allowed_kinds for obligation in resolved.values()):
+            raise WaiverError("review waiver target overlaps another target")
+        if canonical in seen_reasons:
+            raise WaiverError("review waiver target overlaps another target")
+        seen_reasons.add(canonical)
 
 
 def _target_matches(row: Mapping[str, Any], target: Mapping[str, Any]) -> bool:

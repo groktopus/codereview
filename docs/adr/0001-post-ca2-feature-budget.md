@@ -67,10 +67,10 @@ allowance does not relabel the CA-2 result.
 The owner-approved bounded evidence waiver in [ADR 0011](0011-bounded-evidence-waiver.md)
 adds a new strict waiver contract, preflight/application logic, result receipts,
 completeness state, report rendering, publisher acceptance, and tests. It adds
-**607 physical source lines** after review fixes, taking the measured tree from
-31,725 to 32,332 lines (−20.53%). The owner approved a one-time **565-line
-allowance**; the remaining 42 lines come from the 144 lines of prior headroom.
-The new measurement exceeds the prior 31,869 ceiling by 463 lines.
+**709 physical source lines** after review fixes, taking the measured tree from
+31,725 to 32,434 lines (−20.28%). The owner approved a one-time **565-line
+allowance**; the remaining 144 lines were the prior headroom. The new measurement
+exceeds the prior 31,869 ceiling by 565 lines, exactly the waiver allowance.
 
 Because ADR 0001 requires a new decision record for further growth, ADR 0011
 records a separate, one-time `waiver_feature_allowance_lines: 565` in
@@ -86,9 +86,9 @@ current_src_lines <= base_src_lines * (1 - required_reduction)
 ```
 
 i.e. 32,434 lines. The recorded measurement is updated to the honest live count
-(32,332), and `tests/test_surface_consolidation.py` checks all four terms. The
-remaining headroom after this feature is 102 physical lines against that
-one-time ceiling; it is not permission for unrelated growth.
+(32,434), and `tests/test_surface_consolidation.py` checks all four terms. No
+headroom remains under that one-time ceiling; unrelated growth requires a new
+decision or real reduction.
 
 ### Observation revision refresh
 
@@ -106,7 +106,7 @@ commit; the documentation-truth job checks its freshness directly.
 
 - OE-2 can ship without deleting working code or falsifying the CA-2 result.
 - The original 25% outcome remains recorded and is not relabeled as met.
-- Remaining headroom is visible (102 lines at 32,332 against the 32,434
+- No headroom remains (32,434 lines against the 32,434
   effective ceiling after the bounded-waiver allowance); further features
   require a new decision record or real reduction elsewhere.
 - The budget is one-time for this migration period, not a permanent growth

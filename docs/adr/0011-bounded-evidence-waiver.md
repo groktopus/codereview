@@ -67,6 +67,10 @@ The schema file is authoritative. The loader additionally enforces:
   target is exact. A `reason_code` target is accepted only when exactly one
   required incomplete obligation matches; a multi-row match is rejected rather
   than waived 1:N.
+- An `id` target and a `reason_code` target that can resolve to the same
+  obligation are rejected as overlapping during preflight. Two reason targets
+  with the same canonical reason are also rejected. Overlap is never resolved by
+  applying whichever target is encountered first.
 - Target kinds are `context_gap`, `check`, and `coverage_note`. A reason code
   must classify into that kind's exact reason family.
 - An `id` target must name a required planned obligation (or, for `check`, its
@@ -100,8 +104,10 @@ The schema file is authoritative. The loader additionally enforces:
 - The result carries `waiver_receipt`, `waivers_applied`, and
   `waivers_not_applied`. A waiver that expires during a long run is reported as
   `EXPIRED_AT_USE` and is not applied; the obligation stays incomplete.
-- `--waiver` cannot be combined with `--resume`; a resumed result is not
-  silently re-interpreted under a new waiver.
+- Resume is allowed only when the same waiver presence and source digest are
+  supplied. A changed presence or digest is rejected as
+  `resume_state_invalid`; a resumed result is never silently re-interpreted
+  under a new waiver.
 
 ### Failure behavior
 
@@ -113,14 +119,14 @@ behavior is unchanged: missing evidence remains incomplete.
 
 ## Source-line budget consequence
 
-This feature adds 607 physical source lines after review fixes: the strict waiver
+This feature adds 709 physical source lines after review fixes: the strict waiver
 loader/validator/applier and receipt builder, plus integration in review
 preflight, coverage reduction, completeness, metrics, report, publisher, CLI,
-and typed records. The measured `src/pr_review_harness` tree is 32,332 lines
-(−20.53% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
-463 lines must be explicitly allowed; the owner approved a one-time 565-line
-allowance, with the other 42 lines coming from the 144 lines of prior headroom,
-leaving 102 lines of bounded headroom.
+and typed records. The measured `src/pr_review_harness` tree is 32,434 lines
+(−20.28% against the 40,686 CA-2 base). The prior ceiling was 31,869 lines, so
+565 lines must be explicitly allowed; the owner approved a one-time 565-line
+allowance, with the other 144 lines coming from the prior headroom, leaving no
+further headroom.
 
 [ADR 0001](0001-post-ca2-feature-budget.md) permits further growth only through a
 new decision record. This record therefore adds a separate, one-time
@@ -128,7 +134,7 @@ new decision record. This record therefore adds a separate, one-time
 gate includes that term and records the honest live measurement. This allowance
 is scoped to the bounded-waiver feature, does not renew the 500-line general
 feature budget, and is not available for unrelated growth. The resulting
-one-time ceiling is 32,434 lines, leaving 102 lines of headroom.
+one-time ceiling is 32,434 lines, with no further headroom.
 
 ## Consequences
 
@@ -143,9 +149,12 @@ one-time ceiling is 32,434 lines, leaving 102 lines of headroom.
   obligation was waived. Such a run is `coverage_state:
   COMPLETE_WITH_WAIVERS` and cannot use `APPROVE`; the reducer caps it at
   `COMMENT`.
-- The publisher accepts sealed `WAIVED` rows because the result hash binds the
-  waiver receipt; it still rejects missing waiver metadata, inconsistent
-  coverage state, stale freshness, and non-current dispositions.
+- The publisher accepts sealed `WAIVED` rows only after revalidating the
+  receipt schema, source SHA-256, counts, reviewer/reason/expiry/repository/
+  revision identity, and the exact row-to-applied-record mapping. Fabricated
+  rows, missing/extra/duplicate records, and mismatched counts are rejected even
+  when the result has been rehashed. It still rejects inconsistent coverage
+  state, stale freshness, and non-current dispositions.
 - The completeness regression gate treats a baseline `COMPLETE` obligation that
   becomes `WAIVED` as a regression (`KNOWN_COMPLETE_REGRESSION`), so a waiver
   cannot silently replace previously complete evidence.

@@ -254,7 +254,7 @@ so an accepted blocker still yields `REQUEST_CHANGES`.
 - `tests/test_waiver.py` covers valid exact-gap resolution, default deny,
   wrong head/repository, expired-at-load and expired-at-use, future `issued_at`,
   the 90-day TTL, unknown target before provider dispatch,
-  duplicate/overbroad targets, schema validation, 1:N reason-code rejection,
+  duplicate/overbroad/overlapping targets, schema validation, 1:N reason-code rejection,
   resume waiver-binding mismatches, visibility in the result/summary/report,
   and blocker preservation.
 
