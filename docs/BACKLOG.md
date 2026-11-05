@@ -8,7 +8,7 @@ changes.
 
 Source snapshot: [`backlog-open-issues.json`](backlog-open-issues.json), captured
 with `gh issue list --repo groktopus/codereview --state open --limit 100` and
-re-captured after the RC-3 close (`2026-11-05T23:04:15Z`). The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
+re-captured after the QM-2 close (`2026-11-05T23:42:38Z`). The filed-issue map is [issues/FILED.md](issues/FILED.md); the theme
 and exit criteria are in [issues/README.md](issues/README.md).
 
 ## Why this exists
@@ -117,8 +117,8 @@ the concrete move, not a schedule.
 |---|---|---|---|---|---|---|
 | #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `ready` | `state:ready` | RC-1 is closed; the frozen corpus is available for measurement. |
 | #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `ready` | `state:ready` | QM-2 is closed; five-case predictions and a synthetic scorecard exist. Needs an accepted baseline and a scheduled full-corpus run. |
-| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
-| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #243. |
+| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (QM-3 predictions/baseline). |
+| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (QM-3 predictions/baseline). |
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |
 | #253 | VD-3 | [VD-3] Isolate historical pins in a compatibility suite | `@magnus919` | `ready` | `state:ready` | Dependency #248 is closed. The compatibility marker exists; the refresh tool and manifest work remain. |
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |

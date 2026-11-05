@@ -380,7 +380,7 @@ python3 scripts/generate_quality_scorecard.py \
 ```
 
 The current result is a synthetic label arm that is `partial` (five complete of
-six) and a human arm that is `missing`. Predictions are absent, so each
+six) and a human arm that is `missing`. Predictions are retained for five complete cases, so each
 prediction arm has no synthetic precision or recall denominator and the
 scorecard stays `MISSING_DATA`. This is not a quality or replacement claim.
 
@@ -397,8 +397,8 @@ scorecard stays `MISSING_DATA`. This is not a quality or replacement claim.
 - Optional: human independent and adjudicated packets as a separate arm, with
   disagreement counts.
 
-Until those exist, QM-2 stays open. The owner decision and the contract
-are recorded; they are not evidence that the method produced usable labels.
+QM-2 is closed. The owner decision and the contract are recorded; the five-case
+scorecard is retained separately. Neither is evidence of calibrated accuracy.
 
 ## Validation
 

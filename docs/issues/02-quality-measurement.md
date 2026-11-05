@@ -110,7 +110,7 @@ fixtures, not quality.
   - Record where the incumbent is better, not only where the harness is.
 - **Exit criteria:** Every corpus case has a baseline arm record or an explicit `missing`; a paired comparison report exists with per-case rows and denominators; no equivalence claim is made without a pre-specified margin.
 - **Verification:** baseline artifacts; `scripts/evaluate_reviews.py` or companion comparison; a report listing paired rows and unknowns.
-- **Depends on:** QM-1, QM-2.
+- **Depends on:** QM-1, QM-2, QM-3.
 - **Non-goals:** inferring accuracy from comment counts or disposition labels.
 
 ---
@@ -128,5 +128,5 @@ fixtures, not quality.
   - Include a known material defect in attack fixtures and compare against the unmodified behavior.
 - **Exit criteria:** Attack pairs are in the corpus with reciprocal IDs; the evaluator reports attack-success and integrity outcomes with denominators; the regression gate includes them; no claim of "resistance" is made from model self-report.
 - **Verification:** corpus manifest entries; evaluator output for attack/benign arms; detector confusion counts; a known-blocker suppression test.
-- **Depends on:** QM-1, QM-2.
+- **Depends on:** QM-1, QM-2, QM-3.
 - **Non-goals:** shipping an attack generator, or treating a refused tool request as evidence of finding integrity.
