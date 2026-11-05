@@ -295,7 +295,7 @@ def test_report_renders_completeness_without_changing_sections_or_disposition():
     for title in ("Blockers", "Suggested improvements", "Specific strengths", "Future guidance"):
         assert f"## {title}" in rendered
     assert result["disposition"] == "INCOMPLETE"
-    assert "2 complete, 2 partial, 1 not started across 5 obligations." in rendered
+    assert "2 complete, 2 partial, 1 not started, 0 waived across 5 obligations." in rendered
 
 
 def test_summary_does_not_change_the_deterministic_disposition():

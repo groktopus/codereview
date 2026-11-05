@@ -221,6 +221,99 @@ def effect_idempotency_key(
     return "effect-" + _canonical_hash(identity)
 
 
+_WAIVER_RECEIPT_SCHEMA = "review-evidence-waiver-receipt.v1"
+_WAIVER_SCHEMA = "review-evidence-waiver.v1"
+_SHA256 = re.compile(r"[0-9a-f]{64}")
+
+
+def _validate_waiver_integrity(result: dict) -> None:
+    """Bind WAIVED rows to their applied records and receipt.
+
+    A rehashed result is still untrusted until its waiver metadata is
+    internally consistent: counts, source digest, identity, and the exact
+    row-to-record mapping must all agree.  No row may be covered twice, and no
+    applied record may exist without the WAIVED rows it claims.
+    """
+
+    ledger = result["coverage_ledger"]
+    waived_rows = [entry for entry in ledger if entry.get("state") == "WAIVED"]
+    receipt = result.get("waiver_receipt")
+    applied = result.get("waivers_applied")
+    if not waived_rows and result.get("coverage_state") != "COMPLETE_WITH_WAIVERS":
+        if receipt is not None or applied or result.get("waivers_not_applied"):
+            raise PublicationRejected("review waiver metadata is present without waived coverage")
+        return
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("schema") != _WAIVER_RECEIPT_SCHEMA
+        or receipt.get("waiver_schema") != _WAIVER_SCHEMA
+        or not isinstance(applied, list)
+        or any(not isinstance(record, dict) for record in applied)
+        or not isinstance(receipt.get("source_sha256"), str)
+        or _SHA256.fullmatch(receipt.get("source_sha256", "")) is None
+    ):
+        raise PublicationRejected("review waiver receipt is invalid")
+    if (
+        type(receipt.get("applied_count")) is not int
+        or receipt["applied_count"] != len(applied)
+        or type(receipt.get("waived_obligation_count")) is not int
+        or receipt["waived_obligation_count"] != len(waived_rows)
+        or (result.get("coverage_state") == "COMPLETE_WITH_WAIVERS" and not waived_rows)
+    ):
+        raise PublicationRejected("review waiver counts are inconsistent")
+    if (receipt.get("repository"), receipt.get("base_sha"), receipt.get("head_sha")) != (
+        result.get("repository"),
+        result.get("base_sha"),
+        result.get("head_sha"),
+    ):
+        raise PublicationRejected("review waiver receipt identity is invalid")
+    if any(not isinstance(receipt.get(key), str) or not receipt[key] for key in ("reviewer", "reason", "expires_at")):
+        raise PublicationRejected("review waiver receipt is invalid")
+    applied_by_id: dict[str, dict] = {}
+    for record in applied:
+        waiver_id = record.get("waiver_id")
+        obligation_ids = record.get("obligation_ids")
+        if (
+            not isinstance(waiver_id, str)
+            or not waiver_id
+            or waiver_id in applied_by_id
+            or not isinstance(obligation_ids, list)
+            or not obligation_ids
+            or any(not isinstance(item, str) or not item for item in obligation_ids)
+            or len(obligation_ids) != len(set(obligation_ids))
+        ):
+            raise PublicationRejected("review waiver applied records are invalid")
+        if any(
+            record.get(key) != receipt.get(key)
+            for key in ("reviewer", "reason", "issued_at", "expires_at", "source_sha256")
+        ):
+            raise PublicationRejected("review waiver applied record identity is invalid")
+        applied_by_id[waiver_id] = record
+    rows_by_waiver: dict[str, set[str]] = {}
+    for row in waived_rows:
+        waiver = row.get("waiver")
+        obligation_id = row.get("obligation_id")
+        if not isinstance(waiver, dict) or not isinstance(obligation_id, str):
+            raise PublicationRejected("review waiver row binding is invalid")
+        waiver_id = waiver.get("waiver_id")
+        record = applied_by_id.get(waiver_id)
+        if record is None:
+            raise PublicationRejected("review waiver row binding is invalid")
+        if any(waiver.get(key) != record.get(key) for key in ("reviewer", "reason", "expires_at", "source_sha256")):
+            raise PublicationRejected("review waiver row binding is invalid")
+        if not isinstance(record.get("target"), dict) or waiver.get("target") != record["target"]:
+            raise PublicationRejected("review waiver row target is invalid")
+        if waiver.get("justification") != record["target"].get("justification"):
+            raise PublicationRejected("review waiver row target is invalid")
+        if obligation_id not in record["obligation_ids"]:
+            raise PublicationRejected("review waiver row obligation is missing from its applied record")
+        rows_by_waiver.setdefault(waiver_id, set()).add(obligation_id)
+
+    for waiver_id, record in applied_by_id.items():
+        if set(record["obligation_ids"]) != rows_by_waiver.get(waiver_id, set()):
+            raise PublicationRejected("review waiver applied records are invalid")
+
+
 def _validate_result(result: dict) -> None:
     if not isinstance(result, dict):
         raise PublicationRejected("review result is invalid")
@@ -250,7 +343,7 @@ def _validate_result(result: dict) -> None:
         or not isinstance(result.get("task_results"), dict)
         or not isinstance(result.get("ledger"), dict)
         or not isinstance(result.get("evidence_index"), dict)
-        or result.get("coverage_state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED"}
+        or result.get("coverage_state") not in {"COMPLETE", "COMPLETE_WITH_WAIVERS", "PARTIAL", "NOT_STARTED", "WAIVED"}
     ):
         raise PublicationRejected("review result contract is invalid")
     if result.get("freshness") != "CURRENT":
@@ -273,17 +366,34 @@ def _validate_result(result: dict) -> None:
     # Empty-diff publishing needs a separately versioned immutable authority.
     if not required:
         raise PublicationRejected("review has no required coverage obligations")
-    if any(entry.get("state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED"} for entry in required):
+    if any(entry.get("state") not in {"COMPLETE", "PARTIAL", "NOT_STARTED", "WAIVED"} for entry in required):
         raise PublicationRejected("review coverage ledger is invalid")
+    if any(
+        entry["state"] == "WAIVED"
+        and (
+            not isinstance(entry.get("waiver"), dict)
+            or not isinstance(entry["waiver"].get("waiver_id"), str)
+            or not entry["waiver"].get("waiver_id")
+            or not isinstance(entry["waiver"].get("reviewer"), str)
+            or not entry["waiver"].get("reviewer")
+        )
+        for entry in required
+    ):
+        raise PublicationRejected("review waiver metadata is invalid")
     aggregate = (
         "COMPLETE"
         if all(entry["state"] == "COMPLETE" for entry in required)
+        else "COMPLETE_WITH_WAIVERS"
+        if all(entry["state"] in {"COMPLETE", "WAIVED"} for entry in required)
         else "NOT_STARTED"
         if not any(entry["state"] != "NOT_STARTED" for entry in required)
         else "PARTIAL"
     )
     if aggregate != result["coverage_state"]:
         raise PublicationRejected("review coverage state is inconsistent")
+    _validate_waiver_integrity(result)
+    if any(entry["state"] == "WAIVED" for entry in required) and result.get("disposition") == "APPROVE":
+        raise PublicationRejected("review with waivers cannot approve")
     if any(
         not isinstance(finding, dict)
         or finding.get("status") not in {"ACCEPTED", "NEEDS_EVIDENCE", "CONTRADICTED", "UNSUPPORTED"}
@@ -324,6 +434,10 @@ def _validate_result(result: dict) -> None:
     except (KeyError, TypeError):
         raise PublicationRejected("review reducer inputs are invalid") from None
     if expected != result["disposition"]:
+        if any(entry["state"] == "WAIVED" for entry in required):
+            raise PublicationRejected(
+                "review with waivers cannot approve; disposition is inconsistent with deterministic policy"
+            )
         raise PublicationRejected("review disposition is inconsistent with deterministic policy")
 
 

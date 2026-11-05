@@ -184,6 +184,7 @@ def build_run_summary(result: Mapping[str, Any]) -> dict[str, Any]:
             "partial",
             "not_started",
             "unknown_state",
+            "waived",
             "incomplete_total",
             "not_applicable",
             "non_required",
@@ -191,7 +192,6 @@ def build_run_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         )
     }
     obligations["zero_obligations"] = bool(completeness.get("zero_obligations", False))
-
     reason_codes: list[dict[str, Any]] = []
     for item in completeness.get("reason_distribution") or []:
         if not isinstance(item, Mapping):
@@ -589,7 +589,6 @@ def aggregate_run_summaries(
     excluded_total = sum(excluded_counts.values())
     included = len(summaries)
     total = input_total if type(input_total) is int and input_total >= included else included + excluded_total
-
     obligations = {
         key: sum(_count(_mapping(summary.get("obligations")).get(key)) for summary in summaries)
         for key in (
@@ -598,6 +597,7 @@ def aggregate_run_summaries(
             "partial",
             "not_started",
             "unknown_state",
+            "waived",
             "incomplete_total",
             "not_applicable",
         )
@@ -615,18 +615,18 @@ def aggregate_run_summaries(
         if required > 0 and _count(row.get("complete")) == required:
             runs_fully_complete += 1
 
+    resolved_total = obligations["complete"] + obligations["partial"] + obligations["waived"]
     completion = {
         "required_obligations_total": obligations["required_total"],
         "complete_obligations": obligations["complete"],
         "partial_obligations": obligations["partial"],
         "not_started_obligations": obligations["not_started"],
         "unknown_state_obligations": obligations["unknown_state"],
+        "waived_obligations": obligations["waived"],
         "incomplete_obligations_total": obligations["incomplete_total"],
         "not_applicable_obligations": obligations["not_applicable"],
         "complete_ratio_by_obligations": _share(obligations["complete"], obligations["required_total"]),
-        "resolved_ratio_by_obligations": _share(
-            obligations["complete"] + obligations["partial"], obligations["required_total"]
-        ),
+        "resolved_ratio_by_obligations": _share(resolved_total, obligations["required_total"]),
         "runs_with_required_obligations": runs_with_required,
         "runs_fully_complete": runs_fully_complete,
         "completion_rate_by_runs": _share(runs_fully_complete, runs_with_required),

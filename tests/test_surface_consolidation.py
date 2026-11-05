@@ -64,10 +64,16 @@ def test_src_reduction_meets_the_documented_floor():
     assert abs(computed_reduction - manifest["measured_reduction"]) < 1e-6
     budget = manifest.get("post_ca2_feature_budget_lines", 0)
     formatting_allowance = manifest.get("formatting_normalization_allowance_lines", 0)
-    ceiling = int(manifest["base_src_lines"] * (1 - manifest["required_reduction"]) + budget + formatting_allowance)
+    waiver_feature_allowance = manifest.get("waiver_feature_allowance_lines", 0)
+    ceiling = int(
+        manifest["base_src_lines"] * (1 - manifest["required_reduction"])
+        + budget
+        + formatting_allowance
+        + waiver_feature_allowance
+    )
     assert current <= ceiling, (
-        f"src lines {current} exceed the CA-2 floor plus approved feature budget "
-        f"and formatting normalization allowance ({ceiling})"
+        f"src lines {current} exceed the CA-2 floor plus approved feature budget, "
+        f"formatting normalization allowance, and bounded-waiver feature allowance ({ceiling})"
     )
 
 

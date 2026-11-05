@@ -114,6 +114,9 @@ class CoverageRow(TypedDict, total=False):
     lens: str
     state: str
     reason_code: str
+    waived_from_state: str
+    waived_from_reason_code: str
+    waiver: dict[str, object]
     context_gap_ids: list[str]
     task_ids: list[str]
     evidence_refs: list[str]
@@ -264,6 +267,9 @@ class ReviewResult(TypedDict, total=False):
     advisory_assessment: dict[str, object]
     run_summary: dict[str, object]
     completeness_summary: dict[str, object]
+    waiver_receipt: dict[str, object] | None
+    waivers_applied: list[dict[str, object]]
+    waivers_not_applied: list[dict[str, object]]
     request_hash: str
     result_hash: str
     disposition: str

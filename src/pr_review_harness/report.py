@@ -82,6 +82,25 @@ def _render_run_metrics(summary: Any, safe: Any) -> str | None:
     )
 
 
+_COVERAGE_STATES = ("COMPLETE", "PARTIAL", "NOT_STARTED", "WAIVED")
+_RESOLVED_COVERAGE_STATES = {"COMPLETE", "WAIVED"}
+
+
+def _waiver_report_lines(coverage_rows: list[dict[str, Any]], safe: Any) -> list[str]:
+    lines = []
+    for row in coverage_rows:
+        if row.get("required", True) and row.get("state") == "WAIVED":
+            waiver = row.get("waiver") if isinstance(row.get("waiver"), dict) else {}
+            target = waiver.get("target") if isinstance(waiver.get("target"), dict) else {}
+            target_text = target.get("id", target.get("reason_code", "unknown"))
+            lines.append(
+                f"- WAIVED {safe(row.get('obligation_id'))}: {safe(target.get('kind'))} {safe(target_text)} "
+                f"by {safe(waiver.get('reviewer'))} until {safe(waiver.get('expires_at'))}; "
+                f"{safe(waiver.get('reason'))}"
+            )
+    return lines
+
+
 def render_report(result: ReviewResult) -> str:
     if not isinstance(result, dict):
         raise ValueError("result must be an object")
@@ -255,19 +274,19 @@ def render_report(result: ReviewResult) -> str:
                 lines.append(
                     f"- {classification}**{safe(item.get('finding_id', 'unidentified'))}** {safe(item.get('title', ''))} at {loc}. {safe(item.get('observation', ''))} Consequence: {safe(item.get('consequence', ''))} Rule: {safe(item.get('rule_or_contract', ''))} Evidence: {evidence}."
                 )
-
     coverage_rows = result.get("coverage_ledger", [])
     if not isinstance(coverage_rows, list) or any(not isinstance(row, dict) for row in coverage_rows):
         raise ValueError("coverage ledger rows must be objects")
-    counts = {
-        state: sum(row.get("state") == state for row in coverage_rows)
-        for state in ("COMPLETE", "PARTIAL", "NOT_STARTED")
-    }
-    unresolved = [row for row in coverage_rows if row.get("required", True) and row.get("state") != "COMPLETE"]
+    counts = {state: sum(row.get("state") == state for row in coverage_rows) for state in _COVERAGE_STATES}
+    unresolved = [
+        row for row in coverage_rows if row.get("required", True) and row.get("state") not in _RESOLVED_COVERAGE_STATES
+    ]
     lines.extend(("", "Coverage"))
     lines.append(
-        f"{counts['COMPLETE']} complete, {counts['PARTIAL']} partial, {counts['NOT_STARTED']} not started across {len(coverage_rows)} obligations."
+        f"{counts['COMPLETE']} complete, {counts['PARTIAL']} partial, {counts['NOT_STARTED']} not started, "
+        f"{counts['WAIVED']} waived across {len(coverage_rows)} obligations."
     )
+    lines.extend(_waiver_report_lines(coverage_rows, safe))
     # Recompute from the coverage ledger so a stale or edited embedded summary
     # cannot make the rendered report disagree with the obligations it lists.
     summary = build_completeness_summary(coverage_rows, result.get("not_applicable", []))

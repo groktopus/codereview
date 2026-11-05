@@ -454,11 +454,6 @@
     },
     {
       "path": "src/pr_review_harness/review_stages.py",
-      "qualname": "resume_completed_review",
-      "lines": 159
-    },
-    {
-      "path": "src/pr_review_harness/review_stages.py",
       "qualname": "run_followups",
       "lines": 926
     },

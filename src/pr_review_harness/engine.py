@@ -80,12 +80,18 @@ _SYSTEM_ONE_ADVISORY_QUESTION = (
 class EnginePreflightError(BoundaryValueError):
     """A closed, deterministic rejection found before provider dispatch or writes."""
 
-    _PUBLIC_REASONS = {"invalid_review_request", "run_id_already_exists", "resume_state_invalid"}
+    _PUBLIC_REASONS = {
+        "invalid_review_request",
+        "run_id_already_exists",
+        "resume_state_invalid",
+        "review_waiver_rejected",
+    }
 
     _DETAILS = {
         "invalid_review_request": "review request is invalid",
         "run_id_already_exists": "run_id already exists; resume explicitly",
         "resume_state_invalid": "resume ledger invalid",
+        "review_waiver_rejected": "review waiver rejected",
     }
     _RESUME_DETAILS = {
         "resume request mismatch",
@@ -96,6 +102,7 @@ class EnginePreflightError(BoundaryValueError):
         "resume planned input binding mismatch",
         "resume task input binding mismatch",
         "resume snapshot identity mismatch",
+        "resume waiver binding mismatch",
         "invalid_context_followup_parent_binding",
         "invalid_context_followup_proposal_binding",
         "invalid_context_followup_parent_contract",
@@ -1180,15 +1187,21 @@ def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
     blockers = [f for f in findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"]
     if blockers:
         return "REQUEST_CHANGES"
+    completeness = result.get("completeness_summary")
+    waived = bool(
+        result.get("waivers_applied")
+        or (isinstance(completeness, dict) and completeness.get("waived", 0))
+        or any(isinstance(row, dict) and row.get("state") == "WAIVED" for row in result.get("coverage_ledger", []))
+    )
     required_incomplete = (
-        result["coverage_state"] != "COMPLETE"
+        result["coverage_state"] not in {"COMPLETE", "COMPLETE_WITH_WAIVERS"}
         or not policy_valid
         or any(f.get("blocking_class") == "UNRESOLVED" for f in findings)
         or bool(result.get("budget", {}).get("budget_breaches"))
     )
     if required_incomplete or result["freshness"] != "CURRENT":
         return "INCOMPLETE"
-    if findings:
+    if waived or findings:
         return "COMMENT"
     return "APPROVE" if allow_empty_approve else "COMMENT"
 
@@ -1402,11 +1415,20 @@ def _load_validated_resume_state(
     obligations: list[dict],
     input_ceiling: int,
     profile: dict,
+    waiver_binding: dict,
 ) -> tuple[dict, dict]:
     """Validate immutable resume identity before freshness work or any write."""
     try:
         saved = json.loads(output_path.read_text(encoding="utf-8"))
         ledger = saved["ledger"]
+        saved_waiver = saved.get("waiver_receipt")
+        if waiver_binding.get("present") is True:
+            if not isinstance(saved_waiver, dict) or saved_waiver.get("source_sha256") != waiver_binding.get(
+                "source_sha256"
+            ):
+                raise ValueError("resume waiver binding mismatch")
+        elif saved_waiver is not None:
+            raise ValueError("resume waiver binding mismatch")
         if saved.get("request_hash") != request_hash or ledger.get("request_hash") != request_hash:
             raise ValueError("resume request mismatch")
         if _hash({k: v for k, v in saved.items() if k != "result_hash"}) != saved.get("result_hash"):
@@ -1492,6 +1514,7 @@ def run_review(
     private_capture_source_audit_max_bytes: int = 64_000,
     allow_archived_contracts: bool = False,
     price_table: Any = None,
+    waiver_path: str | None = None,
 ) -> ReviewResult:
     """Run bounded provider tasks and persist an integrity-checked review result.
 
@@ -1521,6 +1544,7 @@ def run_review(
         private_capture_source_audit_max_bytes=private_capture_source_audit_max_bytes,
         allow_archived_contracts=allow_archived_contracts,
         price_table=price_table,
+        waiver_path=waiver_path,
     )
     # Deterministic stage order; the coordinator makes no review decisions and
     # never dispatches on model output.  Invariants that hold across the whole

@@ -95,6 +95,7 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--head", help="head commit SHA or revision (required unless a PR/event input supplies it)")
     review.add_argument("--github-pr", help="read current GitHub PR metadata, as owner/repository#number")
     review.add_argument("--mode", choices=["AUTO", "LIGHT", "FOCUSED", "DEEP"], default="AUTO")
+    review.add_argument("--waiver", metavar="FILE", help="bounded, expiring review-evidence waiver JSON (review only)")
     review.add_argument("--run-id")
     review.add_argument("--resume", action="store_true")
     review.add_argument(
@@ -1433,12 +1434,11 @@ def _run_one(
         }
         return report
     output_dir = str(Path(args.output))
-    review_kwargs = {}
-    if claim_assessor is not None and max_claim_assessments > 0:
-        review_kwargs.update(
-            claim_assessor=claim_assessor,
-            max_claim_assessments=max_claim_assessments,
-        )
+    review_kwargs = (
+        {"claim_assessor": claim_assessor, "max_claim_assessments": max_claim_assessments}
+        if claim_assessor is not None and max_claim_assessments > 0
+        else {}
+    )
     try:
         result = run_review(
             snapshot,
@@ -1462,6 +1462,7 @@ def _run_one(
             ),
             allow_archived_contracts=getattr(args, "allow_archived_contracts", False),
             price_table=price_table,
+            waiver_path=getattr(args, "waiver", None),
             **review_kwargs,
         )
     except EnginePreflightError:

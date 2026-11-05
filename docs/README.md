@@ -33,7 +33,7 @@ scoped to the revision and date it names.
 | [Operations guide](OPERATIONS.md) | Safe local and Actions operation, evidence handling, failure diagnostics, and recovery. |
 | [Deployment configuration](DEPLOYMENT-CONFIGURATION.md) | Trusted provider/profile configuration boundaries and secret-handling rules. |
 | [Contract and version registry](CONTRACT-REGISTRY.md) | Supported, deprecated, and archived contract/version identifiers. |
-| [Review completeness: taxonomy, summary, and regression gate](REVIEW-COMPLETENESS.md) | Canonical incomplete-reason taxonomy, per-run summary, and fixture regression gate. |
+| [Review completeness: taxonomy, summary, and regression gate](REVIEW-COMPLETENESS.md) | Canonical incomplete-reason taxonomy, per-run summary, fixture regression gate, and bounded evidence waivers. |
 | [Production replacement delivery contract](PRODUCTION-DELIVERY.md) | Production replacement contract, six milestones, invariants, and the stateless publication correction. |
 | [CLI publication preview migration](CLI-PUBLISH-PREVIEW-MIGRATION.md) | Preview-only `publish` surface; documents the deliberate absence of live publication. |
 
@@ -64,6 +64,7 @@ implementation.
 | [ADR 0008: release and version policy](adr/0008-release-version-policy.md) | Accepted: package SemVer plus independent contract versions, changelog, and tag-gated release. |
 | [ADR 0009: ownership and second review](adr/0009-ownership-and-second-review.md) | Accepted: path-specific ownership, agent second path, bus-factor-1 limits, and triage states. |
 | [ADR 0010: synthetic model-teacher adjudication](adr/0010-synthetic-model-teacher-adjudication.md) | Accepted: synthetic model-teacher adjudication is the quality method; human labels are optional and never conflated with synthetic output. |
+| [ADR 0011: bounded evidence waivers](adr/0011-bounded-evidence-waiver.md) | Accepted: exact, named, expiring waiver of one missing-evidence obligation; default deny and no finding/blocker override. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
 | [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields including `decision_records` for safety-invariant changes, receipt rules, both CI checks and exit codes, owner action, and enforcement limits. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |

@@ -44,6 +44,7 @@
 /src/pr_review_harness/review_state.py @magnus919
 /src/pr_review_harness/snapshot.py @magnus919
 /src/pr_review_harness/source_audit.py @magnus919
+/src/pr_review_harness/waiver.py @magnus919
 
 # group: docs
 # Living documentation, navigation, contributor policy, and repository guidance.

@@ -314,7 +314,7 @@ def test_partial_report_keeps_canonical_blocker_and_full_coverage_ledger_visible
     rendered = render_report(result)
 
     assert r"PR review coverage-report-test: REQUEST\_CHANGES" in rendered
-    assert "0 complete, 11 partial, 0 not started across 11 obligations." in rendered
+    assert "0 complete, 11 partial, 0 not started, 0 waived across 11 obligations." in rendered
     assert "3 more unresolved obligations are listed in the full coverage ledger below." in rendered
     assert "Coverage ledger (11 obligations)" in rendered
     assert "<summary>Coverage ledger (11 obligations)</summary>" in rendered
@@ -419,3 +419,27 @@ def test_report_rejects_malformed_coverage_ledger_instead_of_rendering_partial_i
 
     with pytest.raises(ValueError, match="coverage ledger rows must be objects"):
         render_report(result)
+
+
+def test_report_renders_complete_with_waivers_and_waived_count():
+    result = result_with_coverage_reason("LIMITED_CHANGED_SCOPE_EVIDENCE")
+    row = result["coverage_ledger"][0]
+    row["state"] = "WAIVED"
+    row["reason_code"] = "WAIVED"
+    row["waived_from_state"] = "PARTIAL"
+    row["waived_from_reason_code"] = "PARTIAL_REVIEW_COVERAGE"
+    row["waiver"] = {
+        "waiver_id": "wvr-test",
+        "reviewer": "owner/reviewer",
+        "reason": "Owner-approved exception.",
+        "expires_at": "2099-11-04T12:00:00Z",
+        "target": {"kind": "coverage_note", "id": row["obligation_id"]},
+    }
+    result["coverage_state"] = "COMPLETE_WITH_WAIVERS"
+
+    rendered = render_report(result)
+
+    assert "Coverage: COMPLETE_WITH_WAIVERS" in rendered
+    assert "0 complete, 0 partial, 0 not started, 1 waived across 1 obligations." in rendered
+    assert "1 waived" in rendered
+    assert f"WAIVED {row['obligation_id']}" in rendered
