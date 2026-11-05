@@ -281,3 +281,8 @@ non-allowlisted reasons, overlapping id/reason targets, expired-at-use,
 publisher rejection of `APPROVE` and of a forged execution-failure reason,
 summary/receipt counts, and the rendered report line showing the
 `execution_failure` target.
+
+
+### Addendum: multi-row exact-reason execution waivers
+
+The owner approved one further refinement: a reason-code `execution_failure` target may waive **all required rows that report that exact allowlisted reason**, not just one. Every matched row is recorded in `waived_obligations` and the applied record's `obligation_ids`; the target is still exact, closed-list, scoped, expiring, default-deny, capped at `COMMENT`, and never approval. The added allowlisted codes are `PARTIAL_REVIEW_COVERAGE`, `COVERAGE_NOTE_MISSING`, `UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT`, and `REQUIRED_CONTEXT_NOT_COVERED`. This refinement adds a measured 11 physical source lines; `execution_reason_allowance_lines: 11` is recorded in `docs/public-surface.json`.

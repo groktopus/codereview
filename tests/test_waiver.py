@@ -243,7 +243,7 @@ def test_execution_failure_id_waiver_does_not_apply_to_a_missing_evidence_reason
         "obligation_kind": "CHANGED_UNIT_LENS",
         "required": True,
         "state": "PARTIAL",
-        "reason_code": "PARTIAL_REVIEW_COVERAGE",
+        "reason_code": "MISSING_EVIDENCE",
     }
     document = waiver_document(execution_target(obligation_id="unit:u0:lens:correctness"))
     document["source_sha256"] = "a" * 64
@@ -277,7 +277,7 @@ def test_execution_failure_reason_waiver_does_not_match_a_different_family():
         ("check", "REQUIRED_OUTPUT_QUARANTINED", "outside its target kind"),
         ("execution_failure", "CHECK_EVIDENCE_UNAVAILABLE", "not allowlisted"),
         ("execution_failure", "TASK_FAILED", "not allowlisted"),
-        ("execution_failure", "PARTIAL_REVIEW_COVERAGE", "not allowlisted"),
+        ("execution_failure", "BOGUS_CODE", "not allowlisted"),
     ],
 )
 def test_execution_failure_target_rejects_wrong_kind_and_nonallowlisted_reason(tmp_path, kind, reason_code, message):
@@ -394,7 +394,7 @@ def test_expired_waiver_is_rejected_and_never_applied_after_expiry(tmp_path):
         "obligation_kind": "CHANGED_UNIT_LENS",
         "required": True,
         "state": "PARTIAL",
-        "reason_code": "PARTIAL_REVIEW_COVERAGE",
+        "reason_code": "MISSING_EVIDENCE",
     }
     applied, unapplied = apply_waivers([row], loaded, now=LATER)
     assert applied == []
@@ -442,7 +442,7 @@ def test_duplicate_and_overbroad_targets_are_rejected(tmp_path):
     wrong_family = waiver_document(
         {
             "kind": "check",
-            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+            "reason_code": "MISSING_EVIDENCE",
             "justification": "This reason belongs to the coverage-note category.",
         }
     )
@@ -618,7 +618,7 @@ def test_schema_accepts_exact_id_and_reason_code_targets():
     reason_document = waiver_document(
         {
             "kind": "coverage_note",
-            "reason_code": "PARTIAL_REVIEW_COVERAGE",
+            "reason_code": "MISSING_EVIDENCE",
             "justification": "The exact reason is the only missing-evidence target.",
         }
     )
@@ -1111,3 +1111,48 @@ def test_publisher_rejects_reducer_contract_failure(tmp_path, monkeypatch):
             result,
             {"schema_version": "1.0", "allowed_repositories": ["owner/repo"], "allowed_dispositions": ["COMMENT"]},
         )
+
+
+def test_execution_failure_reason_waives_all_matching_rows_and_records_each():
+    rows = [
+        {
+            "obligation_id": "unit:u0:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+        },
+        {
+            "obligation_id": "unit:u1:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+        },
+    ]
+    document = waiver_document(execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED"))
+    document["source_sha256"] = "a" * 64
+    applied, unapplied = apply_waivers(rows, document, now=NOW)
+
+    assert not unapplied
+    assert applied[0]["obligation_ids"] == ["unit:u0:lens:correctness", "unit:u1:lens:correctness"]
+    assert {row["state"] for row in rows} == {"WAIVED"}
+
+
+def test_execution_failure_reason_rejects_overlap_with_id_target():
+    rows = [
+        {
+            "obligation_id": "unit:u0:lens:correctness",
+            "obligation_kind": "CHANGED_UNIT_LENS",
+            "required": True,
+            "state": "PARTIAL",
+            "reason_code": "REQUIRED_OUTPUT_QUARANTINED",
+        }
+    ]
+    document = waiver_document(execution_target(obligation_id="unit:u0:lens:correctness"))
+    document["waivers"].append(execution_target(reason_code="REQUIRED_OUTPUT_QUARANTINED"))
+    document["source_sha256"] = "a" * 64
+
+    with pytest.raises(WaiverError, match="overlaps"):
+        apply_waivers(rows, document, now=NOW)
+    assert rows[0]["state"] == "PARTIAL"

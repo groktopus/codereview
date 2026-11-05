@@ -50,6 +50,10 @@ EXECUTION_FAILURE_REASON_CODES = frozenset(
         "PROVIDER_UNAVAILABLE",
         "CONTEXT_GAP_UNRESOLVED",
         "CONTEXT_NOT_COVERED",
+        "PARTIAL_REVIEW_COVERAGE",
+        "COVERAGE_NOTE_MISSING",
+        "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT",
+        "REQUIRED_CONTEXT_NOT_COVERED",
     }
 )
 _EXECUTION_FAILURE_CANONICAL = frozenset(
@@ -61,6 +65,8 @@ _EXECUTION_FAILURE_CANONICAL = frozenset(
         "PROVIDER_UNAVAILABLE",
         "CONTEXT_GAP_UNRESOLVED",
         "CONTEXT_NOT_COVERED",
+        "SPECIALIST_COVERAGE_PARTIAL",
+        "COVERAGE_NOTE_MISSING",
     }
 )
 MAX_WAIVER_BYTES = 256_000
@@ -377,12 +383,17 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
             # unknown. Application resolves the reason to exactly one matching
             # required row and rejects zero or multiple matches there.
             continue
+        if kind == "execution_failure" and "reason_code" in target and len(candidates) != 1:
+            continue
         if len(candidates) != 1:
             raise WaiverError("review waiver target is ambiguous")
-        obligation_id = next(iter(candidates))
-        obligation = by_id[obligation_id]
-        if obligation.get("required") is not True:
+        resolved_ids = sorted(candidates)
+        if not resolved_ids:
             raise WaiverError("review waiver target is unknown")
+        for obligation_id in resolved_ids:
+            obligation = by_id[obligation_id]
+            if obligation.get("required") is not True:
+                raise WaiverError("review waiver target is unknown")
         if kind == "execution_failure":
             planned_reason = obligation.get("reason_code")
             if (
@@ -398,9 +409,9 @@ def validate_waiver_targets(document: Mapping[str, Any], plan: Mapping[str, Any]
             "REQUIRED_CONTEXT",
         }:
             raise WaiverError("review waiver target kind is out of scope")
-        if obligation_id in claimed:
+        if any(item in claimed for item in resolved_ids):
             raise WaiverError("review waiver target overlaps another target")
-        claimed.add(obligation_id)
+        claimed.update(resolved_ids)
 
 
 def _target_matches(row: Mapping[str, Any], target: Mapping[str, Any]) -> bool:
@@ -477,7 +488,7 @@ def apply_waivers(
     claimed_positions: set[int] = set()
     for index, target in enumerate(document.get("waivers", [])):
         matches = [row for row in rows if _target_matches(row, target)]
-        if len(matches) > 1:
+        if len(matches) > 1 and not (target.get("kind") == "execution_failure" and "reason_code" in target):
             raise WaiverError("review waiver target is overbroad")
         positions = {id(row) for row in matches}
         if claimed_positions & positions:

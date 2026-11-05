@@ -136,14 +136,14 @@
                   "CONTEXT_EVIDENCE_TRUNCATED",
                   "PROVIDER_UNAVAILABLE",
                   "CONTEXT_GAP_UNRESOLVED",
-                  "CONTEXT_NOT_COVERED"
+                  "CONTEXT_NOT_COVERED", "PARTIAL_REVIEW_COVERAGE", "COVERAGE_NOTE_MISSING", "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT", "REQUIRED_CONTEXT_NOT_COVERED"
                 ]
               }
             }
           }
         }
       ],
-      "description": "Exactly one id or reason_code. An id is an exact planned obligation target. A reason_code is accepted only when exactly one required incomplete obligation matches; a multi-row reason-code match is rejected as overbroad. An execution_failure reason_code must be one exact allowlisted code and targets exactly one required incomplete row by its reported reason; there is no wildcard, prefix, or whole-family form."
+      "description": "Exactly one id or reason_code. An id is an exact planned obligation target. A reason_code is accepted only when exactly one required incomplete obligation matches; a multi-row reason-code match is rejected as overbroad. An execution_failure reason_code must be one exact allowlisted code and targets one or more required incomplete rows with that exact reason by its reported reason; there is no wildcard, prefix, or whole-family form."
     }
   }
 }
