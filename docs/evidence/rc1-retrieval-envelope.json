@@ -1,0 +1,31 @@
+{
+  "schema": "review-issue-closure-evidence.v1",
+  "issue": 239,
+  "issue_id": "RC-1",
+  "closed_at": "2026-11-05T21:30:00Z",
+  "disposition": "CLOSED_WITH_TEST_BASED_RECEIPT",
+  "reason": "The original frozen PR305 revision and inputs were not retained. The owner approved closing against the dedicated retrieval-envelope tests and shipping-limit evidence instead of claiming a frozen-case rerun.",
+  "evidence": [
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "fact": "max_retrieval_result_bytes is a distinct limit, defaulted to max_input_bytes_per_task and capped by it."
+    },
+    {
+      "path": "src/pr_review_harness/evidence.py",
+      "fact": "Retrieval sizing uses max_retrieval_result_bytes, not the provider output budget."
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "fact": "The retrieval limit is threaded through the isolated invocation."
+    },
+    {
+      "path": "tests/test_engine.py",
+      "fact": "The 40 KB symbol-at-end test retains the trailing symbol; invalid retrieval limits are rejected."
+    }
+  ],
+  "tests": [
+    "test_retrieval_uses_input_ceiling_so_symbol_at_end_of_large_file_is_retained",
+    "tests validating max_retrieval_result_bytes bounds"
+  ],
+  "not_claimed": "No frozen PR305 rerun receipt exists. The closure does not claim zero ipc_envelope_truncated on that case."
+}

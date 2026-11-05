@@ -57,7 +57,7 @@ may be a worker, but the assignee remains the accountable human.
 
 ## Owners
 
-- Accountable owner for all 10 open issues: `@magnus919`.
+- Accountable owner for all 9 open issues: `@magnus919`.
 - An implementing agent, when one is used, is a worker on a branch under the
   owner's direction. It is not the assignee and cannot close the issue.
 - If the owner is unavailable, do not reassign to an agent or to a placeholder.
@@ -106,7 +106,7 @@ The checker validates that the table below stays consistent with the open-issue
 snapshot and the filed-issue map. It cannot validate the truth of a closure
 record; a reviewer must do that.
 
-## Mapping for the 10 open issues
+## Mapping for the 9 open issues
 
 Existing labels stay. "Labels to add" is the applied state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
@@ -115,8 +115,7 @@ the concrete move, not a schedule.
 <!-- backlog-table:start -->
 | Issue | ID | Title | Owner | State | Labels to add | Next action / blocker |
 |---|---|---|---|---|---|---|
-| #239 | RC-1 | [RC-1] Separate the retrieval envelope from the model-output budget | `@magnus919` | `ready` | `state:ready` | No hard dependency. Start with the dedicated retrieval limit and the 40 KB symbol-at-end fixture. |
-| #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `blocked` | `state:blocked` | Blocked by #239; the frozen corpus is now available for measurement. |
+| #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `ready` | `state:ready` | RC-1 is closed; the frozen corpus is available for measurement. |
 | #241 | RC-3 | [RC-3] Make completeness measurable and regression-gated | `@magnus919` | `ready` | `state:ready` | Frozen corpus available; publish the baseline and gate. |
 | #243 | QM-2 | [QM-2] Establish the human labeling and adjudication protocol | `@magnus919` | `ready` | `state:ready` | Protocol, rubric, and a retained six-packet synthetic pilot exist; owner accepted synthetic model-teacher adjudication (ADR 0010) and human packets are optional. Needs prediction runs, resolution of the incomplete `qm1-slopsearx-pr770` case, and a run that adjudicates a material finding. |
 | #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `blocked` | `state:blocked` | Blocked by #241 and #243; two-arm scorecard/gate infrastructure and a retained synthetic label set exist, but prediction runs, a complete label set, and an accepted baseline remain. |
@@ -127,8 +126,8 @@ the concrete move, not a schedule.
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |
 <!-- backlog-table:end -->
 
-Summary: **6 `ready`, 4 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
-10 open issues, all with one owner and one state.
+Summary: **6 `ready`, 3 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
+9 open issues, all with one owner and one state.
 
 ## Board and issue-template configuration
 

@@ -8,6 +8,8 @@
 
 ## RC-1 — Separate the retrieval envelope from the model-output budget
 
+**Status: Closed 2026-11-05.** Owner approved a test-based receipt because the original PR305 revision was not retained. Evidence: [rc1-retrieval-envelope.json](../evidence/rc1-retrieval-envelope.json). The dedicated `max_retrieval_result_bytes` limit is threaded through retrieval and the isolated invocation, and the 40 KB symbol-at-end test passes. No frozen PR305 rerun is claimed.
+
 - **Priority:** P0
 - **Dimensions:** Review completeness; Control plane
 - **Problem:** Local context retrieval is sized by `max_output_bytes_per_task` (`engine.py:2771`), which is 16,000 bytes in the shipping limits, while per-task input is 96,000 bytes. Files larger than the envelope are truncated to a **prefix** by `evidence._fit_ipc_envelope`, so a specialist may receive lines 1..N and never see the function under review. In the v17 PR305 run, 8 of 8 retrievals returned `ipc_envelope_truncated`.
