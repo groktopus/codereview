@@ -45,6 +45,8 @@
 
 ## RC-3 — Make completeness measurable and regression-gated
 
+**Status: Closed 2026-11-05.** A five-case frozen-corpus baseline and an active CI gate are recorded in [completeness-baseline-v1](../../examples/evaluation/completeness-baseline-v1/README.md); `qm1-slopsearx-pr770` is explicitly excluded for the documented base mismatch. Evidence: [rc3-completeness-baseline.json](../evidence/rc3-completeness-baseline.json).
+
 - **Priority:** P0
 - **Dimensions:** Review completeness; Evidence discipline
 - **Problem:** Completeness is reported per run but not aggregated or compared. Reason codes (`CONTEXT_GAP_UNRESOLVED`, `ipc_envelope_truncated`, `CHECK_RESULT_UNAVAILABLE`, …) are strings scattered across modules, and no gate prevents a change from making reviews less complete.

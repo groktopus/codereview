@@ -1,0 +1,18 @@
+{
+  "schema": "review-issue-closure-evidence.v1",
+  "issue": 241,
+  "issue_id": "RC-3",
+  "closed_at": "2026-11-05T22:45:00Z",
+  "disposition": "CLOSED_WITH_FROZEN_BASELINE",
+  "baseline": "examples/evaluation/completeness-baseline-v1/baseline.json",
+  "manifest": "examples/evaluation/completeness-baseline-v1/manifest.json",
+  "cases": 5,
+  "excluded": [
+    {
+      "case_id": "qm1-slopsearx-pr770",
+      "reason": "frozen corpus merge-base 282cf846 does not match the PR base dfcb164a"
+    }
+  ],
+  "gate": ".github/workflows/test.yml gates the baseline with scripts/check_completeness.py; the seeded-regression step still proves failure behavior.",
+  "not_claimed": "This is a five-case baseline, not six."
+}
