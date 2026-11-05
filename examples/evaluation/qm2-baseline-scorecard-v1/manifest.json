@@ -1,0 +1,10 @@
+{
+  "schema": "review-quality-scorecard-artifact.v1",
+  "corpus": "../qm2-labeling-pilot-v1/corpus.json",
+  "labels": "../qm2-labeling-pilot-v1/labels-synthetic-v1.json",
+  "content_hashes": {
+    "README.md": "2a947570bb5ec24780adb48d1e3af4550ef77f9e565806ec0d713bf5750f0790",
+    "scorecard.json": "e20b9237e07b9544f33936415ebe677a75e7aea61870fdcc998f2ddae42d1687",
+    "predictions.json": "660f3d3f2d0559dc35df513bc9ac701d47ea2e4a963710385624d0591b3a32e3"
+  }
+}
