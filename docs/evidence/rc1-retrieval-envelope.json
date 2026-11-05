@@ -35,8 +35,8 @@
     "approved_at": "2026-11-05T22:07:21Z",
     "text": "Owner approved recording the existing retrieval-envelope tests as the closure receipt and closing RC-1 without the original frozen PR305 case."
   },
-  "reviewed_head_sha": "962d4b4c3174305acea832cee9ade98165060ee7",
   "pull_request": "https://github.com/groktopus/codereview/pull/334",
   "command": "PYTHONPATH=src python3 -m pytest -q tests/test_engine.py::test_retrieval_uses_input_ceiling_so_symbol_at_end_of_large_file_is_retained tests/test_engine.py::test_invalid_optional_retrieval_result_budget_rejected_before_provider_dispatch tests/test_evidence.py",
-  "observed_result": "20 passed"
+  "observed_result": "18 passed",
+  "review_note": "The PR receipt binds the reviewed head; this evidence file records the tests, not a self-referential SHA."
 }
