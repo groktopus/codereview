@@ -26,6 +26,8 @@
 
 ## QM-2 — Establish the labeling and adjudication protocol
 
+**Status: Closed 2026-11-05.** Five-case predictions and a reproducible synthetic scorecard are merged at `432b3d4`; synthetic arm present, 5/6 complete, #770 explicitly missing. Evidence: [qm2-baseline-scorecard.json](../evidence/qm2-baseline-scorecard.json).
+
 - **Priority:** P0
 - **Dimensions:** Quality evidence; Governance
 - **Problem:** Human labels are unavailable in practice. Model-teacher packets exist as a concept but there was no operating protocol for producing bounded labels, retaining provenance, or preventing model output from being counted as human truth. The owner has decided that synthetic model-teacher adjudication is the accepted method ([ADR 0010](../adr/0010-synthetic-model-teacher-adjudication.md)).
