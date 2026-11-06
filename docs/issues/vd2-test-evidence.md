@@ -46,3 +46,12 @@ only `tests/test_vd2_invariants.py` and measured **185 killed / 338 survived /
 counting timeouts as killed would be 49.4%, and over all mutants 27.7%. This is
 a narrow-suite lower bound, not the 70% VD-2 gate. Report:
 [vd2-mutation-reconcile.json](../evidence/vd2-mutation-reconcile.json).
+
+
+## Corrected mutation accounting (2026-11-06)
+
+The first probe's labels were misread: 185 were killed, **338 were "no tests"**, and
+**145 survived**; score `185/(185+145) = 56.1%`. After adding direct reconcile
+tests, the expanded probe measured **257 killed / 338 no-tests / 73 survived /
+0 timeout**: `257/(257+73) = 77.9%`, above the 70% gate for reconcile. Budget and
+reducer modules remain unmeasured.
