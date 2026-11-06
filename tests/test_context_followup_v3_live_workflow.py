@@ -2,13 +2,15 @@ import json
 import re
 from pathlib import Path
 
+from compatibility_pins import pin
+
 from scripts import run_real_case_trial as trial
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "context-followup-v3-live-trial.yml"
 PLAN = ROOT / "docs" / "real-case-trial-context-followup-v3" / "manifest.json"
 RUNTIME_SHA = "7c89ad17327b8f0ed4fc381bf5c93255fd4e548e"
-RUNTIME_TREE_SHA256 = "c5b7c4e43aeddfad55bbcfdcb9e07c4a89fd0b6a3a263a31f046c8852dd8838a"
+RUNTIME_TREE_SHA256 = pin("runtime.context_followup_v2.module_tree_sha256")
 PROVIDER_SECRETS = {
     "LLM_BASE_URL",
     "LLM_MODEL",

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 from pr_review_harness.claim_reconciliation import validate_claim_reconciliation_policy
 from scripts.resolve_target_profile import ProfileBindingError, main, resolve_target_profile
@@ -72,7 +73,7 @@ def test_trusted_binding_resolves_exact_repository_profile_and_digest():
         "target_repository": TARGET,
         "profile_path": "profiles/slopsearx-v14-jev-reconciliation-candidate.json",
         "profile_version": "slopsearx-production-v14-jev-reconciliation-candidate",
-        "profile_sha256": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
+        "profile_sha256": pin("contract.slopsearx_v14.profile_sha256"),
         "profile_map_sha256": hashlib.sha256((ROOT / "profiles/targets.json").read_bytes()).hexdigest(),
     }
 
@@ -104,7 +105,7 @@ def test_codereview_target_is_bound_to_its_fixed_candidate_profile():
         "target_repository": CODEREVIEW_TARGET,
         "profile_path": "profiles/codereview-native-v1-candidate.json",
         "profile_version": "codereview-native-v1-candidate",
-        "profile_sha256": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
+        "profile_sha256": pin("contract.codereview_native_v1.profile_sha256"),
         "profile_map_sha256": hashlib.sha256((ROOT / "profiles/targets.json").read_bytes()).hexdigest(),
     }
 

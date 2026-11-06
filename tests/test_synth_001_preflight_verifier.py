@@ -204,6 +204,7 @@ def test_current_cli_output_is_stable_but_rejected_by_historical_prepare_pin(tmp
                 expected_python_identity=CURRENT_PYTHON_IDENTITY,
             )
     assert request_hashes[0] == request_hashes[1]
+    # vd3-non-pin: guards against reusing the synthetic SYNTH-001 request digest, not historical evidence.
     assert request_hashes[0] != "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
     assert outputs[0]["snapshot"]["snapshot_hash"] != outputs[1]["snapshot"]["snapshot_hash"]
     first = json.loads(json.dumps(outputs[0]))

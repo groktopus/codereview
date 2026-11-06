@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 from pr_review_harness.budget import BudgetExhausted, BudgetLedger
 from pr_review_harness.checks import CheckEvidenceError, GitHubCheckAdapter, ingest_check_runs, make_check_runs_document
@@ -211,7 +212,7 @@ def test_slopsearx_profile_keeps_separate_exact_pr464_check_bindings():
     assert profile["version"] == "slopsearx-production-v8-static-review-boundaries"
     assert len(document["runs"]) == 20
     assert document["fixture_provenance"]["source_capture_sha256"] == (
-        "989e65b14d1a43f37b4abaaf2be55b49c3b07ecf50d3e786eb99ff3f22f0450b"
+        pin("fixture.pr464_check_evidence.source_capture_sha256")
     )
     bindings = profile["required_checks"]
     assert [(item["id"], item["github_check_name"], item["github_app_id"]) for item in bindings] == [

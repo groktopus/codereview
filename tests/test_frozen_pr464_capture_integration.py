@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -449,8 +450,8 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
         selection_receipt_path=selection_path,
     )
     assert selection["plan_sha256"] == _sha(plan_path.read_bytes())
-    assert selection["snapshot_sha256"] == "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
-    assert selection["selected_task_sha256"] == "d5b567c9db558df6b5cf51f019004234be3e36efffd74427bd33574c9a3c5a3c"
+    assert selection["snapshot_sha256"] == pin("historical.pr464.capture_snapshot_sha256")
+    assert selection["selected_task_sha256"] == pin("historical.pr464.selected_task_sha256")
     selected_packet_path = capture_root / selection["packet_path"]
     assert selection["selected_packet_sha256"] == _sha(selected_packet_path.read_bytes())
     selected_packet = json.loads(selected_packet_path.read_bytes())
@@ -485,7 +486,7 @@ def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
     )
     source_request_sha256 = _sha(source_request)
     assert len(source_request) == 74_521
-    assert source_request_sha256 == "d89e8164d297e736a45d91572221ed6b2b0c4aee0ae567b8438cd9bda6592699"
+    assert source_request_sha256 == pin("historical.pr464.source_request_sha256")
     assert len(source_request) > 64_000
     assert receipt["terminal_state"] == "incomplete"
     assert receipt["reason"] == "no_writer_candidate"

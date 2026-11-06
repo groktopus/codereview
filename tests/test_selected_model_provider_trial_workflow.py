@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 from pr_review_harness import external_effect_observer as observer
 
@@ -16,7 +17,7 @@ WORKFLOW = ROOT / ".github/workflows/selected-model-provider-trial.yml"
 PREPARE_WORKFLOW = ROOT / ".github/workflows/selected-model-claim-trial.yml"
 PIN = "54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215"
 OBSERVER_ID = "linux-strace-syscall-observer.v3"
-OBSERVER_SOURCE_SHA256 = "fce15c42bfbc7fe66f353e8322b11f5fff1ae44a10458bba234366509f75f328"
+OBSERVER_SOURCE_SHA256 = pin("historical.selected_model_trial.observer_source_sha256")
 CHECKOUT_ACTION = "11bd71901bbe5b1630ceea73d27597364c9af683"
 SETUP_PYTHON_ACTION = "a26af69be951a213d495a4c3e4e4022e16d87065"
 UPLOAD_ARTIFACT_ACTION = "ea165f8d65b6e75b540449e92b4886f43607fa02"

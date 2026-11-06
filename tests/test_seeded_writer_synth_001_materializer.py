@@ -29,6 +29,7 @@ def test_materialization_is_deterministic_and_contains_only_review_inputs(tmp_pa
     two = json.loads(second.stdout)
     assert one == two
     assert one["fixture_id"] == "SYNTH-001"
+    # vd3-non-pin: seeded SYNTH-001 payload digest is synthetic fixture data, not historical evidence.
     assert one["payload_sha256"] == "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
     assert one["changed_path"] == "auth.py"
     assert one["base_sha"] != one["head_sha"]

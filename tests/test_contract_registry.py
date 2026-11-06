@@ -11,6 +11,7 @@ from pathlib import Path
 
 import jsonschema
 import pytest
+from compatibility_pins import pin
 from test_engine import EmptyProvider, make_snapshot
 from test_review_stages import make_profile, make_state
 
@@ -280,8 +281,8 @@ def test_effective_contract_set_for_the_supported_combination_is_fully_registere
     assert contracts["registration"] == "registered"
     assert contracts["review_contract"]["name"] == "codereview-native-v1"
     assert contracts["review_contract"]["status"] == "supported"
-    assert contracts["profile"]["source_sha256"] == "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712"
-    assert contracts["limits"]["source_sha256"] == "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6"
+    assert contracts["profile"]["source_sha256"] == pin("contract.codereview_native_v1.profile_sha256")
+    assert contracts["limits"]["source_sha256"] == pin("contract.ordinary_review_limits_v3.sha256")
     assert contracts["claim_assessment"]["name"] == "claim-assessment.2"
     assert contracts["specialist_findings"]["name"] == "specialist-findings.v4"
     assert contracts["adjudication"]["name"] == "semantic-adjudication.v3"

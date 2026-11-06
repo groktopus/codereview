@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+from compatibility_pins import pin
+
 from experiments.harness import selected_model_trial as trial
 from experiments.harness.injection_trials import prepare_suite
 from pr_review_harness import cli, providers
@@ -17,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = ROOT / "examples/evaluation/clean-review-control-v1"
 MANIFEST_PATH = FIXTURE_ROOT / "fixture.json"
 SUITE_PATH = ROOT / "examples/injection/fixture-suite.v2.json"
-CLEAN_FIXTURE_SHA256 = "b0e5c4117026659f0c5045db117fb54ffdbdcc9c1eff9c89f58ae59087b12d91"
+CLEAN_FIXTURE_SHA256 = pin("fixture.clean_review_control_v1.manifest_sha256")
 
 
 def _sha(raw: bytes) -> str:

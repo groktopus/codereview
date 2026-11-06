@@ -6,6 +6,7 @@ import stat
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "private-shadow-capture.yml"
@@ -225,7 +226,7 @@ def test_live_writer_failure_reports_only_allowlisted_json_and_stage_code():
 def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "5873c3f1b297a96c49b78cbcb7be674ab70b3cea" in text
-    assert "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0" in text
+    assert pin("runtime.model_only_shadow.inventory_sha256") in text
     assert "--mode staged-pr464 --prepare-only --input-contract specialist-input-v2" in text
     assert 'mkdir -m 700 -p "$RUNNER_TEMP/private-shadow-preparation"' not in text
     upload = text.split("- name: Upload only the sanitized preparation receipt", 1)[1].split("      - name:", 1)[0]
@@ -257,8 +258,8 @@ def test_live_case_selector_is_a_closed_two_case_choice_with_fixed_paths():
 def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():
     legacy = json.loads(BUDGET.read_text(encoding="utf-8"))
     live = json.loads((ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v2.json").read_text())
-    historical_hash = "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663"
-    capture_hash = "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
+    historical_hash = pin("historical.pr464.case_snapshot_sha256")
+    capture_hash = pin("historical.pr464.capture_snapshot_sha256")
     assert legacy["case"]["snapshot_sha256"] == historical_hash
     assert live["case"]["snapshot_sha256"] == capture_hash
     assert historical_hash in (ROOT / "scripts" / "sanitize_model_only_shadow_preflight.py").read_text()
@@ -273,8 +274,8 @@ def test_budget_manifest_has_finite_shared_limits_and_planned_provider_identity(
     assert case["case_id"] == "PR-464"
     assert case["base_sha"] == "20a743f0434a1843aa00068483f608f1e213b2af"
     assert case["head_sha"] == "bffc26f9e4bf95aca0c252e88a2396d03ece854c"
-    assert case["runtime_inventory_sha256"] == "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0"
-    assert case["runtime_module_tree_sha256"] == "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4"
+    assert case["runtime_inventory_sha256"] == pin("runtime.model_only_shadow.inventory_sha256")
+    assert case["runtime_module_tree_sha256"] == pin("runtime.model_only_shadow.module_tree_sha256")
     limits = budget["budgets"]
     assert limits["writer_calls_max"] + limits["audit_calls_max"] == limits["total_provider_calls_max"] == 13
     assert limits["max_request_bytes_per_call"] == 128_000
@@ -307,7 +308,7 @@ def _receipt_fixture(tmp_path: Path, *, extra_manifest_key: bool = False):
         "profile_sha256": digest,
         "scope_count": 22,
         "scope_sha256": digest,
-        "snapshot_hash": "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
+        "snapshot_hash": pin("historical.pr464.case_snapshot_sha256"),
         "status": "PREPARED_NOT_RUN",
     }
     summary = {"schema": "historical-real-case-trial-manifest.v2", "status": "PREPARED_NOT_RUN", "cases": [case]}
@@ -325,7 +326,7 @@ def _receipt_fixture(tmp_path: Path, *, extra_manifest_key: bool = False):
             "max_retries_per_task": 0,
             "primary_response_byte_cap_per_call": 16000,
             "runtime_revision": "5873c3f1b297a96c49b78cbcb7be674ab70b3cea",
-            "runtime_module_tree_sha256": "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4",
+            "runtime_module_tree_sha256": pin("runtime.model_only_shadow.module_tree_sha256"),
             "runner_revision": "b" * 40,
             "runtime_wheel_sha256": digest,
             "cases": [{**case, "primary_request_receipts": []}],

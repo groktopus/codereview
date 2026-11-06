@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 from scripts import run_real_case_trial as trial
 from scripts.provider_config_from_env import configurations_from_environment
@@ -147,13 +148,13 @@ def test_frozen_case_manifest_binds_profiles_checks_and_exact_primary_demands():
     assert [case["expected_primary_serialized_input_bytes"] for case in cases] == [870_424, 2_206_107, 885_733]
     assert len(trial.RUNTIME_MODULE_INVENTORY) == 28
     assert trial.RUNTIME_SHA == "ed7aa8b82f8d0c8deee03b6f99d8f4f599529301"
-    assert trial.RUNTIME_MODULE_TREE_SHA256 == "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3"
+    assert trial.RUNTIME_MODULE_TREE_SHA256 == pin("runtime.staged_pr464.module_tree_sha256")
     limits = trial.limits_for(64)
     assert limits["max_snapshot_context_bytes"] == 300_000
     assert limits["max_context_bytes"] == 8_000_000
     assert limits["max_input_bytes_per_task"] == 128_000
     assert all(case["expected_scope_count"] > 0 for case in cases)
-    assert document["baseline_plan_sha256"] == "5c98ea8d66723bae0092c16dd062cdc77640d6912da3ae90dde7ec5fc805baef"
+    assert document["baseline_plan_sha256"] == pin("historical.real_case_trial.baseline_plan_sha256")
 
 
 def test_verify_runtime_accepts_only_pinned_revision_and_installed_module_proof(tmp_path, monkeypatch):
@@ -1357,7 +1358,7 @@ def test_context_followup_v2_plan_is_additive_and_preserves_all_v2_primary_input
     assert document["dynamic_followup_projection"] == "context-followup-observation.v2"
     assert trial.runtime_identity(trial.CONTEXT_FOLLOWUP_V2_SELECTOR) == (
         "7c89ad17327b8f0ed4fc381bf5c93255fd4e548e",
-        "c5b7c4e43aeddfad55bbcfdcb9e07c4a89fd0b6a3a263a31f046c8852dd8838a",
+        pin("runtime.context_followup_v2.module_tree_sha256"),
     )
     assert [case["expected_primary_request_descriptors"] for case in cases] == [
         case["expected_primary_request_descriptors"] for case in v2_cases
@@ -1623,7 +1624,9 @@ def test_context_followup_v1_and_v2_projection_bytes_remain_unchanged():
     v2 = trial.project_case(case, durable, [], include_context_followups=True, include_closure_diagnostics=True)
 
     assert "context_followup_observations" not in default
+    # vd3-non-pin: projection golden over a synthetic durable fixture, not historical evidence.
     assert digest(canonical(v1)) == "ca301cf560f6f832f515bc0b7e6a759f35b7e3fbfb4d7ba3142b80f7dbccc482"
+    # vd3-non-pin: projection golden over a synthetic durable fixture, not historical evidence.
     assert digest(canonical(v2)) == "650b32316798fa51dd1e54190165b3a4285e67f889e883cd20840e5a8a0a5b36"
 
 
