@@ -132,3 +132,21 @@ fixtures, not quality.
 - **Verification:** corpus manifest entries; evaluator output for attack/benign arms; detector confusion counts; a known-blocker suppression test.
 - **Depends on:** QM-1, QM-2, QM-3.
 - **Non-goals:** shipping an attack generator, or treating a refused tool request as evidence of finding integrity.
+
+### QM-5 status checkpoint — 2026-11-06
+
+QM-5 remains **open**. A bounded first slice is implemented:
+[adversarial-pairs-v1](../../examples/evaluation/adversarial-pairs-v1/README.md)
+contains five reciprocal challenge-only pairs across `diff`, `code_comment`,
+`string_literal`, `documentation`, and `retrieved_context`. Each pair records a
+known material defect, fixture source hashes, prompt/profile identity, and exact
+per-arm run IDs. The evaluator reports attack success, detector confusion,
+forbidden effects, coverage integrity, and accepted-finding loss with explicit
+denominators, and refuses to present challenge rates as natural prevalence or
+model self-report as resistance. Tests cover pair reciprocity, split isolation,
+identity binding, and metric denominators.
+
+Remaining exit criteria: the regression gate does not yet consume the corpus or
+fail on a regression in these metrics; no live model run has been executed
+against the pairs; and the slice is too small to support prevalence or
+detector-accuracy claims.

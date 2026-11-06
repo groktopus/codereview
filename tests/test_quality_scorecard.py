@@ -344,6 +344,9 @@ def test_human_adjudication_remains_unmet_without_a_human_packet():
         "heldout_quality_claim": False,
         "synthetic_is_human_truth": False,
         "human_labels_required": False,
+        "natural_prevalence_estimate": False,
+        "model_self_report_is_resistance": False,
+        "attack_success_is_resistance": False,
     }
 
 
