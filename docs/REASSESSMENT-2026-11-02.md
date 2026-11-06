@@ -13,7 +13,7 @@ keeping that document as the original evidence snapshot.
 | Evidence discipline | **A** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, frozen historical fixtures, exact-byte pins. | None material. |
 | Effect safety | **A−** | Default read-only, typed effect boundaries, 11-test publication fault matrix, publication receipts, fail-closed unknown states, least-privilege App token, and one exercised live canary through the narrow one-shot adapter ([receipt](evidence/canary-review-5763357701.json), review 5763357701 on SlopSearX#1097). The general protected runtime is out of scope and remains intentionally unexercised. | None material for the A− gate; the canary proves the external review effect, not general publication. |
 | Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | No A− blocker; A would require reducing the 38 functions over 150 lines and tightening module cohesion. |
-| Test depth | **B** | 3,800+ tests, compatibility suite, fault/invariant suites, direct reconcile consolidation tests, and a narrow-suite reconcile mutation probe (185 killed / 338 survived / 145 timeout = 35.4%, timeouts excluded; [report](evidence/vd2-mutation-reconcile.json)). | Mutation is a **35.4% narrow-suite lower bound**, below the 70% gate; budget/reducer modules remain unmeasured (#252). |
+| Test depth | **B+** | 3,800+ tests, compatibility suite, fault/invariant suites, direct reconcile consolidation tests, and a reconcile mutation probe (257 killed / 338 no-tests / 73 survived = 77.9%, no-tests and timeouts excluded; [report](evidence/vd2-mutation-reconcile.json)). | Reconcile clears the 70% gate, but budget and reducer modules remain unmeasured (#252). |
 | Review completeness | **C** | A five-case comparable frozen-corpus baseline and active CI gate are recorded; execution/context failures can be waived into `COMPLETE_WITH_WAIVERS` only by an explicit signed, expiring waiver, and never approval. | Baseline is five cases, #770 is disclosed but not included; no live full-corpus run. |
 | Review quality evidence | **D** | Five-case predictions, synthetic scorecard with the synthetic arm `present`, accepted baseline, CI/scheduled gate, and no accuracy claim. | No live full-corpus run; one case (`qm1-slopsearx-pr770`) is missing; no second prediction arm (#244/#245). |
 | Architecture | **C+/B−** | Typed core boundaries, contract registry, staged pipeline, no runtime dependencies. | Oversized functions remain; `run_review` orchestration is still concentrated; module ownership is documented but not enforced by required review. |
@@ -47,11 +47,10 @@ receipt). The remaining gaps are:
    prediction arm.
 2. **Completeness baseline (RC-3).** A five-case comparable baseline and gate are
    active; `qm1-slopsearx-pr770` is disclosed but not included.
-3. **Mutation/static depth (VD-2/VD-4).** The narrow reconcile probe measured
-   **35.4%** with timeouts excluded (185 killed / 338 survived / 145 timeout) and
-   only `tests/test_vd2_invariants.py` selected; this is below 70%. The
-   formatting/complexity half of VD-4 is merged, but expanded lint rules and
-   broad typing remain open.
+3. **Mutation/static depth (VD-2/VD-4).** Reconcile now measures **77.9%**
+   (257 killed / 73 survived; no-tests and timeouts excluded) against the 70%
+   gate. Budget and reducer modules remain unmeasured. The formatting/complexity
+   half of VD-4 is merged, but expanded lint rules and broad typing remain open.
 4. **Architecture and documentation (C+/B−, B+).** Oversized functions remain,
    `run_review` orchestration is still concentrated, and owner-reviewed status
    evidence is intentionally stale.
@@ -66,8 +65,8 @@ receipt). The remaining gaps are:
 The harness is materially stronger than the 2026-11-01 snapshot. Evidence
 discipline, the deterministic control plane, and effect safety meet A−. It is
 not an A− codebase overall: quality has only a five-case baseline, completeness
-is measured on the same five cases, mutation is 35.4% on a narrow reconcile
-suite, typing remains narrow, and architecture, documentation, governance, and
+is measured on the same five cases, mutation is 77.9% on reconcile but unmeasured
+on budget/reducer, typing remains narrow, and architecture, documentation, governance, and
 operational readiness have structural gaps. The first release
 predates attestation (`v0.1.0` remains unsigned; `v0.1.1` is attested), and branch protection has not been
 exercised by a non-admin merge.
@@ -82,5 +81,6 @@ synthetic scorecard). Execution/context failures can now be explicitly waived in
 backlog is **7 issues**: RC-2, QM-3, QM-4, QM-5, VD-2, VD-3, VD-4.
 
 The A− count is unchanged at **3/10**. Review completeness moved to **C** and quality
-evidence to **D**, but neither reaches A−. Test depth fell to **B** because the
-narrow-suite reconcile mutation score is **35.4%** (timeouts excluded), not the required 70% or better.
+evidence to **D**, but neither reaches A−. Test depth rose to **B+** because the reconcile mutation score is **77.9%**
+(no-tests and timeouts excluded), above the required 70%; budget and reducer
+modules remain unmeasured.

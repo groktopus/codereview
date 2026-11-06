@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 
+import pytest
+
 from pr_review_harness.reconcile import consolidate_findings
 
 
@@ -164,3 +166,102 @@ def test_group_key_is_a_sha256_of_canonical_basis() -> None:
     expected = hashlib.sha256(json.dumps(basis, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     assert merged[0]["correlation_group_id"] == "correlation-" + expected[:16]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("snapshot_id", "snap-2"),
+        ("unit_id", "unit-2"),
+        ("path", "src/other.py"),
+        ("observation", "A different observation."),
+        ("consequence", "A different consequence."),
+        ("rule_or_contract", "OTHER.md"),
+        ("side", "BASE"),
+        ("kind", "file"),
+        ("line", 11),
+    ],
+)
+def test_each_grouping_field_separates_a_finding(field, value) -> None:
+    left = finding("a")
+    right = finding("b")
+    if field in {"path", "side", "kind", "line"}:
+        right["location"] = {**left["location"], field: value}
+    else:
+        right[field] = value
+
+    merged = consolidate_findings([left, right])
+
+    assert len(merged) == 2
+
+
+def test_default_side_and_file_kind_when_location_omits_them() -> None:
+    left = finding("a", location={"path": "src/a.py"})
+    right = finding("b", location={"path": "src/a.py", "side": "HEAD", "kind": "file"})
+
+    merged = consolidate_findings([left, right])
+
+    assert len(merged) == 1
+    assert merged[0]["duplicate_count"] == 1
+
+
+def test_candidate_id_falls_back_to_finding_id() -> None:
+    left = finding("a")
+    right = finding("b")
+    left.pop("candidate_id")
+    right.pop("candidate_id")
+
+    merged = consolidate_findings([left, right])
+
+    assert merged[0]["candidate_ids"] == ["a", "b"]
+
+
+def test_task_ids_and_evidence_refs_filter_empty_values() -> None:
+    left = finding("a", task_id=None, evidence_refs=[])
+    right = finding("b", task_id="task-2", evidence_refs=["ev-2"])
+
+    merged = consolidate_findings([left, right])
+
+    assert merged[0]["task_ids"] == ["task-2"]
+    assert merged[0]["evidence_refs"] == ["ev-2"]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "observation_support",
+        "consequence_support",
+        "rule_connection_support",
+        "introducedness",
+        "material_consequence",
+    ],
+)
+def test_supported_shape_disagreement_on_each_field_is_a_conflict(key) -> None:
+    merged = consolidate_findings(
+        [
+            finding("a", semantic_assessment={"outcome": "SUPPORTED", key: True}),
+            finding("b", semantic_assessment={"outcome": "SUPPORTED", key: False}),
+        ]
+    )
+
+    assert merged[0]["status"] == "CONTRADICTED"
+    assert merged[0]["blocking_class"] == "UNRESOLVED"
+
+
+def test_shape_disagreement_without_supported_or_contradicted_is_not_a_conflict() -> None:
+    merged = consolidate_findings(
+        [
+            finding("a", semantic_assessment={"outcome": "UNCERTAIN", "material_consequence": True}),
+            finding("b", semantic_assessment={"outcome": "UNCERTAIN", "material_consequence": False}),
+        ]
+    )
+
+    assert merged[0]["status"] == "ACCEPTED"
+    assert merged[0].get("reconciliation_conflict") is None
+
+
+def test_three_duplicates_keep_the_lowest_id_and_count_two() -> None:
+    merged = consolidate_findings([finding("c"), finding("a"), finding("b")])
+
+    assert merged[0]["finding_id"] == "a"
+    assert merged[0]["duplicate_count"] == 2

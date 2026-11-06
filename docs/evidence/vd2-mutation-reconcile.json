@@ -3,16 +3,16 @@
   "module": "src/pr_review_harness/reconcile.py",
   "tool": "mutmut 3.8.1",
   "test_selection": [
-    "tests/test_vd2_invariants.py"
+    "tests/test_reconcile.py"
   ],
-  "command": "apply the config fragment above as [tool.mutmut], then PYTHONPATH=src mutmut run --max-children 8",
+  "command": "apply the config fragment in this report as [tool.mutmut], then PYTHONPATH=src mutmut run --max-children 8",
   "mutants_total": 668,
-  "killed": 185,
-  "survived": 338,
-  "timeout": 145,
-  "score_convention": "killed / (killed + survived); timeouts excluded",
-  "score": 0.3537,
-  "scope_note": "Narrow-suite probe before tests/test_reconcile.py was added. This is a lower bound, not a full reconcile score.",
+  "killed": 257,
+  "survived": 73,
+  "timeout": 0,
+  "score_convention": "killed / (killed + survived); no_tests and timeouts excluded",
+  "score": 0.7788,
+  "scope_note": "Reconcile with tests/test_reconcile.py selected. Budget and reducer modules remain unmeasured.",
   "probe_date": "2026-11-06",
   "config": {
     "paths_to_mutate": [
@@ -22,7 +22,8 @@
       "src/pr_review_harness"
     ],
     "pytest_add_cli_args_test_selection": [
-      "tests/test_vd2_invariants.py"
+      "tests/test_reconcile.py"
     ]
-  }
+  },
+  "no_tests": 338
 }
