@@ -133,7 +133,7 @@ stage/state integration 9 lines, and 69 replacement/import lines from the
 consolidation pass, minus 168 removed or replaced lines (dead functions,
 duplicate `_canonical` helpers, duplicate writer-pin validation, and a shared
 unified-diff range parser). A one-time
-`rc2_retrieval_compiler_allowance_lines: 226` is recorded in
+`rc2_retrieval_compiler_allowance_lines: 229` is recorded in
 `docs/public-surface.json`; the effective ceiling is
 `base*(1-required)+feature budget+formatting+waiver+execution-failure+execution-reason+RC-2`.
 The slice is measured at exactly 32778 lines, so the allowance is fully
