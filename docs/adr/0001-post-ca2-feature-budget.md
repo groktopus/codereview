@@ -128,14 +128,15 @@ ceiling, and the one-orchestrator/public-surface invariants in CI.
 ## Addendum: RC-2 retrieval compiler allowance (2026-11-06)
 
 The owner authorized the quality-preserving choice for RC-2. The measured
-decomposition of the **226** net source lines is: `retrieval_plan.py` 316 lines,
-stage/state integration 9 lines, and 69 replacement/import lines from the
-consolidation pass, minus 168 removed or replaced lines (dead functions,
+decomposition of the **229** net source lines is: `retrieval_plan.py` 316 lines,
+stage/state integration 9 lines, a 3-line current-side anchor/source-window
+correction, and 69 replacement/import lines from the consolidation pass, minus
+168 removed or replaced lines (dead functions,
 duplicate `_canonical` helpers, duplicate writer-pin validation, and a shared
 unified-diff range parser). A one-time
-`rc2_retrieval_compiler_allowance_lines: 226` is recorded in
+`rc2_retrieval_compiler_allowance_lines: 229` is recorded in
 `docs/public-surface.json`; the effective ceiling is
 `base*(1-required)+feature budget+formatting+waiver+execution-failure+execution-reason+RC-2`.
-The slice is measured at exactly 32778 lines, so the allowance is fully
+The slice is measured at exactly 32781 lines, so the allowance is fully
 consumed. This is feature headroom for the compiler slice, not a renewal of the
 500-line budget.
