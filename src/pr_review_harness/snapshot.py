@@ -232,72 +232,46 @@ def _kind(path: str, modes: tuple[str | None, str | None], profile: dict) -> str
     return "unknown"
 
 
-def _changed_line_ranges(diff: str) -> list[list[int]]:
-    """Return compressed HEAD line ranges added or replaced by unified diff."""
-    changed: set[int] = set()
+def _compress(positions: set[int]) -> list[list[int]]:
+    ordered = sorted(positions)
+    ranges: list[list[int]] = []
+    for line in ordered:
+        if ranges and line == ranges[-1][1] + 1:
+            ranges[-1][1] = line
+        else:
+            ranges.append([line, line])
+    return ranges
+
+
+def _hunk_ranges(diff: str, marker: str, group: int) -> list[list[int]]:
+    positions: set[int] = set()
     current_line: int | None = None
     for row in diff.splitlines():
-        match = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", row)
+        match = re.match(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", row)
         if match:
-            current_line = int(match.group(1))
+            current_line = int(match.group(group))
             continue
         if current_line is None or row.startswith("\\"):
             continue
-        if row.startswith("+"):
-            changed.add(current_line)
+        if row.startswith(marker) and not (marker == "-" and row.startswith("---")):
+            positions.add(current_line)
             current_line += 1
         elif row.startswith(" "):
             current_line += 1
-        # Removed lines exist only in BASE and do not advance HEAD positions.
-    if not changed:
-        # A deletion-only unit has no HEAD line that can be verified as changed.
-        # This empty-range sentinel makes the current core's positive-line
-        # validator reject fabricated locations until file-level deleted-line
-        # locations are supported explicitly.
+    return _compress(positions)
+
+
+def _changed_line_ranges(diff: str) -> list[list[int]]:
+    """Return compressed HEAD line ranges added or replaced by unified diff."""
+    ranges = _hunk_ranges(diff, "+", 2)
+    if not ranges:
         return [[0, 0]] if any(row.startswith("-") and not row.startswith("---") for row in diff.splitlines()) else []
-    ordered = sorted(changed)
-    ranges: list[list[int]] = []
-    start = end = ordered[0]
-    for line in ordered[1:]:
-        if line == end + 1:
-            end = line
-        else:
-            ranges.append([start, end])
-            start = end = line
-    ranges.append([start, end])
     return ranges
 
 
 def _deleted_line_ranges(diff: str) -> list[list[int]]:
     """Return compressed BASE line ranges removed or replaced by a diff."""
-    deleted: set[int] = set()
-    current_line: int | None = None
-    for row in diff.splitlines():
-        match = re.match(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@", row)
-        if match:
-            current_line = int(match.group(1))
-            continue
-        if current_line is None or row.startswith("\\"):
-            continue
-        if row.startswith("-") and not row.startswith("---"):
-            deleted.add(current_line)
-            current_line += 1
-        elif row.startswith(" "):
-            current_line += 1
-        # Added lines do not consume positions in BASE.
-    if not deleted:
-        return []
-    ordered = sorted(deleted)
-    ranges: list[list[int]] = []
-    start = end = ordered[0]
-    for line in ordered[1:]:
-        if line == end + 1:
-            end = line
-        else:
-            ranges.append([start, end])
-            start = end = line
-    ranges.append([start, end])
-    return ranges
+    return _hunk_ranges(diff, "-", 1)
 
 
 def collect_snapshot(repo: str, base: str, head: str, profile: dict, limits: dict, *, pr_diff: bool = False) -> dict:

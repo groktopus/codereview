@@ -467,17 +467,6 @@ def review_profile_entry(registry: dict[str, Any], profile: dict[str, Any]) -> d
     return None
 
 
-def review_contract_for_profile(registry: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any] | None:
-    """Find the registered review contract that owns an exact profile identity."""
-    entry = review_profile_entry(registry, profile)
-    if entry is None or entry["status"] == "archived":
-        return None
-    for contract in registry["contracts"]:
-        if contract["kind"] == "review-contract" and contract["combination"]["profile"] == entry["name"]:
-            return contract
-    return None
-
-
 def _component(entry: dict[str, Any] | None) -> dict[str, Any]:
     if entry is None:
         return {

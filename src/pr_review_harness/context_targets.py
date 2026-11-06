@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
-import json
 import re
 from typing import Any
+
+from .budget import _canonical
 
 _VERSION = "context-target-manifest.v1"
 _GAP_KINDS = (
@@ -20,10 +21,6 @@ _GAP_KINDS = (
     "other",
 )
 _OBJECT_ID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
-
-
-def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def validate_context_target_manifest_profile(profile: dict) -> dict | None:

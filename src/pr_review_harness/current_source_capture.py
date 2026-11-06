@@ -19,9 +19,6 @@ from .source_audit import SOURCE_AUDIT_SERIALIZER_CANONICAL
 PLAN_SCHEMA = "pr457-current-source-capture-plan.v3"
 RECEIPT_SCHEMA = "pr457-current-source-capture-receipt.v3"
 SOURCE_AUDIT_SERIALIZER = SOURCE_AUDIT_SERIALIZER_CANONICAL
-SOURCE_WORKFLOW_REF = "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
-PLAN_FILENAME = "pr457-current-source-plan.json"
-RECEIPT_FILENAME = "pr457-current-source-receipt.json"
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 MAX_RUNTIME_FILES = 256
@@ -190,6 +187,30 @@ def _validate_inventory_shape(inventory: Any) -> None:
         raise CurrentSourceCaptureError("runtime_inventory_limit_exceeded")
 
 
+def _writer_pin(
+    row: Any, expected: dict, seen: set, fields: set, shape_code: str, invalid_code: str, admitted: bool = False
+) -> tuple[str, int]:
+    if not isinstance(row, dict) or set(row) != fields:
+        raise CurrentSourceCaptureError(shape_code)
+    task_id, size, digest = row.get("task_id"), row.get("input_bytes"), row.get("input_sha256")
+    if (
+        not isinstance(task_id, str)
+        or task_id in seen
+        or task_id not in expected
+        or row.get("lens") != expected[task_id]
+        or isinstance(size, bool)
+        or not isinstance(size, int)
+        or not 1 <= size <= LIMITS["writer_max_request_bytes"]
+        or not isinstance(digest, str)
+        or not SHA256.fullmatch(digest)
+        or row.get("output_bytes_cap") != LIMITS["writer_max_response_bytes"]
+        or row.get("output_tokens_cap") != LIMITS["writer_max_output_tokens"]
+        or (admitted and row.get("admitted") is not True)
+    ):
+        raise CurrentSourceCaptureError(invalid_code)
+    return task_id, size
+
+
 def _requests(prepared: dict[str, Any]) -> list[dict[str, Any]]:
     rows = prepared.get("primary_requests")
     expected = _read_static_tasks()
@@ -216,25 +237,9 @@ def _requests(prepared: dict[str, Any]) -> list[dict[str, Any]]:
         "unit_ids",
     }
     for row in rows:
-        if not isinstance(row, dict) or set(row) != fields:
-            raise CurrentSourceCaptureError("prepared_request_shape_invalid")
-        task_id = row["task_id"]
-        size = row["input_bytes"]
-        if (
-            not isinstance(task_id, str)
-            or task_id in seen
-            or task_id not in expected
-            or row.get("lens") != expected[task_id]
-            or isinstance(size, bool)
-            or not isinstance(size, int)
-            or not 1 <= size <= LIMITS["writer_max_request_bytes"]
-            or not isinstance(row.get("input_sha256"), str)
-            or not SHA256.fullmatch(row["input_sha256"])
-            or row.get("admitted") is not True
-            or row.get("output_bytes_cap") != LIMITS["writer_max_response_bytes"]
-            or row.get("output_tokens_cap") != LIMITS["writer_max_output_tokens"]
-        ):
-            raise CurrentSourceCaptureError("prepared_request_invalid")
+        task_id, size = _writer_pin(
+            row, expected, seen, fields, "prepared_request_shape_invalid", "prepared_request_invalid", admitted=True
+        )
         seen.add(task_id)
         result.append(
             {
@@ -589,32 +594,11 @@ def validate_plan(
         raise CurrentSourceCaptureError("plan_request_count_invalid")
     pins: dict[str, dict[str, Any]] = {}
     expected = _read_static_tasks()
+    plan_fields = {"task_id", "lens", "input_bytes", "input_sha256", "output_bytes_cap", "output_tokens_cap"}
     for row in request_rows:
-        if not isinstance(row, dict) or set(row) != {
-            "task_id",
-            "lens",
-            "input_bytes",
-            "input_sha256",
-            "output_bytes_cap",
-            "output_tokens_cap",
-        }:
-            raise CurrentSourceCaptureError("plan_request_shape_invalid")
-        task_id = row.get("task_id")
-        size = row.get("input_bytes")
-        if (
-            not isinstance(task_id, str)
-            or task_id in pins
-            or task_id not in expected
-            or row.get("lens") != expected[task_id]
-            or isinstance(size, bool)
-            or not isinstance(size, int)
-            or not 1 <= size <= LIMITS["writer_max_request_bytes"]
-            or not isinstance(row.get("input_sha256"), str)
-            or not SHA256.fullmatch(row["input_sha256"])
-            or row.get("output_bytes_cap") != LIMITS["writer_max_response_bytes"]
-            or row.get("output_tokens_cap") != LIMITS["writer_max_output_tokens"]
-        ):
-            raise CurrentSourceCaptureError("plan_request_invalid")
+        task_id, _size = _writer_pin(
+            row, expected, pins, plan_fields, "plan_request_shape_invalid", "plan_request_invalid"
+        )
         pins[task_id] = dict(row)
     if set(pins) != set(expected):
         raise CurrentSourceCaptureError("plan_task_inventory_mismatch")

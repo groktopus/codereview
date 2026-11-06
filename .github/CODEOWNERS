@@ -40,6 +40,7 @@
 /src/pr_review_harness/reconcile.py @magnus919
 /src/pr_review_harness/recovery_inputs.py @magnus919
 /src/pr_review_harness/report.py @magnus919
+/src/pr_review_harness/retrieval_plan.py @magnus919
 /src/pr_review_harness/review_stages.py @magnus919
 /src/pr_review_harness/review_state.py @magnus919
 /src/pr_review_harness/snapshot.py @magnus919

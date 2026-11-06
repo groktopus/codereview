@@ -135,6 +135,56 @@ never become a whole-file prefix. An unanchored retrieval request that exceeds
 the ceiling also returns `retrieval_window_required` rather than content from
 line 1. A HEAD symbol window remains repository evidence, not policy.
 
+### Deterministic retrieval plans
+
+Before provider dispatch, each specialist task with a changed-unit scope gets a
+`retrieval-plan.v1` object built only from already-captured snapshot evidence.
+The plan derives added/removed `def`/`class` names from the captured diff in
+first-seen order. Added symbols resolve only against captured HEAD source and
+removed symbols only against captured BASE source, using `changed_lines` for
+HEAD and `old_line_ranges` for BASE. For renamed units, BASE rows and
+BASE-scoped snapshot gaps are matched against `old_path`; HEAD rows continue to
+use `path`. Each resolved symbol gets a bounded definition window; captured
+changed lines also resolve their enclosing definition on the matching side.
+Windows carry path, revision, Git object identity, side, line interval, roles,
+symbols, and a content hash over exactly the emitted bytes. Plans never re-read
+Git or follow provider-supplied targets.
+
+Windows with identical `(path, revision, line_start, line_end, content_hash)`
+bytes are merged into one anchor; roles and symbols are unioned so one window
+can be both a changed definition and an enclosing definition. Anchors are sorted
+HEAD-first with changed-definition anchors ahead of enclosing anchors, then by
+path, revision, line interval, and hash. Referenced test paths are additional
+targets and must pass the trusted retrieval allowlist; changed-unit paths remain
+authorized by the task's own captured scope. Plan anchors are repository
+evidence; a HEAD anchor is never policy.
+
+After ordering, anchors are bounded by the existing `max_windows_per_unit`,
+window byte, and before/after settings. Dropping any HEAD anchor at that cap is
+a `REQUIRED` `window_count_limit` gap; dropping only BASE anchors is
+`OPTIONAL`. Unresolved changed symbols are reported per symbol, not as one
+aggregate gap, and a modified unit with no current-side (HEAD) anchor is a
+`REQUIRED` `current_side_window_unavailable` gap, except deletion units and
+deletion-only or removed-only hunks (`changed_lines == [[0, 0]]` or a diff with
+no added symbols), which have no current-side changed line to anchor; this is a
+deliberate policy, not silent coverage. Required snapshot gaps scoped
+to the task's units or paths (for example `diff_truncated`,
+`context_truncated`, or `changed_source_unavailable`) are imported as
+`snapshot_gap_required`. Empty or truncated diff evidence is a `REQUIRED`
+`diff_unavailable` or `diff_truncated` gap.
+
+`plan_hash` covers the plan identity and anchor fields only: schema, task,
+snapshot and revision identities, obligation ids, and the unit/anchor rows. It
+excludes gaps, sufficiency, wall-clock, and capture timestamps, so equal
+captured evidence yields an equal hash even when audit-only gap records differ.
+
+The pre-dispatch check records plans and gaps under `retrieval_plans` and
+`retrieval_plan_gaps` in the run ledger. A `REQUIRED` gap makes
+`retrieval_sufficient` false. This slice records those gaps for audit; it does
+not yet suppress dispatch on them, convert them into coverage rows, or feed the
+planned windows into provider input. Those integrations remain RC-2 work and
+must not be represented as complete coverage.
+
 ### Historical v1 preflight
 
 The PR 464 preflight used the same frozen base/head pair and the current full

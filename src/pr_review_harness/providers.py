@@ -455,20 +455,6 @@ def _limits_int(limits: dict[str, Any], key: str, default: int) -> int:
     return value
 
 
-def _validate_candidate(candidate: Any) -> dict[str, Any]:
-    try:
-        return contracts.validate_candidate(candidate)
-    except contracts.ContractIssue as exc:
-        raise ProviderError(exc.code) from None
-
-
-def _validate_gap(gap: Any) -> dict[str, Any]:
-    try:
-        return contracts.validate_gap(gap, contracts.SPECIALIST_V1)
-    except contracts.ContractIssue as exc:
-        raise ProviderError(exc.code) from None
-
-
 def _validate_specialist(
     payload: Any,
     *,
