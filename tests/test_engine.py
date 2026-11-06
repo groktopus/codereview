@@ -3771,3 +3771,34 @@ def test_unsupported_monetary_cap_rejected_before_provider_dispatch(tmp_path):
     with pytest.raises(ValueError, match="monetary budget reservation is unsupported"):
         run(tmp_path, provider=provider, limits={**LIMITS, "max_cost_microunits": 1000})
     assert not (tmp_path / "r1.json").exists()
+
+
+def test_required_retrieval_plan_gap_skips_unit_before_dispatch():
+    snap = make_snapshot()
+    snap["gaps"] = [{"reason": "diff_truncated", "required": True, "unit_ids": [snap["inventory"][0]["unit_id"]]}]
+    prof = profile()
+    plan = plan_review(snap, prof)
+    provider = SizingOnlyOpenAIProvider()
+
+    prepared, skipped = prepare_plan_tasks(snap, plan, prof, dict(LIMITS), provider)
+
+    assert prepared == []
+    skip = next(iter(skipped.values()))
+    assert skip["status"] == "SKIPPED"
+    assert skip["error_code"] == "RETRIEVAL_PLAN_REQUIRED_GAP"
+    assert "snapshot_gap_required" in skip["required_context_omissions"]
+
+
+def test_prepared_tasks_carry_policy_selected_retrieval_windows():
+    snap = make_snapshot()
+    prof = profile()
+    plan = plan_review(snap, prof)
+    provider = SizingOnlyOpenAIProvider()
+
+    prepared, _skipped = prepare_plan_tasks(snap, plan, prof, dict(LIMITS), provider)
+
+    assert prepared
+    windows = prepared[0]["retrieval_windows"]
+    assert windows
+    assert all(window["source_side"] in {"BASE", "HEAD"} for window in windows)
+    assert all(isinstance(window["content"], str) and window["content"] for window in windows)
