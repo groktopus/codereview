@@ -270,7 +270,8 @@ def verify(
     if hashlib.sha256(normalized_prepared_bytes).hexdigest() != NORMALIZED_PREPARED_SHA256:
         raise VerifyError("prepared_artifact_mismatch")
     source_root = source_root.resolve(strict=True)
-    if str(source_root / "src") not in sys.path:
+    added_source_path = str(source_root / "src") not in sys.path
+    if added_source_path:
         sys.path.insert(0, str(source_root / "src"))
     importlib.invalidate_caches()
     try:
@@ -284,6 +285,9 @@ def verify(
         )
     except Exception:
         raise VerifyError("snapshot_recomputation_failed") from None
+    finally:
+        if added_source_path and str(source_root / "src") in sys.path:
+            sys.path.remove(str(source_root / "src"))
     if (
         not isinstance(snapshot, dict)
         or snapshot.get("base_sha") != BASE_SHA
