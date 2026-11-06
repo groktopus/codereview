@@ -233,3 +233,12 @@ packets are `reviewer_kind: synthetic`; the scorecard reports the human arm as
   a release gate.
 
 The CI job is infrastructure evidence only. QM-3 is ready; an owner-accepted baseline and scheduled full-corpus run remain.
+
+
+## Accepted five-case baseline
+
+`examples/evaluation/qm2-baseline-scorecard-v1/accepted-baseline.json` is the
+first accepted baseline. CI regenerates the scorecard and runs
+`scripts/check_quality_scorecard_gate.py` against it; the scheduled
+`quality-scorecard-schedule.yml` workflow does the same weekly and retains both
+artifacts. `qm1-slopsearx-pr770` remains missing and is never imputed.
