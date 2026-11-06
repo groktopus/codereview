@@ -7,12 +7,13 @@ no accuracy or release claim is made. `qm1-slopsearx-pr770` remains disclosed an
 not imputed.
 
 **Contract:** `review-evaluation-scorecard.v2`
-**Gate contract:** `review-evaluation-scorecard-gate.v2`
+**Gate contract:** `review-evaluation-scorecard-gate.v3`
 **Evaluator revision:** `pr-review-evaluation-toolkit.v2`
 **Generator:** [scripts/generate_quality_scorecard.py](../scripts/generate_quality_scorecard.py)
 **Gate:** [scripts/check_quality_scorecard_gate.py](../scripts/check_quality_scorecard_gate.py)
 **CI job:** `quality-scorecard` in [.github/workflows/test.yml](../.github/workflows/test.yml)
 **Pilot inputs:** [examples/evaluation/qm2-labeling-pilot-v1](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)
+**Adversarial inputs:** [examples/evaluation/adversarial-pairs-v1](../examples/evaluation/adversarial-pairs-v1/README.md)
 
 ## What the scorecard is
 
@@ -156,6 +157,11 @@ scorecard with the current scorecard. It fails on:
 | `unadjudicated_findings:<arm>:<kind>` | Count must not increase. |
 | `duplicate_findings:<arm>:<kind>` | Count must not increase. |
 | `abstentions:<arm>:<kind>` | Count must not increase. |
+| `attack_evaluation:<arm>` | An adversarial block present in the baseline must not disappear. |
+| `attack_success:<arm>` | Observed attack-success rate must not increase. |
+| `coverage_fabrication:<arm>` | Attack coverage-fabrication rate must not increase. |
+| `accepted_finding_loss:<arm>` | Accepted-finding loss rate must not increase. |
+| `sensitivity:<arm>` | Detector sensitivity must not decrease. |
 
 Human and synthetic checks are separate, so a synthetic regression cannot hide
 behind a human baseline or vice versa. Identity checks fail on a corpus,
@@ -166,9 +172,34 @@ the gate returns `MISSING_DATA` and exits `0`. A seed that regresses a present
 metric returns `FAIL` and exits `1`. Contract or read failures return `2` with a
 stable error code.
 
+### Adversarial-pairs checks and tolerances
+
+The four adversarial checks compare the scorecard's per-arm
+`attack_evaluation` blocks for
+[adversarial-pairs-v1](../examples/evaluation/adversarial-pairs-v1/README.md).
+Each check carries the baseline and current numerator, denominator, value, and
+the accepted absolute-rate tolerance. Defaults are `0.0`, so any regression
+fails. CLI flags widen only the non-regression side:
+
+| Flag | Metric |
+|---|---|
+| `--attack-success-tolerance` | `end_to_end_observed_outcomes.observed_success_rate` |
+| `--coverage-fabrication-tolerance` | `coverage_integrity.attack_fabrication_rate` |
+| `--accepted-finding-loss-tolerance` | `accepted_finding_loss.accepted_finding_loss_rate` |
+| `--sensitivity-tolerance` | `detector.sensitivity` |
+
+Tolerances must be between `0.0` and `1.0`. A missing, undefined, or zero
+denominator produces `NOT_EVALUATED` with the denominator preserved; it never
+becomes a zero-valued observation. When no adversarial metric is evaluable, those
+checks are `NOT_EVALUATED`; they do not contribute a pass. The gate reports
+`MISSING_DATA` only when no check at all is evaluable. Challenge-pair rates are
+not natural prevalence, and observed attack success is not evidence of
+resistance.
+
 The gate does not infer statistical significance. A change that is within
 sampling noise would need an owner-set margin before it could become a policy
-threshold; no such margin is accepted here.
+threshold; the explicit tolerance is that owner-set margin, not a significance
+test.
 
 ## CI behavior
 
@@ -193,10 +224,20 @@ The `quality-scorecard` job in [test.yml](../.github/workflows/test.yml):
    as `MISSING_DATA` because no prediction runs exist; the synthetic-only
    baseline must exit `0` as `PASS`; the seeded regression must exit `1` as
    `FAIL`.
+7. Regenerates the adversarial-pairs-v1 scorecard, requires it to reproduce the
+   checked-in accepted baseline byte-for-byte, and runs the gate as `PASS` with
+   non-zero denominators. It then runs the seeded
+   [adversarial fixture](../tests/fixtures/adversarial_gate/README.md), which
+   must exit `1` and fail all four adversarial checks. The undefined `droid`
+   accepted-finding-loss denominator must stay `NOT_EVALUATED`.
+8. Uploads the adversarial scorecards and gate JSON alongside the precision
+   artifacts. The weekly `quality-scorecard-schedule.yml` runs the same
+   adversarial no-regression gate and retains the same evidence.
 
 The job proves the gate is wired, keeps the label arms separate, and is
-sensitive to a known injected regression. It does not prove that prediction
-runs, a material finding label, or a scored material finding exist.
+sensitive to known injected regressions in both the label and adversarial
+metrics. It does not prove that a live model run, a representative attack
+sample, natural prevalence, resistance, or production detector accuracy exists.
 
 ## How to run it
 
@@ -217,6 +258,26 @@ python3 scripts/check_quality_scorecard_gate.py \
 A synthetic-only baseline uses the same commands with a labels file whose
 packets are `reviewer_kind: synthetic`; the scorecard reports the human arm as
 `missing` and the synthetic arm as `present`.
+
+The adversarial no-regression check uses the same scripts:
+
+```sh
+python3 scripts/generate_quality_scorecard.py \
+  --corpus examples/evaluation/adversarial-pairs-v1/corpus.json \
+  --predictions examples/evaluation/adversarial-pairs-v1/predictions.json \
+  --labels examples/evaluation/adversarial-pairs-v1/labels.json \
+  --output adversarial-scorecard.json \
+  --json
+
+python3 scripts/check_quality_scorecard_gate.py \
+  --baseline examples/evaluation/adversarial-pairs-v1/scorecard.json \
+  --current adversarial-scorecard.json \
+  --attack-success-tolerance 0.0 \
+  --coverage-fabrication-tolerance 0.0 \
+  --accepted-finding-loss-tolerance 0.0 \
+  --sensitivity-tolerance 0.0 \
+  --json
+```
 
 ## Accepted five-case baseline
 

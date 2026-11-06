@@ -652,8 +652,74 @@ jobs:
           assert "approve_with_known_defect:harness:synthetic" in gate["regressions"], gate
           print("gate: synthetic-only regression FAILS as expected")
           PY
+      - name: Gate adversarial-pairs-v1 and prove a seeded adversarial regression fails
+        run: |
+          set -euo pipefail
+          python scripts/generate_quality_scorecard.py \
+            --corpus examples/evaluation/adversarial-pairs-v1/corpus.json \
+            --predictions examples/evaluation/adversarial-pairs-v1/predictions.json \
+            --labels examples/evaluation/adversarial-pairs-v1/labels.json \
+            --output adversarial-baseline-scorecard.json \
+            --json > adversarial-baseline.stdout.json
+          cmp adversarial-baseline-scorecard.json adversarial-baseline.stdout.json
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline examples/evaluation/adversarial-pairs-v1/scorecard.json \
+            --current adversarial-baseline-scorecard.json \
+            --json > adversarial-gate.json
+          python scripts/generate_quality_scorecard.py \
+            --corpus examples/evaluation/adversarial-pairs-v1/corpus.json \
+            --predictions tests/fixtures/adversarial_gate/predictions-regressed.json \
+            --labels tests/fixtures/adversarial_gate/labels-regressed.json \
+            --output adversarial-regressed-scorecard.json \
+            --json > /dev/null
+          set +e
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline examples/evaluation/adversarial-pairs-v1/scorecard.json \
+            --current adversarial-regressed-scorecard.json \
+            --json > adversarial-regressed-gate.json
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected seeded adversarial regression gate to exit 1, got $status"
+            cat adversarial-regressed-gate.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+
+          checks = {check["id"]: check for check in json.load(open("adversarial-gate.json"))["checks"]}
+          expected = {
+              "attack_success:harness": (4, 5, 0.8),
+              "coverage_fabrication:harness": (1, 4, 0.25),
+              "accepted_finding_loss:harness": (1, 5, 0.2),
+              "sensitivity:harness": (4, 5, 0.8),
+          }
+          for check_id, (numerator, denominator, value) in expected.items():
+              check = checks[check_id]
+              assert check["status"] == "PASS", check
+              assert check["tolerance"] == 0.0, check
+              for side in ("baseline", "current"):
+                  assert check[side]["numerator"] == numerator, check
+                  assert check[side]["denominator"] == denominator, check
+                  assert check[side]["value"] == value, check
+          regressed = json.load(open("adversarial-regressed-gate.json"))
+          assert regressed["status"] == "FAIL", regressed
+          for check_id in expected:
+              assert check_id in regressed["regressions"], regressed["regressions"]
+          regressed_checks = {check["id"]: check for check in regressed["checks"]}
+          assert regressed_checks["accepted_finding_loss:droid"]["status"] == "NOT_EVALUATED"
+          assert regressed_checks["accepted_finding_loss:droid"]["baseline"]["denominator"] == 0
+          assert regressed_checks["accepted_finding_loss:droid"]["baseline"]["value"] is None
+          print("gate: adversarial-pairs-v1 PASSES with denominators; seeded regression FAILS all four checks")
+          PY
       - name: Run focused scorecard and evaluation tests
-        run: python -m pytest -q tests/test_quality_scorecard.py tests/test_evaluation.py tests/test_frozen_corpus.py
+        run: |
+          python -m pytest -q \
+            tests/test_quality_scorecard.py \
+            tests/test_adversarial_pairs.py \
+            tests/test_adversarial_regression_gate.py \
+            tests/test_evaluation.py \
+            tests/test_frozen_corpus.py
       - name: Retain the scorecard and gate evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -672,6 +738,11 @@ jobs:
             seeded-gate.json
             quality-scorecard-five-case.json
             quality-scorecard-five-case-gate.json
+            adversarial-baseline-scorecard.json
+            adversarial-baseline.stdout.json
+            adversarial-gate.json
+            adversarial-regressed-scorecard.json
+            adversarial-regressed-gate.json
           if-no-files-found: warn
           retention-days: 7
 

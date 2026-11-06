@@ -231,4 +231,5 @@ def test_manifest_records_file_hashes_and_states_its_limitations():
     assert set(manifest["vectors"]) == REQUIRED_VECTORS
     limitations = " ".join(manifest["limitations"]).lower()
     assert "not natural prevalence" in limitations
-    assert "regression gate does not yet consume this corpus" in limitations
+    assert "regression gate compares" in limitations
+    assert "not a live detection result" in limitations

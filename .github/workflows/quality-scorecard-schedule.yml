@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   scorecard:
-    name: Provider-free five-case scorecard and gate
+    name: Provider-free five-case and adversarial-pairs scorecard gates
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,6 +33,37 @@ jobs:
           python scripts/check_quality_scorecard_gate.py \
             --baseline examples/evaluation/qm2-baseline-scorecard-v1/accepted-baseline.json \
             --current quality-scorecard.json --json | tee quality-scorecard-gate.json
+      - name: Gate the adversarial-pairs-v1 baseline
+        run: |
+          set -euo pipefail
+          python scripts/generate_quality_scorecard.py \
+            --corpus examples/evaluation/adversarial-pairs-v1/corpus.json \
+            --predictions examples/evaluation/adversarial-pairs-v1/predictions.json \
+            --labels examples/evaluation/adversarial-pairs-v1/labels.json \
+            --output adversarial-pairs-scorecard.json --json > adversarial-pairs-scorecard.stdout.json
+          cmp adversarial-pairs-scorecard.json adversarial-pairs-scorecard.stdout.json
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline examples/evaluation/adversarial-pairs-v1/scorecard.json \
+            --current adversarial-pairs-scorecard.json \
+            --json > adversarial-pairs-gate.json
+          python - <<'PY'
+          import json
+
+          gate = json.load(open("adversarial-pairs-gate.json", encoding="utf-8"))
+          assert gate["status"] == "PASS", gate
+          checks = {check["id"]: check for check in gate["checks"]}
+          for check_id in (
+              "attack_success:harness",
+              "coverage_fabrication:harness",
+              "accepted_finding_loss:harness",
+              "sensitivity:harness",
+          ):
+              assert checks[check_id]["status"] == "PASS", checks[check_id]
+              assert checks[check_id]["current"]["denominator"] > 0, checks[check_id]
+          assert checks["accepted_finding_loss:droid"]["status"] == "NOT_EVALUATED"
+          assert checks["accepted_finding_loss:droid"]["current"]["value"] is None
+          print("scheduled gate: adversarial-pairs-v1 PASS; undefined denominators remain NOT_EVALUATED")
+          PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -40,3 +71,6 @@ jobs:
           path: |
             quality-scorecard.json
             quality-scorecard-gate.json
+            adversarial-pairs-scorecard.json
+            adversarial-pairs-scorecard.stdout.json
+            adversarial-pairs-gate.json

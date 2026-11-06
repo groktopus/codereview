@@ -376,7 +376,7 @@
     "Challenge-only risk-enriched fixtures; rates are not natural prevalence.",
     "Five authored pairs with one known defect; not representative of all review behavior.",
     "Predictions are authored fixture outputs, not a live model run.",
-    "The regression gate does not yet consume this corpus (QM-5 exit criterion)."
+    "The regression gate compares these authored first-slice metrics with explicit absolute-rate tolerances; that fixture comparison is not a live detection result."
   ],
   "pair_count": 5,
   "pairs_contract_version": "review-evaluation-adversarial-pairs.v1",
