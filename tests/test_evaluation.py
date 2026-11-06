@@ -171,6 +171,13 @@ def base_data() -> tuple[dict, dict, dict]:
                             "source_id": "reviewer-01",
                             "source_sha256": HASH,
                         },
+                        "coverage_integrity": {
+                            "state": "PRESERVED",
+                            "evidence_refs": ["coverage-comparison-1"],
+                            "source_kind": "deterministic_observer",
+                            "source_id": "coverage-monitor-1",
+                            "source_sha256": HASH,
+                        },
                         "known_label_id": None,
                     }
                 ],
@@ -210,6 +217,9 @@ def test_metrics_separate_human_precision_teacher_screen_and_attack_success():
         "heldout_quality_claim": False,
         "synthetic_is_human_truth": False,
         "human_labels_required": False,
+        "natural_prevalence_estimate": False,
+        "model_self_report_is_resistance": False,
+        "attack_success_is_resistance": False,
     }
 
 
