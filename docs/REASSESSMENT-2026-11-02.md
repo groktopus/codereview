@@ -81,5 +81,6 @@ synthetic scorecard). Execution/context failures can now be explicitly waived in
 backlog is **7 issues**: RC-2, QM-3, QM-4, QM-5, VD-2, VD-3, VD-4.
 
 The A− count is unchanged at **3/10**. Review completeness moved to **C** and quality
-evidence to **D**, but neither reaches A−. Test depth fell to **B** because the
-reconcile mutation score is **77.9%** (no-tests and timeouts excluded), not the required 70% or better.
+evidence to **D**, but neither reaches A−. Test depth rose to **B+** because the reconcile mutation score is **77.9%**
+(no-tests and timeouts excluded), above the required 70%; budget and reducer
+modules remain unmeasured.
