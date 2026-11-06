@@ -93,9 +93,9 @@ baseline. The accepted method does not substitute for the
 missing evidence.
 
 QM-3 exit criteria still unmet: real predictions and real synthetic (or
-optional human) labels for the corpus, owner-set tolerances for the five-case accepted baseline, and
-tolerances, a scorecard from a real corpus run, and a scheduled full-corpus run.
-The RC-3 dependency is not closed. CI currently exercises the wiring with test
+optional human) labels for the corpus, owner-set tolerances for the five-case
+accepted baseline, a scorecard from a real corpus run, and a live full-corpus
+run. RC-3 is closed; CI exercises the accepted baseline and gate.
 fixtures, not quality.
 
 ## QM-4 — Measure the incumbent on identical snapshots
