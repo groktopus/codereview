@@ -1,13 +1,10 @@
 # Quality scorecards and the regression gate (QM-3)
 
-**Status:** deterministic two-arm scorecard and gate infrastructure. Synthetic
-model-teacher adjudication is the owner-accepted quality method
-([ADR 0010](adr/0010-synthetic-model-teacher-adjudication.md)); human labels are
-optional. **No accepted quality baseline exists** and no accuracy or release
-claim is made. Issue [#244](https://github.com/groktopus/codereview/issues/244)
-remains open and blocked by [#241](https://github.com/groktopus/codereview/issues/241)
-and [#243](https://github.com/groktopus/codereview/issues/243): the pilot still
-has retained synthetic packets (five complete, one incomplete) but no predictions and no baseline.
+**Status:** QM-3 is **closed** on the owner-accepted five-case comparable corpus.
+The deterministic two-arm scorecard, accepted baseline, CI gate, and weekly
+provider-free schedule are active. Synthetic adjudication is the accepted method;
+no accuracy or release claim is made. `qm1-slopsearx-pr770` remains disclosed and
+not imputed.
 
 **Contract:** `review-evaluation-scorecard.v2`
 **Gate contract:** `review-evaluation-scorecard-gate.v2`

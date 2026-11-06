@@ -65,9 +65,9 @@
 
 ---
 
-### QM-2/QM-3 status checkpoint — 2026-11-02
+### QM-2/QM-3 status checkpoint — 2026-11-02 (historical; superseded)
 
-Both issues remain **open**. The owner accepted synthetic model-teacher
+At that date both issues remained **open**. The owner accepted synthetic model-teacher
 adjudication as the quality method; this checkpoint records that decision and the
 implemented contract, not closure.
 
