@@ -1,0 +1,44 @@
+{
+  "schema": "review-qm3-live-corpus.v1",
+  "corpus": "examples/evaluation/qm2-labeling-pilot-v1/corpus.json",
+  "dataset_version": "2026-11-02.1",
+  "accepted_baseline": "examples/evaluation/qm2-baseline-scorecard-v1/accepted-baseline.json",
+  "runs": [
+    {
+      "case_id": "qm1-codereview-pr112",
+      "run_id": "fb99e8f9-5782-4b8b-885a-f282660c2af3",
+      "disposition": "APPROVE",
+      "coverage_state": "COMPLETE",
+      "findings": 0
+    },
+    {
+      "case_id": "qm1-codereview-pr285",
+      "run_id": "0d1c3bb9-718a-4f1e-bf7c-5bcadf406aa8",
+      "disposition": "REQUEST_CHANGES",
+      "coverage_state": "COMPLETE",
+      "findings": 3
+    },
+    {
+      "case_id": "qm1-codereview-pr289",
+      "run_id": "4fa7cf77-55b6-48f8-a29e-ce643e0cfc5f",
+      "disposition": "REQUEST_CHANGES",
+      "coverage_state": "COMPLETE_WITH_WAIVERS",
+      "findings": 4
+    },
+    {
+      "case_id": "qm1-slopsearx-pr759",
+      "run_id": "7afee856-6144-4a41-b657-45776730c28d",
+      "disposition": "COMMENT",
+      "coverage_state": "COMPLETE_WITH_WAIVERS",
+      "findings": 0
+    },
+    {
+      "case_id": "qm1-slopsearx-pr745",
+      "run_id": "414bef89-83b5-48b0-9c0a-ab248c55a794",
+      "disposition": "REQUEST_CHANGES",
+      "coverage_state": "COMPLETE_WITH_WAIVERS",
+      "findings": 6
+    }
+  ],
+  "note": "Five live provider-backed harness runs completed 2026-11-04/05 before the 7be8de3 retrieval-compiler merge; results are retained and scored. findings are artifact counts; scored material findings are in predictions.json. No sixth case is claimed."
+}

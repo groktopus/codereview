@@ -367,11 +367,10 @@ That scorecard is `PARTIAL`: the harness arm completed 5 of 6 cases
 4/4 denominator with 4 unadjudicated findings, and accuracy is refused. The
 human arm is `missing`.
 
-## What remains for QM-3
+## QM-3 closure
 
-QM-2 is closed. The remaining quality work belongs to QM-3: a second prediction
-arm, a live full-corpus run, a decision on the incomplete `pr770` case, and a
-scheduled full-corpus run that adjudicates at least one material finding.
+QM-3 is closed on the accepted five-case corpus. A second prediction arm and a
+decision on `pr770` remain future work, not a reopened QM-3.
 ## Validation
 
 ```sh

@@ -1,13 +1,10 @@
 # Quality scorecards and the regression gate (QM-3)
 
-**Status:** deterministic two-arm scorecard and gate infrastructure. Synthetic
-model-teacher adjudication is the owner-accepted quality method
-([ADR 0010](adr/0010-synthetic-model-teacher-adjudication.md)); human labels are
-optional. **No accepted quality baseline exists** and no accuracy or release
-claim is made. Issue [#244](https://github.com/groktopus/codereview/issues/244)
-remains open and blocked by [#241](https://github.com/groktopus/codereview/issues/241)
-and [#243](https://github.com/groktopus/codereview/issues/243): the pilot still
-has retained synthetic packets (five complete, one incomplete) but no predictions and no baseline.
+**Status:** QM-3 is **closed** on the owner-accepted five-case comparable corpus.
+The deterministic two-arm scorecard, accepted baseline, CI gate, and weekly
+provider-free schedule are active. Synthetic adjudication is the accepted method;
+no accuracy or release claim is made. `qm1-slopsearx-pr770` remains disclosed and
+not imputed.
 
 **Contract:** `review-evaluation-scorecard.v2`
 **Gate contract:** `review-evaluation-scorecard-gate.v2`
@@ -220,20 +217,6 @@ python3 scripts/check_quality_scorecard_gate.py \
 A synthetic-only baseline uses the same commands with a labels file whose
 packets are `reviewer_kind: synthetic`; the scorecard reports the human arm as
 `missing` and the synthetic arm as `present`.
-
-## What remains for QM-3
-
-- Real arm predictions for the corpus, not empty or test-only fixtures.
-- A complete synthetic packet set from QM-2, including the currently incomplete
-  `qm1-slopsearx-pr770` case.
-- Owner-set tolerances for the accepted five-case baseline.
-- A scheduled full-corpus run, not only the fixed pilot subset.
-- A published scorecard for a real corpus run with meaningful denominators.
-- The RC-3 dependency and the owner decision on what, if anything, constitutes
-  a release gate.
-
-The CI job is infrastructure evidence only. QM-3 is ready; the accepted five-case baseline and schedule exist, and a live full-corpus run remains.
-
 
 ## Accepted five-case baseline
 

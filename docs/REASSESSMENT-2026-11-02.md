@@ -78,7 +78,7 @@ Closed since the prior reassessment: **RC-1** (retrieval envelope, test-based re
 **RC-3** (five-case completeness baseline and gate), and **QM-2** (predictions and
 synthetic scorecard). Execution/context failures can now be explicitly waived into
 `COMPLETE_WITH_WAIVERS`, still capped at `COMMENT` and never approval. The open
-backlog is **7 issues**: RC-2, QM-3, QM-4, QM-5, VD-2, VD-3, VD-4.
+backlog is **6 issues**: RC-2, QM-4, QM-5, VD-2, VD-3, VD-4.
 
 The A− count is unchanged at **3/10**. Review completeness moved to **C** and quality
 evidence to **D**, but neither reaches A−. Test depth rose to **B+** because the reconcile mutation score is **77.9%**

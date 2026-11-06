@@ -47,6 +47,8 @@
 
 ## QM-3 — Run evaluation continuously and publish scorecards
 
+**Status: Closed 2026-11-06.** Five live provider-backed runs, an accepted scorecard baseline, CI regression gate, and weekly provider-free scheduled evaluation are recorded. Evidence: [qm3-five-case-live.json](../evidence/qm3-five-case-live.json). The corpus is the owner-accepted five-case comparable subset.
+
 - **Priority:** P1
 - **Dimensions:** Quality evidence; Observability
 - **Problem:** The evaluator is offline and unexercised. Nothing prevents a prompt, model, or profile change from degrading quality silently.
@@ -63,9 +65,9 @@
 
 ---
 
-### QM-2/QM-3 status checkpoint — 2026-11-02
+### QM-2/QM-3 status checkpoint — 2026-11-02 (historical; superseded)
 
-Both issues remain **open**. The owner accepted synthetic model-teacher
+At that date both issues remained **open**. The owner accepted synthetic model-teacher
 adjudication as the quality method; this checkpoint records that decision and the
 implemented contract, not closure.
 
