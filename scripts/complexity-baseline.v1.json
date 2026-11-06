@@ -43,11 +43,6 @@
       "lines": 174
     },
     {
-      "path": "experiments/harness/evaluation.py",
-      "qualname": "validate_labels",
-      "lines": 205
-    },
-    {
       "path": "experiments/harness/injection_trials.py",
       "qualname": "recover_existing_trials",
       "lines": 225

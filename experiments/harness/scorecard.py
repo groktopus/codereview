@@ -651,6 +651,52 @@ def _empty_adjudication() -> dict[str, Any]:
     }
 
 
+def _combined_arm_metric(
+    all_case_ids: list[str],
+    arm: str,
+    splits: dict[str, Any],
+    metrics: dict[str, Any],
+    run_by_key: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, Any]:
+    """Aggregate one arm's split metrics, including the attack counters."""
+
+    combined: dict[str, Any] = {
+        "expected_cases": len(all_case_ids),
+        "run_status_counts": {},
+        "candidate_findings": 0,
+        "human_adjudication": _empty_adjudication(),
+        "synthetic_adjudication": _empty_adjudication(),
+        "attack_evaluation": _empty_attack_evaluation(),
+    }
+    status_counts = combined["run_status_counts"]
+    for split in splits:
+        metric = metrics.get(f"{split}/{arm}")
+        if metric is None:
+            continue
+        for status, value in metric["run_status_counts"].items():
+            status_counts[status] = status_counts.get(status, 0) + int(value)
+        combined["candidate_findings"] += int(metric["candidate_findings"])
+        if "attack_evaluation" in metric:
+            _merge_attack_evaluation(combined["attack_evaluation"], metric["attack_evaluation"])
+        for kind in LABEL_ARMS:
+            block = metric[f"{kind}_adjudication"]
+            target = combined[f"{kind}_adjudication"]
+            for key in _ADJUDICATION_COUNT_KEYS:
+                target[key] += int(block[key])
+            recall = block["known_material_finding_recall"]
+            target_recall = target["known_material_finding_recall"]
+            for key in _ADJUDICATION_RECALL_KEYS:
+                target_recall[key] += int(recall[key])
+            target_recall["completed_run_recall_conditional"]["numerator"] += int(
+                recall["completed_run_recall_conditional"]["numerator"]
+            )
+            target_recall["completed_run_recall_conditional"]["denominator"] += int(
+                recall["completed_run_recall_conditional"]["denominator"]
+            )
+    combined["_missing_case_ids"] = [case_id for case_id in all_case_ids if (case_id, arm) not in run_by_key]
+    return combined
+
+
 def build_scorecard(
     corpus: dict[str, Any],
     predictions: dict[str, Any],
@@ -683,40 +729,7 @@ def build_scorecard(
 
     all_case_ids = list(case_by_id)
     for arm in corpus["expected_arms"]:
-        combined: dict[str, Any] = {
-            "expected_cases": len(all_case_ids),
-            "run_status_counts": {},
-            "candidate_findings": 0,
-            "human_adjudication": _empty_adjudication(),
-            "synthetic_adjudication": _empty_adjudication(),
-            "attack_evaluation": _empty_attack_evaluation(),
-        }
-        status_counts = combined["run_status_counts"]
-        for split in splits:
-            metric = metrics.get(f"{split}/{arm}")
-            if metric is None:
-                continue
-            for status, value in metric["run_status_counts"].items():
-                status_counts[status] = status_counts.get(status, 0) + int(value)
-            combined["candidate_findings"] += int(metric["candidate_findings"])
-            if "attack_evaluation" in metric:
-                _merge_attack_evaluation(combined["attack_evaluation"], metric["attack_evaluation"])
-            for kind in LABEL_ARMS:
-                block = metric[f"{kind}_adjudication"]
-                target = combined[f"{kind}_adjudication"]
-                for key in _ADJUDICATION_COUNT_KEYS:
-                    target[key] += int(block[key])
-                recall = block["known_material_finding_recall"]
-                target_recall = target["known_material_finding_recall"]
-                for key in _ADJUDICATION_RECALL_KEYS:
-                    target_recall[key] += int(recall[key])
-                target_recall["completed_run_recall_conditional"]["numerator"] += int(
-                    recall["completed_run_recall_conditional"]["numerator"]
-                )
-                target_recall["completed_run_recall_conditional"]["denominator"] += int(
-                    recall["completed_run_recall_conditional"]["denominator"]
-                )
-        combined["_missing_case_ids"] = [case_id for case_id in all_case_ids if (case_id, arm) not in run_by_key]
+        combined = _combined_arm_metric(all_case_ids, arm, splits, metrics, run_by_key)
         arms[arm] = _summarize_arm(all_case_ids, arm, combined, complete_cases, corpus["sampling_frame"])
 
     expected_case_arms = len(all_case_ids) * len(corpus["expected_arms"])
