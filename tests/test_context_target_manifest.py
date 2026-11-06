@@ -189,6 +189,7 @@ def test_provider_v4_schema_enumerates_opt_in_targets_but_default_stays_legacy()
     )
     legacy_body = provider.serialize_review_request(default_task, evidence, limits)
     assert len(legacy_body) == 8050
+    # vd3-non-pin: golden digest of a synthetic legacy provider body, not historical evidence.
     assert hashlib.sha256(legacy_body).hexdigest() == "f443fa38c082303824cec8b393e842c70739a00b4e4100283daa66b64775b9a0"
 
 

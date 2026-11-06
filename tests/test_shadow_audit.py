@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 from experiments.harness.shadow_audit import (
     ShadowAuditError,
@@ -850,7 +851,7 @@ def test_snapshot_hash_algorithm_matches_engine_and_real_case_manifest_shape():
     repo = Path(__file__).resolve().parents[1]
     cases = json.loads((repo / "docs/real-case-trial-v1/cases.json").read_text())
     actual = next(case for case in cases["cases"] if case["case_id"] == "PR-457")
-    assert actual["snapshot_hash"] == "2add038206680ba879a3f6fd214131c59c91c08ed24af18a052a121a5db4be87"
+    assert actual["snapshot_hash"] == pin("historical.pr457.snapshot_sha256")
     assert actual["head_sha"] == "595f143607961d21d162efe76518d86e416d2548"
 
 
@@ -1211,7 +1212,7 @@ def test_private_operator_bridge_emits_hash_only_receipt_and_counts_external_cal
         "schema_version": "private-sealed-source-record-advisory.v1",
         "case_id": "PR-464",
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
-        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "snapshot_sha256": pin("historical.pr464.capture_snapshot_sha256"),
         "plan_sha256": "a" * 64,
         "source_record_replay_request_sha256": private_summary["source_record_replay_request_sha256"],
         "source_response_sha256": private_summary["source_response_sha256"],
@@ -1232,7 +1233,7 @@ def _advisory_summary_input(**updates):
     value = {
         "case_id": "PR-464",
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
-        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "snapshot_sha256": pin("historical.pr464.capture_snapshot_sha256"),
         "plan_sha256": "a" * 64,
         "source_record_replay_request_sha256": "c" * 64,
         "source_response_sha256": "d" * 64,

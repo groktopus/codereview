@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 from scripts import verify_model_only_shadow_live_preflight as preflight
 
@@ -102,7 +103,7 @@ def test_exact_preflight_matches_ten_pinned_writer_requests_without_dispatch(fro
         "schema": "model-only-shadow-live-preflight-receipt.v1",
         "status": "PLAN_MATCHED_PROVIDER_FREE",
         "case_id": "PR-464",
-        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "snapshot_sha256": pin("historical.pr464.capture_snapshot_sha256"),
         "plan_sha256": preflight.EXPECTED_PLAN_SHA256["PR-464"],
         "writer_calls_planned": 10,
         "writer_request_bytes_total": 893359,

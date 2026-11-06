@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from compatibility_pins import pin
 
 from scripts.resolve_review_contract import (
     ALL_CONTRACTS,
@@ -244,9 +245,9 @@ def test_v17_hosted_contract_resolves_only_its_exact_profile_and_manifest():
     assert binding["review_contract"] == "bounded-production-v17"
     assert binding["profile_path"] == V17_PROFILE
     assert binding["profile_version"] == "slopsearx-production-v17-context-target-manifest-candidate"
-    assert binding["profile_sha256"] == "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac"
+    assert binding["profile_sha256"] == pin("contract.slopsearx_v17.profile_sha256")
     assert binding["limits_path"] == V16_LIMITS
-    assert binding["limits_sha256"] == "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6"
+    assert binding["limits_sha256"] == pin("contract.ordinary_review_limits_v3.sha256")
     assert binding["max_claim_assessments"] == "4"
     assert profile["context_target_manifest"] == {
         "version": "context-target-manifest.v1",
@@ -270,24 +271,24 @@ def test_target_contract_allowlist_keeps_slop_contracts_closed():
             "profile_path": V14_PROFILE,
             "limits_path": V14_LIMITS,
             "profile_version": "slopsearx-production-v14-jev-reconciliation-candidate",
-            "profile_sha256": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
-            "limits_sha256": "39abcf19666c9f322364961577f08f8cff8a3c539e68d894693b6cb0fb5a75e9",
+            "profile_sha256": pin("contract.slopsearx_v14.profile_sha256"),
+            "limits_sha256": pin("contract.ordinary_review_limits_v2.sha256"),
             "max_claim_assessments": 1,
         },
         "bounded-production-v16": {
             "profile_path": V16_PROFILE,
             "limits_path": V16_LIMITS,
             "profile_version": "slopsearx-production-v16-bounded-production-candidate",
-            "profile_sha256": "699f93fd7bc78d310de2455cad7402a1c3c8cf5ad61c3d4cbb77bb38da1189ed",
-            "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+            "profile_sha256": pin("contract.slopsearx_v16.profile_sha256"),
+            "limits_sha256": pin("contract.ordinary_review_limits_v3.sha256"),
             "max_claim_assessments": 4,
         },
         "bounded-production-v17": {
             "profile_path": V17_PROFILE,
             "limits_path": V16_LIMITS,
             "profile_version": "slopsearx-production-v17-context-target-manifest-candidate",
-            "profile_sha256": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
-            "limits_sha256": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+            "profile_sha256": pin("contract.slopsearx_v17.profile_sha256"),
+            "limits_sha256": pin("contract.ordinary_review_limits_v3.sha256"),
             "max_claim_assessments": 4,
         },
     }

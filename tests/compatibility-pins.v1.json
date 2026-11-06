@@ -1,0 +1,196 @@
+{
+  "schema": "pr-review-compatibility-value-pins.v1",
+  "description": "Named SHA-256 value pins for historical evidence and contract artifacts exercised by tests. Synthetic fixture and serialization-golden digests are not pins and stay in tests under an explicit '# vd3-non-pin:' marker. File-byte pins for the frozen runtime remain in tests/fixtures/frozen-runtime-7d550b6/pins.json.",
+  "pins": {
+    "contract.codereview_native_v1.profile_sha256": {
+      "value": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/codereview-native-v1-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked codereview-native-v1 candidate profile bound by the review-contract registry."
+      }
+    },
+    "contract.ordinary_review_limits_v2.sha256": {
+      "value": "39abcf19666c9f322364961577f08f8cff8a3c539e68d894693b6cb0fb5a75e9",
+      "kind": "contract-limits",
+      "provenance": {
+        "artifact": "profiles/ordinary-review-limits-v2.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked ordinary-review limits v2 artifact bound by the legacy-v14 contract."
+      }
+    },
+    "contract.ordinary_review_limits_v3.sha256": {
+      "value": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+      "kind": "contract-limits",
+      "provenance": {
+        "artifact": "profiles/ordinary-review-limits-v3.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked ordinary-review limits v3 artifact bound by the v16, v17, and native contracts."
+      }
+    },
+    "contract.slopsearx_v14.profile_sha256": {
+      "value": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/slopsearx-v14-jev-reconciliation-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked v14 candidate profile bound as the legacy-v14 review contract."
+      }
+    },
+    "contract.slopsearx_v16.profile_sha256": {
+      "value": "699f93fd7bc78d310de2455cad7402a1c3c8cf5ad61c3d4cbb77bb38da1189ed",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/slopsearx-v16-bounded-production-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked v16 bounded-production candidate profile bound by the review-contract registry."
+      }
+    },
+    "contract.slopsearx_v17.profile_sha256": {
+      "value": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/slopsearx-v17-context-target-manifest-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked v17 context-target-manifest candidate profile bound by the review-contract registry."
+      }
+    },
+    "fixture.clean_review_control_v1.manifest_sha256": {
+      "value": "b0e5c4117026659f0c5045db117fb54ffdbdcc9c1eff9c89f58ae59087b12d91",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/clean-review-control-v1/fixture.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the clean-review control fixture manifest used as a fixed evaluation input."
+      }
+    },
+    "fixture.pr464_check_evidence.source_capture_sha256": {
+      "value": "989e65b14d1a43f37b4abaaf2be55b49c3b07ecf50d3e786eb99ff3f22f0450b",
+      "kind": "evidence-provenance",
+      "provenance": {
+        "artifact": "tests/fixtures/pr464-check-evidence.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Source capture digest recorded in the PR-464 check-evidence fixture provenance, not recomputed from the fixture body."
+      }
+    },
+    "historical.pr457.snapshot_sha256": {
+      "value": "2add038206680ba879a3f6fd214131c59c91c08ed24af18a052a121a5db4be87",
+      "kind": "historical-snapshot",
+      "provenance": {
+        "artifact": "docs/real-case-trial-v1/cases.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Frozen PR-457 snapshot hash recorded in the historical real-case trial cases; the snapshot body is not retained here."
+      }
+    },
+    "historical.pr464.capture_snapshot_sha256": {
+      "value": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+      "kind": "historical-snapshot",
+      "provenance": {
+        "artifact": "examples/evaluation/model-only-shadow-pr464-v2/manifest.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Frozen PR-464 capture snapshot digest shared by the historical model-only shadow plans and receipts."
+      }
+    },
+    "historical.pr464.case_snapshot_sha256": {
+      "value": "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
+      "kind": "historical-snapshot",
+      "provenance": {
+        "artifact": "docs/real-case-trial-v1/cases.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Frozen PR-464 case snapshot hash recorded for the historical real-case trial and legacy budget."
+      }
+    },
+    "historical.pr464.selected_task_sha256": {
+      "value": "d5b567c9db558df6b5cf51f019004234be3e36efffd74427bd33574c9a3c5a3c",
+      "kind": "historical-capture",
+      "provenance": {
+        "artifact": "external: frozen PR-464 no-candidate capture selection receipt",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Selected-task digest from the frozen PR-464 no-candidate capture; the selected packet is not retained in this repository."
+      }
+    },
+    "historical.pr464.source_request_sha256": {
+      "value": "d89e8164d297e736a45d91572221ed6b2b0c4aee0ae567b8438cd9bda6592699",
+      "kind": "historical-capture",
+      "provenance": {
+        "artifact": "external: frozen PR-464 capture integration request",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Source-auditor request digest reconstructed from the frozen PR-464 capture; the raw request body is intentionally not retained."
+      }
+    },
+    "historical.real_case_trial.baseline_plan_sha256": {
+      "value": "5c98ea8d66723bae0092c16dd062cdc77640d6912da3ae90dde7ec5fc805baef",
+      "kind": "historical-plan",
+      "provenance": {
+        "artifact": "docs/real-case-trial-v1/cases.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Baseline real-case trial plan digest recorded with the frozen cases and their request descriptors."
+      }
+    },
+    "historical.selected_model_trial.observer_source_sha256": {
+      "value": "fce15c42bfbc7fe66f353e8322b11f5fff1ae44a10458bba234366509f75f328",
+      "kind": "historical-observer",
+      "provenance": {
+        "artifact": "docs/SELECTED-MODEL-CLAIM-TRIAL.md",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Observer source digest recorded for the selected-model provider trial's trusted runtime binding."
+      }
+    },
+    "runtime.context_followup_v2.module_tree_sha256": {
+      "value": "c5b7c4e43aeddfad55bbcfdcb9e07c4a89fd0b6a3a263a31f046c8852dd8838a",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "docs/real-case-trial-context-followup-v2/proofs/runtime-module-map.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Installed-module tree digest for the context-followup v2/v3 historical runtime revision 7c89ad17327b8f0ed4fc381bf5c93255fd4e548e."
+      }
+    },
+    "runtime.model_only_shadow.inventory_sha256": {
+      "value": "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "experiments/model-only-shadow-trial-v1.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Runtime inventory digest recorded for the historical model-only shadow runtime revision 5873c3f1b297a96c49b78cbcb7be674ab70b3cea."
+      }
+    },
+    "runtime.model_only_shadow.module_tree_sha256": {
+      "value": "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "experiments/model-only-shadow-trial-v1.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Runtime module tree digest for the historical model-only shadow runtime revision 5873c3f1b297a96c49b78cbcb7be674ab70b3cea, recorded by the trial budget and sanitizer."
+      }
+    },
+    "runtime.staged_pr464.module_tree_sha256": {
+      "value": "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "scripts/run_real_case_trial.py",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Module tree digest for the staged PR-464 real-case trial runtime revision ed7aa8b82f8d0c8deee03b6f99d8f4f599529301, recomputed from the canonical 28-module inventory."
+      }
+    }
+  }
+}

@@ -67,6 +67,7 @@ def test_same_run_provider_free_preflight_emits_exact_bounded_bundle(monkeypatch
     assert bundle["max_provider_calls"] == bundle["planned_provider_calls"] == 1
     assert bundle["dispatched_provider_calls"] == 0
     assert bundle["retries"] == bundle["context_retrievals"] == bundle["followups"] == 0
+    # vd3-non-pin: SYNTH-001 request digest is synthetic fixture data, not historical evidence.
     assert bundle["request_sha256"] == "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
     assert bundle["request_bytes"] == 11_687
     assert bundle["output_bytes_cap"] == 16_000
