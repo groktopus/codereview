@@ -53,8 +53,7 @@ def _allowlisted(profile: dict, path: str, scope_paths: set[str]) -> bool:
     patterns = profile.get("retrieval_context_patterns", profile.get("context_paths", []))
     patterns = [patterns] if isinstance(patterns, str) else patterns
     return path in scope_paths or bool(
-        isinstance(patterns, list)
-        and any(isinstance(pattern, str) and fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+        isinstance(patterns, list) and any(isinstance(p, str) and fnmatch.fnmatchcase(path, p) for p in patterns)
     )
 
 
@@ -69,11 +68,11 @@ def _source_rows(snapshot: dict, unit: dict, path: str) -> list[tuple[dict, str]
         side = side if side in {"BASE", "HEAD"} else "BASE" if item.get("source_kind") == "base_file" else "HEAD"
         if item.get("path") != (base_path if side == "BASE" else path):
             continue
-        if (
-            not isinstance(item.get("content"), str)
-            or item.get("content_truncated") is not False
-            or not isinstance(item.get("source_revision"), str)
-            or not _SHA.fullmatch(item["source_revision"])
+        if not (
+            isinstance(item.get("content"), str)
+            and item.get("content_truncated") is False
+            and isinstance(item.get("source_revision"), str)
+            and _SHA.fullmatch(item["source_revision"])
         ):
             continue
         rows.append((item, side))
@@ -88,6 +87,7 @@ def _anchor(item: dict, side: str, start: int, end: int, text: str, role: str, s
         "source_side": side,
         "line_start": start,
         "line_end": end,
+        "content": text,
         "content_hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "roles": [role],
         "symbols": [symbol],
@@ -134,13 +134,8 @@ def _anchor_key(anchor: dict) -> tuple:
 def _merged(windows: list[dict]) -> list[dict]:
     merged: dict[tuple, dict] = {}
     for anchor in sorted(windows, key=_anchor_key):
-        key = (
-            anchor["path"],
-            anchor["source_revision"],
-            anchor["line_start"],
-            anchor["line_end"],
-            anchor["content_hash"],
-        )
+        key = (anchor["path"], anchor["source_revision"], anchor["line_start"], anchor["line_end"])
+        key += (anchor["content_hash"],)
         prior = merged.get(key)
         if prior is None:
             merged[key] = anchor
@@ -313,6 +308,9 @@ def record_dispatch_retrieval_plans(state: Any) -> None:
         for task in state.primary_tasks
         if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS"
     ]
+    for skip in getattr(state, "split_skips", {}).values():
+        scoped = {"task_id": skip["task_id"], "obligation_ids": skip["obligation_ids"], "unit_ids": [skip["unit_id"]]}
+        plans.append(build_retrieval_plan(snapshot, state.profile, scoped, state.limits))
     gaps = [{"task_id": plan["task_id"], **gap} for plan in plans for gap in plan["gaps"]]
     state.retrieval_plans, state.retrieval_plan_gaps = plans, gaps
     state.retrieval_sufficient = not any(gap.get("severity") == "REQUIRED" for gap in gaps)

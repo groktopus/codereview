@@ -72,6 +72,7 @@ REASON_TAXONOMY: tuple[dict[str, Any], ...] = (
             "retrieval_evidence_encoding_invalid",
             "required_context_missing",
             "REQUIRED_CONTEXT_MISSING",
+            "RETRIEVAL_PLAN_REQUIRED_GAP",
             "UNIT_OUT_OF_SCOPE",
         ),
     },

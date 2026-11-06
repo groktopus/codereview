@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-# The extracted review stages resolve their module globals through this module's
-# namespace on every call (``from .engine import ...`` inside each stage), so
-# the names below stay importable from ``engine`` exactly as they were when the
-# controller body lived here.  They are re-exported deliberately.
+# Extracted review stages resolve globals through this module's namespace on
+# every call; the re-exported names below remain importable from ``engine``.
 import fnmatch  # noqa: F401
 import hashlib
 import json
@@ -931,8 +929,7 @@ def _context_followup_metadata(
     if len(selected) != 1 or not isinstance(selected[0][1], str):
         raise ValueError("invalid_context_followup_target")
     target_kind = {"target_unit_id": "unit", "target_path": "path", "target_symbol": "symbol"}[selected[0][0]]
-    # Provider adapters store the normalized engine-facing target triplet. Rebuild
-    # the typed contract shape before revalidating with the declared source version.
+    # Rebuild the typed target shape before revalidating the source version.
     wire_proposal = {
         **proposal,
         "target": {"kind": target_kind, "value": selected[0][1]},
@@ -1147,8 +1144,7 @@ def _settlement_observation(
     safe_usage = usage if isinstance(usage, dict) else {}
     observation = {
         "stage": stage,
-        # A missing receipt is deliberately UNKNOWN, never inferred from an
-        # adapter return, exception, or worker launch.
+        # A missing receipt is deliberately UNKNOWN, never inferred from adapter or worker.
         "request_attempted": exchange.get("request_attempted")
         if isinstance(exchange.get("request_attempted"), bool)
         else None,
@@ -1194,6 +1190,15 @@ def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
     return "APPROVE" if allow_empty_approve else "COMMENT"
 
 
+def _unit_retrieval_inputs(snapshot: dict, profile: dict, task: dict, unit_id: str, limits: dict) -> tuple[list, list]:
+    from .retrieval_plan import build_retrieval_plan
+
+    scoped = {**task, "unit_ids": [unit_id], "scope_unit_ids": [unit_id]}
+    plan = build_retrieval_plan(snapshot, profile, scoped, limits)
+    gaps = [gap["code"] for gap in plan["gaps"] if gap["severity"] == "REQUIRED"]
+    return [{"unit_id": unit_id, **window} for row in plan["units"] for window in row["windows"]], gaps
+
+
 def prepare_plan_tasks(
     snapshot: SnapshotRecord,
     plan: PlanRecord,
@@ -1222,7 +1227,7 @@ def prepare_plan_tasks(
         if task["task_id"] in task_by_id:
             raise ValueError("duplicate task_id")
         if task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS" and (
-            "request_input_contract" in task or "unit_evidence_bindings" in task
+            "request_input_contract" in task or "unit_evidence_bindings" in task or "retrieval_windows" in task
         ):
             raise ValueError("planned_specialist_input_metadata_is_engine_owned")
         task_by_id[task["task_id"]] = task
@@ -1235,13 +1240,11 @@ def prepare_plan_tasks(
         if not set(task.get("obligation_ids", [task["obligation_id"]])).issubset(obligation_by_id):
             raise ValueError("task references unknown obligation")
 
-    # Split an oversized specialist batch deterministically by inventory order.
-    # Each unit keeps its own required obligation IDs, so omitted units cannot
-    # inherit another chunk's successful result.
+    # Split oversized specialist batches deterministically; each unit keeps its
+    # own required obligation IDs and cannot inherit another chunk's result.
     def review_input_size(task: dict, evidence: list[dict]) -> int:
         measure = getattr(provider, "review_input_bytes", None)
         if callable(measure) and task.get("task_kind", "SPECIALIST_FINDINGS") == "SPECIALIST_FINDINGS":
-            # Reserve extra room for chunk metadata added after grouping.
             return measure(task, evidence, limits) + 1024
         return len(_canonical({"task": task, "evidence": evidence}))
 
@@ -1261,9 +1264,7 @@ def prepare_plan_tasks(
         task_evidence_ids = set(task.get("evidence_ids", []))
         all_context_ids = list(task.get("base_context_ids") or snapshot.get("trusted_context_refs", []))
         required_context_ids = list(dict.fromkeys(task.get("required_context_ids", [])))
-        # A required reference is authoritative even if an inconsistent task
-        # omitted it from base_context_ids. Do not turn that inconsistency into
-        # optional or silently absent context.
+        # A required reference stays authoritative even when the task omitted it.
         all_context_ids = list(dict.fromkeys(all_context_ids + required_context_ids))
         context_ids = [eid for eid in all_context_ids if eid in task_evidence_ids]
         context_id_set = set(context_ids)
@@ -1298,8 +1299,8 @@ def prepare_plan_tasks(
             for uid in unit_ids:
                 skip_unit(uid, "REQUIRED_CONTEXT_MISSING", missing_required)
             continue
-
         batches, current, current_ids, current_obs, current_required = [], [], [], [], []
+        unit_windows = {}
 
         def batch_task(units: list[str], ids: list[str], required: list[str]) -> dict:
             required = list(dict.fromkeys(required))
@@ -1310,20 +1311,22 @@ def prepare_plan_tasks(
                 "evidence_ids": list(dict.fromkeys(ids + required)),
                 "base_context_ids": required,
                 "required_context_ids": required,
+                "retrieval_windows": [item for unit in units for item in unit_windows.get(unit, [])],
             }
             evidence = _evidence_for(candidate, snapshot, input_ceiling)
             return _bind_specialist_input(candidate, snapshot, profile, evidence)
 
         for uid in sorted(unit_ids, key=lambda u: unit_order.get(u, 10**9)):
             unit = next((u for u in snapshot.get("inventory", []) if u.get("unit_id") == uid), {})
+            unit_windows[uid], required_gaps = _unit_retrieval_inputs(snapshot, profile, task, uid, limits)
+            if required_gaps:
+                skip_unit(uid, "RETRIEVAL_PLAN_REQUIRED_GAP", required_gaps)
+                continue
             if profile.get("context_selection"):
-                # The planner narrows each unit to its bound diff/window set.
-                # Keep that exact set during batching; inventory.evidence_ids
-                # also contains whole-file captures that the selector excludes.
+                # Keep the exact selected set; inventory also has unselected blobs.
                 unit_review_ids = unit.get("review_context_evidence_ids", unit.get("evidence_ids", []))
             else:
-                # Preserve historical profile behavior, including older
-                # snapshots without the selector-specific inventory field.
+                # Preserve older snapshots without the selector-specific field.
                 unit_review_ids = unit.get("evidence_ids", [])
             unit_evidence_ids = set(unit_review_ids)
             ids = [
@@ -1335,7 +1338,6 @@ def prepare_plan_tasks(
             if unit_size > input_ceiling:
                 skip_unit(uid, "UNIT_EVIDENCE_EXCEEDS_INPUT_LIMIT")
                 continue
-
             unit_required = list(required_context_ids)
             required_task = batch_task([uid], ids, unit_required)
             required_size = review_input_size(required_task, _evidence_for(required_task, snapshot, input_ceiling))
@@ -1374,6 +1376,7 @@ def prepare_plan_tasks(
                     "required_context_omissions": [],
                     "obligation_id": oids[0],
                     "obligation_ids": list(dict.fromkeys(oids)),
+                    "retrieval_windows": [item for unit in units for item in unit_windows.get(unit, [])],
                 }
                 evidence = _evidence_for(candidate, snapshot, input_ceiling)
                 return _bind_specialist_input(candidate, snapshot, profile, evidence)
@@ -1534,10 +1537,8 @@ def run_review(
         price_table=price_table,
         waiver_path=waiver_path,
     )
-    # Deterministic stage order; the coordinator makes no review decisions and
-    # never dispatches on model output.  Invariants that hold across the whole
-    # sequence: reserve-before-dispatch, fail-closed on unknown/partial evidence,
-    # blocker preservation, and no model control flow.
+    # Deterministic stage order: no model control flow, reserve-before-dispatch,
+    # fail-closed evidence, and blocker preservation.
     preflight_review(state)
     resumed = resume_completed_review(state)
     if resumed is not None:
