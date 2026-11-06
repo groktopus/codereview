@@ -438,3 +438,12 @@ def test_prepare_dispatch_records_the_plan_before_provider_dispatch(tmp_path):
     prepare_dispatch(state)
     assert state.ledger["retrieval_plans"]
     assert all(item["task_id"] for item in state.ledger["retrieval_plans"])
+
+
+def test_removed_symbol_with_positive_head_lines_requires_a_current_side_window():
+    snapshot = make_snapshot(with_head=False, with_base=True, diff="-def base_target():\n")
+    snapshot["inventory"][0].update(change="modify", changed_lines=[[5, 6]])
+    plan = plans(snapshot)
+
+    assert "current_side_window_unavailable" in codes(plan)
+    assert plan["sufficiency"]["sufficient"] is False

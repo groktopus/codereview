@@ -275,7 +275,7 @@
     {
       "path": "scripts/verify_synth_001_preflight.py",
       "qualname": "verify",
-      "lines": 159
+      "lines": 163
     },
     {
       "path": "src/pr_review_harness/actions_publication.py",
