@@ -199,7 +199,7 @@ The `quality-scorecard` job in [test.yml](../.github/workflows/test.yml):
 
 The job proves the gate is wired, keeps the label arms separate, and is
 sensitive to a known injected regression. It does not prove that prediction
-runs, a material finding label, an accepted baseline, or quality exist.
+runs, a material finding label, or a scored material finding exist.
 
 ## How to run it
 
@@ -226,10 +226,19 @@ packets are `reviewer_kind: synthetic`; the scorecard reports the human arm as
 - Real arm predictions for the corpus, not empty or test-only fixtures.
 - A complete synthetic packet set from QM-2, including the currently incomplete
   `qm1-slopsearx-pr770` case.
-- An owner-accepted baseline scorecard and owner-set regression tolerances.
+- Owner-set tolerances for the accepted five-case baseline.
 - A scheduled full-corpus run, not only the fixed pilot subset.
 - A published scorecard for a real corpus run with meaningful denominators.
 - The RC-3 dependency and the owner decision on what, if anything, constitutes
   a release gate.
 
-The CI job is infrastructure evidence only. QM-3 is ready; an owner-accepted baseline and scheduled full-corpus run remain.
+The CI job is infrastructure evidence only. QM-3 is ready; the accepted five-case baseline and schedule exist, and a live full-corpus run remains.
+
+
+## Accepted five-case baseline
+
+`examples/evaluation/qm2-baseline-scorecard-v1/accepted-baseline.json` is the
+first accepted baseline. CI regenerates the scorecard and runs
+`scripts/check_quality_scorecard_gate.py` against it; the scheduled
+`quality-scorecard-schedule.yml` workflow does the same weekly and retains both
+artifacts. `qm1-slopsearx-pr770` remains missing and is never imputed.

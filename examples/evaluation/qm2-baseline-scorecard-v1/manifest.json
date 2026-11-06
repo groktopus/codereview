@@ -5,6 +5,7 @@
   "content_hashes": {
     "README.md": "2a947570bb5ec24780adb48d1e3af4550ef77f9e565806ec0d713bf5750f0790",
     "scorecard.json": "d3eed7e9409f8fc35abbaf3f0ba997b02021a6ab8ddc1e8aa2671b1cddeb7cb1",
-    "predictions.json": "767047839940b415622e4e09cb4622b16bd83c0850e9247dfc205d6d08da9ea0"
+    "predictions.json": "767047839940b415622e4e09cb4622b16bd83c0850e9247dfc205d6d08da9ea0",
+    "accepted-baseline.json": "d3eed7e9409f8fc35abbaf3f0ba997b02021a6ab8ddc1e8aa2671b1cddeb7cb1"
   }
 }

@@ -1,0 +1,42 @@
+name: Scheduled quality scorecard
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scorecard:
+    name: Provider-free five-case scorecard and gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.13"
+      - name: Generate the five-case scorecard
+        run: |
+          set -euo pipefail
+          python scripts/generate_quality_scorecard.py \
+            --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
+            --predictions examples/evaluation/qm2-baseline-scorecard-v1/predictions.json \
+            --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
+            --output quality-scorecard.json --json > quality-scorecard.stdout.json
+          cmp quality-scorecard.json quality-scorecard.stdout.json
+      - name: Gate against the accepted baseline
+        run: |
+          set -euo pipefail
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline examples/evaluation/qm2-baseline-scorecard-v1/accepted-baseline.json \
+            --current quality-scorecard.json --json | tee quality-scorecard-gate.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: quality-scorecard-${{ github.run_id }}
+          path: |
+            quality-scorecard.json
+            quality-scorecard-gate.json

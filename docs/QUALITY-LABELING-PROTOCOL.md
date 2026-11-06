@@ -8,7 +8,7 @@ cases are complete and `qm1-slopsearx-pr770` is incomplete, with no human
 packets and no prediction runs. This document does not establish review quality,
 accuracy, calibration, or replacement readiness. Issue
 [#243](https://github.com/groktopus/codereview/issues/243) remains open because
-the pilot has no prediction arm, one incomplete case, and no accepted baseline.
+the pilot has one incomplete case; a five-case accepted baseline is recorded separately.
 
 **Rubric revision:** `qm2-labeling-rubric.v1`
 **Contract:** `review-evaluation-labels.v1` in
@@ -370,7 +370,7 @@ human arm is `missing`.
 ## What remains for QM-3
 
 QM-2 is closed. The remaining quality work belongs to QM-3: a second prediction
-arm, an owner-accepted baseline, a decision on the incomplete `pr770` case, and a
+arm, a live full-corpus run, a decision on the incomplete `pr770` case, and a
 scheduled full-corpus run that adjudicates at least one material finding.
 ## Validation
 

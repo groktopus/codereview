@@ -81,7 +81,7 @@ arms and missing runs never become zero rates. `APPROVE`-with-known-defect is
 null when any run is missing. The gate exits `0` for `PASS`/`MISSING_DATA`, `1`
 for a regression (including an arm or label arm present in the baseline but
 absent or partial now), and `2` for an invalid or schema-invalid scorecard. It
-is not a release gate and no accepted baseline exists yet.
+is not a release gate; the accepted five-case baseline is recorded under examples/evaluation/qm2-baseline-scorecard-v1/.
 
 ## Model-only cross-audit (companion contract; outside toolkit metrics)
 

@@ -83,8 +83,8 @@ synthetic-only `COMPLETE` scorecard, synthetic-arm regression gating, and the
 retained pilot's prompt/request/response/diff hashes, provenance fields, and
 incomplete-case state. `scripts/check_quality_scorecard_gate.py` rejects a
 synthetic arm that disappears against a synthetic baseline. The retained pilot
-confirms provenance and contract behavior, not quality or human agreement; no
-accepted baseline exists.
+confirms provenance and contract behavior, not quality or human agreement; an accepted five-case
+baseline exists, while a live full-corpus run does not.
 
 ## Alternatives considered
 

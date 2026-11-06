@@ -541,6 +541,17 @@ jobs:
           assert gate["regressions"] == [], gate
           print("gate: empty data is MISSING_DATA, not failure or zero")
           PY
+      - name: Gate the five-case accepted quality baseline
+        run: |
+          set -euo pipefail
+          python scripts/generate_quality_scorecard.py \
+            --corpus examples/evaluation/qm2-labeling-pilot-v1/corpus.json \
+            --predictions examples/evaluation/qm2-baseline-scorecard-v1/predictions.json \
+            --labels examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json \
+            --output quality-scorecard-five-case.json --json > /dev/null
+          python scripts/check_quality_scorecard_gate.py \
+            --baseline examples/evaluation/qm2-baseline-scorecard-v1/accepted-baseline.json \
+            --current quality-scorecard-five-case.json --json | tee quality-scorecard-five-case-gate.json
       - name: Prove the gate rejects a seeded injected regression
         run: |
           set -euo pipefail
@@ -659,6 +670,8 @@ jobs:
             seeded-baseline-scorecard.json
             seeded-regressed-scorecard.json
             seeded-gate.json
+            quality-scorecard-five-case.json
+            quality-scorecard-five-case-gate.json
           if-no-files-found: warn
           retention-days: 7
 
