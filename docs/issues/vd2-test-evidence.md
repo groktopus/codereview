@@ -53,3 +53,13 @@ The first probe's labels were misread: 185 were killed, **338 were "no tests"**,
 tests, the expanded probe measured **257 killed / 338 no-tests / 73 survived /
 0 timeout**: `257/(257+73) = 77.9%`, above the 70% gate for reconcile. Budget and
 reducer modules remain unmeasured.
+
+
+## Budget mutation (2026-11-06)
+
+`tests/test_vd2_budget_mutation.py` plus `tests/test_vd2_invariants.py` measured
+**1,775 killed / 315 survived / 95 no-tests / 0 timeout** on `budget.py`
+(2,185 mutants): `1775/2090 = 84.9%`, above the 70% gate. The 95 no-tests are all
+`_child_call` mutants executed only in a spawned child. Report:
+[vd2-mutation-budget.json](../evidence/vd2-mutation-budget.json). The reducer and
+validators remain unmeasured, so VD-2 stays open.

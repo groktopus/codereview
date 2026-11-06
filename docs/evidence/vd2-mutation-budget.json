@@ -1,0 +1,20 @@
+{
+  "schema": "review-mutation-probe.v1",
+  "module": "src/pr_review_harness/budget.py",
+  "tool": "mutmut 3.8.1",
+  "test_selection": [
+    "tests/test_vd2_budget_mutation.py",
+    "tests/test_vd2_invariants.py"
+  ],
+  "mutants_total": 2185,
+  "killed": 1775,
+  "survived": 315,
+  "no_tests": 95,
+  "timeout": 0,
+  "score_convention": "killed / (killed + survived); no_tests and timeouts excluded",
+  "score": 0.8493,
+  "remaining_survivors": "mostly defensive validation and OS process-control edges; _child_call mutations are no-tests only",
+  "remaining_modules": [
+    "reducer/validators"
+  ]
+}
