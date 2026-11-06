@@ -35,4 +35,14 @@ Cases are offline local fixtures; they do not qualify any live provider, and the
 
 ## Verification
 
-The focused command is `PYTHONPATH=src python3 -m pytest -q tests/test_vd2_invariants.py tests/test_vd2_provider_faults.py tests/test_budget.py tests/test_review_stages.py tests/test_providers.py tests/test_observability.py`. Ruff uses `python3 -m ruff check` over the changed test files. Mutation execution was attempted with `mutmut` via `uvx`. The default run chose Python 3.8 and failed collection because the repository requires `tomllib`. A Python 3.14 run with pytest was then stopped: mutmut generated a 672,331,908-byte whole-project `mutants/` tree (including the large test suite), without reporting selected-source mutants or a mutation score. The tree was removed after confirming no `mutmut`/`uvx` process remained. Mutation score is not established; mutant count, killed count, and survivor triage are unavailable. A bounded source-only mutation configuration or operator-run targeted mutator remains required.
+The focused command is `PYTHONPATH=src python3 -m pytest -q tests/test_vd2_invariants.py tests/test_vd2_provider_faults.py tests/test_budget.py tests/test_review_stages.py tests/test_providers.py tests/test_observability.py`. Ruff uses `python3 -m ruff check` over the changed test files. Mutation execution was attempted with `mutmut` via `uvx`. The default run chose Python 3.8 and failed collection because the repository requires `tomllib`. A Python 3.14 run with pytest was then stopped: mutmut generated a 672,331,908-byte whole-project `mutants/` tree (including the large test suite), without reporting selected-source mutants or a mutation score. The tree was removed after confirming no `mutmut`/`uvx` process remained. The earlier whole-project mutation attempt produced no score. The targeted reconcile probe below now records mutant, killed, survivor, and timeout counts; it is a narrow-suite lower bound, not the 70% VD-2 gate.
+
+
+## Mutation probe (2026-11-06)
+
+A disposable mutmut 3.8.1 probe on `src/pr_review_harness/reconcile.py` selected
+only `tests/test_vd2_invariants.py` and measured **185 killed / 338 survived /
+145 timeout** (668 mutants). With timeouts excluded, the score is **35.4%**;
+counting timeouts as killed would be 49.4%, and over all mutants 27.7%. This is
+a narrow-suite lower bound, not the 70% VD-2 gate. Report:
+[vd2-mutation-reconcile.json](../evidence/vd2-mutation-reconcile.json).
