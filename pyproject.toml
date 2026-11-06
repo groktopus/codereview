@@ -76,8 +76,3 @@ exclude = [
   "tests/fixtures/frozen-runtime-7d550b6/**",
   "tests/fixtures/*-base.py",
 ]
-
-[tool.mutmut]
-paths_to_mutate = ["src/pr_review_harness/reconcile.py"]
-also_copy = ["src/pr_review_harness"]
-pytest_add_cli_args_test_selection = ["tests/test_reconcile.py"]
