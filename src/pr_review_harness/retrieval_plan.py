@@ -166,11 +166,13 @@ def _referenced_tests(snapshot: dict, unit: dict, names: set[str]) -> list[dict]
 
 
 def _snapshot_gaps(snapshot: dict, unit_ids: set[str], paths: set[str]) -> list[dict]:
+    raw = snapshot.get("gaps")
+    if not isinstance(raw, list):
+        return []
     return [
         _gap("snapshot_gap_required", "REQUIRED", reason=gap.get("reason"), path=gap.get("path"))
-        for gap in snapshot.get("gaps", [])
-        if isinstance(snapshot.get("gaps"), list)
-        and isinstance(gap, dict)
+        for gap in raw
+        if isinstance(gap, dict)
         and gap.get("required") is True
         and ((set(gap["unit_ids"]) & unit_ids) if gap.get("unit_ids") else gap.get("path") in paths)
     ]
@@ -286,12 +288,13 @@ def build_retrieval_plan(snapshot: dict, profile: dict, task: dict, limits: dict
                     )
                 )
         change = unit.get("change", unit.get("change_type"))
-        removed_only = bool(symbols) and all(symbol["change"] == "removed" for symbol in symbols)
-        deletion_only = unit.get("changed_lines") == [[0, 0]]
+        changed_lines = unit.get("changed_lines")
+        has_positive_head_line = isinstance(changed_lines, list) and any(
+            isinstance(item, list) and len(item) == 2 and item != [0, 0] for item in changed_lines
+        )
         if (
             change not in {"delete", "deleted"}
-            and not removed_only
-            and not deletion_only
+            and has_positive_head_line
             and not any(anchor["source_side"] == "HEAD" for anchor in row["windows"])
         ):
             gaps.append(_gap("current_side_window_unavailable", "REQUIRED", unit_id=uid, path=path))

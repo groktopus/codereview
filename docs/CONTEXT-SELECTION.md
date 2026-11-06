@@ -164,10 +164,10 @@ window byte, and before/after settings. Dropping any HEAD anchor at that cap is
 a `REQUIRED` `window_count_limit` gap; dropping only BASE anchors is
 `OPTIONAL`. Unresolved changed symbols are reported per symbol, not as one
 aggregate gap, and a modified unit with no current-side (HEAD) anchor is a
-`REQUIRED` `current_side_window_unavailable` gap, except deletion units and
-deletion-only or removed-only hunks (`changed_lines == [[0, 0]]` or a diff with
-no added symbols), which have no current-side changed line to anchor; this is a
-deliberate policy, not silent coverage. Required snapshot gaps scoped
+`REQUIRED` `current_side_window_unavailable` gap, except deletion units and units with
+no positive HEAD changed line (`changed_lines` empty or only `[[0, 0]]`), which
+have no current-side changed line to anchor; this is a deliberate policy, not
+silent coverage. Required snapshot gaps scoped
 to the task's units or paths (for example `diff_truncated`,
 `context_truncated`, or `changed_source_unavailable`) are imported as
 `snapshot_gap_required`. Empty or truncated diff evidence is a `REQUIRED`
