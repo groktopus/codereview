@@ -95,7 +95,7 @@ missing evidence.
 QM-3 exit criteria still unmet: real predictions and real synthetic (or
 optional human) labels for the corpus, owner-set tolerances for the five-case
 accepted baseline, a scorecard from a real corpus run, and a live full-corpus
-run. RC-3 is closed; CI exercises the accepted baseline and gate.
+run. RC-3 is closed; CI exercises the accepted baseline and gate on
 fixtures, not quality.
 
 ## QM-4 — Measure the incumbent on identical snapshots
