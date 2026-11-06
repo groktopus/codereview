@@ -142,11 +142,13 @@ Before provider dispatch, each specialist task with a changed-unit scope gets a
 The plan derives added/removed `def`/`class` names from the captured diff in
 first-seen order. Added symbols resolve only against captured HEAD source and
 removed symbols only against captured BASE source, using `changed_lines` for
-HEAD and `old_line_ranges` for BASE. Each resolved symbol gets a bounded
-definition window; captured changed lines also resolve their enclosing
-definition on the matching side. Windows carry path, revision, Git object
-identity, side, line interval, roles, symbols, and a content hash over exactly
-the emitted bytes. Plans never re-read Git or follow provider-supplied targets.
+HEAD and `old_line_ranges` for BASE. For renamed units, BASE rows and
+BASE-scoped snapshot gaps are matched against `old_path`; HEAD rows continue to
+use `path`. Each resolved symbol gets a bounded definition window; captured
+changed lines also resolve their enclosing definition on the matching side.
+Windows carry path, revision, Git object identity, side, line interval, roles,
+symbols, and a content hash over exactly the emitted bytes. Plans never re-read
+Git or follow provider-supplied targets.
 
 Windows with identical `(path, revision, line_start, line_end, content_hash)`
 bytes are merged into one anchor; roles and symbols are unioned so one window
@@ -162,7 +164,10 @@ window byte, and before/after settings. Dropping any HEAD anchor at that cap is
 a `REQUIRED` `window_count_limit` gap; dropping only BASE anchors is
 `OPTIONAL`. Unresolved changed symbols are reported per symbol, not as one
 aggregate gap, and a modified unit with no current-side (HEAD) anchor is a
-`REQUIRED` `current_side_window_unavailable` gap. Required snapshot gaps scoped
+`REQUIRED` `current_side_window_unavailable` gap, except deletion units and
+deletion-only or removed-only hunks (`changed_lines == [[0, 0]]` or a diff with
+no added symbols), which have no current-side changed line to anchor; this is a
+deliberate policy, not silent coverage. Required snapshot gaps scoped
 to the task's units or paths (for example `diff_truncated`,
 `context_truncated`, or `changed_source_unavailable`) are imported as
 `snapshot_gap_required`. Empty or truncated diff evidence is a `REQUIRED`

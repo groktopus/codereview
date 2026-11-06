@@ -60,9 +60,14 @@ def _allowlisted(profile: dict, path: str, scope_paths: set[str]) -> bool:
 
 def _source_rows(snapshot: dict, unit: dict, path: str) -> list[tuple[dict, str]]:
     evidence, rows = snapshot.get("evidence", {}), []
+    base_path = unit.get("old_path") or path
     for evidence_id in unit.get("evidence_ids", []):
         item = evidence.get(evidence_id) if isinstance(evidence, dict) else None
-        if not isinstance(item, dict) or item.get("path") != path or item.get("source_kind") not in _SOURCE:
+        if not isinstance(item, dict) or item.get("source_kind") not in _SOURCE:
+            continue
+        side = item.get("source_side")
+        side = side if side in {"BASE", "HEAD"} else "BASE" if item.get("source_kind") == "base_file" else "HEAD"
+        if item.get("path") != (base_path if side == "BASE" else path):
             continue
         if (
             not isinstance(item.get("content"), str)
@@ -71,10 +76,7 @@ def _source_rows(snapshot: dict, unit: dict, path: str) -> list[tuple[dict, str]
             or not _SHA.fullmatch(item["source_revision"])
         ):
             continue
-        side = item.get("source_side")
-        rows.append(
-            (item, side if side in {"BASE", "HEAD"} else "BASE" if item.get("source_kind") == "base_file" else "HEAD")
-        )
+        rows.append((item, side))
     return sorted(rows, key=lambda row: (row[0]["source_revision"], row[0].get("line_start", 1), row[0]["evidence_id"]))
 
 
@@ -164,14 +166,14 @@ def _referenced_tests(snapshot: dict, unit: dict, names: set[str]) -> list[dict]
 
 
 def _snapshot_gaps(snapshot: dict, unit_ids: set[str], paths: set[str]) -> list[dict]:
-    gaps = []
-    for gap in snapshot.get("gaps", []) if isinstance(snapshot.get("gaps"), list) else []:
-        if not isinstance(gap, dict) or gap.get("required") is not True:
-            continue
-        gap_units = gap.get("unit_ids")
-        if (set(gap_units) & unit_ids) if gap_units else gap.get("path") in paths:
-            gaps.append(_gap("snapshot_gap_required", "REQUIRED", reason=gap.get("reason"), path=gap.get("path")))
-    return gaps
+    return [
+        _gap("snapshot_gap_required", "REQUIRED", reason=gap.get("reason"), path=gap.get("path"))
+        for gap in snapshot.get("gaps", [])
+        if isinstance(snapshot.get("gaps"), list)
+        and isinstance(gap, dict)
+        and gap.get("required") is True
+        and ((set(gap["unit_ids"]) & unit_ids) if gap.get("unit_ids") else gap.get("path") in paths)
+    ]
 
 
 def plan_hash(plan: dict) -> str:
@@ -201,6 +203,7 @@ def build_retrieval_plan(snapshot: dict, profile: dict, task: dict, limits: dict
         raise RetrievalPlanError("retrieval plan task binding is invalid")
     units = [row for row in inventory if isinstance(row, dict) and row.get("unit_id") in set(unit_ids)]
     scope_paths = {row.get("path") for row in units if isinstance(row.get("path"), str)}
+    scope_paths |= {row.get("old_path") for row in units if isinstance(row.get("old_path"), str)}
     gaps = _snapshot_gaps(snapshot, {row.get("unit_id") for row in units}, scope_paths)
     window = (profile.get("context_selection") or {}).get("window") or {}
     cfg = (
@@ -283,21 +286,18 @@ def build_retrieval_plan(snapshot: dict, profile: dict, task: dict, limits: dict
                     )
                 )
         change = unit.get("change", unit.get("change_type"))
-        if change not in {"delete", "deleted"} and not any(
-            anchor["source_side"] == "HEAD" for anchor in row["windows"]
+        removed_only = bool(symbols) and all(symbol["change"] == "removed" for symbol in symbols)
+        deletion_only = unit.get("changed_lines") == [[0, 0]]
+        if (
+            change not in {"delete", "deleted"}
+            and not removed_only
+            and not deletion_only
+            and not any(anchor["source_side"] == "HEAD" for anchor in row["windows"])
         ):
             gaps.append(_gap("current_side_window_unavailable", "REQUIRED", unit_id=uid, path=path))
         planned.append(row)
-    plan = dict(
-        schema=SCHEMA,
-        task_id=task_id,
-        snapshot_id=snapshot_id,
-        base_sha=base_sha,
-        head_sha=head_sha,
-        obligation_ids=list(obligation_ids),
-        units=planned,
-        gaps=gaps,
-    )
+    plan = {"schema": SCHEMA, "task_id": task_id, "snapshot_id": snapshot_id}
+    plan.update(base_sha=base_sha, head_sha=head_sha, obligation_ids=list(obligation_ids), units=planned, gaps=gaps)
     plan["sufficiency"] = assess_retrieval_sufficiency(plan)
     plan["plan_hash"] = plan_hash(plan)
     return plan

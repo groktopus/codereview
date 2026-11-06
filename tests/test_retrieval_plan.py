@@ -57,7 +57,7 @@ def _file(path: str, source: str, revision: str, kind: str, **extra):
     }
 
 
-def make_snapshot(*, with_head=True, with_base=False, test_source=True, diff=DIFF, gaps=None):
+def make_snapshot(*, with_head=True, with_base=False, test_source=True, diff=DIFF, gaps=None, old_path=None):
     inventory = [
         {
             "unit_id": "u1",
@@ -81,13 +81,15 @@ def make_snapshot(*, with_head=True, with_base=False, test_source=True, diff=DIF
             "trust": "untrusted_pr_content",
         }
     }
+    if old_path is not None:
+        inventory[0]["old_path"] = old_path
     if with_head:
         inventory[0]["evidence_ids"].append("head:u1")
         evidence["head:u1"] = _file("src/m1.py", SOURCE, HEAD, "head_file", evidence_id="head:u1", source_side="HEAD")
     if with_base:
         inventory[0]["evidence_ids"].append("base:u1")
         evidence["base:u1"] = _file(
-            "src/m1.py", BASE_SOURCE, BASE, "base_file", evidence_id="base:u1", source_side="BASE"
+            old_path or "src/m1.py", BASE_SOURCE, BASE, "base_file", evidence_id="base:u1", source_side="BASE"
         )
     if test_source:
         inventory.append(
@@ -216,6 +218,44 @@ def test_removed_symbols_resolve_only_against_base_source():
         and "base_target" in window["symbols"]
         and "changed_definition" in window["roles"]
     ]
+
+
+def test_rename_uses_old_path_for_base_rows_and_snapshot_gaps():
+    gaps = [{"path": "src/old_m1.py", "source_kind": "base_file", "reason": "context_truncated", "required": True}]
+    snapshot = make_snapshot(with_base=True, old_path="src/old_m1.py", diff="-def base_target():\n", gaps=gaps)
+    snapshot["inventory"][0]["change"] = "rename"
+    snapshot["inventory"][0]["old_line_ranges"] = [[5, 5]]
+    plan = plans(snapshot)
+    windows = plan["units"][0]["windows"]
+    base = [window for window in windows if window["source_side"] == "BASE"]
+    head = [window for window in windows if window["source_side"] == "HEAD"]
+    assert base and head
+    assert {window["path"] for window in base} == {"src/old_m1.py"}
+    assert {window["path"] for window in head} == {"src/m1.py"}
+    removed = next(window for window in base if "changed_definition" in window["roles"])
+    assert "base_target" in removed["symbols"]
+    base_enclosing = next(window for window in base if "enclosing_definition" in window["roles"])
+    assert "base_enclosing" in base_enclosing["symbols"]
+    imported = [gap for gap in plan["gaps"] if gap["code"] == "snapshot_gap_required"]
+    assert [gap["path"] for gap in imported] == ["src/old_m1.py"]
+    assert "current_side_window_unavailable" not in codes(plan)
+
+
+def test_deletion_only_and_removed_only_units_exempt_current_side_requirement():
+    deletion = make_snapshot(with_head=False, with_base=True)
+    deletion["inventory"][0].update(
+        change="delete", diff="-def base_target():\n", changed_lines=[[0, 0]], old_line_ranges=[[5, 5]]
+    )
+    deletion_plan = plans(deletion)
+    assert codes(deletion_plan).count("current_side_window_unavailable") == 0
+    assert deletion_plan["sufficiency"]["sufficient"] is True
+
+    removed_only = make_snapshot(with_head=False, with_base=True, diff="-def base_target():\n")
+    removed_only["inventory"][0]["change"] = "modify"
+    removed_only["inventory"][0]["changed_lines"] = []
+    removed_plan = plans(removed_only)
+    assert "current_side_window_unavailable" not in codes(removed_plan)
+    assert removed_plan["sufficiency"]["sufficient"] is True
 
 
 def test_identical_bytes_across_roles_are_merged_into_one_anchor():
