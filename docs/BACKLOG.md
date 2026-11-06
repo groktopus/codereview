@@ -36,7 +36,7 @@ its state label; the closure record is the evidence.
 | `awaiting-evidence` | Implementation merged, but one or more exit criteria still lack observable evidence. | `state:awaiting-evidence` | The evidence is linked and checked (`done`), or the remaining work returns to `ready`. |
 | `done` | Closed because the exit criteria are met and linked. | none (closed) | Reopen with new evidence if the claim regresses. |
 
-`triage` is not a resting state for this snapshot: all 7 issues have a
+`triage` is not a resting state for this snapshot: all 6 issues have a
 state below. Use it for new intake until the owner has read the issue.
 
 ## Labels
@@ -57,7 +57,7 @@ may be a worker, but the assignee remains the accountable human.
 
 ## Owners
 
-- Accountable owner for all 7 open issues: `@magnus919`.
+- Accountable owner for all 6 open issues: `@magnus919`.
 - An implementing agent, when one is used, is a worker on a branch under the
   owner's direction. It is not the assignee and cannot close the issue.
 - If the owner is unavailable, do not reassign to an agent or to a placeholder.
@@ -106,7 +106,7 @@ The checker validates that the table below stays consistent with the open-issue
 snapshot and the filed-issue map. It cannot validate the truth of a closure
 record; a reviewer must do that.
 
-## Mapping for the 7 open issues
+## Mapping for the 6 open issues
 
 Existing labels stay. "Labels to add" is the applied state label; `kind:*` is
 added only if the issue form or the owner later assigns one. "Next action" is
@@ -116,16 +116,15 @@ the concrete move, not a schedule.
 | Issue | ID | Title | Owner | State | Labels to add | Next action / blocker |
 |---|---|---|---|---|---|---|
 | #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `ready` | `state:ready` | RC-1 is closed; the frozen corpus is available for measurement. |
-| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `ready` | `state:ready` | QM-2 is closed; five-case predictions and a synthetic scorecard exist. The accepted five-case baseline and schedule exist; a live full-corpus run remains. |
-| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (QM-3 predictions/baseline). |
-| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (QM-3 predictions/baseline). |
+| #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `ready` | `state:ready` | QM-3 is closed; incumbent access/measurement remains. |
+| #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `ready` | `state:ready` | QM-3 is closed; paired attack corpus and gate integration remain. |
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |
 | #253 | VD-3 | [VD-3] Isolate historical pins in a compatibility suite | `@magnus919` | `ready` | `state:ready` | Dependency #248 is closed. The compatibility marker exists; the refresh tool and manifest work remain. |
 | #254 | VD-4 | [VD-4] Enforce static analysis, typing, and formatting | `@magnus919` | `ready` | `state:ready` | Dependency #250 is closed. Expand lint/format/types with a ratchet; a whole-repo reformat is separate from the gate. |
 <!-- backlog-table:end -->
 
-Summary: **5 `ready`, 2 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
-7 open issues, all with one owner and one state.
+Summary: **6 `ready`, 0 `blocked`, 0 `awaiting-evidence`, 0 `in-progress`**;
+6 open issues, all with one owner and one state.
 
 ## Board and issue-template configuration
 

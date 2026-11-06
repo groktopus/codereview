@@ -1,18 +1,17 @@
 {
   "schema": "review-harness-backlog-snapshot.v1",
   "repository": "groktopus/codereview",
-  "captured_at": "2026-11-05T23:42:45Z",
+  "captured_at": "2026-11-06T18:45:00Z",
   "source": "gh issue list --repo groktopus/codereview --state open --limit 100",
   "state": "open",
   "total_filed": 33,
   "open_issue_numbers": [
     240,
-    244,
     245,
     246,
     252,
     253,
     254
   ],
-  "notes": "Snapshot at 7 open issues after QM-2 close."
+  "notes": "Snapshot at 6 open issues after QM-3 close."
 }
