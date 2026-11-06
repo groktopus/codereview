@@ -213,7 +213,6 @@ class WaitsForRelease:
         return {"slow": True}
 
 
-@pytest.mark.skipif(os.environ.get("CI") == "true", reason="duplicate spawn coverage; flaky under CI contention")
 def test_isolated_call_waits_for_ready_pipe_without_polling():
     calls = 0
     original_poll = IsolatedInvocation.poll
@@ -269,7 +268,6 @@ def test_cancel_after_readiness_timeout_cleans_child_handles():
         invocation.cancel()
 
 
-@pytest.mark.skipif(os.environ.get("CI") == "true", reason="duplicate spawn coverage; flaky under CI contention")
 def test_wait_any_returns_the_fast_ready_worker_before_a_blocked_worker(tmp_path):
     started = tmp_path / "slow-started"
     release = tmp_path / "slow-release"
@@ -304,7 +302,6 @@ def test_readiness_wait_rejects_invalid_timeout(timeout):
         wait_for_any([], timeout=timeout)
 
 
-@pytest.mark.skipif(os.environ.get("CI") == "true", reason="duplicate spawn coverage; flaky under CI contention")
 def test_finished_invocation_has_no_stale_wait_handles():
     invocation = IsolatedInvocation(ReturnsAfterDelay(0), "__call__", (), deadline_seconds=2, output_limit=1024)
     try:
@@ -462,7 +459,6 @@ def test_context_retrieval_settlement_uses_input_cap_while_provider_output_uses_
     ]
 
 
-@pytest.mark.skipif(os.environ.get("CI") == "true", reason="duplicate spawn coverage; flaky under CI contention")
 def test_isolation_preserves_typed_provider_failure_diagnostics():
     metadata = _isolated_provider_error(
         {
@@ -485,7 +481,6 @@ def test_isolation_preserves_typed_provider_failure_diagnostics():
     assert "configured_model_alias" not in metadata
 
 
-@pytest.mark.skipif(os.environ.get("CI") == "true", reason="duplicate spawn coverage; flaky under CI contention")
 def test_isolation_flattens_only_allowlisted_nested_provider_provenance():
     metadata = _isolated_provider_error(
         {
@@ -543,7 +538,6 @@ def test_isolation_discards_malformed_or_unbounded_provider_diagnostics():
     )
 
 
-@pytest.mark.skipif(os.environ.get("CI") == "true", reason="duplicate spawn coverage; flaky under CI contention")
 def test_isolation_retains_bounded_actual_size_above_output_cap():
     invocation = IsolatedInvocation(
         ReturnsOversizedProviderResponse(), "__call__", (), deadline_seconds=5, output_limit=100
@@ -605,7 +599,6 @@ def test_provider_billing_overrun_is_detected_against_reservation_and_run_cap():
     assert any(row["reason"] == "MONETARY_RUN_BUDGET_OVERRUN" for row in breaches)
 
 
-@pytest.mark.skipif(os.environ.get("CI") == "true", reason="duplicate spawn coverage; flaky under CI contention")
 def test_deadline_cancellation_terminates_adapter_descendant_process_group(tmp_path):
     pid_file = tmp_path / "child.pid"
     ready_file = tmp_path / "child.ready"
