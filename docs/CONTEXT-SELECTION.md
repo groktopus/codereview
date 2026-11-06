@@ -118,6 +118,23 @@ beyond a truncated scan. A truncated CRLF line is not accepted as complete
 unless its LF byte was captured. V1 and v2 continue to use their historical
 whole-range behavior; a profile must opt into v3 to split an oversized range.
 
+### Symbol-anchored follow-up retrieval
+
+A follow-up gap may name a `target_symbol` instead of a path. Only one
+unqualified identifier is accepted; dotted names such as `Client.send` are
+rejected as `target_symbol_invalid` rather than resolved by leaf name alone.
+Retrieval resolves the owning changed unit only from already-captured inventory
+evidence and the trusted allowlist, reads the blob up to the trusted runtime
+`max_scan_bytes` scan limit (capped at 1 MiB), locates one `def`/`class`
+declaration, and returns a complete-line window bounded by the trusted runtime
+`window_before_lines`/`window_after_lines` values (20/20 by default) and the
+retrieval byte ceiling. The window carries `line_start`, `line_end`, a content
+hash over exactly those bytes, and a line-anchored source URL. Missing, ambiguous,
+uninspectable, or scan-truncated symbols are explicit `UNRESOLVED` reasons; they
+never become a whole-file prefix. An unanchored retrieval request that exceeds
+the ceiling also returns `retrieval_window_required` rather than content from
+line 1. A HEAD symbol window remains repository evidence, not policy.
+
 ### Historical v1 preflight
 
 The PR 464 preflight used the same frozen base/head pair and the current full
@@ -143,16 +160,21 @@ repository evidence. They involve no live provider request, target-code
 execution, or finding-quality adjudication. They establish neither improved
 coverage nor readiness to replace another review system.
 
-## Retrieval content and IPC envelope limits
+## Retrieval content and result envelope limits
 
-Context retrieval keeps two byte measurements separate. The existing context
-reservation bounds admitted UTF-8 evidence content; the unchanged
-`max_output_bytes_per_task` bounds the complete serialized retrieval result,
-including its hashes, provenance, and metadata. The trusted Git retriever may
-shorten only the content prefix to fit that envelope, then recomputes its
-content hash and evidence ID and marks the result `PARTIAL` with
-`ipc_envelope_truncated`. The budget settlement continues to count admitted
-content bytes; the serialized envelope size is recorded separately. If
-metadata alone cannot fit, retrieval fails closed. Other retrievers are not
-automatically trimmed, and an oversized result remains an IPC failure. None of
-these behaviors increases the configured content, output, call, or time caps.
+Context retrieval keeps three byte measurements separate: the context
+reservation bounds admitted UTF-8 evidence content, the provider output cap
+(`max_output_bytes_per_task`) remains unchanged and does not size retrieval, and
+the dedicated trusted `max_retrieval_result_bytes` limit bounds the complete
+serialized retrieval result, including hashes, provenance, and metadata.
+
+Symbol-target retrieval returns only complete-line windows. It never shortens
+unanchored content to a line-1 prefix: if a non-symbol read hits its byte
+ceiling, retrieval returns `UNRESOLVED` with `retrieval_window_required`. If
+the complete result, including metadata, exceeds `max_retrieval_result_bytes`,
+it returns `UNRESOLVED` with
+`retrieval_metadata_exceeds_ipc_limit` instead of a shortened result. The budget
+settlement continues to count admitted content bytes; the serialized envelope
+size is recorded separately. Other retrievers are not automatically trimmed,
+and an oversized result remains an IPC failure. None of these behaviors
+increases the configured content, output, call, or time caps.
