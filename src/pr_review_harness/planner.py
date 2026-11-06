@@ -254,6 +254,14 @@ def _id(prefix: str, value: Any) -> str:
     return f"{prefix}-{hashlib.sha256(_canonical(value).encode()).hexdigest()[:16]}"
 
 
+def _configured_lenses(profile: dict) -> list:
+    return list(
+        profile.get(
+            "required_lenses", profile.get("default_lenses", ["correctness", "tests", "design", "maintainability"])
+        )
+    )
+
+
 def _unit_risk(unit: dict, profile: dict) -> set[str]:
     risks: set[str] = set()
     path = unit.get("path", "")
@@ -573,12 +581,7 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
             reasons.append(f"{uid}:risk_or_unknown_context_floor")
         elif docs_only:
             unit_floor = "FOCUSED"
-            lenses = list(
-                profile.get(
-                    "required_lenses",
-                    profile.get("default_lenses", ["correctness", "tests", "design", "maintainability"]),
-                )
-            )
+            lenses = _configured_lenses(profile)
             reason = (
                 "docs_prose_only_unverified_focused_floor"
                 if not prose_only
@@ -589,12 +592,7 @@ def plan_review(snapshot: SnapshotRecord, profile: dict[str, Any], mode: str = "
             reasons.append(f"{uid}:{reason}")
         else:
             unit_floor = "FOCUSED" if unit.get("kind") in {"human_code", "config", "test"} else "FOCUSED"
-            lenses = list(
-                profile.get(
-                    "required_lenses",
-                    profile.get("default_lenses", ["correctness", "tests", "design", "maintainability"]),
-                )
-            )
+            lenses = _configured_lenses(profile)
         for rule in unit_rules:
             rule_floor = str(rule.get("min_mode", "FOCUSED")).upper()
             if rule_floor in _MODE_ORDER:

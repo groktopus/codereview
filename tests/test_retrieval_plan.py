@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from types import SimpleNamespace
 
@@ -34,18 +35,39 @@ SOURCE = (
     "    value = 1\n"
     "    return value\n"
 )
+BASE_SOURCE = "def base_target():\n    return 0\n\n\ndef base_enclosing():\n    old = 1\n    return old\n"
+DIFF = "@@ -1 +1 @@\n+def target(self):\n+def unrelated():\n+class Service:"
+TEST_SOURCE = "from src.m1 import target\n\ndef test_target():\n    assert target() == 1\n"
 
 
-def make_snapshot(*, with_source=True, test_source=True):
+def _file(path: str, source: str, revision: str, kind: str, **extra):
+    return {
+        "evidence_id": extra.pop("evidence_id"),
+        "path": path,
+        "source_kind": kind,
+        "content": source,
+        "content_hash": hashlib.sha256(source.encode()).hexdigest(),
+        "source_revision": revision,
+        "source_object_id": "e" * 40,
+        "line_start": 1,
+        "line_end": len(source.splitlines()),
+        "content_truncated": False,
+        "trust": "untrusted_pr_content",
+        **extra,
+    }
+
+
+def make_snapshot(*, with_head=True, with_base=False, test_source=True, diff=DIFF, gaps=None):
     inventory = [
         {
             "unit_id": "u1",
             "path": "src/m1.py",
             "kind": "human_code",
             "change": "modified",
-            "diff": "@@ -1 +1 @@\n+def target(self):\n+def unrelated():\n+class Service:",
+            "diff": diff,
             "changed_lines": [[9, 10]],
-            "evidence_ids": ["diff:u1", "head:u1"],
+            "old_line_ranges": [[5, 5]],
+            "evidence_ids": ["diff:u1"],
         }
     ]
     evidence = {
@@ -53,28 +75,21 @@ def make_snapshot(*, with_source=True, test_source=True):
             "evidence_id": "diff:u1",
             "path": "src/m1.py",
             "source_kind": "diff",
-            "content": "+def target(self):\n+def unrelated():\n+class Service:",
+            "content": diff,
             "content_hash": "a" * 64,
             "source_revision": HEAD,
             "trust": "untrusted_pr_content",
         }
     }
-    if with_source:
-        evidence["head:u1"] = {
-            "evidence_id": "head:u1",
-            "path": "src/m1.py",
-            "source_kind": "head_file",
-            "content": SOURCE,
-            "content_hash": hashlib.sha256(SOURCE.encode()).hexdigest(),
-            "source_revision": HEAD,
-            "source_object_id": "e" * 40,
-            "line_start": 1,
-            "line_end": 10,
-            "content_truncated": False,
-            "trust": "untrusted_pr_content",
-        }
+    if with_head:
+        inventory[0]["evidence_ids"].append("head:u1")
+        evidence["head:u1"] = _file("src/m1.py", SOURCE, HEAD, "head_file", evidence_id="head:u1", source_side="HEAD")
+    if with_base:
+        inventory[0]["evidence_ids"].append("base:u1")
+        evidence["base:u1"] = _file(
+            "src/m1.py", BASE_SOURCE, BASE, "base_file", evidence_id="base:u1", source_side="BASE"
+        )
     if test_source:
-        test = "from src.m1 import target\n\ndef test_target():\n    assert target() == 1\n"
         inventory.append(
             {
                 "unit_id": "u2",
@@ -94,29 +109,24 @@ def make_snapshot(*, with_source=True, test_source=True):
             "source_revision": HEAD,
             "trust": "untrusted_pr_content",
         }
-        evidence["head:u2"] = {
-            "evidence_id": "head:u2",
-            "path": "tests/test_m1.py",
-            "source_kind": "head_file",
-            "content": test,
-            "content_hash": hashlib.sha256(test.encode()).hexdigest(),
-            "source_revision": HEAD,
-            "line_start": 1,
-            "line_end": 4,
-            "content_truncated": False,
-            "trust": "untrusted_pr_content",
-        }
-    return {
+        evidence["head:u2"] = _file("tests/test_m1.py", TEST_SOURCE, HEAD, "head_file", evidence_id="head:u2")
+    snapshot = {
         "snapshot_id": "snap-plan",
         "base_sha": BASE,
         "head_sha": HEAD,
         "inventory": inventory,
         "evidence": evidence,
     }
+    if gaps is not None:
+        snapshot["gaps"] = gaps
+    return snapshot
 
 
-def make_profile(patterns=None):
-    return {"version": "p1", "retrieval_context_patterns": patterns or ["src/*.py", "tests/*.py"]}
+def make_profile(patterns=None, **window):
+    profile = {"version": "p1", "retrieval_context_patterns": patterns or ["src/*.py", "tests/*.py"]}
+    if window:
+        profile["context_selection"] = {"window": window}
+    return profile
 
 
 def make_task():
@@ -134,6 +144,14 @@ def make_task():
 LIMITS = {"max_context_bytes": 120_000, "max_input_bytes_per_task": 45_000}
 
 
+def plans(snapshot, profile=None):
+    return build_retrieval_plan(snapshot, profile or make_profile(), make_task(), LIMITS)
+
+
+def codes(plan):
+    return [gap["code"] for gap in plan["gaps"]]
+
+
 def test_changed_symbols_are_derived_from_the_captured_diff_in_order():
     diff = "--- a/src/m1.py\n+++ b/src/m1.py\n+def added_first():\n-def removed_one():\n+class AddedClass:\n def context_line():\n+def added_first():"
     assert derive_changed_symbols(diff) == [
@@ -147,92 +165,186 @@ def test_enclosing_definition_resolves_function_class_and_missing_ranges():
     assert enclosing_definition(SOURCE, 3) == ("target", 2)
     assert enclosing_definition(SOURCE, 10) == ("changed_enclosing", 8)
     assert enclosing_definition(SOURCE, 99) is None
-    assert enclosing_definition("def only():\n    pass\n", 2) == ("only", 1)
+    assert enclosing_definition(BASE_SOURCE, 6) == ("base_enclosing", 5)
 
 
 def test_plan_resolves_enclosing_definition_and_referenced_test_paths():
-    plan = build_retrieval_plan(
-        make_snapshot(), make_profile(), make_task(), LIMITS, {"unit:u1:lens:correctness": {"scope_unit_ids": ["u1"]}}
-    )
+    plan = plans(make_snapshot())
     unit = plan["units"][0]
     assert [item["symbol"] for item in unit["changed_symbols"]] == ["target", "unrelated", "Service"]
     assert unit["referenced_test_paths"][0]["path"] == "tests/test_m1.py"
     assert unit["referenced_test_paths"][0]["unit_id"] == "u2"
-    assert {window["role"] for window in unit["windows"]} == {"changed_definition", "enclosing_definition"}
-    enclosing = next(window for window in unit["windows"] if window["role"] == "enclosing_definition")
-    assert enclosing["symbol"] == "changed_enclosing"
+    roles = {role for window in unit["windows"] for role in window["roles"]}
+    assert roles == {"changed_definition", "enclosing_definition"}
+    enclosing = next(window for window in unit["windows"] if "enclosing_definition" in window["roles"])
+    assert "changed_enclosing" in enclosing["symbols"]
     assert enclosing["line_start"] <= 8 <= enclosing["line_end"]
     window_text = "\n".join(SOURCE.split("\n")[enclosing["line_start"] - 1 : enclosing["line_end"]]) + "\n"
     assert enclosing["content_hash"] == hashlib.sha256(window_text.encode()).hexdigest()
 
 
-def test_multiple_windows_are_bounded_deduplicated_and_deterministically_ordered():
-    snapshot = make_snapshot()
-    first = build_retrieval_plan(snapshot, make_profile(), make_task(), LIMITS)
-    second = build_retrieval_plan(make_snapshot(), make_profile(), make_task(), LIMITS)
-    assert first["units"][0]["windows"] == second["units"][0]["windows"]
-    windows = first["units"][0]["windows"]
-    keys = [
-        (w["path"], w["source_revision"], w["line_start"], w["line_end"], w["content_hash"], w["role"], w["symbol"])
-        for w in windows
+def test_base_rows_use_old_line_ranges_and_base_source_side():
+    plan = plans(make_snapshot(with_base=True))
+    windows = plan["units"][0]["windows"]
+    base = [window for window in windows if window["source_side"] == "BASE"]
+    head = [window for window in windows if window["source_side"] == "HEAD"]
+    assert base and head
+    base_enclosing = next(window for window in base if "enclosing_definition" in window["roles"])
+    assert "base_enclosing" in base_enclosing["symbols"]
+    assert "changed_enclosing" not in base_enclosing["symbols"]
+    head_enclosing = next(window for window in head if "enclosing_definition" in window["roles"])
+    assert "changed_enclosing" in head_enclosing["symbols"]
+    assert "base_enclosing" not in head_enclosing["symbols"]
+    assert [window["source_side"] for window in windows[: len(head)]] == ["HEAD"] * len(head)
+
+
+def test_removed_symbols_resolve_only_against_base_source():
+    plan = plans(make_snapshot(with_base=True, diff="-def base_target():\n"))
+    windows = plan["units"][0]["windows"]
+    removed = [
+        window
+        for window in windows
+        if window["source_side"] == "BASE"
+        and "changed_definition" in window["roles"]
+        and "base_target" in window["symbols"]
     ]
-    assert keys == sorted(keys)
-    assert len(keys) == len(set(keys))
-    assert all(w["source_revision"] == HEAD for w in windows)
-    assert all(w["content_hash"] for w in windows)
-    assert len(windows) <= 4
+    assert len(removed) == 1
+    assert not [
+        window
+        for window in windows
+        if window["source_side"] == "HEAD"
+        and "base_target" in window["symbols"]
+        and "changed_definition" in window["roles"]
+    ]
 
 
-def test_plan_hash_is_stable_and_ignores_volatile_fields():
+def test_identical_bytes_across_roles_are_merged_into_one_anchor():
+    diff = "+def target(self):\n+    return 1"
+    snapshot = make_snapshot(diff=diff)
+    snapshot["inventory"][0]["changed_lines"] = [[3, 3]]
+    plan = plans(snapshot)
+    windows = plan["units"][0]["windows"]
+    shared = [window for window in windows if window["line_start"] == 1 and window["line_end"] == 10]
+    assert len(shared) == 1
+    assert shared[0]["roles"] == ["changed_definition", "enclosing_definition"]
+    assert set(shared[0]["symbols"]) == {"target"}
+
+
+def test_window_cap_keeps_head_first_and_records_required_head_truncation():
+    plan = plans(make_snapshot(with_base=True), make_profile(max_windows_per_unit=1, before_lines=0, after_lines=0))
+    unit = plan["units"][0]
+    assert len(unit["windows"]) == 1
+    assert unit["windows"][0]["source_side"] == "HEAD"
+    cap = next(gap for gap in plan["gaps"] if gap["code"] == "window_count_limit")
+    assert cap["severity"] == "REQUIRED"
+    assert cap["dropped_head_windows"] >= 1
+    assert plan["sufficiency"]["sufficient"] is False
+
+
+def test_cap_truncating_only_base_windows_is_optional():
+    snapshot = make_snapshot(with_base=True)
+    snapshot["inventory"][0]["changed_lines"] = []
+    plan = plans(snapshot, make_profile(max_windows_per_unit=1))
+    cap = next(gap for gap in plan["gaps"] if gap["code"] == "window_count_limit")
+    assert cap["dropped_head_windows"] == 0
+    assert cap["severity"] == "OPTIONAL"
+
+
+def test_partial_symbol_resolution_records_a_gap_per_missing_symbol():
+    snapshot = make_snapshot(diff="+def target(self):\n+def absent_definition():")
+    plan = plans(snapshot)
+    missing = [gap for gap in plan["gaps"] if gap["code"] == "changed_symbol_window_unavailable"]
+    assert [gap["symbol"] for gap in missing] == ["absent_definition"]
+    assert "target" in {symbol for window in plan["units"][0]["windows"] for symbol in window["symbols"]}
+
+
+def test_modified_unit_without_a_current_side_window_is_required_unsufficient():
+    snapshot = make_snapshot(with_head=False, with_base=True)
+    plan = plans(snapshot)
+    assert "current_side_window_unavailable" in codes(plan)
+    current = next(gap for gap in plan["gaps"] if gap["code"] == "current_side_window_unavailable")
+    assert current["severity"] == "REQUIRED"
+    assert plan["sufficiency"]["sufficient"] is False
+
+
+def test_required_snapshot_gaps_are_imported_only_for_scoped_paths():
+    gaps = [
+        {"path": "src/m1.py", "source_kind": "diff", "reason": "diff_truncated", "required": True},
+        {"path": "src/other.py", "source_kind": "diff", "reason": "diff_truncated", "required": True},
+        {"path": "src/m1.py", "source_kind": "source_window", "reason": "window_scan_limit", "required": False},
+    ]
+    plan = plans(make_snapshot(gaps=gaps))
+    imported = [gap for gap in plan["gaps"] if gap["code"] == "snapshot_gap_required"]
+    assert [gap["path"] for gap in imported] == ["src/m1.py"]
+    assert imported[0]["reason"] == "diff_truncated"
+    assert imported[0]["severity"] == "REQUIRED"
+
+
+def test_empty_and_truncated_diffs_record_required_gaps():
+    empty = make_snapshot(diff="")
+    empty_plan = plans(empty)
+    assert "diff_unavailable" in codes(empty_plan)
+    truncated = make_snapshot()
+    truncated["evidence"]["diff:u1"]["content_truncated"] = True
+    truncated_plan = plans(truncated)
+    assert "diff_truncated" in codes(truncated_plan)
+    assert truncated_plan["sufficiency"]["sufficient"] is False
+
+
+def test_missing_source_window_records_required_symbol_gaps_before_dispatch():
+    plan = build_retrieval_plan(make_snapshot(with_head=False), make_profile(), make_task(), LIMITS)
+    assert plan["units"][0]["windows"] == []
+    missing = [gap for gap in plan["gaps"] if gap["code"] == "changed_symbol_window_unavailable"]
+    assert [gap["symbol"] for gap in missing] == ["target", "unrelated", "Service"]
+    assert all(gap["severity"] == "REQUIRED" for gap in missing)
+    sufficient = assess_retrieval_sufficiency(plan)
+    assert sufficient["sufficient"] is False
+    assert sufficient["required_gap_count"] == len([gap for gap in plan["gaps"] if gap["severity"] == "REQUIRED"])
+
+
+def test_non_allowlisted_referenced_path_fails_closed_with_a_typed_gap():
+    plan = plans(make_snapshot(), make_profile(["src/*.py"]))
+    assert "referenced_test_not_allowlisted" in codes(plan)
+    denied = next(gap for gap in plan["gaps"] if gap["code"] == "referenced_test_not_allowlisted")
+    assert denied["paths"] == ["tests/test_m1.py"]
+    assert plan["units"][0]["referenced_test_paths"] == []
+    assert plan["sufficiency"]["sufficient"] is False
+
+
+def test_plan_hash_is_stable_and_covers_only_anchor_fields():
     snapshot = make_snapshot()
-    plan = build_retrieval_plan(snapshot, make_profile(), make_task(), LIMITS)
-    repeated = build_retrieval_plan(make_snapshot(), make_profile(), make_task(), LIMITS)
+    plan = plans(snapshot)
+    repeated = plans(make_snapshot())
     assert plan["plan_hash"] == repeated["plan_hash"] == plan_hash(plan)
     volatile = make_snapshot()
     volatile["captured_at"] = "2099-01-01T00:00:00+00:00"
     for item in volatile["evidence"].values():
         item["captured_at"] = "2099-01-01T00:00:00+00:00"
-    assert build_retrieval_plan(volatile, make_profile(), make_task(), LIMITS)["plan_hash"] == plan["plan_hash"]
-    mutated = make_snapshot()
-    mutated["evidence"]["head:u1"]["line_start"] = 2
-    assert build_retrieval_plan(mutated, make_profile(), make_task(), LIMITS)["plan_hash"] != plan["plan_hash"]
-
-
-def test_missing_source_window_records_a_required_typed_gap_before_dispatch():
-    plan = build_retrieval_plan(make_snapshot(with_source=False), make_profile(), make_task(), LIMITS)
-    assert plan["units"][0]["windows"] == []
-    assert [gap["code"] for gap in plan["gaps"]] == ["changed_symbol_window_unavailable"]
-    assert plan["gaps"][0]["severity"] == "REQUIRED"
-    assert plan["gaps"][0]["symbols"] == ["target", "unrelated", "Service"]
-    sufficient = assess_retrieval_sufficiency(plan)
-    assert sufficient == {"schema": "retrieval-plan.v1", "sufficient": False, "required_gap_count": 1}
-
-
-def test_non_allowlisted_referenced_path_fails_closed_with_a_typed_gap():
-    plan = build_retrieval_plan(make_snapshot(), make_profile(["src/*.py"]), make_task(), LIMITS)
-    assert not plan["sufficiency"]["sufficient"]
-    assert [gap["code"] for gap in plan["gaps"]] == ["referenced_test_not_allowlisted"]
-    assert plan["gaps"][0]["paths"] == ["tests/test_m1.py"]
-    assert plan["units"][0]["referenced_test_paths"] == []
+    assert plans(volatile)["plan_hash"] == plan["plan_hash"]
+    gap_only = copy.deepcopy(plan)
+    gap_only["gaps"].append({"code": "synthetic", "severity": "REQUIRED"})
+    assert plan_hash(gap_only) == plan["plan_hash"]
+    mutated = copy.deepcopy(plan)
+    mutated["units"][0]["windows"][0]["line_start"] += 1
+    assert plan_hash(mutated) != plan["plan_hash"]
 
 
 def test_invalid_snapshot_identity_fails_closed():
     snapshot = make_snapshot()
     snapshot["head_sha"] = "not-a-sha"
     with pytest.raises(RetrievalPlanError):
-        build_retrieval_plan(snapshot, make_profile(), make_task(), LIMITS)
+        plans(snapshot)
 
 
 def test_record_dispatch_retrieval_plans_persists_plans_and_gaps():
+    snapshot = make_snapshot(with_head=False)
     state = SimpleNamespace(
-        snapshot=make_snapshot(with_source=False),
-        snapshot_captured_evidence=make_snapshot(with_source=False)["evidence"],
+        snapshot=snapshot,
+        snapshot_captured_evidence=snapshot["evidence"],
         profile=make_profile(),
         limits=LIMITS,
         primary_tasks=[make_task()],
-        obligation_by_id={"unit:u1:lens:correctness": {"scope_unit_ids": ["u1"]}},
         ledger={},
-        checkpoint=lambda: None,
     )
     record_dispatch_retrieval_plans(state)
     assert state.retrieval_sufficient is False
@@ -242,7 +354,7 @@ def test_record_dispatch_retrieval_plans_persists_plans_and_gaps():
 
 
 def test_prepare_dispatch_records_the_plan_before_provider_dispatch(tmp_path):
-    snapshot = make_snapshot()
+    snapshot = make_snapshot(with_base=True)
     profile = make_profile()
     plan = plan_review(snapshot, profile)
     state = RunState(

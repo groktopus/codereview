@@ -253,7 +253,6 @@ def _hunk_ranges(diff: str, marker: str, group: int) -> list[list[int]]:
             continue
         if current_line is None or row.startswith("\\"):
             continue
-        # Removed lines exist only in BASE and do not advance HEAD positions.
         if row.startswith(marker) and not (marker == "-" and row.startswith("---")):
             positions.add(current_line)
             current_line += 1
@@ -266,8 +265,6 @@ def _changed_line_ranges(diff: str) -> list[list[int]]:
     """Return compressed HEAD line ranges added or replaced by unified diff."""
     ranges = _hunk_ranges(diff, "+", 2)
     if not ranges:
-        # A deletion-only unit has no verifiable HEAD line; the sentinel makes
-        # positive-line validators reject fabricated locations.
         return [[0, 0]] if any(row.startswith("-") and not row.startswith("---") for row in diff.splitlines()) else []
     return ranges
 

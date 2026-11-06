@@ -140,23 +140,38 @@ line 1. A HEAD symbol window remains repository evidence, not policy.
 Before provider dispatch, each specialist task with a changed-unit scope gets a
 `retrieval-plan.v1` object built only from already-captured snapshot evidence.
 The plan derives added/removed `def`/`class` names from the captured diff in
-first-seen order, resolves each symbol to a bounded definition window, resolves
-the enclosing definition for captured changed lines, and lists captured test
-units that reference a changed symbol by whole-name match. Windows carry path,
-revision, Git object identity, line interval, and a content hash over exactly
-the emitted bytes; plans never re-read Git or follow provider-supplied targets.
+first-seen order. Added symbols resolve only against captured HEAD source and
+removed symbols only against captured BASE source, using `changed_lines` for
+HEAD and `old_line_ranges` for BASE. Each resolved symbol gets a bounded
+definition window; captured changed lines also resolve their enclosing
+definition on the matching side. Windows carry path, revision, Git object
+identity, side, line interval, roles, symbols, and a content hash over exactly
+the emitted bytes. Plans never re-read Git or follow provider-supplied targets.
 
-Referenced test paths are additional targets and must pass the trusted retrieval
-allowlist. Changed-unit paths remain authorized by the task's own captured
-scope. HEAD windows stay repository evidence under `untrusted_pr_content`; a
-HEAD anchor is never policy.
+Windows with identical `(path, revision, line_start, line_end, content_hash)`
+bytes are merged into one anchor; roles and symbols are unioned so one window
+can be both a changed definition and an enclosing definition. Anchors are sorted
+HEAD-first with changed-definition anchors ahead of enclosing anchors, then by
+path, revision, line interval, and hash. Referenced test paths are additional
+targets and must pass the trusted retrieval allowlist; changed-unit paths remain
+authorized by the task's own captured scope. Plan anchors are repository
+evidence; a HEAD anchor is never policy.
 
-Windows are deduplicated by `(path, revision, line_start, line_end,
-content_hash)` and ordered deterministically, then bounded by the existing
-`max_windows_per_unit`, window byte, and before/after settings. Symbols with no
-captured source window, denied test targets, and over-limit windows produce
-typed plan gaps. `plan_hash` covers only those anchor fields (no wall-clock or
-capture timestamps), so equal captured evidence yields an equal hash.
+After ordering, anchors are bounded by the existing `max_windows_per_unit`,
+window byte, and before/after settings. Dropping any HEAD anchor at that cap is
+a `REQUIRED` `window_count_limit` gap; dropping only BASE anchors is
+`OPTIONAL`. Unresolved changed symbols are reported per symbol, not as one
+aggregate gap, and a modified unit with no current-side (HEAD) anchor is a
+`REQUIRED` `current_side_window_unavailable` gap. Required snapshot gaps scoped
+to the task's units or paths (for example `diff_truncated`,
+`context_truncated`, or `changed_source_unavailable`) are imported as
+`snapshot_gap_required`. Empty or truncated diff evidence is a `REQUIRED`
+`diff_unavailable` or `diff_truncated` gap.
+
+`plan_hash` covers the plan identity and anchor fields only: schema, task,
+snapshot and revision identities, obligation ids, and the unit/anchor rows. It
+excludes gaps, sufficiency, wall-clock, and capture timestamps, so equal
+captured evidence yields an equal hash even when audit-only gap records differ.
 
 The pre-dispatch check records plans and gaps under `retrieval_plans` and
 `retrieval_plan_gaps` in the run ledger. A `REQUIRED` gap makes
