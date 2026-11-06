@@ -583,3 +583,14 @@ def test_gate_fails_synthetic_only_regression_and_disappearance():
     assert any(
         check["id"] == "label_arm:harness:synthetic" and check["status"] == "FAIL" for check in dropped["checks"]
     )
+
+
+def test_partial_baseline_does_not_fail_itself() -> None:
+    scorecard = json.loads(
+        (ROOT / "examples/evaluation/qm2-baseline-scorecard-v1/scorecard.json").read_text(encoding="utf-8")
+    )
+
+    gate = regression_gate(scorecard, scorecard)
+
+    assert gate["status"] == "PASS"
+    assert gate["regressions"] == []

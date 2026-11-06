@@ -84,7 +84,7 @@ retained pilot's prompt/request/response/diff hashes, provenance fields, and
 incomplete-case state. `scripts/check_quality_scorecard_gate.py` rejects a
 synthetic arm that disappears against a synthetic baseline. The retained pilot
 confirms provenance and contract behavior, not quality or human agreement; no
-accepted baseline exists.
+accepted five-case baseline exists; a live full-corpus run does not.
 
 ## Alternatives considered
 

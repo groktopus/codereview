@@ -670,6 +670,8 @@ jobs:
             seeded-baseline-scorecard.json
             seeded-regressed-scorecard.json
             seeded-gate.json
+            quality-scorecard-five-case.json
+            quality-scorecard-five-case-gate.json
           if-no-files-found: warn
           retention-days: 7
 

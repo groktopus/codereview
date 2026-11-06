@@ -116,7 +116,7 @@ the concrete move, not a schedule.
 | Issue | ID | Title | Owner | State | Labels to add | Next action / blocker |
 |---|---|---|---|---|---|---|
 | #240 | RC-2 | [RC-2] Replace prefix retrieval with a retrieval compiler | `@magnus919` | `ready` | `state:ready` | RC-1 is closed; the frozen corpus is available for measurement. |
-| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `ready` | `state:ready` | QM-2 is closed; five-case predictions and a synthetic scorecard exist. Needs an accepted baseline and a scheduled full-corpus run. |
+| #244 | QM-3 | [QM-3] Run evaluation continuously and publish scorecards | `@magnus919` | `ready` | `state:ready` | QM-2 is closed; five-case predictions and a synthetic scorecard exist. The accepted five-case baseline and schedule exist; a live full-corpus run remains. |
 | #245 | QM-4 | [QM-4] Measure the incumbent on identical snapshots | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (QM-3 predictions/baseline). |
 | #246 | QM-5 | [QM-5] Integrate adversarial and injection evaluation | `@magnus919` | `blocked` | `state:blocked` | Blocked by #244 (QM-3 predictions/baseline). |
 | #252 | VD-2 | [VD-2] Add property, mutation, and fault-injection testing | `@magnus919` | `ready` | `state:ready` | Dependencies #247 and #251 are closed. Start with property tests and the fault matrix; mutation score needs an owner-set threshold. |
