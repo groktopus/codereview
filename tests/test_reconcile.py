@@ -149,8 +149,7 @@ def test_output_is_sorted_by_finding_id() -> None:
 
 
 def test_group_key_is_a_sha256_of_canonical_basis() -> None:
-    item = finding("a")
-    merged = consolidate_findings([item])
+    merged = consolidate_findings([finding("a"), finding("b")])
     basis = {
         "snapshot_id": "snap-1",
         "unit_id": "unit-1",
@@ -158,10 +157,10 @@ def test_group_key_is_a_sha256_of_canonical_basis() -> None:
         "side": "HEAD",
         "kind": "line",
         "line": 10,
-        "observation": "A value is dropped.",
-        "consequence": "Callers see stale data.",
-        "rule": "CONTRACTS.md#data",
+        "observation": "a value is dropped.",
+        "consequence": "callers see stale data.",
+        "rule": "contracts.md#data",
     }
     expected = hashlib.sha256(json.dumps(basis, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    assert merged[0]["correlation_group_id"] is None
-    assert expected
+
+    assert merged[0]["correlation_group_id"] == "correlation-" + expected[:16]
