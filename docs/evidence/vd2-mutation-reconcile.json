@@ -3,9 +3,9 @@
   "module": "src/pr_review_harness/reconcile.py",
   "tool": "mutmut 3.8.1",
   "test_selection": [
-    "tests/test_vd2_invariants.py"
+    "tests/test_reconcile.py"
   ],
-  "command": "apply the config fragment above as [tool.mutmut], then PYTHONPATH=src mutmut run --max-children 8",
+  "command": "apply the config fragment in this report as [tool.mutmut], then PYTHONPATH=src mutmut run --max-children 8",
   "mutants_total": 668,
   "killed": 257,
   "survived": 73,
@@ -22,7 +22,7 @@
       "src/pr_review_harness"
     ],
     "pytest_add_cli_args_test_selection": [
-      "tests/test_vd2_invariants.py"
+      "tests/test_reconcile.py"
     ]
   },
   "no_tests": 338

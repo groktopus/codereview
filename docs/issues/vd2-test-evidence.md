@@ -40,12 +40,10 @@ The focused command is `PYTHONPATH=src python3 -m pytest -q tests/test_vd2_invar
 
 ## Mutation probe (2026-11-06)
 
-A disposable mutmut 3.8.1 probe on `src/pr_review_harness/reconcile.py` selected
-only `tests/test_vd2_invariants.py` and measured **185 killed / 338 survived /
-145 timeout** (668 mutants). With timeouts excluded, the score is **35.4%**;
-counting timeouts as killed would be 49.4%, and over all mutants 27.7%. This is
-a narrow-suite lower bound, not the 70% VD-2 gate. Report:
-[vd2-mutation-reconcile.json](../evidence/vd2-mutation-reconcile.json).
+**Superseded.** The first probe misread mutmut statuses: 185 killed, **338
+no-tests**, **145 survived**, 0 timeout; score `185/(185+145) = 56.1%` on the
+old `test_vd2_invariants.py` selection. The corrected expanded probe below is
+authoritative.
 
 
 ## Corrected mutation accounting (2026-11-06)
