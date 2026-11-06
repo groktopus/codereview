@@ -1001,6 +1001,16 @@ def _compare_attack_evaluation(
             )
             continue
         assert baseline_rate is not None and current_rate is not None
+        if any(
+            rate.get("denominator")
+            and (
+                rate.get("value") is None
+                or abs(rate["value"] - rate["numerator"] / rate["denominator"]) > 1e-9
+            )
+            for rate in (baseline_rate, current_rate)
+        ):
+            checks.append(_check(f"{key}:{arm}", "FAIL", reason="inconsistent_rate"))
+            continue
         if direction == "increase":
             regressed = current_rate["value"] > baseline_rate["value"] + tolerance + 1e-9
         else:

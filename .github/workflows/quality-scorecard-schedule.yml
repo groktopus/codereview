@@ -42,6 +42,7 @@ jobs:
             --labels examples/evaluation/adversarial-pairs-v1/labels.json \
             --output adversarial-pairs-scorecard.json --json > adversarial-pairs-scorecard.stdout.json
           cmp adversarial-pairs-scorecard.json adversarial-pairs-scorecard.stdout.json
+          cmp adversarial-pairs-scorecard.json examples/evaluation/adversarial-pairs-v1/scorecard.json
           python scripts/check_quality_scorecard_gate.py \
             --baseline examples/evaluation/adversarial-pairs-v1/scorecard.json \
             --current adversarial-pairs-scorecard.json \

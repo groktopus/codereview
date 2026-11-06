@@ -662,6 +662,7 @@ jobs:
             --output adversarial-baseline-scorecard.json \
             --json > adversarial-baseline.stdout.json
           cmp adversarial-baseline-scorecard.json adversarial-baseline.stdout.json
+          cmp adversarial-baseline-scorecard.json examples/evaluation/adversarial-pairs-v1/scorecard.json
           python scripts/check_quality_scorecard_gate.py \
             --baseline examples/evaluation/adversarial-pairs-v1/scorecard.json \
             --current adversarial-baseline-scorecard.json \
