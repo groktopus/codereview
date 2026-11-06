@@ -233,7 +233,7 @@ def test_only_explicit_policy_paths_receive_policy_trust(tmp_path):
     assert result["evidence"]["trust"] == "trusted_policy"
 
 
-def test_retrieval_fits_complete_ipc_envelope_and_rebinds_multibyte_content(tmp_path, monkeypatch):
+def test_oversized_retrieval_metadata_fails_closed_without_a_prefix(tmp_path, monkeypatch):
     import pr_review_harness.evidence as evidence_module
 
     class FrozenDatetime(datetime):
@@ -389,6 +389,20 @@ def test_symbol_target_returns_a_line_anchored_window_past_the_prefix_cap(tmp_pa
     assert evidence["source_url"].endswith("#L1981-L2002")
     assert len(first["evidence"]["content"].encode("utf-8")) <= 4096
     assert first["evidence"]["content"] != payload[:4096]
+    expected_id = (
+        "ev-"
+        + hashlib.sha256(
+            ipc_canonical(
+                {
+                    "snapshot_id": "snap-symbol",
+                    "revision": revision,
+                    "path": "src/m0.py",
+                    "hash": evidence["content_hash"],
+                }
+            )
+        ).hexdigest()[:24]
+    )
+    assert evidence["evidence_id"] == expected_id
 
 
 def test_symbol_target_missing_definition_records_a_typed_gap(tmp_path):
@@ -412,9 +426,40 @@ def test_symbol_target_outside_the_bounded_scan_records_a_typed_gap(tmp_path):
         snapshot,
         profile,
         _symbol_proposal("far_symbol"),
-        {"max_context_bytes": 4096, "max_scan_bytes": 64},
+        {"max_context_bytes": 8192, "max_scan_bytes": 64},
     )
+    assert len(payload.encode("utf-8")) > 64
     assert result == {"status": "UNRESOLVED", "reason": "symbol_outside_scan_limit", "evidence": None}
+
+
+def test_symbol_target_rejects_dotted_names_instead_of_leaf_fallback(tmp_path):
+    repo, revision = _symbol_repository(tmp_path, "def send():\n    return 1\n")
+    snapshot = _symbol_snapshot(revision, "send")
+    profile = {"retrieval_context_patterns": ["src/*.py"], "retrieval_revisions": {"implementation": "head"}}
+    result = retrieve_context_gap(
+        str(repo), snapshot, profile, _symbol_proposal("Client.send"), {"max_context_bytes": 4096}
+    )
+    assert result == {"status": "UNRESOLVED", "reason": "target_symbol_invalid", "evidence": None}
+
+
+def test_symbol_line_anchors_ignore_non_lf_line_separators(tmp_path):
+    payload = "def first():\n    pass\n\x0c\ndef form_symbol():\n    return 1\n"
+    repo, revision = _symbol_repository(tmp_path, payload)
+    snapshot = _symbol_snapshot(revision, "form_symbol")
+    profile = {"retrieval_context_patterns": ["src/*.py"], "retrieval_revisions": {"implementation": "head"}}
+    result = retrieve_context_gap(
+        str(repo),
+        snapshot,
+        profile,
+        _symbol_proposal("form_symbol"),
+        {"max_context_bytes": 4096, "window_before_lines": 0, "window_after_lines": 0},
+    )
+    assert result["status"] == "RESOLVED"
+    evidence = result["evidence"]
+    assert evidence["line_start"] == 4
+    assert evidence["line_end"] == 4
+    assert evidence["content"] == "def form_symbol():\n"
+    assert evidence["content_hash"] == hashlib.sha256(b"def form_symbol():\n").hexdigest()
 
 
 def test_symbol_target_that_is_ambiguous_records_a_typed_gap(tmp_path):

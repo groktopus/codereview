@@ -33,26 +33,27 @@ class ContextRetriever:
 _GAP_KINDS = {"caller", "implementation", "test", "configuration", "contract", "trust_boundary", "provenance", "other"}
 _LENSES = {"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"}
 _SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
-_SYMBOL_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*")
+_SYMBOL_RE = re.compile(r"[A-Za-z_]\w*")
 
 
 def _symbol_window(content: str, symbol: str, limit: int, before: int, after: int) -> tuple | str:
     """Locate one definition line and return a byte-bounded exact line window."""
-    pattern = rf"^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+{re.escape(symbol.rsplit('.', 1)[-1])}\b"
-    found = [content.count("\n", 0, match.start()) + 1 for match in re.finditer(pattern, content, re.MULTILINE)]
+    pattern = rf"^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+{re.escape(symbol)}\b"
+    lines = content.split("\n")
+    trailing = bool(lines and lines[-1] == "")
+    lines = lines[:-1] if trailing else lines
+    found = [index for index, line in enumerate(lines, 1) if re.match(pattern, line)]
     if len(found) != 1:
         return "symbol_not_found" if not found else "symbol_ambiguous"
-    line = found[0]
-    lines = content.splitlines(keepends=True)
-    start = max(1, line - before)
-    end = min(len(lines), line + after)
-    while start <= line <= end:
-        text = "".join(lines[start - 1 : end])
+    start = max(1, found[0] - before)
+    end = min(len(lines), found[0] + after)
+    while start <= found[0] <= end:
+        text = "\n".join(lines[start - 1 : end]) + ("\n" if end < len(lines) or trailing else "")
         if len(text.encode("utf-8")) <= limit:
             return start, end, text
-        if end - line >= line - start and end > line:
+        if end - found[0] >= found[0] - start and end > found[0]:
             end -= 1
-        elif start < line:
+        elif start < found[0]:
             start += 1
         else:
             break
@@ -169,12 +170,10 @@ def retrieve_context_gap(
         if unit is None:
             return {"status": "UNRESOLVED", "reason": "target_unit_not_in_snapshot", "evidence": None}
         requested_path = unit.get("path")
-    # A symbol target names no path. Resolve it only through changed units and
-    # already-captured evidence; an unknown or ambiguous path is an explicit gap.
+    # A symbol target resolves only through changed units and captured evidence.
     if target_keys[0] == "target_symbol" and not requested_path:
         captured = snapshot.get("evidence", {})
-        leaf = re.escape(symbol.rsplit(".", 1)[-1])
-        pattern = rf"^[+-]?[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+{leaf}\b"
+        pattern = rf"^[+-]?[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+{re.escape(symbol)}\b"
         matches = {
             candidate.get("path")
             for candidate in inventory
@@ -266,7 +265,7 @@ def retrieve_context_gap(
     if symbol is not None:
         size = int(_git(repo, "cat-file", "-s", object_id, deadline=deadline).decode("ascii").strip())
         scan_limit = max(1, min(int(limits.get("max_scan_bytes", 1_048_576)), 1_048_576))
-        read_limit = max(limit, min(scan_limit, size))
+        read_limit = min(scan_limit, size)
     raw, truncated = _git_blob_limited(repo, object_id, read_limit, deadline)
     if b"\0" in raw:
         return {"status": "UNRESOLVED", "reason": "binary_context_not_retrieved", "evidence": None}
@@ -282,6 +281,8 @@ def retrieve_context_gap(
             return {"status": "UNRESOLVED", "reason": "retrieval_evidence_encoding_invalid", "evidence": None}
     line_start = line_end = None
     if symbol is not None:
+        if truncated and content and not content.endswith("\n"):
+            content = content[: content.rfind("\n") + 1]
         before = int(limits.get("window_before_lines", 20))
         after = int(limits.get("window_after_lines", 20))
         window = _symbol_window(content, symbol, limit, before, after)
@@ -291,8 +292,7 @@ def retrieve_context_gap(
         line_start, line_end, content = window
         truncated = False
     elif truncated:
-        # A prefix is not line-anchored evidence. Require a symbol window or a
-        # larger retrieval ceiling instead of silently returning file head.
+        # A prefix is not line-anchored evidence; require a symbol window or a larger ceiling.
         return {"status": "UNRESOLVED", "reason": "retrieval_window_required", "evidence": None}
     content_bytes = content.encode("utf-8")
     content_hash = hashlib.sha256(content_bytes).hexdigest()
