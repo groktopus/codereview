@@ -19,9 +19,6 @@ from .source_audit import SOURCE_AUDIT_SERIALIZER_CANONICAL
 PLAN_SCHEMA = "pr457-current-source-capture-plan.v3"
 RECEIPT_SCHEMA = "pr457-current-source-capture-receipt.v3"
 SOURCE_AUDIT_SERIALIZER = SOURCE_AUDIT_SERIALIZER_CANONICAL
-SOURCE_WORKFLOW_REF = "groktopus/codereview/.github/workflows/pr457-role-accounted-shadow.yml@refs/heads/main"
-PLAN_FILENAME = "pr457-current-source-plan.json"
-RECEIPT_FILENAME = "pr457-current-source-receipt.json"
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 MAX_RUNTIME_FILES = 256

@@ -1288,6 +1288,12 @@ def bind_run_state(state: RunState) -> None:
     if "planned_task_inputs" in state.ledger and state.ledger["planned_task_inputs"] != state.planned_task_inputs:
         raise ValueError("resume planned input binding mismatch")
     state.ledger["planned_task_inputs"] = state.planned_task_inputs
+    try:
+        from .retrieval_plan import record_dispatch_retrieval_plans
+
+        record_dispatch_retrieval_plans(state)
+    except ValueError as exc:
+        raise EnginePreflightError("invalid_review_request", f"retrieval plan invalid: {type(exc).__name__}") from None
 
 
 def install_review_input_size(state: RunState) -> None:

@@ -135,6 +135,36 @@ never become a whole-file prefix. An unanchored retrieval request that exceeds
 the ceiling also returns `retrieval_window_required` rather than content from
 line 1. A HEAD symbol window remains repository evidence, not policy.
 
+### Deterministic retrieval plans
+
+Before provider dispatch, each specialist task with a changed-unit scope gets a
+`retrieval-plan.v1` object built only from already-captured snapshot evidence.
+The plan derives added/removed `def`/`class` names from the captured diff in
+first-seen order, resolves each symbol to a bounded definition window, resolves
+the enclosing definition for captured changed lines, and lists captured test
+units that reference a changed symbol by whole-name match. Windows carry path,
+revision, Git object identity, line interval, and a content hash over exactly
+the emitted bytes; plans never re-read Git or follow provider-supplied targets.
+
+Referenced test paths are additional targets and must pass the trusted retrieval
+allowlist. Changed-unit paths remain authorized by the task's own captured
+scope. HEAD windows stay repository evidence under `untrusted_pr_content`; a
+HEAD anchor is never policy.
+
+Windows are deduplicated by `(path, revision, line_start, line_end,
+content_hash)` and ordered deterministically, then bounded by the existing
+`max_windows_per_unit`, window byte, and before/after settings. Symbols with no
+captured source window, denied test targets, and over-limit windows produce
+typed plan gaps. `plan_hash` covers only those anchor fields (no wall-clock or
+capture timestamps), so equal captured evidence yields an equal hash.
+
+The pre-dispatch check records plans and gaps under `retrieval_plans` and
+`retrieval_plan_gaps` in the run ledger. A `REQUIRED` gap makes
+`retrieval_sufficient` false. This slice records those gaps for audit; it does
+not yet suppress dispatch on them, convert them into coverage rows, or feed the
+planned windows into provider input. Those integrations remain RC-2 work and
+must not be represented as complete coverage.
+
 ### Historical v1 preflight
 
 The PR 464 preflight used the same frozen base/head pair and the current full

@@ -76,8 +76,8 @@ def make_repo(tmp_path: Path) -> Path:
 def test_repository_ownership_record_passes() -> None:
     result = ownership.check(ROOT)
     assert result["errors"] == []
-    assert result["production_modules"] == 41
-    assert result["modules_mapped"] == 41
+    assert result["production_modules"] == 42
+    assert result["modules_mapped"] == 42
     assert result["open_issues"] == 6
 
 

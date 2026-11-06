@@ -402,9 +402,6 @@ class PrivateShadowCapture:
         self._replace_json(manifest_path, manifest)
         return [packet_dir / item["path"] for item in sorted(inventory, key=lambda item: item["path"])]
 
-    def _write_packet(self, path: Path, packet: dict) -> None:
-        _write_private(path, _canonical(packet) + b"\n", limit=MAX_TOTAL_BYTES)
-
     def _write_call_receipt(self, receipt: dict) -> None:
         self._replace_json(self.root / "calls" / f"{receipt['call_id']}.json", receipt)
         manifest_path = self.root / "manifest.json"

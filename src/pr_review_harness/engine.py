@@ -1170,18 +1170,6 @@ def _run_elapsed_ms(ledger: dict) -> float | None:
     return round(elapsed, 2) if math.isfinite(elapsed) and elapsed >= 0 else None
 
 
-def safe_provider_error(exc: Exception) -> str | None:
-    from .providers import ProviderError
-
-    if isinstance(exc, ProviderError) and re.fullmatch(r"[a-z0-9_]{1,100}", exc.code):
-        return exc.code
-    return None
-
-
-def _stable_finding_id(run_id: str, candidate: dict) -> str:
-    return "finding-" + _hash({"run_id": run_id, "candidate": candidate})[:16]
-
-
 def _reduce(result: dict, allow_empty_approve: bool, policy_valid: bool) -> str:
     findings = result["findings"]
     blockers = [f for f in findings if f.get("status") == "ACCEPTED" and f.get("blocking_class") == "BLOCKING"]

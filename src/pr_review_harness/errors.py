@@ -19,8 +19,6 @@ error class can depend on it without import cycles.
 
 from __future__ import annotations
 
-from typing import Any
-
 
 class HarnessError(Exception):
     """Base class for errors the harness raises deliberately."""
@@ -119,9 +117,3 @@ def defect_name(exc: BaseException | str | None) -> str | None:
     if isinstance(exc, str):
         return exc if exc in _DEFECT_NAMES else None
     return type(exc).__name__ if exc is not None else None
-
-
-def safe_error_name(exc: Any) -> str:
-    """Return a bounded, non-secret error name for durable records."""
-    name = type(exc).__name__ if isinstance(exc, BaseException) else "Unknown"
-    return name if name.isidentifier() and len(name) <= 80 else "Unknown"

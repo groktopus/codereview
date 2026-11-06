@@ -666,7 +666,10 @@ class RunState:
     retrieval_envelope_bytes: Any
     retrieval_key: Any
     retrieval_limits: dict
+    retrieval_plan_gaps: list
+    retrieval_plans: list
     retrieval_result_bytes: Any
+    retrieval_sufficient: bool
     retrieved: Any
     retrieved_context: Any
     reused_assessment: Any

@@ -123,3 +123,14 @@ ceiling, and the one-orchestrator/public-surface invariants in CI.
 - Lower `required_reduction` to 0.24: rejected because it rewrites the CA-2
   acceptance result instead of recording a bounded exception.
 - Defer OE-2: rejected by the owner; the cost feature is wanted now.
+
+
+## Addendum: RC-2 retrieval compiler allowance (2026-11-06)
+
+The owner authorized the quality-preserving choice for RC-2. The retrieval-plan
+compiler adds a measured **226** net source lines after 72 lines of dead-code and
+duplicate-helper removal. A one-time `rc2_retrieval_compiler_allowance_lines: 226`
+is recorded in `docs/public-surface.json`; the effective ceiling is
+`base*(1-required)+feature budget+formatting+waiver+execution-failure+execution-reason+RC-2`.
+This is feature headroom for the compiler slice, not a renewal of the 500-line
+budget.

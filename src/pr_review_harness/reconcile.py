@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from typing import Any, cast
 
+from .budget import _canonical
 from .review_state import FindingRecord
-
-
-def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def _norm(value: Any) -> str:
