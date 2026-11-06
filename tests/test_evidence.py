@@ -157,7 +157,7 @@ def test_retrieval_rejects_unallowlisted_traversal_and_bad_proposals(tmp_path):
         retrieve_context_gap(str(repo), snapshot, profile, {**proposal, "target_unit_id": "u"}, limits)
 
 
-def test_retrieval_is_bounded_and_marks_partial_evidence(tmp_path):
+def test_oversized_untargeted_retrieval_has_no_prefix_fallback(tmp_path):
     repo, base, head = repository(tmp_path)
     snapshot = {"snapshot_id": "snap-test", "base_sha": base, "head_sha": head, "inventory": []}
     proposal = {
@@ -169,13 +169,10 @@ def test_retrieval_is_bounded_and_marks_partial_evidence(tmp_path):
     result = retrieve_context_gap(
         str(repo), snapshot, {"context_paths": ["AGENTS.md"]}, proposal, {"max_context_bytes": 3}
     )
-    assert result["status"] == "PARTIAL"
-    assert result["evidence"]["content"] == "tru"
-    assert result["evidence"]["truncated"] is True
-    assert result["evidence"]["captured_bytes"] == 3
+    assert result == {"status": "UNRESOLVED", "reason": "retrieval_window_required", "evidence": None}
 
 
-def test_byte_cap_ending_inside_valid_utf8_codepoint_keeps_complete_prefix(tmp_path):
+def test_byte_cap_ending_inside_valid_utf8_codepoint_does_not_publish_a_prefix(tmp_path):
     repo, base, head = repository(tmp_path)
     (repo / "AGENTS.md").write_bytes("AπB".encode("utf-8"))
     git(repo, "add", "AGENTS.md")
@@ -193,11 +190,7 @@ def test_byte_cap_ending_inside_valid_utf8_codepoint_keeps_complete_prefix(tmp_p
         },
         {"max_bytes": 2},
     )
-    evidence = result["evidence"]
-    assert result["status"] == "PARTIAL"
-    assert evidence["content"] == "A"
-    assert evidence["captured_bytes"] == 1
-    assert evidence["content_hash"] == hashlib.sha256(b"A").hexdigest()
+    assert result == {"status": "UNRESOLVED", "reason": "retrieval_window_required", "evidence": None}
 
 
 def test_invalid_utf8_context_fails_closed(tmp_path):
@@ -290,25 +283,11 @@ def test_retrieval_fits_complete_ipc_envelope_and_rebinds_multibyte_content(tmp_
     assert first == second
     assert exact_boundary == unbounded
     assert len(ipc_canonical(exact_boundary)) == len(ipc_canonical(unbounded))
-    assert first["status"] == "PARTIAL"
-    assert first["reason"] == "ipc_envelope_truncated"
-    assert len(ipc_canonical(first)) <= cap
-    evidence = first["evidence"]
-    raw = evidence["content"].encode("utf-8")
-    assert raw.decode("utf-8") == evidence["content"]
-    assert len(raw) == evidence["captured_bytes"] < len(payload.encode("utf-8"))
-    assert evidence["truncated"] is True
-    assert evidence["content_hash"] == hashlib.sha256(raw).hexdigest()
-    expected_id = (
-        "ev-"
-        + hashlib.sha256(
-            ipc_canonical(
-                {"snapshot_id": "snap-test", "revision": base, "path": "AGENTS.md", "hash": evidence["content_hash"]}
-            )
-        ).hexdigest()[:24]
-    )
-    assert evidence["evidence_id"] == expected_id
-    assert evidence["source_url"].endswith(f"#L1-L{max(len(evidence['content'].splitlines()), 1)}")
+    assert first == {
+        "status": "UNRESOLVED",
+        "reason": "retrieval_metadata_exceeds_ipc_limit",
+        "evidence": None,
+    }
 
 
 def test_retrieval_metadata_that_cannot_fit_fails_closed_without_trimming_fields(tmp_path):
@@ -339,3 +318,111 @@ def test_retrieval_metadata_that_cannot_fit_fails_closed_without_trimming_fields
         "evidence": None,
     }
     assert len(ipc_canonical(result)) <= 512
+
+
+def _symbol_repository(tmp_path: Path, payload: str) -> tuple[Path, str]:
+    path = tmp_path / "symbol-repo"
+    subprocess.run(["git", "init", str(path)], check=True, stdout=subprocess.DEVNULL)
+    git(path, "config", "user.email", "fixture@example.invalid")
+    git(path, "config", "user.name", "Fixture")
+    (path / "src").mkdir()
+    (path / "src" / "m0.py").write_text(payload, encoding="utf-8")
+    git(path, "add", "src/m0.py")
+    git(path, "-c", "core.hooksPath=/dev/null", "commit", "-m", "symbol fixture")
+    return path, git(path, "rev-parse", "HEAD")
+
+
+def _symbol_snapshot(revision: str, symbol: str) -> dict:
+    return {
+        "snapshot_id": "snap-symbol",
+        "base_sha": revision,
+        "head_sha": revision,
+        "repository_url": "https://example.invalid/repo",
+        "inventory": [{"unit_id": "u1", "path": "src/m0.py", "evidence_ids": ["diff-1"]}],
+        "evidence": {
+            "diff-1": {
+                "evidence_id": "diff-1",
+                "path": "src/m0.py",
+                "source_kind": "diff",
+                "content": f"+def {symbol}():\n+    return 42\n",
+            }
+        },
+    }
+
+
+def _symbol_proposal(symbol: str) -> dict:
+    return {
+        "evidence_kind": "implementation",
+        "target": {"target_unit_id": None, "target_path": None, "target_symbol": symbol},
+        "rationale": "Need the changed definition",
+        "required_lens": "correctness",
+    }
+
+
+def test_symbol_target_returns_a_line_anchored_window_past_the_prefix_cap(tmp_path, monkeypatch):
+    import pr_review_harness.evidence as evidence_module
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 5, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(evidence_module, "datetime", FrozenDatetime)
+    symbol = "def context_symbol_at_end():\n    return 42\n"
+    payload = "trusted context line\n" * 2000 + symbol
+    repo, revision = _symbol_repository(tmp_path, payload)
+    snapshot = _symbol_snapshot(revision, "context_symbol_at_end")
+    profile = {"retrieval_context_patterns": ["src/*.py"], "retrieval_revisions": {"implementation": "head"}}
+    limits = {"max_context_bytes": 4096, "max_retrieval_result_bytes": 4096}
+    first = retrieve_context_gap(str(repo), snapshot, profile, _symbol_proposal("context_symbol_at_end"), limits)
+    second = retrieve_context_gap(str(repo), snapshot, profile, _symbol_proposal("context_symbol_at_end"), limits)
+
+    assert first == second
+    assert first["status"] == "RESOLVED"
+    evidence = first["evidence"]
+    assert evidence["line_start"] == 1981
+    assert evidence["line_end"] == 2002
+    assert evidence["truncated"] is False
+    assert "def context_symbol_at_end" in evidence["content"]
+    assert evidence["captured_bytes"] == len(evidence["content"].encode("utf-8"))
+    assert evidence["content_hash"] == hashlib.sha256(evidence["content"].encode("utf-8")).hexdigest()
+    assert evidence["source_url"].endswith("#L1981-L2002")
+    assert len(first["evidence"]["content"].encode("utf-8")) <= 4096
+    assert first["evidence"]["content"] != payload[:4096]
+
+
+def test_symbol_target_missing_definition_records_a_typed_gap(tmp_path):
+    payload = "def present_symbol():\n    return 1\n"
+    repo, revision = _symbol_repository(tmp_path, payload)
+    snapshot = _symbol_snapshot(revision, "absent_symbol")
+    profile = {"retrieval_context_patterns": ["src/*.py"], "retrieval_revisions": {"implementation": "head"}}
+    result = retrieve_context_gap(
+        str(repo), snapshot, profile, _symbol_proposal("absent_symbol"), {"max_context_bytes": 4096}
+    )
+    assert result == {"status": "UNRESOLVED", "reason": "symbol_not_found", "evidence": None}
+
+
+def test_symbol_target_outside_the_bounded_scan_records_a_typed_gap(tmp_path):
+    payload = "trusted context line\n" * 200 + "def far_symbol():\n    return 1\n"
+    repo, revision = _symbol_repository(tmp_path, payload)
+    snapshot = _symbol_snapshot(revision, "far_symbol")
+    profile = {"retrieval_context_patterns": ["src/*.py"], "retrieval_revisions": {"implementation": "head"}}
+    result = retrieve_context_gap(
+        str(repo),
+        snapshot,
+        profile,
+        _symbol_proposal("far_symbol"),
+        {"max_context_bytes": 4096, "max_scan_bytes": 64},
+    )
+    assert result == {"status": "UNRESOLVED", "reason": "symbol_outside_scan_limit", "evidence": None}
+
+
+def test_symbol_target_that_is_ambiguous_records_a_typed_gap(tmp_path):
+    payload = "def duplicate():\n    return 1\n\ndef duplicate():\n    return 2\n"
+    repo, revision = _symbol_repository(tmp_path, payload)
+    snapshot = _symbol_snapshot(revision, "duplicate")
+    profile = {"retrieval_context_patterns": ["src/*.py"], "retrieval_revisions": {"implementation": "head"}}
+    result = retrieve_context_gap(
+        str(repo), snapshot, profile, _symbol_proposal("duplicate"), {"max_context_bytes": 4096}
+    )
+    assert result == {"status": "UNRESOLVED", "reason": "symbol_ambiguous", "evidence": None}

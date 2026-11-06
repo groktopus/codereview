@@ -345,7 +345,7 @@
     {
       "path": "src/pr_review_harness/evidence.py",
       "qualname": "retrieve_context_gap",
-      "lines": 187
+      "lines": 231
     },
     {
       "path": "src/pr_review_harness/external_effect_observer.py",

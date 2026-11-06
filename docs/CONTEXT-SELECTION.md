@@ -118,6 +118,20 @@ beyond a truncated scan. A truncated CRLF line is not accepted as complete
 unless its LF byte was captured. V1 and v2 continue to use their historical
 whole-range behavior; a profile must opt into v3 to split an oversized range.
 
+### Symbol-anchored follow-up retrieval
+
+A follow-up gap may name a `target_symbol` instead of a path. Retrieval resolves
+the owning changed unit only from already-captured inventory evidence and the
+trusted allowlist, reads the blob up to the configured `max_scan_bytes`, locates
+one `def`/`class` declaration, and returns a complete-line window bounded by
+`window_before_lines`/`window_after_lines` and the retrieval byte ceiling. The
+window carries `line_start`, `line_end`, a content hash over exactly those bytes,
+and a line-anchored source URL. Missing, ambiguous, uninspectable, or
+scan-truncated symbols are explicit `UNRESOLVED` reasons; they never become a
+whole-file prefix. An unanchored retrieval request that exceeds the ceiling also
+returns `retrieval_window_required` rather than content from line 1. A HEAD
+symbol window remains repository evidence, not policy.
+
 ### Historical v1 preflight
 
 The PR 464 preflight used the same frozen base/head pair and the current full

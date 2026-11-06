@@ -33,74 +33,30 @@ class ContextRetriever:
 _GAP_KINDS = {"caller", "implementation", "test", "configuration", "contract", "trust_boundary", "provenance", "other"}
 _LENSES = {"correctness", "tests", "design", "security", "performance", "maintainability", "project_specific"}
 _SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
+_SYMBOL_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*")
 
 
-def _fit_ipc_envelope(result: dict, max_result_bytes: int) -> dict:
-    """Fit trusted retrieval content to the existing serialized IPC ceiling.
-
-    Only evidence content is shortened. The complete envelope is measured with
-    the same canonical serializer used by ``IsolatedInvocation``; all evidence
-    bindings are then recomputed and truncation is made explicit.
-    """
-    if len(_ipc_canonical(result)) <= max_result_bytes:
-        return result
-    evidence = result.get("evidence")
-    if not isinstance(evidence, dict) or not isinstance(evidence.get("content"), str):
-        return {"status": "UNRESOLVED", "reason": "retrieval_metadata_exceeds_ipc_limit", "evidence": None}
-
-    original_content = evidence["content"]
-    original_bytes = original_content.encode("utf-8")
-    if hashlib.sha256(original_bytes).hexdigest() != evidence.get("content_hash"):
-        # The source was not representable as the UTF-8 text whose hash the
-        # engine verifies. Do not manufacture a different evidence identity.
-        return {"status": "UNRESOLVED", "reason": "retrieval_evidence_encoding_invalid", "evidence": None}
-
-    low, high = 0, len(original_content)
-    best = None
-    while low <= high:
-        middle = (low + high) // 2
-        candidate_content = original_content[:middle]
-        candidate_bytes = candidate_content.encode("utf-8")
-        candidate_evidence = {
-            **evidence,
-            "content": candidate_content,
-            "content_hash": hashlib.sha256(candidate_bytes).hexdigest(),
-            "captured_bytes": len(candidate_bytes),
-            "truncated": True,
-        }
-        candidate_evidence["evidence_id"] = (
-            "ev-"
-            + hashlib.sha256(
-                _ipc_canonical(
-                    {
-                        "snapshot_id": candidate_evidence.get("snapshot_id"),
-                        "revision": candidate_evidence.get("source_revision"),
-                        "path": candidate_evidence.get("path"),
-                        "hash": candidate_evidence["content_hash"],
-                    }
-                )
-            ).hexdigest()[:24]
-        )
-        source_url = candidate_evidence.get("source_url")
-        if isinstance(source_url, str) and "#L1-" in source_url:
-            base_url = source_url.split("#L1-", 1)[0]
-            line_count = max(len(candidate_content.splitlines()), 1)
-            candidate_evidence["source_url"] = f"{base_url}#L1-L{line_count}"
-        candidate_result = {
-            **result,
-            "status": "PARTIAL",
-            "reason": "ipc_envelope_truncated",
-            "evidence": candidate_evidence,
-        }
-        if len(_ipc_canonical(candidate_result)) <= max_result_bytes:
-            best = candidate_result
-            low = middle + 1
+def _symbol_window(content: str, symbol: str, limit: int, before: int, after: int) -> tuple | str:
+    """Locate one definition line and return a byte-bounded exact line window."""
+    pattern = rf"^[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+{re.escape(symbol.rsplit('.', 1)[-1])}\b"
+    found = [content.count("\n", 0, match.start()) + 1 for match in re.finditer(pattern, content, re.MULTILINE)]
+    if len(found) != 1:
+        return "symbol_not_found" if not found else "symbol_ambiguous"
+    line = found[0]
+    lines = content.splitlines(keepends=True)
+    start = max(1, line - before)
+    end = min(len(lines), line + after)
+    while start <= line <= end:
+        text = "".join(lines[start - 1 : end])
+        if len(text.encode("utf-8")) <= limit:
+            return start, end, text
+        if end - line >= line - start and end > line:
+            end -= 1
+        elif start < line:
+            start += 1
         else:
-            high = middle - 1
-
-    if best is None:
-        return {"status": "UNRESOLVED", "reason": "retrieval_metadata_exceeds_ipc_limit", "evidence": None}
-    return best
+            break
+    return "source_line_exceeds_window_limit"
 
 
 def _git(repo: str, *args: str, deadline: float | None = None) -> bytes:
@@ -192,13 +148,14 @@ def retrieve_context_gap(
     target = proposal.get("target", proposal)
     if not isinstance(target, dict):
         raise EvidenceError("context proposal target is invalid")
+    symbol = target.get("target_symbol")
+    if symbol is not None and (not isinstance(symbol, str) or not _SYMBOL_RE.fullmatch(symbol)):
+        return {"status": "UNRESOLVED", "reason": "target_symbol_invalid", "evidence": None}
     target_keys = [key for key in ("target_unit_id", "target_path", "target_symbol") if target.get(key)]
     if len(target_keys) != 1:
         raise EvidenceError("context proposal must have exactly one target")
     if not isinstance(proposal.get("rationale"), str) or not proposal["rationale"].strip():
         raise EvidenceError("context proposal rationale is required")
-    if target_keys[0] == "target_symbol":
-        return {"status": "UNRESOLVED", "reason": "symbol_lookup_not_in_allowlist_contract", "evidence": None}
 
     inventory = snapshot.get("inventory", [])
     if not isinstance(inventory, list):
@@ -212,6 +169,25 @@ def retrieve_context_gap(
         if unit is None:
             return {"status": "UNRESOLVED", "reason": "target_unit_not_in_snapshot", "evidence": None}
         requested_path = unit.get("path")
+    # A symbol target names no path. Resolve it only through changed units and
+    # already-captured evidence; an unknown or ambiguous path is an explicit gap.
+    if target_keys[0] == "target_symbol" and not requested_path:
+        captured = snapshot.get("evidence", {})
+        leaf = re.escape(symbol.rsplit(".", 1)[-1])
+        pattern = rf"^[+-]?[ \t]*(?:async[ \t]+)?(?:def|class)[ \t]+{leaf}\b"
+        matches = {
+            candidate.get("path")
+            for candidate in inventory
+            if isinstance(candidate, dict)
+            for evidence_id in candidate.get("evidence_ids", [])
+            if isinstance(captured.get(evidence_id), dict)
+            and isinstance(captured[evidence_id].get("content"), str)
+            and re.search(pattern, captured[evidence_id]["content"], re.MULTILINE)
+        }
+        if len(matches) != 1:
+            reason = "symbol_path_ambiguous" if len(matches) > 1 else "symbol_path_unresolved"
+            return {"status": "UNRESOLVED", "reason": reason, "evidence": None}
+        requested_path = matches.pop()
     if (
         not isinstance(requested_path, str)
         or not requested_path
@@ -286,7 +262,12 @@ def retrieve_context_gap(
         raise EvidenceError("immutable evidence object identity is invalid")
     if target_binding is not None and target_binding.get("source_object_id") != object_id:
         return {"status": "UNRESOLVED", "reason": "context_target_source_identity_mismatch", "evidence": None}
-    raw, truncated = _git_blob_limited(repo, object_id, limit, deadline)
+    read_limit = limit
+    if symbol is not None:
+        size = int(_git(repo, "cat-file", "-s", object_id, deadline=deadline).decode("ascii").strip())
+        scan_limit = max(1, min(int(limits.get("max_scan_bytes", 1_048_576)), 1_048_576))
+        read_limit = max(limit, min(scan_limit, size))
+    raw, truncated = _git_blob_limited(repo, object_id, read_limit, deadline)
     if b"\0" in raw:
         return {"status": "UNRESOLVED", "reason": "binary_context_not_retrieved", "evidence": None}
     try:
@@ -299,6 +280,20 @@ def retrieve_context_gap(
             content = raw.decode("utf-8")
         else:
             return {"status": "UNRESOLVED", "reason": "retrieval_evidence_encoding_invalid", "evidence": None}
+    line_start = line_end = None
+    if symbol is not None:
+        before = int(limits.get("window_before_lines", 20))
+        after = int(limits.get("window_after_lines", 20))
+        window = _symbol_window(content, symbol, limit, before, after)
+        if isinstance(window, str):
+            reason = "symbol_outside_scan_limit" if truncated and window == "symbol_not_found" else window
+            return {"status": "UNRESOLVED", "reason": reason, "evidence": None}
+        line_start, line_end, content = window
+        truncated = False
+    elif truncated:
+        # A prefix is not line-anchored evidence. Require a symbol window or a
+        # larger retrieval ceiling instead of silently returning file head.
+        return {"status": "UNRESOLVED", "reason": "retrieval_window_required", "evidence": None}
     content_bytes = content.encode("utf-8")
     content_hash = hashlib.sha256(content_bytes).hexdigest()
     evidence_id = (
@@ -334,17 +329,22 @@ def retrieve_context_gap(
         "task_id": proposal.get("_task_id"),
         "truncated": truncated,
     }
+    if line_start is not None:
+        evidence["line_start"] = line_start
+        evidence["line_end"] = line_end
     repository_url = snapshot.get("repository_url")
     if isinstance(repository_url, str):
         parsed = urlsplit(repository_url)
         if parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:
             source_url = f"https://{parsed.netloc.lower()}{parsed.path.rstrip('/')}/blob/{revision}/{quote(requested_path, safe='/')}"
-            line_count = max(len(evidence["content"].splitlines()), 1)
-            evidence["source_url"] = f"{source_url}#L1-L{line_count}"
+            start = evidence.get("line_start", 1)
+            line_count = evidence.get("line_end", max(len(evidence["content"].splitlines()), 1))
+            evidence["source_url"] = f"{source_url}#L{start}-L{line_count}"
     result = {"status": "RESOLVED" if not evidence["truncated"] else "PARTIAL", "reason": None, "evidence": evidence}
     max_result_bytes = limits.get("max_retrieval_result_bytes")
     if max_result_bytes is not None:
         if isinstance(max_result_bytes, bool) or not isinstance(max_result_bytes, int) or max_result_bytes < 1:
             raise EvidenceError("context retrieval result byte limit is invalid")
-        result = _fit_ipc_envelope(result, max_result_bytes)
+        if len(_ipc_canonical(result)) > max_result_bytes:
+            return {"status": "UNRESOLVED", "reason": "retrieval_metadata_exceeds_ipc_limit", "evidence": None}
     return result

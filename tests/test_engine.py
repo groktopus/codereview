@@ -2808,7 +2808,7 @@ def test_repeated_evidence_id_requires_same_source_binding_but_ignores_proposal_
         engine_module._merge_evidence_rows([evidence, {**annotated, "line_start": 3}])
 
 
-def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatches_followup(tmp_path):
+def test_real_context_retriever_rejects_unanchored_prefix_and_never_dispatches_followup(tmp_path):
     repo = tmp_path / "evidence-repo"
     repo.mkdir()
     subprocess.run(["git", "init", str(repo)], check=True, stdout=subprocess.DEVNULL)
@@ -2841,19 +2841,12 @@ def test_real_context_retriever_fits_ipc_cap_and_partial_context_never_dispatche
     )
 
     gap = result["context_gaps"][0]
-    assert gap["retrieval_status"] == "PARTIAL", gap.get("retrieval_reason")
-    retrieved = result["ledger"]["retrieved_context"][gap["proposal_id"]]
-    item = retrieved["evidence"][0]
-    content_bytes = item["content"].encode("utf-8")
-    assert gap["retrieval_status"] == "PARTIAL"
-    assert gap["retrieval_reason"] == "ipc_envelope_truncated"
-    assert gap["retrieved_bytes"] == len(content_bytes)
+    assert gap["retrieval_status"] == "UNRESOLVED"
+    assert gap["retrieval_reason"] == "retrieval_window_required"
+    assert result["ledger"]["retrieved_context"][gap["proposal_id"]]["evidence"] == []
     assert gap["retrieval_envelope_bytes"] <= retrieval_ceiling
-    assert gap["retrieved_bytes"] <= retrieval_ceiling
-    assert hashlib.sha256(content_bytes).hexdigest() == item["content_hash"]
     settlement = result["ledger"]["budget"]["settlements"][f"{gap['proposal_id']}:context-retrieval"]
-    assert settlement["actual_output_bytes"] == len(content_bytes)
-    assert settlement["actual_output_bytes"] < gap["retrieval_envelope_bytes"]
+    assert settlement["actual_output_bytes"] <= gap["retrieval_envelope_bytes"]
     assert result["budget"]["context_retrievals_reserved"] == 1
     assert result["budget"]["followup_tasks_reserved"] == 0
     assert len(result["task_results"]) == 1
