@@ -1,6 +1,6 @@
 # Reassessment after the A-minus issue program (2026-11-02)
 
-Status: **A− not achieved. 3 of 10 dimensions meet A− (updated 2026-11-04).** This note records the
+Status: **A− not achieved. 3 of 10 dimensions meet A− (updated 2026-11-06).** This note records the
 current judgment after the 33-issue remediation program and the merged
 infrastructure PRs. It supersedes the overall judgment in
 [`CODEBASE-ASSESSMENT-2026-11-01.md`](CODEBASE-ASSESSMENT-2026-11-01.md) while
@@ -13,9 +13,9 @@ keeping that document as the original evidence snapshot.
 | Evidence discipline | **A** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, frozen historical fixtures, exact-byte pins. | None material. |
 | Effect safety | **A−** | Default read-only, typed effect boundaries, 11-test publication fault matrix, publication receipts, fail-closed unknown states, least-privilege App token, and one exercised live canary through the narrow one-shot adapter ([receipt](evidence/canary-review-5763357701.json), review 5763357701 on SlopSearX#1097). The general protected runtime is out of scope and remains intentionally unexercised. | None material for the A− gate; the canary proves the external review effect, not general publication. |
 | Deterministic control plane | **A−** | Staged `run_review`, `RunState`, budgets, deterministic planning, contract registry, typed boundaries. | No A− blocker; A would require reducing the 38 functions over 150 lines and tightening module cohesion. |
-| Test depth | **B+** | 3,600+ tests, 88.48% coverage (CI run 41438939529 at PR #302), compatibility suite, fault/invariant suites. | Mutation score is **not established**: the exploratory probe was discarded and no retained report, mutant count, killed count, or survivor triage exists (#252). |
-| Review completeness | **C−/D+** | Canonical `review-completeness-taxonomy.v1`, per-run summary, fixture baseline, and an active seeded-regression CI gate exist; frozen corpus exists. | No frozen-corpus baseline from real review runs (#241); fixture-only gate does not prove corpus completeness. |
-| Review quality evidence | **F** | Frozen corpus v1 (41 cases), synthetic labeling rubric (ADR 0010), retained six-packet synthetic pilot, and scorecard/gate infrastructure. | No checked-in predictions or accepted six-case baseline; exploratory runs are not retained, and large PRs still return bounded `INCOMPLETE` on missing evidence/coverage (#243/#244). |
+| Test depth | **B** | 3,800+ tests, compatibility suite, fault/invariant suites, direct reconcile consolidation tests, and a measured mutation probe (185 killed / 338 survived / 145 timeout = 35.4% on `reconcile.py`). | Mutation is **35.4%**, below the 70% gate; budget/reducer modules remain unmeasured (#252). |
+| Review completeness | **C** | A five-case comparable frozen-corpus baseline and active CI gate are recorded; execution/context failures can be waived into `COMPLETE_WITH_WAIVERS` without approval. | Baseline is five cases, #770 is disclosed but not included; no live full-corpus run. |
+| Review quality evidence | **D** | Five-case predictions, synthetic scorecard with the synthetic arm `present`, accepted baseline, CI/scheduled gate, and no accuracy claim. | No live full-corpus run; one case (`qm1-slopsearx-pr770`) is missing; no second prediction arm (#244/#245). |
 | Architecture | **C+/B−** | Typed core boundaries, contract registry, staged pipeline, no runtime dependencies. | Oversized functions remain; `run_review` orchestration is still concentrated; module ownership is documented but not enforced by required review. |
 | Operational readiness | **B−/B** | Hash-locked dependencies, install matrix, public API/support matrix, SBOM/provenance tooling, release workflow, active dependency review. | No general production deployment, on-call/runbook exercise, or non-canary publication operation; releases and dependency review are otherwise current. |
 | Documentation | **B+** | 180+ indexed documents, 1,200+ links with 0 broken, generated status evidence, ADR index, docs-truth checks. | Owner-reviewed status remains intentionally stale; some operational evidence is CI-defined but unexecuted. |
@@ -28,7 +28,7 @@ keeping that document as the original evidence snapshot.
 - Review evidence: receipt protocol enforced on merged PRs (#293, #295, #297,
   #298, #300); decision-record links enforced for future safety-invariant
   changes (#300).
-- Ownership/backlog: GA-3 closed with the then-current 16-issue snapshot (#301); the board now has 10 open issues.
+- Ownership/backlog: GA-3 closed with the then-current 16-issue snapshot (#301); the board now has 7 open issues.
 - Quality measurement: frozen corpus, versioned labeling protocol, retained
   synthetic pilot, deterministic scorecard, missing-data semantics, seeded
   regression gate (#298, #302, #316).
@@ -69,3 +69,16 @@ established, and architecture, documentation, governance, and operational
 readiness have structural gaps. The first release
 predates attestation (`v0.1.0` remains unsigned; `v0.1.1` is attested), and branch protection has not been
 exercised by a non-admin merge.
+
+
+## Update 2026-11-06
+
+Closed since the prior reassessment: **RC-1** (retrieval envelope, test-based receipt),
+**RC-3** (five-case completeness baseline and gate), and **QM-2** (predictions and
+synthetic scorecard). Execution/context failures can now be explicitly waived into
+`COMPLETE_WITH_WAIVERS`, still capped at `COMMENT` and never approval. The open
+backlog is **7 issues**: RC-2, QM-3, QM-4, QM-5, VD-2, VD-3, VD-4.
+
+The A− count is unchanged at **3/10**. Review completeness moved to **C** and quality
+evidence to **D**, but neither reaches A−. Test depth fell to **B** because the
+measured reconcile mutation score is **35.4%**, not the required 70% or better.
