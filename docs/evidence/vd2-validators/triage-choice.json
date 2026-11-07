@@ -1,0 +1,80 @@
+[
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_1",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_13",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_14",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_25",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_35",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_51",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_58",
+    "baseline_status": "survived",
+    "final_status": "survived",
+    "triage": "REAL GAP: probability maximum 1->2 permits >1 value while sum remains within normalization tolerance; test does not isolate upper bound from negative companion probability. Not equivalent."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_59",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_64",
+    "baseline_status": "survived",
+    "final_status": "survived",
+    "triage": "UNRESOLVED FLOATING BOUNDARY: normalization comparison >0.02 -> >=0.02; exact representable boundary not established. Not equivalent-classified, retained survivor."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_65",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_66",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_69",
+    "baseline_status": "survived",
+    "final_status": "survived",
+    "triage": "UNRESOLVED FLOATING BOUNDARY: selected maximum tolerance >= -> > at max-1e-6. Exact boundary not established. Not equivalent-classified, retained survivor."
+  },
+  {
+    "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_72",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  }
+]

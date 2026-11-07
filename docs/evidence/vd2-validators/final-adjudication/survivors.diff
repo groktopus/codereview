@@ -1,0 +1,25 @@
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_116: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -43,7 +43,7 @@
+         if (
+             not isinstance(rows, list)
+             or len(rows) > MAX_REF_COUNT
+-            or any(not _is_text(row, MAX_TEXT_BYTES) for row in rows)
++            or any(not _is_text(row, ) for row in rows)
+         ):
+             raise ContractIssue("invalid_assessment_array")
+     if (
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_141: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -53,7 +53,7 @@
+         and not payload["evidence_refs"]
+     ):
+         raise ContractIssue("supported_claim_requires_evidence")
+-    if not _is_text(payload["summary"], MAX_TEXT_BYTES):
++    if not _is_text(payload["summary"], ):
+         raise ContractIssue("invalid_assessment_summary")
+     causal_roles = None
+     if version == ADJUDICATION_V3:

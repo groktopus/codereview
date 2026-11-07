@@ -1,0 +1,409 @@
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_1: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -9,8 +9,7 @@
+     """Check normalized v3 role claims against the exact adjudication input."""
+     if (
+         not isinstance(assessment, dict)
+-        or assessment.get("contract_version") != _ADJUDICATION_V3
+-        or assessment.get("source_contract_version") != _ADJUDICATION_V3
++        or assessment.get("contract_version") != _ADJUDICATION_V3 and assessment.get("source_contract_version") != _ADJUDICATION_V3
+     ):
+         return False, set()
+     provider_details = provider_identity.get("provider") if isinstance(provider_identity, dict) else None
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_2: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -8,8 +8,7 @@
+ ) -> tuple[bool, set[str]]:
+     """Check normalized v3 role claims against the exact adjudication input."""
+     if (
+-        not isinstance(assessment, dict)
+-        or assessment.get("contract_version") != _ADJUDICATION_V3
++        not isinstance(assessment, dict) and assessment.get("contract_version") != _ADJUDICATION_V3
+         or assessment.get("source_contract_version") != _ADJUDICATION_V3
+     ):
+         return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_12: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -12,7 +12,7 @@
+         or assessment.get("contract_version") != _ADJUDICATION_V3
+         or assessment.get("source_contract_version") != _ADJUDICATION_V3
+     ):
+-        return False, set()
++        return True, set()
+     provider_details = provider_identity.get("provider") if isinstance(provider_identity, dict) else None
+     if (
+         not isinstance(provider_details, dict)
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_15: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -13,7 +13,7 @@
+         or assessment.get("source_contract_version") != _ADJUDICATION_V3
+     ):
+         return False, set()
+-    provider_details = provider_identity.get("provider") if isinstance(provider_identity, dict) else None
++    provider_details = provider_identity.get("provider") if (isinstance(provider_identity, dict)) or True else None
+     if (
+         not isinstance(provider_details, dict)
+         or provider_details.get("adjudication_rubric_version") != _ADJUDICATION_RUBRIC
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_19: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -17,8 +17,7 @@
+     if (
+         not isinstance(provider_details, dict)
+         or provider_details.get("adjudication_rubric_version") != _ADJUDICATION_RUBRIC
+-        or not isinstance(semantic_provenance, dict)
+-        or semantic_provenance.get("provider_rubric_version") != _ADJUDICATION_RUBRIC
++        or not isinstance(semantic_provenance, dict) and semantic_provenance.get("provider_rubric_version") != _ADJUDICATION_RUBRIC
+     ):
+         return False, set()
+     roles = assessment.get("causal_roles")
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_20: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -16,8 +16,7 @@
+     provider_details = provider_identity.get("provider") if isinstance(provider_identity, dict) else None
+     if (
+         not isinstance(provider_details, dict)
+-        or provider_details.get("adjudication_rubric_version") != _ADJUDICATION_RUBRIC
+-        or not isinstance(semantic_provenance, dict)
++        or provider_details.get("adjudication_rubric_version") != _ADJUDICATION_RUBRIC and not isinstance(semantic_provenance, dict)
+         or semantic_provenance.get("provider_rubric_version") != _ADJUDICATION_RUBRIC
+     ):
+         return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_21: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -15,8 +15,7 @@
+         return False, set()
+     provider_details = provider_identity.get("provider") if isinstance(provider_identity, dict) else None
+     if (
+-        not isinstance(provider_details, dict)
+-        or provider_details.get("adjudication_rubric_version") != _ADJUDICATION_RUBRIC
++        not isinstance(provider_details, dict) and provider_details.get("adjudication_rubric_version") != _ADJUDICATION_RUBRIC
+         or not isinstance(semantic_provenance, dict)
+         or semantic_provenance.get("provider_rubric_version") != _ADJUDICATION_RUBRIC
+     ):
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_32: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -20,7 +20,7 @@
+         or not isinstance(semantic_provenance, dict)
+         or semantic_provenance.get("provider_rubric_version") != _ADJUDICATION_RUBRIC
+     ):
+-        return False, set()
++        return True, set()
+     roles = assessment.get("causal_roles")
+     if not isinstance(roles, dict) or set(roles) != set(_CAUSAL_ROLES):
+         return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_37: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -22,7 +22,7 @@
+     ):
+         return False, set()
+     roles = assessment.get("causal_roles")
+-    if not isinstance(roles, dict) or set(roles) != set(_CAUSAL_ROLES):
++    if not isinstance(roles, dict) and set(roles) != set(_CAUSAL_ROLES):
+         return False, set()
+     delivered_ids = {
+         item.get("evidence_id")
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_42: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -23,7 +23,7 @@
+         return False, set()
+     roles = assessment.get("causal_roles")
+     if not isinstance(roles, dict) or set(roles) != set(_CAUSAL_ROLES):
+-        return False, set()
++        return True, set()
+     delivered_ids = {
+         item.get("evidence_id")
+         for item in delivered_evidence
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_47: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -27,7 +27,7 @@
+     delivered_ids = {
+         item.get("evidence_id")
+         for item in delivered_evidence
+-        if isinstance(item, dict) and isinstance(item.get("evidence_id"), str)
++        if isinstance(item, dict) or isinstance(item.get("evidence_id"), str)
+     }
+     referenced: set[str] = set()
+     for role_name in _CAUSAL_ROLES:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_51: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -34,8 +34,7 @@
+         role = roles.get(role_name)
+         if (
+             not isinstance(role, dict)
+-            or set(role) != {"support", "assessment", "evidence_refs"}
+-            or role.get("support") not in _CAUSAL_SUPPORT
++            or set(role) != {"support", "assessment", "evidence_refs"} and role.get("support") not in _CAUSAL_SUPPORT
+         ):
+             return False, set()
+         statement = role.get("assessment")
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_52: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -33,8 +33,7 @@
+     for role_name in _CAUSAL_ROLES:
+         role = roles.get(role_name)
+         if (
+-            not isinstance(role, dict)
+-            or set(role) != {"support", "assessment", "evidence_refs"}
++            not isinstance(role, dict) and set(role) != {"support", "assessment", "evidence_refs"}
+             or role.get("support") not in _CAUSAL_SUPPORT
+         ):
+             return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_66: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -37,7 +37,7 @@
+             or set(role) != {"support", "assessment", "evidence_refs"}
+             or role.get("support") not in _CAUSAL_SUPPORT
+         ):
+-            return False, set()
++            return True, set()
+         statement = role.get("assessment")
+         if not isinstance(statement, str) or not statement.strip():
+             return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_71: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -39,7 +39,7 @@
+         ):
+             return False, set()
+         statement = role.get("assessment")
+-        if not isinstance(statement, str) or not statement.strip():
++        if not isinstance(statement, str) and not statement.strip():
+             return False, set()
+         try:
+             if len(statement.encode("utf-8")) > _MAX_CAUSAL_ASSESSMENT_BYTES:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_74: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -40,7 +40,7 @@
+             return False, set()
+         statement = role.get("assessment")
+         if not isinstance(statement, str) or not statement.strip():
+-            return False, set()
++            return True, set()
+         try:
+             if len(statement.encode("utf-8")) > _MAX_CAUSAL_ASSESSMENT_BYTES:
+                 return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_75: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -42,7 +42,7 @@
+         if not isinstance(statement, str) or not statement.strip():
+             return False, set()
+         try:
+-            if len(statement.encode("utf-8")) > _MAX_CAUSAL_ASSESSMENT_BYTES:
++            if len(statement.encode("utf-8")) >= _MAX_CAUSAL_ASSESSMENT_BYTES:
+                 return False, set()
+         except UnicodeEncodeError:
+             return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_76: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -43,7 +43,7 @@
+             return False, set()
+         try:
+             if len(statement.encode("utf-8")) > _MAX_CAUSAL_ASSESSMENT_BYTES:
+-                return False, set()
++                return True, set()
+         except UnicodeEncodeError:
+             return False, set()
+         refs = role.get("evidence_refs")
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_77: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -45,7 +45,7 @@
+             if len(statement.encode("utf-8")) > _MAX_CAUSAL_ASSESSMENT_BYTES:
+                 return False, set()
+         except UnicodeEncodeError:
+-            return False, set()
++            return True, set()
+         refs = role.get("evidence_refs")
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_82: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -47,7 +47,7 @@
+         except UnicodeEncodeError:
+             return False, set()
+         refs = role.get("evidence_refs")
+-        if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
++        if not isinstance(refs, list) and len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+         if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
+             return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_84: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -47,7 +47,7 @@
+         except UnicodeEncodeError:
+             return False, set()
+         refs = role.get("evidence_refs")
+-        if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
++        if not isinstance(refs, list) or len(refs) >= _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+         if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
+             return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_85: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -48,7 +48,7 @@
+             return False, set()
+         refs = role.get("evidence_refs")
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+-            return False, set()
++            return True, set()
+         if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
+             return False, set()
+         for ref in refs:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_89: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -49,7 +49,7 @@
+         refs = role.get("evidence_refs")
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+-        if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
++        if role["support"] not in {"SUPPORTED", "CONTRADICTED"} and not refs:
+             return False, set()
+         for ref in refs:
+             if not isinstance(ref, str) or ref not in delivered_ids:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_90: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -49,7 +49,7 @@
+         refs = role.get("evidence_refs")
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+-        if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
++        if role["support"] in {"XXSUPPORTEDXX", "CONTRADICTED"} and not refs:
+             return False, set()
+         for ref in refs:
+             if not isinstance(ref, str) or ref not in delivered_ids:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_91: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -49,7 +49,7 @@
+         refs = role.get("evidence_refs")
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+-        if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
++        if role["support"] in {"supported", "CONTRADICTED"} and not refs:
+             return False, set()
+         for ref in refs:
+             if not isinstance(ref, str) or ref not in delivered_ids:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_92: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -49,7 +49,7 @@
+         refs = role.get("evidence_refs")
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+-        if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
++        if role["support"] in {"SUPPORTED", "XXCONTRADICTEDXX"} and not refs:
+             return False, set()
+         for ref in refs:
+             if not isinstance(ref, str) or ref not in delivered_ids:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_93: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -49,7 +49,7 @@
+         refs = role.get("evidence_refs")
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+-        if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
++        if role["support"] in {"SUPPORTED", "contradicted"} and not refs:
+             return False, set()
+         for ref in refs:
+             if not isinstance(ref, str) or ref not in delivered_ids:
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_95: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -50,7 +50,7 @@
+         if not isinstance(refs, list) or len(refs) > _MAX_CAUSAL_ROLE_EVIDENCE_REFS:
+             return False, set()
+         if role["support"] in {"SUPPORTED", "CONTRADICTED"} and not refs:
+-            return False, set()
++            return True, set()
+         for ref in refs:
+             if not isinstance(ref, str) or ref not in delivered_ids:
+                 return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_100: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -55,7 +55,7 @@
+             if not isinstance(ref, str) or ref not in delivered_ids:
+                 return False, set()
+             try:
+-                if len(ref.encode("utf-8")) > _MAX_CAUSAL_ROLE_EVIDENCE_REF_BYTES:
++                if len(ref.encode("utf-8")) >= _MAX_CAUSAL_ROLE_EVIDENCE_REF_BYTES:
+                     return False, set()
+             except UnicodeEncodeError:
+                 return False, set()
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_101: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -56,7 +56,7 @@
+                 return False, set()
+             try:
+                 if len(ref.encode("utf-8")) > _MAX_CAUSAL_ROLE_EVIDENCE_REF_BYTES:
+-                    return False, set()
++                    return True, set()
+             except UnicodeEncodeError:
+                 return False, set()
+             record = evidence_map.get(ref)
+
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_102: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -58,7 +58,7 @@
+                 if len(ref.encode("utf-8")) > _MAX_CAUSAL_ROLE_EVIDENCE_REF_BYTES:
+                     return False, set()
+             except UnicodeEncodeError:
+-                return False, set()
++                return True, set()
+             record = evidence_map.get(ref)
+             if (
+                 not isinstance(record, dict)

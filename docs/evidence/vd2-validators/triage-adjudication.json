@@ -1,0 +1,884 @@
+[
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_110",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_113",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_114",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_115",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_116",
+    "baseline_status": "survived",
+    "final_status": "survived",
+    "triage": "LIKELY EQUIVALENT under immutable revision: omits explicit MAX_TEXT_BYTES argument; _is_text default equals MAX_TEXT_BYTES. Same predicate for arrays at this revision; retained survivor, not excluded."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_120",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_127",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_128",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_129",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_130",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_137",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_138",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_139",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_140",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_141",
+    "baseline_status": "survived",
+    "final_status": "survived",
+    "triage": "LIKELY EQUIVALENT under immutable revision: omits explicit MAX_TEXT_BYTES argument; _is_text default equals MAX_TEXT_BYTES. Same predicate for summary at this revision; retained survivor, not excluded."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_142",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_143",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_144",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_145",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_146",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_147",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_148",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_149",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_150",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_151",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_152",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_153",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_154",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_155",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_156",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_157",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_158",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_159",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_160",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_161",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_162",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_163",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_164",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_165",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_166",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_167",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_168",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_169",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_170",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_171",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_172",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_173",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_174",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_175",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_176",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_177",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_178",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_179",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_180",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_181",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_182",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_183",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_184",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_185",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_186",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_187",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_188",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_189",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_190",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_191",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_192",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_193",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_194",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_195",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_196",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_197",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_198",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_199",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_2",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_200",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_201",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_202",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_203",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_204",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_205",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_206",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_207",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_208",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_209",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_210",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_211",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_212",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_213",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_214",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_215",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_216",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_217",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_218",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_219",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_220",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_221",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_222",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_223",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_224",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_225",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_226",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_227",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_228",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_28",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_29",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_3",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_30",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_31",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_32",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_33",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_36",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_37",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_38",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_39",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_4",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_40",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_41",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_42",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_44",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_48",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_49",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_50",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_53",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_54",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_55",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_59",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_60",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_61",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_62",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_69",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_70",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_71",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_72",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_73",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_74",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_75",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_76",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_77",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_84",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_87",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_88",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_89",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_90",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_91",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_97",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_98",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_99",
+    "baseline_status": "survived",
+    "final_status": "killed",
+    "triage": "REAL TEST GAP resolved by version/rubric/schema/error-code/positive-outcome/byte-count boundary tests or explicitly broadened existing contracts selection; see exact native mutant and stage statuses."
+  }
+]

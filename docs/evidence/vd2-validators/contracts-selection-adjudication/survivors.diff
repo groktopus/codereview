@@ -1,0 +1,570 @@
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_2: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -1,6 +1,6 @@
+ def validate_adjudication(payload: Any) -> dict[str, Any]:
+     if not isinstance(payload, dict):
+-        raise ContractIssue("invalid_assessment")
++        raise ContractIssue(None)
+     required = {
+         "outcome",
+         "observation_support",
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_3: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -1,6 +1,6 @@
+ def validate_adjudication(payload: Any) -> dict[str, Any]:
+     if not isinstance(payload, dict):
+-        raise ContractIssue("invalid_assessment")
++        raise ContractIssue("XXinvalid_assessmentXX")
+     required = {
+         "outcome",
+         "observation_support",
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_4: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -1,6 +1,6 @@
+ def validate_adjudication(payload: Any) -> dict[str, Any]:
+     if not isinstance(payload, dict):
+-        raise ContractIssue("invalid_assessment")
++        raise ContractIssue("INVALID_ASSESSMENT")
+     required = {
+         "outcome",
+         "observation_support",
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_40: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -16,7 +16,7 @@
+     fields = set(payload)
+     allowed_v3_fields = required | {"contract_version", "causal_roles"}
+     if fields not in (required, required | {"contract_version"}) and fields != allowed_v3_fields:
+-        raise ContractIssue("invalid_assessment_fields")
++        raise ContractIssue(None)
+     version = payload.get("contract_version", ADJUDICATION_V1)
+     if not isinstance(version, str) or version not in {ADJUDICATION_V1, ADJUDICATION_V2, ADJUDICATION_V3}:
+         raise ContractIssue("unsupported_assessment_contract")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_41: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -16,7 +16,7 @@
+     fields = set(payload)
+     allowed_v3_fields = required | {"contract_version", "causal_roles"}
+     if fields not in (required, required | {"contract_version"}) and fields != allowed_v3_fields:
+-        raise ContractIssue("invalid_assessment_fields")
++        raise ContractIssue("XXinvalid_assessment_fieldsXX")
+     version = payload.get("contract_version", ADJUDICATION_V1)
+     if not isinstance(version, str) or version not in {ADJUDICATION_V1, ADJUDICATION_V2, ADJUDICATION_V3}:
+         raise ContractIssue("unsupported_assessment_contract")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_42: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -16,7 +16,7 @@
+     fields = set(payload)
+     allowed_v3_fields = required | {"contract_version", "causal_roles"}
+     if fields not in (required, required | {"contract_version"}) and fields != allowed_v3_fields:
+-        raise ContractIssue("invalid_assessment_fields")
++        raise ContractIssue("INVALID_ASSESSMENT_FIELDS")
+     version = payload.get("contract_version", ADJUDICATION_V1)
+     if not isinstance(version, str) or version not in {ADJUDICATION_V1, ADJUDICATION_V2, ADJUDICATION_V3}:
+         raise ContractIssue("unsupported_assessment_contract")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_54: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -19,7 +19,7 @@
+         raise ContractIssue("invalid_assessment_fields")
+     version = payload.get("contract_version", ADJUDICATION_V1)
+     if not isinstance(version, str) or version not in {ADJUDICATION_V1, ADJUDICATION_V2, ADJUDICATION_V3}:
+-        raise ContractIssue("unsupported_assessment_contract")
++        raise ContractIssue("XXunsupported_assessment_contractXX")
+     if (version == ADJUDICATION_V3) != (fields == allowed_v3_fields):
+         raise ContractIssue("invalid_assessment_fields")
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_59: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -21,7 +21,7 @@
+     if not isinstance(version, str) or version not in {ADJUDICATION_V1, ADJUDICATION_V2, ADJUDICATION_V3}:
+         raise ContractIssue("unsupported_assessment_contract")
+     if (version == ADJUDICATION_V3) != (fields == allowed_v3_fields):
+-        raise ContractIssue("invalid_assessment_fields")
++        raise ContractIssue(None)
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+         "SUPPORTED",
+         "NOT_SUPPORTED",
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_60: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -21,7 +21,7 @@
+     if not isinstance(version, str) or version not in {ADJUDICATION_V1, ADJUDICATION_V2, ADJUDICATION_V3}:
+         raise ContractIssue("unsupported_assessment_contract")
+     if (version == ADJUDICATION_V3) != (fields == allowed_v3_fields):
+-        raise ContractIssue("invalid_assessment_fields")
++        raise ContractIssue("XXinvalid_assessment_fieldsXX")
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+         "SUPPORTED",
+         "NOT_SUPPORTED",
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_61: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -21,7 +21,7 @@
+     if not isinstance(version, str) or version not in {ADJUDICATION_V1, ADJUDICATION_V2, ADJUDICATION_V3}:
+         raise ContractIssue("unsupported_assessment_contract")
+     if (version == ADJUDICATION_V3) != (fields == allowed_v3_fields):
+-        raise ContractIssue("invalid_assessment_fields")
++        raise ContractIssue("INVALID_ASSESSMENT_FIELDS")
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+         "SUPPORTED",
+         "NOT_SUPPORTED",
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_69: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -24,7 +24,7 @@
+         raise ContractIssue("invalid_assessment_fields")
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+         "SUPPORTED",
+-        "NOT_SUPPORTED",
++        "XXNOT_SUPPORTEDXX",
+         "UNCERTAIN",
+         "CONTRADICTED",
+     }:
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_70: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -24,7 +24,7 @@
+         raise ContractIssue("invalid_assessment_fields")
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+         "SUPPORTED",
+-        "NOT_SUPPORTED",
++        "not_supported",
+         "UNCERTAIN",
+         "CONTRADICTED",
+     }:
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_71: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -25,7 +25,7 @@
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+         "SUPPORTED",
+         "NOT_SUPPORTED",
+-        "UNCERTAIN",
++        "XXUNCERTAINXX",
+         "CONTRADICTED",
+     }:
+         raise ContractIssue("invalid_assessment_outcome")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_72: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -25,7 +25,7 @@
+     if not isinstance(payload["outcome"], str) or payload["outcome"] not in {
+         "SUPPORTED",
+         "NOT_SUPPORTED",
+-        "UNCERTAIN",
++        "uncertain",
+         "CONTRADICTED",
+     }:
+         raise ContractIssue("invalid_assessment_outcome")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_73: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -26,7 +26,7 @@
+         "SUPPORTED",
+         "NOT_SUPPORTED",
+         "UNCERTAIN",
+-        "CONTRADICTED",
++        "XXCONTRADICTEDXX",
+     }:
+         raise ContractIssue("invalid_assessment_outcome")
+     for key in ("observation_support", "consequence_support", "rule_connection_support"):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_74: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -26,7 +26,7 @@
+         "SUPPORTED",
+         "NOT_SUPPORTED",
+         "UNCERTAIN",
+-        "CONTRADICTED",
++        "contradicted",
+     }:
+         raise ContractIssue("invalid_assessment_outcome")
+     for key in ("observation_support", "consequence_support", "rule_connection_support"):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_76: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -28,7 +28,7 @@
+         "UNCERTAIN",
+         "CONTRADICTED",
+     }:
+-        raise ContractIssue("invalid_assessment_outcome")
++        raise ContractIssue("XXinvalid_assessment_outcomeXX")
+     for key in ("observation_support", "consequence_support", "rule_connection_support"):
+         if not isinstance(payload[key], str) or payload[key] not in _SUPPORT:
+             raise ContractIssue("invalid_assessment_support")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_88: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -31,7 +31,7 @@
+         raise ContractIssue("invalid_assessment_outcome")
+     for key in ("observation_support", "consequence_support", "rule_connection_support"):
+         if not isinstance(payload[key], str) or payload[key] not in _SUPPORT:
+-            raise ContractIssue("invalid_assessment_support")
++            raise ContractIssue("XXinvalid_assessment_supportXX")
+     if (
+         not isinstance(payload["introducedness"], str)
+         or payload["introducedness"] not in _INTRODUCEDNESS
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_90: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -34,8 +34,7 @@
+             raise ContractIssue("invalid_assessment_support")
+     if (
+         not isinstance(payload["introducedness"], str)
+-        or payload["introducedness"] not in _INTRODUCEDNESS
+-        or not isinstance(payload["material_consequence"], bool)
++        or payload["introducedness"] not in _INTRODUCEDNESS and not isinstance(payload["material_consequence"], bool)
+     ):
+         raise ContractIssue("invalid_assessment_semantics")
+     for key in ("evidence_refs", "assumptions", "uncertainties"):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_98: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -37,7 +37,7 @@
+         or payload["introducedness"] not in _INTRODUCEDNESS
+         or not isinstance(payload["material_consequence"], bool)
+     ):
+-        raise ContractIssue("invalid_assessment_semantics")
++        raise ContractIssue("XXinvalid_assessment_semanticsXX")
+     for key in ("evidence_refs", "assumptions", "uncertainties"):
+         rows = payload[key]
+         if (
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_110: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -42,7 +42,7 @@
+         rows = payload[key]
+         if (
+             not isinstance(rows, list)
+-            or len(rows) > MAX_REF_COUNT
++            or len(rows) >= MAX_REF_COUNT
+             or any(not _is_text(row, MAX_TEXT_BYTES) for row in rows)
+         ):
+             raise ContractIssue("invalid_assessment_array")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_116: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -43,7 +43,7 @@
+         if (
+             not isinstance(rows, list)
+             or len(rows) > MAX_REF_COUNT
+-            or any(not _is_text(row, MAX_TEXT_BYTES) for row in rows)
++            or any(not _is_text(row, ) for row in rows)
+         ):
+             raise ContractIssue("invalid_assessment_array")
+     if (
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_127: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -48,7 +48,7 @@
+             raise ContractIssue("invalid_assessment_array")
+     if (
+         any(
+-            payload[k] == "SUPPORTED" for k in ("observation_support", "consequence_support", "rule_connection_support")
++            payload[k] == "SUPPORTED" for k in ("observation_support", "XXconsequence_supportXX", "rule_connection_support")
+         )
+         and not payload["evidence_refs"]
+     ):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_128: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -48,7 +48,7 @@
+             raise ContractIssue("invalid_assessment_array")
+     if (
+         any(
+-            payload[k] == "SUPPORTED" for k in ("observation_support", "consequence_support", "rule_connection_support")
++            payload[k] == "SUPPORTED" for k in ("observation_support", "CONSEQUENCE_SUPPORT", "rule_connection_support")
+         )
+         and not payload["evidence_refs"]
+     ):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_129: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -48,7 +48,7 @@
+             raise ContractIssue("invalid_assessment_array")
+     if (
+         any(
+-            payload[k] == "SUPPORTED" for k in ("observation_support", "consequence_support", "rule_connection_support")
++            payload[k] == "SUPPORTED" for k in ("observation_support", "consequence_support", "XXrule_connection_supportXX")
+         )
+         and not payload["evidence_refs"]
+     ):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_130: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -48,7 +48,7 @@
+             raise ContractIssue("invalid_assessment_array")
+     if (
+         any(
+-            payload[k] == "SUPPORTED" for k in ("observation_support", "consequence_support", "rule_connection_support")
++            payload[k] == "SUPPORTED" for k in ("observation_support", "consequence_support", "RULE_CONNECTION_SUPPORT")
+         )
+         and not payload["evidence_refs"]
+     ):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_141: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -53,7 +53,7 @@
+         and not payload["evidence_refs"]
+     ):
+         raise ContractIssue("supported_claim_requires_evidence")
+-    if not _is_text(payload["summary"], MAX_TEXT_BYTES):
++    if not _is_text(payload["summary"], ):
+         raise ContractIssue("invalid_assessment_summary")
+     causal_roles = None
+     if version == ADJUDICATION_V3:
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_144: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -54,7 +54,7 @@
+     ):
+         raise ContractIssue("supported_claim_requires_evidence")
+     if not _is_text(payload["summary"], MAX_TEXT_BYTES):
+-        raise ContractIssue("invalid_assessment_summary")
++        raise ContractIssue(None)
+     causal_roles = None
+     if version == ADJUDICATION_V3:
+         causal_roles = payload["causal_roles"]
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_145: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -54,7 +54,7 @@
+     ):
+         raise ContractIssue("supported_claim_requires_evidence")
+     if not _is_text(payload["summary"], MAX_TEXT_BYTES):
+-        raise ContractIssue("invalid_assessment_summary")
++        raise ContractIssue("XXinvalid_assessment_summaryXX")
+     causal_roles = None
+     if version == ADJUDICATION_V3:
+         causal_roles = payload["causal_roles"]
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_146: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -54,7 +54,7 @@
+     ):
+         raise ContractIssue("supported_claim_requires_evidence")
+     if not _is_text(payload["summary"], MAX_TEXT_BYTES):
+-        raise ContractIssue("invalid_assessment_summary")
++        raise ContractIssue("INVALID_ASSESSMENT_SUMMARY")
+     causal_roles = None
+     if version == ADJUDICATION_V3:
+         causal_roles = payload["causal_roles"]
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_158: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -59,7 +59,7 @@
+     if version == ADJUDICATION_V3:
+         causal_roles = payload["causal_roles"]
+         if not isinstance(causal_roles, dict) or set(causal_roles) != set(CAUSAL_ROLE_NAMES):
+-            raise ContractIssue("invalid_causal_roles")
++            raise ContractIssue("XXinvalid_causal_rolesXX")
+         normalized_roles = {}
+         for role in CAUSAL_ROLE_NAMES:
+             value = causal_roles[role]
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_162: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -63,7 +63,7 @@
+         normalized_roles = {}
+         for role in CAUSAL_ROLE_NAMES:
+             value = causal_roles[role]
+-            if not isinstance(value, dict) or set(value) != {"support", "assessment", "evidence_refs"}:
++            if not isinstance(value, dict) and set(value) != {"support", "assessment", "evidence_refs"}:
+                 raise ContractIssue("invalid_causal_role_fields")
+             if not isinstance(value["support"], str) or value["support"] not in CAUSAL_SUPPORT_VALUES:
+                 raise ContractIssue("invalid_causal_role_support")
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_172: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -64,7 +64,7 @@
+         for role in CAUSAL_ROLE_NAMES:
+             value = causal_roles[role]
+             if not isinstance(value, dict) or set(value) != {"support", "assessment", "evidence_refs"}:
+-                raise ContractIssue("invalid_causal_role_fields")
++                raise ContractIssue(None)
+             if not isinstance(value["support"], str) or value["support"] not in CAUSAL_SUPPORT_VALUES:
+                 raise ContractIssue("invalid_causal_role_support")
+             if not _is_text(value["assessment"], MAX_CAUSAL_ASSESSMENT_BYTES):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_173: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -64,7 +64,7 @@
+         for role in CAUSAL_ROLE_NAMES:
+             value = causal_roles[role]
+             if not isinstance(value, dict) or set(value) != {"support", "assessment", "evidence_refs"}:
+-                raise ContractIssue("invalid_causal_role_fields")
++                raise ContractIssue("XXinvalid_causal_role_fieldsXX")
+             if not isinstance(value["support"], str) or value["support"] not in CAUSAL_SUPPORT_VALUES:
+                 raise ContractIssue("invalid_causal_role_support")
+             if not _is_text(value["assessment"], MAX_CAUSAL_ASSESSMENT_BYTES):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_174: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -64,7 +64,7 @@
+         for role in CAUSAL_ROLE_NAMES:
+             value = causal_roles[role]
+             if not isinstance(value, dict) or set(value) != {"support", "assessment", "evidence_refs"}:
+-                raise ContractIssue("invalid_causal_role_fields")
++                raise ContractIssue("INVALID_CAUSAL_ROLE_FIELDS")
+             if not isinstance(value["support"], str) or value["support"] not in CAUSAL_SUPPORT_VALUES:
+                 raise ContractIssue("invalid_causal_role_support")
+             if not _is_text(value["assessment"], MAX_CAUSAL_ASSESSMENT_BYTES):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_181: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -66,7 +66,7 @@
+             if not isinstance(value, dict) or set(value) != {"support", "assessment", "evidence_refs"}:
+                 raise ContractIssue("invalid_causal_role_fields")
+             if not isinstance(value["support"], str) or value["support"] not in CAUSAL_SUPPORT_VALUES:
+-                raise ContractIssue("invalid_causal_role_support")
++                raise ContractIssue("XXinvalid_causal_role_supportXX")
+             if not _is_text(value["assessment"], MAX_CAUSAL_ASSESSMENT_BYTES):
+                 raise ContractIssue("invalid_causal_role_assessment")
+             refs = value["evidence_refs"]
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_191: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -68,7 +68,7 @@
+             if not isinstance(value["support"], str) or value["support"] not in CAUSAL_SUPPORT_VALUES:
+                 raise ContractIssue("invalid_causal_role_support")
+             if not _is_text(value["assessment"], MAX_CAUSAL_ASSESSMENT_BYTES):
+-                raise ContractIssue("invalid_causal_role_assessment")
++                raise ContractIssue("XXinvalid_causal_role_assessmentXX")
+             refs = value["evidence_refs"]
+             if (
+                 not isinstance(refs, list)
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_198: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -71,8 +71,7 @@
+                 raise ContractIssue("invalid_causal_role_assessment")
+             refs = value["evidence_refs"]
+             if (
+-                not isinstance(refs, list)
+-                or len(refs) > MAX_CAUSAL_ROLE_EVIDENCE_REFS
++                not isinstance(refs, list) and len(refs) > MAX_CAUSAL_ROLE_EVIDENCE_REFS
+                 or (value["support"] != "NOT_ESTABLISHED" and not refs)
+                 or any(not _is_text(ref, 256) for ref in refs)
+             ):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_200: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -72,7 +72,7 @@
+             refs = value["evidence_refs"]
+             if (
+                 not isinstance(refs, list)
+-                or len(refs) > MAX_CAUSAL_ROLE_EVIDENCE_REFS
++                or len(refs) >= MAX_CAUSAL_ROLE_EVIDENCE_REFS
+                 or (value["support"] != "NOT_ESTABLISHED" and not refs)
+                 or any(not _is_text(ref, 256) for ref in refs)
+             ):
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_213: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -74,7 +74,7 @@
+                 not isinstance(refs, list)
+                 or len(refs) > MAX_CAUSAL_ROLE_EVIDENCE_REFS
+                 or (value["support"] != "NOT_ESTABLISHED" and not refs)
+-                or any(not _is_text(ref, 256) for ref in refs)
++                or any(not _is_text(ref, ) for ref in refs)
+             ):
+                 raise ContractIssue("invalid_causal_role_evidence_refs")
+             normalized_roles[role] = {**value, "evidence_refs": list(refs)}
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_214: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -74,7 +74,7 @@
+                 not isinstance(refs, list)
+                 or len(refs) > MAX_CAUSAL_ROLE_EVIDENCE_REFS
+                 or (value["support"] != "NOT_ESTABLISHED" and not refs)
+-                or any(not _is_text(ref, 256) for ref in refs)
++                or any(not _is_text(ref, 257) for ref in refs)
+             ):
+                 raise ContractIssue("invalid_causal_role_evidence_refs")
+             normalized_roles[role] = {**value, "evidence_refs": list(refs)}
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_216: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -76,7 +76,7 @@
+                 or (value["support"] != "NOT_ESTABLISHED" and not refs)
+                 or any(not _is_text(ref, 256) for ref in refs)
+             ):
+-                raise ContractIssue("invalid_causal_role_evidence_refs")
++                raise ContractIssue("XXinvalid_causal_role_evidence_refsXX")
+             normalized_roles[role] = {**value, "evidence_refs": list(refs)}
+         causal_roles = normalized_roles
+     return {
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_219: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -77,7 +77,7 @@
+                 or any(not _is_text(ref, 256) for ref in refs)
+             ):
+                 raise ContractIssue("invalid_causal_role_evidence_refs")
+-            normalized_roles[role] = {**value, "evidence_refs": list(refs)}
++            normalized_roles[role] = {**value, "XXevidence_refsXX": list(refs)}
+         causal_roles = normalized_roles
+     return {
+         **payload,
+
+# pr_review_harness.contracts.x_validate_adjudication__mutmut_220: survived
+--- src/pr_review_harness/contracts.py
++++ src/pr_review_harness/contracts.py
+@@ -77,7 +77,7 @@
+                 or any(not _is_text(ref, 256) for ref in refs)
+             ):
+                 raise ContractIssue("invalid_causal_role_evidence_refs")
+-            normalized_roles[role] = {**value, "evidence_refs": list(refs)}
++            normalized_roles[role] = {**value, "EVIDENCE_REFS": list(refs)}
+         causal_roles = normalized_roles
+     return {
+         **payload,
