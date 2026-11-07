@@ -32,6 +32,24 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # Mypy 1.15 supports Python 3.11-3.13 hosts, not the runtime's 3.14 matrix.
+  - repo: local
+    hooks:
+      - id: implementation-typing-ratchet
+        name: strict implementation typing debt ratchet
+        entry: python scripts/check_typing.py
+        language: python
+        language_version: python3.13
+        additional_dependencies:
+          - mypy==1.15.0
+          - mypy-extensions==1.1.0
+          - typing-extensions==4.16.0
+          - PyJWT==2.15.1
+          - cryptography==50.0.2
+          - pytest==9.2.0
+        pass_filenames: false
+        always_run: true
+
   - repo: local
     hooks:
       - id: complexity-guard

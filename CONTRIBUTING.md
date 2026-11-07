@@ -125,10 +125,75 @@ historical findings as separate reviewed repairs. CI retains the JSON report and
 runs an actual pinned-Ruff seeded B006 CLI probe asserting exit 1/NEW_FINDING,
 plus growth/stale/rename/suppression/version/fixture-boundary regression tests.
 
-**Remaining VD-4 work:** historical expanded lint debt still needs incremental
-repair. Type checking remains limited to the strict `.pyi` boundary contracts in
-`pyproject.toml`; repository-wide typing and the new-module typing ratchet remain
-open. This slice does not close VD-4.
+### Strict implementation typing ratchet
+
+The existing `python -m mypy` strict boundary-stub checks and wrong-shape stub
+probe remain unchanged. They do **not** establish that the implementation is
+fully typed. The additive [implementation checker](scripts/check_typing.py) runs
+**mypy 1.15.0** against **every discovered `src/**/*.py` implementation** (42 at
+initial inventory), plus its own checker and regression tests with zero debt:
+
+```sh
+python scripts/check_typing.py --json
+python -m pytest -q tests/test_typing_guard.py
+```
+
+Use the hash-locked development environment on **Python 3.11, 3.12, or 3.13**.
+Mypy 1.15 is not claimed to support a 3.14 host: the dedicated CI gate and
+pre-commit environment use 3.13, and these checker-specific tests skip on 3.14.
+The runtime test matrix remains unchanged. The checker records actual host Python,
+platform, and exact tool/type-provider distribution versions in every JSON report;
+the [configuration](scripts/typing-ratchet.ini) fixes target Python 3.11/Linux.
+Its exact bytes, mypy/type-provider versions, coverage policy, and identity scheme
+are bound into the [baseline](scripts/typing-baseline.v1.json). PyJWT and
+cryptography provide their own types; pytest supplies checker-test types. No new
+runtime dependency, third-party stub package, or `ignore_missing_imports` exception
+was needed. Missing/untyped imports are unbaselineable environment errors.
+
+The initial inventory contains **1,072 mypy errors plus one existing explicit
+`type: ignore` suppression**, in 907 distinct identities. These are historical
+exceptions, not evidence of a typed core or a cleanup claim. Identity is relative
+implementation path + diagnostic code + qualified class/function scope + SHA-256
+of the smallest containing statement's canonical AST and exact diagnostic message,
+with multiplicity. Line movement/formatting alone does not change an allowance.
+New errors, per-identity count growth, and stale/renamed/removed debt fail. New
+implementation modules are automatically included and must have zero debt; a
+missing inventoried module or a `.pyi` shadowing an implementation fails closed.
+The checker/test implementations cannot acquire baseline allowances.
+
+All source implementations are passed explicitly. Imported experiment/tooling
+modules are followed for types with `follow_imports=silent`, but diagnostics in
+those non-target modules are outside this bounded gate; existing lint/tests still
+own them. Local mypy configuration and `MYPYPATH`/`PYTHONPATH` overrides cannot
+shrink the explicit targets. Inline `# mypy:` directives, `typing.no_type_check`
+suppressions (including imported aliases), and wildcard typing imports are forbidden; every
+`# type: ignore` is separate fingerprinted debt, so new suppression comments
+cannot silently buy an exception. Strict mypy still permits explicit `Any`, casts,
+and other dynamic boundaries: this is a no-new-diagnostics ratchet, not a proof of
+runtime type safety or fully typed repository-wide code. Identical errors within
+the same statement/scope are distinguished only by counts, not semantic identity.
+
+To retire stale allowances or review an intentional migration, write a separate
+candidate; the checker refuses to overwrite either the accepted baseline or any
+existing candidate. Review both the code and diagnostic identity/count changes,
+then replace the baseline in the reviewed change:
+
+```sh
+python scripts/check_typing.py --write-candidate typing-candidate.json \
+  --reason "Reviewed cleanup or explicit tool/type-provider migration rationale"
+diff -u scripts/typing-baseline.v1.json typing-candidate.json
+```
+
+Do not refresh the baseline merely to bless new code errors. There is no source
+revision pin to refresh to hide them: the current implementation is always scanned.
+CI retains coverage, environment identity, error totals, and violations; real
+mypy probes prove that new untyped functions and wrong-shape implementation
+records fail, including in newly added modules.
+
+**Remaining VD-4 work:** historical expanded lint and implementation typing debt
+still need incremental repair. Scripts/experiments/tests beyond this checker and
+its tests are not comprehensively type-checked. This finite no-new-debt slice does
+not close VD-4 or imply the existing typed contracts cover the runtime core.
 
 ## Merge review evidence (GA-1)
 
