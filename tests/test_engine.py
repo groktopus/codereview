@@ -113,9 +113,11 @@ LIMITS = {
 
 def make_snapshot(units=1):
     inventory, evidence = [], {}
+    head_content = "def changed():\n    return 1\n"
     for index in range(units):
         uid = f"u{index}"
         eid = f"diff:{uid}"
+        head_id = f"head:{uid}"
         inventory.append(
             {
                 "unit_id": uid,
@@ -124,7 +126,7 @@ def make_snapshot(units=1):
                 "change": "modified",
                 "diff": "-old\n+new",
                 "changed_lines": [[1, 2]],
-                "evidence_ids": [eid],
+                "evidence_ids": [eid, head_id],
             }
         )
         evidence[eid] = {
@@ -136,6 +138,20 @@ def make_snapshot(units=1):
             "content": "-old\n+new",
             "content_hash": "a" * 64,
             "source_kind": "diff",
+            "trust": "untrusted_pr_content",
+        }
+        evidence[head_id] = {
+            "evidence_id": head_id,
+            "snapshot_id": "snap",
+            "path": f"src/m{index}.py",
+            "line_start": 1,
+            "line_end": 2,
+            "content": head_content,
+            "content_hash": hashlib.sha256(head_content.encode()).hexdigest(),
+            "source_kind": "head_file",
+            "source_revision": "c" * 40,
+            "source_side": "HEAD",
+            "content_truncated": False,
             "trust": "untrusted_pr_content",
         }
     return {
@@ -1333,6 +1349,12 @@ def _add_trusted_policy(snapshot, text):
     return evidence_id
 
 
+def _planned_windows(snap, prof, task, unit_ids):
+    from pr_review_harness.engine import _unit_retrieval_inputs
+
+    return [item for uid in unit_ids for item in _unit_retrieval_inputs(snap, prof, task, uid, LIMITS)[0]]
+
+
 def test_required_context_is_included_before_batch_admission_and_units_split(tmp_path):
     snap = make_snapshot(units=2)
     policy_id = _add_trusted_policy(snap, "Mandatory policy applies to every changed unit.\n")
@@ -1351,13 +1373,14 @@ def test_required_context_is_included_before_batch_admission_and_units_split(tmp
             "task_id": f"{base_task['task_id']}:chunk-{chunk}",
             "unit_ids": unit_ids,
             "scope_unit_ids": unit_ids,
-            "evidence_ids": [*(f"diff:{uid}" for uid in unit_ids), policy_id],
+            "evidence_ids": [*(f"diff:{uid}" for uid in unit_ids), *(f"head:{uid}" for uid in unit_ids), policy_id],
             "base_context_ids": [policy_id],
             "required_context_ids": [policy_id],
             "context_omissions": [],
             "required_context_omissions": [],
             "obligation_id": obligation_ids[0],
             "obligation_ids": obligation_ids,
+            "retrieval_windows": _planned_windows(snap, prof, base_task, unit_ids),
         }
         evidence = [snap["evidence"][eid] for eid in task["evidence_ids"]]
         return engine_module._bind_specialist_input(task, snap, prof, evidence)
@@ -1415,8 +1438,8 @@ def test_engine_v2_binds_each_unit_and_allows_shared_policy_refs(tmp_path):
     bindings = row["unit_evidence_bindings"]
     assert row["request_input_contract"] == "specialist-input.v2"
     assert bindings == [
-        {"unit_id": "u0", "binding_status": "VERIFIED", "evidence_ids": ["diff:u0"]},
-        {"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["diff:u1"]},
+        {"unit_id": "u0", "binding_status": "VERIFIED", "evidence_ids": ["diff:u0", "head:u0"]},
+        {"unit_id": "u1", "binding_status": "VERIFIED", "evidence_ids": ["diff:u1", "head:u1"]},
     ]
     assert row["provenance"]["task_bindings"] == bindings
     assert row["provenance"]["wire_bytes"] == row["provenance"]["measured_bytes"]
@@ -1500,10 +1523,10 @@ def test_collector_to_engine_serializes_owned_windows_and_required_context(tmp_p
             "mandatory_policy_paths": ["AGENTS.md"],
             "max_total_context_bytes": 10_000,
             "window": {
-                "before_lines": 0,
+                "before_lines": 1,
                 "after_lines": 0,
                 "max_bytes": 1_000,
-                "max_windows_per_unit": 1,
+                "max_windows_per_unit": 2,
                 "max_scan_bytes": 10_000,
             },
             "bindings": [
@@ -1760,15 +1783,16 @@ def test_unit_skips_when_required_context_cannot_fit_without_dispatch(tmp_path):
             "evidence_ids": evidence_ids,
             "base_context_ids": required_ids,
             "required_context_ids": required_ids,
+            "retrieval_windows": _planned_windows(snap, prof, planned, ["u0"]),
         }
         evidence = [snap["evidence"][eid] for eid in evidence_ids]
         bound = engine_module._bind_specialist_input(candidate, snap, prof, evidence)
         return len(engine_module._canonical({"task": bound, "evidence": evidence}))
 
-    unit_only_size = request_size(["diff:u0"], [])
-    required_size = request_size(["diff:u0", policy_id], [policy_id])
+    unit_only_size = request_size(["diff:u0", "head:u0"], [])
+    required_size = request_size(["diff:u0", "head:u0", policy_id], [policy_id])
     assert unit_only_size < required_size
-    cap = unit_only_size + 1
+    cap = unit_only_size + 1025
 
     provider = EmptyProvider()
     result = run(
@@ -1815,11 +1839,12 @@ def test_preflight_skip_keeps_shared_obligation_incomplete_after_sibling_succeed
             **task,
             "unit_ids": [unit_id],
             "scope_unit_ids": [unit_id],
-            "evidence_ids": [f"diff:{unit_id}", policy_id],
+            "evidence_ids": [f"diff:{unit_id}", f"head:{unit_id}", policy_id],
             "base_context_ids": [policy_id],
             "required_context_ids": [policy_id],
             "context_omissions": [],
             "required_context_omissions": [],
+            "retrieval_windows": _planned_windows(snap, prof, task, [unit_id]),
         }
         evidence = [snap["evidence"][eid] for eid in candidate["evidence_ids"]]
         candidate = engine_module._bind_specialist_input(candidate, snap, prof, evidence)
@@ -3746,3 +3771,34 @@ def test_unsupported_monetary_cap_rejected_before_provider_dispatch(tmp_path):
     with pytest.raises(ValueError, match="monetary budget reservation is unsupported"):
         run(tmp_path, provider=provider, limits={**LIMITS, "max_cost_microunits": 1000})
     assert not (tmp_path / "r1.json").exists()
+
+
+def test_required_retrieval_plan_gap_skips_unit_before_dispatch():
+    snap = make_snapshot()
+    snap["gaps"] = [{"reason": "diff_truncated", "required": True, "unit_ids": [snap["inventory"][0]["unit_id"]]}]
+    prof = profile()
+    plan = plan_review(snap, prof)
+    provider = SizingOnlyOpenAIProvider()
+
+    prepared, skipped = prepare_plan_tasks(snap, plan, prof, dict(LIMITS), provider)
+
+    assert prepared == []
+    skip = next(iter(skipped.values()))
+    assert skip["status"] == "SKIPPED"
+    assert skip["error_code"] == "RETRIEVAL_PLAN_REQUIRED_GAP"
+    assert "snapshot_gap_required" in skip["required_context_omissions"]
+
+
+def test_prepared_tasks_carry_policy_selected_retrieval_windows():
+    snap = make_snapshot()
+    prof = profile()
+    plan = plan_review(snap, prof)
+    provider = SizingOnlyOpenAIProvider()
+
+    prepared, _skipped = prepare_plan_tasks(snap, plan, prof, dict(LIMITS), provider)
+
+    assert prepared
+    windows = prepared[0]["retrieval_windows"]
+    assert windows
+    assert all(window["source_side"] in {"BASE", "HEAD"} for window in windows)
+    assert all(isinstance(window["content"], str) and window["content"] for window in windows)
