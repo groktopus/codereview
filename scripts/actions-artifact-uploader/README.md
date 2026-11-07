@@ -23,3 +23,6 @@ repository root. Its installed-dependency smoke checks glob integration, the
 real artifact ZIP stream, and fail-closed CLI startup with credentials removed
 and outbound sockets denied. That smoke skips when dependencies are absent;
 it does not exercise a network upload or establish hosted-service compatibility.
+The `Node 24 uploader dependency smoke (no upload)` PR job installs the lock
+with lifecycle scripts disabled, requires the Node 24 runtime and installed
+artifact package, and runs that smoke without passing runtime credentials.
