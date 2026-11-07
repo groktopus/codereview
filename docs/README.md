@@ -147,6 +147,7 @@ banner; evidence that already lived under `docs/experiments/` or a
 | Document | What it records |
 |---|---|
 | [Adjudication Output-Budget Diagnosis](ADJUDICATION-OUTPUT-BUDGET-DIAGNOSIS.md) | Dated evidence, audit, trial, or review note; not current guidance. |
+| [VD-2 reducer mutation measurement](evidence/vd2-mutation-reducer-measured.json) | Mutmut measurement for `_reduce` only; other engine mutants and validators remain unqualified. |
 | [Actions canary cleanup failure provenance](CANARY-CLEANUP-FAILURE-PROVENANCE.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Existing reviewer baseline discovery](COMPARISON-DISCOVERY.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [VD-2 reducer and validation-boundary review](evidence/vd2-reducer-validation-review.md) | Targeted invariant tests and explicitly unmeasured reducer mutation scope; not mutation qualification. |
