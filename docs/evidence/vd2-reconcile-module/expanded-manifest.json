@@ -1,0 +1,17 @@
+{
+  "revision": "e35bf37c3ae3a37b2ef7fc8bfbe76e48f039bb11",
+  "scratch": "/tmp/vd2-reconcile-expanded-nlq01406",
+  "selection": [
+    "tests/test_reconcile.py",
+    "tests/test_vd2_reconcile_module.py"
+  ],
+  "sha256": {
+    "src/pr_review_harness/reconcile.py": "cb4713ad3653db9c73bc7e62ef9c30bc7280906a399bcdbc3f2ee8292e20a5f2",
+    "tests/test_reconcile.py": "6510323072ca97f935cb2f60c3e49fb6e159e789ba55cf65e77c8f9067ee631d",
+    "tests/test_vd2_reconcile_module.py": "896175bc51e4a4039ae80a28e8ca7332a209cc33213d4f6c7f2caf830176033a",
+    "pyproject.toml": "a11be0b3be6704736e6577824e2af15a5433a0dc03aa88decd5050f46fbcb257"
+  },
+  "tool": "mutmut 3.8.1",
+  "max_children": 4,
+  "covered_line_exclusion": false
+}

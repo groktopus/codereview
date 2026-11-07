@@ -1,0 +1,12 @@
+{
+  "source_revision": "e35bf37c3ae3a37b2ef7fc8bfbe76e48f039bb11",
+  "scratch": "/tmp/vd2-reconcile-baseline-56lzuonp",
+  "selection": [
+    "tests/test_reconcile.py"
+  ],
+  "source_sha256": "cb4713ad3653db9c73bc7e62ef9c30bc7280906a399bcdbc3f2ee8292e20a5f2",
+  "project_config_sha256": "b8f2347aeeac23a335cf24daa6051216c69d0fe985d30ebb7a5fdba44a429c60",
+  "mutation_config_sha256": "cd63477850262338a755cd37aa5277df43678d2890a715d1920da75bd23e5072",
+  "tool": "mutmut 3.8.1",
+  "max_children": 4
+}

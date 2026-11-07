@@ -1,0 +1,1 @@
+expanded lint guard error: requires ruff 0.17.3 in this Python environment; got 'ruff 0.17.4'
