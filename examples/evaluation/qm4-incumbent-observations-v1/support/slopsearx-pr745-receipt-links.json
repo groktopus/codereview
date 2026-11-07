@@ -1,0 +1,51 @@
+{
+  "model_identity": null,
+  "pr_metadata_at_capture": {
+    "captured_at": "2026-11-07T19:39:10.872058+00:00",
+    "record": {
+      "base": {
+        "ref": "main",
+        "sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92"
+      },
+      "created_at": "2026-10-09T21:30:30Z",
+      "head": {
+        "ref": "codex/ci-public-image-cache",
+        "sha": "1db229364205e35acc97442456f56a4c19a38050"
+      },
+      "html_url": "https://github.com/magnus919/SlopSearX/pull/745",
+      "merge_commit_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+      "merged_at": "2026-10-09T22:22:39Z",
+      "number": 745,
+      "state": "closed",
+      "updated_at": "2026-10-09T22:22:42Z"
+    },
+    "response_bytes": 18100,
+    "response_sha256": "264c8530459bc45832db101559011bac66f0d975b84c03f595e0c6b4b727fb81",
+    "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/745"
+  },
+  "runs": [
+    {
+      "captured_at": "2026-11-07T19:39:10.522866+00:00",
+      "record": {
+        "conclusion": "success",
+        "created_at": "2026-10-09T21:30:34Z",
+        "event": "pull_request",
+        "head_branch": "codex/ci-public-image-cache",
+        "head_sha": "d00c3d3a30b5594d5d2619d9f184a7a60acaf343",
+        "html_url": "https://github.com/magnus919/SlopSearX/actions/runs/37993871997",
+        "id": 37993871997,
+        "name": "Droid Auto Review",
+        "path": ".github/workflows/droid-review.yml",
+        "pull_requests": [],
+        "run_started_at": "2026-10-09T21:30:34Z",
+        "status": "completed",
+        "updated_at": "2026-10-09T21:36:49Z",
+        "workflow_id": 295832925
+      },
+      "response_bytes": 12414,
+      "response_sha256": "d570df35206ce4d2d38d21ceb40436ee65a4f021b63bf0fe05ae5e4a45f4c4c9",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/actions/runs/37993871997"
+    }
+  ],
+  "schema": "qm4-public-receipt-link.v1"
+}

@@ -1,0 +1,79 @@
+{
+  "identity": {
+    "base_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+    "case_id": "qm1-slopsearx-pr745",
+    "family_id": "qm1-slopsearx-pr745-natural",
+    "head_sha": "1db229364205e35acc97442456f56a4c19a38050",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-4f6697039622e7fb738d608a",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr745-source",
+      "sha256": "0baaf872ab7be6f28dcc821ecaa10ad5991907f825bd60e20ae817813da6067f"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:59.901344+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/745/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "issue_comments": {
+      "captured_at": "2026-11-07T19:39:00.150009+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "**Droid finished @magnus919's task** \u2014\u2014 [View job](https://github.com/magnus919/SlopSearX/actions/runs/37993871997)\n\n---\n![Security Review](https://img.shields.io/badge/security%20review-ran-blue)\n\nThe PR changes are narrowly scoped to hosted-runner Docker Hub caching. No high-confidence, actionable code or security issues were identified in the reviewed diff.",
+          "created_at": "2026-10-09T21:30:49Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/745#issuecomment-6089587503",
+          "id": 6089587503,
+          "updated_at": "2026-10-09T21:36:41Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 4045,
+      "response_sha256": "968ae0f3ae8781ddbd4098107150e1f013e362f9f7bf176767503c75e99cab6a",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/issues/745/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:59.495966+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/745/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

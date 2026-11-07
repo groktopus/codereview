@@ -1,0 +1,125 @@
+{
+  "identity": {
+    "base_sha": "461bd991715cb2e7971d16d063e8a261fe13eb04",
+    "case_id": "qm1-slopsearx-pr753",
+    "family_id": "qm1-slopsearx-pr753-natural",
+    "head_sha": "10d44dcc234327eee6a5e8d677da9ab8357703f5",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-a2e4f89b6fea8214ba951f57",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr753-source",
+      "sha256": "97068dffc16ca757c13e028e43efd362ff05305061aa148c4a5e7c90091aa800"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:00.911785+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P2] Preserve three-argument verifier calls without a CA pin\n\nThis call always passes a fourth argument, even when no CA bundle is configured. Existing injected `PermitVerifier` implementations that still accept the previous three-argument interface therefore raise `TypeError` during ordinary system-default captures, before the lease is consumed. Keep the old call shape when `ca_bundle_sha256` is `None`, or provide an explicit compatibility path.",
+          "commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "created_at": "2026-10-10T01:01:19Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/753#discussion_r4235743865",
+          "id": 4235743865,
+          "line": null,
+          "original_commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "original_line": 385,
+          "original_start_line": null,
+          "path": "scripts/coverage_source_capture.py",
+          "pull_request_review_id": 5476759981,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-10T01:01:19Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "Fixed in 10d44dc. System-default trust keeps the existing three-argument permit-verifier call; explicit CA trust supplies the fourth digest argument. The qualification binding now defaults its optional CA identity to None. A regression exercises the original verifier signature through capture and confirms one lease claim. Validation: 76 combined capture/resource/acquisition tests passed with no skips, including real TLS trust and hostname checks; Ruff and diff checks passed.",
+          "commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "created_at": "2026-10-10T01:07:21Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/753#discussion_r4235767164",
+          "id": 4235767164,
+          "line": null,
+          "original_commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "original_line": 385,
+          "original_start_line": null,
+          "path": "scripts/coverage_source_capture.py",
+          "pull_request_review_id": 5476792222,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-10T01:07:21Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 6663,
+      "response_sha256": "bd28b47bb70e866ca507d4d9af46cf546c09932395c9f7d1a38d2fddcab3406f",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/753/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:00.462264+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/753#pullrequestreview-5476759981",
+          "id": 5476759981,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-10T01:01:19Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "10d44dcc234327eee6a5e8d677da9ab8357703f5",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/753#pullrequestreview-5476792222",
+          "id": 5476792222,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-10T01:07:21Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 3363,
+      "response_sha256": "0e9964f4e7205abc4f0b19f90e170b2a885cb3133175efa4a5cdf46a48e32363",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/753/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

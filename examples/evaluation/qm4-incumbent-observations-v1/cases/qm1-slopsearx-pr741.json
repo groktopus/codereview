@@ -1,0 +1,91 @@
+{
+  "identity": {
+    "base_sha": "573a2f5d2dd9e09a0ab8bad82f3b6a6717d4d9d3",
+    "case_id": "qm1-slopsearx-pr741",
+    "family_id": "qm1-slopsearx-pr741-natural",
+    "head_sha": "9d9921e58056a0accb5fb992baa251cef81d933e",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-01b51d86ea26612566142928",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr741-source",
+      "sha256": "0435da551934855cec6d7776782994c667ea8ed9b269714def876e2fda610555"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:59.164007+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P2] Include calculation and receipt writes in the stage timer\n\nThe protocol defines stage-wall time to include calculation, serialization, and final receipt fsync, but this value is captured before the frozen calculator runs and before its receipt is written. A run close to the wall-time limit can therefore pass the `stage_wall` resource check even though its protocol-defined elapsed time exceeds the limit. Measure the complete required interval before deciding the gate.",
+          "commit_id": "a3cb7107c6c01f33a2b2c2d47ea37062125cd09e",
+          "created_at": "2026-10-09T18:37:12Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/741#discussion_r4233396194",
+          "id": 4233396194,
+          "line": null,
+          "original_commit_id": "a3cb7107c6c01f33a2b2c2d47ea37062125cd09e",
+          "original_line": 1122,
+          "original_start_line": null,
+          "path": "scripts/coverage_stage_orchestration.py",
+          "pull_request_review_id": 5473982534,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T18:37:12Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 4390,
+      "response_sha256": "68efe2c5b05948db2518c50b4dc8de35749a21685b6879add236e9cd843d7c84",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/741/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:58.714009+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "a3cb7107c6c01f33a2b2c2d47ea37062125cd09e",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/741#pullrequestreview-5473982534",
+          "id": 5473982534,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T18:37:12Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 1736,
+      "response_sha256": "9a2d690393e326c9f87f24881214553b6f27af80221e17209b556051200d540a",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/741/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}
