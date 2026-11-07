@@ -1,0 +1,146 @@
+{
+  "identity": {
+    "base_sha": "87aa950461cbff034bbbfe8d28986f3035b650c2",
+    "case_id": "qm1-codereview-pr282",
+    "family_id": "qm1-codereview-pr282-natural",
+    "head_sha": "32a25f20de378f197f0a68183e3ed4822feec230",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-fe43f95f5420e61bda80b4be",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr282-source",
+      "sha256": "1c17e5942f2d7482a27cdce8017927b8c0c85dfa1919d51d1486897188cb3409"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:55.888479+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "## CodeQL / Cyclic import\n\nImport of module [pr_review_harness.engine](1) begins an import cycle.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/247)",
+          "commit_id": "32a25f20de378f197f0a68183e3ed4822feec230",
+          "created_at": "2026-11-01T16:32:20Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/282#discussion_r4436444748",
+          "id": 4436444748,
+          "line": 866,
+          "original_commit_id": "f290e81565d1d7173f743304e12ceba77ed5403b",
+          "original_line": 851,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_stages.py",
+          "pull_request_review_id": 5729099295,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:32:20Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Clear-text logging of sensitive information\n\nThis expression logs [sensitive data (private)](1) as clear text.\nThis expression logs [sensitive data (private)](2) as clear text.\nThis expression logs [sensitive data (private)](3) as clear text.\nThis expression logs [sensitive data (private)](4) as clear text.\nThis expression logs [sensitive data (private)](1) as clear text.\nThis expression logs [sensitive data (private)](2) as clear text.\nThis expression logs [sensitive data (private)](3) as clear text.\nThis expression logs [sensitive data (private)](4) as clear text.\nThis expression logs [sensitive data (private)](5) as clear text.\nThis expression logs [sensitive data (private)](6) as clear text.\nThis expression logs [sensitive data (private)](7) as clear text.\nThis expression logs [sensitive data (private)](8) as clear text.\nThis expression logs [sensitive data (private)](9) as clear text.\nThis expression logs [sensitive data (private)](10) as clear text.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/264)",
+          "commit_id": "32ef7b2ee562735d8c2f9d88e85221cafcf4b1a6",
+          "created_at": "2026-11-01T16:45:12Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/282#discussion_r4436487995",
+          "id": 4436487995,
+          "line": null,
+          "original_commit_id": "32ef7b2ee562735d8c2f9d88e85221cafcf4b1a6",
+          "original_line": 573,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/cli.py",
+          "pull_request_review_id": 5729178205,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:45:12Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Clear-text logging of sensitive information\n\nThis expression logs [sensitive data (private)](1) as clear text.\nThis expression logs [sensitive data (private)](2) as clear text.\nThis expression logs [sensitive data (private)](3) as clear text.\nThis expression logs [sensitive data (private)](4) as clear text.\nThis expression logs [sensitive data (private)](1) as clear text.\nThis expression logs [sensitive data (private)](2) as clear text.\nThis expression logs [sensitive data (private)](3) as clear text.\nThis expression logs [sensitive data (private)](4) as clear text.\nThis expression logs [sensitive data (private)](5) as clear text.\nThis expression logs [sensitive data (private)](6) as clear text.\nThis expression logs [sensitive data (private)](7) as clear text.\nThis expression logs [sensitive data (private)](8) as clear text.\nThis expression logs [sensitive data (private)](9) as clear text.\nThis expression logs [sensitive data (private)](10) as clear text.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/265)",
+          "commit_id": "32ef7b2ee562735d8c2f9d88e85221cafcf4b1a6",
+          "created_at": "2026-11-01T16:45:12Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/282#discussion_r4436488007",
+          "id": 4436488007,
+          "line": null,
+          "original_commit_id": "32ef7b2ee562735d8c2f9d88e85221cafcf4b1a6",
+          "original_line": 578,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/cli.py",
+          "pull_request_review_id": 5729178205,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:45:12Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 11160,
+      "response_sha256": "479de478c80640174b7282c4a1c4bdde4f851cea38cd181f878c667094813c55",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/282/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:55.459256+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "f290e81565d1d7173f743304e12ceba77ed5403b",
+          "html_url": "https://github.com/groktopus/codereview/pull/282#pullrequestreview-5729099295",
+          "id": 5729099295,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T16:32:20Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "32ef7b2ee562735d8c2f9d88e85221cafcf4b1a6",
+          "html_url": "https://github.com/groktopus/codereview/pull/282#pullrequestreview-5729178205",
+          "id": 5729178205,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T16:45:12Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 3737,
+      "response_sha256": "eaee7b55e1b79ab27276f0d434f708340914e358a36a48b8e16bbc6db0dfeb41",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/282/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}
