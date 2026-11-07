@@ -91,8 +91,12 @@ adjudicated packet exists in either arm, the data state is `MISSING_DATA`.
 
 ## Missing data is not zero
 
-The retained pilot has six synthetic adjudicated packets but zero prediction
-runs. The generated scorecard reports:
+The older [labeling pilot inputs](../examples/evaluation/qm2-labeling-pilot-v1/manifest.json)
+have six synthetic adjudicated packets but zero prediction runs. This is a
+retained missing-data fixture, **not** a statement that no live run exists.
+The separate [accepted five-case baseline](#accepted-five-case-baseline) retains
+five precompiler live harness runs. For the older empty-prediction inputs, the
+generated scorecard reports:
 
 - `data_state.state: MISSING_DATA`;
 - `arms.harness.status: missing` and `arms.droid.status: missing`;
@@ -298,3 +302,21 @@ first accepted baseline. CI regenerates the scorecard and runs
 `scripts/check_quality_scorecard_gate.py` against it; the scheduled
 `quality-scorecard-schedule.yml` workflow does the same weekly and retains both
 artifacts. `qm1-slopsearx-pr770` remains missing and is never imputed.
+
+The [live-run record](evidence/qm3-five-case-live.json) documents five
+provider-backed harness runs on 2026-11-04/05, before the retrieval-compiler
+merge: **2 `COMPLETE` / 3 `COMPLETE_WITH_WAIVERS`**. Thus the raw unwaived
+completion is 2/5, while the accepted waiver-adjusted subset contains five
+cases. Neither the waiver-adjusted baseline nor QM-3 closure proves full
+representative/current-source obligation completion, quality parity, or approval
+eligibility for waived failures.
+
+Keep three scopes distinct: the older empty-prediction pilot exercises missing
+data, the accepted five-case baseline retains those historical live harness
+runs, and the adversarial corpus uses authored fixture outputs. In particular,
+an authored `droid` fixture arm is not actual incumbent evidence. At the
+[current reassessment checkpoint](REASSESSMENT-2026-11-02.md), PR 355's pending
+inventory candidate has **0 actual incumbent runs / 0 comparable pairs** and is
+not landed. Merged adversarial gate v3 infrastructure (PR 352) proves contract
+and seeded-regression behavior, not live resistance; PR 353's stopped draft
+injection/admission work is not shipped capability.
