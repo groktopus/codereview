@@ -17,7 +17,6 @@ WORKFLOW = ROOT / ".github/workflows/selected-model-provider-trial.yml"
 PREPARE_WORKFLOW = ROOT / ".github/workflows/selected-model-claim-trial.yml"
 PIN = "54b8fb5e8bb3b1ac8681dff1d0ff7143b7318215"
 OBSERVER_ID = "linux-strace-syscall-observer.v3"
-OBSERVER_SOURCE_SHA256 = pin("historical.selected_model_trial.observer_source_sha256")
 CHECKOUT_ACTION = "11bd71901bbe5b1630ceea73d27597364c9af683"
 SETUP_PYTHON_ACTION = "a26af69be951a213d495a4c3e4e4022e16d87065"
 UPLOAD_ARTIFACT_ACTION = "ea165f8d65b6e75b540449e92b4886f43607fa02"
@@ -81,6 +80,7 @@ def test_workflow_is_manual_main_only_read_only_and_bounded():
     assert "timeout-minutes: 20" in source
 
 
+@pytest.mark.compatibility
 def test_trusted_runner_is_checked_out_and_verified_at_the_same_full_sha():
     source = _source()
     checkout = _step(source, "Check out the trusted runner at a full immutable revision")
@@ -103,7 +103,8 @@ def test_trusted_runner_is_checked_out_and_verified_at_the_same_full_sha():
     assert source.index("Install the verified wheel") < source.index("Run the fixed provider trial")
     assert source.index("Install the verified wheel") < source.index("Preflight the bounded effect observer")
     assert source.index("Preflight the bounded effect observer") < source.index("Run the fixed provider trial")
-    assert f"EXPECTED_OBSERVER_SOURCE_SHA256: {OBSERVER_SOURCE_SHA256}" in preflight
+    observer_source_sha256 = pin("historical.selected_model_trial.observer_source_sha256")
+    assert f"EXPECTED_OBSERVER_SOURCE_SHA256: {observer_source_sha256}" in preflight
     assert '[sys.executable, "-m", "pr_review_harness.external_effect_observer"]' in preflight
     assert 'identity.get("status") != "AVAILABLE"' in preflight
     assert "from pr_review_harness.external_effect_observer import OBSERVER_ID" in preflight

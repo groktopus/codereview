@@ -2,7 +2,8 @@ import json
 import re
 from pathlib import Path
 
-from compatibility_pins import pin
+import pytest
+from compatibility_pins import assert_pin_value, pin
 
 from scripts import run_real_case_trial as trial
 
@@ -10,7 +11,6 @@ ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "context-followup-v3-live-trial.yml"
 PLAN = ROOT / "docs" / "real-case-trial-context-followup-v3" / "manifest.json"
 RUNTIME_SHA = "7c89ad17327b8f0ed4fc381bf5c93255fd4e548e"
-RUNTIME_TREE_SHA256 = pin("runtime.context_followup_v2.module_tree_sha256")
 PROVIDER_SECRETS = {
     "LLM_BASE_URL",
     "LLM_MODEL",
@@ -60,6 +60,7 @@ def test_live_workflow_is_fixed_manual_main_only_read_only_provider_trial():
     assert "workflow_run:" not in text
 
 
+@pytest.mark.compatibility
 def test_live_workflow_binds_dispatch_runner_and_fixed_runtime_sources():
     text = WORKFLOW.read_text(encoding="utf-8")
     plan = json.loads(PLAN.read_text(encoding="utf-8"))
@@ -81,8 +82,15 @@ def test_live_workflow_binds_dispatch_runner_and_fixed_runtime_sources():
     assert f"ref: {RUNTIME_SHA}" in text
     assert f"EXPECTED_RUNTIME_SHA: {RUNTIME_SHA}" in text
     assert plan["runtime_revision"] == RUNTIME_SHA
-    assert plan["runtime_module_tree_sha256"] == RUNTIME_TREE_SHA256
-    assert trial.runtime_identity(trial.CONTEXT_FOLLOWUP_V3_SELECTOR) == (RUNTIME_SHA, RUNTIME_TREE_SHA256)
+    assert_pin_value(
+        "runtime.context_followup_v2.module_tree_sha256",
+        plan["runtime_module_tree_sha256"],
+        module="docs/real-case-trial-context-followup-v3/manifest.json",
+    )
+    assert trial.runtime_identity(trial.CONTEXT_FOLLOWUP_V3_SELECTOR) == (
+        RUNTIME_SHA,
+        pin("runtime.context_followup_v2.module_tree_sha256"),
+    )
     assert 'stream.write("sha256="' in text
     assert "runner_revision_mismatch" in text
     assert "runtime_revision_mismatch" in text

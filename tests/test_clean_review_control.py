@@ -8,7 +8,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
-from compatibility_pins import pin
+import pytest
+from compatibility_pins import assert_pin_value
 
 from experiments.harness import selected_model_trial as trial
 from experiments.harness.injection_trials import prepare_suite
@@ -19,7 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = ROOT / "examples/evaluation/clean-review-control-v1"
 MANIFEST_PATH = FIXTURE_ROOT / "fixture.json"
 SUITE_PATH = ROOT / "examples/injection/fixture-suite.v2.json"
-CLEAN_FIXTURE_SHA256 = pin("fixture.clean_review_control_v1.manifest_sha256")
+
+pytestmark = pytest.mark.compatibility
 
 
 def _sha(raw: bytes) -> str:
@@ -45,7 +47,11 @@ def _load_manifest() -> dict:
 
 
 def _assert_fixture_identity(manifest: dict) -> tuple[dict, dict[str, bytes]]:
-    assert _sha(MANIFEST_PATH.read_bytes()) == CLEAN_FIXTURE_SHA256
+    assert_pin_value(
+        "fixture.clean_review_control_v1.manifest_sha256",
+        _sha(MANIFEST_PATH.read_bytes()),
+        module="examples/evaluation/clean-review-control-v1/fixture.json",
+    )
     suite_raw = SUITE_PATH.read_bytes()
     assert _sha(suite_raw) == manifest["context_provenance"]["fixture_suite_sha256"]
     suite = json.loads(suite_raw)

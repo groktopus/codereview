@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
-from compatibility_pins import pin
+from compatibility_pins import assert_pin_value, pin
 
 from scripts.resolve_review_contract import (
     ALL_CONTRACTS,
@@ -238,6 +238,7 @@ def test_codereview_contract_resolves_its_exact_profile_and_shared_finite_limits
     assert profile["review_criteria"]["project_specific"].startswith("Use AGENTS.md from the base revision")
 
 
+@pytest.mark.compatibility
 def test_v17_hosted_contract_resolves_only_its_exact_profile_and_manifest():
     binding = resolve_review_contract(TARGET, "bounded-production-v17")
     profile = json.loads((Path(__file__).parents[1] / V17_PROFILE).read_text(encoding="utf-8"))
@@ -245,9 +246,17 @@ def test_v17_hosted_contract_resolves_only_its_exact_profile_and_manifest():
     assert binding["review_contract"] == "bounded-production-v17"
     assert binding["profile_path"] == V17_PROFILE
     assert binding["profile_version"] == "slopsearx-production-v17-context-target-manifest-candidate"
-    assert binding["profile_sha256"] == pin("contract.slopsearx_v17.profile_sha256")
+    assert_pin_value(
+        "contract.slopsearx_v17.profile_sha256",
+        binding["profile_sha256"],
+        module="profiles/slopsearx-v17-context-target-manifest-candidate.json",
+    )
     assert binding["limits_path"] == V16_LIMITS
-    assert binding["limits_sha256"] == pin("contract.ordinary_review_limits_v3.sha256")
+    assert_pin_value(
+        "contract.ordinary_review_limits_v3.sha256",
+        binding["limits_sha256"],
+        module="profiles/ordinary-review-limits-v3.json",
+    )
     assert binding["max_claim_assessments"] == "4"
     assert profile["context_target_manifest"] == {
         "version": "context-target-manifest.v1",
@@ -256,6 +265,7 @@ def test_v17_hosted_contract_resolves_only_its_exact_profile_and_manifest():
     }
 
 
+@pytest.mark.compatibility
 def test_target_contract_allowlist_keeps_slop_contracts_closed():
     assert TARGET_CONTRACTS[TARGET] == frozenset({"legacy-v14", "bounded-production-v16", "bounded-production-v17"})
     assert TARGET_CONTRACTS[CODEREVIEW_TARGET] == frozenset({"codereview-native-v1"})

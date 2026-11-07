@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from compatibility_pins import pin
+from compatibility_pins import assert_pin_value, pin
 
 from experiments.harness.shadow_audit import (
     ShadowAuditError,
@@ -842,6 +842,7 @@ def test_changed_snapshot_rejected_before_provider_or_output(monkeypatch, tmp_pa
     assert not (tmp_path / "changed").exists()
 
 
+@pytest.mark.compatibility
 def test_snapshot_hash_algorithm_matches_engine_and_real_case_manifest_shape():
     body = {k: v for k, v in _snapshot().items() if k not in {"snapshot_id", "snapshot_hash"}}
     assert _json_hash(body) == snapshot_module._json_hash(body)
@@ -851,7 +852,11 @@ def test_snapshot_hash_algorithm_matches_engine_and_real_case_manifest_shape():
     repo = Path(__file__).resolve().parents[1]
     cases = json.loads((repo / "docs/real-case-trial-v1/cases.json").read_text())
     actual = next(case for case in cases["cases"] if case["case_id"] == "PR-457")
-    assert actual["snapshot_hash"] == pin("historical.pr457.snapshot_sha256")
+    assert_pin_value(
+        "historical.pr457.snapshot_sha256",
+        actual["snapshot_hash"],
+        module="docs/real-case-trial-v1/cases.json",
+    )
     assert actual["head_sha"] == "595f143607961d21d162efe76518d86e416d2548"
 
 
@@ -1121,6 +1126,7 @@ def test_pinned_capture_rejects_missing_or_unknown_task_binding(monkeypatch, tas
         )
 
 
+@pytest.mark.compatibility
 def test_private_operator_bridge_emits_hash_only_receipt_and_counts_external_calls(monkeypatch, tmp_path):
     packet = _packet(candidate=False)
     source_provider = _provider(monkeypatch, "source-model", lambda _user: _audit_content("source"))

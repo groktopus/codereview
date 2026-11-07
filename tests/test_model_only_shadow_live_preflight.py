@@ -96,6 +96,7 @@ def _prepared(plan: dict) -> dict:
     }
 
 
+@pytest.mark.compatibility
 def test_exact_preflight_matches_ten_pinned_writer_requests_without_dispatch(frozen_preflight_root: Path):
     plan, raw = _plan()
     receipt = preflight.verify(plan, _prepared(plan), plan_bytes=raw)

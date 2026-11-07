@@ -286,6 +286,7 @@ def test_frozen_pr464_capture_roundtrips_real_plan_and_identity(tmp_path, monkey
     [("v1", 0), ("v2", 1)],
     ids=["legacy-64k-rejected", "active-v3-96k-admitted"],
 )
+@pytest.mark.compatibility
 def test_frozen_pr464_no_candidate_audit_obeys_exact_versioned_request_cap(
     limits_version, expected_dispatches, tmp_path, monkeypatch, capsys
 ):

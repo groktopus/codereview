@@ -6,7 +6,7 @@ import stat
 from pathlib import Path
 
 import pytest
-from compatibility_pins import pin
+from compatibility_pins import assert_pin_value, pin
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "private-shadow-capture.yml"
@@ -223,6 +223,7 @@ def test_live_writer_failure_reports_only_allowlisted_json_and_stage_code():
     assert '"private-shadow-preparation"' in live.split("- name: Remove private live-writer workspace", 1)[1]
 
 
+@pytest.mark.compatibility
 def test_workflow_pins_the_historical_case_runtime_and_never_uploads_raw_data():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "5873c3f1b297a96c49b78cbcb7be674ab70b3cea" in text
@@ -255,6 +256,7 @@ def test_live_case_selector_is_a_closed_two_case_choice_with_fixed_paths():
     assert '--private-shadow-preflight-case-id "${{ steps.case.outputs.case_id }}" --max-claim-assessments 0' in live
 
 
+@pytest.mark.compatibility
 def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():
     legacy = json.loads(BUDGET.read_text(encoding="utf-8"))
     live = json.loads((ROOT / "experiments" / "model-only-shadow-live-pr464-plan-v2.json").read_text())
@@ -266,6 +268,7 @@ def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():
     assert capture_hash in (ROOT / "scripts" / "verify_model_only_shadow_live_preflight.py").read_text()
 
 
+@pytest.mark.compatibility
 def test_budget_manifest_has_finite_shared_limits_and_planned_provider_identity():
     budget = json.loads(BUDGET.read_text(encoding="utf-8"))
     assert budget["schema"] == "model-only-shadow-trial-budget.v1"
@@ -274,8 +277,16 @@ def test_budget_manifest_has_finite_shared_limits_and_planned_provider_identity(
     assert case["case_id"] == "PR-464"
     assert case["base_sha"] == "20a743f0434a1843aa00068483f608f1e213b2af"
     assert case["head_sha"] == "bffc26f9e4bf95aca0c252e88a2396d03ece854c"
-    assert case["runtime_inventory_sha256"] == pin("runtime.model_only_shadow.inventory_sha256")
-    assert case["runtime_module_tree_sha256"] == pin("runtime.model_only_shadow.module_tree_sha256")
+    assert_pin_value(
+        "runtime.model_only_shadow.inventory_sha256",
+        case["runtime_inventory_sha256"],
+        module="experiments/model-only-shadow-trial-v1.json",
+    )
+    assert_pin_value(
+        "runtime.model_only_shadow.module_tree_sha256",
+        case["runtime_module_tree_sha256"],
+        module="experiments/model-only-shadow-trial-v1.json",
+    )
     limits = budget["budgets"]
     assert limits["writer_calls_max"] + limits["audit_calls_max"] == limits["total_provider_calls_max"] == 13
     assert limits["max_request_bytes_per_call"] == 128_000
@@ -340,6 +351,7 @@ def _receipt_fixture(tmp_path: Path, *, extra_manifest_key: bool = False):
     return summary_path, manifest_path
 
 
+@pytest.mark.compatibility
 def test_sanitizer_uploads_only_allowlisted_hash_receipts_and_private_modes(tmp_path: Path):
     summary, manifest = _receipt_fixture(tmp_path)
     output_dir = tmp_path / "sanitized"
@@ -353,6 +365,7 @@ def test_sanitizer_uploads_only_allowlisted_hash_receipts_and_private_modes(tmp_
     assert stat.S_IMODE((output_dir / "manifest.json").stat().st_mode) == 0o600
 
 
+@pytest.mark.compatibility
 def test_sanitizer_rejects_unreviewed_manifest_fields(tmp_path: Path):
     summary, manifest = _receipt_fixture(tmp_path, extra_manifest_key=True)
     with pytest.raises(sanitizer.ReceiptError, match="manifest_schema_invalid"):
