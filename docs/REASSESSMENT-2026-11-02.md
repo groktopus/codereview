@@ -144,10 +144,9 @@ Local full-suite candidate runs were not full passes: the VD-3 run recorded
 4,107 passed / 12 skipped / 35 deselected **and 2 failures**; the QM-5 recovery run
 recorded 4,179 passed / 14 skipped **and 2 failures**. Both failure pairs were due
 to the missing local `build` module. Hash-locked candidate CI supplied that
-dependency and passed before merge; the later root verification above confirms
-PR 354's post-merge success but leaves PR 352's queued Harness run pending.
-Documentation checks cannot replace those
-source/CI or live evaluation obligations.
+dependency and passed before merge; current main Harness and Security checks also
+passed at the assessed source SHA (see the exact run links above). Documentation
+checks cannot replace source/CI or live evaluation obligations.
 
 ## Bottom line
 
