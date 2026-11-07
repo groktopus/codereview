@@ -9,6 +9,31 @@ permissions:
   contents: read
 
 jobs:
+  uploader-dependencies:
+    name: Node 24 uploader dependency smoke (no upload)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install locked test dependencies
+        run: python -m pip install --disable-pip-version-check --require-hashes --no-deps -r requirements-dev.lock
+      - name: Install locked uploader dependencies without lifecycle scripts
+        working-directory: scripts/actions-artifact-uploader
+        run: npm ci --ignore-scripts --engine-strict --no-audit --no-fund
+      - name: Require actual Node 24 and installed artifact dependency
+        run: |
+          set -euo pipefail
+          node -e 'if (process.versions.node.split(".")[0] !== "24") process.exit(1)'
+          test -d scripts/actions-artifact-uploader/node_modules/@actions/artifact
+      - name: Exercise dependency import, glob and ZIP without credentials or upload
+        run: python -m pytest -q tests/test_actions_artifact_uploader.py::test_installed_uploader_dependencies_archive_and_fail_closed_offline
+
   effect-observer:
     name: Linux external observer contract
     runs-on: ubuntu-latest

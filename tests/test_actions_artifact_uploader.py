@@ -1,3 +1,5 @@
+import base64
+import io
 import json
 import math
 import os
@@ -5,6 +7,7 @@ import shlex
 import shutil
 import subprocess
 import time
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -17,6 +20,75 @@ NODE = shutil.which("node")
 # action-level deadlines and elapsed-time assertions remain independently tight.
 NODE_HARNESS_PROCESS_TIMEOUT = 30
 NODE_PRELOAD_PROCESS_TIMEOUT = 10
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is not available")
+def test_installed_uploader_dependencies_archive_and_fail_closed_offline(tmp_path):
+    if not (ACTION / "node_modules/@actions/artifact").is_dir():
+        pytest.skip("Install uploader dependencies with npm ci --ignore-scripts first")
+    content = b"bounded dependency compatibility fixture\n"
+    (tmp_path / "receipt.json").write_bytes(content)
+    (tmp_path / "excluded.json").write_text("excluded")
+    (tmp_path / "other.txt").write_text("not JSON")
+    # Deny outbound sockets before loading the real dependency graph. The child
+    # receives no runtime credentials and never calls the upload API.
+    network_guard = r"""
+import net from 'node:net';
+import {syncBuiltinESMExports} from 'node:module';
+const denyNetwork = () => { throw new Error('network forbidden in dependency smoke'); };
+net.Socket.prototype.connect = denyNetwork;
+net.connect = denyNetwork;
+net.createConnection = denyNetwork;
+globalThis.fetch = denyNetwork;
+syncBuiltinESMExports();
+"""
+    guard = tmp_path / "deny-network.mjs"
+    guard.write_text(network_guard)
+    runner = r"""
+import assert from 'node:assert/strict';
+import {lstatSync} from 'node:fs';
+import {DefaultArtifactClient} from '@actions/artifact';
+import utils from 'archiver-utils';
+import {createZipUploadStream} from './node_modules/@actions/artifact/lib/internal/upload/zip.js';
+const root = process.argv[1];
+const matches = utils.file.expand({cwd: root, nodir: true}, ['*.{json,txt}', '!*.txt', '!excluded.json']);
+assert.deepEqual(matches, ['receipt.json']);
+const client = new DefaultArtifactClient();
+assert.equal(typeof client.uploadArtifact, 'function');
+const sourcePath = root + '/receipt.json';
+const stream = await createZipUploadStream([{
+  sourcePath, destinationPath: 'receipt.json', stats: lstatSync(sourcePath),
+}]);
+const chunks = [];
+for await (const chunk of stream) chunks.push(chunk);
+console.log('ZIP:' + Buffer.concat(chunks).toString('base64'));
+"""
+    env = {"PATH": os.environ.get("PATH", os.defpath), "HOME": str(tmp_path), "TMPDIR": str(tmp_path)}
+    completed = subprocess.run(
+        [NODE, "--import", str(guard), "--input-type=module", "-e", runner, str(tmp_path)],
+        cwd=ACTION,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=NODE_HARNESS_PROCESS_TIMEOUT,
+        check=True,
+    )
+    encoded = next(line.removeprefix("ZIP:") for line in completed.stdout.splitlines() if line.startswith("ZIP:"))
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(encoded, validate=True))) as archive:
+        assert archive.namelist() == ["receipt.json"]
+        assert archive.read("receipt.json") == content
+    cli = subprocess.run(
+        [NODE, "--import", str(guard), str(ACTION / "upload.mjs")],
+        cwd=ACTION,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=NODE_HARNESS_PROCESS_TIMEOUT,
+        check=False,
+    )
+    assert cli.returncode == 1
+    assert cli.stdout == cli.stderr == ""
+
 
 _STAGE_PRELOAD = r"""
 const fs = require('node:fs');
