@@ -1,0 +1,1142 @@
+[
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_1",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_10",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_100",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_101",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_102",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_103",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_104",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_105",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_106",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_107",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_108",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_109",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_11",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_110",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_111",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_112",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_113",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_114",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_115",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_116",
+    "exit_code": 0,
+    "status": "survived"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_117",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_118",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_119",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_12",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_120",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_121",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_122",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_123",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_124",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_125",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_126",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_127",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_128",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_129",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_13",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_130",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_131",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_132",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_133",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_134",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_135",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_136",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_137",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_138",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_139",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_14",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_140",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_141",
+    "exit_code": 0,
+    "status": "survived"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_142",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_143",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_144",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_145",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_146",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_147",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_148",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_149",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_15",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_150",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_151",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_152",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_153",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_154",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_155",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_156",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_157",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_158",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_159",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_16",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_160",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_161",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_162",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_163",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_164",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_165",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_166",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_167",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_168",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_169",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_17",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_170",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_171",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_172",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_173",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_174",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_175",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_176",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_177",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_178",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_179",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_18",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_180",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_181",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_182",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_183",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_184",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_185",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_186",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_187",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_188",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_189",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_19",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_190",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_191",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_192",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_193",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_194",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_195",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_196",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_197",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_198",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_199",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_2",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_20",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_200",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_201",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_202",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_203",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_204",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_205",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_206",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_207",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_208",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_209",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_21",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_210",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_211",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_212",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_213",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_214",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_215",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_216",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_217",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_218",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_219",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_22",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_220",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_221",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_222",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_223",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_224",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_225",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_226",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_227",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_228",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_23",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_24",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_25",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_26",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_27",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_28",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_29",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_3",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_30",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_31",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_32",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_33",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_34",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_35",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_36",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_37",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_38",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_39",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_4",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_40",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_41",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_42",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_43",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_44",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_45",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_46",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_47",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_48",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_49",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_5",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_50",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_51",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_52",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_53",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_54",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_55",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_56",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_57",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_58",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_59",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_6",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_60",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_61",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_62",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_63",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_64",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_65",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_66",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_67",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_68",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_69",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_7",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_70",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_71",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_72",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_73",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_74",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_75",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_76",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_77",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_78",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_79",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_8",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_80",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_81",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_82",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_83",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_84",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_85",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_86",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_87",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_88",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_89",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_9",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_90",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_91",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_92",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_93",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_94",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_95",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_96",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_97",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_98",
+    "exit_code": 1,
+    "status": "killed"
+  },
+  {
+    "id": "pr_review_harness.contracts.x_validate_adjudication__mutmut_99",
+    "exit_code": 1,
+    "status": "killed"
+  }
+]

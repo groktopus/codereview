@@ -1,0 +1,630 @@
+{
+  "schema": "review-validator-mutation-measurement.v1",
+  "source_revision": "afb92e326c4375bfe3d40abce9366526b21ac861",
+  "new_tests_base_revision": "8e477420c5752537129963a402b1ba91b6956151",
+  "tool": "mutmut 3.8.1",
+  "python": "CPython 3.13.15",
+  "pytest": "9.2.0",
+  "environment": "/tmp/vd2-reducer-tools isolated, no editable project/global modifications",
+  "scope_note": "Three named functions only; no qualification for whole validators/contracts/engine/claim_assessment modules or issue252 closure. Production source unchanged. Tests are direct deterministic validation boundaries, not provider/effect execution.",
+  "denominator": "killed / all named-function generated mutants; survivors, no-tests, timeout, skipped, suspicious, unknown not removed. No exclusions. Out-of-function generated variants are separately disclosed as unexecuted, not qualified.",
+  "threshold": 0.7,
+  "stages": [
+    {
+      "stage": "baseline",
+      "function_filter": "pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_*",
+      "label": "causal",
+      "source_module": "src/pr_review_harness/engine.py",
+      "source_sha256": "dce6addfd9b280886fb302811902c9feb817708ed9615e981dbe7f12cf761ae6",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-causal-afb92e3",
+      "config": "docs/evidence/vd2-validators/baseline-causal/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py"
+      ],
+      "baseline_passed": 251,
+      "total": 118,
+      "killed": 87,
+      "survived": 31,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.7372881355932204,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 3135,
+      "full_module_generated": 3253,
+      "statuses": "docs/evidence/vd2-validators/baseline-causal/statuses.json"
+    },
+    {
+      "stage": "baseline",
+      "function_filter": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_*",
+      "label": "choice",
+      "source_module": "src/pr_review_harness/claim_assessment.py",
+      "source_sha256": "20c8d01c213e704305c597400097064ff5dc0961e029eedeab9740ed021ffa3b",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-choice-afb92e3",
+      "config": "docs/evidence/vd2-validators/baseline-choice/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py"
+      ],
+      "baseline_passed": 251,
+      "total": 72,
+      "killed": 59,
+      "survived": 13,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.8194444444444444,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 2082,
+      "full_module_generated": 2154,
+      "statuses": "docs/evidence/vd2-validators/baseline-choice/statuses.json"
+    },
+    {
+      "stage": "baseline",
+      "function_filter": "pr_review_harness.contracts.x_validate_adjudication__mutmut_*",
+      "label": "adjudication",
+      "source_module": "src/pr_review_harness/contracts.py",
+      "source_sha256": "5309e8ac082952afdd4baf6b567894cb9794ea5c426eb7c6671bd9ad189c2706",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.contracts.x_validate_adjudication__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-adjudication-afb92e3",
+      "config": "docs/evidence/vd2-validators/baseline-adjudication/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py"
+      ],
+      "baseline_passed": 251,
+      "total": 228,
+      "killed": 81,
+      "survived": 147,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.35526315789473684,
+      "threshold_verdict": "FAIL",
+      "out_of_scope_generated_unexecuted": 1185,
+      "full_module_generated": 1413,
+      "statuses": "docs/evidence/vd2-validators/baseline-adjudication/statuses.json"
+    },
+    {
+      "stage": "contracts-selection",
+      "function_filter": "pr_review_harness.contracts.x_validate_adjudication__mutmut_*",
+      "label": "adjudication",
+      "source_module": "src/pr_review_harness/contracts.py",
+      "source_sha256": "5309e8ac082952afdd4baf6b567894cb9794ea5c426eb7c6671bd9ad189c2706",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.contracts.x_validate_adjudication__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-adjudication-contracts-afb92e3",
+      "config": "docs/evidence/vd2-validators/contracts-selection-adjudication/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py",
+        "tests/test_contracts.py"
+      ],
+      "baseline_passed": 289,
+      "total": 228,
+      "killed": 184,
+      "survived": 44,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.8070175438596491,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 1185,
+      "full_module_generated": 1413,
+      "statuses": "docs/evidence/vd2-validators/contracts-selection-adjudication/statuses.json"
+    },
+    {
+      "stage": "hardened-first",
+      "function_filter": "pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_*",
+      "label": "causal",
+      "source_module": "src/pr_review_harness/engine.py",
+      "source_sha256": "dce6addfd9b280886fb302811902c9feb817708ed9615e981dbe7f12cf761ae6",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-causal-hardened",
+      "config": "docs/evidence/vd2-validators/hardened-first-causal/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py",
+        "tests/test_contracts.py",
+        "tests/test_vd2_validators.py"
+      ],
+      "baseline_passed": 336,
+      "total": 118,
+      "killed": 117,
+      "survived": 1,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.9915254237288136,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 3135,
+      "full_module_generated": 3253,
+      "statuses": "docs/evidence/vd2-validators/hardened-first-causal/statuses.json"
+    },
+    {
+      "stage": "hardened-first",
+      "function_filter": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_*",
+      "label": "choice",
+      "source_module": "src/pr_review_harness/claim_assessment.py",
+      "source_sha256": "20c8d01c213e704305c597400097064ff5dc0961e029eedeab9740ed021ffa3b",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-choice-hardened",
+      "config": "docs/evidence/vd2-validators/hardened-first-choice/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py",
+        "tests/test_contracts.py",
+        "tests/test_vd2_validators.py"
+      ],
+      "baseline_passed": 336,
+      "total": 72,
+      "killed": 69,
+      "survived": 3,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.9583333333333334,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 2082,
+      "full_module_generated": 2154,
+      "statuses": "docs/evidence/vd2-validators/hardened-first-choice/statuses.json"
+    },
+    {
+      "stage": "hardened-first",
+      "function_filter": "pr_review_harness.contracts.x_validate_adjudication__mutmut_*",
+      "label": "adjudication",
+      "source_module": "src/pr_review_harness/contracts.py",
+      "source_sha256": "5309e8ac082952afdd4baf6b567894cb9794ea5c426eb7c6671bd9ad189c2706",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.contracts.x_validate_adjudication__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-adjudication-hardened",
+      "config": "docs/evidence/vd2-validators/hardened-first-adjudication/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py",
+        "tests/test_contracts.py",
+        "tests/test_vd2_validators.py"
+      ],
+      "baseline_passed": 336,
+      "total": 228,
+      "killed": 184,
+      "survived": 44,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.8070175438596491,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 1185,
+      "full_module_generated": 1413,
+      "statuses": "docs/evidence/vd2-validators/hardened-first-adjudication/statuses.json"
+    },
+    {
+      "stage": "final",
+      "function_filter": "pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_*",
+      "label": "causal",
+      "source_module": "src/pr_review_harness/engine.py",
+      "source_sha256": "dce6addfd9b280886fb302811902c9feb817708ed9615e981dbe7f12cf761ae6",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-causal-final",
+      "config": "docs/evidence/vd2-validators/final-causal/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py",
+        "tests/test_contracts.py",
+        "tests/test_vd2_validators.py",
+        "tests/test_vd2_adjudication.py"
+      ],
+      "baseline_passed": 364,
+      "total": 118,
+      "killed": 117,
+      "survived": 1,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.9915254237288136,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 3135,
+      "full_module_generated": 3253,
+      "statuses": "docs/evidence/vd2-validators/final-causal/statuses.json",
+      "repeat": "same full scope reexecuted exit0; every native status identical"
+    },
+    {
+      "stage": "final",
+      "function_filter": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_*",
+      "label": "choice",
+      "source_module": "src/pr_review_harness/claim_assessment.py",
+      "source_sha256": "20c8d01c213e704305c597400097064ff5dc0961e029eedeab9740ed021ffa3b",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-choice-final",
+      "config": "docs/evidence/vd2-validators/final-choice/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py",
+        "tests/test_contracts.py",
+        "tests/test_vd2_validators.py",
+        "tests/test_vd2_adjudication.py"
+      ],
+      "baseline_passed": 364,
+      "total": 72,
+      "killed": 69,
+      "survived": 3,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.9583333333333334,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 2082,
+      "full_module_generated": 2154,
+      "statuses": "docs/evidence/vd2-validators/final-choice/statuses.json",
+      "repeat": "same full scope reexecuted exit0; every native status identical"
+    },
+    {
+      "stage": "final",
+      "function_filter": "pr_review_harness.contracts.x_validate_adjudication__mutmut_*",
+      "label": "adjudication",
+      "source_module": "src/pr_review_harness/contracts.py",
+      "source_sha256": "5309e8ac082952afdd4baf6b567894cb9794ea5c426eb7c6671bd9ad189c2706",
+      "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 2 'pr_review_harness.contracts.x_validate_adjudication__mutmut_*'",
+      "working_directory": "/tmp/vd2-validator-adjudication-final",
+      "config": "docs/evidence/vd2-validators/final-adjudication/probe-config.toml",
+      "test_selection": [
+        "tests/test_vd2_reducer.py",
+        "tests/test_contracts.py",
+        "tests/test_vd2_validators.py",
+        "tests/test_vd2_adjudication.py"
+      ],
+      "baseline_passed": 364,
+      "total": 228,
+      "killed": 226,
+      "survived": 2,
+      "no_tests": 0,
+      "timeouts": 0,
+      "unknown": 0,
+      "invalid": 0,
+      "infrastructure_failure": 0,
+      "score": 0.9912280701754386,
+      "threshold_verdict": "PASS_NAMED_FUNCTION_ONLY",
+      "out_of_scope_generated_unexecuted": 1185,
+      "full_module_generated": 1413,
+      "statuses": "docs/evidence/vd2-validators/final-adjudication/statuses.json",
+      "repeat": "same full scope reexecuted exit0; every native status identical"
+    }
+  ],
+  "test_hashes": {
+    "tests/test_vd2_reducer.py": "e759a8250510b0bb848e169c9a56ca5e2bf920415e05793f7f752bcd5cc96e20",
+    "tests/test_contracts.py": "86e3c3a25c63492e3caaf2c4050f4fcec2f97e67fe905457851ed31cf1991664",
+    "tests/test_vd2_validators.py": "95e33e5cd5e2b5b614591f773906ca02a2560f4811bfbb06b98d8348d4762d96",
+    "tests/test_vd2_adjudication.py": "7fadffbe7be025054cada5ff0619fcd4c203384d291569ff77fb0800a389d16a"
+  },
+  "survivor_triage": {
+    "causal": {
+      "47": "REAL GAP: delivered inventory dict-and-string guard weakened AND->OR; malformed/noise delivered items not covered. Not equivalent; retained survivor."
+    },
+    "choice": {
+      "58": "REAL GAP: probability maximum 1->2 permits >1 value while sum remains within normalization tolerance; test does not isolate upper bound from negative companion probability. Not equivalent.",
+      "64": "UNRESOLVED FLOATING BOUNDARY: normalization comparison >0.02 -> >=0.02; exact representable boundary not established. Not equivalent-classified, retained survivor.",
+      "69": "REAL BOUNDARY GAP independently identified and verified against exact native mutant69: type=choice, selected=yes, probabilities={yes: 0.5-1e-6, no: 0.5}, confidence=0.5, allowed={yes,no}; sum=0.9999990000000001. Original returns True at inclusive max-1e-6 tolerance; mutant >= -> > returns False. Existing measured tests do not exercise this witness. Native survivor status and denominator unchanged; not equivalent."
+    },
+    "adjudication": {
+      "116": "LIKELY EQUIVALENT under immutable revision: omits explicit MAX_TEXT_BYTES argument; _is_text default equals MAX_TEXT_BYTES. Same predicate for arrays at this revision; retained survivor, not excluded.",
+      "141": "LIKELY EQUIVALENT under immutable revision: omits explicit MAX_TEXT_BYTES argument; _is_text default equals MAX_TEXT_BYTES. Same predicate for summary at this revision; retained survivor, not excluded."
+    }
+  },
+  "progression": "Baseline251-only adjudication81/228 FAIL; adding existing38contracts tests yields184/228; first47 new causal/choice cases leave adjudication184/228 unchanged; final28adjudication cases yield226/228. Do not attribute existing-test selection improvement to new cases.",
+  "retained_artifacts": {
+    "vd2-validators/baseline-adjudication/baseline.log": {
+      "sha256": "1052ce0da2a81cba2393bb1911460754f36791c373c7f4cc94eb5e20f231d15b",
+      "bytes": 340
+    },
+    "vd2-validators/baseline-adjudication/mutmut-run.log": {
+      "sha256": "a19a2ceb24bf4d33350368ca7c54e487b275075fc2824eabe29acd440622c818",
+      "bytes": 52509
+    },
+    "vd2-validators/baseline-adjudication/native.meta.json": {
+      "sha256": "0e884de9d6f10dd256583fc5ed17e915fed11768ce8f1973b3c874dbb983a61a",
+      "bytes": 154917
+    },
+    "vd2-validators/baseline-adjudication/probe-config.toml": {
+      "sha256": "0d2f99aac86c29643680d75ff7df06f322ea01d1f87db093ba0178a287229e00",
+      "bytes": 336
+    },
+    "vd2-validators/baseline-adjudication/snapshot.json": {
+      "sha256": "dd5723b33f620751f77a1e79a56055cadf5b9e1ee6ea0d5bd309c551cbe8eadb",
+      "bytes": 5524
+    },
+    "vd2-validators/baseline-adjudication/statuses.json": {
+      "sha256": "dcfb74e4e628910f3b2b48e5ba9488273a5f9ebc3530d4f30d0e894fb3e61719",
+      "bytes": 29601
+    },
+    "vd2-validators/baseline-adjudication/survivors.diff": {
+      "sha256": "b1b3b3fb33e7bd88cfca7d2922c281f33962080079d5e6fb8d85408a3761559c",
+      "bytes": 90112
+    },
+    "vd2-validators/baseline-causal/baseline.log": {
+      "sha256": "1052ce0da2a81cba2393bb1911460754f36791c373c7f4cc94eb5e20f231d15b",
+      "bytes": 340
+    },
+    "vd2-validators/baseline-causal/mutmut-run.log": {
+      "sha256": "9648c60b50ee46984af23380cdd46b295bd9bfb5ddbae3826c2d0884290285dc",
+      "bytes": 30381
+    },
+    "vd2-validators/baseline-causal/native.meta.json": {
+      "sha256": "34bff0378f5f780e3e4ff90190491331f15880cb2419d796fc6f52ed89b74993",
+      "bytes": 281610
+    },
+    "vd2-validators/baseline-causal/probe-config.toml": {
+      "sha256": "526264e37e3a04946f7c984367f3805e99f9801b35b977b5e06773d67605b3fb",
+      "bytes": 333
+    },
+    "vd2-validators/baseline-causal/snapshot.json": {
+      "sha256": "dd5723b33f620751f77a1e79a56055cadf5b9e1ee6ea0d5bd309c551cbe8eadb",
+      "bytes": 5524
+    },
+    "vd2-validators/baseline-causal/statuses.json": {
+      "sha256": "e988de0b58729d0b86df5ce36df0c6806719af69e632dfef879f3d5902978ba3",
+      "bytes": 15415
+    },
+    "vd2-validators/baseline-causal/survivors.diff": {
+      "sha256": "50d5640faa4ad3d04806990f3632fc19c4cde621d995d2f6c13df8b633572789",
+      "bytes": 17835
+    },
+    "vd2-validators/baseline-choice/baseline.log": {
+      "sha256": "27566220d7a6105e7746a6acbff80b2ec4373f41444f88e32d20f61854e9456c",
+      "bytes": 340
+    },
+    "vd2-validators/baseline-choice/mutmut-run.log": {
+      "sha256": "97040477d666f10c27f3423e55c5eb333557a54bb05722bf9501d0c014617b28",
+      "bytes": 32374
+    },
+    "vd2-validators/baseline-choice/native.meta.json": {
+      "sha256": "55960c896cca107c9a5073133f52aee2e1a8530dfa6634b8dcbebeeff4a78365",
+      "bytes": 241970
+    },
+    "vd2-validators/baseline-choice/probe-config.toml": {
+      "sha256": "0dbf99d100939af8757606da1da0b4422c038610ea62011ba8ffa539460c5e3a",
+      "bytes": 343
+    },
+    "vd2-validators/baseline-choice/snapshot.json": {
+      "sha256": "dd5723b33f620751f77a1e79a56055cadf5b9e1ee6ea0d5bd309c551cbe8eadb",
+      "bytes": 5524
+    },
+    "vd2-validators/baseline-choice/statuses.json": {
+      "sha256": "3ab91241e53df9bbe09145c9bb816213d5f0145392633d9e54d50bb553dc1176",
+      "bytes": 11540
+    },
+    "vd2-validators/baseline-choice/survivors.diff": {
+      "sha256": "2797d798f0c150df788c885757fc7bc614fdc06a246f4bb50b40d9fc77194582",
+      "bytes": 7629
+    },
+    "vd2-validators/contracts-selection-adjudication/baseline.log": {
+      "sha256": "52eabac9a89a108771387c2e794db91cce56b252581259a103c06c4aecb6db77",
+      "bytes": 420
+    },
+    "vd2-validators/contracts-selection-adjudication/mutmut-run.log": {
+      "sha256": "b5e791635f1f909f40d95c3cc16d96c81da8f1863dcf67d2963533bbe85f74d1",
+      "bytes": 54181
+    },
+    "vd2-validators/contracts-selection-adjudication/native.meta.json": {
+      "sha256": "4608094142e941061de51e93b98bbbb85d6094fb7e20a07bbca6eb6d0f88105f",
+      "bytes": 154687
+    },
+    "vd2-validators/contracts-selection-adjudication/probe-config.toml": {
+      "sha256": "ae1db88cc8c29ff8de3511372ff5fd23958e3c06b1ba3dd6e45d38d6b8678882",
+      "bytes": 363
+    },
+    "vd2-validators/contracts-selection-adjudication/snapshot.json": {
+      "sha256": "dd5723b33f620751f77a1e79a56055cadf5b9e1ee6ea0d5bd309c551cbe8eadb",
+      "bytes": 5524
+    },
+    "vd2-validators/contracts-selection-adjudication/statuses.json": {
+      "sha256": "72d34596ee2e0aaa471cbbf75471b75860fac507110258a0acd8a56c565bf5b1",
+      "bytes": 29395
+    },
+    "vd2-validators/contracts-selection-adjudication/survivors.diff": {
+      "sha256": "08ce8fca22fcf7f79560cba82254553b7e30ad7f5b8466109e416aa85dac895d",
+      "bytes": 25803
+    },
+    "vd2-validators/final-adjudication/baseline.log": {
+      "sha256": "d97665fb0fcedc28cb168576b9dfaef10a15e58c09dfe9c09c07747aa047e809",
+      "bytes": 500
+    },
+    "vd2-validators/final-adjudication/first.meta": {
+      "sha256": "2bf0debc2bab8043a85ed4f9bdc0204f5fa0db7aa7b38dc59af4731b19d0dacd",
+      "bytes": 154458
+    },
+    "vd2-validators/final-adjudication/mutmut-repeat.log": {
+      "sha256": "a36b74ba7c6516d2ae7b10b27d3140c350a5d25e74c11b1e79c969c3e9863a6d",
+      "bytes": 50969
+    },
+    "vd2-validators/final-adjudication/mutmut-run.log": {
+      "sha256": "da32b908de364903cc9e199f43575823ed1778a3915f0077178ad2dd976905b8",
+      "bytes": 57232
+    },
+    "vd2-validators/final-adjudication/native.meta.json": {
+      "sha256": "e3cc043564754a48d529910144ea3a0aa169bd190602c9f78f6d7b91b80efae5",
+      "bytes": 154464
+    },
+    "vd2-validators/final-adjudication/probe-config.toml": {
+      "sha256": "df12e9ce931abbd2e79070c81e85ec8b7f1d7c6f2d5cb4afea919d195ed5e510",
+      "bytes": 429
+    },
+    "vd2-validators/final-adjudication/snapshot.json": {
+      "sha256": "669e7fdc5f604ecb2e965c027ba21e849fd4ddd2ede1900a9685fd3e31e1bcdc",
+      "bytes": 5965
+    },
+    "vd2-validators/final-adjudication/statuses.json": {
+      "sha256": "63cfcf948f12cabe50d616f7506851df3d6ddffae1f3fe1fe26b4efdfae36f94",
+      "bytes": 29311
+    },
+    "vd2-validators/final-adjudication/survivors.diff": {
+      "sha256": "e47d6eaeb3cdcbeda2fe438cf42820dc71fc54cff21c3815f70ef564f663c2f6",
+      "bytes": 990
+    },
+    "vd2-validators/final-causal/baseline.log": {
+      "sha256": "d97665fb0fcedc28cb168576b9dfaef10a15e58c09dfe9c09c07747aa047e809",
+      "bytes": 500
+    },
+    "vd2-validators/final-causal/first.meta": {
+      "sha256": "23e258f42f95b70f784a9197ae462d4401e1b1fe559c133eeea361314083abf5",
+      "bytes": 281492
+    },
+    "vd2-validators/final-causal/mutmut-repeat.log": {
+      "sha256": "7d1a7c23e4736012eaadcf974d5b04fa11c3310f9a025a1a2664aacd6597b904",
+      "bytes": 28891
+    },
+    "vd2-validators/final-causal/mutmut-run.log": {
+      "sha256": "133615a2f16e5cba959193d3c672191aabd65a020cbaee18c0298aa33032130a",
+      "bytes": 35154
+    },
+    "vd2-validators/final-causal/native.meta.json": {
+      "sha256": "bd7ae8143c47cb03d6382cc2446ca965cf1376016f77b3c67c93a6459b04c431",
+      "bytes": 281490
+    },
+    "vd2-validators/final-causal/probe-config.toml": {
+      "sha256": "861d151741b734d257e93e0368c8ae044f3391c43399d415b0155aa8f25a4062",
+      "bytes": 426
+    },
+    "vd2-validators/final-causal/snapshot.json": {
+      "sha256": "41f6db26a959c6c00ca969129fc6538366d8268a8086f46fa4cc33836d6cad54",
+      "bytes": 5965
+    },
+    "vd2-validators/final-causal/statuses.json": {
+      "sha256": "a8518d834b1c9c5d7e2fe65c70e9042bcb2153774c229e5e81b45e5d83c47c04",
+      "bytes": 15355
+    },
+    "vd2-validators/final-causal/survivors.diff": {
+      "sha256": "e24dbb6dd0c2509e852b95150c937958746c268bc5c6b31044dd94aa15ff89f1",
+      "bytes": 500
+    },
+    "vd2-validators/final-choice/baseline.log": {
+      "sha256": "d97665fb0fcedc28cb168576b9dfaef10a15e58c09dfe9c09c07747aa047e809",
+      "bytes": 500
+    },
+    "vd2-validators/final-choice/first.meta": {
+      "sha256": "771409cf721514fe4c658116edf6923c60ccdc13a943ebf8607617b768d461b0",
+      "bytes": 241974
+    },
+    "vd2-validators/final-choice/mutmut-repeat.log": {
+      "sha256": "0ba05b16c42e82556b9768920771084e1ae9e9f9e7a893838890e468ec1e45bb",
+      "bytes": 30731
+    },
+    "vd2-validators/final-choice/mutmut-run.log": {
+      "sha256": "a6d31fb47bc9839fa6a8ece822f6711fe2c7c2f84d5c197c076fc170549929fb",
+      "bytes": 37199
+    },
+    "vd2-validators/final-choice/native.meta.json": {
+      "sha256": "26ea9a1c0c11d903768d27e9df621a18c743378eb0b2d2180061ee8a45a703c1",
+      "bytes": 241970
+    },
+    "vd2-validators/final-choice/probe-config.toml": {
+      "sha256": "cbb1120d0198868db733fc852a67f2e1b1dae472746f66268048dfce33894435",
+      "bytes": 436
+    },
+    "vd2-validators/final-choice/snapshot.json": {
+      "sha256": "ae1a1030721186ff33e8a00243af8a7b3ff4cd8878cc9d5c4299372f234b5e42",
+      "bytes": 5965
+    },
+    "vd2-validators/final-choice/statuses.json": {
+      "sha256": "e27842f024d909d553cb19de61876102fbb5f9195335f835460e7759147f94dc",
+      "bytes": 11520
+    },
+    "vd2-validators/final-choice/survivors.diff": {
+      "sha256": "c54a8c55abb6ec2b6f119ffa2250f719d921e779796427513782b5bf4efde6d1",
+      "bytes": 1663
+    },
+    "vd2-validators/hardened-first-adjudication/baseline.log": {
+      "sha256": "72ff5c5cc4473634b288fbe1801d4afc4b10fee7aa4944b5f794acafa37cea9a",
+      "bytes": 420
+    },
+    "vd2-validators/hardened-first-adjudication/mutmut-run.log": {
+      "sha256": "5c6945a8b9ee0b04e786e467ddf1786c5e008973a9f4c6cd43a0283fee122ed3",
+      "bytes": 56155
+    },
+    "vd2-validators/hardened-first-adjudication/native.meta.json": {
+      "sha256": "4004f9634ff0c16db283a00cd2f21df33288850b5e2394f54f4a593215cb883c",
+      "bytes": 154688
+    },
+    "vd2-validators/hardened-first-adjudication/probe-config.toml": {
+      "sha256": "d8c2384a59ad32193e737cd9896dad816748f7d614ae84ca45b88f3744a9c203",
+      "bytes": 395
+    },
+    "vd2-validators/hardened-first-adjudication/snapshot.json": {
+      "sha256": "59efcf796ac91857296c665812b4a015a7cc6ee05100c8bf82fe50d1898d9c8f",
+      "bytes": 5859
+    },
+    "vd2-validators/hardened-first-adjudication/statuses.json": {
+      "sha256": "72d34596ee2e0aaa471cbbf75471b75860fac507110258a0acd8a56c565bf5b1",
+      "bytes": 29395
+    },
+    "vd2-validators/hardened-first-causal/baseline.log": {
+      "sha256": "c2fd10efd3938eac0795df4f9cab43e518897457de33e69f6d82276c71dc8277",
+      "bytes": 420
+    },
+    "vd2-validators/hardened-first-causal/mutmut-run.log": {
+      "sha256": "d3a1b6bbe4d728aa5258159d6367fe93bde44a6054cf73b39ede440bd1a09286",
+      "bytes": 33936
+    },
+    "vd2-validators/hardened-first-causal/native.meta.json": {
+      "sha256": "5fa041f3536ac8d73a177293b103982b10a6e50687b30b10368c42768e2a0027",
+      "bytes": 281487
+    },
+    "vd2-validators/hardened-first-causal/probe-config.toml": {
+      "sha256": "859215b8395044a208129b9ffc5ee5ce7f961b33a7d1e9d891d2b0d4a96812af",
+      "bytes": 392
+    },
+    "vd2-validators/hardened-first-causal/snapshot.json": {
+      "sha256": "d13881beece2bfe6f1848adc04667173b9af8c6e9e2800ea4aa735f8325685ec",
+      "bytes": 5859
+    },
+    "vd2-validators/hardened-first-causal/statuses.json": {
+      "sha256": "a8518d834b1c9c5d7e2fe65c70e9042bcb2153774c229e5e81b45e5d83c47c04",
+      "bytes": 15355
+    },
+    "vd2-validators/hardened-first-choice/baseline.log": {
+      "sha256": "c2fd10efd3938eac0795df4f9cab43e518897457de33e69f6d82276c71dc8277",
+      "bytes": 420
+    },
+    "vd2-validators/hardened-first-choice/mutmut-run.log": {
+      "sha256": "6d856941342bf73c88138a42f700cdc79c9867ed9f3479b1659b4048ebcd8947",
+      "bytes": 35981
+    },
+    "vd2-validators/hardened-first-choice/native.meta.json": {
+      "sha256": "0bc067f12a81001759e5072d1d4fc454c1c06015595f2658cbb433c64506f09f",
+      "bytes": 241964
+    },
+    "vd2-validators/hardened-first-choice/probe-config.toml": {
+      "sha256": "e52fdd8aa024b82a838024fe25f41fde411523ef525834f79a7c318591edfdf0",
+      "bytes": 402
+    },
+    "vd2-validators/hardened-first-choice/snapshot.json": {
+      "sha256": "45a24f0a0255f704c60989d1c2063e212c6d3205a89d2dcf7ffe0e494a0f0fc5",
+      "bytes": 5859
+    },
+    "vd2-validators/hardened-first-choice/statuses.json": {
+      "sha256": "e27842f024d909d553cb19de61876102fbb5f9195335f835460e7759147f94dc",
+      "bytes": 11520
+    },
+    "vd2-validators/triage-adjudication.json": {
+      "sha256": "a329e095a55f74b7220a450fa24f66ea42f4f2b8ca369186f3c79dc5ab287f7b",
+      "bytes": 53911
+    },
+    "vd2-validators/triage-causal.json": {
+      "sha256": "cc1ac77f295f75009b6349de18e5ccc0502638f4855ca41cebb6f0a0548fe049",
+      "bytes": 11364
+    },
+    "vd2-validators/triage-choice.json": {
+      "sha256": "a970bb6c2cf6560e2aa4dc67e1aed0b39044b656596697fce09ea83afe00f23e",
+      "bytes": 5352
+    }
+  }
+}

@@ -1,0 +1,12 @@
+# pr_review_harness.engine.x__validated_v3_causal_roles__mutmut_47: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -27,7 +27,7 @@
+     delivered_ids = {
+         item.get("evidence_id")
+         for item in delivered_evidence
+-        if isinstance(item, dict) and isinstance(item.get("evidence_id"), str)
++        if isinstance(item, dict) or isinstance(item.get("evidence_id"), str)
+     }
+     referenced: set[str] = set()
+     for role_name in _CAUSAL_ROLES:

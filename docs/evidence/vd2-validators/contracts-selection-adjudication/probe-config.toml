@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mutmut]
+source_paths = ["src/pr_review_harness"]
+only_mutate = ["src/pr_review_harness/contracts.py"]
+pytest_add_cli_args_test_selection = ["tests/test_vd2_reducer.py", "tests/test_contracts.py"]
+pytest_add_cli_args = ["-q"]
+timeout_multiplier = 15.0
+timeout_constant = 1.0
+mutate_only_covered_lines = false

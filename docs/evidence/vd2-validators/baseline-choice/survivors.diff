@@ -1,0 +1,161 @@
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_1: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -1,6 +1,6 @@
+ @staticmethod
+ def _valid_choice(answer: Any, allowed: set[str]) -> bool:
+-    if not isinstance(answer, dict) or set(answer) != {"type", "choice", "probabilities", "confidence"}:
++    if not isinstance(answer, dict) and set(answer) != {"type", "choice", "probabilities", "confidence"}:
+         return False
+     if answer.get("type") != "choice" or answer.get("choice") not in allowed:
+         return False
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_13: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -1,7 +1,7 @@
+ @staticmethod
+ def _valid_choice(answer: Any, allowed: set[str]) -> bool:
+     if not isinstance(answer, dict) or set(answer) != {"type", "choice", "probabilities", "confidence"}:
+-        return False
++        return True
+     if answer.get("type") != "choice" or answer.get("choice") not in allowed:
+         return False
+     probabilities = answer.get("probabilities")
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_14: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -2,7 +2,7 @@
+ def _valid_choice(answer: Any, allowed: set[str]) -> bool:
+     if not isinstance(answer, dict) or set(answer) != {"type", "choice", "probabilities", "confidence"}:
+         return False
+-    if answer.get("type") != "choice" or answer.get("choice") not in allowed:
++    if answer.get("type") != "choice" and answer.get("choice") not in allowed:
+         return False
+     probabilities = answer.get("probabilities")
+     confidence = answer.get("confidence")
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_25: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -3,7 +3,7 @@
+     if not isinstance(answer, dict) or set(answer) != {"type", "choice", "probabilities", "confidence"}:
+         return False
+     if answer.get("type") != "choice" or answer.get("choice") not in allowed:
+-        return False
++        return True
+     probabilities = answer.get("probabilities")
+     confidence = answer.get("confidence")
+     if not isinstance(probabilities, dict) or set(probabilities) != allowed or not _finite_number(confidence):
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_35: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -6,7 +6,7 @@
+         return False
+     probabilities = answer.get("probabilities")
+     confidence = answer.get("confidence")
+-    if not isinstance(probabilities, dict) or set(probabilities) != allowed or not _finite_number(confidence):
++    if not isinstance(probabilities, dict) and set(probabilities) != allowed or not _finite_number(confidence):
+         return False
+     if not 0 <= confidence <= 1:
+         return False
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_51: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -11,7 +11,7 @@
+     if not 0 <= confidence <= 1:
+         return False
+     values = list(probabilities.values())
+-    if any(not _finite_number(value) or not 0 <= value <= 1 for value in values):
++    if any(not _finite_number(value) and not 0 <= value <= 1 for value in values):
+         return False
+     if abs(sum(values) - 1.0) > 0.02:
+         return False
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_58: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -11,7 +11,7 @@
+     if not 0 <= confidence <= 1:
+         return False
+     values = list(probabilities.values())
+-    if any(not _finite_number(value) or not 0 <= value <= 1 for value in values):
++    if any(not _finite_number(value) or not 0 <= value <= 2 for value in values):
+         return False
+     if abs(sum(values) - 1.0) > 0.02:
+         return False
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_59: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -12,7 +12,7 @@
+         return False
+     values = list(probabilities.values())
+     if any(not _finite_number(value) or not 0 <= value <= 1 for value in values):
+-        return False
++        return True
+     if abs(sum(values) - 1.0) > 0.02:
+         return False
+     # The selected option must be among the maximum-probability options;
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_64: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -13,7 +13,7 @@
+     values = list(probabilities.values())
+     if any(not _finite_number(value) or not 0 <= value <= 1 for value in values):
+         return False
+-    if abs(sum(values) - 1.0) > 0.02:
++    if abs(sum(values) - 1.0) >= 0.02:
+         return False
+     # The selected option must be among the maximum-probability options;
+     # ties are valid. This validates the native answer shape only.
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_65: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -13,7 +13,7 @@
+     values = list(probabilities.values())
+     if any(not _finite_number(value) or not 0 <= value <= 1 for value in values):
+         return False
+-    if abs(sum(values) - 1.0) > 0.02:
++    if abs(sum(values) - 1.0) > 1.02:
+         return False
+     # The selected option must be among the maximum-probability options;
+     # ties are valid. This validates the native answer shape only.
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_66: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -14,7 +14,7 @@
+     if any(not _finite_number(value) or not 0 <= value <= 1 for value in values):
+         return False
+     if abs(sum(values) - 1.0) > 0.02:
+-        return False
++        return True
+     # The selected option must be among the maximum-probability options;
+     # ties are valid. This validates the native answer shape only.
+     return probabilities[answer["choice"]] >= max(values) - 1e-6
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_69: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -17,4 +17,4 @@
+         return False
+     # The selected option must be among the maximum-probability options;
+     # ties are valid. This validates the native answer shape only.
+-    return probabilities[answer["choice"]] >= max(values) - 1e-6
++    return probabilities[answer["choice"]] > max(values) - 1e-6
+
+# pr_review_harness.claim_assessment.xǁClaimAssessmentAdapterǁ_valid_choice__mutmut_72: survived
+--- src/pr_review_harness/claim_assessment.py
++++ src/pr_review_harness/claim_assessment.py
+@@ -17,4 +17,4 @@
+         return False
+     # The selected option must be among the maximum-probability options;
+     # ties are valid. This validates the native answer shape only.
+-    return probabilities[answer["choice"]] >= max(values) - 1e-6
++    return probabilities[answer["choice"]] >= max(values) - 1.000001
