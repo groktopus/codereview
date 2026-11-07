@@ -42,7 +42,7 @@ them; the original rationale is retained.
 | 0009 | [Ownership and second-review path](0009-ownership-and-second-review.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-02 | [issue #271](https://github.com/groktopus/codereview/issues/271), PR #297, CODEOWNERS, OWNERSHIP/BACKLOG |
 | 0010 | [Synthetic model-teacher adjudication for quality evaluation](0010-synthetic-model-teacher-adjudication.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-02 | [QUALITY-LABELING-PROTOCOL.md](../QUALITY-LABELING-PROTOCOL.md); [QUALITY-SCORECARD.md](../QUALITY-SCORECARD.md); `experiments/harness/evaluation.py`, `experiments/harness/scorecard.py`; synthetic-arm tests |
 | 0011 | [Bounded, expiring evidence waivers](0011-bounded-evidence-waiver.md) | Accepted | Repository owner (`@magnus919`) | 2026-11-04 | [REVIEW-COMPLETENESS.md](../REVIEW-COMPLETENESS.md); [schema](../../schemas/review-evidence-waiver.v1.schema.json); `src/pr_review_harness/waiver.py`; `tests/test_waiver.py` |
-
+| 0012 | [Separate required admission from optional captured-evidence enrichment](0012-separate-required-admission-from-optional-enrichment.md) | Proposed | Repository owner (`@magnus919`); root routes the proposal | 2026-11-07 | Source checkpoint `578bfbc478773780de353310a361b134098ce20b`; source map and nine planned acceptance cases in the record; no implementation approval |
 
 The post-CA-2 budget (0001) is accepted as a one-time migration exception:
 current source growth must still update the measured surface and cannot use
