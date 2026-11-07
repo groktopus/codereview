@@ -760,10 +760,55 @@ class Uploader:
         return ArtifactUploadResult(self.status, artifact_id=artifact_id)
 
 
+GITHUB_FAULT_ACCEPTANCE = {
+    "github_rate_limit": {"status": "UNKNOWN", "reason": "github_history_unavailable", "posts": 0, "receipts": 0},
+    "lost_post_history_unknown": {
+        "status": "UNKNOWN",
+        "reason": "submit_response_ambiguous",
+        "posts": 1,
+        "receipts": 1,
+    },
+}
+
+
+def github_fault_history_response(failure, post_bodies, stored_reviews):
+    if failure == "github_rate_limit":
+        return HTTPResponse(
+            429,
+            {"retry-after": "60", "x-ratelimit-remaining": "0"},
+            b'{"message":"API rate limit exceeded"}',
+        )
+    if failure == "lost_post_history_unknown" and post_bodies:
+        return response({"message": "history temporarily unavailable"}, status=503)
+    return response(stored_reviews)
+
+
+def assert_github_fault_acceptance(
+    failure, outcome, transport, uploader, post_bodies, receipt_archives, stored_reviews
+):
+    if failure not in GITHUB_FAULT_ACCEPTANCE:
+        return
+    expected = GITHUB_FAULT_ACCEPTANCE[failure]
+    assert outcome["status"] == expected["status"]
+    assert outcome["reason"] == expected["reason"]
+    assert len(post_bodies) == expected["posts"]
+    assert len(uploader.calls) == expected["receipts"]
+    if failure == "github_rate_limit":
+        # Retry-After is not authority to retry, upload a receipt, or POST.
+        assert all(method == "GET" for method, *_ in transport.calls)
+        review_reads = [call for call in transport.calls if urlsplit(call[1]).path.endswith("/pulls/44/reviews")]
+        assert len(review_reads) == 1
+        assert receipt_archives == {}
+        assert stored_reviews == []
+
+
 @pytest.mark.parametrize(
     ("failure", "expected_status"),
     [
         (None, "CONFIRMED"),
+        pytest.param(
+            "github_rate_limit", GITHUB_FAULT_ACCEPTANCE["github_rate_limit"]["status"], id="github_rate_limit"
+        ),
         ("artifact_digest", "UNKNOWN"),
         ("upstream_binding", "UNKNOWN"),
         ("publisher_sha", "UNKNOWN"),
@@ -886,9 +931,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         if path.endswith(f"/actions/workflows/{policy.publisher_workflow_id}/runs"):
             return response({"total_count": len(publisher_runs), "workflow_runs": publisher_runs})
         if path.endswith("/pulls/44/reviews") and method == "GET":
-            if failure == "lost_post_history_unknown" and post_bodies:
-                return response({"message": "history temporarily unavailable"}, status=503)
-            return response(stored_reviews)
+            return github_fault_history_response(failure, post_bodies, stored_reviews)
         if path.endswith("/actions/artifacts/123/zip"):
             return HTTPResponse(
                 302,
@@ -1032,6 +1075,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         ),
     )
     assert outcome["status"] == expected_status
+    assert_github_fault_acceptance(failure, outcome, transport, uploader, post_bodies, receipt_archives, stored_reviews)
     if failure in {None, "post_state", "lost_post_response", "lost_post_history_unknown"}:
         assert len(uploader.calls) == 1
         assert len(post_bodies) == 1
