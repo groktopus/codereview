@@ -11,7 +11,7 @@ from pathlib import Path
 
 import jsonschema
 import pytest
-from compatibility_pins import pin
+from compatibility_pins import assert_pin_value
 from test_engine import EmptyProvider, make_snapshot
 from test_review_stages import make_profile, make_state
 
@@ -273,6 +273,7 @@ def test_selection_defaults_to_the_supported_combination_and_rejects_archived_st
 # Effective contract set and preflight validation
 
 
+@pytest.mark.compatibility
 def test_effective_contract_set_for_the_supported_combination_is_fully_registered():
     registry = load_registry(REGISTRY_PATH)
     contracts = effective_contract_set(
@@ -281,8 +282,16 @@ def test_effective_contract_set_for_the_supported_combination_is_fully_registere
     assert contracts["registration"] == "registered"
     assert contracts["review_contract"]["name"] == "codereview-native-v1"
     assert contracts["review_contract"]["status"] == "supported"
-    assert contracts["profile"]["source_sha256"] == pin("contract.codereview_native_v1.profile_sha256")
-    assert contracts["limits"]["source_sha256"] == pin("contract.ordinary_review_limits_v3.sha256")
+    assert_pin_value(
+        "contract.codereview_native_v1.profile_sha256",
+        contracts["profile"]["source_sha256"],
+        module="profiles/codereview-native-v1-candidate.json",
+    )
+    assert_pin_value(
+        "contract.ordinary_review_limits_v3.sha256",
+        contracts["limits"]["source_sha256"],
+        module="profiles/ordinary-review-limits-v3.json",
+    )
     assert contracts["claim_assessment"]["name"] == "claim-assessment.2"
     assert contracts["specialist_findings"]["name"] == "specialist-findings.v4"
     assert contracts["adjudication"]["name"] == "semantic-adjudication.v3"

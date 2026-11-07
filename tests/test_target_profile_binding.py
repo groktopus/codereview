@@ -66,6 +66,7 @@ def _temporary_binding_root(tmp_path: Path) -> tuple[Path, dict[str, bytes]]:
     return root, profile_bytes
 
 
+@pytest.mark.compatibility
 def test_trusted_binding_resolves_exact_repository_profile_and_digest():
     binding = resolve_target_profile(TARGET)
 
@@ -98,6 +99,7 @@ def test_resolved_slopsearx_profile_enforces_bounded_required_claim_policy():
     assert "EXPECTED_PROFILE_SHA256: ${{ steps.resolve-profile.outputs.profile_sha256 }}" in workflow
 
 
+@pytest.mark.compatibility
 def test_codereview_target_is_bound_to_its_fixed_candidate_profile():
     binding = resolve_target_profile(CODEREVIEW_TARGET)
 

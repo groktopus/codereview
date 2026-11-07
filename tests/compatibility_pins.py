@@ -105,3 +105,41 @@ def pin(name: str, path: Path | None = None) -> str:
 def pin_names(path: Path | None = None) -> tuple[str, ...]:
     """Return every named pin in the manifest."""
     return tuple(sorted(pins(path)))
+
+
+def refresh_command(name: str, value: str) -> str:
+    """Return the exact reviewed command that replaces one value pin."""
+    return (
+        "python scripts/refresh_compatibility_pins.py --value-pins "
+        f"--set {name}={value} --reason '<reviewed reason>' "
+        "--source-revision <40-hex-commit> --confirm"
+    )
+
+
+def assert_pin_value(name: str, actual: object, *, module: str, path: Path | None = None) -> None:
+    """Fail with the module, historical revision, and exact refresh command.
+
+    Tests that compare a recomputed historical identity to a named pin use this
+    helper so a mismatch tells the operator what changed and how a reviewed
+    migration is recorded, instead of raising a bare assertion.
+    """
+    entries = pins(path)
+    entry = entries.get(name)
+    if entry is None:
+        pin(name, path)
+        raise AssertionError("unreachable: pin() must raise for an unknown name")
+    expected = str(entry["value"])
+    observed = str(actual)
+    if observed == expected:
+        return
+    provenance = entry["provenance"]
+    assert isinstance(provenance, dict)
+    revision = provenance["source_revision"]
+    artifact = provenance["artifact"]
+    raise CompatibilityPinError(
+        f"compatibility value-pin mismatch: pin {name!r} for module {module!r} "
+        f"(artifact {artifact!r}) at historical revision {revision}; "
+        f"expected {expected}, got {observed}. Historical pins are immutable; preserve prior "
+        "evidence and record a reviewed migration before refreshing. The exact refresh command is:\n  "
+        + refresh_command(name, observed)
+    )

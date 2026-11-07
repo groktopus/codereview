@@ -3,13 +3,15 @@ import subprocess
 import textwrap
 from pathlib import Path
 
-from compatibility_pins import pin
+import pytest
+from compatibility_pins import assert_pin_value
 
 from scripts import run_real_case_trial as trial
 
 WORKFLOW = Path(__file__).parents[1] / ".github" / "workflows" / "historical-real-case-provider-trial.yml"
 
 
+@pytest.mark.compatibility
 def test_historical_trial_workflow_is_manual_read_only_and_has_fixed_modes():
     text = WORKFLOW.read_text()
     assert "workflow_dispatch:" in text
@@ -27,7 +29,11 @@ def test_historical_trial_workflow_is_manual_read_only_and_has_fixed_modes():
     assert "default: specialist-input-v1" in text
     assert "specialist-input-v2" in text
     assert trial.CONTEXT_FOLLOWUP_V2_SELECTOR in text
-    assert trial.RUNTIME_MODULE_TREE_SHA256 == pin("runtime.staged_pr464.module_tree_sha256")
+    assert_pin_value(
+        "runtime.staged_pr464.module_tree_sha256",
+        trial.RUNTIME_MODULE_TREE_SHA256,
+        module="scripts/run_real_case_trial.py",
+    )
 
 
 def test_provider_secrets_are_only_mapped_to_the_explicit_run_step():

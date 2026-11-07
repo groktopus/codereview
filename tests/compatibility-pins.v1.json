@@ -1,6 +1,6 @@
 {
   "schema": "pr-review-compatibility-value-pins.v1",
-  "description": "Named SHA-256 value pins for historical evidence and contract artifacts exercised by tests. Synthetic fixture and serialization-golden digests are not pins and stay in tests under an explicit '# vd3-non-pin:' marker. File-byte pins for the frozen runtime remain in tests/fixtures/frozen-runtime-7d550b6/pins.json.",
+  "description": "Named SHA-256 value pins for historical evidence and contract artifacts exercised by tests. A reviewed migration is recorded with scripts/refresh_compatibility_pins.py --value-pins, which appends old/new digests, reason, source revision, and timestamp to refresh_history. Synthetic fixture and serialization-golden digests are not pins and stay in tests under an explicit '# vd3-non-pin:' marker. File-byte pins for the frozen runtime remain in tests/fixtures/frozen-runtime-7d550b6/pins.json.",
   "pins": {
     "contract.codereview_native_v1.profile_sha256": {
       "value": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",

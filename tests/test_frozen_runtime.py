@@ -84,6 +84,8 @@ def test_historical_pin_failure_names_module_revision_and_migration(tmp_path: Pa
     assert "modified.py" in message
     assert frozen_runtime.HISTORICAL_REVISION in message
     assert "reviewed migration" in message
+    assert frozen_runtime.FILE_PIN_REFRESH_COMMAND in message
+    assert "--confirm" in message
 
 
 def test_unlisted_new_module_is_excluded_from_historical_runtime(tmp_path: Path):

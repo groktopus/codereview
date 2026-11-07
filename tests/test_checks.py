@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 
 import pytest
-from compatibility_pins import pin
+from compatibility_pins import assert_pin_value
 
 from pr_review_harness.budget import BudgetExhausted, BudgetLedger
 from pr_review_harness.checks import CheckEvidenceError, GitHubCheckAdapter, ingest_check_runs, make_check_runs_document
@@ -205,14 +205,17 @@ def test_same_name_duplicate_reruns_and_naive_timestamps_fail_closed():
         make_check_runs_document("owner/repo", 7, HEAD, [run], captured_at="2026-09-26T12:01:00")
 
 
+@pytest.mark.compatibility
 def test_slopsearx_profile_keeps_separate_exact_pr464_check_bindings():
     root = Path(__file__).resolve().parents[1]
     profile = json.loads((root / "profiles/slopsearx.json").read_text())
     document = json.loads((root / "tests/fixtures/pr464-check-evidence.json").read_text())
     assert profile["version"] == "slopsearx-production-v8-static-review-boundaries"
     assert len(document["runs"]) == 20
-    assert document["fixture_provenance"]["source_capture_sha256"] == (
-        pin("fixture.pr464_check_evidence.source_capture_sha256")
+    assert_pin_value(
+        "fixture.pr464_check_evidence.source_capture_sha256",
+        document["fixture_provenance"]["source_capture_sha256"],
+        module="tests/fixtures/pr464-check-evidence.json",
     )
     bindings = profile["required_checks"]
     assert [(item["id"], item["github_check_name"], item["github_app_id"]) for item in bindings] == [

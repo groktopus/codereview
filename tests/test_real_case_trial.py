@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from compatibility_pins import pin
+from compatibility_pins import assert_pin_value
 
 from scripts import run_real_case_trial as trial
 from scripts.provider_config_from_env import configurations_from_environment
@@ -133,6 +133,7 @@ def _patch_installed_module_proof(monkeypatch, module, replacement):
     monkeypatch.setitem(sys.modules, "prepare_real_case_batch", module)
 
 
+@pytest.mark.compatibility
 def test_frozen_case_manifest_binds_profiles_checks_and_exact_primary_demands():
     document, cases = trial.load_locked_cases()
     assert [case["case_id"] for case in trial.selected_cases("full-three-case", cases)] == [
@@ -148,13 +149,21 @@ def test_frozen_case_manifest_binds_profiles_checks_and_exact_primary_demands():
     assert [case["expected_primary_serialized_input_bytes"] for case in cases] == [870_424, 2_206_107, 885_733]
     assert len(trial.RUNTIME_MODULE_INVENTORY) == 28
     assert trial.RUNTIME_SHA == "ed7aa8b82f8d0c8deee03b6f99d8f4f599529301"
-    assert trial.RUNTIME_MODULE_TREE_SHA256 == pin("runtime.staged_pr464.module_tree_sha256")
+    assert_pin_value(
+        "runtime.staged_pr464.module_tree_sha256",
+        trial.RUNTIME_MODULE_TREE_SHA256,
+        module="scripts/run_real_case_trial.py",
+    )
     limits = trial.limits_for(64)
     assert limits["max_snapshot_context_bytes"] == 300_000
     assert limits["max_context_bytes"] == 8_000_000
     assert limits["max_input_bytes_per_task"] == 128_000
     assert all(case["expected_scope_count"] > 0 for case in cases)
-    assert document["baseline_plan_sha256"] == pin("historical.real_case_trial.baseline_plan_sha256")
+    assert_pin_value(
+        "historical.real_case_trial.baseline_plan_sha256",
+        document["baseline_plan_sha256"],
+        module="docs/real-case-trial-v1/cases.json",
+    )
 
 
 def test_verify_runtime_accepts_only_pinned_revision_and_installed_module_proof(tmp_path, monkeypatch):
@@ -1347,6 +1356,7 @@ def test_context_followup_plan_reader_rejects_nonfinite_or_unbounded_input(tmp_p
         trial.read_context_followup_plan()
 
 
+@pytest.mark.compatibility
 def test_context_followup_v2_plan_is_additive_and_preserves_all_v2_primary_inputs():
     v2_document, v2_cases = trial.load_locked_cases("specialist-input-v2")
     document, cases = trial.load_locked_cases(trial.CONTEXT_FOLLOWUP_V2_SELECTOR)
@@ -1356,9 +1366,12 @@ def test_context_followup_v2_plan_is_additive_and_preserves_all_v2_primary_input
     assert document["experiment_selector"] == trial.CONTEXT_FOLLOWUP_V2_SELECTOR
     assert document["dynamic_followup_contract"] == "context-followup.v1"
     assert document["dynamic_followup_projection"] == "context-followup-observation.v2"
-    assert trial.runtime_identity(trial.CONTEXT_FOLLOWUP_V2_SELECTOR) == (
-        "7c89ad17327b8f0ed4fc381bf5c93255fd4e548e",
-        pin("runtime.context_followup_v2.module_tree_sha256"),
+    followup_revision, followup_tree = trial.runtime_identity(trial.CONTEXT_FOLLOWUP_V2_SELECTOR)
+    assert followup_revision == "7c89ad17327b8f0ed4fc381bf5c93255fd4e548e"
+    assert_pin_value(
+        "runtime.context_followup_v2.module_tree_sha256",
+        followup_tree,
+        module="scripts/run_real_case_trial.py",
     )
     assert [case["expected_primary_request_descriptors"] for case in cases] == [
         case["expected_primary_request_descriptors"] for case in v2_cases
