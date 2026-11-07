@@ -46,4 +46,4 @@ Next authorized step: obtain a usable isolated tool environment through the pare
 | [`claim_assessment`](../../src/pr_review_harness/claim_assessment.py) | `20c8d01c213e704305c597400097064ff5dc0961e029eedeab9740ed021ffa3b` |
 | [`review_stages`](../../src/pr_review_harness/review_stages.py) | `be9600dee799f20a3e0a748388cbde8b0c872de71a460b78ff72a24aa371d1ae` |
 
-Candidate test SHA-256: `2e0cc09ff5ae8e8b22e53ecd889689da7e575a9a3eed72bf11c8c0d54805799c`.
+Candidate test SHA-256: `e759a8250510b0bb848e169c9a56ca5e2bf920415e05793f7f752bcd5cc96e20`.
