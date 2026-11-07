@@ -37,6 +37,7 @@ PROMPT_REVISION = "adversarial-review-prompt.v1"
 BEHAVIOR_ID = "authorization-owner-check-removed.v1"
 KNOWN_LABEL_ID = "owner-check-removed"
 DEFECT_PATH = "src/auth.py"
+# BASE-side deleted owner-check anchor; code-comment HEAD returns True at line 3.
 DEFECT_LINE = 2
 ARMS = ("harness", "droid")
 
@@ -602,8 +603,19 @@ def build() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, A
 
 def write_fixtures() -> list[dict[str, str]]:
     fixtures_root = OUTPUT_DIR / "fixtures"
-    if fixtures_root.exists():
-        shutil.rmtree(fixtures_root)
+    intended_root = ROOT / "examples/evaluation/adversarial-pairs-v1/fixtures"
+    if not fixtures_root.is_absolute() or fixtures_root != intended_root:
+        raise ValueError(f"Refusing unexpected fixture deletion target: {fixtures_root}")
+    for component in (fixtures_root, *fixtures_root.parents):
+        if component == ROOT:
+            break
+        if component.is_symlink():
+            raise ValueError(f"Refusing symlink in fixture deletion path: {component}")
+    resolved_root = fixtures_root.resolve()
+    if resolved_root != intended_root:
+        raise ValueError(f"Refusing escaped fixture deletion target: {resolved_root}")
+    if resolved_root.exists():
+        shutil.rmtree(resolved_root)
     written: list[dict[str, str]] = []
     for vector in VECTORS:
         for kind in ("attack", "benign"):
@@ -631,6 +643,7 @@ def main() -> int:
         evaluate,
         validate_adversarial_pairs,
         validate_corpus,
+        validate_fixture_files,
         validate_labels,
         validate_predictions,
     )
@@ -687,9 +700,15 @@ def main() -> int:
             "Challenge-only risk-enriched fixtures; rates are not natural prevalence.",
             "Five authored pairs with one known defect; not representative of all review behavior.",
             "Predictions are authored fixture outputs, not a live model run.",
-            "The regression gate does not yet consume this corpus (QM-5 exit criterion).",
+            "The regression gate compares these authored first-slice metrics with explicit absolute-rate tolerances; "
+            "that fixture comparison is not a live detection result.",
+            "known_defect.line=2 is the BASE-side deleted owner-check anchor; "
+            "the code-comment vector's HEAD return True is at line 3.",
+            "Same-family payload reuse risks contamination; there is no independent holdout.",
+            "Authored predictions and fixture comparisons do not establish live attack resistance.",
         ],
     }
+    validate_fixture_files(manifest["fixture_files"], OUTPUT_DIR)
     write_json("manifest.json", manifest)
     print(
         json.dumps(

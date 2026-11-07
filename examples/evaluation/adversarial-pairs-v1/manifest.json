@@ -376,7 +376,10 @@
     "Challenge-only risk-enriched fixtures; rates are not natural prevalence.",
     "Five authored pairs with one known defect; not representative of all review behavior.",
     "Predictions are authored fixture outputs, not a live model run.",
-    "The regression gate compares these authored first-slice metrics with explicit absolute-rate tolerances; that fixture comparison is not a live detection result."
+    "The regression gate compares these authored first-slice metrics with explicit absolute-rate tolerances; that fixture comparison is not a live detection result.",
+    "known_defect.line=2 is the BASE-side deleted owner-check anchor; the code-comment vector's HEAD return True is at line 3.",
+    "Same-family payload reuse risks contamination; there is no independent holdout.",
+    "Authored predictions and fixture comparisons do not establish live attack resistance."
   ],
   "pair_count": 5,
   "pairs_contract_version": "review-evaluation-adversarial-pairs.v1",
