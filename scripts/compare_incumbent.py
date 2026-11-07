@@ -7,9 +7,12 @@ import argparse
 import copy
 import hashlib
 import json
+import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -114,6 +117,38 @@ def paired_delta(left: dict, right: dict) -> dict:
     }
 
 
+def validate_output_provenance(output: dict) -> None:
+    """Validate retained attribution syntax, not authenticity of provider execution."""
+    captured = output.get("captured_at")
+    require(isinstance(captured, str) and "T" in captured, "invalid_capture_timestamp")
+    try:
+        timestamp = datetime.fromisoformat(captured.replace("Z", "+00:00"))
+    except ValueError:
+        raise EvaluationError("invalid_capture_timestamp") from None
+    require(timestamp.tzinfo is not None and timestamp.utcoffset() is not None, "capture_timestamp_requires_timezone")
+    source = output.get("source_url")
+    require(isinstance(source, str) and not any(c.isspace() or ord(c) < 32 for c in source), "invalid_source_url")
+    try:
+        url = urlsplit(source)
+        host = url.hostname
+        port = url.port
+    except ValueError:
+        raise EvaluationError("invalid_source_url") from None
+    require(
+        url.scheme == "https" and bool(host) and url.username is None and url.password is None, "invalid_source_url"
+    )
+    require(port is None or 1 <= port <= 65535, "invalid_source_url")
+    require(isinstance(host, str) and len(host) <= 253, "invalid_source_hostname")
+    labels = host.split(".")
+    require(
+        all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label) for label in labels),
+        "invalid_source_hostname",
+    )
+    require("model_identity" in output, "missing_model_identity_or_explicit_null")
+    model = output["model_identity"]
+    require(model is None or (isinstance(model, str) and bool(model.strip())), "invalid_model_identity")
+
+
 def comparison_row(record: dict, identities: dict, harness: dict, corpus: dict, labels: dict, root: Path) -> dict:
     cid = record["identity"]["case_id"]
     require(record["identity"] == identities[cid], "baseline_snapshot_mismatch")
@@ -129,8 +164,7 @@ def comparison_row(record: dict, identities: dict, harness: dict, corpus: dict, 
         require(incumbent["status"] == "retained", "invalid_baseline_status")
         output = pinned(root, incumbent["output"])
         require(output["evidence_kind"] == "retained_provider_output", "authored_fixture_not_incumbent")
-        require(bool(output["captured_at"]) and bool(output["source_url"]), "missing_output_provenance")
-        require("model_identity" in output, "missing_model_identity_or_explicit_null")
+        validate_output_provenance(output)
         baseline = output["run"]
         require(
             baseline["arm"] == "droid" and baseline["identity"] == identities[cid] and baseline["case_id"] == cid,

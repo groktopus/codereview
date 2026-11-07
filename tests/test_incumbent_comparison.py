@@ -180,6 +180,57 @@ def test_authored_incumbent_output_and_wrong_head_fail_closed(tmp_path):
         build_report(data, tmp_path)
 
 
+@pytest.mark.parametrize(
+    "field,value,error",
+    [
+        ("captured_at", True, "invalid_capture_timestamp"),
+        ("captured_at", "not-a-timestamp", "invalid_capture_timestamp"),
+        ("captured_at", "2026-11-01T00:00:00", "capture_timestamp_requires_timezone"),
+        ("source_url", {"not": "url"}, "invalid_source_url"),
+        ("source_url", "http://example.invalid/output", "invalid_source_url"),
+        ("source_url", "https:///missing-host", "invalid_source_url"),
+        ("source_url", "https://bad_host.invalid/output", "invalid_source_hostname"),
+        ("source_url", "https://-bad.invalid/output", "invalid_source_hostname"),
+        ("source_url", "https://example.invalid:bad/output", "invalid_source_url"),
+        ("source_url", "https://user:password@example.invalid/output", "invalid_source_url"),
+        ("source_url", "https://example.invalid/space here", "invalid_source_url"),
+        ("model_identity", [], "invalid_model_identity"),
+        ("model_identity", "   ", "invalid_model_identity"),
+        ("model_identity", True, "invalid_model_identity"),
+    ],
+)
+def test_rehashed_malformed_retained_provenance_rejected(tmp_path, field, value, error):
+    data = retained_test_packet(tmp_path)
+    record = next(r for r in data["cases"] if r["incumbent"]["status"] == "retained")
+    reference = record["incumbent"]["output"]
+    path = tmp_path / reference["path"]
+    envelope = load(path)
+    envelope[field] = value
+    path.write_text(json.dumps(envelope))
+    reference["sha256"] = digest(path.read_bytes())  # valid hash must not bypass typed validation
+    with pytest.raises(EvaluationError, match=error):
+        build_report(data, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "timestamp,model",
+    [
+        ("2026-11-01T00:00:00Z", None),
+        ("2026-11-01T00:00:00-05:00", "attributed-model-revision"),
+    ],
+)
+def test_typed_retained_attribution_is_not_authentication(tmp_path, timestamp, model):
+    data = retained_test_packet(tmp_path)
+    record = next(r for r in data["cases"] if r["incumbent"]["status"] == "retained")
+    reference = record["incumbent"]["output"]
+    path = tmp_path / reference["path"]
+    envelope = load(path)
+    envelope.update(captured_at=timestamp, model_identity=model)
+    path.write_text(json.dumps(envelope))
+    reference["sha256"] = digest(path.read_bytes())
+    assert build_report(data, tmp_path)["actual_paired_output_count"] == 1  # test protocol, not live evidence
+
+
 def test_retained_output_not_adjudicated_is_unknown_not_zero(tmp_path):
     data = retained_test_packet(tmp_path, matched=False)
     result = build_report(data, tmp_path)

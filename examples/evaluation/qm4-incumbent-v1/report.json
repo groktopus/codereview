@@ -10,7 +10,7 @@
   },
   "corpus_id": "qm1-frozen-corpus-v1",
   "dataset_version": "2026-11-02.1",
-  "implementation_sha256": "7b3eea5cd25c2eea94a537f776e55301793fb8f2453de19e77eeae745d63569a",
+  "implementation_sha256": "7f1d1d2cd5c8319cd232adab0eba9d9c53dca716961418d82f42d4883bbf3bf6",
   "inputs": {
     "corpus": {
       "path": "examples/evaluation/frozen-corpus-v1/corpus.json",

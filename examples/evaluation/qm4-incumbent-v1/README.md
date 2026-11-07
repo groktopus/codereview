@@ -79,9 +79,14 @@ For an actually retained arm, use `status: retained`, and an `output` reference
 with repository-local `path` and exact-byte `sha256`. Its JSON envelope must have
 `evidence_kind: retained_provider_output`, `captured_at`, `source_url`,
 `model_identity` (explicit null if unknown), and a `run` conforming to the
-existing predictions schema on the exact frozen identity. These fields are
-attribution assertions requiring maintainer review, not cryptographic proof of
-provider execution. Authored-fixture evidence kinds fail closed. Findings are
+existing predictions schema on the exact frozen identity. `captured_at` must be
+a parseable timezone-aware ISO timestamp string; `source_url` must be an HTTPS
+URL with a syntactically valid DNS hostname (no credentials or whitespace);
+`model_identity` must be a nonempty string or explicit null for unknown. Typed
+validation precedes paired counting and rejects malformed envelopes even when
+their hashes match. These fields describe retained attributed evidence and are
+still attribution assertions requiring maintainer review, not authenticated or
+cryptographic proof of provider execution. Authored-fixture evidence kinds fail closed. Findings are
 claims, never automatically labels/truth. Optional hash-bound `adjudication`
 references supply an existing labels-contract packet on this full corpus with
 only that case; it replaces the pilot packet for this comparison so both arms
