@@ -65,6 +65,7 @@ implementation.
 | [ADR 0009: ownership and second review](adr/0009-ownership-and-second-review.md) | Accepted: path-specific ownership, agent second path, bus-factor-1 limits, and triage states. |
 | [ADR 0010: synthetic model-teacher adjudication](adr/0010-synthetic-model-teacher-adjudication.md) | Accepted: synthetic model-teacher adjudication is the quality method; human labels are optional and never conflated with synthetic output. |
 | [ADR 0011: bounded evidence waivers](adr/0011-bounded-evidence-waiver.md) | Accepted: exact, named, expiring waiver of one missing-evidence obligation; default deny and no finding/blocker override. |
+| [ADR 0012: required admission and optional captured enrichment](adr/0012-separate-required-admission-from-optional-enrichment.md) | Proposed RC-2 design at source checkpoint 578bfbc: preserve explicit required contracts, reuse validated ordinary evidence rows optionally, nine planned acceptance cases; no implementation/source allowance or closure. |
 | [Exception audit](EXCEPTION-AUDIT.md) | Typed error taxonomy, narrowed vs retained broad handlers, and defect-propagation rules. |
 | [Review evidence receipts](REVIEW-EVIDENCE.md) | Required merge-review receipt fields including `decision_records` for safety-invariant changes, receipt rules, both CI checks and exit codes, owner action, and enforcement limits. |
 | [Run metrics and stats](RUN-METRICS.md) | Versioned run-summary record, local aggregation/JSONL export, denominators, and honesty rules for unknown values. |
