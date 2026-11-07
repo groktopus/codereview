@@ -3725,13 +3725,6 @@
       "count": 1
     },
     {
-      "path": "tests/test_vd2_provider_faults.py",
-      "code": "SIM117",
-      "scope": "test_provider_transport_fault_matrix_is_typed_and_makes_one_request",
-      "fingerprint": "51f4a1db4d67a12bff4c6145f7e913f6cdfc317e0ce7379777a708471d3b56d2",
-      "count": 1
-    },
-    {
       "path": "tests/test_waiver.py",
       "code": "B017",
       "scope": "test_publisher_waiver_integrity_rejects_inconsistent_metadata",
