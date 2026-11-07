@@ -149,7 +149,15 @@ def observation(value: Any) -> None:
         "unsafe_interpretation",
     )
     fields(value["surfaces"], "reviews comments", "issue_comments")
+    expected_surface_urls = {
+        "reviews": f"https://api.github.com/repos/{value['identity']['repository']['owner']}/{value['identity']['repository']['name']}/pulls/{value['identity']['case_id'].rsplit('pr', 1)[-1]}/reviews?per_page=100&page=1",
+        "comments": f"https://api.github.com/repos/{value['identity']['repository']['owner']}/{value['identity']['repository']['name']}/pulls/{value['identity']['case_id'].rsplit('pr', 1)[-1]}/comments?per_page=100&page=1",
+        "issue_comments": f"https://api.github.com/repos/{value['identity']['repository']['owner']}/{value['identity']['repository']['name']}/issues/{value['identity']['case_id'].rsplit('pr', 1)[-1]}/comments?per_page=100&page=1",
+    }
     for name, surface in value["surfaces"].items():
+        require(isinstance(surface, dict), "expected_surface_object")
+        require(name in expected_surface_urls, "unknown_surface_name")
+        require(surface.get("source_url") == expected_surface_urls[name], "surface_source_identity_mismatch")
         required = "captured_at response_bytes source_url status"
         if surface.get("status") == "response_over_capture_cap":
             fields(surface, required)
@@ -189,6 +197,9 @@ def support(value: Any, expected_ref_path: str) -> None:
         require(value["schema"] == "qm4-incumbent-attribution-support.v1", "support_version")
         require(value["not_corpus_case"] is True, "attribution_not_corpus")
         require(isinstance(value["surfaces"], list) and len(value["surfaces"]) == 2, "attribution_surface_count")
+        support_source_contract(value, expected_ref_path)
+        for surface in value["surfaces"]:
+            require(isinstance(surface, dict), "expected_surface_object")
         for surface in value["surfaces"]:
             envelope(surface, "records", attribution=True)
             for item in surface["records"]:

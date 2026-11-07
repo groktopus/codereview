@@ -418,6 +418,33 @@ def test_rehashed_receipt_cardinality_attacks_rejected_without_traceback(
     assert result.stderr == b""
 
 
+@pytest.mark.parametrize("surface_value", [[], None, "bad", 7])
+def test_rehashed_case_surface_shape_is_rejected_without_traceback(package: Path, surface_value: Any) -> None:
+    relative = case_path("codereview-pr112")
+    path = package / relative
+    value = read(path)
+    value["surfaces"]["reviews"] = surface_value
+    write(path, value)
+    index = read(package / "index.json")
+    row = next(row for row in index["cases"] if row["path"] == relative)
+    data = path.read_bytes()
+    row["bytes"] = len(data)
+    row["sha256"] = hashlib.sha256(data).hexdigest()
+    write(package / "index.json", index)
+
+    with pytest.raises(ObservationError, match=r"expected_surface_object"):
+        validate_package(package)
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/check_qm4_observations.py"), "--package", str(package)],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert json.loads(result.stdout) == {"valid": False, "error": "expected_surface_object"}
+    assert result.stderr == b""
+
+
 @pytest.mark.parametrize("raw", [b"[]\n", b"null\n", b"true\n", b"0\n"])
 def test_rehashed_non_object_support_is_rejected_without_traceback(package: Path, raw: bytes) -> None:
     index = read(package / "index.json")
