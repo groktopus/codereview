@@ -1,0 +1,13 @@
+{
+  "method": "AST extracts exact immutable production function; transforms only exact survivor diff; differential comparison supplements semantic argument, not mutation score",
+  "scope": "ordinary JSON-derived dict/list/scalar inputs; not arbitrary dict subclasses with custom get",
+  "cases": 756,
+  "variants": [
+    33,
+    35
+  ],
+  "differences": 0,
+  "source_sha256": "dce6addfd9b280886fb302811902c9feb817708ed9615e981dbe7f12cf761ae6",
+  "semantic_argument": "Both mutants change only missing-key default from 0 to None. Both defaults are false in boolean disjunction and final bool(); present waived values and other operands remain identical. No disposition or input mutation difference for ordinary dict contracts.",
+  "disposition": "likely-equivalent within stated reducer input contract; still counted as survivors, not excluded"
+}

@@ -1,0 +1,12 @@
+# pr_review_harness.engine.x__reduce__mutmut_35: survived
+--- src/pr_review_harness/engine.py
++++ src/pr_review_harness/engine.py
+@@ -6,7 +6,7 @@
+     completeness = result.get("completeness_summary")
+     waived = bool(
+         result.get("waivers_applied")
+-        or (isinstance(completeness, dict) and completeness.get("waived", 0))
++        or (isinstance(completeness, dict) and completeness.get("waived", ))
+         or any(isinstance(row, dict) and row.get("state") == "WAIVED" for row in result.get("coverage_ledger", []))
+     )
+     required_incomplete = (
