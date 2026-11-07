@@ -231,15 +231,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = args.root.resolve()
     baseline_path = root / args.baseline
+    candidate = root / args.write_candidate if args.write_candidate is not None else None
     try:
-        if args.write_candidate is not None:
-            candidate = root / args.write_candidate
+        if candidate is not None:
             if candidate.resolve() == baseline_path.resolve() or candidate.exists():
                 raise ValueError("candidate must be a new file separate from the accepted baseline")
             if len(args.reason.strip()) < 10:
                 raise ValueError("candidate generation requires --reason (at least 10 characters)")
         current, file_count = collect(root)
-        if args.write_candidate is not None:
+        if candidate is not None:
             payload = {"schema": SCHEMA, "policy": POLICY, "review_reason": args.reason, "entries": entries(current)}
             candidate.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
             print(f"Review candidate {args.write_candidate}: {sum(current.values())} findings in {file_count} files")
