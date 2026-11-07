@@ -1315,7 +1315,7 @@
   ],
   "corpus_id": "qm1-frozen-corpus-v1",
   "dataset_version": "2026-11-02.1",
-  "evaluator_source_sha256": "3d93b609b37f7c85e7ef33b00c6dddab4fa0b094f0f8dad341a875d376af6675",
+  "evaluator_source_sha256": "f412f6e3ae8306a8e3aa654288cb3211d73efe3927782d0e0983a3c166556266",
   "evidence_inventory": {
     "access": "No authorized Droid execution or incumbent output acquisition performed. No attributable exact-snapshot Droid output for these 41 cases found in the inspected versioned artifacts. This is bounded inventory missingness, not proof Droid never ran.",
     "historical_exclusions": [

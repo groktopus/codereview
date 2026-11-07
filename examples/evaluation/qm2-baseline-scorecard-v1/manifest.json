@@ -3,9 +3,9 @@
   "corpus": "../qm2-labeling-pilot-v1/corpus.json",
   "labels": "../qm2-labeling-pilot-v1/labels-synthetic-v1.json",
   "content_hashes": {
-    "accepted-baseline.json": "ec2bf190b064a6c317ec7e2e35968c5f896bff10a265dbe43871f985e957478b",
+    "accepted-baseline.json": "f9669f41449198cefcf5168f02e1b86849a68c175cb62143e3dd62e7d348862b",
     "README.md": "2a947570bb5ec24780adb48d1e3af4550ef77f9e565806ec0d713bf5750f0790",
-    "scorecard.json": "ec2bf190b064a6c317ec7e2e35968c5f896bff10a265dbe43871f985e957478b",
+    "scorecard.json": "f9669f41449198cefcf5168f02e1b86849a68c175cb62143e3dd62e7d348862b",
     "predictions.json": "767047839940b415622e4e09cb4622b16bd83c0850e9247dfc205d6d08da9ea0",
     "ACCEPTED-BASELINE.md": "c7cf7288591b4a9c5502b836a2f07649ea698458ff9936540f2a6fac4849840f"
   }

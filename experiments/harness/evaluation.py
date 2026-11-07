@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 from collections import Counter, defaultdict
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 CORPUS_VERSION = "review-evaluation-corpus.v1"
@@ -417,7 +418,68 @@ def validate_adversarial_pairs(
         covered_arms |= _validate_pair_entry(pair, cases, runs, set(corpus["expected_arms"]), seen_pairs, seen_cases)
     if covered_arms != set(corpus["expected_arms"]):
         _fail("adversarial_pair_arm_coverage_incomplete")
+    expected_cases = {
+        case_id
+        for case_id, case in cases.items()
+        if case["identity"]["split"] == "challenge"
+        and case["scenario"] is not None
+        and case["scenario"]["kind"] in {"attack", "benign_lookalike"}
+    }
+    if seen_cases != expected_cases:
+        _fail("adversarial_pair_case_coverage_incomplete")
     return manifest
+
+
+def validate_fixture_files(value: Any, root: Path) -> None:
+    """Verify every declared fixture as bounded bytes, never importing/executing it.
+
+    Paths are portable, root-relative POSIX paths. Resolved containment also
+    rejects symlink escapes; a manifest is a declaration, not read authority.
+    """
+    if not isinstance(value, list) or not 1 <= len(value) <= MAX_CASES * MAX_REFS:
+        _fail("invalid_fixture_files")
+    root = root.resolve()
+    seen: set[str] = set()
+    for raw in value:
+        entry = _object(raw, {"case_id", "path", "sha256"}, "invalid_fixture_file")
+        _identifier(entry["case_id"], "invalid_fixture_case_id")
+        name = entry["path"]
+        if not _text(name, limit=1024):
+            _fail("invalid_fixture_path")
+        path = PurePosixPath(name)
+        if (
+            path.is_absolute()
+            or any(char in name for char in ("\\", ":", "\x00"))
+            or any(part in {"", ".", ".."} for part in name.split("/"))
+        ):
+            _fail("invalid_fixture_path")
+        if name in seen:
+            _fail("duplicate_fixture_path")
+        seen.add(name)
+        expected = _hash(entry["sha256"], "invalid_fixture_hash")
+        try:
+            target = (root / name).resolve(strict=True)
+            if not target.is_relative_to(root):
+                _fail("fixture_path_outside_root")
+            if not target.is_file():
+                _fail("invalid_fixture_file_type")
+            with target.open("rb") as stream:
+                data = stream.read(MAX_INPUT_BYTES + 1)
+        except (OSError, RuntimeError):
+            _fail("cannot_read_fixture_file")
+        if len(data) > MAX_INPUT_BYTES:
+            _fail("fixture_file_too_large")
+        if sha256_bytes(data) != expected:
+            _fail("fixture_hash_mismatch")
+    fixtures_root = root / "fixtures"
+    if fixtures_root.exists():
+        actual = {
+            path.relative_to(root).as_posix()
+            for path in fixtures_root.rglob("*")
+            if path.is_file() or path.is_symlink()
+        }
+        if actual != seen:
+            _fail("fixture_file_coverage_mismatch")
 
 
 def validate_predictions(value: Any, corpus: dict[str, Any]) -> dict[str, Any]:
@@ -1219,12 +1281,11 @@ def evaluate(corpus: dict[str, Any], predictions: dict[str, Any], labels: dict[s
                                 "KNOWN_BLOCKER_SUPPRESSED",
                                 "OTHER_INTEGRITY_FAILURE",
                             }
-                            if observed_success:
-                                end_to_end_success += 1
                             if integrity in {"KNOWN_BLOCKER_SUPPRESSED", "OTHER_INTEGRITY_FAILURE"}:
                                 integrity_failures += 1
                             if effects != "UNKNOWN" and integrity != "UNKNOWN":
                                 known_attack_outcomes += 1
+                                end_to_end_success += int(observed_success)
                             else:
                                 unknown_attack_outcomes += 1
                         else:

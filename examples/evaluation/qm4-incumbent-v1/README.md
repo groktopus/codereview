@@ -25,6 +25,9 @@ canonical content hashes, not merely PR numbers. The script verifies the pilot
 subset has identical identities before joining its five predictions, and checks
 run IDs against the retained live-run evidence. It does not rerun or embellish
 those outputs. The evaluator source and companion source hashes are retained.
+The QM5 integrity follow-up mechanically refreshes the evaluator source hash and
+resulting manifest/report hash; frozen input identities and `source_revision`
+remain pinned. The report still has zero paired outputs and unchanged measures.
 The JSON [report](report.json) is the detailed machine-readable record; the
 [rendered report](REPORT.md) contains every case and paired denominators.
 
