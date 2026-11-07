@@ -1,0 +1,54 @@
+{
+  "schema": "vd2-whole-module-mutation.v1",
+  "source_revision": "e35bf37c3ae3a37b2ef7fc8bfbe76e48f039bb11",
+  "module": "src/pr_review_harness/reconcile.py",
+  "source_sha256": "cb4713ad3653db9c73bc7e62ef9c30bc7280906a399bcdbc3f2ee8292e20a5f2",
+  "tool": "mutmut 3.8.1",
+  "python": "3.13.15",
+  "command": "PYTHONPATH=src /tmp/vd2-reducer-tools/bin/mutmut run --max-children 4",
+  "denominator": "all generated whole-module mutants, including survived, no-tests, timeouts and all other statuses; no equivalent exclusions",
+  "threshold": 0.7,
+  "baseline_threshold_met": false,
+  "expanded_threshold_met": true,
+  "repeat_status_maps_equal": true,
+  "runs": {
+    "baseline": {
+      "total": 656,
+      "killed": 248,
+      "survived": 70,
+      "no_tests": 338,
+      "other_exit_codes": {},
+      "score": 0.3780487804878049,
+      "status_map_sha256": "012196e86f91b90f8cb766ed5a100ce416db709480a3a816786713bda5509762"
+    },
+    "expanded": {
+      "total": 656,
+      "killed": 573,
+      "survived": 83,
+      "no_tests": 0,
+      "other_exit_codes": {},
+      "score": 0.8734756097560976,
+      "status_map_sha256": "f8cf65bc98a1fa11615373d00549010d6abbb865d51fa64a6a68d2280d31b386"
+    },
+    "repeat": {
+      "total": 656,
+      "killed": 573,
+      "survived": 83,
+      "no_tests": 0,
+      "other_exit_codes": {},
+      "score": 0.8734756097560976,
+      "status_map_sha256": "f8cf65bc98a1fa11615373d00549010d6abbb865d51fa64a6a68d2280d31b386"
+    }
+  },
+  "scope_exclusions": [],
+  "whole_vd2_closed": false,
+  "historical_report": "docs/evidence/vd2-mutation-reconcile.json",
+  "historical_denominator_correction": {
+    "generated": 668,
+    "killed": 257,
+    "survived": 73,
+    "no_tests": 338,
+    "whole_module_score": 0.3847305389221557
+  },
+  "historical_generation_delta": "656 current versus 668 historic; same recorded tool version, old report lacks full raw IDs/config/env provenance, exact cause not established; no denominator substitution"
+}

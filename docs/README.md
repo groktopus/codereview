@@ -151,6 +151,9 @@ banner; evidence that already lived under `docs/experiments/` or a
 | [Actions canary cleanup failure provenance](CANARY-CLEANUP-FAILURE-PROVENANCE.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Existing reviewer baseline discovery](COMPARISON-DISCOVERY.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [VD-2 reducer and validation-boundary review](evidence/vd2-reducer-validation-review.md) | Targeted invariant tests and explicitly unmeasured reducer mutation scope; not mutation qualification. |
+| [VD-2 whole-module reconcile mutation report](evidence/vd2-reconcile-module/README.md) | Full current mutmut scope, retained failed baseline, repeated 87.35% results, survivor triage and independent review; reconcile module only, not VD-2 closure. |
+| [VD-2 whole-module survivor diff inventory](evidence/vd2-reconcile-module/survivor-diffs.md) | Full exact diffs for all 83 surviving mutants in the retained 656-mutant universe. |
+| [Independent reconcile-test and mutation-map review](evidence/vd2-reconcile-module/independent-review.md) | Read-only independent review of the scoped tests, source hashes, and complete repeated mutation-status maps. |
 | [Current production-requirement trace](CURRENT-ACCEPTANCE-TRACE.md) | Earlier variant of the requirement trace. Use `CURRENT-DELIVERY-TRACE.md` as canonical; retained for provenance. |
 | [Current-source synthetic paired trial](CURRENT-SOURCE-PAIRED-TRIAL.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Current v3 context baseline](CURRENT-V3-CONTEXT-BASELINE.md) | Dated evidence, audit, trial, or review note; not current guidance. |
