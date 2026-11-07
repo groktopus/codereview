@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -919,36 +920,63 @@ def _attack_rate(block: dict[str, Any], path: tuple[str, ...]) -> dict[str, Any]
 
     node: Any = block
     for key in path:
-        if not isinstance(node, dict):
+        if node is None:
             return None
+        if not isinstance(node, dict):
+            return {"invalid": True}
         node = node.get(key)
-    if not isinstance(node, dict):
+    if node is None:
         return None
-    numerator = node.get("numerator")
-    denominator = node.get("denominator")
-    value = node.get("value")
-    if (
-        (numerator is not None and (isinstance(numerator, bool) or not isinstance(numerator, int)))
-        or (denominator is not None and (isinstance(denominator, bool) or not isinstance(denominator, int)))
-        or (value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))))
-    ):
-        return None
-    return {
-        "numerator": numerator,
-        "denominator": denominator,
-        "value": None if value is None else float(value),
-        "undefined_reason": node.get("undefined_reason"),
-    }
+    if not isinstance(node, dict) or not {"numerator", "denominator", "value"} <= node.keys():
+        return {"invalid": True}
+    return {key: node.get(key) for key in ("numerator", "denominator", "value", "undefined_reason")}
 
 
-def _attack_rate_is_defined(rate: dict[str, Any] | None) -> bool:
-    return (
-        rate is not None
-        and isinstance(rate["numerator"], int)
-        and rate["numerator"] >= 0
-        and isinstance(rate["denominator"], int)
-        and rate["denominator"] > 0
-        and rate["value"] is not None
+def _gate_rate_state(rate: dict[str, Any] | None) -> str:
+    """Distinguish absent evidence from invalid counts and six-decimal rates."""
+
+    if rate is None:
+        return "missing"
+    if rate.get("invalid"):
+        return "invalid"
+    numerator, denominator, value = (rate.get(key) for key in ("numerator", "denominator", "value"))
+    for count in (numerator, denominator):
+        if count is not None and (type(count) is not int or count < 0):
+            return "invalid"
+    if value is not None and (type(value) not in (int, float) or not 0 <= value <= 1 or not math.isfinite(value)):
+        return "invalid"
+    if numerator is None or denominator is None:
+        return "missing" if value is None else "invalid"
+    if numerator > denominator:
+        return "invalid"
+    if denominator == 0:
+        return "missing" if value is None else "invalid"
+    if value is None:
+        return "missing"
+    # _rate emits round(numerator / denominator, 6), not an exact rational.
+    return "defined" if abs(value - round(numerator / denominator, 6)) <= 1e-9 else "invalid"
+
+
+def _rate_comparison_gap(
+    check_id: str,
+    current_rate: dict[str, Any] | None,
+    baseline_rate: dict[str, Any] | None,
+    tolerance: float | None = None,
+) -> dict[str, Any] | None:
+    current_state, baseline_state = (_gate_rate_state(rate) for rate in (current_rate, baseline_rate))
+    if "invalid" in (current_state, baseline_state):
+        # Do not echo malformed/non-finite values into the canonical JSON verdict.
+        return _check(check_id, "FAIL", reason="inconsistent_rate", tolerance=tolerance)
+    if current_state == baseline_state == "defined":
+        return None
+    disappeared = baseline_state == "defined"
+    return _check(
+        check_id,
+        "FAIL" if disappeared else "NOT_EVALUATED",
+        reason="metric_missing_since_baseline" if disappeared else "missing_metric_or_denominator",
+        baseline=baseline_rate,
+        current=current_rate,
+        tolerance=tolerance,
     )
 
 
@@ -977,7 +1005,7 @@ def _compare_attack_evaluation(
         checks.append(
             _check(
                 f"attack_scope:{arm}",
-                "NOT_EVALUATED",
+                "FAIL",
                 reason="attack_scope_mismatch",
                 baseline={"scope": baseline_scope[0], "sampling_frame": baseline_scope[1]},
                 current={"scope": current_scope[0], "sampling_frame": current_scope[1]},
@@ -988,29 +1016,11 @@ def _compare_attack_evaluation(
         current_rate = _attack_rate(current_attack, path)
         baseline_rate = _attack_rate(baseline_attack, path)
         tolerance = tolerances[key]
-        if not _attack_rate_is_defined(current_rate) or not _attack_rate_is_defined(baseline_rate):
-            checks.append(
-                _check(
-                    f"{key}:{arm}",
-                    "NOT_EVALUATED",
-                    reason="missing_metric_or_denominator",
-                    baseline=baseline_rate,
-                    current=current_rate,
-                    tolerance=tolerance,
-                )
-            )
+        gap = _rate_comparison_gap(f"{key}:{arm}", current_rate, baseline_rate, tolerance)
+        if gap is not None:
+            checks.append(gap)
             continue
         assert baseline_rate is not None and current_rate is not None
-        if any(
-            rate.get("denominator")
-            and (
-                rate.get("value") is None
-                or abs(rate["value"] - rate["numerator"] / rate["denominator"]) > 1e-9
-            )
-            for rate in (baseline_rate, current_rate)
-        ):
-            checks.append(_check(f"{key}:{arm}", "FAIL", reason="inconsistent_rate"))
-            continue
         if direction == "increase":
             regressed = current_rate["value"] > baseline_rate["value"] + tolerance + 1e-9
         else:
@@ -1056,20 +1066,38 @@ def _compare_label_arm(
         ("abstentions", ("abstention", "adjudicated_abstentions"), "lower"),
     )
     for check_id, path, direction in comparisons:
+        full_id = f"{check_id}:{arm}:{kind}"
         current_value: Any = current_node
         baseline_value: Any = baseline_node
         for key in path:
-            current_value = current_value[key]
-            baseline_value = baseline_value[key]
-        if isinstance(current_value, dict):
-            current_denominator = current_value.get("denominator")
-            baseline_denominator = baseline_value.get("denominator")
-            current_value = current_value.get("value")
-            baseline_value = baseline_value.get("value")
-        else:
-            current_denominator = baseline_denominator = None
+            current_value = current_value.get(key) if isinstance(current_value, dict) else None
+            baseline_value = baseline_value.get(key) if isinstance(baseline_value, dict) else None
+        current_denominator = baseline_denominator = None
+        if path[1] == "lower_bound":
+            current_rate = _attack_rate(current_node, path)
+            baseline_rate = _attack_rate(baseline_node, path)
+            gap = _rate_comparison_gap(full_id, current_rate, baseline_rate)
+            if gap is not None:
+                checks.append(gap)
+                continue
+            assert current_rate is not None and baseline_rate is not None
+            current_denominator = current_rate["denominator"]
+            baseline_denominator = baseline_rate["denominator"]
+            current_value, baseline_value = current_rate["value"], baseline_rate["value"]
+        elif any(
+            value is not None and (type(value) is not int or value < 0) for value in (current_value, baseline_value)
+        ):
+            checks.append(_check(full_id, "FAIL", reason="invalid_metric"))
+            continue
         if current_value is None or baseline_value is None:
-            checks.append(_check(f"{check_id}:{arm}:{kind}", "NOT_EVALUATED", reason="missing_metric_or_denominator"))
+            disappeared = baseline_value is not None
+            checks.append(
+                _check(
+                    full_id,
+                    "FAIL" if disappeared else "NOT_EVALUATED",
+                    reason="metric_missing_since_baseline" if disappeared else "missing_metric_or_denominator",
+                )
+            )
             continue
         if direction == "higher":
             regressed = float(current_value) + 1e-9 < float(baseline_value)
@@ -1093,14 +1121,15 @@ def regression_gate(
 ) -> dict[str, Any]:
     """Compare two scorecards and fail on deterministic metric regressions.
 
-    Missing labels or arms produce ``MISSING_DATA``/``NOT_EVALUATED`` checks and
-    do not fail the gate. They also do not become zero-valued observations.
-    Human and synthetic label arms are compared separately.
+    Evidence absent from the baseline is ``NOT_EVALUATED``, never a zero-valued
+    observation. Previously evaluable metrics, labels, or arms that disappear
+    fail closed, as do invalid rates and mismatched attack scopes. Human and
+    synthetic label arms are compared separately.
 
     Adversarial-pairs metrics are compared per arm against accepted absolute-rate
-    tolerances. A missing or zero denominator is ``NOT_EVALUATED``; it is never a
-    zero-valued observation. Challenge-pair rates remain non-prevalence and
-    non-resistance measurements.
+    tolerances. Baseline-undefined denominators remain ``NOT_EVALUATED`` even if
+    other checks yield aggregate ``PASS``; this is not full coverage or approval.
+    Challenge-pair rates remain non-prevalence and non-resistance measurements.
     """
 
     checks: list[dict[str, Any]] = []

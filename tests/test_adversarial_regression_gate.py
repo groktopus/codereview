@@ -9,6 +9,8 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 from experiments.harness.scorecard import build_scorecard, canonical_bytes, regression_gate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,9 +128,176 @@ def test_undefined_denominator_is_not_evaluated_and_never_zero() -> None:
         None
     )
     missing = _checks(regression_gate(current, baseline))["accepted_finding_loss:harness"]
-    assert missing["status"] == "NOT_EVALUATED"
+    assert missing["status"] == "FAIL"
     assert missing["current"]["denominator"] is None
     assert missing["current"]["value"] is None
+
+
+@pytest.mark.parametrize("side", ["current", "baseline"])
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        {"numerator": 4, "denominator": 5, "value": 0.0},
+        {"numerator": 6, "denominator": 5, "value": 1.2},
+        {"numerator": -1, "denominator": 5, "value": -0.2},
+        {"numerator": 0, "denominator": -1, "value": 0.0},
+        {"numerator": 1, "denominator": 0, "value": None},
+        {"numerator": 0, "denominator": 0, "value": 0.0},
+        {"numerator": True, "denominator": 5, "value": 0.2},
+        {"numerator": 4, "denominator": 5, "value": float("nan")},
+        {"numerator": 4, "denominator": 5, "value": float("inf")},
+        {"numerator": 4, "denominator": 5, "value": float("-inf")},
+    ],
+)
+def test_inconsistent_attack_rate_fails_closed(side: str, replacement: dict) -> None:
+    cards = {"current": _baseline(), "baseline": _baseline()}
+    rate = cards[side]["arms"]["harness"]["attack_evaluation"]["detector"]["sensitivity"]
+    rate.update(replacement)
+    gate = regression_gate(cards["current"], cards["baseline"])
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)["sensitivity:harness"]["status"] == "FAIL"
+    canonical_bytes(gate)  # Invalid non-finite evidence must not break JSON output.
+
+
+@pytest.mark.parametrize("metric", ["attack_success", "coverage_fabrication", "accepted_finding_loss", "sensitivity"])
+@pytest.mark.parametrize("missing", ["absent", "null", "zero_denominator"])
+def test_previously_evaluable_attack_metric_disappearance_fails(metric: str, missing: str) -> None:
+    baseline = _baseline()
+    current = deepcopy(baseline)
+    paths = {
+        "attack_success": ("end_to_end_observed_outcomes", "observed_success_rate"),
+        "coverage_fabrication": ("coverage_integrity", "attack_fabrication_rate"),
+        "accepted_finding_loss": ("accepted_finding_loss", "accepted_finding_loss_rate"),
+        "sensitivity": ("detector", "sensitivity"),
+    }
+    section, key = paths[metric]
+    node = current["arms"]["harness"]["attack_evaluation"][section]
+    if missing == "absent":
+        del node[key]
+    elif missing == "null":
+        node[key] = {"numerator": None, "denominator": None, "value": None}
+    else:
+        node[key] = {"numerator": 0, "denominator": 0, "value": None}
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)[f"{metric}:harness"]["status"] == "FAIL"
+
+
+@pytest.mark.parametrize("field", ["scope", "sampling_frame"])
+def test_attack_scope_mismatch_fails_closed(field: str) -> None:
+    baseline = _baseline()
+    current = deepcopy(baseline)
+    current["arms"]["harness"]["attack_evaluation"][field] = "other_scope"
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)["attack_scope:harness"]["status"] == "FAIL"
+
+
+@pytest.mark.parametrize("side", ["current", "baseline"])
+@pytest.mark.parametrize("replacement", [[], "bad_rate", 7, {}, {"value": None}])
+def test_malformed_baseline_undefined_rate_is_not_missing(side: str, replacement: object) -> None:
+    cards = {"current": _baseline(), "baseline": _baseline()}
+    cards[side]["arms"]["droid"]["attack_evaluation"]["accepted_finding_loss"]["accepted_finding_loss_rate"] = (
+        replacement
+    )
+    gate = regression_gate(cards["current"], cards["baseline"])
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)["accepted_finding_loss:droid"]["reason"] == "inconsistent_rate"
+
+
+def test_rounded_generated_rate_is_consistent() -> None:
+    baseline = _baseline()
+    for arm in baseline["arms"].values():
+        arm["attack_evaluation"]["detector"]["sensitivity"].update(
+            {"numerator": 1, "denominator": 3, "value": 0.333333}
+        )
+    assert regression_gate(baseline, baseline)["status"] == "PASS"
+
+
+@pytest.mark.parametrize("metric", ["recall", "precision"])
+@pytest.mark.parametrize("side", ["current", "baseline"])
+@pytest.mark.parametrize("value", [0.123, float("nan"), float("inf"), float("-inf")])
+def test_invalid_label_rate_fails_closed(metric: str, side: str, value: float) -> None:
+    cards = {"current": _baseline(), "baseline": _baseline()}
+    cards[side]["arms"]["harness"]["label_arms"]["human"][metric]["lower_bound"]["value"] = value
+    gate = regression_gate(cards["current"], cards["baseline"])
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)[f"{metric}_lower_bound:harness:human"]["status"] == "FAIL"
+    canonical_bytes(gate)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), 0.123])
+def test_cli_rejects_invalid_rate_without_serialization_failure(tmp_path: Path, value: float) -> None:
+    baseline = _baseline()
+    current = deepcopy(baseline)
+    current["arms"]["harness"]["attack_evaluation"]["detector"]["sensitivity"]["value"] = value
+    baseline_path = tmp_path / "baseline.json"
+    current_path = tmp_path / "current.json"
+    baseline_path.write_bytes(canonical_bytes(baseline))
+    # Python's permissive JSON parser accepts nonstandard NaN/Infinity tokens.
+    current_path.write_text(json.dumps(current))
+    result = _run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/check_quality_scorecard_gate.py"),
+            "--baseline",
+            str(baseline_path),
+            "--current",
+            str(current_path),
+            "--json",
+        ]
+    )
+    assert result.returncode == 1
+    gate = json.loads(result.stdout)
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)["sensitivity:harness"]["reason"] == "inconsistent_rate"
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize("metric", ["recall", "precision"])
+def test_previously_evaluable_label_rate_disappearance_fails(metric: str) -> None:
+    baseline = _baseline()
+    current = deepcopy(baseline)
+    current["arms"]["harness"]["label_arms"]["human"][metric]["lower_bound"] = {
+        "numerator": 0,
+        "denominator": 0,
+        "value": None,
+    }
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)[f"{metric}_lower_bound:harness:human"]["status"] == "FAIL"
+
+
+@pytest.mark.parametrize(
+    "section,key,check_id",
+    [
+        ("approve_with_known_defect", "cases", "approve_with_known_defect"),
+        ("unadjudicated", "findings_without_final_adjudication", "unadjudicated_findings"),
+        ("duplicates", "correlated_duplicates_excluded", "duplicate_findings"),
+        ("abstention", "adjudicated_abstentions", "abstentions"),
+    ],
+)
+@pytest.mark.parametrize("replacement", [None, float("nan"), float("inf"), -1, True])
+def test_required_label_count_disappearance_or_invalidity_fails(
+    section: str, key: str, check_id: str, replacement: object
+) -> None:
+    baseline = _baseline()
+    current = deepcopy(baseline)
+    current["arms"]["harness"]["label_arms"]["human"][section][key] = replacement
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)[f"{check_id}:harness:human"]["status"] == "FAIL"
+    canonical_bytes(gate)
+
+
+@pytest.mark.parametrize("replacement", [None, {}, {"status": "missing"}])
+def test_previously_present_attack_block_disappearance_fails(replacement: object) -> None:
+    baseline = _baseline()
+    current = deepcopy(baseline)
+    current["arms"]["harness"]["attack_evaluation"] = replacement
+    gate = regression_gate(current, baseline)
+    assert gate["status"] == "FAIL"
+    assert _checks(gate)["attack_evaluation:harness"]["reason"] == "attack_evaluation_missing_since_baseline"
 
 
 def test_explicit_tolerances_accept_a_bounded_attack_success_increase() -> None:

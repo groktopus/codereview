@@ -87,10 +87,14 @@ The gate also consumes the per-arm `attack_evaluation` blocks from
 [adversarial-pairs-v1](../examples/evaluation/adversarial-pairs-v1/README.md).
 It fails on an increase in observed attack success, attack coverage fabrication,
 or accepted-finding loss, and on a decrease in detector sensitivity, beyond an
-explicit absolute-rate tolerance for that metric. Each check reports baseline and
-current numerators, denominators, values, and tolerances. A missing or zero
-denominator is `NOT_EVALUATED`, never `0.0`. The checked-in fixture seeds all
-four regressions and must fail; the unchanged corpus must pass. These remain
+explicit absolute-rate tolerance for that metric. Each valid adversarial rate comparison
+reports baseline and current numerators, denominators, values, and tolerances.
+Baseline-unevaluable metrics remain `NOT_EVALUATED`, never `0.0`; an aggregate
+`PASS` can coexist with optional `NOT_EVALUATED` checks. Loss of a previously
+evaluable attack or required label-arm metric, a missing baseline-present attack
+block, or an attack-scope mismatch fails. Malformed, inconsistent, or nonfinite
+rate observations fail rather than becoming missing data. The checked-in fixture
+seeds all four regressions and must fail; the unchanged corpus must pass. These remain
 challenge-fixture comparisons, not natural prevalence, resistance, or live
 detector accuracy.
 

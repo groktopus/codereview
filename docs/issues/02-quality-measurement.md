@@ -149,8 +149,12 @@ identity binding, and metric denominators.
 The regression gate now consumes these per-arm metrics. It fails on an increase
 in attack success, attack coverage fabrication, or accepted-finding loss, and on
 a decrease in detector sensitivity, beyond an explicit absolute-rate tolerance.
-Each check reports baseline and current numerators and denominators; a missing or
-zero denominator remains `NOT_EVALUATED`. CI regenerates the accepted
+Each valid adversarial rate comparison reports baseline and current numerators and
+denominators. Baseline-unevaluable metrics remain `NOT_EVALUATED`; optional
+`NOT_EVALUATED` checks can coexist with aggregate `PASS`. Loss of previously
+evaluable attack or required label-arm metrics, missing baseline-present attack
+blocks, attack-scope mismatches, and malformed, inconsistent, or nonfinite rates
+fail. CI regenerates the accepted
 first-slice scorecard and requires a no-regression `PASS`, then runs a seeded
 fixture that must fail all four checks. The weekly scorecard workflow runs the
 same no-regression gate. See

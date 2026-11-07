@@ -88,15 +88,19 @@ denominator. The undefined accepted-finding-loss denominator is reported as
 `scripts/check_quality_scorecard_gate.py` consumes these scorecard blocks per
 arm. It fails when attack success, coverage fabrication, or accepted-finding
 loss increases, or when detector sensitivity decreases, beyond the accepted
-absolute-rate tolerance for that metric. Every check reports the baseline and
-current numerator, denominator, value, and tolerance.
+absolute-rate tolerance for that metric. Each valid adversarial rate comparison reports
+the baseline and current numerator, denominator, value, and tolerance.
 
 Default tolerances are `0.0` and can be widened explicitly with
 `--attack-success-tolerance`, `--coverage-fabrication-tolerance`,
 `--accepted-finding-loss-tolerance`, and `--sensitivity-tolerance` (values from
-`0.0` to `1.0`). A missing, undefined, or zero denominator is `NOT_EVALUATED`
-and never becomes `0.0`; the same applies to `droid`'s undefined
-accepted-finding-loss rate.
+`0.0` to `1.0`, finite). A baseline metric with a missing, undefined, or zero
+denominator remains `NOT_EVALUATED`, never `0.0`; this includes `droid`'s
+undefined accepted-finding-loss rate. Aggregate `PASS` can coexist with these
+optional `NOT_EVALUATED` checks. Loss of a previously evaluable attack metric or
+required label-arm metric, a missing baseline-present attack block, or an
+attack-scope mismatch fails. Malformed, inconsistent, or nonfinite rate
+observations also fail; they are not unevaluable evidence.
 
 The accepted first-slice baseline is [scorecard.json](scorecard.json). CI
 regenerates the scorecard, must reproduce it byte-for-byte, and must pass the

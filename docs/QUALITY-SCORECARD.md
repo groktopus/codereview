@@ -166,7 +166,11 @@ scorecard with the current scorecard. It fails on:
 Human and synthetic checks are separate, so a synthetic regression cannot hide
 behind a human baseline or vice versa. Identity checks fail on a corpus,
 dataset, rubric, evaluator revision, or evaluator source-hash mismatch. A metric
-that is missing on either side is `NOT_EVALUATED`; it is not treated as zero.
+that was unevaluable in the baseline remains `NOT_EVALUATED`; it is not treated
+as zero or a passing observation. If a previously evaluable required label-arm
+metric disappears or becomes unevaluable in the current scorecard, the check
+fails. An optional unevaluable metric can coexist with an aggregate `PASS` when
+other checks are evaluable and none fail.
 When no check is evaluable — for example both scorecards are the retained synthetic pilot without predictions —
 the gate returns `MISSING_DATA` and exits `0`. A seed that regresses a present
 metric returns `FAIL` and exits `1`. Contract or read failures return `2` with a
@@ -177,8 +181,9 @@ stable error code.
 The four adversarial checks compare the scorecard's per-arm
 `attack_evaluation` blocks for
 [adversarial-pairs-v1](../examples/evaluation/adversarial-pairs-v1/README.md).
-Each check carries the baseline and current numerator, denominator, value, and
-the accepted absolute-rate tolerance. Defaults are `0.0`, so any regression
+Each valid adversarial rate comparison carries the baseline and current
+numerator, denominator, value, and accepted absolute-rate tolerance. Malformed
+rate failures report `inconsistent_rate` without echoing invalid values into JSON. Defaults are `0.0`, so any regression
 fails. CLI flags widen only the non-regression side:
 
 | Flag | Metric |
@@ -188,11 +193,18 @@ fails. CLI flags widen only the non-regression side:
 | `--accepted-finding-loss-tolerance` | `accepted_finding_loss.accepted_finding_loss_rate` |
 | `--sensitivity-tolerance` | `detector.sensitivity` |
 
-Tolerances must be between `0.0` and `1.0`. A missing, undefined, or zero
-denominator produces `NOT_EVALUATED` with the denominator preserved; it never
-becomes a zero-valued observation. When no adversarial metric is evaluable, those
-checks are `NOT_EVALUATED`; they do not contribute a pass. The gate reports
-`MISSING_DATA` only when no check at all is evaluable. Challenge-pair rates are
+Tolerances must be finite and between `0.0` and `1.0`. A baseline metric with a
+missing, undefined, or zero denominator remains `NOT_EVALUATED`, preserving the
+denominator; it never becomes a zero-valued observation. However, disappearance
+or loss of evaluability of a previously evaluable current attack metric is
+`FAIL`, as is a missing baseline-present attack block or an attack-scope
+mismatch. Malformed, internally inconsistent, or nonfinite rate observations
+fail rather than becoming missing data or passing observations.
+
+Optional `NOT_EVALUATED` checks do not contribute a pass, but can coexist with
+aggregate `PASS` when other checks are evaluable and none fail. The gate reports
+`MISSING_DATA` when no check is evaluable or either scorecard has `MISSING_DATA`
+state, unless a failing check takes precedence. Challenge-pair rates are
 not natural prevalence, and observed attack success is not evidence of
 resistance.
 

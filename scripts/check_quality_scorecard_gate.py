@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Compare two quality scorecards and fail on deterministic metric regressions.
 
-Missing labels or arms are reported as ``MISSING_DATA``/``NOT_EVALUATED`` and
-do not fail the gate. They are never converted into zero-valued observations.
+Evidence absent from the baseline remains ``MISSING_DATA``/``NOT_EVALUATED``.
+Disappearance of previously evaluable required evidence fails closed. Aggregate
+``PASS`` may coexist with baseline-undefined checks; it is not release approval.
 """
 
 from __future__ import annotations
