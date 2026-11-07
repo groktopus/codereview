@@ -1,7 +1,7 @@
-# Reassessment after the A-minus issue program (current checkpoint: 2026-11-07)
+# Reassessment after the A-minus issue program (current checkpoint: main 94f1973, refreshed after PR367, 2026-11-07)
 
-**Status: A− not achieved. Only 3 of 10 dimensions meet A−.** Evidence discipline
-is **A−**, documentation is **B**, and no overall A−, quality parity, equivalence,
+**Status: A− not achieved. Only 3 of 10 dimensions meet A−.** This is a reassessment judgment, not a formal promotion/acceptance decision. Evidence discipline
+is **A−**, test depth is **B+**, documentation is **B**, and no overall A−, quality parity, equivalence,
 or replacement claim is supported.
 
 This is the current reassessment, not a new name for the original assessment.
@@ -11,22 +11,19 @@ unchanged as the historical evidence snapshot.
 
 ## Source snapshot and limits
 
-The assessed source includes VD-3's partial merge
-[3474be7](https://github.com/groktopus/codereview/commit/3474be720fff5123c2f0d6b7a947087629a9c778)
-and the subsequent QM-5 gate merge
-[fccff85](https://github.com/groktopus/codereview/commit/fccff85f18c598c3a118873949cfbc46c3587128).
-The latter is the base of this documentation refresh. The 2026-11-07 local root
-handoff records the independent read-only reassessment and recovery; root retains
-judgment. Root's subsequent live API verification confirmed all seven dependency
-alerts. This documentation worker did not independently repeat that remote audit.
-Candidate checks were green before both merges. Root also verified PR 354's
-post-merge Harness [42401496761](https://github.com/groktopus/codereview/actions/runs/42401496761)
-and Security [42401496741](https://github.com/groktopus/codereview/actions/runs/42401496741)
-succeeded. For PR 352, Security
-[42401944933](https://github.com/groktopus/codereview/actions/runs/42401944933)
-succeeded but Harness
-[42401944806](https://github.com/groktopus/codereview/actions/runs/42401944806)
-was still queued at this update; that run is not promoted to a verified pass.
+The assessed source is current main at
+[`11558be`](https://github.com/groktopus/codereview/commit/11558be31c1db4d554f9fa7797658d7b377d1730)
+(2026-11-07), after PRs 355–367 merged. Six issues remain open; stopped draft
+PR353 is excluded from landed capability. The live Dependabot API returned zero
+open alerts after PR357; that time-bounded result is not broad security
+certification. Current main Harness and Security runs
+[42411852463](https://github.com/groktopus/codereview/actions/runs/42411852463)
+and [42411852522](https://github.com/groktopus/codereview/actions/runs/42411852522)
+passed at the exact assessed SHA. CI reports 27 successful checks and 3 skips;
+dependency-review guidance and scheduled vulnerability scans were skipped, not
+executed. The independent ten-dimension judgment remains 3/10 A−; no formal grade
+promotion or issue closure is inferred from that review.
+
 
 Checked-in evidence below has narrower scopes and older execution dates than
 this source snapshot. In particular, the five retained live provider-backed runs
@@ -40,11 +37,11 @@ corpus evaluation. Pending and stopped PRs are excluded from landed capability.
 | Evidence discipline | **A−** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, historical fixtures, and exact-byte pins; unsupported premature CLEAR receipts were withdrawn during recovery. | Preserve withdrawn receipts as superseded, and require actual completed independent exact-head source review rather than validator-only claims. The receipt incident prevents retaining the former A grade. |
 | Effect safety | **A−** | Default read-only and typed effect boundaries; publication fault tests and one exercised live canary through the narrow one-shot adapter ([receipt](evidence/canary-review-5763357701.json)). | Preserve the narrow authority boundary. This is not general publication qualification; the general protected runtime remains unexercised. |
 | Deterministic control plane | **A−** | Staged orchestration, `RunState`, budget reservation/replay, deterministic planning, contract registry, and typed boundaries. | Preserve stale/blocker, partial-coverage, budget, and deterministic-control invariants; broader quality claims remain unsupported. |
-| Test depth | **B+** | Targeted mutation scores: budget **84.9%** and reconcile **77.9%**, with no-tests and timeouts excluded ([budget report](evidence/vd2-mutation-budget.json), [reconcile report](evidence/vd2-mutation-reconcile.json)). | Reducer and validators remain unmeasured; survivor triage, expanded lint/types, canonical runtime/script pin authority, and actionable tree migration remain open. |
+| Test depth | **B+** | Budget: 1,775/2,185 = **81.24% all generated**; reconcile: 573/656 = **87.35% whole module, all generated**, with 83 survivors and zero no-tests/timeouts; reducer: 103/105 = 98.10% on `_reduce` only; validators: 117/118 causal roles, 69/72 claim choice, 226/228 adjudication. Reports retain no-tests and all survivors. | Scoped function results do not qualify all validators. Six validator survivors include real boundary gaps. The remaining fault matrix needs root issue acceptance review; full VD-2 remains open. |
 | Review completeness | **C** | Five comparable retained live cases and a completeness regression gate; **2 COMPLETE / 3 COMPLETE_WITH_WAIVERS** ([live-run record](evidence/qm3-five-case-live.json), [baseline scope](evidence/rc3-completeness-baseline.json)). | No representative current-source obligation-completion, INCOMPLETE, or truncation measurement. Disclose raw versus waiver-adjusted outcomes; the sixth frozen case, `qm1-slopsearx-pr770`, is missing. |
 | Review quality evidence | **D** | QM-3 is closed for the owner-accepted five-case comparable baseline. Synthetic adjudication, scorecard, and provider-free CI/scheduled gates exist ([scorecard scope](QUALITY-SCORECARD.md)). QM-5 gate v3 is merged infrastructure, not live resistance evidence. | Substantive held-out positive/clean adjudicated cases, actual same-snapshot incumbent evidence, and live bounded attack evaluation remain missing. Fixture arms are not incumbent runs. |
 | Architecture | **C+/B−** | Typed boundaries, contract registry, staged pipeline, and a measured 32,781-source-line slice ([allowance record](adr/0001-post-ca2-feature-budget.md#addendum-rc-2-retrieval-compiler-allowance-2026-11-06)). | Large staged functions still need cohesive reduction with behavior proof. The reduction from 40,686 lines is **19.43%**, not a current 25%; the approved allowance is fully consumed. |
-| Operational readiness | **B−/B** | Hash-locked dependencies, install matrix, support/API contracts, and release/SBOM/provenance tooling. | Root's live API verification confirms **7 actual uploader Dependabot alerts**, including high-severity `undici <6.29.1`; a dependency-repair candidate is not landed in this snapshot and there is no security-clean claim. Bounded install/recovery/on-call exercise and exact-head/post-merge CI evidence remain necessary. |
+| Operational readiness | **B−/B** | Hash-locked dependencies, install matrix, support/API contracts, and release/SBOM/provenance tooling. | The uploader dependency repair is merged and the live Dependabot API returned **0 open alerts** at this snapshot. This is meaningful remediation, not a broad security certification. Bounded install/recovery/on-call exercise and exact-head/post-merge CI evidence remain necessary. |
 | Documentation | **B** | Indexed documentation, link/index/ownership tooling, and docs-truth checks exist. This refresh corrects stale current claims and distinguishes historical/fixture evidence from current measurement. | Freshness and source-faithful scope still require maintenance; documentation tooling alone cannot establish operational or quality evidence. |
 | Governance | **C+/B−** | Ownership and review/decision-record controls exist; the recovery records completed independent review and exact-head pre-merge checks for PRs 354 and 352. | Actual independent exact-head review and post-merge verification must be preserved at every merge. Bus factor one/admin-bypass constraints and exercised backup/reviewer and negative gates remain unresolved. No new governance exercise is claimed here. |
 
@@ -73,13 +70,26 @@ The older empty-prediction pilot and authored fixture arms described in
 ### Mutation and compatibility depth
 
 - **Budget:** 1,775 killed / 315 survived / 95 no-tests / 0 timeouts;
-  `1775 / (1775 + 315) = 84.9%` ([report](evidence/vd2-mutation-budget.json)).
-- **Reconcile:** 257 killed / 73 survived / 338 no-tests / 0 timeouts;
-  `257 / (257 + 73) = 77.9%` ([report](evidence/vd2-mutation-reconcile.json)).
-- Both targeted probes exceed the existing 70% mutation gate for their measured
-  modules. **Reducer and validators remain unmeasured**; VD-2 is not closed.
-  The older reconcile report's budget-unmeasured scope note is historical and
-  superseded for budget by the later budget probe, not evidence against it.
+  1,775/2,185 = **81.24% of all generated mutants** and 84.9% of killed+survived
+  ([report](evidence/vd2-mutation-budget.json)). Both denominators are retained;
+  `_child_call` mutations are no-tests, not silently excluded from the all-mutant
+  score.
+- **Reconcile whole module:** 573/656 = **87.35%**, 83 survivors, 0 no-tests or
+  timeouts; repeat status maps match. The initial existing-test baseline failed at
+  248/656 (37.80%) and is preserved. This replaces the superseded 77.9% tested-only
+  claim in the older report; see the [full-module record](evidence/vd2-reconcile-module/README.md).
+- **Reducer:** `_reduce` only, 103/105 = **98.10%**, 2 survivors retained.
+  Validator function probes: causal roles 117/118, claim choice 69/72, adjudication
+  226/228. All six survivors remain; several are real boundary gaps. These
+  function-only probes do not qualify entire validator modules. Raw/status/source
+  hashes are retained in the [validator report](evidence/vd2-mutation-validators-measured.json)
+  and [reducer report](evidence/vd2-mutation-reducer-measured.json).
+- Thus measured scopes exceed 70%; fault acceptance mapping is expanded in PR366.
+  VD-2 remains open: the reconcile history had a different 668-mutant universe,
+  and the new all-generated repeat uses 656. Three validator functions are measured,
+  not every whole module; budget survivor triage remains limited; provider cases
+  map to engine terminal states while publication/GitHub cases retain distinct
+  layers in the generated table. Synthetic fault success is not live qualification.
 
 [PR 354](https://github.com/groktopus/codereview/pull/354), merged as
 [3474be7](https://github.com/groktopus/codereview/commit/3474be720fff5123c2f0d6b7a947087629a9c778),
@@ -105,11 +115,14 @@ incumbent observations. **No live resistance or detector-accuracy claim follows.
 
 ### Work outside the landed snapshot
 
-- **PR 355:** [candidate c53f442](https://github.com/groktopus/codereview/pull/355/commits/c53f442)
-  was pending at the checkpoint, not landed. Its proposed 41-case inventory
-  retains 5 harness runs but **0 actual incumbent runs / 0 comparable pairs**.
-  Repaired typed provenance and reviewed inventory tooling are not measured
-  incumbent evidence, and no issue closure is inferred.
+- **PR 355:** merged as
+  [928ec17](https://github.com/groktopus/codereview/commit/928ec1733b3c3dc699be6a09fb38501a409cae00).
+  The versioned 41-case inventory retains 5 harness outputs and **0 incumbent
+  outputs / 0 comparable pairs**. It includes actual public Droid receipts, but
+  their exact snapshot/finality audit found no completed full incumbent output:
+  one security receipt predates completion, one review has a base mismatch, and
+  stale/original-commit mismatches are explicitly not paired. The report measures
+  missingness, not incumbent performance; QM-4 remains open.
 - **PR 353:** [draft source](https://github.com/groktopus/codereview/pull/353)
   stopped after nonconvergence, with no CLEAR receipt and genuine
   entrypoint/frozen/wheel failures. The unverified recovery was preserved locally;
