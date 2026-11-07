@@ -44,9 +44,12 @@ def test_blocker_precedes_incompleteness_and_advisory_synthesis(coverage, freshn
 @pytest.mark.parametrize("policy_valid,allow", list(itertools.product([False, True], repeat=2)))
 def test_empty_decision_table_and_replay(coverage, freshness, policy_valid, allow):
     value = result(coverage_state=coverage, freshness=freshness)
+    if coverage == "COMPLETE_WITH_WAIVERS":
+        # A valid waived state carries a receipt; a bare enum is not a contract input.
+        value["waivers_applied"] = [{"waiver_id": "accepted"}]
     expected = "INCOMPLETE"
     if coverage in {"COMPLETE", "COMPLETE_WITH_WAIVERS"} and freshness == "CURRENT" and policy_valid:
-        expected = "APPROVE" if allow else "COMMENT"
+        expected = "APPROVE" if allow and coverage == "COMPLETE" else "COMMENT"
     before = copy.deepcopy(value)
     for _ in range(3):
         assert _reduce(value, allow, policy_valid) == expected

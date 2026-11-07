@@ -6,10 +6,15 @@
   "branch": "test/vd2-reducer",
   "module": "src/pr_review_harness/engine.py",
   "named_scope": "pr_review_harness.engine._reduce",
-  "source_lines": [1173, 1194],
+  "source_lines": [
+    1173,
+    1194
+  ],
   "source_sha256": "dce6addfd9b280886fb302811902c9feb817708ed9615e981dbe7f12cf761ae6",
-  "test_selection": ["tests/test_vd2_reducer.py"],
-  "test_sha256": "2e0cc09ff5ae8e8b22e53ecd889689da7e575a9a3eed72bf11c8c0d54805799c",
+  "test_selection": [
+    "tests/test_vd2_reducer.py"
+  ],
+  "test_sha256": "e759a8250510b0bb848e169c9a56ca5e2bf920415e05793f7f752bcd5cc96e20",
   "baseline_command": "PYTHONPATH=src pytest -q tests/test_vd2_reducer.py tests/test_vd2_invariants.py tests/test_reconcile.py tests/test_review_stages.py",
   "baseline_passed": 325,
   "new_test_cases": 251,
@@ -43,7 +48,7 @@
   "timeout": null,
   "score": null,
   "denominator_policy": "When runnable, report killed/(killed+survived) and killed/all_generated side by side; retain no_tests, timeout, invalid, infrastructure failure and untested statuses explicitly. No denominator exists for this unexecuted probe.",
-  "threshold": 0.70,
+  "threshold": 0.7,
   "threshold_verdict": "NOT_EVALUATED",
   "survivor_triage": "NOT_POSSIBLE_WITHOUT_EXECUTED_MUTANTS",
   "scope_note": "Only a minimal reducer function is nominated, not measured. Validators, reconciliation, stage reconciliation/replay, advisory synthesis and the whole engine are not mutation-qualified by this artifact. Production code and pyproject unchanged."
