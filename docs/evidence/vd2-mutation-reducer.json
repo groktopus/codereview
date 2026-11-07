@@ -1,0 +1,55 @@
+{
+  "schema": "review-mutation-probe.v1",
+  "status": "TOOL_SETUP_BLOCKED_NOT_MEASURED",
+  "issue": "https://github.com/groktopus/codereview/issues/252",
+  "source_revision": "928ec1733b3c3dc699be6a09fb38501a409cae00",
+  "branch": "test/vd2-reducer",
+  "module": "src/pr_review_harness/engine.py",
+  "named_scope": "pr_review_harness.engine._reduce",
+  "source_lines": [
+    1173,
+    1194
+  ],
+  "source_sha256": "dce6addfd9b280886fb302811902c9feb817708ed9615e981dbe7f12cf761ae6",
+  "test_selection": [
+    "tests/test_vd2_reducer.py"
+  ],
+  "test_sha256": "e759a8250510b0bb848e169c9a56ca5e2bf920415e05793f7f752bcd5cc96e20",
+  "baseline_command": "PYTHONPATH=src pytest -q tests/test_vd2_reducer.py tests/test_vd2_invariants.py tests/test_reconcile.py tests/test_review_stages.py",
+  "baseline_passed": 325,
+  "new_test_cases": 251,
+  "tool": "mutmut 3.8.1 requested, not runnable",
+  "function_scope_capability": "UNVERIFIED: installed entrypoint fails before help; do not launch whole-engine mutation as substitute",
+  "capability_command": "/tmp/mutvenv/bin/mutmut run --help",
+  "capability_error": "ModuleNotFoundError: No module named 'mutmut.__main__'",
+  "environment_rejection": {
+    "path": "/tmp/mutvenv",
+    "reason": "pr-review-harness editable installation points to file:///tmp/work-budgetmut; not used for tests or mutation",
+    "additional_error": "python -m pip show mutmut codereview failed: No module named pip.__main__"
+  },
+  "setup_attempts": [
+    {
+      "command": "uv venv --python 3.13 /tmp/vd2-reducer-tools && uv pip install --python /tmp/vd2-reducer-tools/bin/python mutmut==3.8.1 pytest ruff radon",
+      "exit_code": 2,
+      "reason": "Project requires uv ==0.13.6; installed uv is 0.11.18"
+    },
+    {
+      "command": "uv --no-config venv --python 3.13 /tmp/vd2-reducer-tools && uv --no-config pip install --python /tmp/vd2-reducer-tools/bin/python mutmut==3.8.1 pytest ruff radon",
+      "exit_code": 2,
+      "reason": "Sandbox file access denied: /Users/magnus/.cache/uv/sdists-v9/.git; no escalation or workaround retry attempted"
+    }
+  ],
+  "mutation_command": null,
+  "mutation_config": null,
+  "mutants_total": null,
+  "killed": null,
+  "survived": null,
+  "no_tests": null,
+  "timeout": null,
+  "score": null,
+  "denominator_policy": "When runnable, report killed/(killed+survived) and killed/all_generated side by side; retain no_tests, timeout, invalid, infrastructure failure and untested statuses explicitly. No denominator exists for this unexecuted probe.",
+  "threshold": 0.7,
+  "threshold_verdict": "NOT_EVALUATED",
+  "survivor_triage": "NOT_POSSIBLE_WITHOUT_EXECUTED_MUTANTS",
+  "scope_note": "Only a minimal reducer function is nominated, not measured. Validators, reconciliation, stage reconciliation/replay, advisory synthesis and the whole engine are not mutation-qualified by this artifact. Production code and pyproject unchanged."
+}
