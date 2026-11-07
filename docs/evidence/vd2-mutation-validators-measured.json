@@ -313,7 +313,7 @@
     "choice": {
       "58": "REAL GAP: probability maximum 1->2 permits >1 value while sum remains within normalization tolerance; test does not isolate upper bound from negative companion probability. Not equivalent.",
       "64": "UNRESOLVED FLOATING BOUNDARY: normalization comparison >0.02 -> >=0.02; exact representable boundary not established. Not equivalent-classified, retained survivor.",
-      "69": "UNRESOLVED FLOATING BOUNDARY: selected maximum tolerance >= -> > at max-1e-6. Exact boundary not established. Not equivalent-classified, retained survivor."
+      "69": "REAL BOUNDARY GAP independently identified and verified against exact native mutant69: type=choice, selected=yes, probabilities={yes: 0.5-1e-6, no: 0.5}, confidence=0.5, allowed={yes,no}; sum=0.9999990000000001. Original returns True at inclusive max-1e-6 tolerance; mutant >= -> > returns False. Existing measured tests do not exercise this witness. Native survivor status and denominator unchanged; not equivalent."
     },
     "adjudication": {
       "116": "LIKELY EQUIVALENT under immutable revision: omits explicit MAX_TEXT_BYTES argument; _is_text default equals MAX_TEXT_BYTES. Same predicate for arrays at this revision; retained survivor, not excluded.",
@@ -623,8 +623,8 @@
       "bytes": 11364
     },
     "vd2-validators/triage-choice.json": {
-      "sha256": "70705a09482ffca63aa62baa6d73337e17e67a8eadf0d73de8c002cf4345fd96",
-      "bytes": 5091
+      "sha256": "a970bb6c2cf6560e2aa4dc67e1aed0b39044b656596697fce09ea83afe00f23e",
+      "bytes": 5352
     }
   }
 }

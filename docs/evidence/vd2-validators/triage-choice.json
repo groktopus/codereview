@@ -69,7 +69,7 @@
     "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_69",
     "baseline_status": "survived",
     "final_status": "survived",
-    "triage": "UNRESOLVED FLOATING BOUNDARY: selected maximum tolerance >= -> > at max-1e-6. Exact boundary not established. Not equivalent-classified, retained survivor."
+    "triage": "REAL BOUNDARY GAP independently identified and verified against exact native mutant69: type=choice, selected=yes, probabilities={yes: 0.5-1e-6, no: 0.5}, confidence=0.5, allowed={yes,no}; sum=0.9999990000000001. Original returns True at inclusive max-1e-6 tolerance; mutant >= -> > returns False. Existing measured tests do not exercise this witness. Native survivor status and denominator unchanged; not equivalent."
   },
   {
     "id": "pr_review_harness.claim_assessment.x\u01c1ClaimAssessmentAdapter\u01c1_valid_choice__mutmut_72",
