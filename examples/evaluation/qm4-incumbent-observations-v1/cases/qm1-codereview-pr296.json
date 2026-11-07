@@ -1,0 +1,201 @@
+{
+  "identity": {
+    "base_sha": "dbeeedba7c612408be001c93c2f95d8945d68d71",
+    "case_id": "qm1-codereview-pr296",
+    "family_id": "qm1-codereview-pr296-natural",
+    "head_sha": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-31b4b2f3a0652f0db5c95b35",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr296-source",
+      "sha256": "4b600f341170f15282e261fd31738802d10e433dcba3a84fe315e122c898101d"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:58.969177+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "## CodeQL / Implicit string concatenation in a list\n\nImplicit string concatenation. Maybe missing a comma?\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/295)",
+          "commit_id": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+          "created_at": "2026-11-02T06:42:14Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#discussion_r4439559941",
+          "id": 4439559941,
+          "line": 271,
+          "original_commit_id": "25e497b167fe37fd984f6d3547546203e485aee1",
+          "original_line": 263,
+          "original_start_line": 262,
+          "path": "scripts/check_reproducible_build.py",
+          "pull_request_review_id": 5732908573,
+          "side": "RIGHT",
+          "start_line": 270,
+          "updated_at": "2026-11-02T06:42:14Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Implicit string concatenation in a list\n\nImplicit string concatenation. Maybe missing a comma?\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/296)",
+          "commit_id": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+          "created_at": "2026-11-02T06:42:14Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#discussion_r4439559956",
+          "id": 4439559956,
+          "line": 383,
+          "original_commit_id": "25e497b167fe37fd984f6d3547546203e485aee1",
+          "original_line": 375,
+          "original_start_line": 374,
+          "path": "scripts/check_reproducible_build.py",
+          "pull_request_review_id": 5732908573,
+          "side": "RIGHT",
+          "start_line": 382,
+          "updated_at": "2026-11-02T06:42:14Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Implicit string concatenation in a list\n\nImplicit string concatenation. Maybe missing a comma?\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/297)",
+          "commit_id": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+          "created_at": "2026-11-02T06:42:14Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#discussion_r4439559965",
+          "id": 4439559965,
+          "line": 46,
+          "original_commit_id": "25e497b167fe37fd984f6d3547546203e485aee1",
+          "original_line": 46,
+          "original_start_line": 45,
+          "path": "scripts/generate_provenance.py",
+          "pull_request_review_id": 5732908573,
+          "side": "RIGHT",
+          "start_line": 45,
+          "updated_at": "2026-11-02T06:42:14Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Module is imported more than once\n\nThis import of module json is redundant, as it was previously imported [on line 8](1).\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/298)",
+          "commit_id": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+          "created_at": "2026-11-02T06:50:11Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#discussion_r4439603588",
+          "id": 4439603588,
+          "line": 307,
+          "original_commit_id": "82a988bd74ae0dd4a36cf4e0733b74ff1be0b227",
+          "original_line": 307,
+          "original_start_line": null,
+          "path": "tests/test_supply_chain.py",
+          "pull_request_review_id": 5732964043,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-02T06:50:11Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Module is imported more than once\n\nThis import of module re is redundant, as it was previously imported [on line 5](1).\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/299)",
+          "commit_id": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+          "created_at": "2026-11-02T07:03:20Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#discussion_r4439677217",
+          "id": 4439677217,
+          "line": 85,
+          "original_commit_id": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+          "original_line": 85,
+          "original_start_line": null,
+          "path": "tests/test_release_workflow.py",
+          "pull_request_review_id": 5733057544,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-02T07:03:20Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 54758,
+      "response_sha256": "2e2121d8e371cff61526a38455c5bc3ced25c05416fe3c9a076c17ea36cc9184",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/296/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:58.525012+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "25e497b167fe37fd984f6d3547546203e485aee1",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#pullrequestreview-5732908573",
+          "id": 5732908573,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-02T06:42:14Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "82a988bd74ae0dd4a36cf4e0733b74ff1be0b227",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#pullrequestreview-5732964043",
+          "id": 5732964043,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-02T06:50:11Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+          "html_url": "https://github.com/groktopus/codereview/pull/296#pullrequestreview-5733057544",
+          "id": 5733057544,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-02T07:03:20Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 5605,
+      "response_sha256": "2dfd228f4134e49a45f7f99b69735c2feb631001d981b9bdfe82f1ee3c2419b3",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/296/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "identity": {
+    "base_sha": "7d79c7de505c3cf1d20c1493c2bb788e9c32dc44",
+    "case_id": "qm1-codereview-pr291",
+    "family_id": "qm1-codereview-pr291-natural",
+    "head_sha": "94a7b415ca88946851d3ad8acbc434ade50e878d",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-97c79433703e3d4628d595b4",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr291-source",
+      "sha256": "2000bf0920d964e468cc4c47f1d7b826cc8a67f20df479a6959390c3397cdc21"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:57.775263+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/291/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:57.355353+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/291/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

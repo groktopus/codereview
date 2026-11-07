@@ -1,0 +1,76 @@
+{
+  "interpretation": "Review5476016152 and inline4235124423 match frozen head b85c6370e842522f78e32260d38cdc0c770744c4. Linked run initial head8f5778a62f0b67d36626f764a47f864e39362f11 changed to frozen head by validator. Both current PR base and checkout base753aeb50821900e680ad48fe1ef5772d3179ac33 differ from frozen basebc5e04302fa5d4dc133b858907cdc217e75eadfa. Thus head-matched real claim, NOT proven frozen-base/head final output; never pair.",
+  "model_identity": null,
+  "records": [
+    {
+      "captured_at": "2026-11-07T19:40:04.013650+00:00",
+      "record": {
+        "base_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+        "head_sha": "b85c6370e842522f78e32260d38cdc0c770744c4",
+        "html_url": "https://github.com/magnus919/SlopSearX/pull/746",
+        "number": 746
+      },
+      "response_bytes": 17884,
+      "response_sha256": "55527a35b5ee843243d057e49e38b688bd9e23e0afecd152d7ec0f80dde3a85f",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/746"
+    },
+    {
+      "captured_at": "2026-11-07T19:40:04.322415+00:00",
+      "records": [
+        {
+          "body": "**Droid finished @magnus919's task** \u2014\u2014 [View job](https://github.com/magnus919/SlopSearX/actions/runs/37999126510)\n\n---\n![Security Review](https://img.shields.io/badge/security%20review-ran-blue)\n\nThe collector verifies the selector evidence chain, but then resets several verified selector measurements to `None`, preventing the resource gate from evaluating those limits. The approved inline comment identifies this data-flow bug.",
+          "created_at": "2026-10-09T22:25:43Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#issuecomment-6090270984",
+          "id": 6090270984,
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "After integrating the merged CI prerequisite, the complete focused coverage/intent/resource suites passed: 274 tests and 9 subtests. No provider or search calls were made. Stage-wide timing remains unknown in this PR; a separate closeout receipt is being implemented before any new experiment admission.",
+          "created_at": "2026-10-09T22:25:49Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#issuecomment-6090272096",
+          "id": 6090272096,
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 6029,
+      "response_sha256": "499a2e7825afed1d451bab6239f2c1116fec4c19cb4c220cb0c6a5f9ce88a580",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/issues/746/comments?per_page=100&page=1"
+    },
+    {
+      "captured_at": "2026-11-07T19:40:04.612456+00:00",
+      "record": {
+        "conclusion": "success",
+        "created_at": "2026-10-09T22:25:24Z",
+        "event": "pull_request",
+        "head_sha": "8f5778a62f0b67d36626f764a47f864e39362f11",
+        "html_url": "https://github.com/magnus919/SlopSearX/actions/runs/37999126510",
+        "id": 37999126510,
+        "status": "completed",
+        "updated_at": "2026-10-09T22:39:14Z"
+      },
+      "response_bytes": 12434,
+      "response_sha256": "7540870ec634852012bb88a164cf47f21a25b639af450114c57c6bc7ddfdcb88",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/actions/runs/37999126510"
+    },
+    {
+      "captured_at": "2026-11-07T19:40:05.138329+00:00",
+      "lines": [
+        "2026-10-09T22:25:36.2972825Z HEAD is now at 7b19c26 Merge 8f5778a62f0b67d36626f764a47f864e39362f11 into 753aeb50821900e680ad48fe1ef5772d3179ac33",
+        "2026-10-09T22:25:51.9548168Z PR Head SHA: 8f5778a62f0b67d36626f764a47f864e39362f11",
+        "2026-10-09T22:37:07.1883099Z * PR Head SHA: b85c6370e842522f78e32260d38cdc0c770744c4"
+      ],
+      "response_bytes": 68390,
+      "response_sha256": "92e13f03f30c6c26003e389478b60772ddbae4297b78f2e2467e149c005b6250",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/actions/jobs/114052602113/logs"
+    }
+  ],
+  "schema": "qm4-public-receipt-link.v1"
+}

@@ -1,0 +1,55 @@
+{
+  "identity": {
+    "base_sha": "a05b8b78c44b393320893223a3cab4414c26f562",
+    "case_id": "qm1-slopsearx-pr756",
+    "family_id": "qm1-slopsearx-pr756-natural",
+    "head_sha": "6dfbcf3e1aba7216c767dcb609d26f3bda953822",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-4d99ba69637904666943a214",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr756-source",
+      "sha256": "2c59e2ef7e4a43b31fd0c00020d189fc62ea468942cfbf54ca5d5d775c5eef0d"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:00.984325+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/756/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:00.589938+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/756/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

@@ -1,0 +1,228 @@
+{
+  "identity": {
+    "base_sha": "feb33d9ccb98e1989762537f3fa0f490a8ee6c9f",
+    "case_id": "qm1-codereview-pr289",
+    "family_id": "qm1-codereview-pr289-natural",
+    "head_sha": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-a3b0ba253b9877c326233ef2",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr289-source",
+      "sha256": "6de2989efaca273e2e73c6efd970dcc2a6a95596b557112e339e9a5ead3bba00"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:57.604105+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/288)",
+          "commit_id": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+          "created_at": "2026-11-01T19:39:28Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#discussion_r4437058917",
+          "id": 4437058917,
+          "line": 325,
+          "original_commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "original_line": 281,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_state.py",
+          "pull_request_review_id": 5729886908,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T19:39:29Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/289)",
+          "commit_id": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+          "created_at": "2026-11-01T19:39:28Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#discussion_r4437058929",
+          "id": 4437058929,
+          "line": 331,
+          "original_commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "original_line": 287,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_state.py",
+          "pull_request_review_id": 5729886908,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T19:39:29Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/290)",
+          "commit_id": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+          "created_at": "2026-11-01T19:39:28Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#discussion_r4437058936",
+          "id": 4437058936,
+          "line": 337,
+          "original_commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "original_line": 293,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_state.py",
+          "pull_request_review_id": 5729886908,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T19:39:29Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/291)",
+          "commit_id": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+          "created_at": "2026-11-01T19:39:28Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#discussion_r4437058943",
+          "id": 4437058943,
+          "line": 341,
+          "original_commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "original_line": 297,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_state.py",
+          "pull_request_review_id": 5729886908,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T19:39:29Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/292)",
+          "commit_id": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+          "created_at": "2026-11-01T19:39:28Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#discussion_r4437058953",
+          "id": 4437058953,
+          "line": 345,
+          "original_commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "original_line": 301,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_state.py",
+          "pull_request_review_id": 5729886908,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T19:39:29Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/293)",
+          "commit_id": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+          "created_at": "2026-11-01T19:39:28Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#discussion_r4437058960",
+          "id": 4437058960,
+          "line": 349,
+          "original_commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "original_line": 305,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_state.py",
+          "pull_request_review_id": 5729886908,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T19:39:29Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/294)",
+          "commit_id": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+          "created_at": "2026-11-01T19:39:28Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#discussion_r4437058967",
+          "id": 4437058967,
+          "line": 353,
+          "original_commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "original_line": 309,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/review_state.py",
+          "pull_request_review_id": 5729886908,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T19:39:29Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 76783,
+      "response_sha256": "0189ad058e28399a6b00f9ab0de1137718a405ebd394e344f5a4dd1fc083c6f5",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/289/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "issue_comments": {
+      "captured_at": "2026-11-07T19:38:57.989749+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/issues/289/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:57.170624+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "2da1df87bbd24defff6821b7bbda7796183a7521",
+          "html_url": "https://github.com/groktopus/codereview/pull/289#pullrequestreview-5729886908",
+          "id": 5729886908,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T19:39:28Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 1869,
+      "response_sha256": "f78c058d1ed7eabe2b89c030ecd175a83f5be2d2240da003bf337d6d39ce37fb",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/289/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "identity": {
+    "base_sha": "8c69cde94436782bde13efa018c2f428f5a6881d",
+    "case_id": "qm1-slopsearx-pr759",
+    "family_id": "qm1-slopsearx-pr759-natural",
+    "head_sha": "6fbd0675091420397b6757e7e87816305e9f5b58",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-d5a43f5d4c64a1bc7b9701eb",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr759-source",
+      "sha256": "01f96b31ad5537b3e3cfe5fa1a37d465c8650fda6221edd877dfed3854b024f6"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:01.538057+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/759/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "issue_comments": {
+      "captured_at": "2026-11-07T19:39:01.786403+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "**Droid finished @magnus919's task** \u2014\u2014 [View job](https://github.com/magnus919/SlopSearX/actions/runs/38055015773)\n\n---\n![Security Review](https://img.shields.io/badge/security%20review-ran-blue)\n\nThe change prefers the MCP structured result after preserving remote-error precedence, and leaves text-only fallbacks intact. The regression cases cover structured values, empty structured content, legacy fallbacks, and errors; no high-confidence actionable issues were identified.",
+          "created_at": "2026-10-10T13:15:34Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/759#issuecomment-6097886070",
+          "id": 6097886070,
+          "updated_at": "2026-10-10T13:19:54Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "@droid please review the current candidate 6fbd067 for structured-content precedence, empty-object handling, unchanged error/text fallbacks, SDK v1/v2 compatibility and gateway/portal impact.",
+          "created_at": "2026-10-10T13:15:50Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/759#issuecomment-6097888368",
+          "id": 6097888368,
+          "updated_at": "2026-10-10T13:15:50Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        },
+        {
+          "body": "**Droid finished @magnus919's task** \u2014\u2014 [View job](https://github.com/magnus919/SlopSearX/actions/runs/38055054253)\n\n---\nNo high-confidence, actionable issues found. The gateway now prefers structured content after checking the remote error flag, preserves empty structured objects, and leaves the text-only fallback behavior unchanged.",
+          "created_at": "2026-10-10T13:16:08Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/759#issuecomment-6097890803",
+          "id": 6097890803,
+          "updated_at": "2026-10-10T13:18:07Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 9979,
+      "response_sha256": "4fc9c07a1cf351a5b85e2fb04d155dcaa3ecdf58dddb7b39faf40ad29b2922b7",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/issues/759/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:01.230827+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/759/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

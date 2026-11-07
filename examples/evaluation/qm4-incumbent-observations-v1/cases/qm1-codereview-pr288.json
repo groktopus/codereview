@@ -1,0 +1,112 @@
+{
+  "identity": {
+    "base_sha": "7f5a6d746a9a94d4cf87992fb9bfd5923287db4b",
+    "case_id": "qm1-codereview-pr288",
+    "family_id": "qm1-codereview-pr288-natural",
+    "head_sha": "95f8ef0c5c6c53c54bae53da4d000180c4dbea90",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-8171a46e010ebfb0068964ac",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr288-source",
+      "sha256": "d0f5d298a18aed2f743b76122b5cb8701247b41c0d7c6a81f648acfffe8081fe"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:57.573812+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "## CodeQL / Empty except\n\n'except' clause does nothing but pass and there is no explanatory comment.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/286)",
+          "commit_id": "95f8ef0c5c6c53c54bae53da4d000180c4dbea90",
+          "created_at": "2026-11-01T18:46:58Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/288#discussion_r4436889098",
+          "id": 4436889098,
+          "line": 133,
+          "original_commit_id": "5ba0eb487bca1978e78f5fcfb1d0c01f64a93048",
+          "original_line": 134,
+          "original_start_line": null,
+          "path": "tests/test_vd2_invariants.py",
+          "pull_request_review_id": 5729701497,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T18:46:59Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Empty except\n\n'except' clause does nothing but pass and there is no explanatory comment.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/287)",
+          "commit_id": "95f8ef0c5c6c53c54bae53da4d000180c4dbea90",
+          "created_at": "2026-11-01T18:46:59Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/288#discussion_r4436889104",
+          "id": 4436889104,
+          "line": 45,
+          "original_commit_id": "5ba0eb487bca1978e78f5fcfb1d0c01f64a93048",
+          "original_line": 52,
+          "original_start_line": null,
+          "path": "tests/test_vd2_provider_faults.py",
+          "pull_request_review_id": 5729701497,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T18:46:59Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 13225,
+      "response_sha256": "f4a2cfe0b8d2bb2aa19608bbe938c4faca64f34a4ca757fc238243d01ae16c02",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/288/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:57.081127+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "5ba0eb487bca1978e78f5fcfb1d0c01f64a93048",
+          "html_url": "https://github.com/groktopus/codereview/pull/288#pullrequestreview-5729701497",
+          "id": 5729701497,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T18:46:59Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 1869,
+      "response_sha256": "8784f443455acad734afce6bd3f7c5e2de5f69fedd06dad6c54bcd670139c23b",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/288/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

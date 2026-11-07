@@ -1,0 +1,55 @@
+{
+  "identity": {
+    "base_sha": "0f6aa187bdfa4220d9875f49ee0ae2e2a741d0e2",
+    "case_id": "qm1-slopsearx-pr780",
+    "family_id": "qm1-slopsearx-documentation-controls-heldout",
+    "head_sha": "0c335c2dbd1874813be6705c85ecf8974e60f0f9",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-a23d9b2de6c35decc9abca0b",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr780-source",
+      "sha256": "f2edf7a4175366ccfbba3b7b35e70e343238e50276f8976408e4da2cb8cb80f6"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:02.344728+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/780/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:02.038176+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/780/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}
