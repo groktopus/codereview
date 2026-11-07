@@ -145,8 +145,12 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/check_complexity.py --json --summary complexity-report.md | tee complexity-report.json
-      - name: Run complexity guard regression tests
-        run: python -m pytest -q tests/test_complexity_guard.py
+      - name: Enforce expanded lint debt (exact pinned Ruff; no fixes)
+        run: |
+          set -euo pipefail
+          python scripts/check_expanded_lint.py --json | tee expanded-lint-report.json
+      - name: Prove seeded new expanded lint debt fails and run ratchet regressions
+        run: python -m pytest -q tests/test_expanded_lint_guard.py tests/test_complexity_guard.py
       - name: Retain the complexity report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -156,6 +160,7 @@ jobs:
             complexity-report.json
             complexity-report.md
             complexity-seeded.json
+            expanded-lint-report.json
           if-no-files-found: warn
           retention-days: 7
 

@@ -21,6 +21,17 @@ repos:
         name: ruff format
         types_or: [python, pyi]
 
+  # Separate pinned Python environment; full-tree check, never autofixes expanded debt.
+  - repo: local
+    hooks:
+      - id: expanded-lint-guard
+        name: expanded Ruff lint debt ratchet
+        entry: python scripts/check_expanded_lint.py
+        language: python
+        additional_dependencies: [ruff==0.17.3]
+        pass_filenames: false
+        always_run: true
+
   - repo: local
     hooks:
       - id: complexity-guard
