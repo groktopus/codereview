@@ -246,7 +246,8 @@ def test_launcher_forwards_cancellation_to_owned_child_group(tmp_path):
     pid_file = tmp_path / "child-pid"
     python = bin_dir / "python"
     python.write_text(
-        f"#!/bin/sh\ntouch {json.dumps(str(marker))}\necho $$ > {json.dumps(str(pid_file))}\nexec sleep 15\n",
+        # Publish readiness only after the PID file is closed, before parent reads it.
+        f"#!/bin/sh\necho $$ > {json.dumps(str(pid_file))}\ntouch {json.dumps(str(marker))}\nexec sleep 15\n",
         encoding="utf-8",
     )
     python.chmod(0o700)
