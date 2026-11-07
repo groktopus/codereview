@@ -1,0 +1,52 @@
+{
+  "conclusion": "Documented Factory Droid review on PR464 matches live factory-droid[bot] user id138933559 review5274263526 and inline4068557444. PR745/759 same login/id and explicit Droid finished body establish incumbent attribution, not finality or correctness.",
+  "documentation_source": "docs/COMPARISON-DISCOVERY.md:5",
+  "known_base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
+  "known_head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+  "not_corpus_case": true,
+  "schema": "qm4-incumbent-attribution-support.v1",
+  "surfaces": [
+    {
+      "captured_at": "2026-11-07T19:39:13.170757+00:00",
+      "records": [
+        {
+          "body": "",
+          "commit_id": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+          "created_at": null,
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/464#pullrequestreview-5274263526",
+          "id": 5274263526,
+          "original_commit_id": null,
+          "submitted_at": "2026-09-22T04:57:03Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_sha256": "ce14ea6ed6783e898e7de6a3cb073042bcaafdc158b6649b1351656b161c2682",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/464/reviews?per_page=100&page=1"
+    },
+    {
+      "captured_at": "2026-11-07T19:39:13.533507+00:00",
+      "records": [
+        {
+          "body": "[P3] Stack Exchange API key sent as X-API-Key header the SE API ignores\n\nThe adapter transmits the credential as an `X-API-Key` request header (engines/stackexchange.py line 64: `request_headers[\"X-API-Key\"] = api_key`), but the Stack Exchange 2.3 API expects the app key as a `key` query parameter. A reader who sets `ENGINE_STACKEXCHANGE_API_KEY` following this newly documented row gets no quota or auth benefit because the key is sent in a header the upstream API does not honor. Fix: append `&key=<api_key>` to the search URL when a key is present, or soften the doc wording to note the key is not currently applied.",
+          "commit_id": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+          "created_at": "2026-09-22T04:57:03Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/464#discussion_r4068557444",
+          "id": 4068557444,
+          "original_commit_id": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
+          "submitted_at": null,
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_sha256": "3382e19e7fe9de138d9f3d5dda28535012d9ae756e3389b1ffe6d95c1e39dd8a",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/464/comments?per_page=100&page=1"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "identity": {
+    "base_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+    "case_id": "qm1-codereview-pr285",
+    "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+    "head_sha": "dfd865bc6e72fde7bdbe7b9cc30bef91ae4be53c",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-ea9855d399fd37608196b9a7",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr285-source",
+      "sha256": "65564697cd53a812c10acd26f9769261b9bc9d105260627da92b369e77e1d3fb"
+    },
+    "split": "challenge"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:56.648516+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/285/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "issue_comments": {
+      "captured_at": "2026-11-07T19:38:56.972041+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/issues/285/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:56.270108+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/285/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

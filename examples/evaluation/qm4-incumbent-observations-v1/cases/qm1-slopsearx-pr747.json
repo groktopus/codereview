@@ -1,0 +1,180 @@
+{
+  "identity": {
+    "base_sha": "de1c4cbb2196233d941262cc5809ffa3bcec324a",
+    "case_id": "qm1-slopsearx-pr747",
+    "family_id": "qm1-slopsearx-pr747-natural",
+    "head_sha": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-80c637b61a314baa4c35387b",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr747-source",
+      "sha256": "3504c9623db5c8710d46a110a80d667763c7240a282333ffe3b3095d151548ab"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:00.228053+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P1] Preserve the collected selector measurements\n\nThis merge adds the selector observations to the report, but the unconditional assignments immediately below reset `selector_elapsed_ms`, `stage_elapsed_seconds`, `selector_usage`, `selector_concurrency`, and `selector_retries` to `None`. As a result, even a fully verified terminal/result/archive chain is reported as unknown and cannot supply the selector resource evidence this collector just verified.",
+          "commit_id": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+          "created_at": "2026-10-09T22:38:17Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#discussion_r4235119032",
+          "id": 4235119032,
+          "line": 1089,
+          "original_commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "original_line": 1089,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476009871,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T22:38:17Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "[P2] Preserve verification for late phase-failure closeouts\n\nA phase failure sets the inventory to `terminal-incomplete` without setting `gate_result_authoritative` to `False`. If the final inventory fsync then completes after the deadline, the correction branch is skipped because the status is already incomplete, so the closeout contains a late elapsed time with no explicit authority flag. This check then rejects that otherwise correctly bound closeout, preventing a later consumer from verifying its timing observation.",
+          "commit_id": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+          "created_at": "2026-10-09T22:38:17Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#discussion_r4235119040",
+          "id": 4235119040,
+          "line": 241,
+          "original_commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "original_line": 241,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476009871,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T22:38:17Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "The four selector resets are removed in the current head (inherited b865c2c / upstream #746), and the full collector regression verifies archived elapsed/usage/concurrency/retries survive. Stage-wide elapsed is intentionally unknown during the earlier resource calculation: this PR records it only after final inventory fsync and exposes a separately verified closeout for later consumption. Treating that earlier None as measured time would be incorrect. The separate late phase-failure authority finding is being fixed.",
+          "commit_id": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+          "created_at": "2026-10-09T22:41:50Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#discussion_r4235146507",
+          "id": 4235146507,
+          "line": 1089,
+          "original_commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "original_line": 1089,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476042514,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T22:41:51Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        },
+        {
+          "body": "Fixed in 5a82b8d1d9c5be762e72974b345de8294ababd97. New inventories explicitly start with gate_result_authoritative=false; only validated gates set it true. The new full coordinator regression combines acquisition failure with late final fsync, independently verifies the closeout pins/timing, and preserves acquisition-failed with authority false. The verifier remains strict. Complete coverage suite: 204 passed and 3 subtests.",
+          "commit_id": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+          "created_at": "2026-10-09T22:43:22Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#discussion_r4235159893",
+          "id": 4235159893,
+          "line": 241,
+          "original_commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "original_line": 241,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476058488,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T22:43:22Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 24799,
+      "response_sha256": "8d395e3220c7888aa24ea29539e45cac083210ff4aa77be283cee84c7d184c6a",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/747/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:59.778497+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#pullrequestreview-5476009871",
+          "id": 5476009871,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T22:38:17Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#pullrequestreview-5476042514",
+          "id": 5476042514,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T22:41:51Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#pullrequestreview-5476058488",
+          "id": 5476058488,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T22:43:22Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 4990,
+      "response_sha256": "d9a96628c8e5d26870424c97eae8bd3f2c065d774fa5c350bb77b211a87b7b99",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/747/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}
