@@ -1,0 +1,5495 @@
+{
+  "actual_paired_output_count": 0,
+  "case_count": 41,
+  "claims": {
+    "authored_droid_fixtures_counted_as_live": false,
+    "equivalence_established": false,
+    "improvement_established": false,
+    "parity_established": false,
+    "pre_specified_equivalence_margin": null
+  },
+  "corpus_id": "qm1-frozen-corpus-v1",
+  "dataset_version": "2026-11-02.1",
+  "implementation_sha256": "7f1d1d2cd5c8319cd232adab0eba9d9c53dca716961418d82f42d4883bbf3bf6",
+  "inputs": {
+    "corpus": {
+      "path": "examples/evaluation/frozen-corpus-v1/corpus.json",
+      "sha256": "bd843ca82c17dce86144bb45415dbe6ea20d6db4a0b094e257f24c1568dec88a"
+    },
+    "harness_corpus": {
+      "path": "examples/evaluation/qm2-labeling-pilot-v1/corpus.json",
+      "sha256": "277fe6dc2f6ec1a7c6290b82ebe16ad56a3194266ebd809504b8df5cffdb27ab"
+    },
+    "harness_live_evidence": {
+      "path": "docs/evidence/qm3-five-case-live.json",
+      "sha256": "ae6005ecb247af55342dbb977ce84ce3c43c420dc353a8ae98ca3f8e44807ecb"
+    },
+    "harness_predictions": {
+      "path": "examples/evaluation/qm2-baseline-scorecard-v1/predictions.json",
+      "sha256": "767047839940b415622e4e09cb4622b16bd83c0850e9247dfc205d6d08da9ea0"
+    },
+    "labels": {
+      "path": "examples/evaluation/qm2-labeling-pilot-v1/labels-synthetic-v1.json",
+      "sha256": "668749ee57c430bd79f6cfe74e77a4fd2c11a0e4689d5ab0bc4f5954031ad315"
+    },
+    "sources": {
+      "path": "examples/evaluation/frozen-corpus-v1/source-manifests.json",
+      "sha256": "ae959b0242951ba47effffa8f6bbc4aa4610bcc97a93f0590b3f71f19bc99db6"
+    }
+  },
+  "manifest_sha256": "8dd400bcd9c10e27314218a07fca4c5e0f32d7be0781c675218a3ec08ac53255",
+  "retained_harness_outputs": 5,
+  "retained_incumbent_outputs": 0,
+  "rows": [
+    {
+      "harness": {
+        "missing_reason": null,
+        "run_id": "fb99e8f9-5782-4b8b-885a-f282660c2af3",
+        "status": "completed"
+      },
+      "identity": {
+        "base_sha": "84a373c31e5a80af0da589ce239f8eed6e962eaa",
+        "case_id": "qm1-codereview-pr112",
+        "family_id": "qm1-codereview-documentation-controls-development",
+        "head_sha": "415417ef496706198d050a573ffb86260f231b1d",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-95934f06170088c446a0d7b0",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr112-source",
+          "sha256": "c4b354be2f2acf845543fb3464d2a606438638c36b79ffabb7473919b9042ea9"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": "APPROVE",
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_complete_human_labels",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": 0,
+            "numerator": 0,
+            "unknown_reason": "no_completed_runs_with_full_finding_adjudication",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "afe5117c2e6c80de6ef84ca3577a5e8b536d36cc",
+        "case_id": "qm1-codereview-pr237",
+        "family_id": "qm1-codereview-documentation-controls-heldout",
+        "head_sha": "4f6607356104252a1208dbc872ba80d1e8bd0374",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-e54d9e427fb3ac66bad42c97",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr237-source",
+          "sha256": "67e454dc9733766d501203b8ed4461b620852a89a9c91fd33771db09dba9dbd9"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "8223fd77e3e146fca7afb2ac705dd2b60e891f61",
+        "case_id": "qm1-codereview-pr273",
+        "family_id": "qm1-codereview-documentation-controls-development",
+        "head_sha": "0457f24a169be33b3e9c2834f314d36304ee1539",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-af4fc7ca5a5e516e4708dc78",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr273-source",
+          "sha256": "2db33a2f0f21faacf99f6a7f1d964d1a063051b6a9b9d5d28ab63deca4e255c7"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "dbb42a62d8e8ccf8a3d32eb1a9aa31eec55ff428",
+        "case_id": "qm1-codereview-pr276",
+        "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+        "head_sha": "527e239de79758eaad617decc574ce3cfabc3cbf",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-8a5308034acf135322059916",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr276-source",
+          "sha256": "c396d37547b6f9d6dff07012682ce404774e4f50958adc515af47a2a450e6068"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "c9739b05c48e2c05517119fbd4660799b4a51364",
+        "case_id": "qm1-codereview-pr277",
+        "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+        "head_sha": "6156dfbbb53c6675f76895cf226ace3bbd67b935",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-8255f120dee8d334d74deda9",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr277-source",
+          "sha256": "d9f04b37c252ce84ec77bbef832c0684ace04a7a79dbbd119c9924170f6fc319"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "1dc1446efee66f9ab8913f14075f3ffdd1c6d3d1",
+        "case_id": "qm1-codereview-pr279",
+        "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+        "head_sha": "fd740ae8acdaa707474d0e60800421c8d0e2e5a9",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-d788b1cd5f06b5f246f983be",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr279-source",
+          "sha256": "4fe0202f028596c72a936be7e7b5c6e1d1cd18041d2e8edb5722a3828553ee26"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "87aa950461cbff034bbbfe8d28986f3035b650c2",
+        "case_id": "qm1-codereview-pr282",
+        "family_id": "qm1-codereview-pr282-natural",
+        "head_sha": "32a25f20de378f197f0a68183e3ed4822feec230",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-fe43f95f5420e61bda80b4be",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr282-source",
+          "sha256": "1c17e5942f2d7482a27cdce8017927b8c0c85dfa1919d51d1486897188cb3409"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "40eb5321f30b06da27f305aa473722034e64ee99",
+        "case_id": "qm1-codereview-pr283",
+        "family_id": "qm1-codereview-pr283-natural",
+        "head_sha": "9f9ee70232c710731f40f07e70e766bc35b121d6",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-db5c5e668359df65a12773a2",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr283-source",
+          "sha256": "f1458f5af4b8b1cf5b683410161a6308578d784082667b54d83efd57d5a0dd23"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "94061c3ea64cafd172e86d276e33fa1d71a63262",
+        "case_id": "qm1-codereview-pr284",
+        "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+        "head_sha": "243fb84755550229817586dd2ee06a324a9fd74f",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-32b21dd4c87d92d8f873ff39",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr284-source",
+          "sha256": "fef2fc450c1f8c398259eeba70087afba7a751a840192150c4ea1da6f602d7fd"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": null,
+        "run_id": "0d1c3bb9-718a-4f1e-bf7c-5bcadf406aa8",
+        "status": "completed"
+      },
+      "identity": {
+        "base_sha": "6e18f8103daedd042027be9b27921e0416cbd05b",
+        "case_id": "qm1-codereview-pr285",
+        "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+        "head_sha": "dfd865bc6e72fde7bdbe7b9cc30bef91ae4be53c",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-ea9855d399fd37608196b9a7",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr285-source",
+          "sha256": "65564697cd53a812c10acd26f9769261b9bc9d105260627da92b369e77e1d3fb"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": "REQUEST_CHANGES",
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_complete_human_labels",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "incomplete_run_or_unresolved_adjudications",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "6bcd6b0622d3105b4b186008e2aff9018261d095",
+        "case_id": "qm1-codereview-pr286",
+        "family_id": "qm1-codereview-pr286-natural",
+        "head_sha": "1012b40e796011d7e2340ecb7efbb6e8e56d8cef",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-89df72d3133a4241a49fc860",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr286-source",
+          "sha256": "75d8a4597c64d926b700e880826629663a8f05027e6fef2bfea5d7d2d5b4fcd1"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "290928907011e5b9f0909e7c7d8ef237a09d3a7e",
+        "case_id": "qm1-codereview-pr287",
+        "family_id": "qm1-codereview-pr287-natural",
+        "head_sha": "13916b491270d4738861cf948c6ba8cf7fe34bdf",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-648d5958f10774d67f814843",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr287-source",
+          "sha256": "70199eef39dc457239ca088544145d20be4ba1753a24177650c0615f95d0f2fe"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "7f5a6d746a9a94d4cf87992fb9bfd5923287db4b",
+        "case_id": "qm1-codereview-pr288",
+        "family_id": "qm1-codereview-pr288-natural",
+        "head_sha": "95f8ef0c5c6c53c54bae53da4d000180c4dbea90",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-8171a46e010ebfb0068964ac",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr288-source",
+          "sha256": "d0f5d298a18aed2f743b76122b5cb8701247b41c0d7c6a81f648acfffe8081fe"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": null,
+        "run_id": "4fa7cf77-55b6-48f8-a29e-ce643e0cfc5f",
+        "status": "completed"
+      },
+      "identity": {
+        "base_sha": "feb33d9ccb98e1989762537f3fa0f490a8ee6c9f",
+        "case_id": "qm1-codereview-pr289",
+        "family_id": "qm1-codereview-pr289-natural",
+        "head_sha": "dfaea307ca55ebf8747a2b1d26f618818bced469",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-a3b0ba253b9877c326233ef2",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr289-source",
+          "sha256": "6de2989efaca273e2e73c6efd970dcc2a6a95596b557112e339e9a5ead3bba00"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": "REQUEST_CHANGES",
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_complete_human_labels",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "incomplete_run_or_unresolved_adjudications",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "431b3ecc7950a4e7063e966b16ce6d01a6d61450",
+        "case_id": "qm1-codereview-pr290",
+        "family_id": "qm1-codereview-pr290-natural",
+        "head_sha": "e2b5f871c2477bd7bb5fd542ac24150ce48349c3",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-93007c4b3b5a8c75fbfb479b",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr290-source",
+          "sha256": "c441b44e57522a40a2c3c90d6bce73cb33939ecc006fed694518789e52f92d3e"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "7d79c7de505c3cf1d20c1493c2bb788e9c32dc44",
+        "case_id": "qm1-codereview-pr291",
+        "family_id": "qm1-codereview-pr291-natural",
+        "head_sha": "94a7b415ca88946851d3ad8acbc434ade50e878d",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-97c79433703e3d4628d595b4",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr291-source",
+          "sha256": "2000bf0920d964e468cc4c47f1d7b826cc8a67f20df479a6959390c3397cdc21"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "cc4e4a5ac2820b750c26a7898d9ab72d734162c2",
+        "case_id": "qm1-codereview-pr292",
+        "family_id": "qm1-codereview-pr292-natural",
+        "head_sha": "0afa159317cc1de16118c5bc1975a84e12f90585",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-5d9e21ce4acafe5cc9b0342f",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr292-source",
+          "sha256": "4a76132d613f1e16fdc6ce8bb144ab1746ad2cc419ed2f1d5cf07e2be464aab5"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "347a8337d0f1cffd6f570a8948c080d68f7cb52c",
+        "case_id": "qm1-codereview-pr293",
+        "family_id": "qm1-codereview-pr293-natural",
+        "head_sha": "2449edeed2e73109259fd5db4a597584028dde9a",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-3ed7978e41541e9c0946a801",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr293-source",
+          "sha256": "ab8e58afe1175b37fbf2171253cebf55811df72c556713b75c6ed6a5940eb031"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "29af07de19f7407a6cf28244f9c3173ab73c7662",
+        "case_id": "qm1-codereview-pr294",
+        "family_id": "qm1-codereview-pr294-natural",
+        "head_sha": "6b6ec4798716273eea7582e4915515a207cc619c",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-452be6136d23c1ee17afc6b5",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr294-source",
+          "sha256": "3caa096ff350ac9a5d014cfc1907ad18137c889fb0e8ac6659808262c9dad01e"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "26f2336c2d912da83551dced061fde4fdd222931",
+        "case_id": "qm1-codereview-pr295",
+        "family_id": "qm1-codereview-pr295-natural",
+        "head_sha": "5dc96602f7aaac0fdeaffb25c45554ab0a0b23ac",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-7f1a0ab2bf359fb9f515b28f",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr295-source",
+          "sha256": "017348406697491e8b1b5f91a67e4ad27fcd6657b7f7b7421fdd4b6c550efdb6"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "dbeeedba7c612408be001c93c2f95d8945d68d71",
+        "case_id": "qm1-codereview-pr296",
+        "family_id": "qm1-codereview-pr296-natural",
+        "head_sha": "2506052591d5b2dbc4fed586e07ab40e89576ebd",
+        "profile": {
+          "profile_id": "codereview-native",
+          "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+          "version": "codereview-native-v1-candidate"
+        },
+        "repository": {
+          "name": "codereview",
+          "owner": "groktopus"
+        },
+        "snapshot_id": "snap-31b4b2f3a0652f0db5c95b35",
+        "source_manifest": {
+          "manifest_id": "qm1-codereview-pr296-source",
+          "sha256": "4b600f341170f15282e261fd31738802d10e433dcba3a84fe315e122c898101d"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "ddaae1ddac16659da2c055916b3c4c2f82a46cdb",
+        "case_id": "qm1-slopsearx-pr708",
+        "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+        "head_sha": "1788742586a8160eb9070ec9cae8d80c60071205",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-585ace516fac9bd143c56cbc",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr708-source",
+          "sha256": "1dcd474b5e39c995d4c5f24204c3f0c6d7f8e6a5907e37d725020162d3a88ed1"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "573a2f5d2dd9e09a0ab8bad82f3b6a6717d4d9d3",
+        "case_id": "qm1-slopsearx-pr741",
+        "family_id": "qm1-slopsearx-pr741-natural",
+        "head_sha": "9d9921e58056a0accb5fb992baa251cef81d933e",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-01b51d86ea26612566142928",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr741-source",
+          "sha256": "0435da551934855cec6d7776782994c667ea8ed9b269714def876e2fda610555"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "0364bc40b651236272135844f077382236870901",
+        "case_id": "qm1-slopsearx-pr742",
+        "family_id": "qm1-slopsearx-pr742-natural",
+        "head_sha": "60a2c4accac84d41728c69cba3691bbf4be5f587",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-fbfcd3b9c581f3a8247f8864",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr742-source",
+          "sha256": "037869c793a4fae8dc62f6062b7143818272978d288d7a52bd0e2d16340c2890"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "6a50c1077cb1abbf220981d7ae046e45e0c79c77",
+        "case_id": "qm1-slopsearx-pr743",
+        "family_id": "qm1-slopsearx-pr743-natural",
+        "head_sha": "1679f375e6528b767a747fffcfcb43d793e824dc",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-955bb3a6cfc9218d72a6eade",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr743-source",
+          "sha256": "559ea2b40a6e6b90883a02afaddbdb067cf43519e71c58dbb9ba4be87b14cd7e"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+        "case_id": "qm1-slopsearx-pr744",
+        "family_id": "qm1-slopsearx-pr744-natural",
+        "head_sha": "6c9686985a4bc9a4c0c8673d316ad1ad564fbbda",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-4c5a3a2fca03b98c928610cb",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr744-source",
+          "sha256": "2f16db1d1b3033a2a32f66c7802519813922df8b15038b474ea6b5de78c328ea"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": null,
+        "run_id": "414bef89-83b5-48b0-9c0a-ab248c55a794",
+        "status": "completed"
+      },
+      "identity": {
+        "base_sha": "ebf79b983d357d51213b6eff928333e8f1cb9a92",
+        "case_id": "qm1-slopsearx-pr745",
+        "family_id": "qm1-slopsearx-pr745-natural",
+        "head_sha": "1db229364205e35acc97442456f56a4c19a38050",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-4f6697039622e7fb738d608a",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr745-source",
+          "sha256": "0baaf872ab7be6f28dcc821ecaa10ad5991907f825bd60e20ae817813da6067f"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": "REQUEST_CHANGES",
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_complete_human_labels",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "incomplete_run_or_unresolved_adjudications",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "bc5e04302fa5d4dc133b858907cdc217e75eadfa",
+        "case_id": "qm1-slopsearx-pr746",
+        "family_id": "qm1-slopsearx-pr746-natural",
+        "head_sha": "b85c6370e842522f78e32260d38cdc0c770744c4",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-bceab3ec0aed95bd97b3d257",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr746-source",
+          "sha256": "1e06eb34becbc3ab46f9cb43a1768849326d9ee01b96ffc5ab582f38c5b1b1c8"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "de1c4cbb2196233d941262cc5809ffa3bcec324a",
+        "case_id": "qm1-slopsearx-pr747",
+        "family_id": "qm1-slopsearx-pr747-natural",
+        "head_sha": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-80c637b61a314baa4c35387b",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr747-source",
+          "sha256": "3504c9623db5c8710d46a110a80d667763c7240a282333ffe3b3095d151548ab"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "317784b5aa14a880ae65e931248143054e4b7926",
+        "case_id": "qm1-slopsearx-pr748",
+        "family_id": "qm1-slopsearx-pr748-natural",
+        "head_sha": "0c2f260110b5dcb7b35226f024a381682988aa07",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-59fd40449bb0d001ff81dc9e",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr748-source",
+          "sha256": "04d4098b4bfeb281c9f853c640c099942d53327124250e4b48df34194421ea37"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "b3a97c45a9d8ff8b570618ca64a6023593f5b282",
+        "case_id": "qm1-slopsearx-pr752",
+        "family_id": "qm1-slopsearx-pr752-natural",
+        "head_sha": "e9c0ea7e26ce68b3b58afe12bbaee837b1e46d54",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-bb1c4048ca856142f0814e6f",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr752-source",
+          "sha256": "cded02a93190efe82060252257296ed63833efcc5a9cf4a05eaa3dfb240ef63b"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "461bd991715cb2e7971d16d063e8a261fe13eb04",
+        "case_id": "qm1-slopsearx-pr753",
+        "family_id": "qm1-slopsearx-pr753-natural",
+        "head_sha": "10d44dcc234327eee6a5e8d677da9ab8357703f5",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-a2e4f89b6fea8214ba951f57",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr753-source",
+          "sha256": "97068dffc16ca757c13e028e43efd362ff05305061aa148c4a5e7c90091aa800"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "a05b8b78c44b393320893223a3cab4414c26f562",
+        "case_id": "qm1-slopsearx-pr756",
+        "family_id": "qm1-slopsearx-pr756-natural",
+        "head_sha": "6dfbcf3e1aba7216c767dcb609d26f3bda953822",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-4d99ba69637904666943a214",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr756-source",
+          "sha256": "2c59e2ef7e4a43b31fd0c00020d189fc62ea468942cfbf54ca5d5d775c5eef0d"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "a2539461c1ba66879c73d12df93e5aea7e00c5ef",
+        "case_id": "qm1-slopsearx-pr757",
+        "family_id": "qm1-slopsearx-pr757-natural",
+        "head_sha": "59b15962037724718a6c41f57b6a17b87e35a5b1",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-8e123b98b4e3ed38e66b764a",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr757-source",
+          "sha256": "ff6a6149780800ece40176e044560f25403f3da2665903f8a4581713f7c8e453"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": null,
+        "run_id": "7afee856-6144-4a41-b657-45776730c28d",
+        "status": "completed"
+      },
+      "identity": {
+        "base_sha": "8c69cde94436782bde13efa018c2f428f5a6881d",
+        "case_id": "qm1-slopsearx-pr759",
+        "family_id": "qm1-slopsearx-pr759-natural",
+        "head_sha": "6fbd0675091420397b6757e7e87816305e9f5b58",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-d5a43f5d4c64a1bc7b9701eb",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr759-source",
+          "sha256": "01f96b31ad5537b3e3cfe5fa1a37d465c8650fda6221edd877dfed3854b024f6"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": "COMMENT",
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_complete_human_labels",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": 0,
+            "numerator": 0,
+            "unknown_reason": "no_completed_runs_with_full_finding_adjudication",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "282cf846e0f834aa55487f948ce66c1b8426a954",
+        "case_id": "qm1-slopsearx-pr770",
+        "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+        "head_sha": "5359f410a87f0d3275366e3d6bde8b68aa8557c7",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-930458eba9d270f546e83939",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr770-source",
+          "sha256": "fd37dd93e6516aea53c246e3a7d0f355b5d499aa64a5809ce881e07ab4888433"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "e011f264bc4a16dfab535b4dfd492c014ce0519f",
+        "case_id": "qm1-slopsearx-pr772",
+        "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+        "head_sha": "54936ae739577df2a18cc3d47e877ad6cff95272",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-4f472bc41e33b7e68287e108",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr772-source",
+          "sha256": "0cb6ec63e4e71817e73e7a876ab7840c257735a23f22c1139abd4da9ac9ccd0b"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "0e486ff95ff086906f309d1c1077a0a5ec2ba94c",
+        "case_id": "qm1-slopsearx-pr773",
+        "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+        "head_sha": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-b5321a0b540ed960929d2ae2",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr773-source",
+          "sha256": "f566d2e06288da495937c429ad41a8709bafa6aab3e454df2f75de270ac2585d"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "8d5875a8d99345db598cbee54d598cc8e0207022",
+        "case_id": "qm1-slopsearx-pr776",
+        "family_id": "qm1-slopsearx-documentation-controls-development",
+        "head_sha": "e7263302a5fc405394e881df6a181f41c52f1c13",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-527add3aef4f22c52ae3b9c3",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr776-source",
+          "sha256": "266e41db2c7f742d2b1dab38e316a06697a5bcb7f7ae9e518954b42ce6ca4a21"
+        },
+        "split": "development"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "0f6aa187bdfa4220d9875f49ee0ae2e2a741d0e2",
+        "case_id": "qm1-slopsearx-pr780",
+        "family_id": "qm1-slopsearx-documentation-controls-heldout",
+        "head_sha": "0c335c2dbd1874813be6705c85ecf8974e60f0f9",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-a23d9b2de6c35decc9abca0b",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr780-source",
+          "sha256": "f2edf7a4175366ccfbba3b7b35e70e343238e50276f8976408e4da2cb8cb80f6"
+        },
+        "split": "heldout"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    },
+    {
+      "harness": {
+        "missing_reason": "no_retained_live_harness_run_for_frozen_identity",
+        "run_id": null,
+        "status": "missing"
+      },
+      "identity": {
+        "base_sha": "730c37a5f48b9830088594582cefb4c2f10a35e8",
+        "case_id": "qm1-slopsearx-pr874",
+        "family_id": "qm1-slopsearx-ci-transition-challenge",
+        "head_sha": "9ab07ac9dbfdcd6d25bc19c472ea4230519bc0ef",
+        "profile": {
+          "profile_id": "slopsearx",
+          "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+          "version": "slopsearx-production-v8-static-review-boundaries"
+        },
+        "repository": {
+          "name": "SlopSearX",
+          "owner": "magnus919"
+        },
+        "snapshot_id": "snap-9de90200af9b40d01c7fb0ea",
+        "source_manifest": {
+          "manifest_id": "qm1-slopsearx-pr874-source",
+          "sha256": "1b94ce65d38d90f0b50e9c1b7f37adad6c04c3b99331d00d554f5aaca5a13b80"
+        },
+        "split": "challenge"
+      },
+      "incumbent": {
+        "access": "Retained repository artifacts only; no Droid execution/access used and no new acquisition authorized in this task.",
+        "arm": "droid",
+        "captured_at": null,
+        "model_identity": null,
+        "output": null,
+        "reason": "no_attributable_retained_droid_output_for_exact_frozen_identity",
+        "status": "missing"
+      },
+      "metrics": {
+        "cost": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "comparable_cost_accounting_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "disposition": {
+          "denominator": null,
+          "equal": null,
+          "harness": null,
+          "incumbent": null,
+          "incumbent_better": null,
+          "unknown_reason": "not_both_completed_known_dispositions"
+        },
+        "false_blockers": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "blocking_severity_adjudication_not_retained",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "human_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        },
+        "synthetic_recall": {
+          "harness": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "harness_minus_incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "not_both_comparable",
+            "value": null
+          },
+          "incumbent": {
+            "denominator": null,
+            "numerator": null,
+            "unknown_reason": "missing_output",
+            "value": null
+          },
+          "incumbent_better": null
+        }
+      },
+      "paired_outputs": false
+    }
+  ],
+  "schema_version": "qm4-paired-comparison.v1",
+  "summaries": {
+    "cost": {
+      "available_paired_cases": 0,
+      "denominator_cases": null,
+      "incumbent_better_case_ids": [],
+      "mean_harness_minus_incumbent": null,
+      "unavailable_cases": 41
+    },
+    "disposition": {
+      "agreement_numerator": null,
+      "available_paired_cases": 0,
+      "denominator_cases": null,
+      "quality_ordering": null
+    },
+    "false_blockers": {
+      "available_paired_cases": 0,
+      "denominator_cases": null,
+      "incumbent_better_case_ids": [],
+      "mean_harness_minus_incumbent": null,
+      "unavailable_cases": 41
+    },
+    "human_recall": {
+      "available_paired_cases": 0,
+      "denominator_cases": null,
+      "incumbent_better_case_ids": [],
+      "mean_harness_minus_incumbent": null,
+      "unavailable_cases": 41
+    },
+    "synthetic_recall": {
+      "available_paired_cases": 0,
+      "denominator_cases": null,
+      "incumbent_better_case_ids": [],
+      "mean_harness_minus_incumbent": null,
+      "unavailable_cases": 41
+    }
+  },
+  "uncertainty": "Descriptive paired observations only; no confidence interval or equivalence test. Missingness is not random; synthetic labels are not human truth. Disposition agreement is not accuracy; cost and false blockers remain unknown."
+}
