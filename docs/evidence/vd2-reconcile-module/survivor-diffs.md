@@ -612,7 +612,7 @@
 --- src/pr_review_harness/reconcile.py
 +++ src/pr_review_harness/reconcile.py
 @@ -19,7 +19,7 @@
- 
+
      result: list[FindingRecord] = []
      for key, members in groups.items():
 -        canonical = cast(FindingRecord, dict(sorted(members, key=lambda item: item.get("finding_id", ""))[0]))
@@ -629,7 +629,7 @@
 --- src/pr_review_harness/reconcile.py
 +++ src/pr_review_harness/reconcile.py
 @@ -19,7 +19,7 @@
- 
+
      result: list[FindingRecord] = []
      for key, members in groups.items():
 -        canonical = cast(FindingRecord, dict(sorted(members, key=lambda item: item.get("finding_id", ""))[0]))
@@ -646,7 +646,7 @@
 --- src/pr_review_harness/reconcile.py
 +++ src/pr_review_harness/reconcile.py
 @@ -19,7 +19,7 @@
- 
+
      result: list[FindingRecord] = []
      for key, members in groups.items():
 -        canonical = cast(FindingRecord, dict(sorted(members, key=lambda item: item.get("finding_id", ""))[0]))
@@ -663,7 +663,7 @@
 --- src/pr_review_harness/reconcile.py
 +++ src/pr_review_harness/reconcile.py
 @@ -19,7 +19,7 @@
- 
+
      result: list[FindingRecord] = []
      for key, members in groups.items():
 -        canonical = cast(FindingRecord, dict(sorted(members, key=lambda item: item.get("finding_id", ""))[0]))
