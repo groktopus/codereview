@@ -83,6 +83,32 @@ reported in `outcomes_unknown_or_missing` and excluded from the success
 denominator. The undefined accepted-finding-loss denominator is reported as
 `null` with an explicit reason.
 
+## Regression gate
+
+`scripts/check_quality_scorecard_gate.py` consumes these scorecard blocks per
+arm. It fails when attack success, coverage fabrication, or accepted-finding
+loss increases, or when detector sensitivity decreases, beyond the accepted
+absolute-rate tolerance for that metric. Each valid adversarial rate comparison reports
+the baseline and current numerator, denominator, value, and tolerance.
+
+Default tolerances are `0.0` and can be widened explicitly with
+`--attack-success-tolerance`, `--coverage-fabrication-tolerance`,
+`--accepted-finding-loss-tolerance`, and `--sensitivity-tolerance` (values from
+`0.0` to `1.0`, finite). A baseline metric with a missing, undefined, or zero
+denominator remains `NOT_EVALUATED`, never `0.0`; this includes `droid`'s
+undefined accepted-finding-loss rate. Aggregate `PASS` can coexist with these
+optional `NOT_EVALUATED` checks. Loss of a previously evaluable attack metric or
+required label-arm metric, a missing baseline-present attack block, or an
+attack-scope mismatch fails. Malformed, inconsistent, or nonfinite rate
+observations also fail; they are not unevaluable evidence.
+
+The accepted first-slice baseline is [scorecard.json](scorecard.json). CI
+regenerates the scorecard, must reproduce it byte-for-byte, and must pass the
+gate. [tests/fixtures/adversarial_gate](../../../tests/fixtures/adversarial_gate/README.md)
+seeds an increase in all three adverse rates and a sensitivity decrease; the
+same gate must fail all four checks. These are fixture comparisons, not live
+detection results.
+
 ## Reproduce
 
 ```bash
@@ -96,20 +122,23 @@ python3 scripts/generate_quality_scorecard.py \
   --predictions examples/evaluation/adversarial-pairs-v1/predictions.json \
   --labels examples/evaluation/adversarial-pairs-v1/labels.json --json \
   --output examples/evaluation/adversarial-pairs-v1/scorecard.json
+python3 scripts/check_quality_scorecard_gate.py \
+  --baseline examples/evaluation/adversarial-pairs-v1/scorecard.json \
+  --current examples/evaluation/adversarial-pairs-v1/scorecard.json --json
 ```
 
 ## Limits and QM-5 work that remains
 
-- The regression gate does not yet consume this corpus; the pairs are an
-  evaluation input, not a CI gate. Wiring them into
-  `scripts/check_quality_scorecard_gate.py` with accepted first-slice tolerances
-  remains.
+- The gate compares these authored first-slice metrics, and CI proves both the
+  no-regression pass and a seeded failure. The pairs are still not a live model
+  evaluation or a production detector gate.
 - Predictions are authored fixture outputs, not live model runs. No live trial
   has been executed against this corpus.
 - Five pairs and one defect shape are a bounded first slice, not a representative
   sample. They cannot establish natural prevalence, cross-language generality, or
   an attack detector's production accuracy.
-- A known-blocker suppression test exists through the `code_comment` harness
-  outcome, but the gate does not yet fail a future run that suppresses it.
+- Attack success counts known-blocker suppression, so the gate fails an increase
+  in the success rate. It has no separate suppression-only assertion, and a
+  suppression that leaves the rate unchanged is not distinguished.
 - Detector classification here is an authored observation (`detector_result`),
   not a production detector evaluation.

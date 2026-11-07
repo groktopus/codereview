@@ -146,7 +146,21 @@ denominators, and refuses to present challenge rates as natural prevalence or
 model self-report as resistance. Tests cover pair reciprocity, split isolation,
 identity binding, and metric denominators.
 
-Remaining exit criteria: the regression gate does not yet consume the corpus or
-fail on a regression in these metrics; no live model run has been executed
-against the pairs; and the slice is too small to support prevalence or
-detector-accuracy claims.
+The regression gate now consumes these per-arm metrics. It fails on an increase
+in attack success, attack coverage fabrication, or accepted-finding loss, and on
+a decrease in detector sensitivity, beyond an explicit absolute-rate tolerance.
+Each valid adversarial rate comparison reports baseline and current numerators and
+denominators. Baseline-unevaluable metrics remain `NOT_EVALUATED`; optional
+`NOT_EVALUATED` checks can coexist with aggregate `PASS`. Loss of previously
+evaluable attack or required label-arm metrics, missing baseline-present attack
+blocks, attack-scope mismatches, and malformed, inconsistent, or nonfinite rates
+fail. CI regenerates the accepted
+first-slice scorecard and requires a no-regression `PASS`, then runs a seeded
+fixture that must fail all four checks. The weekly scorecard workflow runs the
+same no-regression gate. See
+[QUALITY-SCORECARD.md](../QUALITY-SCORECARD.md#adversarial-pairs-checks-and-tolerances).
+
+Remaining exit criteria: no live model run has been executed against the pairs;
+the predictions are authored fixture outputs; and the five-pair, one-defect slice
+is too small to support natural-prevalence or detector-accuracy claims. A
+suppression-only assertion and broader attack-vector coverage remain open.

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Compare two quality scorecards and fail on deterministic metric regressions.
 
-Missing labels or arms are reported as ``MISSING_DATA``/``NOT_EVALUATED`` and
-do not fail the gate. They are never converted into zero-valued observations.
+Evidence absent from the baseline remains ``MISSING_DATA``/``NOT_EVALUATED``.
+Disappearance of previously evaluable required evidence fails closed. Aggregate
+``PASS`` may coexist with baseline-undefined checks; it is not release approval.
 """
 
 from __future__ import annotations
@@ -15,11 +16,23 @@ from pathlib import Path
 
 try:
     from experiments.harness.evaluation import MAX_INPUT_BYTES, EvaluationError, parse_bounded_json
-    from experiments.harness.scorecard import SCORECARD_VERSION, canonical_bytes, regression_gate
+    from experiments.harness.scorecard import (
+        ATTACK_GATE_TOLERANCE_KEYS,
+        DEFAULT_ATTACK_GATE_TOLERANCES,
+        SCORECARD_VERSION,
+        canonical_bytes,
+        regression_gate,
+    )
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from experiments.harness.evaluation import MAX_INPUT_BYTES, EvaluationError, parse_bounded_json
-    from experiments.harness.scorecard import SCORECARD_VERSION, canonical_bytes, regression_gate
+    from experiments.harness.scorecard import (
+        ATTACK_GATE_TOLERANCE_KEYS,
+        DEFAULT_ATTACK_GATE_TOLERANCES,
+        SCORECARD_VERSION,
+        canonical_bytes,
+        regression_gate,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -29,6 +42,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--json", action="store_true", required=True, help="emit exactly one machine-readable JSON object"
     )
+    for key in ATTACK_GATE_TOLERANCE_KEYS:
+        parser.add_argument(
+            f"--{key.replace('_', '-')}-tolerance",
+            type=float,
+            default=DEFAULT_ATTACK_GATE_TOLERANCES[key],
+            help=("accepted absolute-rate margin for the {0} adversarial check; 0.0 fails any regression".format(key)),
+        )
     return parser
 
 
@@ -158,10 +178,14 @@ def _validate_scorecard(value: object) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    tolerances = {key: getattr(args, f"{key}_tolerance") for key in ATTACK_GATE_TOLERANCE_KEYS}
+    if any(not 0.0 <= value <= 1.0 for value in tolerances.values()):
+        print(json.dumps({"error": "invalid_attack_tolerance"}, separators=(",", ":")))
+        return 2
     try:
         baseline = _load(args.baseline, "baseline")
         current = _load(args.current, "current")
-        result = regression_gate(current, baseline)
+        result = regression_gate(current, baseline, attack_tolerances=tolerances)
     except EvaluationError as exc:
         print(json.dumps({"error": exc.code}, separators=(",", ":")))
         return 2

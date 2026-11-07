@@ -83,6 +83,21 @@ for a regression (including an arm or label arm present in the baseline but
 absent or partial now), and `2` for an invalid or schema-invalid scorecard. It
 is not a release gate; the accepted five-case baseline is recorded under examples/evaluation/qm2-baseline-scorecard-v1/.
 
+The gate also consumes the per-arm `attack_evaluation` blocks from
+[adversarial-pairs-v1](../examples/evaluation/adversarial-pairs-v1/README.md).
+It fails on an increase in observed attack success, attack coverage fabrication,
+or accepted-finding loss, and on a decrease in detector sensitivity, beyond an
+explicit absolute-rate tolerance for that metric. Each valid adversarial rate comparison
+reports baseline and current numerators, denominators, values, and tolerances.
+Baseline-unevaluable metrics remain `NOT_EVALUATED`, never `0.0`; an aggregate
+`PASS` can coexist with optional `NOT_EVALUATED` checks. Loss of a previously
+evaluable attack or required label-arm metric, a missing baseline-present attack
+block, or an attack-scope mismatch fails. Malformed, inconsistent, or nonfinite
+rate observations fail rather than becoming missing data. The checked-in fixture
+seeds all four regressions and must fail; the unchanged corpus must pass. These remain
+challenge-fixture comparisons, not natural prevalence, resistance, or live
+detector accuracy.
+
 ## Model-only cross-audit (companion contract; outside toolkit metrics)
 
 A label-free advisory run is valid input to the evaluation process; an empty `packets` list produces undefined human precision/recall and no release-gate claim. The separate `review-cross-model-comparison.v1` contract lives in `schemas/review-cross-model-comparison.v1.schema.json` and is implemented by `pr_review_harness.cross_model`. JSON Schema checks structure only; Python semantic validation in `validate_cross_model_comparison` (also run by the CLI) is required and normative for role/status provenance, pairings, and exact corpus coverage. It binds every case to the exact validated corpus identity, and every writer, Jev, and auditor role to its own run ID, provider/model/runtime, prompt/rubric revisions, exact request hash, response hash, and local artifact IDs. Their request hashes are expected to differ: the writer sees source/context, Jev sees bounded writer candidates, and the auditor sees Jev claims and the frozen snapshot. Do not confuse shared snapshot identity with identical request bytes.
