@@ -12,17 +12,16 @@ unchanged as the historical evidence snapshot.
 ## Source snapshot and limits
 
 The assessed source is current main at
-[`11558be`](https://github.com/groktopus/codereview/commit/11558be31c1db4d554f9fa7797658d7b377d1730)
+[`94f1973`](https://github.com/groktopus/codereview/commit/94f1973c93a225e148ee3b1f34575a5224bb3827)
 (2026-11-07), after PRs 355–367 merged. Six issues remain open; stopped draft
 PR353 is excluded from landed capability. The live Dependabot API returned zero
 open alerts after PR357; that time-bounded result is not broad security
-certification. Current main Harness and Security runs
-[42411852463](https://github.com/groktopus/codereview/actions/runs/42411852463)
-and [42411852522](https://github.com/groktopus/codereview/actions/runs/42411852522)
-passed at the exact assessed SHA. CI reports 27 successful checks and 3 skips;
-dependency-review guidance and scheduled vulnerability scans were skipped, not
-executed. The independent ten-dimension judgment remains 3/10 A−; no formal grade
-promotion or issue closure is inferred from that review.
+certification. Current main Harness
+[42412775733](https://github.com/groktopus/codereview/actions/runs/42412775733)
+and Security
+[42412775600](https://github.com/groktopus/codereview/actions/runs/42412775600)
+passed at the exact assessed SHA. The independent ten-dimension judgment remains
+3/10 A−; no formal grade promotion or issue closure is inferred.
 
 
 Checked-in evidence below has narrower scopes and older execution dates than
@@ -76,8 +75,10 @@ The older empty-prediction pilot and authored fixture arms described in
   score.
 - **Reconcile whole module:** 573/656 = **87.35%**, 83 survivors, 0 no-tests or
   timeouts; repeat status maps match. The initial existing-test baseline failed at
-  248/656 (37.80%) and is preserved. This replaces the superseded 77.9% tested-only
-  claim in the older report; see the [full-module record](evidence/vd2-reconcile-module/README.md).
+  248/656 (37.80%) and is preserved. This is a new report, not the old 77.9%
+  tested-only result: the historical 668-mutant universe recorded 257/668 = 38.47%
+  all-generated and 77.9% tested-only. Its generation difference from the current
+  656 set remains unexplained. See the [full-module record](evidence/vd2-reconcile-module/README.md).
 - **Reducer:** `_reduce` only, 103/105 = **98.10%**, 2 survivors retained.
   Validator function probes: causal roles 117/118, claim choice 69/72, adjudication
   226/228. All six survivors remain; several are real boundary gaps. These
