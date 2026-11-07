@@ -148,6 +148,7 @@ banner; evidence that already lived under `docs/experiments/` or a
 | [Adjudication Output-Budget Diagnosis](ADJUDICATION-OUTPUT-BUDGET-DIAGNOSIS.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Actions canary cleanup failure provenance](CANARY-CLEANUP-FAILURE-PROVENANCE.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Existing reviewer baseline discovery](COMPARISON-DISCOVERY.md) | Dated evidence, audit, trial, or review note; not current guidance. |
+| [VD-2 reducer and validation-boundary review](evidence/vd2-reducer-validation-review.md) | Targeted invariant tests and explicitly unmeasured reducer mutation scope; not mutation qualification. |
 | [Current production-requirement trace](CURRENT-ACCEPTANCE-TRACE.md) | Earlier variant of the requirement trace. Use `CURRENT-DELIVERY-TRACE.md` as canonical; retained for provenance. |
 | [Current-source synthetic paired trial](CURRENT-SOURCE-PAIRED-TRIAL.md) | Dated evidence, audit, trial, or review note; not current guidance. |
 | [Current v3 context baseline](CURRENT-V3-CONTEXT-BASELINE.md) | Dated evidence, audit, trial, or review note; not current guidance. |
