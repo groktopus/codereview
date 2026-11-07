@@ -1,0 +1,3756 @@
+{
+  "schema": "pr-review-expanded-lint-baseline.v1",
+  "policy": {
+    "ruff_version": "0.17.3",
+    "rules": [
+      "B",
+      "SIM",
+      "UP",
+      "C4",
+      "RUF",
+      "ASYNC"
+    ],
+    "roots": [
+      "src",
+      "scripts",
+      "experiments",
+      "tests"
+    ],
+    "exclusions": [
+      "tests/fixtures/frozen-runtime-7d550b6/**",
+      "tests/fixtures/*-base.py",
+      "examples/evaluation/adversarial-pairs-v1/fixtures/**"
+    ],
+    "target_version": "py311",
+    "fingerprint": "canonical-statement-ast+comment-token+message.v1",
+    "ignore_noqa": true,
+    "core_rules_for_noqa_context": [
+      "E4",
+      "E7",
+      "E9",
+      "F",
+      "I"
+    ],
+    "immutable_pin_manifest": "tests/fixtures/frozen-runtime-7d550b6/pins.json"
+  },
+  "review_reason": "VD-4 maintained-code initial debt inventory; no cleanup claim or unsafe-fix approval; future changes require review",
+  "entries": [
+    {
+      "path": "experiments/harness/actions_canary.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c92f45abe5f80d22982f2fe29b712944ea3647accd8df3c573a5af4be95aa240",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/configured_jev_injection_trial.py",
+      "code": "UP022",
+      "scope": "_git_head",
+      "fingerprint": "d440fcae5b4cb4bd52b9b91ac74234f0c2bd1c52e68c9f99f81f0e37d70e4cba",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/configured_jev_injection_trial.py",
+      "code": "UP022",
+      "scope": "_worktree_state",
+      "fingerprint": "162a161eed1ec1abb1ae27010e1b294788068c360f933bfddffa62fbddff6abe",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/cross_model.py",
+      "code": "C420",
+      "scope": "compare_cross_model",
+      "fingerprint": "123f98cebc00e1043981cc3056abb3341d232c8e147f550f3172b43431b5f9f1",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/cross_model.py",
+      "code": "C420",
+      "scope": "compare_cross_model",
+      "fingerprint": "46785ee34e45d177e466e0dea7494c2480a7c5693aaf01c11fea2236b94a72b3",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/cross_model.py",
+      "code": "C420",
+      "scope": "compare_cross_model",
+      "fingerprint": "98b15b0defa5820dba6a15fc59ed623aef4efc61ad28b08e9cd45ce3ebe7d6eb",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/cross_model.py",
+      "code": "SIM105",
+      "scope": "_git.stop_process",
+      "fingerprint": "a0862bc030af23b1c621e637b75c4526143b2c4585ac608c147849721d140150",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/cross_model.py",
+      "code": "SIM114",
+      "scope": "validate_cross_model_comparison",
+      "fingerprint": "53fe36686739d851cdf7bab696e362ee504e445739d9fa85c880e2ecc3e30868",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/cross_model_v2.py",
+      "code": "C420",
+      "scope": "compare_cross_model_v2",
+      "fingerprint": "ab782db2aaa41708e75589a9371d69f60b92507849dee5491331b958e874ea5f",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/evaluation.py",
+      "code": "SIM102",
+      "scope": "validate_predictions",
+      "fingerprint": "023074d0a8dce1eb6c6aa192d6de34164a294403c7b80a564077bc50bf37d3e8",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "code": "B007",
+      "scope": "invoke_cli_bounded",
+      "fingerprint": "5a9dc4e03bec392a71398fded4ca6e802902585836151d11c96cb41996457264",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "code": "C401",
+      "scope": "_sanitize_prediction",
+      "fingerprint": "77be4684df9b839408a88820cea391cb112b0ab7e5923214a4903a5df9095491",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "code": "SIM105",
+      "scope": "_atomic_write",
+      "fingerprint": "c6989e2bab5cc571ae5264737d8091b8197b3c0a6555af1639291cce2bcb3981",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "code": "SIM105",
+      "scope": "_terminate",
+      "fingerprint": "3f457529d0d34aebbd360927d1e27f061ee626df944d5790dc5ade437fa3503e",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "code": "UP022",
+      "scope": "_create_git_case",
+      "fingerprint": "380be198244ea6879019697c97d22d99ee30243dcf07e45f5f94b5d91313d389",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/injection_trials.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "a229811cc9fe0337c52ea3a5a3f477294043a506b7c45447c5aa71eb4cbcbd97",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/policy_inventory.py",
+      "code": "B905",
+      "scope": "_segments",
+      "fingerprint": "7572ab53733c4e3b8d7e0a641c04b3db61a72d823abffb4b0cba27878bff74c2",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/policy_inventory.py",
+      "code": "RUF007",
+      "scope": "_segments",
+      "fingerprint": "fdd154bb17be7107e24a26030330b337e1946757de83ea5545020a852a766cbe",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/scorecard.py",
+      "code": "C420",
+      "scope": "<module>",
+      "fingerprint": "d478fbd784ddcbb5f7be18e1b60708322cb9441982e9fba8e6c6edbfd7adfcc2",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/scorecard.py",
+      "code": "C420",
+      "scope": "build_scorecard",
+      "fingerprint": "45474fd849cd830b0af0646de97581d66c0ce0777effe3a54c0627fb6f9b5d5b",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "code": "C420",
+      "scope": "_current_provider_telemetry",
+      "fingerprint": "decf89440ce0ab442b5844b019aff13d43415625e399bad70a0cfa5ca0d4f545",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "code": "C420",
+      "scope": "_current_provider_telemetry",
+      "fingerprint": "e925b5eb5241bdabcaf53d18727ca0cc0a9e524e2e167348e573948bcb2bd267",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "code": "SIM102",
+      "scope": "_current_provider_telemetry",
+      "fingerprint": "4a5b87ade3d1e890b81085982c319b7a167b56cccb0e26c67ed4a7475e3fa60c",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "code": "SIM102",
+      "scope": "_current_provider_telemetry",
+      "fingerprint": "9a4072d3509ce780c5b4c69bc222b59a68a9a3c17ba6ccd5716c69279a3050c8",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/selected_model_trial.py",
+      "code": "SIM105",
+      "scope": "_write_json",
+      "fingerprint": "4b413ddb3c45a6ae60fa3eb0741601d67005206651bc9cb437fdcf2ce603076f",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/shadow_audit.py",
+      "code": "SIM114",
+      "scope": "run_shadow_audit",
+      "fingerprint": "102504b426e994765170ec0600128120450a1800354a2a9d2e35d3461212a3ff",
+      "count": 1
+    },
+    {
+      "path": "experiments/harness/shadow_audit.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "7b424b51a6b3ce0b2eb6a6aea3520848d0938e3eb74b38963da16c6518964291",
+      "count": 1
+    },
+    {
+      "path": "scripts/canary_publish_review.py",
+      "code": "RUF100",
+      "scope": "_NoRedirect.redirect_request",
+      "fingerprint": "455b2797dbccef1d88c1c0bccd88545aa49a57cf500b1e7af37a8a527c89cd5a",
+      "count": 1
+    },
+    {
+      "path": "scripts/canary_publish_review.py",
+      "code": "SIM105",
+      "scope": "_preflight_receipt_path",
+      "fingerprint": "575b1fd1803f35aa4de878dd21640f4ff1109277df23ec451f862c2f55379e8f",
+      "count": 1
+    },
+    {
+      "path": "scripts/canary_publish_review.py",
+      "code": "SIM105",
+      "scope": "_write_receipt",
+      "fingerprint": "575b1fd1803f35aa4de878dd21640f4ff1109277df23ec451f862c2f55379e8f",
+      "count": 1
+    },
+    {
+      "path": "scripts/canary_publish_review.py",
+      "code": "UP017",
+      "scope": "_mint_installation_token",
+      "fingerprint": "66fdcde38fe92bc2c74845d82ba25171d3afef8ec92c30554baf8928a894b52f",
+      "count": 1
+    },
+    {
+      "path": "scripts/canary_publish_review.py",
+      "code": "UP017",
+      "scope": "_parse_utc",
+      "fingerprint": "cb9b3004fa5a0e6e5b169b11cf24c824bf96e3bd76933954961e369fec520717",
+      "count": 1
+    },
+    {
+      "path": "scripts/canary_publish_review.py",
+      "code": "UP017",
+      "scope": "_run",
+      "fingerprint": "b4cfcd0679439df36c0dd467859b0e9642a870792564b4baa58e5528a5856a1b",
+      "count": 1
+    },
+    {
+      "path": "scripts/canary_publish_review.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "7284a149ab0248eb12fc2b0d4c30a25ee9ea7d5e97d31f015215bdbb20cae413",
+      "count": 1
+    },
+    {
+      "path": "scripts/central_pilot_admission.py",
+      "code": "RUF021",
+      "scope": "_validate_source_run",
+      "fingerprint": "6ec5ae7953b9f95f8d7ecee6abd2758d482c91e8c3fdada19b17e81f50ed6497",
+      "count": 2
+    },
+    {
+      "path": "scripts/check_changelog.py",
+      "code": "B905",
+      "scope": "parse_changelog",
+      "fingerprint": "caa3fc8d3574a20a800afe700cc18934a75f9898a48d279dc644b82c1856400c",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_changelog.py",
+      "code": "RUF007",
+      "scope": "parse_changelog",
+      "fingerprint": "e876c0e5c68ec6ad8342e3972016682cab378784528dea7efc9ccae80b3a98f7",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_completeness.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_complexity.py",
+      "code": "SIM102",
+      "scope": "evaluate",
+      "fingerprint": "90e8d5210e41685875d5abfdadb5a64f8a9f228f4618a6d7caa70fa3013ac2cf",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_decision_record_links.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 2
+    },
+    {
+      "path": "scripts/check_decision_record_links.py",
+      "code": "RUF100",
+      "scope": "_RefuseRedirects.redirect_request",
+      "fingerprint": "72b08cd84896c799cbc0e580bcd7f4a913708bfaef3f2e4ea241b280ba4a3821",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_decision_record_links.py",
+      "code": "RUF100",
+      "scope": "main",
+      "fingerprint": "ec6d4f7339dbd4fe89ed9056a44b2c5d3a124f482c23d2510736cec7d380e50c",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_docs_index.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_docs_truth.py",
+      "code": "B007",
+      "scope": "check_shas",
+      "fingerprint": "06b7cf4a8bf27dd00c99835810dfa002e0d7d45bb87c8884050d5487fa6146bf",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_docs_truth.py",
+      "code": "B007",
+      "scope": "check_shas",
+      "fingerprint": "596623a1895ea37e00a375673943d56d7000bd69a9f94df0d5b1458c690e6411",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_docs_truth.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_docs_truth.py",
+      "code": "SIM102",
+      "scope": "check_shas",
+      "fingerprint": "07c72ac9f355ce8f2c9f3334ec07b422add2e8038cc7543cb319f592655b378e",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_quality_scorecard_gate.py",
+      "code": "UP030",
+      "scope": "_parser",
+      "fingerprint": "ac6cd61cbb757863f6bac7cdde5a381718256e9bd727e42a91f23d84a0a97b63",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_quality_scorecard_gate.py",
+      "code": "UP032",
+      "scope": "_parser",
+      "fingerprint": "c292aef1b264ccfe32af2e838a0a08609191b1b51189d0cfa4eb186c9c2d97c7",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_version_policy.py",
+      "code": "RUF005",
+      "scope": "check_repository",
+      "fingerprint": "1c91aae05ac838b14828e30c785789eca6ba4cbd27cf3e7c650d377775cd5193",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_version_policy.py",
+      "code": "RUF005",
+      "scope": "check_repository",
+      "fingerprint": "2d13c636b190cd5017bf500d9d386ca70d1369f09898485ca32cc6457d45da28",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_version_policy.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/coverage_gate.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "1a632cf8363fbeed323aeaf0ef369d49aa7b17ca39fed1f4a3706840b6427d97",
+      "count": 1
+    },
+    {
+      "path": "scripts/effect_observer_smoke.py",
+      "code": "C420",
+      "scope": "_bounded_full_review_failure",
+      "fingerprint": "243ecdd0812f177d0f911c28a7be5aed9f78a0ae019ade554e516e2d7a37dab1",
+      "count": 1
+    },
+    {
+      "path": "scripts/effect_observer_smoke.py",
+      "code": "C420",
+      "scope": "_bounded_full_review_failure",
+      "fingerprint": "53738a0b8500df26cd3512e4117d2fec918834774a2269a2afcc875f8335cc91",
+      "count": 1
+    },
+    {
+      "path": "scripts/effect_observer_smoke.py",
+      "code": "C420",
+      "scope": "_safe_syscall_counts",
+      "fingerprint": "cf6eeb618d1cb7067f455e0f8ea513cbbb2c677034b72074554e0d44b35e8ee1",
+      "count": 1
+    },
+    {
+      "path": "scripts/fetch_pr_analysis_artifact.py",
+      "code": "RUF100",
+      "scope": "_NoRedirect.redirect_request",
+      "fingerprint": "455b2797dbccef1d88c1c0bccd88545aa49a57cf500b1e7af37a8a527c89cd5a",
+      "count": 1
+    },
+    {
+      "path": "scripts/fetch_pr_analysis_artifact.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "92279a7b694f1c85cd0024cde704aa937d3cac068aae3e488bb6a7d5cb28a43e",
+      "count": 1
+    },
+    {
+      "path": "scripts/finalize_synth_001_identity_v3.py",
+      "code": "SIM105",
+      "scope": "_atomic_write",
+      "fingerprint": "f89ee74eb4682f95c8371560c02161ea92f03fe1550291146466531da7068d53",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_provenance.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_sbom.py",
+      "code": "UP017",
+      "scope": "epoch_to_created",
+      "fingerprint": "e45bc941e52f8d77ed76fb356b63e764feb0d204dc6361d67afe03ed9daf9c11",
+      "count": 1
+    },
+    {
+      "path": "scripts/hosted_recovery_rehearsal.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/hosted_recovery_rehearsal.py",
+      "code": "RUF100",
+      "scope": "_provider.Handler.do_POST",
+      "fingerprint": "1502eab6df800a9b91813592251d41bbc92a343580edd28ccce55c9c958a38cf",
+      "count": 1
+    },
+    {
+      "path": "scripts/hosted_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_terminate",
+      "fingerprint": "433fce6853b80ee8aa885d6ec0a2c2faea5cf4b34153da730746bb088c94b15d",
+      "count": 1
+    },
+    {
+      "path": "scripts/hosted_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_terminate",
+      "fingerprint": "7fb85a045143576a00fa3b94602c2e0775e4d84ecdcd0185abb5165d77ad032e",
+      "count": 1
+    },
+    {
+      "path": "scripts/intake_pr_analysis_artifact.py",
+      "code": "SIM102",
+      "scope": "_called_workflow_matches",
+      "fingerprint": "12d5ad5324c51fc3926f19511c55bc24c121466d9f2df661f70d7b5bde59641a",
+      "count": 1
+    },
+    {
+      "path": "scripts/intake_pr_analysis_artifact.py",
+      "code": "SIM105",
+      "scope": "intake_pr_analysis_artifact",
+      "fingerprint": "483b79b85d8cbcb5a072119a31e6e4d6317b1b9bc6c716eed447c6ee5968f47f",
+      "count": 1
+    },
+    {
+      "path": "scripts/materialize_seeded_writer_synth_001.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "fb603e56c4c696b7f0e4c17de48bcef257c5bd7e60d2d47a4afd21f9a4966a5b",
+      "count": 1
+    },
+    {
+      "path": "scripts/package_synth_001_cross_model.py",
+      "code": "RUF059",
+      "scope": "package_synth_001",
+      "fingerprint": "4837a0ac03d7acb984af11782363efe748a77bae2aa2a7f0f67e6512c818376b",
+      "count": 1
+    },
+    {
+      "path": "scripts/package_synth_001_cross_model.py",
+      "code": "RUF059",
+      "scope": "package_synth_001",
+      "fingerprint": "c9ca1d92cb607384c253e37f056d30107c292eef180c09e725545f44fb1f8043",
+      "count": 1
+    },
+    {
+      "path": "scripts/pr_analysis_publication_bundle.py",
+      "code": "UP017",
+      "scope": "create_publication_directory",
+      "fingerprint": "58dc64b6f659f194a9865d70e3ba26690394b0b9fbb282df86425a6a908ae64e",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_pr457_current_source_capture.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_real_case_batch.py",
+      "code": "B904",
+      "scope": "<module>",
+      "fingerprint": "c7c1974f38508e95e8ac3d1a3cf4748e727032296df5b22500bd4b97b7f922f4",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_real_case_batch.py",
+      "code": "C401",
+      "scope": "main",
+      "fingerprint": "96ee4fd085a53d9653d5f2258963721f81f771ab821ecda4321e4381c8c81eef",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_real_case_batch.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "a0ac9c92d0737418fb25b00b3f859246562531e9bc3bac661537d4c5df04030a",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_real_case_batch.py",
+      "code": "SIM105",
+      "scope": "_bounded_run",
+      "fingerprint": "b216d1cf9a8c690a43bd905859b37ef77ed2154702bd63de4db3d5645cbfcd7e",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_real_case_batch.py",
+      "code": "SIM105",
+      "scope": "main",
+      "fingerprint": "21fc4715a69d428bbd26337f52c7356b21e53c4821434eaf99f9ac67e381a707",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_real_case_batch.py",
+      "code": "UP017",
+      "scope": "normalize_checks",
+      "fingerprint": "52c72d39cce00ae0d97c064308cb81332834551ae84008d9bf2029f0867c2287",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_selected_pair_clean_control_trial.py",
+      "code": "UP022",
+      "scope": "_current_revision",
+      "fingerprint": "4d145f42e9e86218b2de0435f6ac9422399b16135063e2769f2b1494dc0b764f",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_selected_pair_clean_control_trial.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "22bae1fe8156af6c484dad61e80c14bdb56417ac56cceb9a3f8e87bba9369f40",
+      "count": 1
+    },
+    {
+      "path": "scripts/protected_source_context_probe.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c664348d4953071fe7a30a1e8c067399409ea83abf34021f987c51ccde1276c9",
+      "count": 1
+    },
+    {
+      "path": "scripts/provider_config_from_env.py",
+      "code": "SIM105",
+      "scope": "_write_private",
+      "fingerprint": "9434e5ee3d12ce263f62659a0d7830f3a739980e90d9e872d68991688e1b21a9",
+      "count": 1
+    },
+    {
+      "path": "scripts/refresh_compatibility_pins.py",
+      "code": "SIM105",
+      "scope": "_atomic_write",
+      "fingerprint": "ad452c1945c4d450994f6a5c9feaf9b91c78da40f0cfc15ab417d6c792aca02f",
+      "count": 1
+    },
+    {
+      "path": "scripts/refresh_compatibility_pins.py",
+      "code": "UP017",
+      "scope": "_timestamp",
+      "fingerprint": "c6fdd578f9d71534137d55f1bed7410641bf905568928f093c88b12b4d962ea5",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_claim_screen.py",
+      "code": "SIM105",
+      "scope": "_run_worker.write_input",
+      "fingerprint": "8586b40d860a46e4939d0d7b3e2e2af66479796bdc1dd915e1c0647a734f7e96",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_model_only_shadow_audit.py",
+      "code": "C420",
+      "scope": "run",
+      "fingerprint": "2e28572b0bf4186d797d153c7dab50286883b52a52e902245b8a20c38fe0fcc1",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_model_only_shadow_audit.py",
+      "code": "C420",
+      "scope": "run",
+      "fingerprint": "58ca59d6166669f87f8f47f44e226bdaecb3702a7adde96a6fc19b849ee51384",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_pr_review_stage_diagnostic.py",
+      "code": "SIM105",
+      "scope": "main",
+      "fingerprint": "1bb436d96373844d07675bd79484d35a50e4ba55c30f45ecb8c0e0023bb5c577",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_pr_review_stage_diagnostic.py",
+      "code": "SIM105",
+      "scope": "main.emit_error",
+      "fingerprint": "fb380ecf1444ecbfee7802b01a1174a56ae7630deaea7ac9575e58a75410a3a7",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_pr_review_stage_diagnostic.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "a229811cc9fe0337c52ea3a5a3f477294043a506b7c45447c5aa71eb4cbcbd97",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "RUF021",
+      "scope": "_project_context_followups",
+      "fingerprint": "3daa4c4a65cc39c6f181b88666cefebf11395e4dbeef682d91aa247f6d49788e",
+      "count": 5
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "RUF021",
+      "scope": "_project_required_context_closure_diagnostics",
+      "fingerprint": "eded01926d1cebf6c5a0fd3ff516412a8e820ef1e9868cb0c12cf2b18b5b94a4",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM105",
+      "scope": "_write_python_attributes",
+      "fingerprint": "9434e5ee3d12ce263f62659a0d7830f3a739980e90d9e872d68991688e1b21a9",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM105",
+      "scope": "_write_python_attributes",
+      "fingerprint": "d7709d0f490ca0717e75a804a3e8cfd928023abed41f8107c88ba0f86b82ffd4",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM105",
+      "scope": "main",
+      "fingerprint": "3b16de464b33d746c4a47f8f1a9530244cb86d86f496970ebe09f3876ea2342e",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM105",
+      "scope": "write_json",
+      "fingerprint": "9434e5ee3d12ce263f62659a0d7830f3a739980e90d9e872d68991688e1b21a9",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM105",
+      "scope": "write_json",
+      "fingerprint": "d7709d0f490ca0717e75a804a3e8cfd928023abed41f8107c88ba0f86b82ffd4",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM114",
+      "scope": "_project_required_context_coverage_diagnostic",
+      "fingerprint": "7a9f0c72c4a87d4c9817c247f37e1230c6628854266927c20a28b7f216e8e05c",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM114",
+      "scope": "_project_required_context_coverage_diagnostic",
+      "fingerprint": "b8f213b33458696a2055ee161b7c8388080f5f07faa2876d3fe250973e6f6dae",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_case_trial.py",
+      "code": "SIM114",
+      "scope": "_stable_failure_code",
+      "fingerprint": "53288f65e83335b096357f3f8936836e3647e0a9321b3465bfdeeb14e11ca910",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "code": "RUF100",
+      "scope": "_ProviderHandler.do_POST",
+      "fingerprint": "36495ce959900eba22d736bed924ad02e2208d64f70ddbc6bdcfc662b15c954f",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_ProviderHandler.do_POST",
+      "fingerprint": "6b5acb30479c5d8f1adb54b58c6278aa0026e554d384b6423dfaa4a6625c429f",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_collect_artifacts",
+      "fingerprint": "9434e5ee3d12ce263f62659a0d7830f3a739980e90d9e872d68991688e1b21a9",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_remove_known_artifacts",
+      "fingerprint": "bb8e1e8dcf7848afb58138a4710ec7a87f089f1324c23db35eaaa6203e0f72ad",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_terminate_group",
+      "fingerprint": "b216d1cf9a8c690a43bd905859b37ef77ed2154702bd63de4db3d5645cbfcd7e",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_terminate_group",
+      "fingerprint": "b7c348747ef4f73c3a4382994a356f5310dae54593d95b81acffdeb4b0d9ed1f",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_recovery_rehearsal.py",
+      "code": "SIM105",
+      "scope": "_terminate_group",
+      "fingerprint": "dfbee04f1e87c50583dc45a34cf4a18895aeca73e8a13554b75c20c48f1417ce",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_sealed_source_record_jev.py",
+      "code": "SIM105",
+      "scope": "_write_private_json",
+      "fingerprint": "4f128307ec46c5c2f57bf6bef343efcfbd998651b26532f3e928b4119f2c3d02",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_sealed_source_record_jev.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "7b424b51a6b3ce0b2eb6a6aea3520848d0938e3eb74b38963da16c6518964291",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_selected_model_trial.py",
+      "code": "C408",
+      "scope": "main",
+      "fingerprint": "28e7a626493305126226188e3a1c8653b5d0ff33aa4e4efd0dc7fb96478c2fbf",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_synth_001_live_writer.py",
+      "code": "UP022",
+      "scope": "_prepare",
+      "fingerprint": "8788d97b7245577dca6b28bfc1b23e8ff95fb7bfd3cbec5b3297e0d2ff47182f",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "SIM105",
+      "scope": "atomic_write",
+      "fingerprint": "f6e1b4af00522485ed4a8f03b7229ef7e4bee8e8c0536e9eede59a9f18b0e59c",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "SIM105",
+      "scope": "terminate_group",
+      "fingerprint": "3f457529d0d34aebbd360927d1e27f061ee626df944d5790dc5ade437fa3503e",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "UP017",
+      "scope": "run_matrix",
+      "fingerprint": "a829fe0ca6b7284a0a614e2310cee0838f65fe4bf40d3ff1f946579b63225ef1",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "UP017",
+      "scope": "run_matrix",
+      "fingerprint": "d9fe1d1e0ddd9e42aefb801711fb3cc8c18b9ff6a5d1fb89f66546f12f974f86",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "UP017",
+      "scope": "run_matrix",
+      "fingerprint": "ee068036ce862f6b4917dbaea71d7fb338010bafa5fd7f558105a19594036094",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "UP017",
+      "scope": "verify_model_catalog",
+      "fingerprint": "6061a78ca8b819c34ccbe381920521167dc4ee310922811b72e1e92258d321ca",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "UP017",
+      "scope": "verify_model_catalog",
+      "fingerprint": "63cf75dc198adf521bf7553bcc4704cfa944a096c655627904c08229d24418a8",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "UP017",
+      "scope": "verify_model_catalog",
+      "fingerprint": "be701a0b1cb0a7cd966d032548e4b69876b7ea6440960ec5a49a6ee3a66ef134",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_test_matrix.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "a229811cc9fe0337c52ea3a5a3f477294043a506b7c45447c5aa71eb4cbcbd97",
+      "count": 1
+    },
+    {
+      "path": "scripts/sanitize_model_only_shadow_reconciliation.py",
+      "code": "C420",
+      "scope": "_enum_counts",
+      "fingerprint": "fd27cf512e5c3e9c6523353e104ff5a180504a676ba6f4791a22135bc04f4965",
+      "count": 1
+    },
+    {
+      "path": "scripts/sanitize_model_only_shadow_reconciliation.py",
+      "code": "RUF059",
+      "scope": "main",
+      "fingerprint": "08dea13f49e4cde1ef3110e4942ce3a2d8a74c4da18b89ded0b060a62178f42c",
+      "count": 1
+    },
+    {
+      "path": "scripts/sanitize_model_only_shadow_writer_receipt.py",
+      "code": "SIM114",
+      "scope": "_writer_outcome_accounting",
+      "fingerprint": "084a7d8dc06d12848ba4198a5e09cde9f6d73cf4c34da2bd48008186a61fc1dd",
+      "count": 1
+    },
+    {
+      "path": "scripts/sealed_source_record_integration.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "7b424b51a6b3ce0b2eb6a6aea3520848d0938e3eb74b38963da16c6518964291",
+      "count": 1
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "code": "C420",
+      "scope": "_transport_pair_complete",
+      "fingerprint": "51fb1242b059666ee5ee5da86952b44d68e55888168dbfd17b08bf83799343ad",
+      "count": 1
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "code": "C420",
+      "scope": "run",
+      "fingerprint": "826cb5c295ab04d25fef05d13acf686a8c4749e83390aef59711baf821ed0ad4",
+      "count": 1
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "code": "RUF001",
+      "scope": "_primary_payload",
+      "fingerprint": "2eb9678e68fe0a682431c020143d3fc3a8cde85c2446da83caac4783fc031941",
+      "count": 2
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "code": "SIM102",
+      "scope": "run_candidate_cardinality_pair",
+      "fingerprint": "449d1c6965eb7b2b8c16ba0c0cb0bd9ca4c8f83bab75455a838643c2342be9c7",
+      "count": 1
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "code": "SIM105",
+      "scope": "_FakeServer.handler_type.Handler.do_POST",
+      "fingerprint": "6af8e13bc07ec62931d8564b57ea8898934d18a3ce59806bb2745467b3858741",
+      "count": 1
+    },
+    {
+      "path": "scripts/selected_control_trace_attribution.py",
+      "code": "SIM905",
+      "scope": "<module>",
+      "fingerprint": "019c88a2778145a16ece8013c92406173bb6b43bd3de9aff2e83e599ac3a3450",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_dispatch_accounting.py",
+      "code": "SIM105",
+      "scope": "write",
+      "fingerprint": "28831cbfcf1a7968afd66345040541151aa8791cde36714fbca5342c51f72e0f",
+      "count": 1
+    },
+    {
+      "path": "scripts/source_record_decision.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "a229811cc9fe0337c52ea3a5a3f477294043a506b7c45447c5aa71eb4cbcbd97",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_selected_control_transport_receipt.py",
+      "code": "SIM102",
+      "scope": "_trace",
+      "fingerprint": "13b98fc5b15f1295b00f79c7a00cb1dc9ca2582f3eea9a853ca1d7528ee33681",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_selected_control_transport_receipt.py",
+      "code": "SIM102",
+      "scope": "validate_receipt",
+      "fingerprint": "0ba6d9644fe06372d1ff2b25240b1e24dc93c6781b689d4bf268abe68413a266",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_release_artifacts.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_synth_001_preflight.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_synth_001_preflight.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "22bae1fe8156af6c484dad61e80c14bdb56417ac56cceb9a3f8e87bba9369f40",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "RUF059",
+      "scope": "GitHubActionsPublicationAdapter.scan",
+      "fingerprint": "fe14a73fc23d57434d2a949d10ac123c0702179bcdd4b51e53de3f4bae5557a7",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "SIM102",
+      "scope": "GitHubPublicationPolicy.__post_init__",
+      "fingerprint": "4e0ff16482c9c4902f3c01049f27e02a715bf9a36cf682a6069771172ef1026c",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "SIM105",
+      "scope": "UrllibGitHubTransport._open",
+      "fingerprint": "98913f2cea36baa2b920dbb569553c99c80f2ee2f3d718345064a23c3f22d2c7",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "SIM114",
+      "scope": "GitHubActionsPublicationAdapter._receipt_history",
+      "fingerprint": "2585d81e2836f40ccfc0a3b41fe045720daea9208f7f6b8296f6137938c49e49",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "SIM114",
+      "scope": "GitHubActionsPublicationAdapter._receipt_history",
+      "fingerprint": "4e58c1538522bde433e59b361fc9a384309faf0cfbbdeac2f2504084a8f42a40",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "UP017",
+      "scope": "GitHubActionsPublicationAdapter._publisher_runs",
+      "fingerprint": "6ae429e27a07898b5af1955bc05c8f8df6824520c0d9f0c46ef74219eca99988",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "UP017",
+      "scope": "PublisherCredential.valid_for",
+      "fingerprint": "8248e4aeda58810875d45d4b33f7b3f16dfad85c11509dbd645cbf7ea46f5cbe",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "UP017",
+      "scope": "PublisherCredential.valid_for",
+      "fingerprint": "d2a665685a1b8f04b39c0c01d4a35ee0df3e91b1f0b4e4a8bd2a1a840aa6c624",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "UP017",
+      "scope": "_parse_utc",
+      "fingerprint": "7d63be48f240cc0552cbae37fe81dae1822dc20af589f7243b6a09a6509729dc",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "UP017",
+      "scope": "_parse_utc",
+      "fingerprint": "cb9b3004fa5a0e6e5b169b11cf24c824bf96e3bd76933954961e369fec520717",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "UP017",
+      "scope": "_utc_future",
+      "fingerprint": "8756aae66bb8eb2253908f0a33a9d7ef0282d0f9e011fce0e8a8b74445e04232",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_publication.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "793c1db8325f3c37a12bba222bd5f2971da619daacfcbcf7a2c1d3370e04d54f",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_runtime.py",
+      "code": "SIM105",
+      "scope": "OfficialActionsArtifactUploader._terminate_process_tree",
+      "fingerprint": "6241f9b678071d086ab605e5d742e28542d91c1be377033436c71ba320f6a1dd",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_runtime.py",
+      "code": "SIM105",
+      "scope": "OfficialActionsArtifactUploader._terminate_process_tree",
+      "fingerprint": "b216d1cf9a8c690a43bd905859b37ef77ed2154702bd63de4db3d5645cbfcd7e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_runtime.py",
+      "code": "SIM105",
+      "scope": "OfficialActionsArtifactUploader.upload",
+      "fingerprint": "73cd9c3186869e5b79a173340be2fc41b6455009070580367ffd29228c32c4f1",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_runtime.py",
+      "code": "SIM105",
+      "scope": "OfficialActionsArtifactUploader.upload",
+      "fingerprint": "962d4860d7c47c14b0f5fbaf896fa68d535f5bc0190798d17c22760ab111b344",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/actions_runtime.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c664348d4953071fe7a30a1e8c067399409ea83abf34021f987c51ccde1276c9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/artifact_intake.py",
+      "code": "B008",
+      "scope": "intake_artifact_bundle",
+      "fingerprint": "3913a82a7970a7a11b921d5a12857aca92557d1dfe5e666e4124dcb5e97371a6",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/artifact_intake.py",
+      "code": "SIM115",
+      "scope": "_read_compressed_bounded",
+      "fingerprint": "dfa20535ae3500f9fed3a874401cf7064f753e2d89713e23ff979cdb232ec071",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/artifact_intake.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c3c13363660c324adbb338d71418e7d9c9b7ad003a00afa917ddec27b2856b96",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/budget.py",
+      "code": "SIM102",
+      "scope": "BudgetLedger.reserve_retrieval",
+      "fingerprint": "1493a7a9fe12a8ed768e63cd3ea5102743a495a84ccb71118332c926be37a24e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/budget.py",
+      "code": "SIM105",
+      "scope": "IsolatedInvocation._stop",
+      "fingerprint": "0ff8f0624d9d07353fa81a00e60ceed3af3d52c6437e3a935ca0ecade83e8633",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/budget.py",
+      "code": "SIM114",
+      "scope": "_safe_local_http_exchange",
+      "fingerprint": "2f89d5061c0bdb8177fb7013ec851f72a6afa6af038e0de8e18cad21d23a02d1",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/budget.py",
+      "code": "SIM114",
+      "scope": "_safe_provider_metadata",
+      "fingerprint": "c6a51dddb3773deb8164cfd4bb09e97f2ceebec24d41d009810a76611bfef515",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/budget.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "a229811cc9fe0337c52ea3a5a3f477294043a506b7c45447c5aa71eb4cbcbd97",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/checks.py",
+      "code": "UP017",
+      "scope": "make_check_runs_document",
+      "fingerprint": "cbbf9474c591af59a6ed4440146d7f570deffaebcebbbc22074c289a1f11ce93",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/claim_assessment.py",
+      "code": "UP012",
+      "scope": "_question_id",
+      "fingerprint": "0b21c7e671d63fec6381c4ee37a7f5a3b53d79f6d0e4d36e9831556aaf9f8690",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/claim_transport.py",
+      "code": "SIM102",
+      "scope": "_validate_claim_state",
+      "fingerprint": "d930c3ae5b9f1e9e0dbf0d830524b5a4b9eff51cea0b465fa5b36752e766befb",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/claim_transport.py",
+      "code": "UP037",
+      "scope": "ClaimTransport.from_decision_config",
+      "fingerprint": "4fc5b3cfbf7dc6c817d0a0d0ca6520a1c3bbda169b8c635b1efa15750eca3ec0",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/cli.py",
+      "code": "B904",
+      "scope": "_configs",
+      "fingerprint": "ec9b5a0e336f81ad6ee5202e5155705754db8a3a4b14e687b635fa7637ac4c00",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/cli.py",
+      "code": "SIM102",
+      "scope": "_claim_assessment_cap",
+      "fingerprint": "e95c1304409293b84c3013369f4c400d8b964b969a391f78b63a32014407a03d",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/cli.py",
+      "code": "SIM105",
+      "scope": "_run_one",
+      "fingerprint": "c6989e2bab5cc571ae5264737d8091b8197b3c0a6555af1639291cce2bcb3981",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/completeness.py",
+      "code": "C420",
+      "scope": "build_completeness_summary",
+      "fingerprint": "7f601bc01745408e49727b3bd0d630b942f64ee8351b9c5b2b0e97d172086f17",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/completeness.py",
+      "code": "C420",
+      "scope": "build_completeness_summary",
+      "fingerprint": "c2030dcf926e9c118544781d834d20fecf98ac04551a3ac6e7c54bf5b424732e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/completeness.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "e8e6cfecc0366257971698f4dafb367bda0341e7e33c42fd18fc3015f0c4267b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/contract_registry.py",
+      "code": "SIM102",
+      "scope": "validate_registry",
+      "fingerprint": "972fa265124300b9a3b1410dbf45c0a85f29d16b7f4d167b423d45e24ddd0423",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/contract_registry.py",
+      "code": "SIM102",
+      "scope": "validate_registry",
+      "fingerprint": "da46c8c52e95378fb00a807535bec4fcb561251e21a8c01fc622bd76fdc821cc",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/contract_registry.py",
+      "code": "SIM102",
+      "scope": "validate_registry",
+      "fingerprint": "dddb89642fd0b90cbe1fa7fdd5222bf93a69c774b45ff8ce7bda7e34cf5f4775",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/contracts.py",
+      "code": "SIM114",
+      "scope": "_normalize_gap_target",
+      "fingerprint": "aa15591cb203f60b1c240d0338e57fa498517cb12a0fb48e82353a0d92507f88",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/cost.py",
+      "code": "RUF023",
+      "scope": "PriceEntry",
+      "fingerprint": "3517588d9572958fb5dd3e67a3f5ec2ea87899b79e4c072b3f5bd84ab9ff1897",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/cost.py",
+      "code": "RUF023",
+      "scope": "PriceTable",
+      "fingerprint": "2c298ea4a42e16bda2a9a5535a6f2a202dcb206f7f648b68e00785658bc8a573",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/cost.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c4496cd6b3f0d6c5978ed9e6d7a8e6afcedc5845cf5c1ab6ba5c47c4c1e47fa9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.batch_task",
+      "fingerprint": "0412b0853ad1966208aeaa3e3c2554c42d8523058afd598e2b9c368b95b282e4",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.finalized_batch",
+      "fingerprint": "3277e220d6d9adb8649b8dcb04280b3e895c1f224c55558f8d7522eda9cd4027",
+      "count": 2
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.finalized_batch",
+      "fingerprint": "3eb835f7d9b62d51774af56b2c66ed4e24119331df7c65081003b3425a3276cc",
+      "count": 2
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.finalized_batch",
+      "fingerprint": "6fd9f8661a52a12ee556ca600d63bb1eb2da8e71d0143da64e238a3145fb85f0",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.finalized_batch",
+      "fingerprint": "9e73e7951a9b7bfe813d0a8acee2305becb934fea2e576642b489b130679edc9",
+      "count": 2
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.finalized_batch",
+      "fingerprint": "d164b27913d70ee558d0e8d749b3974c76b54f9e39599a4633e594d47a18e76f",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.finalized_batch",
+      "fingerprint": "f8259ff1307cda8ee464872d3e1899cc58b3f9368126796dc9e704235c2e0617",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.skip_unit",
+      "fingerprint": "1eba92d8aa2a22f22dc0070bb719637267822c06a586e1a3c13b4194fb4b05e8",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.skip_unit",
+      "fingerprint": "3b591233a9c24ded41d536b67c5accdb76f0b291072fd237d45fdb70e26a95ec",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "B023",
+      "scope": "prepare_plan_tasks.skip_unit",
+      "fingerprint": "81cba362bdcca69d048d3d00e5bc0b0d89310104668654aa4c8055c248c7b840",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "C420",
+      "scope": "_coverage_note_observation",
+      "fingerprint": "e02bd6066cca99e1aeef415f5ad3f12577c8ffa7b08610584a608632e0cf4aae",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "C420",
+      "scope": "_required_output_quarantine_observation",
+      "fingerprint": "d7a84491265550f1232b389533c662e2960fb35d2be4da41a71107f828450f0f",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF005",
+      "scope": "prepare_plan_tasks",
+      "fingerprint": "832dd246e9eec59865fd1bfede25427bd929200b3f0909d7f8dc62d604c27fbf",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF005",
+      "scope": "prepare_plan_tasks",
+      "fingerprint": "fd6bdcf097c60155da606539342eb6b12d9c73ddfa13391f9fb0f13fb0192274",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF012",
+      "scope": "EnginePreflightError",
+      "fingerprint": "672b8ba478cb3e322043cf8c68f391ac959f0dc4066d7a2bc02d3bfcd8b6ecf2",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF012",
+      "scope": "EnginePreflightError",
+      "fingerprint": "92dfeeb696ae12adc0279a25e079921f2164ae1da9338e270c961dab2386d25a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF012",
+      "scope": "EnginePreflightError",
+      "fingerprint": "9311f716c7297ea4fdf61e129d0487523658d5562e8740ae10aa79b43819263e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF012",
+      "scope": "EnginePreflightError",
+      "fingerprint": "b20e8ed9e34b641a621da66d129877b1874cc2d29ab159b0cd744caf7ea26f90",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF012",
+      "scope": "EnginePreflightError",
+      "fingerprint": "f4937eb3fe8513f74cae69a5baf0fbf6df1baafe59a3ecfa20be220fdc70164e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "1a84315260f0453412115e85491c570e49c2af549b8ff8ed5a1fa53a1561e269",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "SIM102",
+      "scope": "validate_limits",
+      "fingerprint": "47b808859df333e96b44e9f6ef20720b092adca9b6baef95e8574ff46dad279d",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "SIM105",
+      "scope": "_atomic_write",
+      "fingerprint": "c6989e2bab5cc571ae5264737d8091b8197b3c0a6555af1639291cce2bcb3981",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "SIM114",
+      "scope": "EnginePreflightError.__init__",
+      "fingerprint": "7205cbe1b9bb55cdb38735189d14d6b898e16ebc3f5d2a3688c376af5016121d",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/engine.py",
+      "code": "UP017",
+      "scope": "_now",
+      "fingerprint": "0744136ec65369384ad2329f378a8e7f81694e4fc46b969efd5d00ac655f1427",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/evidence.py",
+      "code": "SIM102",
+      "scope": "retrieve_context_gap",
+      "fingerprint": "7195bc3bdd7044a6c09b1ff647380b9776fd7330c736867987b013f7ca41be38",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/evidence.py",
+      "code": "UP017",
+      "scope": "retrieve_context_gap",
+      "fingerprint": "f2e86b2fc5a4beaa22c670edfa43b84baa8a461a4bbf76f8f73d7e9d7d2744be",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/external_effect_observer.py",
+      "code": "C420",
+      "scope": "observe_cli",
+      "fingerprint": "ba5869bae3b91b893aa8e80203900a99f2662eade24e59e2e598e70974267e1a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/external_effect_observer.py",
+      "code": "SIM105",
+      "scope": "_terminate_group",
+      "fingerprint": "3f457529d0d34aebbd360927d1e27f061ee626df944d5790dc5ade437fa3503e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/external_effect_observer.py",
+      "code": "SIM105",
+      "scope": "observe_cli",
+      "fingerprint": "4f128307ec46c5c2f57bf6bef343efcfbd998651b26532f3e928b4119f2c3d02",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/external_effect_observer.py",
+      "code": "SIM105",
+      "scope": "observe_cli",
+      "fingerprint": "9eea891f303aad0166577cfae5665e8e060600627f57c6a8d7ad25de20e965cb",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/external_effect_observer.py",
+      "code": "SIM105",
+      "scope": "observe_cli",
+      "fingerprint": "ca1312cc6c856edacc3cce2151667cc9d38e174dcb226bca4f1c668c146919fd",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "efb1fa0d9d8e4427c4bf74e1a7c8e8c2190d71979470e92cabb212ba6ce405c9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_actions_credentials.py",
+      "code": "UP017",
+      "scope": "GitHubActionsTokenCredentialProvider.__init__",
+      "fingerprint": "e34f5c7dccf2964db6bbd22d390177321e85295d3b1b43c7a05a3e5e3d8341be",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_actions_credentials.py",
+      "code": "UP017",
+      "scope": "GitHubActionsTokenCredentialProvider.credential_for",
+      "fingerprint": "018f7c50d7acd7c14a22f61dc262456b4d04b5a4ceb8b726adc77ef74471037a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_actions_credentials.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c664348d4953071fe7a30a1e8c067399409ea83abf34021f987c51ccde1276c9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_canary.py",
+      "code": "C416",
+      "scope": "CanaryReceipt.to_dict",
+      "fingerprint": "9d428b6d2e23cffa8949df754b7870579c04e14200a7994126158f12d183c26a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_canary.py",
+      "code": "UP017",
+      "scope": "verify_github_app_identity_canary",
+      "fingerprint": "79ac99c01c9447f8ece91ce6bb94b0d35cf0daca6385fd79fbd975df8f80c6c6",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_canary.py",
+      "code": "UP017",
+      "scope": "verify_github_app_identity_canary",
+      "fingerprint": "bd567aead1a9e28a274ca90740d8a93d353b33595b0a08b3252df12609bd0823",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_canary.py",
+      "code": "UP017",
+      "scope": "verify_github_app_identity_canary",
+      "fingerprint": "c04a20392e02292444e052bf54c241a3bfd9a52b0b3057cedfa56aca54db0287",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_canary.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "efb1fa0d9d8e4427c4bf74e1a7c8e8c2190d71979470e92cabb212ba6ce405c9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_credentials.py",
+      "code": "UP017",
+      "scope": "GitHubAppPublisherCredentialProvider.__init__",
+      "fingerprint": "7bde7e8d4308280fe0ad67397d64766dcf38d04205e5af7ba5331f94e8b58685",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_credentials.py",
+      "code": "UP017",
+      "scope": "GitHubAppPublisherCredentialProvider.credential_for",
+      "fingerprint": "2918419845bdcf3c98bc8dc9abf8fb5885ad4c07297d49b854ba77d078c40036",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_credentials.py",
+      "code": "UP017",
+      "scope": "GitHubAppPublisherCredentialProvider.credential_for",
+      "fingerprint": "d55170c44b7377b0155b7ae4c484dd19f536a1a8d05c0cf3e81dccd1eed14bd0",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_credentials.py",
+      "code": "UP017",
+      "scope": "GitHubAppPublisherCredentialProvider.credential_for",
+      "fingerprint": "e3e16b283d78142fb75a7915f729f3f33ceee2b1e9c272a502adee2befccf5d9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/github_app_credentials.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c664348d4953071fe7a30a1e8c067399409ea83abf34021f987c51ccde1276c9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/metrics.py",
+      "code": "C420",
+      "scope": "aggregate_run_summaries",
+      "fingerprint": "37b106510dc5b82adfc0f9c884d3cf52c177bc075597f990fe0fb83c09178e65",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/metrics.py",
+      "code": "UP017",
+      "scope": "aggregate_run_summaries",
+      "fingerprint": "98f23d48ca788747ab415e814df4122cd04da2a017088416d43d292b4d301e0a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/metrics.py",
+      "code": "UP017",
+      "scope": "parse_timestamp",
+      "fingerprint": "be3c75e40fdb08a48cad8962dea94631c591bb02b296ef095723d476a781f396",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/metrics.py",
+      "code": "UP017",
+      "scope": "parse_timestamp",
+      "fingerprint": "cb9b3004fa5a0e6e5b169b11cf24c824bf96e3bd76933954961e369fec520717",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/metrics.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "e8e6cfecc0366257971698f4dafb367bda0341e7e33c42fd18fc3015f0c4267b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/planner.py",
+      "code": "RUF034",
+      "scope": "plan_review",
+      "fingerprint": "ec1b932e38d6b263c41e7cc667e8054eba53a9fc3d1f88f76c322ac49786ae04",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/protected_publication_runtime.py",
+      "code": "SIM105",
+      "scope": "run_protected_publication",
+      "fingerprint": "170ceb7f7e53ef0be1d0407886b9c42aaf5885ce65382d926e8a91d072662e59",
+      "count": 4
+    },
+    {
+      "path": "src/pr_review_harness/protected_publication_runtime.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "c664348d4953071fe7a30a1e8c067399409ea83abf34021f987c51ccde1276c9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/protected_publication_runtime.py",
+      "code": "UP037",
+      "scope": "ProtectedPublicationPolicy.parse",
+      "fingerprint": "c63b685b15b5dacf476658db5932e8dce49e5e85c769da621a736f7c7f87a27d",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/providers.py",
+      "code": "B905",
+      "scope": "_validate_specialist_input_metadata",
+      "fingerprint": "9deed7290997255d4e5a401655c047dbc6e91b142825a558bb3ceec04c15b75b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/providers.py",
+      "code": "RUF021",
+      "scope": "DecisionProvider.__init__",
+      "fingerprint": "722b3e348cf08ab0294de4b9d2ebe1e02f9751a42d4fdc51f3eaf23e1538f8ff",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/providers.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "a229811cc9fe0337c52ea3a5a3f477294043a506b7c45447c5aa71eb4cbcbd97",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/publication_receipts.py",
+      "code": "UP017",
+      "scope": "ReceiptAcknowledgement.is_unexpired",
+      "fingerprint": "5f6da7a94ce9d695e31cb079f033352605c2185d0739eeb9dcb3f88dbf653e61",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/publication_receipts.py",
+      "code": "UP017",
+      "scope": "ReceiptAcknowledgement.is_unexpired",
+      "fingerprint": "b4cfcd0679439df36c0dd467859b0e9642a870792564b4baa58e5528a5856a1b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/publication_receipts.py",
+      "code": "UP017",
+      "scope": "_parse_utc_timestamp",
+      "fingerprint": "275b113e43926cc2888110bb98fbc4553d009fb03c01b0762a821ce1e37bd564",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/publication_receipts.py",
+      "code": "UP017",
+      "scope": "_parse_utc_timestamp",
+      "fingerprint": "cb9b3004fa5a0e6e5b169b11cf24c824bf96e3bd76933954961e369fec520717",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/publisher.py",
+      "code": "SIM102",
+      "scope": "_validate_waiver_integrity",
+      "fingerprint": "233634e0baf729afe7ac829ff2779c11e65c90a733066e74eccf00db39a9fb4b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/publisher.py",
+      "code": "SIM105",
+      "scope": "publish_review",
+      "fingerprint": "8a1980dd09ae711f1e952d9ced4c97489c51be91c8cf6872db86e1e6e7d4c64f",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/publisher.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "efb1fa0d9d8e4427c4bf74e1a7c8e8c2190d71979470e92cabb212ba6ce405c9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/reconcile.py",
+      "code": "RUF021",
+      "scope": "consolidate_findings",
+      "fingerprint": "f277be1399318531c5f675108fb71655f04bf003770a94d2faabdb624243340b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/retrieval_plan.py",
+      "code": "C408",
+      "scope": "build_retrieval_plan",
+      "fingerprint": "b7c08b5eea5fc21b5cb16e7491cc15066434497df41fb07a71a324160cf6ebd7",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/retrieval_plan.py",
+      "code": "RUF005",
+      "scope": "_anchor_key",
+      "fingerprint": "6b6929fc585139400b826366ceb2b20d46bc9b121c60eb2e0c81197fecfe4736",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "assess_claims",
+      "fingerprint": "10a1a72f356a6a8ec8aca5f6d1f7f730f6e2ddf5c6c897c81c47ad4d04796857",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "assess_claims",
+      "fingerprint": "45bc6619c6822d34e5daa3ee76619c899c7a834a52b4252ff59d6bc14ec3aec7",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "assess_claims",
+      "fingerprint": "b905d126c506e70e1f0dedc8e2fe7f1d8d6854a3e7a257e77653980b23324dc1",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "bind_run_state",
+      "fingerprint": "1f7a0eedbc80553f9b5f120782d856b87b51b1bd7d350334f22fc2049067dcc3",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "bind_run_state",
+      "fingerprint": "50e2b8ced73ae7f1d8de1a0425210a33ee129dbc20c8bb0586b4d2977302d27e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "bind_run_state",
+      "fingerprint": "b2954e5006761a577b27d208f0f001f5b2a7dd1961ac04163feff9fab8236e46",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "bind_run_state",
+      "fingerprint": "c69b694991e31f8d5250dd1cb0fdc5fa37ab3af3dc925b9cf0ab0a84130334eb",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "bind_run_state",
+      "fingerprint": "cbcc3c01488be8971b0f3e733df6a4981b36d74666a0acd6809730d1439e8de8",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "bind_run_state",
+      "fingerprint": "eb621d8c3e1e25638e76cd143f25747eb55ded477565fa18c11d90064410756d",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "build_and_persist_result",
+      "fingerprint": "f9b557a21124a81af523bebdc71d7edf858bc811833be72d4938dd30c0c6270e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "dispatch_tasks",
+      "fingerprint": "46086d5dd8eb8a860e22122ac0c9b15b8227660c7a6eca55a7346531299bb0fc",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "dispatch_tasks",
+      "fingerprint": "8646c764f998619aff737dc53648f0f4490cfa871ee90af36619e79b5b137854",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "dispatch_tasks",
+      "fingerprint": "8a29a799b77a2edd336217fb6b5d05b54faf1a8af81605e96d73dfd64ce9366c",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "dispatch_tasks",
+      "fingerprint": "cf3dfc6a55b47ad17839bda2ebee51f9b418a2d1bd1f745827600a9bd287fccc",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "dispatch_tasks",
+      "fingerprint": "ecc52d3028b2b803681611648440c92234e27d617215e6ca38c45785f754f7c4",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_dispatch",
+      "fingerprint": "35339f22a1402717637fff51a65be7f8a4c55a53c4fd2a84d329d9fcc57cb819",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_dispatch",
+      "fingerprint": "480fac11c4adcc20cd81ab4248b44984994916865c2e6ae6ace245b3aef047b8",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_dispatch",
+      "fingerprint": "bc782312cb4cb30fb32d490fc9b3859d41fcf1a785a1098a92418ac66954c3e4",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_dispatch",
+      "fingerprint": "d962445afea76858075afb0ebfdd9d43daa70020c378793def2acfd515f9296e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_followups",
+      "fingerprint": "1d11c02bece2a67b9d1e9af5a3bc08945fe0e76c85517fa96a16cc7b9df91095",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_followups",
+      "fingerprint": "36630c5e66b5e6b625832ec6354f8589fd1754d0844322cf8391d6237d710e59",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_followups",
+      "fingerprint": "9ff0c0649c0f78420c8195d7fce06b1399eea1c66ee91ec7148c143a29ab64bf",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "prepare_followups",
+      "fingerprint": "f50ef609a7a7c3ef2214062ca5e4fe0c5c33e8d1785fb4c097277f627d0d0007",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "quote_monetary_budget",
+      "fingerprint": "66f722b61f8b864a03dec7be08577ee18650b065b260d1da37b2ce227971d882",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "0248f6fe430cd18c354734cdbecd931abf2cb435e7eba32fcfb555361722fe93",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "120ad898429e83720205e2a959f7cf146266f4742f1ed53dfb6ed3a9d21599a5",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "54f885fd6075e214c325ab2bf1ee344c3eca3d12f594369e04a618be9b55f8dc",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "8b9be7aaf2fda9e33d93e820ec1f3773225a64a0d8925ac8322b23e67f7718d2",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "9c165299801ed183316a7297d484d2b1f2e352e7149bc6b2f2b6d634aa9fe1f2",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "9ff0c0649c0f78420c8195d7fce06b1399eea1c66ee91ec7148c143a29ab64bf",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "aee63eaf22547458e2556e1d59b8d8d4ab7b27df65da2202e2beaa021aecd1f9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "bcd9243805ed146f684dc08289f4607a3470bab54a0e7fb02abc077645943b79",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "c0ff4b5c854984e6e73c9659252a88dbd18a1f739acf04724f95f41470fea722",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "ce9e07a114100c80cdc6fbec59aa7b929bef819a565155837bf4d37d740eb03a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "cee7e41c491c1c13d28ba6fa15e81685709c3febb83673fbd5c9bbbf462c84ae",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "e350b04bd71544247824600895a8128652c9b257710a15aab62ce04efaf8cd08",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "reduce_coverage",
+      "fingerprint": "f2f330508f4c6cd7cfd4ba32bc1e6f1ca1670e467cf22b6b3cb598df87cf8761",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "run_followups",
+      "fingerprint": "3f42a837c26632776d31e1b32f9b8a66301f5f003f7767e95e04235b7cb5d2fc",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "run_followups",
+      "fingerprint": "4c35b69afdc223c12b78a10c75fbde970915cca294b7213e3c7a6959a98ded00",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "run_followups",
+      "fingerprint": "52fa0eb129def5fa25575dbfdb423a180ee9c7124dd563f9ea44f7539c163edd",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "run_followups",
+      "fingerprint": "5b5858858a826686d8119cf85b75d0e117d0a302eed18614bf69e2bb50c9479b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B020",
+      "scope": "run_followups",
+      "fingerprint": "f4fc20ed2508149f3d899b20b14c41afff442a2192a2c156bc9127d9229e30e9",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B905",
+      "scope": "reduce_coverage",
+      "fingerprint": "2442ccb07f884ffc996d04e992aca5f0225cdbeadea2e9b3ba8dcb6fea61dd8e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "B905",
+      "scope": "reduce_coverage",
+      "fingerprint": "91a9180935ee58ca040109262ee5dd8ad9b8db448d45d3532f85beb0ba1d02df",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "C420",
+      "scope": "reduce_coverage",
+      "fingerprint": "e8482cee0a57fbcbf09c1c7556e0d1cddde85f65d3df750fb593792db4ec6ec1",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "assess_claims",
+      "fingerprint": "38b1bc73fcc41cf66d5b7cd5a2e5786d595f6b31e99d5afe55a242dc7e98befb",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "assess_claims",
+      "fingerprint": "ea87c42ac744f75a6c621ae265f134d3789e85e66a0a3dba8f1cc1c1d3827264",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "build_and_persist_result",
+      "fingerprint": "34cdc7ca9d7f7cae7bdb8f660d148f0ee095dd5b8a32284a37a0f922b14d9a46",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "build_and_persist_result",
+      "fingerprint": "e5345ff4c70e50921545c6024aac7dd7ebf704b1a8df847023bd6431ad5deed0",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "dispatch_tasks",
+      "fingerprint": "e3e04dbd4a5ddffc534c1fa034cb6919e078c6e57f20e69b8d30b0c4f692717f",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "finish_attempt_stage",
+      "fingerprint": "2cff0f4e66e5518975fdc5a6d33d6b45815146fd64a8aef8b36f30acaf64b27a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "run_followup_stage",
+      "fingerprint": "3c95406b5a1d0a6a349ed7c40739162bb10a630210eacb2a596a338491f6cce6",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "run_followups",
+      "fingerprint": "8493ee8269290d40fdb26013be164857857a840c0e6dc89074e2f734384c2897",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/review_stages.py",
+      "code": "SIM105",
+      "scope": "start_attempt_stage",
+      "fingerprint": "2975766a640eb67511e458e9c3e0f17357553257c650e2ff947443328e940a9e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B007",
+      "scope": "collect_snapshot",
+      "fingerprint": "51633dcf1f6537d33a403c13cf1d91014ed596119eea05b1f6c1d74f93ad5e0a",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B007",
+      "scope": "collect_snapshot",
+      "fingerprint": "82893de3187ffe8a53313efe8fa285a4ca41726a45db6cf75b72464f6fef1f59",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B007",
+      "scope": "collect_snapshot",
+      "fingerprint": "e33060541ce70592b2a6f7c9d5a2cc764de5d37e65b5338b1f45dbd20f220b8d",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "475594e712920af584fb2361a46d0240628fccca1941f9ff35452b78c8497207",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "505251002526bbb223905a82ea30fcef8be93fa7059350eaba66a21d63bec040",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "58540217dbcc3f8ec4f523ce731ed70be0cc33047599a905ec32a5f6403a5e10",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "589b0066e3c87ab3c71ba35b9aa3156c3a8b3ef16836a69d57222622e063c033",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "9c326b3f8cf3e3efcc0c3321508cf07b20041257475d07f705de6352239c6d08",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "c946346802ef63ec0dd25fe1812f18fd1cb365c4d62ebbd6e64dc412743fd6c2",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "d5983684cb1f58469a6378e51c558c53945d581523b701e142342c7f1736db4c",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "e589271df982e1830c2773eab030521b382d43f49e758016742ab47cdcaf4f65",
+      "count": 2
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_source_window",
+      "fingerprint": "eb561d2c814f432a3ac2607005e7b44372bfd5002ddb480d0e90c951f3e63b54",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_window_gap",
+      "fingerprint": "083568a0051c6e377d78f394f925023536279898e1a95c0456df239f68ab7193",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_window_gap",
+      "fingerprint": "0b7f10c8acaf44b263ac7757e2a709cffdfec5b6718602e5b22e41bc5d9bb56e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_window_gap",
+      "fingerprint": "10e9432b009e7bb53808818639c9ae3a2090aaed56b14061dfda237b1e615385",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_window_gap",
+      "fingerprint": "86358d7b3cea1d3047ad51d549f19a3b884789c9dc07eb5d632aa14af8ba5e18",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_window_gap",
+      "fingerprint": "996e051398774df298567b9cd8fb940d728d911d33050f008c66c728b84ea6fe",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.add_window_gap",
+      "fingerprint": "ae8c6375051249fdd91bb7728560a9e3dd15b9d155715a91c6d577643af21018",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B023",
+      "scope": "collect_snapshot.changed_intersections",
+      "fingerprint": "fcfe0d774b59745c0c14a85cc7103b306e18d189e3d084a82d63e176fe2c64a7",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B905",
+      "scope": "collect_snapshot",
+      "fingerprint": "61b6615f33e775f438acf17a4d178b001e5eabf89eec2f8578a983fd03e6d0b5",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "B905",
+      "scope": "collect_snapshot",
+      "fingerprint": "78de1c8524d83533d33f46fd7e8cb0596c99dda57e1043789362c650c885ceb7",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "SIM102",
+      "scope": "collect_snapshot",
+      "fingerprint": "115c9d84ad07cba3d8e71aef95eb95d08704acb1d8acb5d7dfbebb50a472aea1",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/snapshot.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "91cb75ce8339d51cfed2f9f0fbc742107a8a49aa842a30049f3d4fdc4886d7e6",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/source_audit.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "01586f103eba3dbbcb0ff6f7368319e676effcf36389618bd86d32aac75e1d9b",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/waiver.py",
+      "code": "SIM114",
+      "scope": "validate_waiver_targets",
+      "fingerprint": "1b31ac8c36f9e646f5a31047083e5aa0c18b06f77e6475d5787375247c2b5db0",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/waiver.py",
+      "code": "UP017",
+      "scope": "_now",
+      "fingerprint": "9a2e4369caee131afb9a6f3eab14bfd244e67c53b2a3416b06b4a161a56f7c8e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/waiver.py",
+      "code": "UP017",
+      "scope": "_now",
+      "fingerprint": "fd4bca5e7d2a6f4616bca643e5f2f8f1cddaf7177cf5982a2d60ca84b7f82b7e",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/waiver.py",
+      "code": "UP017",
+      "scope": "_parse_timestamp",
+      "fingerprint": "cb9b3004fa5a0e6e5b169b11cf24c824bf96e3bd76933954961e369fec520717",
+      "count": 1
+    },
+    {
+      "path": "src/pr_review_harness/waiver.py",
+      "code": "UP035",
+      "scope": "<module>",
+      "fingerprint": "ed323dd567438c3a47369c0b5549550514e2d833f8a4e6ca9f00bbf7f2d9312d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_acceptance.py",
+      "code": "RUF012",
+      "scope": "EmptyProvider",
+      "fingerprint": "2352c67ae63c94064879c7ec52f657e872d8ee362756063ac18f9a26db651d96",
+      "count": 1
+    },
+    {
+      "path": "tests/test_actions_workflow.py",
+      "code": "SIM114",
+      "scope": "_workflow_run_names",
+      "fingerprint": "f89c4deba09b342175780f32d61afac5b2546d5d645a5359b7cb07688060699c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_adversarial_gate_workflows.py",
+      "code": "SIM300",
+      "scope": "test_exact_adversarial_workflow_step_passes_and_checks_seeded_regression",
+      "fingerprint": "fe7be3b42fbac487bf84a46a83f2ede6775f48f84101d52703f25409b6bc6e05",
+      "count": 1
+    },
+    {
+      "path": "tests/test_adversarial_pairs.py",
+      "code": "RUF043",
+      "scope": "test_pair_reciprocity_rejects_broken_pairs_and_report_identity",
+      "fingerprint": "f94d17a70a74c2c886d05726af19fdd6cc07edec1460aaa5a385720ab7ad9b7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_adversarial_pairs.py",
+      "code": "RUF043",
+      "scope": "test_split_isolation_is_enforced_for_corpus_and_pair_manifest",
+      "fingerprint": "704066643a117789704bf87f9a29695066076e54c3372b109de551427254c5b7",
+      "count": 1
+    },
+    {
+      "path": "tests/test_canary_publish_review.py",
+      "code": "UP017",
+      "scope": "<module>",
+      "fingerprint": "9e5a7dcaf5248b662ced187221907b86e7cd6abe857c122b3d8b246989397889",
+      "count": 1
+    },
+    {
+      "path": "tests/test_checks.py",
+      "code": "RUF012",
+      "scope": "OneCallProvider",
+      "fingerprint": "63b539e15d28910f755b27ba5eef736a56b3a88e748c4a70edd84d88158f03a8",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_assessment.py",
+      "code": "C420",
+      "scope": "_envelope",
+      "fingerprint": "4705adf77647d7f9d9ea3564aa9d11324c07c3735c7a3c98765db2916983442c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_assessment.py",
+      "code": "C420",
+      "scope": "test_native_choice_distribution_accepts_a_top_probability_tie_but_not_a_lower_choice.call_lower_choice",
+      "fingerprint": "f0270fd0e77ade6cc945d24087b7139dcb11728002737caad3b2e575f9a25fe6",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_assessment.py",
+      "code": "SIM300",
+      "scope": "test_serialized_native_choice_request_binds_candidate_and_exact_evidence_refs",
+      "fingerprint": "951fcd3d2e2487c6ee3a8649d14a821d505fb1dece0a1953a08b64b97827b5cd",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_assessment.py",
+      "code": "SIM300",
+      "scope": "test_serialized_native_choice_request_binds_candidate_and_exact_evidence_refs",
+      "fingerprint": "ffd4b511432fb59c23ce3098c8d5c79cfd1d06d3bb34e7e418c20c176e6d8d4b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_engine.py",
+      "code": "C420",
+      "scope": "ClaimChoiceHandler.do_POST",
+      "fingerprint": "a3661f4e06153c0bfcc0cc011893b478e8fa37935aa7a9869d399d21fcf530f8",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_engine.py",
+      "code": "RUF012",
+      "scope": "ClaimChoiceHandler",
+      "fingerprint": "4d690803d3826cb39fc5f361895f70347244a330c60f97223da0de632964626d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_engine.py",
+      "code": "RUF012",
+      "scope": "FakeClaimAssessor",
+      "fingerprint": "354f08857b45a03b5213782177bb3e62f3ff768cf825e55ab733a06ec8ea7aee",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_engine.py",
+      "code": "RUF012",
+      "scope": "LocalAdvisory",
+      "fingerprint": "23d3aa8c3109b67f4e590fc60333d3808983f5d7f53093832bc1fdaedbe3e844",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_engine.py",
+      "code": "RUF012",
+      "scope": "PrimaryProvider",
+      "fingerprint": "e8023bba6731ccd1d0599050a05beaba8a618df597d398bbee5e9e1b6776ce27",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_engine.py",
+      "code": "UP022",
+      "scope": "_source_window_case.git",
+      "fingerprint": "23a67e348d51401c51acad848710aa754918fe6641c816cb5000989ee10b0087",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_screen.py",
+      "code": "RUF043",
+      "scope": "test_reconstructed_evidence_metadata_mismatch_is_rejected",
+      "fingerprint": "98fcf932ac7c670e490d5230e38da75a381f992354c51bae5dede15dce723d7d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_screen.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "4f5892df5c4e7f7640374f83725a34d456e59b3c1e09eda9539c62a4ec3ecba7",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "RUF012",
+      "scope": "FakeTypeSafeHandler",
+      "fingerprint": "1f1b11c6b11c78a8e3ba47b4c6ffb99a737da425624e7b931b265674ee0d490b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "RUF012",
+      "scope": "RedirectSinkHandler",
+      "fingerprint": "1f1b11c6b11c78a8e3ba47b4c6ffb99a737da425624e7b931b265674ee0d490b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "SIM117",
+      "scope": "test_absolute_deadline_stops_a_slow_stream",
+      "fingerprint": "c8abaac609397159a5372eb2e88efe9027f0abd8fd4f645a42b21a498711ea44",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "SIM117",
+      "scope": "test_connection_unavailable_has_stable_safe_failure",
+      "fingerprint": "8061de584dcb52854120186395ed5f61dc6524df098ffc1127fff01f13c24d61",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "SIM117",
+      "scope": "test_credential_echo_returns_only_hash_and_safe_error_code",
+      "fingerprint": "06c46567b0efd1988f4f7b0b87e6cd23ddc283cfe899b221169c721fb7decf90",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "SIM117",
+      "scope": "test_estimator_reports_actual_oversize_relative_to_caller_cap_but_dispatch_rejects",
+      "fingerprint": "35015307469d53541bff7f775f15fee775a4f92632cd3dad359340aeef24e177",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "SIM117",
+      "scope": "test_missing_credential_fails_before_network_dispatch",
+      "fingerprint": "0189ba1df0187d2b744b0f9072e7444c79f058dbec781543716182825b80e609",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "SIM117",
+      "scope": "test_oversized_response_is_bounded_and_fails",
+      "fingerprint": "fd81dc58981ec82647a9ff3e5f9a570d058a2cb99c83b072d6c8b17ab4594d27",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_transport.py",
+      "code": "SIM117",
+      "scope": "test_redirect_is_not_followed_and_credential_is_not_sent_to_sink",
+      "fingerprint": "10bd6c2839d7bc080a05435c967725d33f03a5d72d1d919e3b52a49d75df4649",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_triage.py",
+      "code": "C420",
+      "scope": "_assessment",
+      "fingerprint": "3a7dce8fd153013721bbef187350f070f6d89675116d031d1bd87fe5cee1bc29",
+      "count": 1
+    },
+    {
+      "path": "tests/test_claim_triage.py",
+      "code": "RUF043",
+      "scope": "test_policy_object_cannot_be_forged_with_replace_or_mutable_field_aliases",
+      "fingerprint": "f3d35a8e02f9c1b8af0461251df898f2b7c3f9aa0e08c95653ba75fbcf4920cf",
+      "count": 1
+    },
+    {
+      "path": "tests/test_clean_review_control.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "22bae1fe8156af6c484dad61e80c14bdb56417ac56cceb9a3f8e87bba9369f40",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cli.py",
+      "code": "RUF012",
+      "scope": "_EventSnapshotReuseProvider",
+      "fingerprint": "60203b831248d92720eb8169d4d03cf44bc368b72c32d72ebce405581c6ffcbd",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cli.py",
+      "code": "RUF012",
+      "scope": "_InertContextProvider",
+      "fingerprint": "7aa50eb642f18794061f35aaaea602683dbb368b161cf321112308b6c8c7f60e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cli.py",
+      "code": "UP022",
+      "scope": "run_cli",
+      "fingerprint": "906925d01c3d3e42728f2359a73f7c44f8724512bc54c3b928c4191a164ec2d1",
+      "count": 1
+    },
+    {
+      "path": "tests/test_compatibility_pins.py",
+      "code": "SIM102",
+      "scope": "_module_marks_compatibility",
+      "fingerprint": "b885ff4e0a427759c09174fd12bd4fe65aa335a813435a076353a6babfb4881b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_compatibility_pins.py",
+      "code": "SIM102",
+      "scope": "_pins_called_by_tests",
+      "fingerprint": "74e169e1fec4db36810e695d897ea519de18b71bc7aa945bfe0581476a67d72c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_compatibility_pins.py",
+      "code": "SIM102",
+      "scope": "_value_pin_names_called",
+      "fingerprint": "e6b2d754de5675aa927e0f7001006f1146ad9d216779910c9bd69c016cbb5e34",
+      "count": 1
+    },
+    {
+      "path": "tests/test_completeness.py",
+      "code": "RUF012",
+      "scope": "_PartialStaticProvider",
+      "fingerprint": "51fbe522d2df1eed2a365ae739bed24686192e2ca931609354512f607fd44a3b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_completeness.py",
+      "code": "SIM102",
+      "scope": "test_every_provider_and_contract_error_code_is_classified",
+      "fingerprint": "141436f85a1a32f0902b2396f09b74a3db6ae01a149e3117fdba1ea23f9c60b3",
+      "count": 1
+    },
+    {
+      "path": "tests/test_configured_jev_injection_trial.py",
+      "code": "C420",
+      "scope": "test_configured_provider_rejects_nonclassifier_primitive_before_http",
+      "fingerprint": "b78090c974bd336beb1e889e28490ded7853031d99926367eda7dc00a1d90fe3",
+      "count": 1
+    },
+    {
+      "path": "tests/test_configured_jev_injection_trial.py",
+      "code": "RUF012",
+      "scope": "ChoiceHandler",
+      "fingerprint": "40dd94fb00216bc901d597bdc71494820b1122673dc70fa0928b288b0b71d5d3",
+      "count": 1
+    },
+    {
+      "path": "tests/test_configured_jev_injection_trial.py",
+      "code": "RUF012",
+      "scope": "ChoiceHandler",
+      "fingerprint": "fea2f535112256d2841f6f9701c001f2ccc6be5b6303258639290cf57f885991",
+      "count": 1
+    },
+    {
+      "path": "tests/test_context_selection.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "399e0866f51a559e4e99e5bcb977f30dece91919a9092bbf9f9af7c560e08f2e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_context_selector.py",
+      "code": "RUF001",
+      "scope": "policy_snapshot",
+      "fingerprint": "7df727273a508b7c6a31de949a6441648980918758094ab8fac3e52d313eae7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_context_selector.py",
+      "code": "UP012",
+      "scope": "policy_snapshot",
+      "fingerprint": "acff4da240f5d2f4651c735fc801d9174cafb075c6f84d6e987a8725e5bf4750",
+      "count": 1
+    },
+    {
+      "path": "tests/test_context_selector.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "137e1aacba6623563b64505a7bb0d5514b1ac7029b7f537d25421188a1de655e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_contract_registry.py",
+      "code": "RUF012",
+      "scope": "DummyClaimAssessor",
+      "fingerprint": "3535a4ec07765a61fc999d69f105e02d015bd430b54d368f90d1d0c028e0510f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cost_model.py",
+      "code": "RUF012",
+      "scope": "CostProbeProvider",
+      "fingerprint": "7e6ac4c7b13f81f55c1dfa40ee3dabf6d8c894a321a8e6c366af899eb4507256",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cost_model.py",
+      "code": "RUF012",
+      "scope": "UnknownUsageProvider",
+      "fingerprint": "7e6ac4c7b13f81f55c1dfa40ee3dabf6d8c894a321a8e6c366af899eb4507256",
+      "count": 1
+    },
+    {
+      "path": "tests/test_coverage_github.py",
+      "code": "RUF043",
+      "scope": "test_injected_runner_failures_are_typed",
+      "fingerprint": "9d023d61af84d22d9dec74084275bbd48669c7cf52a9a4f4328ec1a2ba42b9dc",
+      "count": 1
+    },
+    {
+      "path": "tests/test_coverage_github.py",
+      "code": "RUF043",
+      "scope": "test_json_array_contract_rejects_non_array_payloads",
+      "fingerprint": "3cff154938074e9c7d4c1598c9c757f1298b8989f268c73d3d40811c32b9b053",
+      "count": 1
+    },
+    {
+      "path": "tests/test_coverage_github.py",
+      "code": "RUF043",
+      "scope": "test_json_object_contract_rejects_non_object_payloads",
+      "fingerprint": "2f2a0a809defdf573604f634a38326710f14dff80d54caa9217fc0b85138616e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_coverage_github.py",
+      "code": "RUF043",
+      "scope": "test_pull_request_rejects_invalid_revisions_and_repository_urls",
+      "fingerprint": "3fa15f6ff18bb825c3930dd059080c1494db88e41d969b6d20d99b1c951169a8",
+      "count": 1
+    },
+    {
+      "path": "tests/test_coverage_github.py",
+      "code": "RUF043",
+      "scope": "test_submit_review_rejects_out_of_scope_or_unbounded_payloads",
+      "fingerprint": "39e62f5a712ed148eedf836042beadd74fa9374bbf624ffb543d381421df593f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_coverage_publisher.py",
+      "code": "RUF012",
+      "scope": "test_stateless_persistence_refusals_never_post.BadWriter",
+      "fingerprint": "0e512d42fecb307d5cfd127d0380a05bb07d7b57a8483dbd8ed369586a954514",
+      "count": 1
+    },
+    {
+      "path": "tests/test_coverage_publisher.py",
+      "code": "RUF059",
+      "scope": "test_stateless_expired_stage_budget_never_posts",
+      "fingerprint": "7ba990a15014adc65acbd590ce6ffa07553252a8d7ffdbd7e0bf8b5575c873d5",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cross_model.py",
+      "code": "UP022",
+      "scope": "git",
+      "fingerprint": "030bbd31252bc7bb95ead4392fd40e5e82de5884ba0387eff1d89c396252c4cb",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cross_model.py",
+      "code": "UP022",
+      "scope": "test_cli_rejects_fifo_inputs_without_blocking",
+      "fingerprint": "42b38efd19df5a49e74e56012745f695d6b3621308b2044119269fed7363a36f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cross_model.py",
+      "code": "UP022",
+      "scope": "test_offline_cli_reports_corpus_hash_and_never_echoes_artifact_path",
+      "fingerprint": "e0780d07223fd3358e9f7eff4f5e7403ac45ba911ff54263bfdc5632fcf2b388",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cross_model_package.py",
+      "code": "RUF059",
+      "scope": "test_package_verifies_four_role_bytes_and_reports_only_advisory_presence",
+      "fingerprint": "4ec0ff9df83bc4732d57071e0ef377e1ee359fd84c456fbc816b5f1610f19cd1",
+      "count": 1
+    },
+    {
+      "path": "tests/test_cross_model_v2.py",
+      "code": "RUF059",
+      "scope": "test_empty_and_incomplete_evidence_keeps_denominators_and_never_becomes_success",
+      "fingerprint": "24c166a9311551abea79c39da631527c252764eb8c7f1b43ad35c06999d8ab30",
+      "count": 1
+    },
+    {
+      "path": "tests/test_current_selected_model_trial.py",
+      "code": "C420",
+      "scope": "test_current_run_receipt_rechecks_exact_plan_and_request_bindings",
+      "fingerprint": "862fbc15065d587feff55cff41c9410c6c81b89e407f4666db934226d94562d1",
+      "count": 1
+    },
+    {
+      "path": "tests/test_current_selected_model_trial.py",
+      "code": "C420",
+      "scope": "test_provider_free_current_preparation_binds_exact_requests_and_strips_inherited_credentials",
+      "fingerprint": "5bf210588534c1f6a627ff61d387c9250a313e98304c498d127a09310353b153",
+      "count": 1
+    },
+    {
+      "path": "tests/test_current_selected_model_trial.py",
+      "code": "C420",
+      "scope": "test_provider_free_current_preparation_rejects_exact_request_descriptor_drift",
+      "fingerprint": "5bf210588534c1f6a627ff61d387c9250a313e98304c498d127a09310353b153",
+      "count": 1
+    },
+    {
+      "path": "tests/test_current_source_capture.py",
+      "code": "B007",
+      "scope": "_prepared",
+      "fingerprint": "b0e0a0c8c1062bbf77c108bd5eca4a1af8aac12bdb83a796314b585de9b057e7",
+      "count": 1
+    },
+    {
+      "path": "tests/test_direct_pilot_workflow.py",
+      "code": "SIM117",
+      "scope": "test_resolution_is_read_only_fixed_target_and_rejects_bad_numbers_before_api",
+      "fingerprint": "97e3353e841e4a3ea145825b8ee51f84a709795814c894c1dde4c20cdeb23b91",
+      "count": 1
+    },
+    {
+      "path": "tests/test_direct_pilot_workflow.py",
+      "code": "SIM117",
+      "scope": "test_resolver_rejects_untrusted_repo_ref_or_event_before_api_or_output",
+      "fingerprint": "57d3522d16c6f313d5c955c06daf3a4e1c0a1d734286af0dbcfa3f18efb0f3b6",
+      "count": 1
+    },
+    {
+      "path": "tests/test_engine.py",
+      "code": "RUF012",
+      "scope": "Advisory",
+      "fingerprint": "a9b28d946f4947a85b5a0d0711cccdfba4e5c9a514dce859e3e97aced76b3ca9",
+      "count": 1
+    },
+    {
+      "path": "tests/test_engine.py",
+      "code": "RUF012",
+      "scope": "EmptyProvider",
+      "fingerprint": "3aded68f2e1e4de9a311e69864b6dfd22e4a3ee15c1878b9a46e16d39794062d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_engine.py",
+      "code": "RUF012",
+      "scope": "OfflineNativeNotesOpenAIProvider",
+      "fingerprint": "3df443a1e126018188baee485540be58960b690d959379316c737709da1f880a",
+      "count": 1
+    },
+    {
+      "path": "tests/test_engine.py",
+      "code": "RUF012",
+      "scope": "PinnedCaptureProbeProvider",
+      "fingerprint": "99a20d40d70cd656b00cc08a680657b10f969b4e91348315ccf11a66c21fe9ff",
+      "count": 1
+    },
+    {
+      "path": "tests/test_engine.py",
+      "code": "RUF012",
+      "scope": "test_private_capture_pins_preflight_real_plan_and_reject_missing_extra_or_changed_requests.PinProvider",
+      "fingerprint": "907cba9eb8367654031c490f68ab8b57092aabd6ef0d31aeb2e1fff88c943bb6",
+      "count": 1
+    },
+    {
+      "path": "tests/test_engine.py",
+      "code": "UP022",
+      "scope": "test_collector_to_engine_serializes_owned_windows_and_required_context.git",
+      "fingerprint": "fc0f3434a9e0fd8a107bd5bec8df597c30eddd2fe9c201b5574097308c5525a2",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "code": "RUF059",
+      "scope": "test_byte_cap_ending_inside_valid_utf8_codepoint_does_not_publish_a_prefix",
+      "fingerprint": "77aa47c57f10c7f86389bb91b184fa639238d2433af205bd549d8f79499e3c06",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "code": "RUF059",
+      "scope": "test_byte_cap_ending_inside_valid_utf8_codepoint_does_not_publish_a_prefix",
+      "fingerprint": "dc092e538f96a182f826b87c3e71a6d9e5eadf7ae9776e73471638fc611541dc",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "code": "RUF059",
+      "scope": "test_invalid_utf8_context_fails_closed",
+      "fingerprint": "77aa47c57f10c7f86389bb91b184fa639238d2433af205bd549d8f79499e3c06",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "code": "RUF059",
+      "scope": "test_invalid_utf8_context_fails_closed",
+      "fingerprint": "dc092e538f96a182f826b87c3e71a6d9e5eadf7ae9776e73471638fc611541dc",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "code": "UP012",
+      "scope": "test_byte_cap_ending_inside_valid_utf8_codepoint_does_not_publish_a_prefix",
+      "fingerprint": "854f1a3a0cb93693f075c62be4c6562b9ed1514eb0c197b99a397d7c5ef36d9e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "code": "UP017",
+      "scope": "test_oversized_retrieval_metadata_fails_closed_without_a_prefix.FrozenDatetime.now",
+      "fingerprint": "35a7a84cca7e5038df798eb788eacd2f916d193240e69108dd4a917756f4acb1",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "code": "UP017",
+      "scope": "test_symbol_target_returns_a_line_anchored_window_past_the_prefix_cap.FrozenDatetime.now",
+      "fingerprint": "a1e5d35311752507b388a45d098bbc7a2b0d81b945c06752266648e7700994a6",
+      "count": 1
+    },
+    {
+      "path": "tests/test_exception_audit.py",
+      "code": "RUF012",
+      "scope": "_ConfiguredAssessor",
+      "fingerprint": "354f08857b45a03b5213782177bb3e62f3ff768cf825e55ab733a06ec8ea7aee",
+      "count": 1
+    },
+    {
+      "path": "tests/test_exception_audit.py",
+      "code": "RUF012",
+      "scope": "_ConfiguredAssessor",
+      "fingerprint": "d374d7e06f7636997991ba3073127eb8e331b8b313144ae85cd3d57f53349094",
+      "count": 1
+    },
+    {
+      "path": "tests/test_exception_audit.py",
+      "code": "RUF012",
+      "scope": "_DifferentConfigurationAssessor",
+      "fingerprint": "ad9d7781e567bbd971e978b687987470a434823443ec1c04715cc3fb3887e3c0",
+      "count": 1
+    },
+    {
+      "path": "tests/test_exception_audit.py",
+      "code": "RUF012",
+      "scope": "_NonCanonicalConfigurationAssessor",
+      "fingerprint": "85ebe47e65c182a5ce9ad9be2bdcd506121f55a225d77dadcf99ac1c22c7bc8d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_exception_audit.py",
+      "code": "RUF012",
+      "scope": "_OversizedConfigurationAssessor",
+      "fingerprint": "ac78006a2c97f68a6a73fad5d506ca5637133818f1fc1b83e875d16d068c4e6e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_external_effect_observer.py",
+      "code": "C420",
+      "scope": "test_full_review_smoke_requires_typed_complete_normal_path",
+      "fingerprint": "c36a0f3385fbdd3724f5fa0a54175b1aa9c6d7d3a7113421e6b60a8eef403662",
+      "count": 1
+    },
+    {
+      "path": "tests/test_external_effect_observer.py",
+      "code": "RUF005",
+      "scope": "_completed_aggregate_projection",
+      "fingerprint": "712d336d2ac348e71cde0c6971d537bbffc4b15f572d196a4257a441c87e0f5e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_external_effect_observer.py",
+      "code": "RUF100",
+      "scope": "_InjectionRehearsalProvider.__init__.Handler.do_POST",
+      "fingerprint": "36495ce959900eba22d736bed924ad02e2208d64f70ddbc6bdcfc662b15c954f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_github_actions_credentials.py",
+      "code": "UP017",
+      "scope": "<module>",
+      "fingerprint": "66a93c808724a987cc6c6f19e12d46a5aaa41e7d2575618017952f34f26bf86f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_github_app_canary.py",
+      "code": "UP017",
+      "scope": "<module>",
+      "fingerprint": "179fc162abd25822a2e988a747136b23dac2959531cbd05a677e0bc54db55a1e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_github_app_canary.py",
+      "code": "UP017",
+      "scope": "utc_string",
+      "fingerprint": "2d60a39b2aa32c4b1aa59d0d0d0e499f7cac386392ea46c5659ed59d5d64e1eb",
+      "count": 1
+    },
+    {
+      "path": "tests/test_github_app_credentials.py",
+      "code": "B023",
+      "scope": "test_redirect_invalid_json_and_transport_exception_are_generic_and_single_attempt.mutate",
+      "fingerprint": "952adad18176c9ada8d309db287780b834eb6f93c789eb4e6dda4d9cc39dcd88",
+      "count": 1
+    },
+    {
+      "path": "tests/test_github_app_credentials.py",
+      "code": "B023",
+      "scope": "test_redirect_invalid_json_and_transport_exception_are_generic_and_single_attempt.mutate",
+      "fingerprint": "d60f4caa7204b36ab8a8ff966ff24261e8b3bd70c38dd9283bdb3e0a28994ceb",
+      "count": 1
+    },
+    {
+      "path": "tests/test_github_app_credentials.py",
+      "code": "UP017",
+      "scope": "<module>",
+      "fingerprint": "64713584a0ac38c863838c291d4fc62dea239e0ef0c02f660b151ae73a52bb49",
+      "count": 1
+    },
+    {
+      "path": "tests/test_github_app_credentials.py",
+      "code": "UP017",
+      "scope": "utc_string",
+      "fingerprint": "2d60a39b2aa32c4b1aa59d0d0d0e499f7cac386392ea46c5659ed59d5d64e1eb",
+      "count": 1
+    },
+    {
+      "path": "tests/test_historical_functional_review.py",
+      "code": "RUF059",
+      "scope": "test_v6_first_prepare_binds_requests_to_trusted_planned_specialist_scopes",
+      "fingerprint": "a9d9d44f7b1c1a54f8e84b04dc0ec9a5bc8320ad00080d2f861ee206ef00d1dd",
+      "count": 1
+    },
+    {
+      "path": "tests/test_historical_functional_review.py",
+      "code": "SIM300",
+      "scope": "test_v2_prepare_observation_descriptors_match_committed_packet",
+      "fingerprint": "8dff7b69079e3a1badd3799af62e9a457c254005f6802bd6751c22b242a7d2d0",
+      "count": 1
+    },
+    {
+      "path": "tests/test_historical_functional_review.py",
+      "code": "SIM300",
+      "scope": "test_v3_prepare_observation_descriptors_match_committed_packet",
+      "fingerprint": "f85d7932dcf4307df241928a317d26daa7acf0f5e4f28684ca1fd10105b3f5c5",
+      "count": 1
+    },
+    {
+      "path": "tests/test_historical_functional_review.py",
+      "code": "SIM300",
+      "scope": "test_v4_prepare_observation_descriptors_match_committed_packet",
+      "fingerprint": "6e345719cb7b58d26e64799b6bc7e978743cd95a1224cbfc941d0bb9ffbac3c5",
+      "count": 1
+    },
+    {
+      "path": "tests/test_historical_functional_review.py",
+      "code": "SIM300",
+      "scope": "test_v5_prepare_observation_descriptors_match_committed_packet",
+      "fingerprint": "4055b7f2c6491dc1a9ed8c51747063304bce7c337ed65eed367c4ecd124191b7",
+      "count": 1
+    },
+    {
+      "path": "tests/test_injection_quality_regressions.py",
+      "code": "B007",
+      "scope": "test_counterfactuals_are_same_static_behavior_except_for_auth_change_and_comment",
+      "fingerprint": "1ed1323f96f2dfc10e070a16ceaa4baeec337ab22758ef38919cb9fd3fb8516d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_injection_quality_regressions.py",
+      "code": "RUF012",
+      "scope": "StaticEvidenceProvider",
+      "fingerprint": "152f34d8830e8c0a1483854f18e3649a792ea14658afc2a4afb5ba1feaec4db3",
+      "count": 1
+    },
+    {
+      "path": "tests/test_injection_quality_regressions.py",
+      "code": "RUF012",
+      "scope": "SyntheticSpecialistControlProvider",
+      "fingerprint": "1555ef1ac052d9ed55b5cef2a52c2b508246980a1d4e92d04bfdde657a9f9713",
+      "count": 1
+    },
+    {
+      "path": "tests/test_injection_trials.py",
+      "code": "RUF005",
+      "scope": "InjectionTrialTests.test_v3_profile_rejects_missing_expanded_or_repeated_selection_before_preparing",
+      "fingerprint": "c84bb06db07ce40a75993eef0cc21db92fb2cd111466c23d72552e7f65674a07",
+      "count": 1
+    },
+    {
+      "path": "tests/test_injection_trials.py",
+      "code": "RUF012",
+      "scope": "InjectionTrialTests.test_detector_requires_dedicated_contract_and_is_advisory_only.FakeInjectionChoice",
+      "fingerprint": "f8e330809c6ecfab2d420d5b27484ac5b3a9248234f2fad1a129550d60e12979",
+      "count": 1
+    },
+    {
+      "path": "tests/test_injection_trials.py",
+      "code": "RUF012",
+      "scope": "InjectionTrialTests.test_fake_cli_trial_export_keeps_control_detector_not_run_and_recovers_offline.NeverCallDetector",
+      "fingerprint": "f8e330809c6ecfab2d420d5b27484ac5b3a9248234f2fad1a129550d60e12979",
+      "count": 1
+    },
+    {
+      "path": "tests/test_injection_trials.py",
+      "code": "SIM117",
+      "scope": "InjectionTrialTests.test_matrix_tool_cache_must_match_explicit_repository_root",
+      "fingerprint": "bb3718f1024e3e8ca5c083d6cd0da46306f7790b34c3e64cec2e10309afbcabe",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_audit_runner.py",
+      "code": "C420",
+      "scope": "test_completed_sanitized_receipt_cannot_include_unconfirmed_role_call",
+      "fingerprint": "36ca439c90bceba6ee6ce6bb44571ba898f9612558d2398708e8e88003c5bdc4",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_audit_runner.py",
+      "code": "C420",
+      "scope": "test_sanitizer_rejects_contradictory_terminal_call_and_candidate_accounting",
+      "fingerprint": "55313e0e9efc09d6d8f3301c7533533a9ed298e25428d7f7dce1e849c37d8159",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_audit_runner.py",
+      "code": "C420",
+      "scope": "test_sanitizer_rejects_untrusted_case_text_and_accepts_zero_candidate_receipt",
+      "fingerprint": "ac35a2b6ee87cc0da6d79cec549624fe339ccf677e9d47f594c17d0fa9cca35f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_live_writer_receipt.py",
+      "code": "RUF059",
+      "scope": "test_pr457_sanitizer_accepts_its_six_call_closed_plan",
+      "fingerprint": "f74621b6a9356c758e631248d705401fa19f3b9ae5b829a519c4b3b950763380",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_live_writer_receipt.py",
+      "code": "RUF059",
+      "scope": "test_sanitizer_rejects_tampered_or_incomplete_capture",
+      "fingerprint": "8620834c9703478d932efec3924b0b3cf0665a02d640ec8350a15ca297da7861",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_live_writer_receipt.py",
+      "code": "RUF059",
+      "scope": "test_sanitizer_rejects_tampered_or_incomplete_capture",
+      "fingerprint": "af5328155015ce7e2abc6978749be2f19aedfe17d03ea249570c792ec4972f6d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_package_receipt.py",
+      "code": "C420",
+      "scope": "_selection_fixture",
+      "fingerprint": "860a19d801fd1dc81da6677980dbcdac11c6a6b8f7137e3ef785e03421382a94",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_workflow.py",
+      "code": "C420",
+      "scope": "_receipt_fixture",
+      "fingerprint": "cf0937f1f3ea4e6ee8c550674ae0edcfad0665551b8dcfabd05474d441c412fc",
+      "count": 1
+    },
+    {
+      "path": "tests/test_model_only_shadow_workflow_status.py",
+      "code": "C420",
+      "scope": "test_trusted_projection_records_every_stage_when_outcomes_are_present",
+      "fingerprint": "0ca8eb6d41295a93aead0429e26ece4a41ec3a0621c59cef93057493f8a448fe",
+      "count": 1
+    },
+    {
+      "path": "tests/test_observability.py",
+      "code": "RUF012",
+      "scope": "_ObservedDecisionProvider",
+      "fingerprint": "1b18639935a2ae6e41577e848fed4785cd771876f43fdee2a0c4a8f4e9de0a9f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_observability.py",
+      "code": "RUF012",
+      "scope": "_ObservedProvider",
+      "fingerprint": "83242f27c63a8bf1ee7229f41400a6c87db9a40a7d7efdc1f892c9a727fe68a9",
+      "count": 1
+    },
+    {
+      "path": "tests/test_pilot_workflow.py",
+      "code": "SIM117",
+      "scope": "test_metadata_validator_fails_closed_for_unready_or_mismatched_pr",
+      "fingerprint": "0d1a73399969749e0a36803d7508a10af3b6a854011ae3fb60b1001b110cde51",
+      "count": 1
+    },
+    {
+      "path": "tests/test_pilot_workflow.py",
+      "code": "SIM117",
+      "scope": "test_metadata_validator_rejects_invalid_dispatch_number_before_api_call",
+      "fingerprint": "97e3353e841e4a3ea145825b8ee51f84a709795814c894c1dde4c20cdeb23b91",
+      "count": 1
+    },
+    {
+      "path": "tests/test_policy_inventory.py",
+      "code": "RUF001",
+      "scope": "frozen_policy",
+      "fingerprint": "96daeb3432ffb7ecee39b9cca31c1f9bcbd258f8c82966bd7d040fef091bf735",
+      "count": 1
+    },
+    {
+      "path": "tests/test_policy_inventory.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "137e1aacba6623563b64505a7bb0d5514b1ac7029b7f537d25421188a1de655e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_pr_analysis_artifact_manifest.py",
+      "code": "RUF043",
+      "scope": "test_manifest_rejects_recovery_input_drift",
+      "fingerprint": "0bd24e0551c68ca51fbaf7efaf0279c486a0aeecb8508abdc0c0835b2d798d08",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prepare_only.py",
+      "code": "RUF005",
+      "scope": "test_prepare_only_rejects_event_and_dry_run_combinations",
+      "fingerprint": "c4490f6eb6322547ad1055456a10a9f4d45a7d15dac2361d3fec12cc7f7a691b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prepare_only.py",
+      "code": "UP022",
+      "scope": "test_codereview_profile_prepare_only_uses_required_native_claim_cap_without_transport.git",
+      "fingerprint": "58721e0f99d046e8fc0e43602d78a7ae73f9f6d65363a309c60086209342a603",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prepare_only.py",
+      "code": "UP022",
+      "scope": "test_prepare_only_exposes_exact_engine_owned_v2_bindings_for_collected_windows.git",
+      "fingerprint": "58721e0f99d046e8fc0e43602d78a7ae73f9f6d65363a309c60086209342a603",
+      "count": 1
+    },
+    {
+      "path": "tests/test_private_capture.py",
+      "code": "RUF012",
+      "scope": "CaptureAwareProvider",
+      "fingerprint": "c2c97899caca9ff11e515d4dcb5c3399fd480d9e3b5b131ef3608c642b118c90",
+      "count": 1
+    },
+    {
+      "path": "tests/test_private_capture.py",
+      "code": "RUF012",
+      "scope": "Provider",
+      "fingerprint": "e2a80781ba0d95a7588bb68595ae1b1c5a0d94d0fb5e8d966e812b69440c0819",
+      "count": 1
+    },
+    {
+      "path": "tests/test_private_capture.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "399e0866f51a559e4e99e5bcb977f30dece91919a9092bbf9f9af7c560e08f2e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "code": "C420",
+      "scope": "_run_case",
+      "fingerprint": "03a9367dd934bf07ba05525836d8d7fed61784f15cbf73ef8b66fea676e36761",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "code": "C420",
+      "scope": "_run_case",
+      "fingerprint": "cc3a321d3b1892c173532a72e104a603b4d77fb612ad3cfe40f7a053383ccc7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "code": "C420",
+      "scope": "test_empty_typed_jev_assessments_fail_closed_before_claim_auditor",
+      "fingerprint": "cc3a321d3b1892c173532a72e104a603b4d77fb612ad3cfe40f7a053383ccc7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "code": "C420",
+      "scope": "test_provider_free_candidate_capture_audit_and_deterministic_package",
+      "fingerprint": "cc3a321d3b1892c173532a72e104a603b4d77fb612ad3cfe40f7a053383ccc7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "code": "C420",
+      "scope": "test_synthetic_control_attack_and_benign_run_writer_to_sealed_audit_to_claim",
+      "fingerprint": "cc3a321d3b1892c173532a72e104a603b4d77fb612ad3cfe40f7a053383ccc7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "code": "C420",
+      "scope": "test_synthetic_jev_abstention_still_reaches_claim_auditor",
+      "fingerprint": "cc3a321d3b1892c173532a72e104a603b4d77fb612ad3cfe40f7a053383ccc7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_prompt_injection_shadow_e2e.py",
+      "code": "C420",
+      "scope": "test_synthetic_jev_failure_stops_before_claim_auditor",
+      "fingerprint": "cc3a321d3b1892c173532a72e104a603b4d77fb612ad3cfe40f7a053383ccc7c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_protected_publication_runtime.py",
+      "code": "UP017",
+      "scope": "test_runtime_composes_api_bound_intake_receipt_ack_fresh_head_and_single_post.api_response",
+      "fingerprint": "612236f54c61b785e7cdcbea623ea71cb30f58c47592ed8b758f3723a694fcf8",
+      "count": 1
+    },
+    {
+      "path": "tests/test_provider_evidence_id_enum.py",
+      "code": "RUF012",
+      "scope": "_UnitBoundaryProvider",
+      "fingerprint": "93ada02ed5678620730f93c4b1dccad85b476352dd1650589f026547332f844b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "RUF012",
+      "scope": "FakeHandler",
+      "fingerprint": "1f1b11c6b11c78a8e3ba47b4c6ffb99a737da425624e7b931b265674ee0d490b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "RUF012",
+      "scope": "JevModelResolutionTests",
+      "fingerprint": "a06f27ccf9d8e01108af936011a3e5ab1d2f99e9a3e1f640d861d1d32f5e11dc",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "RUF012",
+      "scope": "RedirectSinkHandler",
+      "fingerprint": "1f1b11c6b11c78a8e3ba47b4c6ffb99a737da425624e7b931b265674ee0d490b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "JevModelResolutionTests.test_latest_alias_requires_a_versioned_jev_report",
+      "fingerprint": "9074e1355b5ea7f45ecd584c5b544c2aca61772672081613fdaa6ea53143cc14",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderBoundaryTests.test_credential_echo_is_rejected_and_never_returned",
+      "fingerprint": "c8a403771c66e12dfbca2e05efbc6d3b8cf16879c7f1e1a59c92b689b058e649",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderBoundaryTests.test_injection_choice_rejects_risk_labels_and_other_provider_kind",
+      "fingerprint": "464099452656bd5738a289ad201c30cf7f3ef0ebc745ac9e71b9de10e819466a",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderBoundaryTests.test_native_unsupported_type_bad_response_and_missing_key",
+      "fingerprint": "85ba9c2abe7ca26fd2e21fc96aba2ee63898835b93684e47173f0ebca058ffe2",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderBoundaryTests.test_native_unsupported_type_bad_response_and_missing_key",
+      "fingerprint": "db63019e55af28d704d098134d28efd9639193bda0bd8d1d9f447a32d4517bdd",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderBoundaryTests.test_response_size_timeout_and_auth_fail_closed_without_secret_echo",
+      "fingerprint": "c81d03052d9f53b85346a8338fa64be2f0448ba109827afde305e75b3bf5c98a",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderBoundaryTests.test_slow_body_is_bounded_by_absolute_deadline_and_only_hashes_partial_output",
+      "fingerprint": "dc8954bbdfca59808a5abeeed862048024c511ae9d97550a3252e8f5c8718fbd",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderBoundaryTests.test_system_one_quote_cap_rejects_before_http",
+      "fingerprint": "ceefa7d053fe8a031d5c886626990dd3dec47e4153e8735020af50a2a14924a6",
+      "count": 1
+    },
+    {
+      "path": "tests/test_providers.py",
+      "code": "SIM117",
+      "scope": "ProviderTransportPolicyTests.test_credentials_query_and_fragment_are_rejected_for_both_provider_families",
+      "fingerprint": "fc1758f4a17555be2316dc0d2f917a389e35ef57614c6ccad5585e2a5617a161",
+      "count": 1
+    },
+    {
+      "path": "tests/test_publication_effect_fault_matrix.py",
+      "code": "UP017",
+      "scope": "test_se4_publication_effect_fault_matrix.FakeReceiptWriter.persist",
+      "fingerprint": "c6c973d59165bd9a8ee2ca0a0c07e03fe250cf998d6669b3d91b1ca471f70af4",
+      "count": 1
+    },
+    {
+      "path": "tests/test_publication_receipts.py",
+      "code": "UP017",
+      "scope": "test_receipt_ack_expiry_requires_real_utc_timestamp_and_is_checked_against_now",
+      "fingerprint": "45061e5d411230228cd92ba0cc29c3b315673b5361ad6b6991864f5722aa0594",
+      "count": 1
+    },
+    {
+      "path": "tests/test_publication_receipts.py",
+      "code": "UP017",
+      "scope": "test_receipt_ack_expiry_requires_real_utc_timestamp_and_is_checked_against_now",
+      "fingerprint": "64301eb6f06dc79a8870db831052d5efdce2573fcae0ff5e6b92158210bab152",
+      "count": 1
+    },
+    {
+      "path": "tests/test_publication_receipts.py",
+      "code": "UP017",
+      "scope": "test_receipt_ack_requires_exact_durable_bytes_and_publisher_run.FixedDateTime.now",
+      "fingerprint": "74afd17c1da29b42fe24d33dcde912bcc8e635afacb96b28c56e63c2cf1acdc6",
+      "count": 1
+    },
+    {
+      "path": "tests/test_publisher.py",
+      "code": "RUF012",
+      "scope": "EmptyProvider",
+      "fingerprint": "d2b4c763e7b14968a0172055f9988dd07e6cd28312dd8493185b163cf781c6d8",
+      "count": 1
+    },
+    {
+      "path": "tests/test_publisher.py",
+      "code": "UP017",
+      "scope": "_freeze_receipt_clock.FixedDateTime.now",
+      "fingerprint": "74afd17c1da29b42fe24d33dcde912bcc8e635afacb96b28c56e63c2cf1acdc6",
+      "count": 1
+    },
+    {
+      "path": "tests/test_real_case_trial.py",
+      "code": "RUF012",
+      "scope": "_NativeChoiceFixture",
+      "fingerprint": "77d9ae5767b2c141f0f846003073233b7c6955a7e3d77506769d238494688259",
+      "count": 1
+    },
+    {
+      "path": "tests/test_real_case_trial.py",
+      "code": "RUF012",
+      "scope": "_ProjectionPrimary",
+      "fingerprint": "5c56bc3c97afef9eaf7514263078cbdd4826170799c9e2d0efe6c98ebf154e24",
+      "count": 1
+    },
+    {
+      "path": "tests/test_real_case_trial.py",
+      "code": "RUF059",
+      "scope": "test_main_failure_keeps_completed_row_and_marks_failed_and_unstarted_cases",
+      "fingerprint": "1077f4e6c852d0be8a62576140fecc89ff68ec5468962ab83ce7740057f06419",
+      "count": 1
+    },
+    {
+      "path": "tests/test_real_case_trial.py",
+      "code": "UP022",
+      "scope": "test_python_patch_reconstruction_has_scoped_function_and_class_headings",
+      "fingerprint": "b91134ac8ee1cd37861929ab71468f873869d7c090e955b88bef6bd15bcd388c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_real_case_trial.py",
+      "code": "UP022",
+      "scope": "test_python_patch_reconstruction_has_scoped_function_and_class_headings",
+      "fingerprint": "e090377c9ee571a547052ff231d5f6bf41026b02254d288e64021313dc2b9a97",
+      "count": 1
+    },
+    {
+      "path": "tests/test_real_case_trial.py",
+      "code": "UP022",
+      "scope": "test_python_patch_reconstruction_has_scoped_function_and_class_headings.git",
+      "fingerprint": "967632fb6cbc3ce589fd22efd41302e0059aafc08043dacfc646f141362ad5e8",
+      "count": 1
+    },
+    {
+      "path": "tests/test_refresh_compatibility_pins.py",
+      "code": "C420",
+      "scope": "build_manifest",
+      "fingerprint": "ccc6d4115941e7ca7e6652e2062eb5aad378caef3a46c6dfbad07e9f822fde0b",
+      "count": 1
+    },
+    {
+      "path": "tests/test_review_contract_selection.py",
+      "code": "SIM300",
+      "scope": "test_target_contract_allowlist_keeps_slop_contracts_closed",
+      "fingerprint": "b79defd21c2acda318eec031aa0202ae91b9d9a80327a7f43441dc28a4fa37be",
+      "count": 1
+    },
+    {
+      "path": "tests/test_review_receipt_workflow.py",
+      "code": "RUF059",
+      "scope": "test_workflow_runs_the_receipt_script",
+      "fingerprint": "bef5fe84980659367059eb27a2412de47926df2c6110e0694f5853008d4b6e24",
+      "count": 1
+    },
+    {
+      "path": "tests/test_review_stages.py",
+      "code": "RUF012",
+      "scope": "OfflineProvider",
+      "fingerprint": "d47e534d6ee130f1725cb8a8591bc982abf98a7d9b35b41d39e248db0eaac4e8",
+      "count": 1
+    },
+    {
+      "path": "tests/test_review_stages.py",
+      "code": "RUF012",
+      "scope": "UnavailableProvider",
+      "fingerprint": "4757210fd437d6e8bc5dbc78aa372aaef65eb7b6a0bb73a25f1bbc45882b45c7",
+      "count": 1
+    },
+    {
+      "path": "tests/test_seeded_writer_synth_001_harness.py",
+      "code": "RUF012",
+      "scope": "_LoopbackStyleFakeReviewProvider",
+      "fingerprint": "6b6c602db79c803e69a19aa093fa68429ffa6bb58e6b2c23b7b33dfae21e9454",
+      "count": 1
+    },
+    {
+      "path": "tests/test_seeded_writer_synth_001_harness.py",
+      "code": "UP022",
+      "scope": "_git",
+      "fingerprint": "a2ec6b48d24cd39df5ae139726dd5d3395216362f92c6c116eafcb38fa155278",
+      "count": 1
+    },
+    {
+      "path": "tests/test_seeded_writer_synth_001_materializer.py",
+      "code": "UP022",
+      "scope": "_run",
+      "fingerprint": "ccf82c56c01cc883b542342e3826479324b23b876030c31cd7efd2c88b2122d2",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_control_trace_attribution.py",
+      "code": "C420",
+      "scope": "_complete_transport_arm",
+      "fingerprint": "0938d1202f9ab1dea698be768487ec960100e85e2a50627908eabdd8dd949bde",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_control_trace_attribution.py",
+      "code": "RUF021",
+      "scope": "test_transport_pair_requires_verified_local_tls_certificate_and_explicit_failure",
+      "fingerprint": "8d265922ee1059434e7c1fcf265282391bac1d4cc0af702e31b9f3e2d6ae20be",
+      "count": 2
+    },
+    {
+      "path": "tests/test_selected_control_trace_attribution.py",
+      "code": "SIM105",
+      "scope": "test_file_path_classes_are_lexical_bounded_and_reconcile_exact_newline_bytes",
+      "fingerprint": "f97d9b9c153ba026ab9c4e57b5e288b3dbe4db6314374d538288f26a6c32911c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_control_transport_receipt.py",
+      "code": "C420",
+      "scope": "test_complete_pair_rejected_when_actual_completion_criteria_are_incomplete",
+      "fingerprint": "5ff6e232d99b31692af3bf63e6be21e01012d31cee74578c4f13b1fff5a50f71",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_control_transport_receipt.py",
+      "code": "C420",
+      "scope": "test_receipt_validator_accepts_source_bound_complete_pair",
+      "fingerprint": "5ff6e232d99b31692af3bf63e6be21e01012d31cee74578c4f13b1fff5a50f71",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_control_transport_receipt.py",
+      "code": "C420",
+      "scope": "test_receipt_validator_never_accepts_complete_claim_with_mismatched_pair_evidence",
+      "fingerprint": "5369d5abd364cd3400e4421dfe22a6028dbf2fd7661eeac4e1b04fbefbb53727",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_control_transport_receipt.py",
+      "code": "RUF043",
+      "scope": "test_v2_receipt_rejects_incomplete_or_unbound_module_inventory",
+      "fingerprint": "7b5cda456cacc42f053c1a3b3117c72f38c07d7e43806c3ee1d25857ab0a4d8c",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_control_transport_receipt.py",
+      "code": "SIM102",
+      "scope": "test_every_literal_validator_rejection_code_is_in_the_closed_diagnostic_allowlist",
+      "fingerprint": "d3a1d98aed46f4a38a93c2050750f3ce7cc5774149e5a30cb365f086b310db25",
+      "count": 1
+    },
+    {
+      "path": "tests/test_selected_model_trial_cli.py",
+      "code": "RUF005",
+      "scope": "test_prepared_plan_is_forwarded_only_when_supplied_to_provider_trial",
+      "fingerprint": "968dc7e9e4177eb4d93f2458ef9d3f9e75f3e10132d208767cbbc2d96d993d9f",
+      "count": 1
+    },
+    {
+      "path": "tests/test_shadow_audit.py",
+      "code": "B017",
+      "scope": "test_opt_in_writer_capture_marks_malformed_content_failed",
+      "fingerprint": "67a2506d526c6ecb51017e9d0c7108f307b2b04b206b23e521e1af3f02312528",
+      "count": 1
+    },
+    {
+      "path": "tests/test_shadow_writer_reconciliation.py",
+      "code": "RUF059",
+      "scope": "test_seeded_missing_title_is_reported_as_normalization_quarantine",
+      "fingerprint": "1c0280766b6f775fb3a40aafac4b971923c274c9951e588493b147f86bc17064",
+      "count": 1
+    },
+    {
+      "path": "tests/test_slopsearx_context_candidate.py",
+      "code": "SIM300",
+      "scope": "test_changed_mcp_test_and_doc_heads_are_in_their_scoped_tasks",
+      "fingerprint": "9c6625c62e62c9541fa94824cde3077b3fe2ef5ba0a168073a5a62bb7b1d68f9",
+      "count": 1
+    },
+    {
+      "path": "tests/test_snapshot.py",
+      "code": "B905",
+      "scope": "test_context_selection_v3_splits_large_added_files_into_hash_bound_exact_windows",
+      "fingerprint": "7e44a44d153f337b578b49162c0c4cb62637bf634f7f7ff7219cdd1013f8aa64",
+      "count": 1
+    },
+    {
+      "path": "tests/test_snapshot.py",
+      "code": "RUF007",
+      "scope": "test_context_selection_v3_splits_large_added_files_into_hash_bound_exact_windows",
+      "fingerprint": "832980d59806b10fb899b867b9ec630a148fdee16d518b0777e5af0b878cdeed",
+      "count": 1
+    },
+    {
+      "path": "tests/test_snapshot.py",
+      "code": "UP012",
+      "scope": "test_context_selection_v3_hashes_valid_multibyte_utf8_windows_by_raw_bytes",
+      "fingerprint": "78f0eacc357f5d6f2ea760e5557c6414503befc1b419f08dff9a224e002dddf4",
+      "count": 1
+    },
+    {
+      "path": "tests/test_source_record_decision.py",
+      "code": "RUF100",
+      "scope": "<module>",
+      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
+      "count": 1
+    },
+    {
+      "path": "tests/test_static_coverage_semantics.py",
+      "code": "RUF059",
+      "scope": "test_engine_accepts_complete_static_test_assessment_without_execution_receipt",
+      "fingerprint": "1e64cb631197336955ac529ae2a6fc061240e0ffb9abec8fc51e07748ab492b0",
+      "count": 1
+    },
+    {
+      "path": "tests/test_status_evidence.py",
+      "code": "RUF005",
+      "scope": "test_cli_check_json_and_write_mode",
+      "fingerprint": "678a029a4f5375bc5acaf1d4fa90f20cecc21f46d1010d35b9126ba8bf33d488",
+      "count": 1
+    },
+    {
+      "path": "tests/test_status_evidence.py",
+      "code": "RUF005",
+      "scope": "test_cli_check_json_and_write_mode",
+      "fingerprint": "789a495343cb0520ae748dc96c2fff7e6f2614260b70422069b74a23ce5bf0de",
+      "count": 1
+    },
+    {
+      "path": "tests/test_status_evidence.py",
+      "code": "RUF005",
+      "scope": "test_cli_check_json_and_write_mode",
+      "fingerprint": "e8e58b7e20ec2bae0b0acbf43fc8adb7de02d886de6c9767e93a048393f5cd91",
+      "count": 1
+    },
+    {
+      "path": "tests/test_status_evidence.py",
+      "code": "RUF043",
+      "scope": "test_generator_refuses_status_page_historical_and_escaping_outputs",
+      "fingerprint": "2b740d82f9913950905ee8e352ed46a7b5491ca14642116c71949a9cd27c90a9",
+      "count": 1
+    },
+    {
+      "path": "tests/test_synth_001_preflight_verifier.py",
+      "code": "UP022",
+      "scope": "test_current_cli_output_is_stable_but_rejected_by_historical_prepare_pin",
+      "fingerprint": "68b83748897dcb885128e05fd015fe0e53d8ae34d7cdaa7bb6c015fbfe9965b4",
+      "count": 1
+    },
+    {
+      "path": "tests/test_test_matrix.py",
+      "code": "UP017",
+      "scope": "_catalog",
+      "fingerprint": "7c87bc04776665bafe46650c6e03aa0972c52bee66a35adc5dae18159cf9e36e",
+      "count": 1
+    },
+    {
+      "path": "tests/test_test_matrix.py",
+      "code": "UP017",
+      "scope": "test_catalog_fails_closed_when_stale_or_not_free",
+      "fingerprint": "4379172b269deae54cdf77ce0e01e2cbd1b428b63d092edcc393b75e8b4f9586",
+      "count": 1
+    },
+    {
+      "path": "tests/test_vd2_budget_mutation.py",
+      "code": "RUF059",
+      "scope": "test_summary_cost_known_flags_require_every_provider_settlement",
+      "fingerprint": "d9f940f32b9d49627d7cd1d666bdde035a0bac0ece582a14894833865d3c7229",
+      "count": 1
+    },
+    {
+      "path": "tests/test_vd2_budget_mutation.py",
+      "code": "RUF059",
+      "scope": "test_summary_tracks_local_checks_and_context_retrievals",
+      "fingerprint": "aee1a16917f1934fdfb07b2ac538f7d6613961141a528e420de158f175431f8d",
+      "count": 1
+    },
+    {
+      "path": "tests/test_vd2_invariants.py",
+      "code": "B023",
+      "scope": "test_generated_dispatch_is_not_prepared_when_reservation_is_unavailable.invocation_factory",
+      "fingerprint": "93b415a70a158c61838778a6ee220e6ba4455020b968d953f974a314b5fbfd96",
+      "count": 1
+    },
+    {
+      "path": "tests/test_vd2_invariants.py",
+      "code": "SIM105",
+      "scope": "test_generated_successful_reservations_never_cross_any_budget_ceiling",
+      "fingerprint": "7d26ae57d2a5ba0188440bf61eef46d0789bde50f4fba58a38d170928a094166",
+      "count": 1
+    },
+    {
+      "path": "tests/test_vd2_provider_faults.py",
+      "code": "SIM117",
+      "scope": "test_provider_transport_fault_matrix_is_typed_and_makes_one_request",
+      "fingerprint": "51f4a1db4d67a12bff4c6145f7e913f6cdfc317e0ce7379777a708471d3b56d2",
+      "count": 1
+    },
+    {
+      "path": "tests/test_waiver.py",
+      "code": "B017",
+      "scope": "test_publisher_waiver_integrity_rejects_inconsistent_metadata",
+      "fingerprint": "ad347da3a55d4518c9b73e5b0b18bf31063167cb101acee9bd806b7f7a3140b3",
+      "count": 1
+    },
+    {
+      "path": "tests/test_waiver.py",
+      "code": "UP017",
+      "scope": "<module>",
+      "fingerprint": "64713584a0ac38c863838c291d4fc62dea239e0ef0c02f660b151ae73a52bb49",
+      "count": 1
+    },
+    {
+      "path": "tests/test_worker_readiness_comparison_workflow.py",
+      "code": "RUF005",
+      "scope": "_comparison_guards",
+      "fingerprint": "3e40f9fad983dbdae6f518bc6bd051b6bf08053f5045eaabc54c711be612a857",
+      "count": 1
+    }
+  ]
+}

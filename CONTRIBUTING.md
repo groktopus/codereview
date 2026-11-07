@@ -29,6 +29,7 @@ length. CI runs:
 ruff check .
 ruff format --check .
 python scripts/check_complexity.py
+python scripts/check_expanded_lint.py --json
 ```
 
 Run the same commands locally before opening a pull request; to apply the
@@ -48,8 +49,10 @@ pre-commit run --all-files
 
 [`.pre-commit-config.yaml`](.pre-commit-config.yaml) pins `ruff-pre-commit` to
 the exact lint/format release in `requirements-dev.lock`, runs `ruff check --fix`
-plus `ruff format`, and runs the complexity guard. `--fix` is a pre-commit
-convenience; the resulting tree still has to pass the non-fixing CI checks.
+plus `ruff format`, and runs the complexity guard and a full-tree expanded lint
+ratchet in its own pinned Ruff environment. `--fix` applies only to the original
+core lint selection; expanded debt is never autofixed by the hook. The resulting
+tree still has to pass the non-fixing CI checks.
 
 The complexity guard is a ratchet, not a refactoring mandate. It measures each
 function's physical span and fails any function over 150 lines that is not in
@@ -65,11 +68,67 @@ refactor or rename changes the offender set. The immutable historical fixtures
 are excluded from the scan for the same reason they are excluded from
 formatting.
 
-**Remaining VD-4 work:** the lint rule set is still the original
-`E4/E7/E9/F/I` selection; expanding to `B`, `SIM`, `UP`, `C4`, and `RUF` is a
-separate reviewed change. Type checking remains limited to the strict
-`.pyi` boundary contracts in `pyproject.toml`; repository-wide `mypy` adoption
-is not part of this change and remains open VD-4 work.
+### Expanded lint debt ratchet
+
+The original zero-debt `E4/E7/E9/F/I` gate remains unchanged. The additive
+[`check_expanded_lint.py`](scripts/check_expanded_lint.py) gate checks stable
+`B/SIM/UP/C4/RUF/ASYNC` rules with **Ruff 0.17.3**, matching the hash-locked CI
+tool. Run it with the Python environment containing that exact release; a
+missing/different version is an error, not a compatible baseline. Preview rules
+are not enabled. No expanded rule is globally ignored. The isolated scan ignores
+local Ruff configuration, gitignore, and `noqa` so new suppression comments
+cannot hide debt. Core rules are enabled for correct unused-noqa context, but
+remain owned by the original hard lint gate, never grandfathered here.
+
+The versioned [baseline](scripts/expanded-lint-baseline.v1.json) inventories
+**548 remaining findings / 531 identities in 335 maintained Python files**:
+199 in source, 119 in scripts, 27 in experiments, and 203 in tests. Family totals
+are B 96, SIM 133, UP 123, C4 56, RUF 140, ASYNC 0. This is an inventory,
+**not a cleanup claim or permanent approval of unsafe code**. Prior diagnostics
+from older Ruff releases or scans including frozen fixtures are not this baseline.
+New checker/tests have zero expanded-rule debt.
+
+Scan roots are `src`, `scripts`, `experiments`, and `tests` (including `.pyi`).
+Historical `tests/fixtures/frozen-runtime-7d550b6/**` and
+`tests/fixtures/*-base.py` are excluded only when their exact paths and bytes match
+the existing [historical pin manifest](tests/fixtures/frozen-runtime-7d550b6/pins.json);
+unregistered matching files and changed pins fail. Hashed, untrusted evaluation
+payloads under `examples/evaluation/adversarial-pairs-v1/fixtures/**` are explicitly
+outside this maintained-code scan; they retain their corpus hash checks. Other
+maintained test fixtures are scanned. The isolated development environments are
+outside the maintained roots and must not be committed.
+
+Identity uses repository-relative filename + rule + qualified class/function
+scope + a SHA-256 of canonical smallest-statement AST and diagnostic message;
+comment diagnostics include the actual comment token. Counts distinguish repeated
+identical findings. Pure line movement/formatting does not buy a new allowance.
+New identities, count growth, removed/renamed identities, and count reductions
+all fail; cleanup requires removing stale allowances. Replacing debt elsewhere
+cannot spend a per-file or per-rule budget. A deliberately identical diagnostic
+in the same scope is indistinguishable except by count; this is not semantic
+proof of equivalent behavior. Substantive statement edits may require reviewed
+fingerprint refresh even when rule/count are unchanged.
+
+For cleanup, renames, or a reviewed tool/rule migration, generate a separate
+candidate (the command refuses to overwrite the accepted baseline or an existing
+candidate), inspect the diff and code, then replace the baseline in the reviewed
+change and rerun the check:
+
+```sh
+python scripts/check_expanded_lint.py --write-candidate expanded-lint-candidate.json \
+  --reason "Reviewed debt cleanup or explicit migration rationale"
+diff -u scripts/expanded-lint-baseline.v1.json expanded-lint-candidate.json
+```
+
+Never refresh simply to bless new findings; fix new code and prioritize unsafe
+historical findings as separate reviewed repairs. CI retains the JSON report and
+runs an actual pinned-Ruff seeded B006 CLI probe asserting exit 1/NEW_FINDING,
+plus growth/stale/rename/suppression/version/fixture-boundary regression tests.
+
+**Remaining VD-4 work:** historical expanded lint debt still needs incremental
+repair. Type checking remains limited to the strict `.pyi` boundary contracts in
+`pyproject.toml`; repository-wide typing and the new-module typing ratchet remain
+open. This slice does not close VD-4.
 
 ## Merge review evidence (GA-1)
 

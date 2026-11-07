@@ -79,6 +79,16 @@
   fixtures are excluded because reformatting them would break VD-3 evidence.
   A pre-commit configuration matches the CI lint/format gates, and the
   function-length complexity guard enforces a checked 150-line baseline with a
-  growth ratchet. The lint rule set is still `E4/E7/E9/F/I`; expanding it and
-  adopting a typed core beyond the existing strict `.pyi` boundary checks
-  remain open VD-4 work.
+  growth ratchet.
+- **Expanded lint slice (2026-11-07):** PARTIAL. The original zero-debt
+  `E4/E7/E9/F/I` gate is unchanged. An additive Ruff 0.17.3-bound ratchet enforces
+  `B/SIM/UP/C4/RUF/ASYNC` with qualified-scope/fingerprint/count identities,
+  rejecting new/grown findings and stale allowances. CI and a pinned non-fixing
+  pre-commit hook run it; actual seeded B006 CLI tests prove rejection. The initial
+  maintained-code baseline records 548 remaining findings (199 in source), not
+  cleanup or approval of unsafe code. Exact historical fixture path/byte pins
+  protect explicit exclusions; hashed evaluation payloads remain outside the
+  maintained-code scan. See [contributing](../../CONTRIBUTING.md#expanded-lint-debt-ratchet)
+  for counts, boundaries, and reviewed refresh. Expanded historical debt and
+  typing beyond the strict `.pyi` boundaries/new-module typing ratchet remain
+  open; this slice does not close VD-4.
