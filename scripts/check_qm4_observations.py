@@ -112,19 +112,27 @@ def index_schema(index: Any) -> None:
 
 
 def validate_index_surface_maps(row: dict[str, Any]) -> None:
-    """Validate scalar and key semantics for the independent index projection."""
+    """Allow structurally sparse count maps for legacy corpus cases."""
     allowed_surfaces = {"reviews", "comments", "issue_comments"}
     count_map, status_map = row["surface_counts"], row["surface_status"]
-    require(isinstance(count_map, dict) and bool(count_map), "surface_count_keys")
-    require(isinstance(status_map, dict) and set(status_map) == set(count_map), "surface_status_keys")
-    require(set(count_map) <= allowed_surfaces, "surface_count_keys")
-    for name, count in count_map.items():
+    require(isinstance(count_map, dict) and isinstance(status_map, dict), "surface_count_keys")
+    require(set(count_map) == set(status_map), "surface_status_keys")
+    require(set(count_map) <= allowed_surfaces and bool(count_map), "surface_count_keys")
+    validate_surface_maps(row, set(count_map))
+
+
+def validate_surface_maps(row: dict[str, Any], expected_surfaces: set[str]) -> None:
+    """Require exact surface keys, statuses, and JSON integer count semantics."""
+    count_map, status_map = row["surface_counts"], row["surface_status"]
+    require(isinstance(count_map, dict) and set(count_map) == expected_surfaces, "surface_count_keys")
+    require(isinstance(status_map, dict) and set(status_map) == expected_surfaces, "surface_status_keys")
+    for name, value in count_map.items():
         status = status_map[name]
         require(status in {"captured", "response_over_capture_cap"}, "surface_status")
         if status == "captured":
-            require(type(count) is int and count >= 0, "surface_count_type")
+            require(type(value) is int and value >= 0, "surface_count_type")
         else:
-            require(count is None, "surface_count_type")
+            require(value is None, "surface_count_type")
 
 
 def project_records(case: dict[str, Any]) -> list[dict[str, Any]]:
@@ -251,16 +259,7 @@ def validate_case(row: dict[str, Any], case: dict[str, Any], supports: dict[str,
     case_surfaces = case["surfaces"]
     require(isinstance(case_surfaces, dict), "surface_inventory")
     expected_surfaces = set(case_surfaces)
-    count_map, status_map = row["surface_counts"], row["surface_status"]
-    require(isinstance(count_map, dict) and set(count_map) == expected_surfaces, "surface_count_keys")
-    require(isinstance(status_map, dict) and set(status_map) == expected_surfaces, "surface_status_keys")
-    for name, value in count_map.items():
-        status = status_map[name]
-        require(status in {"captured", "response_over_capture_cap"}, "surface_status")
-        if status == "captured":
-            require(type(value) is int and value >= 0, "surface_count_type")
-        else:
-            require(value is None, "surface_count_type")
+    validate_surface_maps(row, expected_surfaces)
     counts, statuses = {}, {}
     for name, surface in case["surfaces"].items():
         statuses[name] = surface["status"]
