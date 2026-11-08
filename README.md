@@ -1,121 +1,75 @@
 # PR Review Harness
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting, [CONTRIBUTING.md](CONTRIBUTING.md) for development and review expectations, [review evidence](docs/REVIEW-EVIDENCE.md) for the merge-review receipt protocol, and [provenance](docs/PROVENANCE.md) for evidence/license boundaries. Licensed under MIT.
+A command-line tool for producing evidence-backed reviews of pull-request changes. It combines bounded review tasks with model-assisted analysis, reconciles the results, and saves a report with findings, coverage, and any unresolved gaps.
 
-A reusable, read-only code review CLI with deterministic planning, bounded specialist reviews, immutable Git evidence, reconciliation, and auditable reports. Its `publish` command currently validates and renders a read-only review preview; live publication is unavailable from this CLI and from the central `groktopus/codereview` workflow. A separately installed target-local route in `magnus919/SlopSearX` is reported active; that is a different surface with its own evidence limits. It is still an experimental candidate, not an established Droid replacement: the initial six-commit pilot produced incomplete reviews and exposed model-contract, context, and provider issues. Start with [status](docs/STATUS.md); also see the [current execution plan](docs/CURRENT-EXECUTION-PLAN.md) and [evidence status](docs/CURRENT-STATUS.md). The initial pilot remains documented in `docs/PILOT-RESULTS.md`.
+The review is read-only: it does not run the target repository's code or tests, merge changes, or publish a review. Analysis sends selected source context to the model provider configured by the operator. This is an experimental tool, not a substitute for human review: model-assisted analysis can miss issues. Treat reports as decision support and inspect their evidence and limitations before acting on them.
 
-The harness owns review depth, scopes, budgets, coverage, freshness, and disposition. An OpenAI-compatible inference provider supplies candidate findings and separate semantic assessments. Optional native Laya or Typesafe/Jev calls supply advisory risk observations; their probabilities do not authorize approval or choose control flow.
+## Get started
 
-## Try it
-
-Python 3.11+ and Git are required; see the [support matrix](docs/SUPPORT-MATRIX.md) for the supported Python/OS combinations and install matrix, and the [public API](docs/PUBLIC-API.md) for the supported import surface. The package has no runtime dependencies. GitHub PR mode also requires the `gh` CLI authenticated with read-only access to pull requests and checks. For a local review, install the CLI and create a provider config that references an environment variable; never put a key value in the file or command line:
+Requires Python 3.11 or later and Git. Install from a checkout:
 
 ```sh
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install .
+python -m pip install .
 pr-review --help
-cat > provider.json <<'JSON'
+```
+
+Configure an OpenAI-compatible model provider. Put the API key in the environment (or load it from your secret manager); do not put the key itself in the configuration file:
+
+```json
 {
   "kind": "openai_compatible",
-  "provider_id": "operator_openai_compatible",
+  "provider_id": "my_provider",
   "base_url": "https://api.example.com/v1",
   "model": "your-model",
   "api_key_env": "LLM_API_KEY"
 }
-JSON
-# Load LLM_API_KEY from your local secret manager/environment before running.
-pr-review review --repo /path/to/bare-or-local-repo \
-  --base BASE_SHA --head HEAD_SHA --profile profiles/generic.json \
-  --provider-config provider.json --output artifacts/review
 ```
 
-The review is read-only and does not run target code, tests, or builds. Each run saves JSON and Markdown. `INCOMPLETE` is a report result, not a passed review; read disposition, coverage, freshness, unresolved gaps, and task status together. Historical snapshots do not establish a live PR's current status.
-
-## Provider configuration
-
-The reusable workflow accepts `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `JEV_BASE_URL`, `JEV_MODEL`, and `JEV_API_KEY` as required trusted `workflow_call` secrets. A pull request cannot choose either destination or model. These are generic operator-selected OpenAI-compatible and native Jev endpoints/models; NousPortal is an intended deployment, not a required provider. Only the two `*_API_KEY` values are credentials. Store them in a secret manager, never in provider JSON or command-line arguments.
-
-On a CI runner, for the reusable workflow's six-secret configuration, run this after loading those variables from its secret store; the helper makes no provider requests and prints only config paths:
+Set `LLM_API_KEY` in your environment, then review two commits available in a local Git repository:
 
 ```sh
-python3 scripts/provider_config_from_env.py \
-  --output-dir "$RUNNER_TEMP/pr-review-provider-config" --json
+pr-review review \
+  --repo /path/to/repository \
+  --base BASE_SHA \
+  --head HEAD_SHA \
+  --profile profiles/generic.json \
+  --provider-config provider.json \
+  --output artifacts/review
 ```
 
-Pass the returned paths as `--provider-config` and `--decision-config`. The LLM API root may include a provider-specific path; the adapter appends `/chat/completions`. The Jev root may include a provider-specific path; the adapter appends `/systemone`. Remote HTTP is rejected for every adapter; HTTP is allowed only for explicit loopback hosts (`127.0.0.1`, `::1`, `localhost`). Direct CLI use can omit `--decision-config` to disable Jev advisory calls; per-candidate claim assessments also remain disabled by default (`--max-claim-assessments 0`) and require a decision config to enable. `--prepare-only` measures exact primary requests without provider dispatch, but needs a provider config for exact serialization; unlike `--dry-run`, it reads and plans the immutable source. See [Deployment configuration](docs/DEPLOYMENT-CONFIGURATION.md) for config boundaries. The historical free-model workflow remains separate.
+Replace the example endpoint, model, repository path, and commit IDs with values for your setup. The command writes JSON and Markdown reports to the output directory. Check the report's disposition, coverage, freshness, findings, and unresolved gaps; an incomplete review is not a clean review.
 
-For a particular change use `pr-review review --repo REPO --base SHA --head SHA` with the same profile/provider/output options. `--dry-run` previews arguments without reading credentials or contacting providers. For another project, start from `profiles/generic.json` and explicitly review its context, risk rules, lenses, and required checks. Profile files are trusted operator inputs.
+For a provider-free argument preview, add `--dry-run`. For preparation against an explicit commit pair without dispatching model requests, see `--prepare-only` in `pr-review review --help`.
 
-A named reviewer can resolve one exact missing-evidence obligation with `review --waiver FILE`. The strict `review-evidence-waiver.v1` file binds a non-empty reviewer, written reason, exact repository/base/head, timezone-aware issue/expiry (lifetime at most 90 days), and one or more exact target obligations or unique reason-code matches. It is loaded before provider dispatch; invalid, expired, out-of-scope, duplicate, overbroad, or unknown-target waivers fail with exit 2. Missing evidence remains denied by default, a waived obligation is recorded as `WAIVED` rather than `COMPLETE`, the run reports `COMPLETE_WITH_WAIVERS` and is capped at `COMMENT` when anything is waived, and findings or existing blockers are never cleared. See [review completeness](docs/REVIEW-COMPLETENESS.md#4-bounded-evidence-waiver) and the [schema](schemas/review-evidence-waiver.v1.schema.json).
+## What it does
 
-For an immutable historical pair, `review --prepare-only` snapshots and plans the review, then serializes the exact primary specialist requests without dispatching them. It records request sizes and hashes, admitted and unadmitted obligations, and context gaps; it does not return a review disposition, read provider key values, or contact any provider. This differs from `--dry-run`, which only previews resolved arguments and revisions. Primary request bytes and primary call count are exact for that snapshot. Calls to semantic adjudication depend on emitted candidates, and summary, follow-up, and claim-assessment work is separately dynamic, so total runtime demand remains unknown.
+- Reviews an explicit base/head revision pair from a local Git repository.
+- Applies a trusted review profile to choose review lenses, context, and project rules.
+- Uses configurable model providers for analysis; findings and semantic assessments remain advisory.
+- Produces reports that record findings, evidence, review coverage, and incomplete work.
+- Provides `recent` for reviewing recent first-parent commit pairs, `stats` for aggregating saved reports, and `publish` for validating and rendering a review preview. The CLI does not submit reviews to GitHub.
 
-`pr-review publish` validates a sealed result against repository/disposition policy and prints the exact review body without GitHub reads or a local effect store. Live publication is unavailable from this CLI; `--authorize-publish` fails closed. The central `pr-publish.yml` job is also hard-disabled. A separately installed target-local route is reported enabled in `magnus919/SlopSearX`; see [status](docs/STATUS.md) for that route's scope. See the [publication preview migration](docs/CLI-PUBLISH-PREVIEW-MIGRATION.md). No production write has been verified by this repository's CLI or central workflow.
+## Configuration and documentation
 
-Every completed run stores a compact `review-run-summary.v1` record in its result JSON. `pr-review stats --since 2026-10-01 --json` aggregates stored results with explicit denominators and missing-data counts, and `--jsonl PATH` exports one summary per line for external dashboards. Unknown token, latency, and cost values stay `UNKNOWN`, never zero. The surface is local and read-only; there is no hosted telemetry service. See [run metrics](docs/RUN-METRICS.md) for the record schema, percentile semantics, and current gaps.
+Profiles and provider configurations are supplied explicitly; the generic starter profile is [`profiles/generic.json`](profiles/generic.json). Keep provider credentials in environment variables or a secret manager. Before sending repository context to a provider, make sure that use is permitted by your project's data-handling requirements.
 
-For reproducible packaging checks, build a wheel and run the installed entry point from outside the checkout:
+- [Operations guide](docs/OPERATIONS.md) — review modes, reports, and examples
+- [Support and installation details](docs/SUPPORT-MATRIX.md)
+- [Public CLI and package interface](docs/PUBLIC-API.md)
+- [Review evidence and contribution receipt protocol](docs/REVIEW-EVIDENCE.md)
+- [Provenance and evidence boundaries](docs/PROVENANCE.md)
+- [Documentation index](docs/README.md)
 
-```sh
-python -m pip install build
-python -m build --wheel --sdist
-python -m venv /tmp/pr-review-wheel
-/tmp/pr-review-wheel/bin/python -m pip install dist/*.whl
-/tmp/pr-review-wheel/bin/python scripts/package_smoke.py --cli /tmp/pr-review-wheel/bin/pr-review
-```
+## Contributing
 
-Release tags are cut only from green `main`. The release workflow attaches the wheel, source distribution, `SHA256SUMS`, a CycloneDX SBOM, unsigned provenance, the reproducibility report, and changelog-derived release notes to a GitHub Release; no package is published to PyPI. Starting with `0.1.1`, the release build job also records a keyless GitHub OIDC build provenance attestation for the wheel and sdist, verifiable with `gh attestation verify <artifact> --repo groktopus/codereview`; the attached `provenance.json` and SBOM remain unsigned, and the earlier `v0.1.0` release remains unsigned. The prepared notes and verification commands for `0.1.2` are in [docs/releases/0.1.2.md](docs/releases/0.1.2.md). See the [versioning policy](docs/VERSIONING.md) and [release procedure](docs/RELEASING.md) before tagging.
+Contributions are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for development setup, project conventions, and the checks expected for a change.
 
-## What is included
+## Security
 
-| Path | Purpose |
-|---|---|
-| `src/pr_review_harness/` | Snapshot collector, planner, scheduler, provider adapters, reducer, report renderer, CLI |
-| `profiles/` | Candidate SlopSearX and generic project policies; see the [contract registry](docs/CONTRACT-REGISTRY.md) for supported, deprecated, and archived status |
-| `examples/` | Environment-only provider configuration examples |
-| `tests/` | Git, HTTP boundary, scheduler, reducer, CLI, and archived-evidence regressions |
-| `experiments/` | Repository-only trial, evaluation, and canary harnesses; not installed in the wheel |
-| `docs/design/` | Discovery, architecture, contracts, spec, research, evaluation design |
-| `docs/VERIFICATION.md` | Implemented behavior and explicit spec gaps |
-| `docs/PILOT-RESULTS.md` | Actual recent-commit experiment and its limitations |
-| `docs/OPERATIONS.md` | Safe local and GitHub Actions operation, evidence handling, and recovery |
-| `docs/EXTERNAL-EFFECT-OBSERVER.md` | Linux observer v2 event-sample, aggregate, and coverage contract |
-| `docs/PACKAGING-VERIFICATION.md` | Wheel, source distribution, matrix, and installed-entry-point checks |
-| `docs/VERSIONING.md` | Package semantic versioning and independent contract versioning, promised surfaces, and breaking-change rules |
-| `docs/RELEASING.md` | Tag creation, release workflow triggers and permissions, verification commands, and rollback |
-| `CHANGELOG.md` | Classified source changes, including the initial `0.1.0` entry and the `0.1.1` attestation entry |
-| `docs/REVIEW-COMPLETENESS.md` | Canonical incomplete-reason taxonomy, per-run completeness summary, and the fixture baseline regression gate |
-| `.github/workflows/` | Python support matrix, wheel verification, release pipeline, and read-only review artifacts |
+See [`SECURITY.md`](SECURITY.md) for vulnerability reporting guidance. Do not include credentials or private repository content in public reports.
 
-## Package surface
+## License
 
-The installed package exposes exactly one review path:
-`pr_review_harness.engine.run_review`, reached through the `pr-review` console
-entry point. Experiment harnesses (provider trials, injection trials, shadow
-audit, cross-model evaluation, claim screen, context selection, Actions canary)
-were moved to the repository-only [`experiments/harness/`](experiments/README.md)
-package during CA-2, so they are not installed and cannot fork the core budget,
-settlement, or disposition logic. The guarded protected-publication runtime
-remains installed because the hard-disabled publisher template invokes it; it
-never starts a review. See [Architecture](docs/ARCHITECTURE.md) for the module
-classification, the measured source reduction, and the verification commands.
-
-## Boundaries
-
-No target code, hooks, tests, or builds execute during review. The current CLI has no live publication path, and the central publisher is hard-disabled; see [status](docs/STATUS.md) for the separately installed target-local route. Merging and repairs are unsupported. Missing, failed, or untrusted required-check evidence stays incomplete. GitHub Actions uses trusted harness/profile files from the base revision and acquires pull-request objects into a bare repository; it never checks out the pull-request head. Context retrieval is limited to immutable Git objects and explicitly allowlisted paths. It does not establish calibrated model quality, complete spec coverage, or production suitability.
-
-Security policy, threat model, and read-only scans: [SECURITY.md](SECURITY.md).
-
-The reusable Actions analysis is inactive until a trusted target-repository workflow calls it at a reviewed full commit SHA. It takes trusted harness/profile source separately from the target PR and fetches target objects to a bare store. It uses a configured inference provider and sends selected repository evidence to that provider. The workflow uses a read-only token and uploads a short-lived report artifact; it does not publish a review or change the PR. Historical free-model comparisons are manual, bounded, and tied to frozen commit pairs. See [Operations](docs/OPERATIONS.md) before enabling repository secrets or relying on artifacts.
-
-```sh
-pytest -q
-ruff check .
-ruff format --check .
-python scripts/check_complexity.py
-```
-
-Reports retain source excerpts and should be handled according to the target repository's confidentiality and retention requirements. Credentials belong in environment variables, never configuration files. Runtime limits and source provenance are recorded; model assessments remain fallible advisory evidence.
-
-The fixed pilot can be repeated with `python scripts/run-pilot.py --repo /tmp/slopsearx.git` after installing the package and setting the inference environment key. It writes a manifest with exact commit pairs and source/config hashes before recording each outcome.
+This project is licensed under the [MIT License](LICENSE).
