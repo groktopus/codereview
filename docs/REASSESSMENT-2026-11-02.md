@@ -1,27 +1,32 @@
-# Reassessment after the A-minus issue program (current checkpoint: main 94f1973, refreshed after PR367, 2026-11-07)
+# Reassessment after the A-minus issue program (current checkpoint: main 67a902c, refreshed after PR373, 2026-11-08)
 
 **Status: A− not achieved. Only 3 of 10 dimensions meet A−.** This is a reassessment judgment, not a formal promotion/acceptance decision. Evidence discipline
 is **A−**, test depth is **B+**, documentation is **B**, and no overall A−, quality parity, equivalence,
 or replacement claim is supported.
 
 This is the current reassessment, not a new name for the original assessment.
-It supersedes the overall judgment in
+It supersedes earlier reassessment snapshots (the latest was `c205995`, before PR373)
+and the overall judgment in
 [the 2026-11-01 assessment](CODEBASE-ASSESSMENT-2026-11-01.md), which remains
 unchanged as the historical evidence snapshot.
 
 ## Source snapshot and limits
 
 The assessed source is current main at
-[`94f1973`](https://github.com/groktopus/codereview/commit/94f1973c93a225e148ee3b1f34575a5224bb3827)
-(2026-11-07), after PRs 355–367 merged. Six issues remain open; stopped draft
-PR353 is excluded from landed capability. The live Dependabot API returned zero
-open alerts after PR357; that time-bounded result is not broad security
-certification. Current main Harness
-[42412775733](https://github.com/groktopus/codereview/actions/runs/42412775733)
+[`67a902c`](https://github.com/groktopus/codereview/commit/67a902c0c830dfdc50f17564d86f7576daf563e0)
+(2026-11-08), after PR373 merged. Six issues remain open; stopped draft PR353
+is excluded from landed capability. PR373 adds a bounded offline validator for
+public QM4 evidence, not new incumbent observations. Its schema, path containment,
+hashes and missingness checks do not authenticate provider execution or create
+pairs. The live Dependabot API returned zero open alerts after PR357; this is not
+broad security certification. Main Harness
+[42436449857](https://github.com/groktopus/codereview/actions/runs/42436449857)
 and Security
-[42412775600](https://github.com/groktopus/codereview/actions/runs/42412775600)
-passed at the exact assessed SHA. The independent ten-dimension judgment remains
-3/10 A−; no formal grade promotion or issue closure is inferred.
+[42436449856](https://github.com/groktopus/codereview/actions/runs/42436449856)
+passed at the exact assessed SHA. PR373 retains an unresolved non-blocking CodeQL
+review comment about a redundant assignment; conversation enforcement was not
+bypassed and this is not a CI failure. The independent judgment remains 3/10 A−;
+no grade promotion or issue closure is inferred.
 
 
 Checked-in evidence below has narrower scopes and older execution dates than
@@ -36,7 +41,7 @@ corpus evaluation. Pending and stopped PRs are excluded from landed capability.
 | Evidence discipline | **A−** | Immutable Git evidence, contract fingerprints, observed/reported/unknown separation, historical fixtures, and exact-byte pins; unsupported premature CLEAR receipts were withdrawn during recovery. | Preserve withdrawn receipts as superseded, and require actual completed independent exact-head source review rather than validator-only claims. The receipt incident prevents retaining the former A grade. |
 | Effect safety | **A−** | Default read-only and typed effect boundaries; publication fault tests and one exercised live canary through the narrow one-shot adapter ([receipt](evidence/canary-review-5763357701.json)). | Preserve the narrow authority boundary. This is not general publication qualification; the general protected runtime remains unexercised. |
 | Deterministic control plane | **A−** | Staged orchestration, `RunState`, budget reservation/replay, deterministic planning, contract registry, and typed boundaries. | Preserve stale/blocker, partial-coverage, budget, and deterministic-control invariants; broader quality claims remain unsupported. |
-| Test depth | **B+** | Budget: 1,775/2,185 = **81.24% all generated**; reconcile: 573/656 = **87.35% whole module, all generated**, with 83 survivors and zero no-tests/timeouts; reducer: 103/105 = 98.10% on `_reduce` only; validators: 117/118 causal roles, 69/72 claim choice, 226/228 adjudication. Reports retain no-tests and all survivors. | Scoped function results do not qualify all validators. Six validator survivors include real boundary gaps. The remaining fault matrix needs root issue acceptance review; full VD-2 remains open. |
+| Test depth | **B+** | Budget: 1,775/2,185 = **81.24% all generated**; reconcile: 573/656 = **87.35% whole module, all generated**, with 83 survivors and zero no-tests/timeouts; reducer: 103/105 = 98.10% on `_reduce` only; validators: 117/118 causal roles, 69/72 claim choice, 226/228 adjudication. Reports retain no-tests and all survivors. | Scoped function results do not qualify all validators. Six validator survivors include real boundary gaps. The current fault acceptance map is merged and generated from existing/new test IDs, with layered provider, GitHub, and publication outcomes. Full VD-2 remains open because module/function mutation scope, fault-family closure, survivor disposition, and owner acceptance still need resolution. |
 | Review completeness | **C** | Five comparable retained live cases and a completeness regression gate; **2 COMPLETE / 3 COMPLETE_WITH_WAIVERS** ([live-run record](evidence/qm3-five-case-live.json), [baseline scope](evidence/rc3-completeness-baseline.json)). | No representative current-source obligation-completion, INCOMPLETE, or truncation measurement. Disclose raw versus waiver-adjusted outcomes; the sixth frozen case, `qm1-slopsearx-pr770`, is missing. |
 | Review quality evidence | **D** | QM-3 is closed for the owner-accepted five-case comparable baseline. Synthetic adjudication, scorecard, and provider-free CI/scheduled gates exist ([scorecard scope](QUALITY-SCORECARD.md)). QM-5 gate v3 is merged infrastructure, not live resistance evidence. | Substantive held-out positive/clean adjudicated cases, actual same-snapshot incumbent evidence, and live bounded attack evaluation remain missing. Fixture arms are not incumbent runs. |
 | Architecture | **C+/B−** | Typed boundaries, contract registry, staged pipeline, and a measured 32,781-source-line slice ([allowance record](adr/0001-post-ca2-feature-budget.md#addendum-rc-2-retrieval-compiler-allowance-2026-11-06)). | Large staged functions still need cohesive reduction with behavior proof. The reduction from 40,686 lines is **19.43%**, not a current 25%; the approved allowance is fully consumed. |
@@ -122,8 +127,13 @@ incumbent observations. **No live resistance or detector-accuracy claim follows.
   outputs / 0 comparable pairs**. It includes actual public Droid receipts, but
   their exact snapshot/finality audit found no completed full incumbent output:
   one security receipt predates completion, one review has a base mismatch, and
-  stale/original-commit mismatches are explicitly not paired. The report measures
-  missingness, not incumbent performance; QM-4 remains open.
+  stale/original-commit mismatches are explicitly not paired. PR373 adds an offline,
+  hash/identity/cardinality validator, malformed JSON rejection, and fail-closed
+support-record bounds;
+  it does not add evidence or change the measures. The report measures missingness,
+  not incumbent performance; QM-4 remains open with 0 complete incumbent outputs and
+  0 actual pairs. The local hashes are not upstream signatures and do not authenticate
+  GitHub capture completeness or provider execution.
 - **PR 353:** [draft source](https://github.com/groktopus/codereview/pull/353)
   stopped after nonconvergence, with no CLEAR receipt and genuine
   entrypoint/frozen/wheel failures. The unverified recovery was preserved locally;
@@ -144,10 +154,10 @@ Local full-suite candidate runs were not full passes: the VD-3 run recorded
 4,107 passed / 12 skipped / 35 deselected **and 2 failures**; the QM-5 recovery run
 recorded 4,179 passed / 14 skipped **and 2 failures**. Both failure pairs were due
 to the missing local `build` module. Hash-locked candidate CI supplied that
-dependency and passed before merge; the later root verification above confirms
-PR 354's post-merge success but leaves PR 352's queued Harness run pending.
-Documentation checks cannot replace those
-source/CI or live evaluation obligations.
+dependency and passed before merge; the later root verification confirms post-merge
+Harness and Security success for PR373 at merge SHA `67a902c0c830dfdc50f17564d86f7576daf563e0`.
+Historical PR352/354 evidence remains as recorded in their delivery receipts.
+Documentation checks cannot replace source/CI or live evaluation obligations.
 
 ## Bottom line
 
