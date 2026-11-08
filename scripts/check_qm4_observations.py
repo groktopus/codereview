@@ -116,6 +116,8 @@ def validate_index_surface_maps(row: dict[str, Any]) -> None:
     allowed_surfaces = {"reviews", "comments", "issue_comments"}
     count_map, status_map = row["surface_counts"], row["surface_status"]
     require(isinstance(count_map, dict) and isinstance(status_map, dict), "surface_count_keys")
+    require(all(isinstance(key, str) for key in count_map), "surface_count_keys")
+    require(all(isinstance(key, str) for key in status_map), "surface_status_keys")
     require(set(count_map) == set(status_map), "surface_status_keys")
     require(set(count_map) <= allowed_surfaces and bool(count_map), "surface_count_keys")
     validate_surface_maps(row, set(count_map))
@@ -125,9 +127,14 @@ def validate_surface_maps(row: dict[str, Any], expected_surfaces: set[str]) -> N
     """Require exact surface keys, statuses, and JSON integer count semantics."""
     count_map, status_map = row["surface_counts"], row["surface_status"]
     require(isinstance(count_map, dict) and set(count_map) == expected_surfaces, "surface_count_keys")
-    require(isinstance(status_map, dict) and set(status_map) == expected_surfaces, "surface_status_keys")
+    require(isinstance(status_map, dict), "surface_status_keys")
+    require(all(isinstance(key, str) for key in count_map), "surface_count_keys")
+    require(all(isinstance(key, str) for key in status_map), "surface_status_keys")
+    require(set(count_map) == expected_surfaces, "surface_count_keys")
+    require(set(status_map) == expected_surfaces, "surface_status_keys")
     for name, value in count_map.items():
         status = status_map[name]
+        require(isinstance(status, str), "surface_status_type")
         require(status in {"captured", "response_over_capture_cap"}, "surface_status")
         if status == "captured":
             require(type(value) is int and value >= 0, "surface_count_type")

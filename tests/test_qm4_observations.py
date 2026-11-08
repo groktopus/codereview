@@ -97,6 +97,21 @@ def test_surface_map_requires_exact_surface_keys(package: Path, field: str) -> N
         validate_package(package)
 
 
+@pytest.mark.parametrize("invalid_status", [[], {}, None, True, 7])
+def test_index_surface_status_rejects_non_string_values_through_cli(package: Path, invalid_status: Any) -> None:
+    row_index = row_number(package, "codereview-pr112")
+    mutate(package, "index.json", ("cases", row_index, "surface_status", "comments"), invalid_status)
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/check_qm4_observations.py"), "--package", str(package)],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert json.loads(result.stdout) == {"valid": False, "error": "surface_status_type"}
+    assert result.stderr == b""
+
+
 @pytest.mark.parametrize(
     "case,field,value",
     [
