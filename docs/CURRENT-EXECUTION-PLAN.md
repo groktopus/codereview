@@ -86,7 +86,7 @@ The sections below retain the earlier a098-era snapshot and its original evidenc
 
 ## Prior plan snapshot — source cutoff a0988f2
 
-The harness is not accepted as a Droid replacement. Read-only shadow review remains the active use. No target code, hooks, or tests ran in the credentialed review workflow, and no review was published. The bounded test authority and source-PR merge delegation recorded here describe the owner instruction applicable at this 2026-10-01 snapshot. Current authority and limits are recorded in [AGENTS.md](../AGENTS.md) and [OWNERSHIP.md](OWNERSHIP.md); this dated snapshot does not independently grant authority or extend its scope.
+The harness is not accepted as a Droid replacement. Read-only shadow review remains the active use. No target code, hooks, or tests ran in the credentialed review workflow, and no review was published. The bounded test authority and source-PR merge delegation described here were the owner instruction applicable at this 2026-10-01 snapshot. Current test and merge authority is recorded in [AGENTS.md](../AGENTS.md) and [OWNERSHIP.md](OWNERSHIP.md); this dated snapshot does not independently grant or extend authority.
 
 Human labels are unavailable. That does not block bounded read-only shadow operation, advisory evidence collection, or an operational replacement decision under an explicit owner risk policy. It does prevent quantified accuracy or calibration claims. Model-teacher and Jev outputs remain distinct, uncalibrated advisory observations; neither is ground truth or a release gate.
 
@@ -121,6 +121,8 @@ PR #188, the OpenAI-compatible request-options change, subsequently merged as `7
 7. **Keep publication and replacement as separate future gates.** SlopSearX publisher setup, target workflow changes, protected App/environment configuration, exact-head revalidation, receipt and ambiguous-submit recovery, publication canary, Droid disablement, and cutover are not authorized by read-only test or source-merge authority. Before any of them, complete the relevant source/runtime/API qualification and obtain the applicable separate authorization. An operational replacement decision needs the complete operational trace, rollback rehearsal, and explicit owner acceptance of the known semantic-accuracy uncertainty; independent labels would support quantified quality claims but are not a prerequisite for that operational risk decision. No model agreement, Jev probability, teacher screen, or source PR may waive these gates.
 
 ## Historical authority and controls (2026-10-11 snapshot)
+
+The test scope below records the 2026-10-11 owner-authorized cases; it is historical and does not independently grant or extend authority. Current test authority is limited to the explicitly enumerated scope and safeguards in [AGENTS.md](../AGENTS.md), which supersedes this snapshot where they differ.
 
 Use only the two existing configured providers and their six trusted secret bindings for the authorized public SlopSearX cases. Keep the frozen case, profile, workflow/runtime identity, and numeric limits fixed for each run; no retries or new endpoints. Provider destinations and models come from trusted configuration, never PR content. Keep reports free of secret values and raw provider credentials.
 
