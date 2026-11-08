@@ -21,7 +21,9 @@ Use this file for project-specific constraints when working in this repository. 
 - **Preserve evidence.** Do not rewrite historical results or refresh compatibility pins, evaluation corpora, or baselines merely to make checks pass. Keep rejected outputs, failures, provenance, budget accounting, and freshness distinctions intact.
 - **Do not claim production readiness or replacement.** Such claims require the complete requirement audit and evidence described in [the delivery contract](docs/PRODUCTION-DELIVERY.md) and [current status](docs/STATUS.md); implementation progress alone is not sufficient.
 
-Any standing test or source-PR authority is limited to the exact scope, revision, inputs, and caps recorded in the applicable owner instruction. It does not extend to publication, target changes, new endpoints/providers/accounts, increased limits, or other external effects. If the applicable authority or boundary is unclear, stop and ask.
+**Merge authority:** The repository owner retains merge authority. An agent may merge a source PR only when the owner gives a current, direct instruction authorizing that specific PR, and only after all required checks pass at the exact reviewed head and independent review is clear. Verify the head again immediately before merging and verify the merge commit and post-merge checks afterward. No standing merge permission is implied by this guide. See [ownership and review authority](docs/OWNERSHIP.md) and [review evidence](docs/REVIEW-EVIDENCE.md).
+
+Any standing test authority is limited to the exact scope, revision, inputs, and caps recorded in the applicable owner instruction. It does not extend to publication, target changes, new endpoints/providers/accounts, increased limits, or other external effects. If the applicable authority or boundary is unclear, stop and ask.
 
 ## Contribution workflow
 
