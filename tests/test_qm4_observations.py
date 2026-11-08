@@ -367,6 +367,9 @@ def test_rehashed_non_object_support_is_rejected_without_traceback(package: Path
     "relative,mutate_shape",
     [
         ("support/slopsearx-pr745-receipt-links.json", "runs"),
+        ("support/slopsearx-pr745-receipt-links.json", "records_shape"),
+        ("support/slopsearx-pr745-receipt-links.json", "runs_shape"),
+        ("support/slopsearx-pr745-receipt-links.json", "pr_metadata_shape"),
         ("support/slopsearx-pr746-receipt-links.json", "records"),
         ("support/slopsearx-pr746-receipt-links.json", "checkout"),
         ("support/slopsearx-pr759-receipt-links.json", "runs"),
@@ -385,6 +388,12 @@ def test_rehashed_empty_receipt_collections_return_bounded_cli_error(
     value = read(support_file)
     if mutate_shape == "jobs":
         value["jobs"]["record"]["jobs"] = []
+    elif mutate_shape == "records_shape":
+        value["records"] = ["not-an-envelope"]
+    elif mutate_shape == "runs_shape":
+        value["runs"] = ["not-a-run"]
+    elif mutate_shape == "pr_metadata_shape":
+        value["pr_metadata_at_capture"] = []
     elif mutate_shape == "checkout":
         value["records"] = [value["records"][1]]
     elif mutate_shape == "remove_runs":
@@ -426,6 +435,9 @@ def test_rehashed_empty_receipt_collections_return_bounded_cli_error(
         "empty_support_runs",
         "empty_support_records",
         "empty_pr759_jobs",
+        "invalid_support_content",
+        "invalid_support_runs",
+        "invalid_support_pr_metadata",
         "jobs_count",
         "empty_support_job_runs",
         "records",

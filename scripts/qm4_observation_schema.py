@@ -216,10 +216,16 @@ def support(value: Any, expected_pr: int | None = None) -> None:
         support_id = expected_pr
         if support_id is None:
             raise ObservationError("support_pr_required")
+        require(
+            all(isinstance(item, dict) and isinstance(item.get("record"), dict) for item in runs),
+            "invalid_support_runs",
+        )
+        for item in records:
+            require(isinstance(item, dict), "invalid_support_content")
         if support_id == 745:
             require(len(runs) == 1, "missing_pr745_receipt_run")
             require(
-                not records and jobs_container is None and isinstance(pr_metadata, dict) and job_excerpt is None,
+                not records and len(runs) == 1 and isinstance(pr_metadata, dict) and job_excerpt is None,
                 "unexpected_pr745_support_shape",
             )
             require(

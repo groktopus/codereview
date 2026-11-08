@@ -12,6 +12,7 @@ Executed standard-library, offline assertions against the retained package:
 - PASS: each case JSON plus attributable support remains below262,144 bytes; largest aggregate case44,865 bytes (per-case budget includes its shared attribution bytes); shared attribution evidence is2,789 bytes. Entire package exceeds a single-case budget because it covers41 separate cases; it does not pool those caps.
 - PASS: model identity is explicit null on all41 cases; all41 final exact-snapshot output statuses remain missing, with nonempty specific reasons. No predictions or adjudications invented.
 - PASS: manually reconciled PR289 original/current commit identities; PR745 stale linked head; PR759 exact base/head checkout, early receipt timestamp and hidden final output; PR746 exact review head but wrong observed base.
+- PASS: malformed non-object and empty required support collections, with index hashes recomputed, return bounded JSON validation errors without Python tracebacks.
 - PASS: `git diff --check` exit0; final HEAD unchanged.
 
 Reason distribution:28 no attributable Droid records on inspected surfaces;8 original-head-mismatched Droid reviews;1 stale issue-comment receipt;1 original-head-matched review with base mismatch;1 identity-bound security receipt with final output unavailable;1 CodeQL-only non-Droid case;1 comment-surface over-cap gap.
