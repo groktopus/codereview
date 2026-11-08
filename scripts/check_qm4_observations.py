@@ -50,7 +50,7 @@ def strict_json(data: bytes) -> Any:
 
     try:
         return json.loads(data, object_pairs_hook=pairs, parse_constant=invalid_constant)
-    except (ValueError, UnicodeError) as exc:
+    except (ValueError, UnicodeError, RecursionError) as exc:
         raise ObservationError("invalid_json: " + str(exc)) from exc
 
 
@@ -133,12 +133,18 @@ def checkout(lines: list[str]) -> tuple[str, str]:
 
 def exact_droid_receipt(case: dict[str, Any], comment_id: int, run_url: str) -> dict[str, Any]:
     """Require exactly one fixed Droid comment with one canonical Markdown job link."""
-    rows = case["surfaces"].get("issue_comments", {}).get("records", [])
-    matching = [row for row in rows if row.get("id") == comment_id]
+    surfaces = case.get("surfaces")
+    if not isinstance(surfaces, dict):
+        raise ObservationError("receipt_comment_surface_missing")
+    surface = surfaces.get("issue_comments")
+    if not isinstance(surface, dict):
+        raise ObservationError("receipt_comment_surface_missing")
+    rows = surface.get("records")
+    if not isinstance(rows, list):
+        raise ObservationError("receipt_comment_records_missing")
+    matching = [row for row in rows if isinstance(row, dict) and row.get("id") == comment_id]
     require(len(matching) == 1 and matching[0].get("user") == DROID, "receipt_comment_identity_mismatch")
     row = matching[0]
-    if not isinstance(row, dict):
-        raise ObservationError("receipt_comment_shape")
     body = row.get("body")
     if not isinstance(body, str):
         raise ObservationError("receipt_comment_body_shape")
@@ -167,15 +173,19 @@ def receipt_reason(case: dict[str, Any], evidence: dict[str, Any]) -> str:
         require(
             any(f"PR Head SHA: {head}" in line for line in evidence["records"][-1]["lines"]), "validator_head_missing"
         )
-        issue_comments = evidence["records"][1]["records"]
-        require(len(issue_comments) == 2, "pr746_issue_comment_cardinality")
-        droid_receipt = [r for r in issue_comments if r.get("id") == 6090270984]
-        require(len(droid_receipt) == 1 and droid_receipt[0].get("user") == DROID, "pr746_issue_comment_run_binding")
+        issue_comments = evidence["records"][1].get("records")
+        if not isinstance(issue_comments, list) or len(issue_comments) != 2:
+            raise ObservationError("pr746_issue_comment_cardinality")
+        droid_receipts = [row for row in issue_comments if isinstance(row, dict) and row.get("id") == 6090270984]
         require(
-            re.findall(
-                r"\[View job\]\((https://github\.com/magnus919/SlopSearX/actions/runs/[0-9]+)\)",
-                droid_receipt[0]["body"],
-            )
+            len(droid_receipts) == 1 and droid_receipts[0].get("user") == DROID,
+            "pr746_issue_comment_run_binding",
+        )
+        body = droid_receipts[0].get("body")
+        if not isinstance(body, str):
+            raise ObservationError("pr746_issue_comment_body_shape")
+        require(
+            re.findall(r"\[View job\]\((https://github\.com/magnus919/SlopSearX/actions/runs/[0-9]+)\)", body)
             == ["https://github.com/magnus919/SlopSearX/actions/runs/37999126510"],
             "pr746_issue_comment_run_binding",
         )

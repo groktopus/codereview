@@ -1,6 +1,6 @@
 # Acquisition verification
 
-Verified2026-11-07 at source HEAD `8e477420c5752537129963a402b1ba91b6956151`, branch `evidence/qm4-incumbent-capture`. Only this new evidence directory is untracked; no existing source/runtime file was changed. No commits/pushes were performed.
+Acquisition verified2026-11-07 at source HEAD `8e477420c5752537129963a402b1ba91b6956151`, branch `evidence/qm4-incumbent-capture`. This is historical acquisition provenance, not the current harness checkout or validator source revision. No live target code or provider call was used during the later offline validation.
 
 Executed standard-library, offline assertions against the retained package:
 
@@ -10,7 +10,7 @@ Executed standard-library, offline assertions against the retained package:
 - PASS: all capture timestamps parse timezone-aware; source endpoint URLs use `https://api.github.com/`.
 - PASS:87 inventoried collection surfaces:86 captured,1 explicitly over-cap; every captured collection has<100 records and captured record count matches index count.
 - PASS: each case JSON plus attributable support remains below262,144 bytes; largest aggregate case44,865 bytes (per-case budget includes its shared attribution bytes); shared attribution evidence is2,789 bytes. Entire package exceeds a single-case budget because it covers41 separate cases; it does not pool those caps.
-- PASS: harness checker and regression suite pass offline; the checker computes the same largest aggregate (`44865`) while checking each case against the 262,144-byte bound.
+- PASS: current harness checker and regression suite pass offline on the source candidate described in the PR; the checker computes the same largest aggregate (`44865`) while checking each case against the 262,144-byte bound.
 - PASS: model identity is explicit null on all41 cases; all41 final exact-snapshot output statuses remain missing, with nonempty specific reasons. No predictions or adjudications invented.
 - PASS: manually reconciled PR289 original/current commit identities; PR745 stale linked head; PR759 exact base/head checkout, early receipt timestamp and hidden final output; PR746 exact review head but wrong observed base.
 - PASS: `git diff --check` exit0; final HEAD unchanged.

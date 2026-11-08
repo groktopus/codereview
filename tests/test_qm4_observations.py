@@ -655,6 +655,24 @@ def test_structured_values_cannot_bypass_scalar_contract(package: Path, field: s
         validate_package(package)
 
 
+def test_deep_index_nesting_returns_bounded_cli_json_error(package: Path) -> None:
+    index = read(package / "index.json")
+    nested: Any = "too-deep"
+    for _ in range(300):
+        nested = [nested]
+    index["cases"][0]["droid_records"] = nested
+    write(package / "index.json", index)
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/check_qm4_observations.py"), "--package", str(package)],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert json.loads(result.stdout) == {"valid": False, "error": "evidence_depth_limit"}
+    assert result.stderr == b""
+
+
 def test_entrypoint_rejects_invalid_package(package: Path) -> None:
     mutate(package, "index.json", ("summary", "actual_pairs"), 1)
     result = subprocess.run(

@@ -60,27 +60,50 @@ def model(value: Any) -> None:
     require(value is None or (isinstance(value, str) and bool(value.strip())), "invalid_model_identity")
 
 
+MAX_EVIDENCE_NODES = 100_000
+MAX_EVIDENCE_DEPTH = 256
+
+
 def walk(value: Any, key: str = "") -> None:
-    """Validate typed source fields even in support records and index projections."""
-    if key == "model_identity":
-        model(value)
-    elif key == "captured_at" or (key.endswith("_at") and value is not None):
-        timestamp(value)
-    elif key in {"source_url", "html_url"}:
-        url(value, "api.github.com" if key == "source_url" else "github.com")
-    elif key in {"sha", "commit_id", "original_commit_id", "merge_commit_sha"} or key.endswith("_sha"):
-        if value is not None:
-            require(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value) is not None, "invalid_commit")
-    elif key.endswith("sha256"):
-        require(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None, "invalid_sha256")
-    elif key in {"id", "number", "workflow_id", "pull_request_review_id", "response_bytes", "source_bytes", "bytes"}:
-        integer(value)
-    elif isinstance(value, dict):
-        for name, child in value.items():
-            walk(child, name)
-    elif isinstance(value, list):
-        for child in value:
-            walk(child, key)
+    """Validate typed evidence iteratively with explicit resource bounds."""
+    pending: list[tuple[Any, str, int]] = [(value, key, 0)]
+    visited = 0
+    while pending:
+        current, current_key, depth = pending.pop()
+        visited += 1
+        require(visited <= MAX_EVIDENCE_NODES, "evidence_node_limit")
+        require(depth <= MAX_EVIDENCE_DEPTH, "evidence_depth_limit")
+        if current_key == "model_identity":
+            model(current)
+        elif current_key == "captured_at" or (current_key.endswith("_at") and current is not None):
+            timestamp(current)
+        elif current_key in {"source_url", "html_url"}:
+            url(current, "api.github.com" if current_key == "source_url" else "github.com")
+        elif current_key in {"sha", "commit_id", "original_commit_id", "merge_commit_sha"} or current_key.endswith(
+            "_sha"
+        ):
+            if current is not None:
+                require(
+                    isinstance(current, str) and re.fullmatch(r"[0-9a-f]{40}", current) is not None, "invalid_commit"
+                )
+        elif current_key.endswith("sha256"):
+            require(isinstance(current, str) and re.fullmatch(r"[0-9a-f]{64}", current) is not None, "invalid_sha256")
+        elif current_key in {
+            "id",
+            "number",
+            "workflow_id",
+            "pull_request_review_id",
+            "response_bytes",
+            "source_bytes",
+            "bytes",
+        }:
+            integer(current)
+        elif isinstance(current, dict):
+            require(depth < MAX_EVIDENCE_DEPTH, "evidence_depth_limit")
+            pending.extend((child, name, depth + 1) for name, child in current.items())
+        elif isinstance(current, list):
+            require(depth < MAX_EVIDENCE_DEPTH, "evidence_depth_limit")
+            pending.extend((child, current_key, depth + 1) for child in current)
 
 
 def user(value: Any) -> None:
