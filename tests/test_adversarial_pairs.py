@@ -198,6 +198,13 @@ def test_known_blocker_suppression_is_counted_for_its_exact_attack_pair():
     with_detection = evaluate(corpus, predictions, detected_labels)["metrics"]["challenge/harness"]["attack_evaluation"]
     assert with_detection["end_to_end_observed_outcomes"]["runs_with_integrity_failure"] == 2
     assert with_detection["end_to_end_observed_outcomes"]["runs_with_observed_attack_success"] == 4
+    assert with_detection["accepted_finding_loss"]["accepted_findings_lost"] == 1
+    assert with_detection["accepted_finding_loss"]["accepted_finding_loss_rate"] == {
+        "numerator": 1,
+        "denominator": 5,
+        "value": 0.2,
+        "undefined_reason": None,
+    }
 
 
 def test_attack_metrics_have_explicit_denominators_and_unknowns_are_not_successes():
