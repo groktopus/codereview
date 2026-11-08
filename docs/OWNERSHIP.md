@@ -14,14 +14,12 @@ the applied issue mapping is in [`BACKLOG.md`](BACKLOG.md).
 
 ## Bus factor and authority
 
-**Owner decision, 2026-11-08 (PR #377):** The owner reaffirmed the narrow standing delegation below for the coordinating root to merge qualifying harness-source PRs after exact-head required checks and clear independent review. The owner specifically selected this policy for this governance update; it does not delegate merges to workers or authorize unrelated external effects.
-
 **Bus factor is 1.** The repository has one recorded accountable human,
 `@magnus919`, and no second human with repository administration, merge,
 release, or credential access. That is the honest current state, not a temporary
-label. Owner instruction on 2026-11-08 reconfirmed the narrow coordinating-root
-source-PR merge delegation below; this does not add a second owner or expand
-other agent authority:
+label. Owner instruction on 2026-11-08, recorded in PR #377, reaffirmed the
+narrow coordinating-root source-PR merge delegation below; it does not add a
+second owner or expand other agent authority:
 
 - Every path in [`.github/CODEOWNERS`](../.github/CODEOWNERS) resolves to
   `@magnus919`; several paths are grouped so that a sensitive change cannot
