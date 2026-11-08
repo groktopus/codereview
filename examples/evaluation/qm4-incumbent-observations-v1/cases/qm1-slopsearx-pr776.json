@@ -1,0 +1,69 @@
+{
+  "identity": {
+    "base_sha": "8d5875a8d99345db598cbee54d598cc8e0207022",
+    "case_id": "qm1-slopsearx-pr776",
+    "family_id": "qm1-slopsearx-documentation-controls-development",
+    "head_sha": "e7263302a5fc405394e881df6a181f41c52f1c13",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-527add3aef4f22c52ae3b9c3",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr776-source",
+      "sha256": "266e41db2c7f742d2b1dab38e316a06697a5bcb7f7ae9e518954b42ce6ca4a21"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:02.393663+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/776/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:01.817162+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "PR review pr-776-38112612122: INCOMPLETE\nCoverage: PARTIAL | Freshness: CURRENT (basis: GITHUB\\_API) | Merge eligibility: NOT_EVALUATED\nReviewed: 3d8a21457776dd03451b3e736218b7fbea69bc89..e7263302a5fc405394e881df6a181f41c52f1c13 | Comparison baseline: 3d8a21457776dd03451b3e736218b7fbea69bc89 | Profile: slopsearx-production-v17-context-target-manifest-candidate\nBudgets: provider-call reservations 6/32; input 224488/2500000 bytes; output 96000/512000 bytes; cost UNKNOWN.\nProvider observations: run elapsed 16067.5 ms; 6 provider calls reserved, 0 retries, 0 local tool calls; request attempted/not attempted/unknown 6/0/0.\nStage observations (summed call latency is not run wall time; missing receipts and usage remain unknown):\n- advisory: calls 1 reserved/1 settled; retries 0; dispatch attempted/not attempted/unknown 1/0/0; token records known/partial/unknown 0/0/1; token sums no token counts reported; summed call latency 262.04 ms across 1/1 calls; HTTP latency 156.46 ms across 1/1 calls; billed cost 0 microunits known 0/1, estimated cost 0 microunits known 0/1.\n- followup: calls 1 reserved/1 settled; retries 0; dispatch attempted/not attempted/unknown 1/0/0; token records known/partial/unknown 1/0/0; token sums completion_tokens 327 (1 reported), prompt_tokens 12064 (1 reported), total_tokens 12391 (1 reported); summed call latency 4034.73 ms across 1/1 calls; HTTP latency 3928.14 ms across 1/1 calls; billed cost 0 microunits known 0/1, estimated cost 0 microunits known 0/1.\n- primary: calls 4 reserved/4 settled; retries 0; dispatch attempted/not attempted/unknown 4/0/0; token records known/partial/unknown 4/0/0; token sums completion_tokens 1559 (4 reported), prompt_tokens 44424 (4 reported), total_tokens 45983 (4 reported); summed call latency 20731.28 ms across 4/4 calls; HTTP latency 20196.19 ms across 4/4 calls; billed cost 0 microunits known 0/4, estimated cost 0 microunits known 0/4.\n\n## Blockers\nNone recorded.\n\n## Suggested improvements\nNone recorded.\n\n## Specific strengths\n- **note-eefeb189169b8890a8f6** Structured startup-failure record: The result records the refusal status, filesystem state, zero phase/scientific calls, and the read-only diagnosis in named fields. This makes the experiment outcome easier to inspect without conflating a pre-acquisition startup failure with a quality measurement. Evidence: [ev-c17bea4f6c761cb2ccd7e7d1](https://github.com/magnus919/SlopSearX/blob/e7263302a5fc405394e881df6a181f41c52f1c13/docs/experiments/evidence/coverage-first-study/startup-refusal-2026-10-11/result.json#L1).\n\n## Future guidance\nNone recorded.\n\nCoverage\n3 complete, 3 partial, 0 not started across 6 obligations.\n- context:task-d0a8756c3caef53b:chunk-1:gap:0: PARTIAL (REQUIRED\\_CONTEXT\\_NOT\\_COVERED)\n- unit:unit-5e92a095cc0a2151cdc0:lens:correctness: PARTIAL (CONTEXT\\_GAP\\_UNRESOLVED)\n- unit:unit-5e92a095cc0a2151cdc0:lens:tests: PARTIAL (PARTIAL\\_REVIEW\\_COVERAGE)\n  Specialist reported partial coverage: Changed implementation and relevant test sources are not supplied, so test adequacy for changed behavior cannot be assessed..\n- check:portal-impact-evidence: NOT_APPLICABLE (configured\\_path\\_patterns\\_did\\_not\\_match); profile rationale: Dependency manifests are packaging inputs; base AGENTS requires portal-impact review and portal-contract CI evidence for packaging changes. Bind evidence to the target repository and exact head from the configured GitHub check app; missing or mismatched evidence is UNKNOWN, and a failing check remains FAIL.\n- check:portal-browser-evidence: NOT_APPLICABLE (configured\\_path\\_patterns\\_did\\_not\\_match); profile rationale: Base AGENTS requires portal impact and relevant browser-journey check evidence. This static pilot does not execute target code; evidence absent stays explicit.\n- Context gap task-d0a8756c3caef53b:chunk-1:gap:0 (VALID\\_UNRESOLVED): The supplied result records a startup refusal and a diagnosis, but does not provide the underlying orchestration implementation or the referenced source entry path. Without that context, correctness of the changed behavior and its failure handling cannot be assessed.\n\n<details>\n<summary>Coverage ledger (6 obligations)</summary>\n\n| Required | Obligation | Lens | Scope units | State | Reason | Tasks | Context gaps | Evidence refs |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| True | unit:unit-194b9d3df3a5d96c4ad0:lens:correctness | correctness | unit-194b9d3df3a5d96c4ad0 | COMPLETE | VALID\\_RESULT | task-251b1245d809213c:chunk-1 |  | E0001, E0002, E0003, E0006, E0007, E0009 |\n| True | unit:unit-4606603766609eb96ae2:lens:correctness | correctness | unit-4606603766609eb96ae2 | COMPLETE | VALID\\_RESULT | task-251b1245d809213c:chunk-1 |  | E0001, E0002, E0003, E0006, E0007, E0009 |\n| True | unit:unit-5e92a095cc0a2151cdc0:lens:correctness | correctness | unit-5e92a095cc0a2151cdc0 | PARTIAL | CONTEXT\\_GAP\\_UNRESOLVED | task-d0a8756c3caef53b:chunk-1 | task-d0a8756c3caef53b:chunk-1:gap:0 | E0003, E0005, E0007, E0008 |\n| True | unit:unit-5e92a095cc0a2151cdc0:lens:tests | tests | unit-5e92a095cc0a2151cdc0 | PARTIAL | PARTIAL\\_REVIEW\\_COVERAGE | task-f5e06eef0064a143:chunk-1 |  | E0003, E0005, E0007, E0008 |\n| True | unit:unit-5e92a095cc0a2151cdc0:lens:maintainability | maintainability | unit-5e92a095cc0a2151cdc0 | COMPLETE | VALID\\_RESULT | task-62d7cd7d5c2edbe7:chunk-1 |  | E0003, E0005, E0007, E0008 |\n| True | context:task-d0a8756c3caef53b:chunk-1:gap:0 | correctness | unit-5e92a095cc0a2151cdc0 | PARTIAL | REQUIRED\\_CONTEXT\\_NOT\\_COVERED | task-d0a8756c3caef53b:chunk-1:followup:0 |  | E0003, E0004, E0005, E0007, E0008 |\n\nEvidence reference index:\n- E0001 = ev-225820d85091a581c8669bbe\n- E0002 = ev-2d10dbf1147f087d09d2eb8d\n- E0003 = ev-38c4f28d5e5858a280774ef1\n- E0004 = ev-4ddffdea616e0a524b9e3c43\n- E0005 = ev-4fef8373a4f09c0c65acc6e8\n- E0006 = ev-7476e0c934c4e1a3fe16f03b\n- E0007 = ev-c08b3a00d5653c44728f28af\n- E0008 = ev-c17bea4f6c761cb2ccd7e7d1\n- E0009 = ev-fb6ba0db58a53c542f7de719\n\n</details>\n\n\n<!-- pr-review-harness:effect-aabb62c597842ff2ae7528b591c355c670a9525e5c5a667c0c231efa053cfea0 -->",
+          "commit_id": "e7263302a5fc405394e881df6a181f41c52f1c13",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/776#pullrequestreview-5481942026",
+          "id": 5481942026,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-11T04:47:43Z",
+          "user": {
+            "id": 41898282,
+            "login": "github-actions[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 7927,
+      "response_sha256": "0604f43fccfc386e08840ccbe9cec153476c8ac974c3a60ae050c8a6aa24f4a0",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/776/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

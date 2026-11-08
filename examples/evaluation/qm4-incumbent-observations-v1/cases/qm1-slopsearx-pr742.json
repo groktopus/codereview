@@ -1,0 +1,133 @@
+{
+  "identity": {
+    "base_sha": "0364bc40b651236272135844f077382236870901",
+    "case_id": "qm1-slopsearx-pr742",
+    "family_id": "qm1-slopsearx-pr742-natural",
+    "head_sha": "60a2c4accac84d41728c69cba3691bbf4be5f587",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-fbfcd3b9c581f3a8247f8864",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr742-source",
+      "sha256": "037869c793a4fae8dc62f6062b7143818272978d288d7a52bd0e2d16340c2890"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:59.341543+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P1] Count only grader packets actually submitted\n\n`close_preassessment` filters source packets whose `model_call_required` is false, so those packets are not sent and have no submission receipt. Counting every `prepared_refs.preassessment_packets` item here nevertheless adds those unsent bytes to grader request totals and maxima, overstating resource usage whenever an unassessable source packet is present.",
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "created_at": "2026-10-09T19:56:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#discussion_r4234035742",
+          "id": 4234035742,
+          "line": null,
+          "original_commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "original_line": 802,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5474752584,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T19:56:00Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "[P1] Bound decompression output before decoding\n\nA small compressed response can expand far beyond `MAX_RESPONSE_BYTES` inside `decoder.decode(chunk)` before the decoded-size check runs, potentially allocating enough memory to exhaust the capture worker. Enforce an output limit during incremental decompression, rather than only checking the returned bytes afterward.",
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "created_at": "2026-10-09T19:56:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#discussion_r4234035748",
+          "id": 4234035748,
+          "line": null,
+          "original_commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "original_line": 516,
+          "original_start_line": null,
+          "path": "scripts/coverage_source_capture.py",
+          "pull_request_review_id": 5474752584,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T19:56:00Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "[P1] Decode buffered responses before credential screening\n\n`Response(content=..., headers={\"Content-Encoding\": \"gzip\"})` is marked stream-consumed by HTTPX, but its `_content` still contains the encoded bytes. Treating `response.content` as already decoded means the credential scan examines compressed data and misses a reflected operator token; the replacement response retains the encoding header, so HTTPX decodes it for the caller and the reflected token can be written into a saved context. Decode buffered content according to its `Content-Encoding` before scanning, or reject such responses.",
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "created_at": "2026-10-09T19:56:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#discussion_r4234035758",
+          "id": 4234035758,
+          "line": null,
+          "original_commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "original_line": 487,
+          "original_start_line": null,
+          "path": "scripts/coverage_source_capture.py",
+          "pull_request_review_id": 5474752584,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T19:56:00Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 54441,
+      "response_sha256": "2f4101b7ed25038bcff01758875dc9f12d934bf131914ac0348b892041aa2c91",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/742/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:58.891927+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#pullrequestreview-5474752584",
+          "id": 5474752584,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T19:55:59Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 1736,
+      "response_sha256": "6acf38de19fffcc82a4f743ab4b1a3137e195e6bc46fbd52222ebc091fa8ff0d",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/742/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}
