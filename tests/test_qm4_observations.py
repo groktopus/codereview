@@ -97,10 +97,24 @@ def test_surface_map_requires_exact_surface_keys(package: Path, field: str) -> N
         validate_package(package)
 
 
-@pytest.mark.parametrize("value", [True, False, None, "1", -1, {"unexpected": 1}])
-def test_captured_surface_count_rejects_non_nonnegative_exact_integers(package: Path, value: Any) -> None:
-    row_index = row_number(package, "codereview-pr277")
-    mutate(package, "index.json", ("cases", row_index, "surface_counts", "comments"), value)
+@pytest.mark.parametrize(
+    "case,field,value",
+    [
+        ("codereview-pr237", "comments", True),
+        ("codereview-pr237", "comments", False),
+        ("codereview-pr277", "comments", True),
+        ("codereview-pr277", "comments", False),
+        ("codereview-pr282", "reviews", None),
+        ("codereview-pr284", "comments", "1"),
+        ("codereview-pr286", "reviews", -1),
+        ("codereview-pr288", "comments", {"unexpected": 1}),
+    ],
+)
+def test_captured_surface_count_rejects_non_nonnegative_exact_integers(
+    package: Path, case: str, field: str, value: Any
+) -> None:
+    row_index = row_number(package, case)
+    mutate(package, "index.json", ("cases", row_index, "surface_counts", field), value)
     with pytest.raises(ObservationError, match=r"surface_count_type"):
         validate_package(package)
 

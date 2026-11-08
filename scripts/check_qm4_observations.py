@@ -118,8 +118,6 @@ def validate_index_surface_maps(row: dict[str, Any]) -> None:
     require(isinstance(count_map, dict) and bool(count_map), "surface_count_keys")
     require(isinstance(status_map, dict) and set(status_map) == set(count_map), "surface_status_keys")
     require(set(count_map) <= allowed_surfaces, "surface_count_keys")
-    if set(count_map) != allowed_surfaces:
-        return
     for name, count in count_map.items():
         status = status_map[name]
         require(status in {"captured", "response_over_capture_cap"}, "surface_status")
