@@ -1,0 +1,1185 @@
+{
+  "authority": "public_read_only_get_no_provider_execution",
+  "case_byte_cap": 262144,
+  "cases": [
+    {
+      "bytes": 2454,
+      "case_id": "qm1-codereview-pr112",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr112.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "fdc8ca1b5ea6adace57ff9c3166879e744517a9fe54f04b15087b69d036082fe",
+      "surface_counts": {
+        "comments": 0,
+        "issue_comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "issue_comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1981,
+      "case_id": "qm1-codereview-pr237",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr237.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "d420694cd74f380b1928827c2e76b30a81b34970a33b9295786f1f558db2a245",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1989,
+      "case_id": "qm1-codereview-pr273",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr273.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "ffd7d0a3bcfccfc667c14b8e4b1523c8a7c76357a4a2458e69c54db4aedc9199",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1991,
+      "case_id": "qm1-codereview-pr276",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr276.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "9fd0fc184804f0664d2756f5d63e2db5359a7ce4048cf74faea04838625af7ae",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 3505,
+      "case_id": "qm1-codereview-pr277",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr277.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "431b339aba324a9033fc55da9b4d3b037df8a8f6783ceb6ab8f1f94c09aff916",
+      "surface_counts": {
+        "comments": 1,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 2275,
+      "case_id": "qm1-codereview-pr279",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr279.json",
+      "reason": "no_droid_in_captured_reviews_comment_surface_over_cap_uninspected",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "18d0dee380020f5090a5a1c69fc40c56b16ae335d26a4360cfe07d842e9eccf9",
+      "surface_counts": {
+        "comments": null,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "response_over_capture_cap",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 7677,
+      "case_id": "qm1-codereview-pr282",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr282.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "971b5b3f6951f22912e080febb03613c5634631bc13a082dc0dadb3ff07cadf8",
+      "surface_counts": {
+        "comments": 3,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 5965,
+      "case_id": "qm1-codereview-pr283",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr283.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "e8808a6af5fd83cf8cb213bb590dc0232ad4137628fddb3b03ccbb0c1923ab75",
+      "surface_counts": {
+        "comments": 3,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 19639,
+      "case_id": "qm1-codereview-pr284",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr284.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "96c7b47ed1bb5ae0ba3db014d1b39dd1f619768b113d31c799fb68f4c62023d7",
+      "surface_counts": {
+        "comments": 16,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 2456,
+      "case_id": "qm1-codereview-pr285",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr285.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "888c0e826272baf9ab466cf8f6a5790202b62810ddbf56d6f92277c538b46ead",
+      "surface_counts": {
+        "comments": 0,
+        "issue_comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "issue_comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1964,
+      "case_id": "qm1-codereview-pr286",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr286.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "852b05e47cb4148bb0e30e62f51b738c5b9f75680419248eae44c4b8140ee57b",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1964,
+      "case_id": "qm1-codereview-pr287",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr287.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "3f978b936d8ac406a19c902d2efff966bda4039f799b5709cb8bd28ed55ef56a",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 4427,
+      "case_id": "qm1-codereview-pr288",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr288.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "fad99400904f4f2016e9c30e73167ffb1cd187aec952c6d0affa7fe4650f140a",
+      "surface_counts": {
+        "comments": 2,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 9659,
+      "case_id": "qm1-codereview-pr289",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr289.json",
+      "reason": "only_codeql_bot_review_on_original_head_mismatch_not_droid",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "ebf03a7fc7098e034695d9d0d628b94319746cbda4e23561245bac5fc671ad3a",
+      "surface_counts": {
+        "comments": 7,
+        "issue_comments": 0,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "issue_comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1964,
+      "case_id": "qm1-codereview-pr290",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr290.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "488829b01edc7693c1068d3376d3b28360f85b7199341d0ab4b3a443a5ce27f9",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1968,
+      "case_id": "qm1-codereview-pr291",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr291.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "b420efe85f20c434df89d600476419458333ab660de2189b96d219e798f8e839",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1968,
+      "case_id": "qm1-codereview-pr292",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr292.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "eef0733fb81bc36d4d3258d93e2bad495ec3ef185282739f9eff8f0ffd25cebf",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1968,
+      "case_id": "qm1-codereview-pr293",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr293.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "40d3ddf1a619f067348768ec790588c23b59694eaf062742823fb3dd1a75ae40",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1968,
+      "case_id": "qm1-codereview-pr294",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr294.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "b889fc4f6c9f22df1b3d5dd9d696a7fe4600a6402ab9bf9901a96ffa983a0ea8",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1968,
+      "case_id": "qm1-codereview-pr295",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr295.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "e9a0a8ad032d32ecc6a278e805453ea73048f20f4034dbd33a97d69a9783366f",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 8407,
+      "case_id": "qm1-codereview-pr296",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-codereview-pr296.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "31a7b6a50a1dd4765ef328383b67f61a6f7efa9dc3cef7a8525d5c9fb591b979",
+      "surface_counts": {
+        "comments": 5,
+        "reviews": 3
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1985,
+      "case_id": "qm1-slopsearx-pr708",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr708.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "e8d6082fbc30d7fb21706f15d156c26e170e021502a545930d42b8914402123f",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 3714,
+      "case_id": "qm1-slopsearx-pr741",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "a3cb7107c6c01f33a2b2c2d47ea37062125cd09e",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/741#pullrequestreview-5473982534",
+          "id": 5473982534,
+          "submitted_at": "2026-10-09T18:37:12Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "a3cb7107c6c01f33a2b2c2d47ea37062125cd09e",
+          "created_at": "2026-10-09T18:37:12Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/741#discussion_r4233396194",
+          "id": 4233396194,
+          "original_commit_id": "a3cb7107c6c01f33a2b2c2d47ea37062125cd09e",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr741.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "6aa598aa2b8a48f04f40979a2e2fb0428228427bb63a5abfac5a509d02314505",
+      "surface_counts": {
+        "comments": 1,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 6206,
+      "case_id": "qm1-slopsearx-pr742",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#pullrequestreview-5474752584",
+          "id": 5474752584,
+          "submitted_at": "2026-10-09T19:55:59Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "created_at": "2026-10-09T19:56:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#discussion_r4234035742",
+          "id": 4234035742,
+          "original_commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "created_at": "2026-10-09T19:56:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#discussion_r4234035748",
+          "id": 4234035748,
+          "original_commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "created_at": "2026-10-09T19:56:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/742#discussion_r4234035758",
+          "id": 4234035758,
+          "original_commit_id": "90ff83f6559786307478ff3e117d3197cfbd9155",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr742.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "74c51e536a8cd8d7babec597215d94705e66f66be66365b9ae284e7ebc6cd09c",
+      "surface_counts": {
+        "comments": 3,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1968,
+      "case_id": "qm1-slopsearx-pr743",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr743.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "81414bf9a7c354c9949aaf1c51920fddc14e5a5fbc7de3d314ce243e089421f0",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 3720,
+      "case_id": "qm1-slopsearx-pr744",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "6011110c75361400de3bc360a56578905a834c36",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/744#pullrequestreview-5475116649",
+          "id": 5475116649,
+          "submitted_at": "2026-10-09T20:37:10Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "6c9686985a4bc9a4c0c8673d316ad1ad564fbbda",
+          "created_at": "2026-10-09T20:37:10Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/744#discussion_r4234343465",
+          "id": 4234343465,
+          "original_commit_id": "6011110c75361400de3bc360a56578905a834c36",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr744.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "c57b1e9f54c3a4291caefaf15e30596a390a3b010a089819de2e91c7811d9c0b",
+      "surface_counts": {
+        "comments": 1,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 3212,
+      "case_id": "qm1-slopsearx-pr745",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "created_at": "2026-10-09T21:30:49Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/745#issuecomment-6089587503",
+          "id": 6089587503,
+          "surface": "issue_comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr745.json",
+      "reason": "droid_receipt_linked_run_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "52795260626f3116350f06f256f88c93c975fca01e4284514a937110087f3fbf",
+      "surface_counts": {
+        "comments": 0,
+        "issue_comments": 1,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "issue_comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 5493,
+      "case_id": "qm1-slopsearx-pr746",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#pullrequestreview-5476016152",
+          "id": 5476016152,
+          "submitted_at": "2026-10-09T22:39:00Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "created_at": "2026-10-09T22:39:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#discussion_r4235124423",
+          "id": 4235124423,
+          "original_commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [
+        5476016152,
+        4235124423
+      ],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr746.json",
+      "reason": "original_review_head_matches_but_observed_review_base_differs_from_frozen_base",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "14cfd11507fbf52be9bd4b6a1b5a53e6e26ce6280c9d74561e9aeff6fc1a8e1c",
+      "surface_counts": {
+        "comments": 2,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 8417,
+      "case_id": "qm1-slopsearx-pr747",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#pullrequestreview-5476009871",
+          "id": 5476009871,
+          "submitted_at": "2026-10-09T22:38:17Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+          "created_at": "2026-10-09T22:38:17Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#discussion_r4235119032",
+          "id": 4235119032,
+          "original_commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "5a82b8d1d9c5be762e72974b345de8294ababd97",
+          "created_at": "2026-10-09T22:38:17Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/747#discussion_r4235119040",
+          "id": 4235119040,
+          "original_commit_id": "7c86ba27742b3384979f7068a6c247f9ad392ca4",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr747.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "68859b9521a6301eb111050f2b4ee8248ddd076eb682ae385da49dc6327f5dfd",
+      "surface_counts": {
+        "comments": 4,
+        "reviews": 3
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1972,
+      "case_id": "qm1-slopsearx-pr748",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr748.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "826b86e108767bf2d1be11193faba8e326e27761b9d778f38154b63defb52f90",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 5478,
+      "case_id": "qm1-slopsearx-pr752",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "106f44026db7473c295f8c00b294c1a45a9234ad",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/752#pullrequestreview-5476590947",
+          "id": 5476590947,
+          "submitted_at": "2026-10-10T00:24:26Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "e9c0ea7e26ce68b3b58afe12bbaee837b1e46d54",
+          "created_at": "2026-10-10T00:24:27Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/752#discussion_r4235607725",
+          "id": 4235607725,
+          "original_commit_id": "106f44026db7473c295f8c00b294c1a45a9234ad",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr752.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "8a59fcf7a2125cd9768ad4a81a098c1180f626d637ba9669bdd72616a79d95f8",
+      "surface_counts": {
+        "comments": 2,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 5387,
+      "case_id": "qm1-slopsearx-pr753",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/753#pullrequestreview-5476759981",
+          "id": 5476759981,
+          "submitted_at": "2026-10-10T01:01:19Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "created_at": "2026-10-10T01:01:19Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/753#discussion_r4235743865",
+          "id": 4235743865,
+          "original_commit_id": "530155c0762d485e710955995a44381a8f8f112e",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr753.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "527e0e8e2af4956984dca03a44f0d278014d2486e6d145b1d8e7ab4f32dfd040",
+      "surface_counts": {
+        "comments": 2,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1972,
+      "case_id": "qm1-slopsearx-pr756",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr756.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "5291bcb1243dac91cfd06786415ba9af4da43a8931977208452a1a0bc38260a6",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1972,
+      "case_id": "qm1-slopsearx-pr757",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr757.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "309f46a81f2b7ad0d926fbae257ddb2be811d90c4a6a16ab364200ec96dbd8c0",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 4650,
+      "case_id": "qm1-slopsearx-pr759",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "created_at": "2026-10-10T13:15:34Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/759#issuecomment-6097886070",
+          "id": 6097886070,
+          "surface": "issue_comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "created_at": "2026-10-10T13:16:08Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/759#issuecomment-6097890803",
+          "id": 6097890803,
+          "surface": "issue_comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr759.json",
+      "reason": "exact_base_head_linked_security_receipt_predates_final_review_completion_full_final_output_hidden",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "97e2fecbfc55393d35dcb3ada9221298221da2a58dee01d5b583be830d2daef7",
+      "surface_counts": {
+        "comments": 0,
+        "issue_comments": 3,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "issue_comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 5182,
+      "case_id": "qm1-slopsearx-pr770",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/770#pullrequestreview-5481824988",
+          "id": 5481824988,
+          "submitted_at": "2026-10-11T04:06:01Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "created_at": "2026-10-11T04:06:01Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/770#discussion_r4240194022",
+          "id": 4240194022,
+          "original_commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr770.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "836b18b33d0388aa9f68102ebc1310d22d5ef17ed87a7a96e1eac6e4efb98821",
+      "surface_counts": {
+        "comments": 2,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1985,
+      "case_id": "qm1-slopsearx-pr772",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr772.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "013ddeb440f27b4cc848bbf56bb65e3feeb36d621eef034ed601ae3505c82598",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 10965,
+      "case_id": "qm1-slopsearx-pr773",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr773.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "fea5fba2bed44d9ef9420e6e45099b37f9e6796e348064f7eb80144d79a5a246",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 8629,
+      "case_id": "qm1-slopsearx-pr776",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr776.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "492f5d5acd2d46ee1b857815f877ca9bceb3c153ae66909edb606e42cd1a393f",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 1
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 1985,
+      "case_id": "qm1-slopsearx-pr780",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr780.json",
+      "reason": "no_attributable_droid_records_in_inspected_surfaces",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "820a9c2d8a63d3132f21381f186b55d23b3b5dfc2ed5d1af4959c530684df299",
+      "surface_counts": {
+        "comments": 0,
+        "reviews": 0
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    },
+    {
+      "bytes": 42076,
+      "case_id": "qm1-slopsearx-pr874",
+      "complete_incumbent_output_status": "missing",
+      "droid_records": [
+        {
+          "commit_id": "e62dfb16b09a0ae48de7d6aad2dfb065a9f7a441",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/874#pullrequestreview-5535726623",
+          "id": 5535726623,
+          "submitted_at": "2026-10-15T15:34:21Z",
+          "surface": "reviews",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "commit_id": "9ab07ac9dbfdcd6d25bc19c472ea4230519bc0ef",
+          "created_at": "2026-10-15T15:34:21Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/874#discussion_r4285032866",
+          "id": 4285032866,
+          "original_commit_id": "e62dfb16b09a0ae48de7d6aad2dfb065a9f7a441",
+          "surface": "comments",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "head_matched_original_droid_record_ids": [],
+      "normalization_status": "not_attempted_insufficient_final_exact_snapshot_evidence",
+      "path": "cases/qm1-slopsearx-pr874.json",
+      "reason": "droid_review_original_head_mismatch",
+      "scope_caveat": "At-capture public reviews and review comments only; issue comments inspected only for accepted five plus optional746 support. Not proof of absent/deleted historical review or other surfaces.",
+      "sha256": "22477b1734a3836da15f3c3e148f670a33d69c24e40c5e560ea79831db0b51a4",
+      "surface_counts": {
+        "comments": 1,
+        "reviews": 2
+      },
+      "surface_status": {
+        "comments": "captured",
+        "reviews": "captured"
+      }
+    }
+  ],
+  "sanitization": "Allowlisted public review fields; login/id/type only for user; no credentials, avatars, user URLs or raw job logs retained. Body and anchor text preserved verbatim.",
+  "schema": "qm4-public-review-acquisition-index.v1",
+  "source_revision": "8e477420c5752537129963a402b1ba91b6956151",
+  "summary": {
+    "accepted_cases": 5,
+    "actual_pairs": 0,
+    "captured_surface_count": 86,
+    "complete_incumbent_outputs": 0,
+    "fetched_surface_count": 87,
+    "frozen_cases": 41,
+    "identity_bound_security_receipt_cases": 1,
+    "original_head_matched_review_case_base_mismatches": 1,
+    "original_head_matched_review_cases": 1,
+    "over_cap_surfaces": 1,
+    "refused_accuracy": true
+  },
+  "support": [
+    {
+      "bytes": 2789,
+      "path": "support/attribution-pr464.json",
+      "sha256": "6c9195c27e1c3257da56324d83b3c752f01d5f8ba1c45aaba509e4d35739d71c"
+    },
+    {
+      "bytes": 1890,
+      "path": "support/slopsearx-pr745-receipt-links.json",
+      "sha256": "5676c7eb8e9ed7ce8d9920f14e20cc1f0a3e2c9b25624ffd799447c686546e8d"
+    },
+    {
+      "bytes": 4176,
+      "path": "support/slopsearx-pr746-receipt-links.json",
+      "sha256": "e2eabcf7ddef7a8475eeab96ab074ed6d1051c76ae2ef75b97a751c8a8b277be"
+    },
+    {
+      "bytes": 4891,
+      "path": "support/slopsearx-pr759-receipt-links.json",
+      "sha256": "4750a408e7b2bf4537b71b5099928782cf57f5588d5e2853358d65394a4911cd"
+    }
+  ]
+}

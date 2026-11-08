@@ -1,0 +1,125 @@
+{
+  "identity": {
+    "base_sha": "282cf846e0f834aa55487f948ce66c1b8426a954",
+    "case_id": "qm1-slopsearx-pr770",
+    "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+    "head_sha": "5359f410a87f0d3275366e3d6bde8b68aa8557c7",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-930458eba9d270f546e83939",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr770-source",
+      "sha256": "fd37dd93e6516aea53c246e3a7d0f355b5d499aa64a5809ce881e07ab4888433"
+    },
+    "split": "challenge"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:01.665795+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P2] Remove the stale missing-preflight prerequisite\n\nThis says a sanitized public host-preflight artifact must still be attached, but `target-host-preflight.json` is already included and its path and SHA-256 are recorded immediately below. The stale prerequisite can incorrectly block final source/environment review; update it to describe only the private receipt that remains excluded.",
+          "commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "created_at": "2026-10-11T04:06:01Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/770#discussion_r4240194022",
+          "id": 4240194022,
+          "line": null,
+          "original_commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "original_line": 207,
+          "original_start_line": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/registration-inventory.json",
+          "pull_request_review_id": 5481824988,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-11T04:06:01Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "Fixed in 76c3b533: the inventory now says the private environment receipt remains excluded and the sanitized public preflight is included and SHA-pinned. No registration pins or study gates changed.",
+          "commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "created_at": "2026-10-11T04:07:29Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/770#discussion_r4240198505",
+          "id": 4240198505,
+          "line": null,
+          "original_commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "original_line": 207,
+          "original_start_line": null,
+          "path": "docs/experiments/evidence/coverage-first-study/registered-2026-10-11/registration-inventory.json",
+          "pull_request_review_id": 5481830180,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-11T04:07:29Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 26614,
+      "response_sha256": "d74dafba1bddfae3043dde53dd42716d43aca661fac7c1ef87465bc01ece83dc",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/770/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:01.243245+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "c25a6214a066d7b808a872f2ac7ab2cd23ba6f01",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/770#pullrequestreview-5481824988",
+          "id": 5481824988,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-11T04:06:01Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "76c3b53328a2a6399a0477a1113ad8b86182d1af",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/770#pullrequestreview-5481830180",
+          "id": 5481830180,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-11T04:07:29Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 3363,
+      "response_sha256": "c4db9223fb0fd4be0a61ad608430349b03157553191b6f8f34ba22c99d9ddb0e",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/770/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

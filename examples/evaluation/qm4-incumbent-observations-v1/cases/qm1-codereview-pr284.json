@@ -1,0 +1,419 @@
+{
+  "identity": {
+    "base_sha": "94061c3ea64cafd172e86d276e33fa1d71a63262",
+    "case_id": "qm1-codereview-pr284",
+    "family_id": "qm1-codereview-publication-and-supply-chain-challenge",
+    "head_sha": "243fb84755550229817586dd2ee06a324a9fd74f",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-32b21dd4c87d92d8f873ff39",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr284-source",
+      "sha256": "fef2fc450c1f8c398259eeba70087afba7a751a840192150c4ea1da6f602d7fd"
+    },
+    "split": "challenge"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:56.748753+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "## CodeQL / Unmatchable dollar in regular expression\n\nThis regular expression includes an unmatchable dollar at offset 27.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/249)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:52Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481756",
+          "id": 4436481756,
+          "line": 32,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 32,
+          "original_start_line": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/context_selector.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Variable defined multiple times\n\nThis assignment to 'source_status' is unnecessary as it is [redefined](1) before this value is used.\nThis assignment to 'source_status' is unnecessary as it is [redefined](2) before this value is used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/256)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481775",
+          "id": 4436481775,
+          "line": 534,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 534,
+          "original_start_line": null,
+          "path": "experiments/harness/shadow_audit.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Variable defined multiple times\n\nThis assignment to 'jev_status' is unnecessary as it is [redefined](1) before this value is used.\nThis assignment to 'jev_status' is unnecessary as it is [redefined](2) before this value is used.\nThis assignment to 'jev_status' is unnecessary as it is [redefined](3) before this value is used.\nThis assignment to 'jev_status' is unnecessary as it is [redefined](4) before this value is used.\nThis assignment to 'jev_status' is unnecessary as it is [redefined](5) before this value is used.\nThis assignment to 'jev_status' is unnecessary as it is [redefined](6) before this value is used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/257)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481791",
+          "id": 4436481791,
+          "line": 632,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 632,
+          "original_start_line": null,
+          "path": "experiments/harness/shadow_audit.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Variable defined multiple times\n\nThis assignment to 'result' is unnecessary as it is [redefined](1) before this value is used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/255)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481803",
+          "id": 4436481803,
+          "line": 343,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 343,
+          "original_start_line": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/cross_model_v2.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Unused global variable\n\nThe global variable '_ARTIFACT_NAME' is not used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/258)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481815",
+          "id": 4436481815,
+          "line": 37,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 37,
+          "original_start_line": null,
+          "path": "experiments/harness/actions_canary.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Unused global variable\n\nThe global variable '_MAX_UPLOAD_BYTES' is not used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/259)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481825",
+          "id": 4436481825,
+          "line": 43,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 43,
+          "original_start_line": null,
+          "path": "experiments/harness/actions_canary.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Unused global variable\n\nThe global variable '_MAX_UPLOAD_SECONDS' is not used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/260)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481835",
+          "id": 4436481835,
+          "line": 44,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 44,
+          "original_start_line": null,
+          "path": "experiments/harness/actions_canary.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Unused global variable\n\nThe global variable '_MAX_BRIDGE_OUTPUT_BYTES' is not used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/261)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481850",
+          "id": 4436481850,
+          "line": 45,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 45,
+          "original_start_line": null,
+          "path": "experiments/harness/actions_canary.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Statement has no effect\n\nThis statement has no effect.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/254)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481863",
+          "id": 4436481863,
+          "line": 69,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 69,
+          "original_start_line": null,
+          "path": "experiments/harness/actions_canary.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Empty except\n\n'except' clause does nothing but pass and there is no explanatory comment.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/252)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481871",
+          "id": 4436481871,
+          "line": 137,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 137,
+          "original_start_line": null,
+          "path": "experiments/harness/injection_trials.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Empty except\n\n'except' clause does nothing but pass and there is no explanatory comment.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/253)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:53Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481882",
+          "id": 4436481882,
+          "line": 618,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 618,
+          "original_start_line": null,
+          "path": "experiments/harness/injection_trials.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Unused import\n\nImport of 'serialize_source_audit_request' is not used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/263)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:54Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481893",
+          "id": 4436481893,
+          "line": 72,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 72,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/engine.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Unused global variable\n\nThe global variable '_TRIAGE_STATES' is not used.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/262)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:54Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481906",
+          "id": 4436481906,
+          "line": 42,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 42,
+          "original_start_line": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/claim_triage.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Empty except\n\n'except' clause does nothing but pass and there is no explanatory comment.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/250)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:54Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481918",
+          "id": 4436481918,
+          "line": 363,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 363,
+          "original_start_line": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/cross_model.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Empty except\n\n'except' clause does nothing but pass and there is no explanatory comment.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/251)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:43:54Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436481933",
+          "id": 4436481933,
+          "line": 367,
+          "original_commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "original_line": 367,
+          "original_start_line": null,
+          "path": "tests/fixtures/frozen-runtime-7d550b6/cross_model.py",
+          "pull_request_review_id": 5729167933,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Module is imported more than once\n\nThis import of module json is redundant, as it was previously imported [on line 13](1).\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/266)",
+          "commit_id": "243fb84755550229817586dd2ee06a324a9fd74f",
+          "created_at": "2026-11-01T16:57:40Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#discussion_r4436532407",
+          "id": 4436532407,
+          "line": 268,
+          "original_commit_id": "924f12bf438de12236e39efb1788ba4a66a5b7cd",
+          "original_line": 268,
+          "original_start_line": null,
+          "path": "src/pr_review_harness/actions_runtime.py",
+          "pull_request_review_id": 5729230807,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:57:40Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 205061,
+      "response_sha256": "f585d5bbda268f9aae66775a6a9e17ae70326d6de1faa93c5bdbd8293419672f",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/284/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:56.268369+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "3cafe133eea8ef07c62c534a21d649a11de4fcdb",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#pullrequestreview-5729167933",
+          "id": 5729167933,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T16:43:54Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "924f12bf438de12236e39efb1788ba4a66a5b7cd",
+          "html_url": "https://github.com/groktopus/codereview/pull/284#pullrequestreview-5729230807",
+          "id": 5729230807,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T16:57:40Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 3737,
+      "response_sha256": "8b362fa14fdc77973b99a163ac0e69cedca51de5d698181d46238c7cebaf850b",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/284/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

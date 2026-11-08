@@ -1,0 +1,125 @@
+{
+  "identity": {
+    "base_sha": "b3a97c45a9d8ff8b570618ca64a6023593f5b282",
+    "case_id": "qm1-slopsearx-pr752",
+    "family_id": "qm1-slopsearx-pr752-natural",
+    "head_sha": "e9c0ea7e26ce68b3b58afe12bbaee837b1e46d54",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-bb1c4048ca856142f0814e6f",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr752-source",
+      "sha256": "cded02a93190efe82060252257296ed63833efcc5a9cf4a05eaa3dfb240ef63b"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:00.839214+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P1] Keep mock-transport timing out of qualifying evidence\n\nThe collector accepts `injected-mocktransport` receipts and derives pacing and zero-retry observations from them exactly as it does for the owned production transport. A caller can supply a no-wait injected pacer with a fake monotonic clock and MockTransport, then pass the resulting source-bound receipts into this collector; the forged timing can meet the frozen gate values without real waits or provider dispatches. Reject mock transport attestations for qualification, or leave these control observations unknown.",
+          "commit_id": "e9c0ea7e26ce68b3b58afe12bbaee837b1e46d54",
+          "created_at": "2026-10-10T00:24:27Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/752#discussion_r4235607725",
+          "id": 4235607725,
+          "line": 1486,
+          "original_commit_id": "106f44026db7473c295f8c00b294c1a45a9234ad",
+          "original_line": 1171,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476590947,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-10T00:24:27Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "Fixed in 8837218eb0750674476c2265077915fc997e8f22. Only the owned HTTPX acquisition path can provide qualifying pacing, measured-gap, and zero-retry observations. Injected MockTransport receipts retain unknown values, including with a fake no-wait clock and mocked arXiv redirects. The regressions cover those cases; 32 focused acquisition/resource tests, Ruff, and diff checks passed. No real acquisition or provider calls occurred.",
+          "commit_id": "e9c0ea7e26ce68b3b58afe12bbaee837b1e46d54",
+          "created_at": "2026-10-10T00:28:05Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/752#discussion_r4235621424",
+          "id": 4235621424,
+          "line": 1486,
+          "original_commit_id": "106f44026db7473c295f8c00b294c1a45a9234ad",
+          "original_line": 1171,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476605435,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-10T00:28:05Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 12883,
+      "response_sha256": "6fbd8775afa2292dfd49da02e7cb3952ec1af8438aa29af6fc6983df97ee26a3",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/752/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:00.447910+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "106f44026db7473c295f8c00b294c1a45a9234ad",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/752#pullrequestreview-5476590947",
+          "id": 5476590947,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-10T00:24:26Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "8837218eb0750674476c2265077915fc997e8f22",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/752#pullrequestreview-5476605435",
+          "id": 5476605435,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-10T00:28:05Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 3363,
+      "response_sha256": "9bb390958efaed5e4d3b0672f9c450ff81a18ab535d2caa6b3e9d46353e88027",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/752/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

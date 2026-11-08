@@ -1,0 +1,146 @@
+{
+  "identity": {
+    "base_sha": "40eb5321f30b06da27f305aa473722034e64ee99",
+    "case_id": "qm1-codereview-pr283",
+    "family_id": "qm1-codereview-pr283-natural",
+    "head_sha": "9f9ee70232c710731f40f07e70e766bc35b121d6",
+    "profile": {
+      "profile_id": "codereview-native",
+      "sha256": "a657264bbe8062f16389a5a4e516f33d8a1182a3ca29a0e94cf70c685cad9f0a",
+      "version": "codereview-native-v1-candidate"
+    },
+    "repository": {
+      "name": "codereview",
+      "owner": "groktopus"
+    },
+    "snapshot_id": "snap-db5c5e668359df65a12773a2",
+    "source_manifest": {
+      "manifest_id": "qm1-codereview-pr283-source",
+      "sha256": "f1458f5af4b8b1cf5b683410161a6308578d784082667b54d83efd57d5a0dd23"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:56.246345+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "## CodeQL / Unreachable `except` block\n\nThis except block handling [BudgetExhausted](1) is unreachable; as [this except block](2) also handles [BudgetExhausted](1).\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/245)",
+          "commit_id": "9f9ee70232c710731f40f07e70e766bc35b121d6",
+          "created_at": "2026-11-01T16:20:31Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/283#discussion_r4436408097",
+          "id": 4436408097,
+          "line": 2814,
+          "original_commit_id": "a877e04ee98a5893b981a7b8fb8e020c94629c9e",
+          "original_line": 2813,
+          "original_start_line": 2806,
+          "path": "src/pr_review_harness/review_stages.py",
+          "pull_request_review_id": 5729030946,
+          "side": "RIGHT",
+          "start_line": 2808,
+          "updated_at": "2026-11-01T16:20:31Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Cyclic import\n\nImport of module [pr_review_harness.engine](1) begins an import cycle.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/246)",
+          "commit_id": "9f9ee70232c710731f40f07e70e766bc35b121d6",
+          "created_at": "2026-11-01T16:20:31Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/283#discussion_r4436408109",
+          "id": 4436408109,
+          "line": 461,
+          "original_commit_id": "a877e04ee98a5893b981a7b8fb8e020c94629c9e",
+          "original_line": 461,
+          "original_start_line": 452,
+          "path": "src/pr_review_harness/review_stages.py",
+          "pull_request_review_id": 5729030946,
+          "side": "RIGHT",
+          "start_line": 452,
+          "updated_at": "2026-11-01T16:20:31Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "## CodeQL / Cyclic import\n\nImport of module [pr_review_harness.review_stages](1) begins an import cycle.\n\n[Show more details](https://github.com/groktopus/codereview/security/code-scanning/248)",
+          "commit_id": "99c431fa59b028c42bd1db56bd198e3a6af3eeac",
+          "created_at": "2026-11-01T16:33:42Z",
+          "html_url": "https://github.com/groktopus/codereview/pull/283#discussion_r4436448846",
+          "id": 4436448846,
+          "line": null,
+          "original_commit_id": "99c431fa59b028c42bd1db56bd198e3a6af3eeac",
+          "original_line": 1474,
+          "original_start_line": 1457,
+          "path": "src/pr_review_harness/engine.py",
+          "pull_request_review_id": 5729107143,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-11-01T16:33:43Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 9914,
+      "response_sha256": "d333366f71f1bb8dc1077a44fbfb044ed82af4917902253befdfc82e46f0bf12",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/283/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:55.731478+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "a877e04ee98a5893b981a7b8fb8e020c94629c9e",
+          "html_url": "https://github.com/groktopus/codereview/pull/283#pullrequestreview-5729030946",
+          "id": 5729030946,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T16:20:31Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "99c431fa59b028c42bd1db56bd198e3a6af3eeac",
+          "html_url": "https://github.com/groktopus/codereview/pull/283#pullrequestreview-5729107143",
+          "id": 5729107143,
+          "state": "COMMENTED",
+          "submitted_at": "2026-11-01T16:33:43Z",
+          "user": {
+            "id": 62310815,
+            "login": "github-advanced-security[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 3737,
+      "response_sha256": "15ad9d946dd0d07289c84763b923f0e4068d9a106c2f8a0c787c6b3db9b13e59",
+      "source_url": "https://api.github.com/repos/groktopus/codereview/pulls/283/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

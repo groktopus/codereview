@@ -1,0 +1,125 @@
+{
+  "identity": {
+    "base_sha": "bc5e04302fa5d4dc133b858907cdc217e75eadfa",
+    "case_id": "qm1-slopsearx-pr746",
+    "family_id": "qm1-slopsearx-pr746-natural",
+    "head_sha": "b85c6370e842522f78e32260d38cdc0c770744c4",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-bceab3ec0aed95bd97b3d257",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr746-source",
+      "sha256": "1e06eb34becbc3ab46f9cb43a1768849326d9ee01b96ffc5ab582f38c5b1b1c8"
+    },
+    "split": "development"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:00.126306+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P1] Preserve the selector measurements collected above\n\nThis merge adds selector observations, but the following assignments reset `selector_elapsed_ms`, `selector_usage`, `selector_concurrency`, and `selector_retries` to `None` before producing the report. Even when the terminal/result/archive chain verifies successfully, the resource gate therefore sees these required measurements as unknown and cannot evaluate the selector resource limits. Keep the values derived from `selector`, while leaving only the genuinely unmeasured stage-wide duration unknown.",
+          "commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "created_at": "2026-10-09T22:39:00Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#discussion_r4235124423",
+          "id": 4235124423,
+          "line": 957,
+          "original_commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "original_line": 957,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476016152,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T22:39:00Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "Fixed in b85c6370e842522f78e32260d38cdc0c770744c4: removed all four unconditional selector resets. The complete collect_resource_evidence integration now executes the pinned selector/archive chain and asserts measured elapsed, usage, concurrency and retries survive while false caller-supplied values are ignored. Current-head Python 3.12/3.13 suites and all applicable CI passed. Stage-wide duration intentionally remains unknown here and is handled separately in #747.",
+          "commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "created_at": "2026-10-09T22:40:55Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#discussion_r4235140021",
+          "id": 4235140021,
+          "line": 957,
+          "original_commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "original_line": 957,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5476034165,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T22:40:55Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 8449,
+      "response_sha256": "eb953dbb05628f0037a1ca77d1b83147905d545cf02f09de32a4ee5d57457a8e",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/746/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:59.691741+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#pullrequestreview-5476016152",
+          "id": 5476016152,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T22:39:00Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        },
+        {
+          "body": "",
+          "commit_id": "b85c6370e842522f78e32260d38cdc0c770744c4",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/746#pullrequestreview-5476034165",
+          "id": 5476034165,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T22:40:55Z",
+          "user": {
+            "id": 942000,
+            "login": "magnus919",
+            "type": "User"
+          }
+        }
+      ],
+      "response_bytes": 3363,
+      "response_sha256": "fa0e133f2bd2d1b8a4b30024a21e0c78ebe49ffe73af2f6ac318051b934945e3",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/746/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

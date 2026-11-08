@@ -1,0 +1,69 @@
+{
+  "identity": {
+    "base_sha": "0e486ff95ff086906f309d1c1077a0a5ec2ba94c",
+    "case_id": "qm1-slopsearx-pr773",
+    "family_id": "qm1-slopsearx-publisher-workflow-challenge",
+    "head_sha": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-b5321a0b540ed960929d2ae2",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr773-source",
+      "sha256": "f566d2e06288da495937c429ad41a8709bafa6aab3e454df2f75de270ac2585d"
+    },
+    "split": "challenge"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:39:02.083588+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [],
+      "response_bytes": 2,
+      "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/773/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:39:01.411365+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "## Non-binding review comment\n\nThis is a non-binding canary comment. It is not an approval, a request for changes, or authorization to merge.\n\n**Underlying analysis disposition: `APPROVE`**\n\n---\n\nPR review pr-773-38110976514: APPROVE\nCoverage: COMPLETE | Freshness: CURRENT (basis: GITHUB\\_API) | Merge eligibility: NOT_EVALUATED\nReviewed: e011f264bc4a16dfab535b4dfd492c014ce0519f..9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3 | Comparison baseline: e011f264bc4a16dfab535b4dfd492c014ce0519f | Profile: slopsearx-production-v17-context-target-manifest-candidate\nBudgets: provider-call reservations 4/32; input 225414/2500000 bytes; output 64000/512000 bytes; cost UNKNOWN.\nProvider observations: run elapsed 9035.32 ms; 4 provider calls reserved, 0 retries, 0 local tool calls; request attempted/not attempted/unknown 4/0/0.\nStage observations (summed call latency is not run wall time; missing receipts and usage remain unknown):\n- advisory: calls 1 reserved/1 settled; retries 0; dispatch attempted/not attempted/unknown 1/0/0; token records known/partial/unknown 0/0/1; token sums no token counts reported; summed call latency 227.97 ms across 1/1 calls; HTTP latency 134.71 ms across 1/1 calls; billed cost 0 microunits known 0/1, estimated cost 0 microunits known 0/1.\n- primary: calls 3 reserved/3 settled; retries 0; dispatch attempted/not attempted/unknown 3/0/0; token records known/partial/unknown 3/0/0; token sums completion_tokens 2024 (3 reported), prompt_tokens 55179 (3 reported), total_tokens 57203 (3 reported); summed call latency 19853.31 ms across 3/3 calls; HTTP latency 19501.81 ms across 3/3 calls; billed cost 0 microunits known 0/3, estimated cost 0 microunits known 0/3.\n\n## Blockers\nNone recorded.\n\n## Suggested improvements\nNone recorded.\n\n## Specific strengths\n- **note-229b7ccc884a380598a0** Scope-specific receipt sizing: The handoff keeps the existing receipt cap as the default and selects a larger bounded cap only for the selector-operation-permits scope. This isolates the larger batch requirement without broadening receipt size limits for unrelated handoff scopes. Evidence: [ev-21edf2c8a0ddcc477459449e](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/scripts/coverage_operator_handoff.py#L190), [ev-a8d47fc2203da206f1d4ce85](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/scripts/coverage_operator_handoff.py#L1).\n- **note-9966c89b4dddcc917f05** Tests cover scope-specific boundaries: The added tests check a 39-operation receipt above the original limit, an over-cap selector batch, and an over-cap receipt for another scope. These cases statically exercise both the intended exception and preservation of the prior limit elsewhere. Evidence: [ev-1b3c55c14d4adb9677c38244](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/tests/test_coverage_operator_handoff.py#L1), [ev-53e8e2709cb8d87c2304dda6](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/tests/test_coverage_operator_handoff.py#L1).\n- **note-b59dc2921042f2a422e5** Tests cover the exception and its boundaries: The added test source covers an accepted 39-operation batch, rejection above the new cap, and retention of the original cap for another scope. These cases document both the intended special case and the bounds that prevent the exception from spreading. Evidence: [ev-1b3c55c14d4adb9677c38244](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/tests/test_coverage_operator_handoff.py#L1), [ev-53e8e2709cb8d87c2304dda6](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/tests/test_coverage_operator_handoff.py#L1).\n- **note-d30fee5e697db69366ca** Receipt size exception is narrowly scoped: The implementation selects a higher receipt limit only for the selector-operation-permits scope and retains the default cap for other scopes. This allows the larger batch receipt without broadly increasing the accepted receipt size for unrelated handoffs. Evidence: [ev-21edf2c8a0ddcc477459449e](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/scripts/coverage_operator_handoff.py#L190), [ev-dcbbe41009a3c17f6009197a](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/scripts/coverage_operator_handoff.py#L8).\n- **note-ea0c9f56f4c07dd31e58** Tests boundary and scope-specific receipt limits: The added tests exercise a full 39-operation receipt above the ordinary cap, an oversized selector batch above the new cap, and an oversized receipt in a different scope. These cases assess both the intended exception and the preservation of the existing limit for other handoff scopes. Evidence: [ev-1b3c55c14d4adb9677c38244](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/tests/test_coverage_operator_handoff.py#L1), [ev-53e8e2709cb8d87c2304dda6](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/tests/test_coverage_operator_handoff.py#L1).\n\n## Future guidance\n- **note-5a74817c3122a4d3e8f2** Keep the receipt-size contract aligned with the batch format: The test fixture verifies that its generated batch is no larger than the configured selector-batch cap. If the batch schema or operation schedule grows, consider updating the fixture and cap together so the size boundary remains explicit. Evidence: [ev-53e8e2709cb8d87c2304dda6](https://github.com/magnus919/SlopSearX/blob/9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3/tests/test_coverage_operator_handoff.py#L1).\n\nCoverage\n6 complete, 0 partial, 0 not started across 6 obligations.\n- check:portal-impact-evidence: NOT_APPLICABLE (configured\\_path\\_patterns\\_did\\_not\\_match); profile rationale: Dependency manifests are packaging inputs; base AGENTS requires portal-impact review and portal-contract CI evidence for packaging changes. Bind evidence to the target repository and exact head from the configured GitHub check app; missing or mismatched evidence is UNKNOWN, and a failing check remains FAIL.\n- check:portal-browser-evidence: NOT_APPLICABLE (configured\\_path\\_patterns\\_did\\_not\\_match); profile rationale: Base AGENTS requires portal impact and relevant browser-journey check evidence. This static pilot does not execute target code; evidence absent stays explicit.\n\n<details>\n<summary>Coverage ledger (6 obligations)</summary>\n\n| Required | Obligation | Lens | Scope units | State | Reason | Tasks | Context gaps | Evidence refs |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| True | unit:unit-f1c59a9fef66153c25c7:lens:correctness | correctness | unit-f1c59a9fef66153c25c7 | COMPLETE | VALID\\_RESULT | task-ae2e7863bdffed63:chunk-1 |  | E0001, E0002, E0003, E0004, E0005, E0006, E0007, E0008, E0009 |\n| True | unit:unit-f1c59a9fef66153c25c7:lens:tests | tests | unit-f1c59a9fef66153c25c7 | COMPLETE | VALID\\_RESULT | task-73bf7b6d58808999:chunk-1 |  | E0001, E0002, E0003, E0004, E0005, E0006, E0007, E0008, E0009 |\n| True | unit:unit-f1c59a9fef66153c25c7:lens:maintainability | maintainability | unit-f1c59a9fef66153c25c7 | COMPLETE | VALID\\_RESULT | task-fe2e1d501fa80358:chunk-1 |  | E0001, E0002, E0003, E0004, E0005, E0006, E0007, E0008, E0009 |\n| True | unit:unit-6fb1676055cfab234fae:lens:correctness | correctness | unit-6fb1676055cfab234fae | COMPLETE | VALID\\_RESULT | task-ae2e7863bdffed63:chunk-1 |  | E0001, E0002, E0003, E0004, E0005, E0006, E0007, E0008, E0009 |\n| True | unit:unit-6fb1676055cfab234fae:lens:tests | tests | unit-6fb1676055cfab234fae | COMPLETE | VALID\\_RESULT | task-73bf7b6d58808999:chunk-1 |  | E0001, E0002, E0003, E0004, E0005, E0006, E0007, E0008, E0009 |\n| True | unit:unit-6fb1676055cfab234fae:lens:maintainability | maintainability | unit-6fb1676055cfab234fae | COMPLETE | VALID\\_RESULT | task-fe2e1d501fa80358:chunk-1 |  | E0001, E0002, E0003, E0004, E0005, E0006, E0007, E0008, E0009 |\n\nEvidence reference index:\n- E0001 = ev-1b3c55c14d4adb9677c38244\n- E0002 = ev-21edf2c8a0ddcc477459449e\n- E0003 = ev-53e8e2709cb8d87c2304dda6\n- E0004 = ev-70b90948668e94935238051a\n- E0005 = ev-755590788e9a60840f8e6db8\n- E0006 = ev-8892f1274345e0dd231b9b7a\n- E0007 = ev-a8d47fc2203da206f1d4ce85\n- E0008 = ev-b68107756906855c6b095a8c\n- E0009 = ev-dcbbe41009a3c17f6009197a\n\n</details>\n\n\n<!-- pr-review-harness:effect-1a8d2dba98afccb38eafef211ff179a30a570a02fa8aa4d21512f4e807f7bb68 -->",
+          "commit_id": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/773#pullrequestreview-5481863853",
+          "id": 5481863853,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-11T04:16:39Z",
+          "user": {
+            "id": 41898282,
+            "login": "github-actions[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 10270,
+      "response_sha256": "a7b22ed7638846e3d89d48c5c1fd19621813e0f236dc0a1fd67a1c623d3e9428",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/773/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "identity": {
+    "base_sha": "753aeb50821900e680ad48fe1ef5772d3179ac33",
+    "case_id": "qm1-slopsearx-pr744",
+    "family_id": "qm1-slopsearx-pr744-natural",
+    "head_sha": "6c9686985a4bc9a4c0c8673d316ad1ad564fbbda",
+    "profile": {
+      "profile_id": "slopsearx",
+      "sha256": "8150327e985535af667dd08f24d2665f302f538a0cc346c9e86bea38c6b323ba",
+      "version": "slopsearx-production-v8-static-review-boundaries"
+    },
+    "repository": {
+      "name": "SlopSearX",
+      "owner": "magnus919"
+    },
+    "snapshot_id": "snap-4c5a3a2fca03b98c928610cb",
+    "source_manifest": {
+      "manifest_id": "qm1-slopsearx-pr744-source",
+      "sha256": "2f16db1d1b3033a2a32f66c7802519813922df8b15038b474ea6b5de78c328ea"
+    },
+    "split": "heldout"
+  },
+  "interpretation": {
+    "exact_authorship_requires_original_commit_id": true,
+    "no_accuracy_claim": true,
+    "review_comment_commit_id_can_be_remapped": true,
+    "status": "not_normalized"
+  },
+  "model_identity": null,
+  "schema": "qm4-public-review-observation.v1",
+  "surfaces": {
+    "comments": {
+      "captured_at": "2026-11-07T19:38:59.906517+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "[P2] Check the deadline during snapshot verification\n\nThis check runs only before `verify_pool_snapshot_index`, which synchronously reads and validates the index and up to 13 snapshot files without consulting `_DEADLINE`. If the deadline expires during an early read, collection still reads and processes the remaining bounded files before checking again, potentially doing substantial work after the stage deadline. Add deadline checks between those reads so collection stops promptly.",
+          "commit_id": "6c9686985a4bc9a4c0c8673d316ad1ad564fbbda",
+          "created_at": "2026-10-09T20:37:10Z",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/744#discussion_r4234343465",
+          "id": 4234343465,
+          "line": 615,
+          "original_commit_id": "6011110c75361400de3bc360a56578905a834c36",
+          "original_line": 568,
+          "original_start_line": null,
+          "path": "scripts/coverage_resource_evidence.py",
+          "pull_request_review_id": 5475116649,
+          "side": "RIGHT",
+          "start_line": null,
+          "updated_at": "2026-10-09T20:37:11Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 3505,
+      "response_sha256": "b97b1dec77525b0a0396c9a8e3a767ec412c5a575325821276b5b0a6b4748adb",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/744/comments?per_page=100&page=1",
+      "status": "captured"
+    },
+    "reviews": {
+      "captured_at": "2026-11-07T19:38:59.468878+00:00",
+      "page": 1,
+      "pagination": "complete_for_endpoint_at_capture",
+      "per_page": 100,
+      "records": [
+        {
+          "body": "",
+          "commit_id": "6011110c75361400de3bc360a56578905a834c36",
+          "html_url": "https://github.com/magnus919/SlopSearX/pull/744#pullrequestreview-5475116649",
+          "id": 5475116649,
+          "state": "COMMENTED",
+          "submitted_at": "2026-10-09T20:37:10Z",
+          "user": {
+            "id": 138933559,
+            "login": "factory-droid[bot]",
+            "type": "Bot"
+          }
+        }
+      ],
+      "response_bytes": 1736,
+      "response_sha256": "299da011c680eae0a4b598b14691e8c6019e5e833e08f171773cd9454ea08c8a",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/744/reviews?per_page=100&page=1",
+      "status": "captured"
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "job_log_excerpt": {
+    "captured_at": "2026-11-07T19:39:12.311423+00:00",
+    "lines": [
+      "2026-10-10T13:15:29.1462886Z HEAD is now at abf6bfe Merge 6fbd0675091420397b6757e7e87816305e9f5b58 into 8c69cde94436782bde13efa018c2f428f5a6881d",
+      "2026-10-10T13:15:40.7922859Z Stored PR diff (6827 bytes) at /home/runner/work/_temp/droid-prompts/pr.diff",
+      "2026-10-10T13:15:40.7951239Z PR Head SHA: 6fbd0675091420397b6757e7e87816305e9f5b58",
+      "2026-10-10T13:15:47.1722967Z Running Droid Exec (full output hidden for security)...",
+      "2026-10-10T13:18:52.6476366Z * PR Head SHA: 6fbd0675091420397b6757e7e87816305e9f5b58",
+      "2026-10-10T13:18:55.1377545Z Running Droid Exec (full output hidden for security)...",
+      "2026-10-10T13:19:56.8272348Z Artifact droid-review-debug-38055015773 has been successfully uploaded! Final size is 4325882 bytes. Artifact ID is 11671010616"
+    ],
+    "selection": "allowlisted checkout SHA, diff size, head SHA, output-hidden and oversized artifact lines only; no prompt/environment/model session contents retained",
+    "source_bytes": 68258,
+    "source_sha256": "b9f58750fa7384cd124e202a981a079886e2ea20a4f6985061dd37ff479efaa7",
+    "source_url": "https://api.github.com/repos/magnus919/SlopSearX/actions/jobs/114221572962/logs"
+  },
+  "jobs": {
+    "captured_at": "2026-11-07T19:39:12.689995+00:00",
+    "record": {
+      "jobs": [
+        {
+          "completed_at": "2026-10-10T13:20:01Z",
+          "conclusion": "success",
+          "head_sha": "6fbd0675091420397b6757e7e87816305e9f5b58",
+          "html_url": "https://github.com/magnus919/SlopSearX/actions/runs/38055015773/job/114221572962",
+          "id": 114221572962,
+          "name": "droid-review",
+          "started_at": "2026-10-10T13:15:22Z",
+          "status": "completed"
+        }
+      ],
+      "total_count": 1
+    },
+    "response_bytes": 2068,
+    "response_sha256": "ccaf076fa29a6b7872c43b28742a074f9d276ec494c36f68e714f36d0fab3c93",
+    "source_url": "https://api.github.com/repos/magnus919/SlopSearX/actions/runs/38055015773/jobs?per_page=100&page=1"
+  },
+  "model_identity": null,
+  "pr_metadata_at_capture": {
+    "captured_at": "2026-11-07T19:39:11.830204+00:00",
+    "record": {
+      "base": {
+        "ref": "main",
+        "sha": "8c69cde94436782bde13efa018c2f428f5a6881d"
+      },
+      "created_at": "2026-10-10T13:15:15Z",
+      "head": {
+        "ref": "experiment/daily-20261010",
+        "sha": "6fbd0675091420397b6757e7e87816305e9f5b58"
+      },
+      "html_url": "https://github.com/magnus919/SlopSearX/pull/759",
+      "merge_commit_sha": "032c56c673ea87da6885f2cfc19c699979a0a77f",
+      "merged_at": "2026-10-10T13:25:25Z",
+      "number": 759,
+      "state": "closed",
+      "updated_at": "2026-10-10T13:25:25Z"
+    },
+    "response_bytes": 18355,
+    "response_sha256": "a88156ef5e3df22133427fa85112e0955cb0ab3acb9feba75a9eda2742b8f2f6",
+    "source_url": "https://api.github.com/repos/magnus919/SlopSearX/pulls/759"
+  },
+  "runs": [
+    {
+      "captured_at": "2026-11-07T19:39:11.182468+00:00",
+      "record": {
+        "conclusion": "success",
+        "created_at": "2026-10-10T13:15:18Z",
+        "event": "pull_request",
+        "head_branch": "experiment/daily-20261010",
+        "head_sha": "6fbd0675091420397b6757e7e87816305e9f5b58",
+        "html_url": "https://github.com/magnus919/SlopSearX/actions/runs/38055015773",
+        "id": 38055015773,
+        "name": "Droid Auto Review",
+        "path": ".github/workflows/droid-review.yml",
+        "pull_requests": [],
+        "run_started_at": "2026-10-10T13:15:18Z",
+        "status": "completed",
+        "updated_at": "2026-10-10T13:20:01Z",
+        "workflow_id": 295832925
+      },
+      "response_bytes": 12365,
+      "response_sha256": "226335bfabba35efb0d1d09b8933611c7eb32fd1b62721d017857c5051ca5f9d",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/actions/runs/38055015773"
+    },
+    {
+      "captured_at": "2026-11-07T19:39:11.486897+00:00",
+      "record": {
+        "conclusion": "success",
+        "created_at": "2026-10-10T13:15:53Z",
+        "event": "issue_comment",
+        "head_branch": "main",
+        "head_sha": "8c69cde94436782bde13efa018c2f428f5a6881d",
+        "html_url": "https://github.com/magnus919/SlopSearX/actions/runs/38055054253",
+        "id": 38055054253,
+        "name": "Droid Tag",
+        "path": ".github/workflows/droid.yml",
+        "pull_requests": [],
+        "run_started_at": "2026-10-10T13:15:53Z",
+        "status": "completed",
+        "updated_at": "2026-10-10T13:18:12Z",
+        "workflow_id": 295832747
+      },
+      "response_bytes": 12348,
+      "response_sha256": "683f2f99a05c55eea78c72000b4930fd6dfb3a1bfa9c9cc0300142b6218df205",
+      "source_url": "https://api.github.com/repos/magnus919/SlopSearX/actions/runs/38055054253"
+    }
+  ],
+  "schema": "qm4-public-receipt-link.v1"
+}
