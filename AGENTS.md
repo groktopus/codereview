@@ -21,7 +21,7 @@ Use this file for project-specific constraints when working in this repository. 
 - **Preserve evidence.** Do not rewrite historical results or refresh compatibility pins, evaluation corpora, or baselines merely to make checks pass. Keep rejected outputs, failures, provenance, budget accounting, and freshness distinctions intact.
 - **Do not claim production readiness or replacement.** Such claims require the complete requirement audit and evidence described in [the delivery contract](docs/PRODUCTION-DELIVERY.md) and [current status](docs/STATUS.md); implementation progress alone is not sufficient.
 
-**Merge authority:** The repository owner retains merge authority. An agent may merge a source PR only when the owner gives a current, direct instruction authorizing that specific PR, and only after all required checks pass at the exact reviewed head and independent review is clear. Verify the head again immediately before merging and verify the merge commit and post-merge checks afterward. No standing merge permission is implied by this guide. See [ownership and review authority](docs/OWNERSHIP.md) and [review evidence](docs/REVIEW-EVIDENCE.md).
+**Standing source-PR delegation:** The repository owner has delegated to the coordinating root agent authority to merge source PRs in `groktopus/codereview` without per-PR approval, but only after every enabled required check passes at the exact reviewed head and an independent review is clear. Reconfirm the PR head equals the reviewed SHA immediately before merging, then verify the merge commit and its post-merge required checks. This narrow delegation covers harness source only; it does not authorize merging target-application PRs, publication, target changes, releases, or cutover. Workers do not merge. See [ownership and review authority](docs/OWNERSHIP.md) and [review evidence](docs/REVIEW-EVIDENCE.md).
 
 Any standing test authority is limited to the exact scope, revision, inputs, and caps recorded in the applicable owner instruction. It does not extend to publication, target changes, new endpoints/providers/accounts, increased limits, or other external effects. If the applicable authority or boundary is unclear, stop and ask.
 
@@ -43,6 +43,7 @@ Any standing test authority is limited to the exact scope, revision, inputs, and
 | Package boundaries and module ownership | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | User-facing contracts | [docs/PUBLIC-API.md](docs/PUBLIC-API.md) and [docs/CONTRACT-REGISTRY.md](docs/CONTRACT-REGISTRY.md) |
 | Safety or architecture decision | [docs/adr/README.md](docs/adr/README.md) |
+| Ownership, agent review, and merge authority | [docs/OWNERSHIP.md](docs/OWNERSHIP.md) |
 | Review evidence and PR merge gates | [docs/REVIEW-EVIDENCE.md](docs/REVIEW-EVIDENCE.md) |
 | Release or replacement decision | [docs/RELEASING.md](docs/RELEASING.md), [docs/PRODUCTION-DELIVERY.md](docs/PRODUCTION-DELIVERY.md), and [docs/STATUS.md](docs/STATUS.md) |
 
