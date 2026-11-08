@@ -67,8 +67,12 @@ def reference(root: Path, ref: dict[str, Any], directory: str) -> tuple[Any, int
     rel = Path(raw)
     require(not rel.is_absolute() and ".." not in rel.parts, "path_escape")
     require(rel.parent == Path(directory) and rel.suffix == ".json", "invalid_reference_path")
-    path = (root / rel).resolve()
-    require(path.is_relative_to(root.resolve()), "path_escape")
+    try:
+        resolved_root = root.resolve()
+        path = (root / rel).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise ObservationError("path_resolution_failed") from exc
+    require(path.is_relative_to(resolved_root), "path_escape")
     data = read_bounded(path, CAP)
     require(type(ref["bytes"]) is int and ref["bytes"] == len(data), "reference_bytes_mismatch")
     require(hashlib.sha256(data).hexdigest() == ref["sha256"], "reference_hash_mismatch")
@@ -95,6 +99,7 @@ def index_schema(index: Any) -> None:
         require(row["normalization_status"] == NORMALIZATION, "normalization_not_authorized")
         require(isinstance(row["reason"], str) and bool(row["reason"].strip()), "missing_reason")
         require(isinstance(row["scope_caveat"], str) and bool(row["scope_caveat"].strip()), "missing_scope_caveat")
+        validate_index_surface_maps(row)
     fields(
         index["summary"],
         "accepted_cases actual_pairs captured_surface_count complete_incumbent_outputs fetched_surface_count frozen_cases "
@@ -104,6 +109,24 @@ def index_schema(index: Any) -> None:
     for key, value in index["summary"].items():
         require(type(value) is (bool if key == "refused_accuracy" else int), "invalid_summary_type")
     walk(index)
+
+
+def validate_index_surface_maps(row: dict[str, Any]) -> None:
+    """Validate scalar and key semantics for the independent index projection."""
+    allowed_surfaces = {"reviews", "comments", "issue_comments"}
+    count_map, status_map = row["surface_counts"], row["surface_status"]
+    require(isinstance(count_map, dict) and bool(count_map), "surface_count_keys")
+    require(isinstance(status_map, dict) and set(status_map) == set(count_map), "surface_status_keys")
+    require(set(count_map) <= allowed_surfaces, "surface_count_keys")
+    if set(count_map) != allowed_surfaces:
+        return
+    for name, count in count_map.items():
+        status = status_map[name]
+        require(status in {"captured", "response_over_capture_cap"}, "surface_status")
+        if status == "captured":
+            require(type(count) is int and count >= 0, "surface_count_type")
+        else:
+            require(count is None, "surface_count_type")
 
 
 def project_records(case: dict[str, Any]) -> list[dict[str, Any]]:
@@ -226,6 +249,20 @@ def validate_case(row: dict[str, Any], case: dict[str, Any], supports: dict[str,
     require(
         sorted(row["head_matched_original_droid_record_ids"]) == sorted(matches), "original_commit_not_current_head"
     )
+    expected_surfaces = {"reviews", "comments", "issue_comments"}
+    case_surfaces = case["surfaces"]
+    require(isinstance(case_surfaces, dict), "surface_inventory")
+    expected_surfaces = set(case_surfaces)
+    count_map, status_map = row["surface_counts"], row["surface_status"]
+    require(isinstance(count_map, dict) and set(count_map) == expected_surfaces, "surface_count_keys")
+    require(isinstance(status_map, dict) and set(status_map) == expected_surfaces, "surface_status_keys")
+    for name, value in count_map.items():
+        status = status_map[name]
+        require(status in {"captured", "response_over_capture_cap"}, "surface_status")
+        if status == "captured":
+            require(type(value) is int and value >= 0, "surface_count_type")
+        else:
+            require(value is None, "surface_count_type")
     counts, statuses = {}, {}
     for name, surface in case["surfaces"].items():
         statuses[name] = surface["status"]

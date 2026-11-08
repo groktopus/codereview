@@ -88,6 +88,30 @@ def test_reference_size_and_digest_checked(package: Path, section: str, field: s
         validate_package(package)
 
 
+@pytest.mark.parametrize("field", ["surface_counts", "surface_status"])
+def test_surface_map_requires_exact_surface_keys(package: Path, field: str) -> None:
+    row = read(package / "index.json")["cases"][0]
+    row[field].pop("comments")
+    mutate(package, "index.json", ("cases", 0, field), row[field])
+    with pytest.raises(ObservationError, match=r"surface_(count|status)_keys"):
+        validate_package(package)
+
+
+@pytest.mark.parametrize("value", [True, False, None, "1", -1, {"unexpected": 1}])
+def test_captured_surface_count_rejects_non_nonnegative_exact_integers(package: Path, value: Any) -> None:
+    row_index = row_number(package, "codereview-pr277")
+    mutate(package, "index.json", ("cases", row_index, "surface_counts", "comments"), value)
+    with pytest.raises(ObservationError, match=r"surface_count_type"):
+        validate_package(package)
+
+
+def test_over_cap_surface_count_must_be_null(package: Path) -> None:
+    row_index = row_number(package, "codereview-pr279")
+    mutate(package, "index.json", ("cases", row_index, "surface_counts", "reviews"), 0)
+    with pytest.raises(ObservationError, match=r"surface_count_type|surface_gap_or_count_mismatch"):
+        validate_package(package)
+
+
 @pytest.mark.parametrize("escape", ["../outside.json", "/tmp/outside.json", "support/../outside.json"])
 def test_reference_path_escape_rejected(package: Path, escape: str) -> None:
     mutate(package, "index.json", ("support", 0, "path"), escape)
@@ -282,7 +306,10 @@ def test_security_receipt_predates_final_job_and_stays_missing(package: Path) ->
 )
 def test_over_cap_gap_never_becomes_empty(package: Path, field: str, value: Any) -> None:
     mutate(package, "index.json", ("cases", row_number(package, "codereview-pr279"), field), value)
-    with pytest.raises(ObservationError, match=r"surface_gap_or_count_mismatch|missingness_reason_mismatch"):
+    with pytest.raises(
+        ObservationError,
+        match=r"surface_count_type|surface_gap_or_count_mismatch|missingness_reason_mismatch",
+    ):
         validate_package(package)
 
 
@@ -653,6 +680,35 @@ def test_structured_values_cannot_bypass_scalar_contract(package: Path, field: s
     mutate(package, case_path("codereview-pr112"), ("surfaces", "reviews", field), value)
     with pytest.raises(ObservationError):
         validate_package(package)
+
+
+def test_surface_count_map_requires_exact_keys(package: Path) -> None:
+    row_index = row_number(package, "codereview-pr277")
+    row = read(package / "index.json")["cases"][row_index]
+    row["surface_counts"].pop("comments")
+    mutate(package, "index.json", ("cases", row_index, "surface_counts"), row["surface_counts"])
+    with pytest.raises(ObservationError, match=r"surface_status_keys|surface_gap_or_count_mismatch"):
+        validate_package(package)
+
+
+def test_self_looping_reference_symlink_returns_bounded_cli_error(package: Path) -> None:
+    relative = "support/attribution-pr464.json"
+    target = package / relative
+    assert target.resolve().is_relative_to(package.resolve())
+    target.unlink()
+    target.symlink_to(target.name)
+    assert target.is_symlink()
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/check_qm4_observations.py"), "--package", str(package)],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    payload = json.loads(result.stdout)
+    assert payload["valid"] is False
+    assert payload["error"].startswith("[Errno ") or payload["error"] == "path_resolution_failed"
+    assert result.stderr == b""
 
 
 def test_deep_index_nesting_returns_bounded_cli_json_error(package: Path) -> None:
