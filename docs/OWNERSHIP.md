@@ -19,7 +19,12 @@ the applied issue mapping is in [`BACKLOG.md`](BACKLOG.md).
 release, or credential access. That is the honest current state, not a temporary
 label. Owner instruction on 2026-11-08, recorded in PR #377, reaffirmed the
 narrow coordinating-root source-PR merge delegation below; it does not add a
-second owner or expand other agent authority:
+second owner or expand other agent authority. For PR #377 only, the owner
+instructed the coordinating root to self-review because no independent reviewer
+is available and authorized this self-review to stand in for the unavailable
+independent review. The receipt must identify it as author self-review and
+disclose that it is not independent. This exception does not waive exact-head
+CI checks or any other required gate.
 
 - Every path in [`.github/CODEOWNERS`](../.github/CODEOWNERS) resolves to
   `@magnus919`; several paths are grouped so that a sensitive change cannot
@@ -155,8 +160,10 @@ the second review. This is the path that has actually been used.
   workflows, or publication effects, agent review is **advisory only**; a
   recorded owner decision is also required before merge. The owner action is
   listed in the pull request, not implied by a green check. Changes to this
-  governance record are outside the standing merge delegation and require a
-  recorded owner decision before merge.
+  governance record changes are outside the standing merge delegation unless the
+  owner records separate explicit delegation for that specific PR. Any such
+  exception must be explicit in the PR record; a self-review receipt remains
+  author-review evidence and is not independent review.
 
 **Use evidence**
 

@@ -49,11 +49,15 @@ fields are rejected, so a receipt cannot add its own approval shortcut.
    commit changes the head, triggers the workflow again on
    `synchronize`, and invalidates the old receipt until it is updated. A merge
    of a head other than the reviewed SHA fails this rule.
-2. **No self-review unless explicitly recorded.** When the reviewer identity
-   equals the pull request author, `self_review` must be `true` and the
-   `independence` statement must describe the limitation. When the reviewer is
-   someone else, `self_review` must be `false`; claiming self-review for an
-   independent reviewer is rejected as inconsistent.
+2. **Self-review must be explicit and is not independent.** When the reviewer
+   identity equals the pull request author, `self_review` must be `true` and the
+   `independence` statement must describe the limitation. This records an
+   author self-review, not independent review; it does not satisfy a separate
+   independent-review gate. When the reviewer is someone else, `self_review`
+   must be `false`; claiming self-review for an independent reviewer is
+   rejected as inconsistent. Any owner-authorized exception to an independent
+   review requirement must be recorded explicitly and does not change the
+   receipt's meaning.
 3. **An agent may review only when its identity and protocol are recorded.**
    `reviewer.kind: "agent"` requires a non-placeholder `reviewer.protocol`
    naming the harness, model, and review protocol. The protocol text is a
