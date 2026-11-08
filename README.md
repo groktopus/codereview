@@ -58,6 +58,8 @@ Profiles and provider configurations are supplied explicitly; the generic starte
 - [Operations guide](docs/OPERATIONS.md) — review modes, reports, and examples
 - [Support and installation details](docs/SUPPORT-MATRIX.md)
 - [Public CLI and package interface](docs/PUBLIC-API.md)
+- [Review evidence and contribution receipt protocol](docs/REVIEW-EVIDENCE.md)
+- [Provenance and evidence boundaries](docs/PROVENANCE.md)
 - [Documentation index](docs/README.md)
 
 ## Contributing
