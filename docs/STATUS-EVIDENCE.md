@@ -11,7 +11,7 @@
 
 | Field | Value | Evidence | Evidence date |
 |---|---|---|---|
-| Current evidence revision | eaf6486 (full SHA in the evidence manifest) | [evidence manifest](../scripts/documentation-status-evidence.v1.json) | 2026-11-08 |
+| Current evidence revision | dfb42b0 (full SHA in the evidence manifest) | [evidence manifest](../scripts/documentation-status-evidence.v1.json) | 2026-11-08 |
 | Last verified run | NOT RECORDED — no retained review-run-summary.v1 artifact is checked in; CI test execution is not a review run | [run summary schema](../schemas/review-run-summary.v1.schema.json) | not applicable |
 | Contract set | contract-registry.v1: 18 supported, 3 experimental, 17 deprecated, 6 archived | [contract registry](../src/pr_review_harness/contract_registry.json) | 2026-11-01 |
 | Publication decision | harness CLI (`pr-review publish`): UNAVAILABLE — preview only; central `groktopus/codereview` Actions route: HARD-DISABLED; target-local `magnus919/SlopSearX` route: REPORTED ENABLED (DISPOSITION) | [publication decisions](#publication-decisions) | 2026-09-29 / 2026-10-11 |

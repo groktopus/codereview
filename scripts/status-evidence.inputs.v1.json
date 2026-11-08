@@ -1,7 +1,7 @@
 {
   "schema_version": "status-evidence-inputs.v1",
   "observation": {
-    "revision": "eaf64868fd2551470e08aed31b924260df9a6ced"
+    "revision": "dfb42b0411beee267558e2bef0d26171f50b31ae"
   },
   "contract_registry": "src/pr_review_harness/contract_registry.json",
   "last_verified_run": {
