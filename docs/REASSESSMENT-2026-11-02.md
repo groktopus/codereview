@@ -14,15 +14,19 @@ unchanged as the historical evidence snapshot.
 
 The assessed source is current main at
 [`67a902c`](https://github.com/groktopus/codereview/commit/67a902c0c830dfdc50f17564d86f7576daf563e0)
-(2026-11-08), after PR373 merged on 2026-11-08. Six issues remain open; stopped draft
-PR353 is excluded from landed capability. PR373 adds a bounded offline validator for the public QM4 evidence packet, not new incumbent observations. Its strict schema, path containment, hashes and missingness checks do not authenticate execution or create paired results. A CodeQL review comment remains unresolved on PR373; it is reported but is not a CI failure or security certification. The live Dependabot API returned zero
-open alerts after PR357; that time-bounded result is not broad security
-certification. After PR373 merged, main Harness
+(2026-11-08), after PR373 merged. Six issues remain open; stopped draft PR353
+is excluded from landed capability. PR373 adds a bounded offline validator for
+public QM4 evidence, not new incumbent observations. Its schema, path containment,
+hashes and missingness checks do not authenticate provider execution or create
+pairs. The live Dependabot API returned zero open alerts after PR357; this is not
+broad security certification. Main Harness
 [42436449857](https://github.com/groktopus/codereview/actions/runs/42436449857)
 and Security
 [42436449856](https://github.com/groktopus/codereview/actions/runs/42436449856)
-passed at exact merge SHA `67a902c0c830dfdc50f17564d86f7576daf563e0`. The independent ten-dimension judgment remains
-3/10 A−; no formal grade promotion or issue closure is inferred. Conversation-resolution enforcement was not bypassed.
+passed at the exact assessed SHA. PR373 retains an unresolved non-blocking CodeQL
+review comment about a redundant assignment; conversation enforcement was not
+bypassed and this is not a CI failure. The independent judgment remains 3/10 A−;
+no grade promotion or issue closure is inferred.
 
 
 Checked-in evidence below has narrower scopes and older execution dates than
@@ -124,7 +128,8 @@ incumbent observations. **No live resistance or detector-accuracy claim follows.
   their exact snapshot/finality audit found no completed full incumbent output:
   one security receipt predates completion, one review has a base mismatch, and
   stale/original-commit mismatches are explicitly not paired. PR373 adds an offline,
-  hash/identity/cardinality validator and malformed-input regressions for this packet;
+  hash/identity/cardinality validator, malformed JSON rejection, and fail-closed
+support-record bounds;
   it does not add evidence or change the measures. The report measures missingness,
   not incumbent performance; QM-4 remains open with 0 complete incumbent outputs and
   0 actual pairs. The local hashes are not upstream signatures and do not authenticate
