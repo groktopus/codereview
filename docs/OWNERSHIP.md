@@ -14,6 +14,8 @@ the applied issue mapping is in [`BACKLOG.md`](BACKLOG.md).
 
 ## Bus factor and authority
 
+**Owner decision, 2026-11-08 (PR #377):** The owner reaffirmed the narrow standing delegation below for the coordinating root to merge qualifying harness-source PRs after exact-head required checks and clear independent review. The owner specifically selected this policy for this governance update; it does not delegate merges to workers or authorize unrelated external effects.
+
 **Bus factor is 1.** The repository has one recorded accountable human,
 `@magnus919`, and no second human with repository administration, merge,
 release, or credential access. That is the honest current state, not a temporary
@@ -32,10 +34,13 @@ other agent authority:
   made one narrow delegation: the coordinating root agent may merge
   harness-source PRs in `groktopus/codereview` after every
   enabled required check passes at the exact reviewed head and independent
-  review is clear. The root must recheck that head immediately before merge and
-  verify the merge commit and post-merge checks. This does not delegate merges
-  to workers or authorize target-application PR merges, publication, releases,
-  or cutover. [AGENTS.md](../AGENTS.md) records the same standing delegation.
+  review is clear. Any failed, pending, skipped-required, or unknown required
+  check, unresolved review feedback, or non-clear review blocks merge. The root
+  must recheck that head immediately before merge and verify the merge commit
+  and post-merge checks. This is a human-directed, gated merge—not code repair
+  or model/CI-driven automatic merge. It does not delegate merges to workers or
+  authorize target-application PR merges, publication, releases, or cutover.
+  [AGENTS.md](../AGENTS.md) records the same standing delegation.
 - Losing access to the `@magnus919` account stops actions that require that
   account or organization access until it is recovered. The coordinating-root
   merge delegation does not bypass authentication, repository controls, or any
@@ -117,10 +122,13 @@ the second review. This is the path that has actually been used.
    the reviewer re-reviews and updates `reviewed_sha`.
 5. The accountable owner remains responsible for the merge decision. Under the
    narrow standing delegation recorded in this document and `AGENTS.md`, the
-   coordinating root may execute a harness-source merge only after the required
-   checks pass at the exact reviewed head and independent review is clear. The
-   root verifies the head again before merge and performs the post-merge checks;
-   workers do not merge.
+   coordinating root may execute a harness-source merge only after every
+   required check passes at the exact reviewed head and independent review is
+   clear. A failed, pending, skipped-required, or unknown required check,
+   unresolved review feedback, or non-clear review blocks merge. The root
+   verifies the head again before merge and performs the post-merge checks.
+   This is a human-directed, gated merge; no code repair or model/CI-driven
+   automatic merge is authorized. Workers do not merge.
 
 **What agent review may cover**
 
