@@ -244,6 +244,7 @@ intake, but not living guidance; DT-1 owns the status reconciliation.
 | [Theme: Controller architecture](issues/03-controller-architecture.md) | Filed issue or backlog record. Intake context, not living guidance. |
 | [Theme: Verification depth](issues/04-verification-depth.md) | Filed issue or backlog record. Intake context, not living guidance. |
 | [VD-2 invariant and fault-test evidence](issues/vd2-test-evidence.md) | Development evidence note for deterministic properties, provider faults, and verification gaps. |
+| [VD-3 compatibility-pin census — main c8331390](evidence/vd3-pin-census-main-c8331390.json) | Read-only hash-shaped literal inventory; heuristic classifications are candidates, not verified compatibility pins. |
 | [Theme: Security and effect boundaries](issues/05-security-and-effect-boundaries.md) | Filed issue or backlog record. Intake context, not living guidance. |
 | [Theme: Release and supply chain](issues/06-release-and-supply-chain.md) | Filed issue or backlog record. Intake context, not living guidance. |
 | [Theme: Observability and economics](issues/07-observability-and-economics.md) | Filed issue or backlog record. Intake context, not living guidance. |
