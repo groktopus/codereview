@@ -370,8 +370,6 @@ def _write_output_at(root_fd: int, source_revision: str, rendered: str) -> None:
                         f"report published at docs/evidence/{final_name}, but closing an evidence directory failed"
                     ) from evidence_close_error
                 raise evidence_close_error
-    if not published:
-        return
 
 
 def main(argv: list[str] | None = None) -> int:
