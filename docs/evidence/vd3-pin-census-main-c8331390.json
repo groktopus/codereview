@@ -1,6 +1,7 @@
 {
   "schema": "vd3-compatibility-pin-census.v1",
   "source_revision": "c8331390c148d4b1958827b31bce65c6a7a3e858",
+  "source_revision_verification": "caller-declared only; not checked against scan root content",
   "scope_roots": [
     "src",
     "scripts",

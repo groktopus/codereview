@@ -13,7 +13,6 @@ import hashlib
 import json
 import os
 import re
-import secrets
 import stat
 import sys
 from pathlib import Path
@@ -45,11 +44,17 @@ SECURE_DIRFD_SUPPORTED = (
     and os.stat in os.supports_dir_fd
     and os.stat in os.supports_follow_symlinks
     and os.scandir in os.supports_fd
-    and os.link in os.supports_dir_fd
-    and os.unlink in os.supports_dir_fd
-    and hasattr(os, "fsync")
     and bool(getattr(os, "O_NOFOLLOW", 0))
     and bool(getattr(os, "O_DIRECTORY", 0))
+)
+SECURE_ATOMIC_OUTPUT_SUPPORTED = (
+    SECURE_DIRFD_SUPPORTED
+    and os.link in os.supports_dir_fd
+    and os.link in os.supports_follow_symlinks
+    and hasattr(os, "O_TMPFILE")
+    and os.name == "posix"
+    and os.path.exists("/proc/self/fd")
+    and hasattr(os, "fsync")
 )
 
 
@@ -57,13 +62,12 @@ class ScanRootError(ValueError):
     """Selected scan root is invalid or contains a symlink component."""
 
 
+class PublishedButDurabilityUnconfirmed(OSError):
+    """Canonical report link was created, but directory fsync failed."""
+
+
 def _open_dir(parent_fd: int, name: str) -> int:
     return os.open(name, DIR_FLAGS, dir_fd=parent_fd)
-
-
-def _commit_output_noreplace(parent_fd: int, temporary: str, final: str) -> None:
-    """Promote a fully written temporary report without overwriting an existing file."""
-    os.link(temporary, final, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
 
 
 def _bounded_names(parent_fd: int, budget: dict[str, int]) -> list[str]:
@@ -257,6 +261,7 @@ def _inventory_fd(root_fd: int, source_revision: str | None, excluded_paths: set
     return {
         "schema": "vd3-compatibility-pin-census.v1",
         "source_revision": source_revision,
+        "source_revision_verification": "caller-declared only; not checked against scan root content",
         "scope_roots": list(ROOTS),
         "excluded_paths": sorted(excluded_paths),
         "scanned_file_count": scanned_files,
@@ -289,19 +294,21 @@ def audit(
 
 
 def _write_output_at(root_fd: int, source_revision: str, rendered: str) -> None:
-    """Publish a complete report atomically with no-overwrite semantics."""
-    docs_fd = _open_dir(root_fd, "docs")
-    try:
-        evidence_fd = _open_dir(docs_fd, "evidence")
-    finally:
-        os.close(docs_fd)
+    """Publish the held temporary inode without following mutable path entries."""
+    docs_fd = evidence_fd = temp_fd = None
     final_name = f"vd3-pin-census-main-{source_revision[:8]}.json"
-    temp_name = f".vd3-census-{secrets.token_hex(16)}.tmp"
-    temp_fd = None
-    temp_created = False
+    published = False
     try:
-        temp_fd = os.open(temp_name, CREATE_FLAGS, 0o600, dir_fd=evidence_fd)
-        temp_created = True
+        docs_fd = _open_dir(root_fd, "docs")
+        try:
+            evidence_fd = _open_dir(docs_fd, "evidence")
+        except BaseException:
+            os.close(docs_fd)
+            docs_fd = None
+            raise
+        if not SECURE_ATOMIC_OUTPUT_SUPPORTED:
+            raise OSError("platform lacks O_TMPFILE and /proc/self/fd for safe atomic output")
+        temp_fd = os.open(".", os.O_TMPFILE | os.O_RDWR | getattr(os, "O_CLOEXEC", 0), 0o600, dir_fd=evidence_fd)
         payload = rendered.encode("utf-8")
         offset = 0
         while offset < len(payload):
@@ -310,25 +317,69 @@ def _write_output_at(root_fd: int, source_revision: str, rendered: str) -> None:
                 raise OSError("short write while creating census report")
             offset += written
         os.fsync(temp_fd)
-        os.close(temp_fd)
-        temp_fd = None
-        _commit_output_noreplace(evidence_fd, temp_name, final_name)
-        os.fsync(evidence_fd)
+        # O_TMPFILE has no directory entry that a concurrent writer can replace.
+        # Promotion therefore always links the inode held by temp_fd.
+        os.link(
+            f"/proc/self/fd/{temp_fd}",
+            final_name,
+            dst_dir_fd=evidence_fd,
+            follow_symlinks=True,
+        )
+        published = True
+        try:
+            os.fsync(evidence_fd)
+        except OSError as exc:
+            raise PublishedButDurabilityUnconfirmed(
+                f"report published at docs/evidence/{final_name}, but directory durability could not be confirmed"
+            ) from exc
+    except BaseException as exc:
+        if published:
+            raise PublishedButDurabilityUnconfirmed(
+                f"report published at docs/evidence/{final_name}, but completion after publication failed"
+            ) from exc
+        raise
     finally:
-        if temp_fd is not None:
-            os.close(temp_fd)
-        if temp_created:
+        try:
+            if temp_fd is not None:
+                try:
+                    os.close(temp_fd)
+                except OSError as exc:
+                    if published:
+                        raise PublishedButDurabilityUnconfirmed(
+                            f"report published at docs/evidence/{final_name}, but closing the report descriptor failed"
+                        ) from exc
+                    raise
+        finally:
+            evidence_close_error = None
             try:
-                os.unlink(temp_name, dir_fd=evidence_fd)
-            except FileNotFoundError:
-                pass
-        os.close(evidence_fd)
+                if evidence_fd is not None:
+                    os.close(evidence_fd)
+            except OSError as exc:
+                evidence_close_error = exc
+            finally:
+                if docs_fd is not None:
+                    try:
+                        os.close(docs_fd)
+                    except OSError as exc:
+                        if evidence_close_error is None:
+                            evidence_close_error = exc
+            if evidence_close_error is not None:
+                if published:
+                    raise PublishedButDurabilityUnconfirmed(
+                        f"report published at docs/evidence/{final_name}, but closing an evidence directory failed"
+                    ) from evidence_close_error
+                raise evidence_close_error
+    if not published:
+        return
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT, help="absolute repository or git-archive tree")
-    parser.add_argument("--source-revision", help="caller-declared full Git revision; not tree-authenticated")
+    parser.add_argument(
+        "--source-revision",
+        help="caller-declared full Git revision; omitted stdout scans report an unknown source revision",
+    )
     parser.add_argument("--output", action="store_true", help="write the canonical census under root/docs/evidence")
     args = parser.parse_args(argv)
     root_fd = None
@@ -336,22 +387,33 @@ def main(argv: list[str] | None = None) -> int:
         if not args.root.is_absolute():
             raise ValueError("scan root must be absolute")
         root_fd = _open_root(args.root)
-        if args.source_revision is not None and not REVISION.fullmatch(args.source_revision):
+        source_revision = args.source_revision
+        if source_revision is not None and not REVISION.fullmatch(source_revision):
             raise ValueError("--source-revision must be a full lowercase 40-character Git revision")
-        if args.output and args.source_revision is None:
+        if args.output and source_revision is None:
             raise ValueError("--output requires --source-revision")
         exclusions = set(SELF_AUDIT_PATHS)
-        report = _inventory_fd(root_fd, args.source_revision, exclusions)
+        report = _inventory_fd(root_fd, source_revision, exclusions)
         rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         if args.output:
-            _write_output_at(root_fd, args.source_revision, rendered)
+            _write_output_at(root_fd, source_revision, rendered)
         else:
             sys.stdout.write(rendered)
+    except PublishedButDurabilityUnconfirmed as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     finally:
         if root_fd is not None:
-            os.close(root_fd)
+            try:
+                os.close(root_fd)
+            except OSError as exc:
+                detail = "scan-root descriptor close failed"
+                if args.output:
+                    detail = "report may already be published, but " + detail
+                print(f"error: {detail}: {exc}", file=sys.stderr)
+                raise SystemExit(3 if args.output else 2) from None
     return 0
 
 

@@ -13,10 +13,20 @@ sys.path.insert(0, str(SCRIPTS))
 
 import audit_compatibility_pin_literals as pin_inventory  # noqa: E402
 
+POSIX_ATOMIC = pytest.mark.skipif(
+    not pin_inventory.SECURE_ATOMIC_OUTPUT_SUPPORTED, reason="requires O_TMPFILE and /proc/self/fd atomic promotion"
+)
 POSIX_DIRFD = pytest.mark.skipif(
     not pin_inventory.SECURE_DIRFD_SUPPORTED,
     reason="requires secure POSIX dirfd/no-follow support",
 )
+
+
+def test_linux_ci_has_required_atomic_output_primitives():
+    if sys.platform.startswith("linux"):
+        assert pin_inventory.SECURE_ATOMIC_OUTPUT_SUPPORTED, (
+            "Linux CI must exercise O_TMPFILE/procfs atomic publication tests, not silently skip them"
+        )
 
 
 def _make_root(root: Path) -> Path:
@@ -46,6 +56,7 @@ def test_inventory_classifies_candidates_and_preserves_unknowns(tmp_path: Path):
     assert report["occurrence_count"] == 4
     assert all(len(row["context_sha256"]) == 64 for row in report["occurrences"])
     assert "do not prove a compatibility pin" in report["classification_note"]
+    assert report["source_revision_verification"] == "caller-declared only; not checked against scan root content"
 
 
 @POSIX_DIRFD
@@ -120,7 +131,7 @@ def test_inventory_rejects_relative_root_and_scan_root_symlinks(tmp_path: Path):
         pin_inventory.audit(linked_parent / root.name)
 
 
-@POSIX_DIRFD
+@POSIX_ATOMIC
 def test_cli_output_is_exclusive_and_anchored_under_selected_root(tmp_path: Path):
     from pytest import raises
 
@@ -141,7 +152,7 @@ def test_cli_output_is_exclusive_and_anchored_under_selected_root(tmp_path: Path
     assert stdout_report["source_revision"] == revision
 
 
-@POSIX_DIRFD
+@POSIX_ATOMIC
 def test_cli_rejects_evidence_symlink_and_does_not_touch_target(tmp_path: Path):
     from pytest import raises
 
@@ -159,18 +170,32 @@ def test_cli_rejects_evidence_symlink_and_does_not_touch_target(tmp_path: Path):
     assert target.read_text(encoding="utf-8") == "preserve"
 
 
-def test_cli_requires_valid_source_revision_for_stdout_and_output(tmp_path: Path, capsys):
+def test_cli_validates_supplied_source_revision_and_marks_omitted_revision_unknown(tmp_path: Path, capsys):
     from pytest import raises
 
     root = _make_root(tmp_path / "repo")
-    for args in (
-        ["--root", str(root), "--source-revision", "invalid"],
-        ["--root", str(root), "--output"],
-    ):
+    for invalid in ("invalid", ""):
         with raises(SystemExit):
-            pin_inventory.main(args)
-    assert capsys.readouterr().out == ""
+            pin_inventory.main(["--root", str(root), "--source-revision", invalid])
+        assert capsys.readouterr().out == ""
+    stdout = io.StringIO()
+    with contextlib.redirect_stdout(stdout):
+        assert pin_inventory.main(["--root", str(root)]) == 0
+    report = json.loads(stdout.getvalue())
+    assert report["source_revision"] is None
+    assert report["source_revision_verification"] == "caller-declared only; not checked against scan root content"
+    with raises(SystemExit):
+        pin_inventory.main(["--root", str(root), "--output"])
     assert not list((root / "docs" / "evidence").iterdir())
+
+
+def test_atomic_output_capability_gate_fails_closed_when_tmpfile_is_unavailable(tmp_path: Path, monkeypatch):
+    from pytest import raises
+
+    root = _make_root(tmp_path / "repo")
+    monkeypatch.setattr(pin_inventory, "SECURE_ATOMIC_OUTPUT_SUPPORTED", False)
+    with raises(SystemExit):
+        pin_inventory.main(["--root", str(root), "--source-revision", "a" * 40, "--output"])
 
 
 def test_inventory_fails_closed_when_secure_dirfd_features_are_unavailable(tmp_path: Path, monkeypatch):
@@ -256,7 +281,7 @@ def test_inventory_enforces_directory_depth_limit(tmp_path: Path, monkeypatch):
         pin_inventory.audit(root)
 
 
-@POSIX_DIRFD
+@POSIX_ATOMIC
 def test_cli_cleans_temporary_output_after_write_failure(tmp_path: Path, monkeypatch):
     from pytest import raises
 
@@ -274,7 +299,7 @@ def test_cli_cleans_temporary_output_after_write_failure(tmp_path: Path, monkeyp
     assert list(evidence.iterdir()) == []
 
 
-@POSIX_DIRFD
+@POSIX_ATOMIC
 def test_atomic_output_succeeds_with_no_clobber_link_promotion(tmp_path: Path):
     root = _make_root(tmp_path / "repo")
     revision = "d" * 40
@@ -285,7 +310,86 @@ def test_atomic_output_succeeds_with_no_clobber_link_promotion(tmp_path: Path):
     assert list((root / "docs" / "evidence").iterdir()) == [destination]
 
 
-@POSIX_DIRFD
+@POSIX_ATOMIC
+def test_atomic_output_links_held_unnamed_inode_and_preserves_competitor(tmp_path: Path, monkeypatch):
+    from pytest import raises
+
+    root = _make_root(tmp_path / "repo")
+    revision = "e" * 40
+    final = root / "docs" / "evidence" / f"vd3-pin-census-main-{revision[:8]}.json"
+    real_link = pin_inventory.os.link
+    sources = []
+
+    def contender_then_link(source, destination, **kwargs):
+        sources.append(source)
+        assert source.startswith("/proc/self/fd/"), "promotion must use the open unnamed inode"
+        if not final.exists():
+            final.write_text("external writer created destination", encoding="utf-8")
+        return real_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(pin_inventory.os, "link", contender_then_link)
+    with raises(SystemExit):
+        pin_inventory.main(["--root", str(root), "--source-revision", revision, "--output"])
+    assert len(sources) == 1
+    assert final.read_text(encoding="utf-8") == "external writer created destination"
+
+
+@POSIX_ATOMIC
+def test_post_publication_directory_fsync_failure_reports_published_path(tmp_path: Path, monkeypatch, capsys):
+    root = _make_root(tmp_path / "repo")
+    revision = "f" * 40
+    destination = root / "docs" / "evidence" / f"vd3-pin-census-main-{revision[:8]}.json"
+    real_fsync = pin_inventory.os.fsync
+    calls = 0
+
+    def fail_directory_sync_after_file_sync(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("simulated directory fsync failure")
+        return real_fsync(descriptor)
+
+    monkeypatch.setattr(pin_inventory.os, "fsync", fail_directory_sync_after_file_sync)
+    assert pin_inventory.main(["--root", str(root), "--source-revision", revision, "--output"]) == 3
+    captured = capsys.readouterr()
+    assert "report published at docs/evidence/" in captured.err
+    assert json.loads(destination.read_bytes())["source_revision"] == revision
+    assert calls == 2
+
+
+@POSIX_ATOMIC
+def test_open_evidence_failure_closes_parent_docs_descriptor(tmp_path: Path, monkeypatch):
+    from pytest import raises
+
+    root = _make_root(tmp_path / "repo")
+    real_open_dir = pin_inventory._open_dir
+    opened: set[int] = set()
+    real_open = pin_inventory.os.open
+    real_close = pin_inventory.os.close
+
+    def tracked_open(*args, **kwargs):
+        fd = real_open(*args, **kwargs)
+        opened.add(fd)
+        return fd
+
+    def tracked_close(fd):
+        opened.discard(fd)
+        return real_close(fd)
+
+    def fail_evidence_open(parent_fd, name):
+        if name == "evidence":
+            raise OSError("simulated evidence directory open failure")
+        return real_open_dir(parent_fd, name)
+
+    monkeypatch.setattr(pin_inventory.os, "open", tracked_open)
+    monkeypatch.setattr(pin_inventory.os, "close", tracked_close)
+    monkeypatch.setattr(pin_inventory, "_open_dir", fail_evidence_open)
+    with raises(SystemExit):
+        pin_inventory.main(["--root", str(root), "--source-revision", "9" * 40, "--output"])
+    assert opened == set()
+
+
+@POSIX_ATOMIC
 def test_atomic_output_fsyncs_and_preserves_collision(tmp_path: Path, monkeypatch):
     from pytest import raises
 
@@ -306,6 +410,35 @@ def test_atomic_output_fsyncs_and_preserves_collision(tmp_path: Path, monkeypatc
     assert destination.read_text(encoding="utf-8") == "preserve"
     assert fsync_calls
     assert list((root / "docs" / "evidence").iterdir()) == [destination]
+
+
+@POSIX_DIRFD
+def test_cli_reports_root_descriptor_close_failure_without_traceback(tmp_path: Path, monkeypatch, capsys):
+    from pytest import raises
+
+    root = _make_root(tmp_path / "repo")
+    real_open = pin_inventory.os.open
+    real_close = pin_inventory.os.close
+    root_descriptor = {}
+
+    def track_root_open(path, flags, *args, **kwargs):
+        fd = real_open(path, flags, *args, **kwargs)
+        if path == root.anchor:
+            root_descriptor["fd"] = fd
+        return fd
+
+    def fail_root_close(fd):
+        if fd == root_descriptor.get("fd"):
+            real_close(fd)
+            raise OSError("simulated root descriptor close failure")
+        return real_close(fd)
+
+    monkeypatch.setattr(pin_inventory.os, "open", track_root_open)
+    monkeypatch.setattr(pin_inventory.os, "close", fail_root_close)
+    with raises(SystemExit) as exc:
+        pin_inventory.main(["--root", str(root)])
+    assert exc.value.code == 2
+    assert "Bad file descriptor" in capsys.readouterr().err
 
 
 @POSIX_DIRFD
