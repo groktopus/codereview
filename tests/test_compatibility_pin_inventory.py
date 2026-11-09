@@ -415,8 +415,6 @@ def test_atomic_output_fsyncs_and_preserves_collision(tmp_path: Path, monkeypatc
 
 @POSIX_DIRFD
 def test_cli_reports_root_descriptor_close_failure_without_traceback(tmp_path: Path, monkeypatch, capsys):
-    from pytest import raises
-
     root = _make_root(tmp_path / "repo")
     monkeypatch.setattr(pin_inventory, "SECURE_DIRFD_SUPPORTED", True)
     real_close = pin_inventory.os.close
@@ -438,11 +436,12 @@ def test_cli_reports_root_descriptor_close_failure_without_traceback(tmp_path: P
 
     monkeypatch.setattr(pin_inventory, "_open_root", track_root)
     monkeypatch.setattr(pin_inventory.os, "close", fail_root_close)
-    with raises(SystemExit) as exc:
+    captured = io.StringIO()
+    with contextlib.redirect_stdout(captured), pytest.raises(SystemExit) as exc:
         pin_inventory.main(["--root", str(root)])
     assert exc.value.code == 2
-    output, error = capsys.readouterr()
-    assert output == ""
+    assert captured.getvalue() == ""
+    error = capsys.readouterr().err
     assert "scan-root descriptor close failed before report output" in error
     assert "simulated root descriptor close failure" in error
 
