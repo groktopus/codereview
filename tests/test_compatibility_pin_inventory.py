@@ -193,6 +193,7 @@ def test_atomic_output_capability_gate_fails_closed_when_tmpfile_is_unavailable(
     from pytest import raises
 
     root = _make_root(tmp_path / "repo")
+    monkeypatch.setattr(pin_inventory, "SECURE_DIRFD_SUPPORTED", True)
     monkeypatch.setattr(pin_inventory, "SECURE_ATOMIC_OUTPUT_SUPPORTED", False)
     with raises(SystemExit):
         pin_inventory.main(["--root", str(root), "--source-revision", "a" * 40, "--output"])
@@ -417,28 +418,72 @@ def test_cli_reports_root_descriptor_close_failure_without_traceback(tmp_path: P
     from pytest import raises
 
     root = _make_root(tmp_path / "repo")
-    real_open = pin_inventory.os.open
+    monkeypatch.setattr(pin_inventory, "SECURE_DIRFD_SUPPORTED", True)
     real_close = pin_inventory.os.close
     root_descriptor = {}
 
-    def track_root_open(path, flags, *args, **kwargs):
-        fd = real_open(path, flags, *args, **kwargs)
-        if path == root.anchor:
-            root_descriptor["fd"] = fd
-        return fd
-
     def fail_root_close(fd):
         if fd == root_descriptor.get("fd"):
+            root_descriptor.pop("fd")
             real_close(fd)
             raise OSError("simulated root descriptor close failure")
         return real_close(fd)
 
-    monkeypatch.setattr(pin_inventory.os, "open", track_root_open)
+    real_open_root = pin_inventory._open_root
+
+    def track_root(root_path):
+        fd = real_open_root(root_path)
+        root_descriptor["fd"] = fd
+        return fd
+
+    monkeypatch.setattr(pin_inventory, "_open_root", track_root)
     monkeypatch.setattr(pin_inventory.os, "close", fail_root_close)
     with raises(SystemExit) as exc:
         pin_inventory.main(["--root", str(root)])
     assert exc.value.code == 2
-    assert "Bad file descriptor" in capsys.readouterr().err
+    output, error = capsys.readouterr()
+    assert output == ""
+    assert "scan-root descriptor close failed before report output" in error
+    assert "simulated root descriptor close failure" in error
+
+
+@POSIX_DIRFD
+def test_output_root_close_failure_reports_potential_publication(tmp_path: Path, monkeypatch, capsys):
+    root = _make_root(tmp_path / "repo")
+    monkeypatch.setattr(pin_inventory, "SECURE_ATOMIC_OUTPUT_SUPPORTED", True)
+    monkeypatch.setattr(pin_inventory.os, "O_TMPFILE", getattr(pin_inventory.os, "O_TMPFILE", 0), raising=False)
+    revision = "7" * 40
+    destination = root / "docs" / "evidence" / f"vd3-pin-census-main-{revision[:8]}.json"
+    real_close = pin_inventory.os.close
+    root_fd_holder = {}
+    closed_root_fd = {}
+    real_open_root = pin_inventory._open_root
+
+    def tracked_open_root(root_path):
+        fd = real_open_root(root_path)
+        root_fd_holder["fd"] = fd
+        return fd
+
+    def simulated_publish(_root_fd, source_revision, rendered):
+        destination.write_text(rendered, encoding="utf-8")
+
+    def fail_root_close(fd):
+        if fd == root_fd_holder.get("fd") and destination.exists():
+            root_fd_holder.pop("fd")
+            closed_root_fd["fd"] = fd
+            real_close(fd)
+            raise OSError("simulated root close after publication")
+        return real_close(fd)
+
+    monkeypatch.setattr(pin_inventory, "_open_root", tracked_open_root)
+    monkeypatch.setattr(pin_inventory, "_write_output_at", simulated_publish)
+    monkeypatch.setattr(pin_inventory.os, "close", fail_root_close)
+    assert pin_inventory.main(["--root", str(root), "--source-revision", revision, "--output"]) == 3
+    output, error = capsys.readouterr()
+    assert output == ""
+    assert "report may already be published" in error
+    assert json.loads(destination.read_bytes())["source_revision"] == revision
+    assert "fd" in closed_root_fd
 
 
 @POSIX_DIRFD

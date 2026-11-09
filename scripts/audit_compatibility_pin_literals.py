@@ -383,6 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", action="store_true", help="write the canonical census under root/docs/evidence")
     args = parser.parse_args(argv)
     root_fd = None
+    primary_error: BaseException | None = None
     try:
         if not args.root.is_absolute():
             raise ValueError("scan root must be absolute")
@@ -397,23 +398,44 @@ def main(argv: list[str] | None = None) -> int:
         rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         if args.output:
             _write_output_at(root_fd, source_revision, rendered)
+            try:
+                os.close(root_fd)
+            except OSError as exc:
+                root_fd = None
+                print(
+                    f"error: report may already be published, but closing the scan-root descriptor failed: {exc}",
+                    file=sys.stderr,
+                )
+                return 3
+            root_fd = None
         else:
+            try:
+                os.close(root_fd)
+            except OSError as exc:
+                root_fd = None
+                parser.error(f"scan-root descriptor close failed before report output: {exc}")
+            root_fd = None
             sys.stdout.write(rendered)
     except PublishedButDurabilityUnconfirmed as exc:
+        primary_error = exc
         print(f"error: {exc}", file=sys.stderr)
         return 3
     except (OSError, ValueError) as exc:
+        primary_error = exc
         parser.error(str(exc))
     finally:
         if root_fd is not None:
             try:
                 os.close(root_fd)
             except OSError as exc:
-                detail = "scan-root descriptor close failed"
-                if args.output:
-                    detail = "report may already be published, but " + detail
-                print(f"error: {detail}: {exc}", file=sys.stderr)
-                raise SystemExit(3 if args.output else 2) from None
+                detail = f"scan-root descriptor cleanup failed: {exc}"
+                if primary_error is not None:
+                    print(f"error: {detail} (while handling an earlier failure)", file=sys.stderr)
+                elif args.output:
+                    print(f"error: report may already be published, but {detail}", file=sys.stderr)
+                    raise SystemExit(3) from None
+                else:
+                    parser.error(f"{detail} before report output")
     return 0
 
 
