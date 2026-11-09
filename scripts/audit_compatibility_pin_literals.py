@@ -15,8 +15,9 @@ import os
 import re
 import stat
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 ROOT = Path(os.path.abspath(__file__)).parent.parent
 TOKEN = re.compile(r"(?<![0-9a-fA-F])(?:[0-9a-fA-F]{40}|[0-9a-f]{64})(?![0-9a-fA-F])")
