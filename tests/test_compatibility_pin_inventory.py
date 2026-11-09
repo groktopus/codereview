@@ -13,12 +13,10 @@ sys.path.insert(0, str(SCRIPTS))
 
 import audit_compatibility_pin_literals as pin_inventory  # noqa: E402
 
-pytestmark = pytest.mark.skipif(
-    not pin_inventory.SECURE_DIRFD_SUPPORTED, reason="requires secure POSIX dirfd/no-follow support"
+POSIX_DIRFD = pytest.mark.skipif(
+    not pin_inventory.SECURE_DIRFD_SUPPORTED,
+    reason="requires secure POSIX dirfd/no-follow support",
 )
-
-if sys.platform == "win32":
-    pytestmark = pytest.mark.skipif(True, reason="scanner requires POSIX secure dirfd/no-follow operations")
 
 
 def _make_root(root: Path) -> Path:
@@ -30,6 +28,7 @@ def _make_root(root: Path) -> Path:
     return root
 
 
+@POSIX_DIRFD
 def test_inventory_classifies_candidates_and_preserves_unknowns(tmp_path: Path):
     root = _make_root(tmp_path / "repo")
     revision = "0123456789abcdef" * 2 + "01234567"
@@ -49,6 +48,7 @@ def test_inventory_classifies_candidates_and_preserves_unknowns(tmp_path: Path):
     assert "do not prove a compatibility pin" in report["classification_note"]
 
 
+@POSIX_DIRFD
 def test_inventory_is_deterministic_and_excludes_generated_census_reports(tmp_path: Path):
     root = _make_root(tmp_path / "repo")
     (root / "tests" / "sample.py").write_text('value = "' + "c" * 64 + '"\n', encoding="utf-8")
@@ -75,6 +75,7 @@ def test_inventory_is_deterministic_and_excludes_generated_census_reports(tmp_pa
     assert json.loads(stdout_report.getvalue()) == report
 
 
+@POSIX_DIRFD
 def test_inventory_skips_external_file_and_directory_symlinks(tmp_path: Path):
     root = _make_root(tmp_path / "repo")
     outside = tmp_path / "outside"
@@ -88,6 +89,7 @@ def test_inventory_skips_external_file_and_directory_symlinks(tmp_path: Path):
     assert report["skipped_symlink_paths"] == ["src/linked.md", "src/linked_dir"]
 
 
+@POSIX_DIRFD
 def test_inventory_rejects_symlinked_declared_root(tmp_path: Path):
     from pytest import raises
 
@@ -101,6 +103,7 @@ def test_inventory_rejects_symlinked_declared_root(tmp_path: Path):
         pin_inventory.audit(root)
 
 
+@POSIX_DIRFD
 def test_inventory_rejects_relative_root_and_scan_root_symlinks(tmp_path: Path):
     from pytest import raises
 
@@ -117,6 +120,7 @@ def test_inventory_rejects_relative_root_and_scan_root_symlinks(tmp_path: Path):
         pin_inventory.audit(linked_parent / root.name)
 
 
+@POSIX_DIRFD
 def test_cli_output_is_exclusive_and_anchored_under_selected_root(tmp_path: Path):
     from pytest import raises
 
@@ -137,6 +141,7 @@ def test_cli_output_is_exclusive_and_anchored_under_selected_root(tmp_path: Path
     assert stdout_report["source_revision"] == revision
 
 
+@POSIX_DIRFD
 def test_cli_rejects_evidence_symlink_and_does_not_touch_target(tmp_path: Path):
     from pytest import raises
 
@@ -168,13 +173,6 @@ def test_cli_requires_valid_source_revision_for_stdout_and_output(tmp_path: Path
     assert not list((root / "docs" / "evidence").iterdir())
 
 
-@pytest.mark.skipif(
-    not pin_inventory.SECURE_DIRFD_SUPPORTED,
-    reason="run this behavior check on a platform with secure dirfd operations",
-)
-@pytest.mark.skipif(
-    not pin_inventory.SECURE_DIRFD_SUPPORTED, reason="specific capability-off test requires the supported host platform"
-)
 def test_inventory_fails_closed_when_secure_dirfd_features_are_unavailable(tmp_path: Path, monkeypatch):
     from pytest import raises
 
@@ -184,6 +182,7 @@ def test_inventory_fails_closed_when_secure_dirfd_features_are_unavailable(tmp_p
         pin_inventory.audit(root)
 
 
+@POSIX_DIRFD
 def test_inventory_rejects_missing_declared_scan_root(tmp_path: Path):
     from pytest import raises
 
@@ -193,6 +192,123 @@ def test_inventory_rejects_missing_declared_scan_root(tmp_path: Path):
         pin_inventory.audit(root)
 
 
+@POSIX_DIRFD
+def test_directory_entry_budget_stops_incremental_enumeration(tmp_path: Path, monkeypatch):
+    from pytest import raises
+
+    root = _make_root(tmp_path / "repo")
+    directory_fd = pin_inventory._open_root(root)
+    consumed = 0
+
+    class Entry:
+        def __init__(self, name: str):
+            self.name = name
+
+    class DirectoryEntries:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def __iter__(self):
+            nonlocal consumed
+            for index in range(pin_inventory.MAX_DIRECTORY_ENTRIES + 100):
+                consumed += 1
+                yield Entry(f"entry-{index}")
+
+    monkeypatch.setattr(pin_inventory.os, "scandir", lambda _fd: DirectoryEntries())
+    real_dup = pin_inventory.os.dup
+    real_close = pin_inventory.os.close
+    duplicates = set()
+
+    def tracked_dup(descriptor):
+        duplicate = real_dup(descriptor)
+        duplicates.add(duplicate)
+        return duplicate
+
+    def tracked_close(descriptor):
+        duplicates.discard(descriptor)
+        return real_close(descriptor)
+
+    monkeypatch.setattr(pin_inventory.os, "dup", tracked_dup)
+    monkeypatch.setattr(pin_inventory.os, "close", tracked_close)
+    try:
+        with raises(OSError, match="directory-entry limit"):
+            list(pin_inventory._walk(directory_fd, "src", [], {"directory_entries": 0}, set()))
+    finally:
+        pin_inventory.os.close(directory_fd)
+    assert consumed == pin_inventory.MAX_DIRECTORY_ENTRIES + 1
+    assert duplicates == set()
+
+
+@POSIX_DIRFD
+def test_inventory_enforces_directory_depth_limit(tmp_path: Path, monkeypatch):
+    from pytest import raises
+
+    monkeypatch.setattr(pin_inventory, "MAX_SCAN_DEPTH", 3)
+    root = _make_root(tmp_path / "repo")
+    nested = root / "src"
+    for index in range(pin_inventory.MAX_SCAN_DEPTH + 1):
+        nested = nested / f"d{index}"
+        nested.mkdir()
+    with raises(OSError, match="directory depth"):
+        pin_inventory.audit(root)
+
+
+@POSIX_DIRFD
+def test_cli_cleans_temporary_output_after_write_failure(tmp_path: Path, monkeypatch):
+    from pytest import raises
+
+    root = _make_root(tmp_path / "repo")
+    revision = "b" * 40
+
+    def fail_write(_fd, _data):
+        raise OSError("simulated output failure")
+
+    monkeypatch.setattr(pin_inventory.os, "write", fail_write)
+    with raises(SystemExit):
+        pin_inventory.main(["--root", str(root), "--source-revision", revision, "--output"])
+    evidence = root / "docs" / "evidence"
+    assert not (evidence / f"vd3-pin-census-main-{revision[:8]}.json").exists()
+    assert list(evidence.iterdir()) == []
+
+
+@POSIX_DIRFD
+def test_atomic_output_succeeds_with_no_clobber_link_promotion(tmp_path: Path):
+    root = _make_root(tmp_path / "repo")
+    revision = "d" * 40
+    destination = root / "docs" / "evidence" / f"vd3-pin-census-main-{revision[:8]}.json"
+    assert pin_inventory.main(["--root", str(root), "--source-revision", revision, "--output"]) == 0
+    report = json.loads(destination.read_bytes())
+    assert report["source_revision"] == revision
+    assert list((root / "docs" / "evidence").iterdir()) == [destination]
+
+
+@POSIX_DIRFD
+def test_atomic_output_fsyncs_and_preserves_collision(tmp_path: Path, monkeypatch):
+    from pytest import raises
+
+    root = _make_root(tmp_path / "repo")
+    revision = "c" * 40
+    destination = root / "docs" / "evidence" / f"vd3-pin-census-main-{revision[:8]}.json"
+    destination.write_text("preserve", encoding="utf-8")
+    real_fsync = pin_inventory.os.fsync
+    fsync_calls = []
+
+    def tracked_fsync(descriptor):
+        fsync_calls.append(descriptor)
+        return real_fsync(descriptor)
+
+    monkeypatch.setattr(pin_inventory.os, "fsync", tracked_fsync)
+    with raises(SystemExit):
+        pin_inventory.main(["--root", str(root), "--source-revision", revision, "--output"])
+    assert destination.read_text(encoding="utf-8") == "preserve"
+    assert fsync_calls
+    assert list((root / "docs" / "evidence").iterdir()) == [destination]
+
+
+@POSIX_DIRFD
 def test_inventory_closes_file_descriptors_after_decode_failure(tmp_path: Path, monkeypatch):
     from pytest import raises
 

@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import stat
 import sys
 from pathlib import Path
@@ -31,10 +32,11 @@ GENERATED_CENSUS_PATH = "docs/evidence/vd3-pin-census-*.json"
 GENERATED_CENSUS_RE = re.compile(r"docs/evidence/vd3-pin-census-[^/]+\.json\Z")
 ROOTS = ("src", "scripts", "tests", "experiments", "docs", "examples", ".github")
 MAX_SCAN_FILES = 10_000
-MAX_DIRECTORY_ENTRIES = 10_000
+MAX_SCAN_DEPTH = 64
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 128 * 1024 * 1024
 MAX_OCCURRENCES = 250_000
+MAX_DIRECTORY_ENTRIES = 10_000
 DIR_FLAGS = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
 FILE_FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
 CREATE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
@@ -42,6 +44,10 @@ SECURE_DIRFD_SUPPORTED = (
     os.open in os.supports_dir_fd
     and os.stat in os.supports_dir_fd
     and os.stat in os.supports_follow_symlinks
+    and os.scandir in os.supports_fd
+    and os.link in os.supports_dir_fd
+    and os.unlink in os.supports_dir_fd
+    and hasattr(os, "fsync")
     and bool(getattr(os, "O_NOFOLLOW", 0))
     and bool(getattr(os, "O_DIRECTORY", 0))
 )
@@ -53,6 +59,24 @@ class ScanRootError(ValueError):
 
 def _open_dir(parent_fd: int, name: str) -> int:
     return os.open(name, DIR_FLAGS, dir_fd=parent_fd)
+
+
+def _commit_output_noreplace(parent_fd: int, temporary: str, final: str) -> None:
+    """Promote a fully written temporary report without overwriting an existing file."""
+    os.link(temporary, final, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+
+
+def _bounded_names(parent_fd: int, budget: dict[str, int]) -> list[str]:
+    """Read directory names incrementally, aborting before unbounded allocation."""
+    names: list[str] = []
+    with os.scandir(parent_fd) as entries:
+        for entry in entries:
+            names.append(entry.name)
+            budget["directory_entries"] += 1
+            if len(names) > MAX_DIRECTORY_ENTRIES or budget["directory_entries"] > MAX_SCAN_FILES * 4:
+                raise OSError("inventory exceeds directory-entry limit")
+    names.sort()
+    return names
 
 
 def _open_root(root: Path) -> int:
@@ -73,9 +97,10 @@ def _open_root(root: Path) -> int:
                 raise ScanRootError("scan root path contains a symlink or non-directory component") from exc
             os.close(fd)
             fd = child
-        required = {"pyproject.toml"}
-        if not required.issubset(os.listdir(fd)):
-            raise ScanRootError("scan root lacks pyproject.toml")
+        _bounded_names(fd, {"directory_entries": 0})
+        metadata = os.stat("pyproject.toml", dir_fd=fd, follow_symlinks=False)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ScanRootError("pyproject.toml must be a regular file")
         for name in ROOTS:
             try:
                 child = _open_dir(fd, name)
@@ -84,12 +109,6 @@ def _open_root(root: Path) -> int:
             except OSError as exc:
                 raise ScanRootError(f"declared scan root is a symlink or not a directory: {name}") from exc
             os.close(child)
-        metadata = os.open("pyproject.toml", FILE_FLAGS, dir_fd=fd)
-        try:
-            if not stat.S_ISREG(os.fstat(metadata).st_mode):
-                raise ScanRootError("pyproject.toml must be a regular file")
-        finally:
-            os.close(metadata)
         return fd
     except BaseException:
         os.close(fd)
@@ -141,34 +160,50 @@ def _walk(
     budget: dict[str, int],
     excluded_paths: set[str],
 ) -> Iterator[tuple[str, bytes]]:
-    """Walk held directory descriptors; skip symlinks and enforce scan budgets."""
-    names = sorted(os.listdir(parent_fd))
-    budget["directory_entries"] += len(names)
-    if len(names) > MAX_DIRECTORY_ENTRIES or budget["directory_entries"] > MAX_SCAN_FILES * 4:
-        raise OSError("inventory exceeds directory-entry limit")
-    for name in names:
-        relative = f"{prefix}/{name}" if prefix else name
-        metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-        if stat.S_ISLNK(metadata.st_mode):
-            skipped.append(relative)
-        elif stat.S_ISDIR(metadata.st_mode):
-            if name not in EXCLUDED_PARTS:
-                child = _open_dir(parent_fd, name)
-                try:
-                    yield from _walk(child, relative, skipped, budget, excluded_paths)
-                finally:
-                    os.close(child)
-        elif stat.S_ISREG(metadata.st_mode) and Path(name).suffix.lower() in TEXT_SUFFIXES:
-            if relative in excluded_paths or GENERATED_CENSUS_RE.fullmatch(relative):
+    """Iteratively walk held descriptors with entry, depth, and resource caps."""
+    root_fd = os.dup(parent_fd)
+    stack: list[tuple[int, str, int, list[str], int]] = [(root_fd, prefix, 0, [], 0)]
+    try:
+        root_names = _bounded_names(root_fd, budget)
+        stack[0] = (root_fd, prefix, 0, root_names, 0)
+        while stack:
+            directory_fd, directory_path, depth, names, index = stack[-1]
+            if index >= len(names):
+                os.close(directory_fd)
+                stack.pop()
                 continue
-            if metadata.st_size > MAX_FILE_BYTES:
-                raise OSError(f"inventory file exceeds byte limit: {relative}")
-            budget["file_count"] += 1
-            if budget["file_count"] > MAX_SCAN_FILES:
-                raise OSError("inventory exceeds maximum file count")
-            if budget["total_bytes"] + metadata.st_size > MAX_TOTAL_BYTES:
-                raise OSError("inventory exceeds total byte limit")
-            yield relative, _read_file_at(parent_fd, name, relative, budget)
+            name = names[index]
+            stack[-1] = (directory_fd, directory_path, depth, names, index + 1)
+            relative = f"{directory_path}/{name}" if directory_path else name
+            metadata = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if stat.S_ISLNK(metadata.st_mode):
+                skipped.append(relative)
+            elif stat.S_ISDIR(metadata.st_mode):
+                if name in EXCLUDED_PARTS:
+                    continue
+                if depth >= MAX_SCAN_DEPTH:
+                    raise OSError("inventory exceeds maximum directory depth")
+                child = _open_dir(directory_fd, name)
+                try:
+                    child_names = _bounded_names(child, budget)
+                except BaseException:
+                    os.close(child)
+                    raise
+                stack.append((child, relative, depth + 1, child_names, 0))
+            elif stat.S_ISREG(metadata.st_mode) and Path(name).suffix.lower() in TEXT_SUFFIXES:
+                if relative in excluded_paths or GENERATED_CENSUS_RE.fullmatch(relative):
+                    continue
+                if metadata.st_size > MAX_FILE_BYTES:
+                    raise OSError(f"inventory file exceeds byte limit: {relative}")
+                budget["file_count"] += 1
+                if budget["file_count"] > MAX_SCAN_FILES:
+                    raise OSError("inventory exceeds maximum file count")
+                if budget["total_bytes"] + metadata.st_size > MAX_TOTAL_BYTES:
+                    raise OSError("inventory exceeds total byte limit")
+                yield relative, _read_file_at(directory_fd, name, relative, budget)
+    finally:
+        for directory_fd, _path, _depth, _names, _index in stack:
+            os.close(directory_fd)
 
 
 def _inventory_fd(root_fd: int, source_revision: str | None, excluded_paths: set[str]) -> dict[str, Any]:
@@ -253,20 +288,41 @@ def audit(
         os.close(root_fd)
 
 
-def _open_output_at(root_fd: int, source_revision: str) -> tuple[int, int]:
-    """Create a canonical evidence report via held, no-follow directory descriptors."""
+def _write_output_at(root_fd: int, source_revision: str, rendered: str) -> None:
+    """Publish a complete report atomically with no-overwrite semantics."""
     docs_fd = _open_dir(root_fd, "docs")
     try:
         evidence_fd = _open_dir(docs_fd, "evidence")
     finally:
         os.close(docs_fd)
-    name = f"vd3-pin-census-main-{source_revision[:8]}.json"
+    final_name = f"vd3-pin-census-main-{source_revision[:8]}.json"
+    temp_name = f".vd3-census-{secrets.token_hex(16)}.tmp"
+    temp_fd = None
+    temp_created = False
     try:
-        output_fd = os.open(name, CREATE_FLAGS, 0o600, dir_fd=evidence_fd)
-        return output_fd, evidence_fd
-    except BaseException:
+        temp_fd = os.open(temp_name, CREATE_FLAGS, 0o600, dir_fd=evidence_fd)
+        temp_created = True
+        payload = rendered.encode("utf-8")
+        offset = 0
+        while offset < len(payload):
+            written = os.write(temp_fd, payload[offset:])
+            if written <= 0:
+                raise OSError("short write while creating census report")
+            offset += written
+        os.fsync(temp_fd)
+        os.close(temp_fd)
+        temp_fd = None
+        _commit_output_noreplace(evidence_fd, temp_name, final_name)
+        os.fsync(evidence_fd)
+    finally:
+        if temp_fd is not None:
+            os.close(temp_fd)
+        if temp_created:
+            try:
+                os.unlink(temp_name, dir_fd=evidence_fd)
+            except FileNotFoundError:
+                pass
         os.close(evidence_fd)
-        raise
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -275,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-revision", help="caller-declared full Git revision; not tree-authenticated")
     parser.add_argument("--output", action="store_true", help="write the canonical census under root/docs/evidence")
     args = parser.parse_args(argv)
-    root_fd = evidence_fd = output_fd = None
+    root_fd = None
     try:
         if not args.root.is_absolute():
             raise ValueError("scan root must be absolute")
@@ -288,18 +344,14 @@ def main(argv: list[str] | None = None) -> int:
         report = _inventory_fd(root_fd, args.source_revision, exclusions)
         rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         if args.output:
-            output_fd, evidence_fd = _open_output_at(root_fd, args.source_revision)
-            with os.fdopen(output_fd, "w", encoding="utf-8", closefd=False) as stream:
-                stream.write(rendered)
-                stream.flush()
+            _write_output_at(root_fd, args.source_revision, rendered)
         else:
             sys.stdout.write(rendered)
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     finally:
-        for descriptor in (output_fd, evidence_fd, root_fd):
-            if descriptor is not None:
-                os.close(descriptor)
+        if root_fd is not None:
+            os.close(root_fd)
     return 0
 
 
