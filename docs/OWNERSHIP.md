@@ -17,7 +17,14 @@ the applied issue mapping is in [`BACKLOG.md`](BACKLOG.md).
 **Bus factor is 1.** The repository has one recorded accountable human,
 `@magnus919`, and no second human with repository administration, merge,
 release, or credential access. That is the honest current state, not a temporary
-label:
+label. Owner instruction on 2026-11-08, recorded in PR #377, reaffirmed the
+narrow coordinating-root source-PR merge delegation below; it does not add a
+second owner or expand other agent authority. For PR #377 only, the owner
+instructed the coordinating root to self-review because no independent reviewer
+is available and authorized this self-review to stand in for the unavailable
+independent review. The receipt must identify it as author self-review and
+disclose that it is not independent. This exception does not waive exact-head
+CI checks or any other required gate.
 
 - Every path in [`.github/CODEOWNERS`](../.github/CODEOWNERS) resolves to
   `@magnus919`; several paths are grouped so that a sensitive change cannot
@@ -25,12 +32,24 @@ label:
 - No branch-protection, release, credential-rotation, or incident authority is
   delegated to a named second person in this repository.
 - An agent reviewer can provide independent review evidence under the GA-1
-  protocol, but an agent is not an owner, cannot stand in for a human for
-  effects or access, and cannot merge.
-- Losing access to the `@magnus919` account means merges, releases, credential
-  rotation, and incident rollback stop until that account or the GitHub
-  organization is recovered. The project remains readable and testable; it is
-  not operable for effects.
+  protocol, but an agent is not an owner and cannot stand in for a human for
+  effects or access outside the narrow merge delegation below. The owner has
+  made one narrow delegation: the coordinating root agent may merge
+  harness-source PRs in `groktopus/codereview` after every
+  enabled required check passes at the exact reviewed head and independent
+  review is clear. Any failed, pending, skipped-required, or unknown required
+  check, unresolved review feedback, or non-clear review blocks merge. The root
+  must recheck that head immediately before merge and verify the merge commit
+  and post-merge checks. This is a human-directed, gated merge—not code repair
+  or model/CI-driven automatic merge. It does not delegate merges to workers or
+  authorize target-application PR merges, publication, releases, or cutover.
+  [AGENTS.md](../AGENTS.md) records the same standing delegation.
+- Losing access to the `@magnus919` account stops actions that require that
+  account or organization access until it is recovered. The coordinating-root
+  merge delegation does not bypass authentication, repository controls, or any
+  required check; if the delegated action cannot be performed through authorized
+  access, the merge also stops. The project remains readable and testable; it is
+  not operable for other effects.
 
 This record reduces ambiguity. It does **not** reduce the bus factor from 1.
 No document in this repository should describe an agent, a shared mailbox, or a
@@ -104,9 +123,15 @@ the second review. This is the path that has actually been used.
    [REVIEW-EVIDENCE.md](REVIEW-EVIDENCE.md).
 4. The receipt is bound to the reviewed head. A new commit invalidates it until
    the reviewer re-reviews and updates `reviewed_sha`.
-5. The accountable owner remains the merger and remains accountable for the
-   change. The owner verifies the required checks at the exact reviewed head
-   and performs the post-merge verification described in the receipt.
+5. The accountable owner remains responsible for the merge decision. Under the
+   narrow standing delegation recorded in this document and `AGENTS.md`, the
+   coordinating root may execute a harness-source merge only after every
+   required check passes at the exact reviewed head and independent review is
+   clear. A failed, pending, skipped-required, or unknown required check,
+   unresolved review feedback, or non-clear review blocks merge. The root
+   verifies the head again before merge and performs the post-merge checks.
+   This is a human-directed, gated merge; no code repair or model/CI-driven
+   automatic merge is authorized. Workers do not merge.
 
 **What agent review may cover**
 
@@ -120,9 +145,11 @@ the second review. This is the path that has actually been used.
 
 - An agent cannot approve or perform a live publication, release, tag,
   credential rotation, repository-setting change, branch-protection change, or
-  incident rollback. Those require the accountable human.
-- An agent cannot merge, cannot waive a required check, and cannot convert
-  `NOT CLEAR` into `CLEAR`.
+  incident rollback. Those require the accountable human. The narrow merge
+  delegation above is not authority to perform these effects.
+- An agent cannot waive a required check or convert `NOT CLEAR` into `CLEAR`.
+  The only merge delegation is the narrow coordinating-root source-PR authority
+  described above; it does not apply to workers or target-application PRs.
 - An agent review does not satisfy a policy that requires a human. It satisfies
   the GA-1 review-evidence protocol only when the protocol and identity are
   recorded.
@@ -132,7 +159,11 @@ the second review. This is the path that has actually been used.
 - For changes to CODEOWNERS, this document, credential/security paths, release
   workflows, or publication effects, agent review is **advisory only**; a
   recorded owner decision is also required before merge. The owner action is
-  listed in the pull request, not implied by a green check.
+  listed in the pull request, not implied by a green check. Changes to this
+  governance record changes are outside the standing merge delegation unless the
+  owner records separate explicit delegation for that specific PR. Any such
+  exception must be explicit in the PR record; a self-review receipt remains
+  author-review evidence and is not independent review.
 
 **Use evidence**
 
@@ -251,7 +282,7 @@ freeze on authority-bearing actions, not an improvised transfer:
 | Run tests and read-only checks | Allowed within the existing bounded test authority. |
 | Open issues or pull requests with evidence | Allowed; they remain unmerged proposals. |
 | Triage, label, or close issues | Not allowed without recorded delegated authority. Prepare the proposed mapping instead. |
-| Merge to `main` | Blocked. Do not merge on the owner's behalf without a prior, recorded delegation. |
+| Merge to `main` | The owner remains accountable. The coordinating root may use the prior recorded delegation only for harness-source PRs after exact-head required checks and independent review pass; all other merges are blocked. |
 | Tag, release, sign, or publish artifacts | Blocked. |
 | Enable, retry, or roll back a live publication effect | Blocked; keep the route disabled and the incident open. |
 | Rotate, create, or revoke credentials; change repository settings | Blocked. |
