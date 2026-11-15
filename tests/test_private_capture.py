@@ -14,7 +14,6 @@ from experiments.harness.shadow_audit import _validate_packet
 from pr_review_harness import cli
 from pr_review_harness.cli import (
     TRUSTED_CAPTURE_WORKFLOW_REF,
-    TRUSTED_SHADOW_PLANS,
     TRUSTED_SYNTH_001_CAPTURE_WORKFLOW_REF,
 )
 from pr_review_harness.private_capture import (
@@ -667,16 +666,11 @@ def test_actual_cli_review_exports_valid_private_packet_without_raw_output(tmp_p
     )
     # This fixture exercises one request. The checked-in policy covers the
     # real ten-request PR-464 plan; replace only the test-local bounds here.
-    monkeypatch.setitem(
-        cli.TRUSTED_SHADOW_PLANS,
-        "PR-464",
-        {
-            **cli.TRUSTED_SHADOW_PLANS["PR-464"],
-            "calls": 1,
-            "snapshot_id": prepared["snapshot"]["snapshot_id"],
-            "snapshot_sha256": capture_snapshot_hash,
-        },
-    )
+    test_plans = cli._trusted_shadow_plans()
+    test_plans["PR-464"]["calls"] = 1
+    test_plans["PR-464"]["snapshot_id"] = prepared["snapshot"]["snapshot_id"]
+    test_plans["PR-464"]["snapshot_sha256"] = capture_snapshot_hash
+    monkeypatch.setattr(cli, "_trusted_shadow_plans", lambda: test_plans)
     output_dir = tmp_path / "ordinary-output"
     capture_dir = tmp_path / "private-capture"
     args = [
@@ -795,7 +789,7 @@ def test_actions_private_plan_paths_are_bound_to_selected_case(tmp_path, monkeyp
     workspace.mkdir()
     _trusted_capture_env(monkeypatch, runner_temp)
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
-    expected_plan = workspace / "trusted-runner" / TRUSTED_SHADOW_PLANS[case_id]["path"]
+    expected_plan = workspace / "trusted-runner" / cli._trusted_shadow_plans()[case_id]["path"]
     expected_plan.parent.mkdir(parents=True)
     expected_plan.write_text("{}")
     receipt_dir = runner_temp / "private-shadow-preparation"
@@ -819,7 +813,7 @@ def test_actions_private_plan_path_rejections_precede_provider_setup(tmp_path, m
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
     plan_dir = workspace / "trusted-runner" / "experiments"
     plan_dir.mkdir(parents=True)
-    plan = plan_dir / TRUSTED_SHADOW_PLANS["PR-457"]["path"].split("/")[-1]
+    plan = plan_dir / cli._trusted_shadow_plans()["PR-457"]["path"].split("/")[-1]
     plan.write_text("{}")
     receipt_dir = runner_temp / "private-shadow-preparation"
     receipt_dir.mkdir()

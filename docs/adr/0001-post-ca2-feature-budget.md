@@ -170,3 +170,35 @@ decision alone does not establish that they passed or that VD-3 is complete.
 Revert this loader/resource migration and its scoped allowance together if the
 shared authority cannot preserve historical semantics. Unrelated source growth
 requires its own decision or a real reduction.
+
+## Addendum: installed runtime pin consumers (2026-11-15)
+
+Under the same user-directed roadmap and delegated contract authority, root
+extends the scoped compatibility migration to the current-source capture and
+CLI shadow-policy consumers. Five unchanged PR-457 values join the canonical
+resource; PR-464 reuses its existing named value. Explicit private accessors
+return fresh ordinary dictionaries with the original keys and values. Typed
+shapes preserve those fields without import-time resource reads or lazy proxy
+objects. Historical fixtures, digests, provider limits and effect policy remain
+unchanged.
+
+The measured production delta is 36 lines: 13 in `cli.py` and 23 in
+`current_source_capture.py`. The cumulative compatibility allowance is therefore
+208 lines (172 for the loader plus 36 for these consumers), with 32,989 total
+source lines and 43 modules. This is a measured root implementation decision,
+not a separately recorded owner approval of that number. It covers these
+accessors and their typed shapes only, creates no general feature headroom,
+and does not alter the original CA-2 result or the other scoped allowances.
+
+Acceptance requires immutable prior-source parity for both serialized mappings,
+resource access only at explicit use, malformed-resource rejection, installed
+wheel loading, and inclusion of the resource in the current-source runtime
+inventory. Six resolved CLI typing diagnostics and one test lint finding are
+retired. Two existing `_run_one` signature-debt identities (seven diagnostics)
+retain their counts with updated containing-function AST fingerprints; the
+signature is unchanged. These are targeted retirements and identity mappings,
+not permission for new typing or lint debt. Other script-family pins remain
+separate follow-up work, so this slice does not close VD-3 or VD-4.
+
+Revert this consumer migration and its additional 36-line allowance together
+if the shared resource cannot preserve the existing case and policy identity.

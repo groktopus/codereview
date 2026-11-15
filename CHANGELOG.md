@@ -14,6 +14,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 - Consolidate historical file-byte and named value pins into the installed `compatibility-pins.v1.json` resource. The compatibility helpers, frozen-runtime reconstruction, lint exclusions, and refresh tool share the resource; file and value refresh histories remain separate. Existing digests and historical fixture bytes are preserved. This migration does not yet remove all inline runtime/script pins or close VD-3.
 
+- Move current-source capture and CLI shadow-policy SHA-256 pins into the installed canonical resource. Explicit typed accessors preserve the exact historical dictionaries without import-time resource reads; runtime inventory and installed-wheel checks cover the resource. Retire six typing diagnostics and one lint finding while retaining unchanged signature debt. Other script-family pin migrations remain open.
+
 ### Added
 
 - Record the accepted RC-2 retrieval design in ADR 0013: trusted requirements, immutable line-anchored evidence, deterministic admission and exact request accounting, with separate delivery and completion measurements. This is a design decision, not implementation or quality evidence; ADR 0012 and the stopped prior implementation remain historical.

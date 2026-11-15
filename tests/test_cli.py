@@ -6,11 +6,33 @@ from types import SimpleNamespace
 
 import pytest
 
-from pr_review_harness.cli import _read_limits
+from pr_review_harness.cli import _read_limits, _trusted_shadow_plans
 
 
 def git(path: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(path), *args], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
+
+
+@pytest.mark.compatibility
+def test_trusted_shadow_policy_mappings_use_registered_snapshot_pins():
+    from pr_review_harness.compatibility_pins import pin
+
+    assert _trusted_shadow_plans() == {
+        "PR-457": {
+            "path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
+            "calls": 6,
+            "snapshot_id": "snap-24293f430e4f8006a52bac18",
+            "snapshot_sha256": pin("runtime.current_source_pr457.snapshot_sha256"),
+            "audit_max_input_bytes_per_call": 120_000,
+        },
+        "PR-464": {
+            "path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
+            "calls": 10,
+            "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+            "snapshot_sha256": pin("historical.pr464.capture_snapshot_sha256"),
+            "audit_max_input_bytes_per_call": 96_000,
+        },
+    }
 
 
 def fixture_repo(tmp_path: Path):
