@@ -39,6 +39,7 @@ _RUNNER_SPEC = importlib.util.spec_from_file_location(
 )
 _RUNNER = importlib.util.module_from_spec(_RUNNER_SPEC)
 _RUNNER_SPEC.loader.exec_module(_RUNNER)
+import run_sealed_source_record_jev as sealed_source_runner  # noqa: E402
 from run_sealed_source_record_jev import main as sealed_source_jev_main  # noqa: E402
 from run_sealed_source_record_jev import run_private_artifact_decision  # noqa: E402
 from sealed_source_record_integration import (  # noqa: E402
@@ -1193,6 +1194,7 @@ def test_private_operator_bridge_emits_hash_only_receipt_and_counts_external_cal
     assert stat.S_IMODE(receipt_dir.stat().st_mode) == 0o700
     receipt_path = receipt_dir / "source-record-jev-receipt.json"
     assert stat.S_IMODE(receipt_path.stat().st_mode) == 0o600
+
     assert json.loads(receipt_path.read_text()) == receipt
     assert not (receipt_dir / "source-record-jev-advisory-summary.json").exists()
 
@@ -1233,6 +1235,31 @@ def test_private_operator_bridge_emits_hash_only_receipt_and_counts_external_cal
     assert len(private_summary["selected_record_id_sha256"]) == 64
     assert "probabilities" not in private_summary and "confidence" not in private_summary
     assert "A source-grounded observation." not in private_summary_path.read_text()
+
+
+@pytest.mark.compatibility
+def test_sealed_snapshot_pin_resource_failure_precedes_artifact_or_provider_work(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from pr_review_harness.compatibility_pins import CompatibilityPinError
+
+    def unavailable() -> None:
+        raise CompatibilityPinError("private resource detail")
+
+    monkeypatch.setattr(sealed_source_runner.compatibility_pins, "pins", unavailable)
+    output_dir = tmp_path / "receipt-not-created"
+    with pytest.raises(SealedSourceIntegrationError, match="compatibility_pin_resource_unavailable") as error:
+        run_private_artifact_decision(
+            tmp_path / "missing-artifacts",
+            {"kind": "typesafe", "endpoint": "https://provider.invalid", "model": "model", "api_key_env": "KEY"},
+            output_dir,
+            jev_transport=lambda *_args: pytest.fail("provider must not run"),
+        )
+    assert "private resource detail" not in str(error.value)
+    assert not output_dir.exists()
+
+    with pytest.raises(SealedSourceIntegrationError, match="compatibility_pin_resource_unavailable"):
+        sealed_source_runner._private_advisory_summary({}, "SUPPORTED")
 
 
 def _advisory_summary_input(**updates):

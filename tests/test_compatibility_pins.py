@@ -6,8 +6,10 @@ import ast
 import hashlib
 import importlib
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import compatibility_pins
@@ -203,6 +205,145 @@ def test_shadow_policy_import_does_not_read_manifest(monkeypatch: pytest.MonkeyP
 def test_every_manifest_pin_is_referenced_by_a_test():
     known = set(compatibility_pins.pin_names())
     assert _pins_called_by_tests() & known == known
+
+
+@pytest.mark.compatibility
+def test_operational_consumer_pins_reuse_existing_names_and_preserve_controller_values() -> None:
+    values = {
+        "clean": compatibility_pins.pin("fixture.clean_review_control_v1.manifest_sha256"),
+        "profile": compatibility_pins.pin("contract.slopsearx_v17.profile_sha256"),
+        "limits": compatibility_pins.pin("contract.ordinary_review_limits_v3.sha256"),
+        "task": compatibility_pins.pin("historical.pr305_context_target.task_input_sha256"),
+        "manifest": compatibility_pins.pin("historical.pr305_context_target.manifest_sha256"),
+        "archived_provider": compatibility_pins.pin("historical.pr305_context_target.legacy_provider_file_sha256"),
+        "capture_snapshot": compatibility_pins.pin("historical.pr464.capture_snapshot_sha256"),
+        "case_snapshot": compatibility_pins.pin("historical.pr464.case_snapshot_sha256"),
+        "runtime_tree": compatibility_pins.pin("runtime.model_only_shadow.module_tree_sha256"),
+    }
+    assert (
+        values["clean"]
+        == hashlib.sha256((ROOT / "examples/evaluation/clean-review-control-v1/fixture.json").read_bytes()).hexdigest()
+    )
+
+    source_revision = "816c3487b8ed5aaf608051400f08d48ca80e871a"
+    source = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{source_revision}:scripts/run_context_target_schema_probe.py"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assignments = {
+        node.targets[0].id: node.value.value
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+    assert values["task"] == assignments["TASK_INPUT_SHA256"]
+    assert values["manifest"] == assignments["MANIFEST_SHA256"]
+
+    archived = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "show",
+            "b075e50db01154cbd996a5549afef62f065df2d9:src/pr_review_harness/providers.py",
+        ],
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert values["archived_provider"] == hashlib.sha256(archived).hexdigest()
+
+
+@pytest.mark.compatibility
+def test_operational_consumer_pin_access_returns_fresh_plain_mappings() -> None:
+    from scripts.prepare_selected_pair_clean_control_trial import _clean_fixture_pin_values
+    from scripts.run_context_target_schema_probe import _context_probe_pin_values
+    from scripts.run_sealed_source_record_jev import _capture_snapshot_pin_value
+    from scripts.sanitize_model_only_shadow_preflight import _preflight_pin_values
+
+    clean_first = _clean_fixture_pin_values()
+    clean_second = _clean_fixture_pin_values()
+    assert type(clean_first) is dict and clean_first is not clean_second
+    assert clean_first["fixture.clean_review_control_v1.manifest_sha256"] == compatibility_pins.pin(
+        "fixture.clean_review_control_v1.manifest_sha256"
+    )
+
+    probe_first = _context_probe_pin_values()
+    probe_second = _context_probe_pin_values()
+    assert type(probe_first) is dict and probe_first is not probe_second
+    assert set(probe_first) == {
+        "contract.slopsearx_v17.profile_sha256",
+        "contract.ordinary_review_limits_v3.sha256",
+        "historical.pr305_context_target.task_input_sha256",
+        "historical.pr305_context_target.manifest_sha256",
+        "historical.pr305_context_target.legacy_provider_file_sha256",
+    }
+    assert all(isinstance(value, str) for value in probe_first.values())
+
+    assert _capture_snapshot_pin_value() == compatibility_pins.pin("historical.pr464.capture_snapshot_sha256")
+    preflight_first = _preflight_pin_values()
+    preflight_second = _preflight_pin_values()
+    assert type(preflight_first) is dict and preflight_first is not preflight_second
+    assert set(preflight_first) == {
+        "historical.pr464.case_snapshot_sha256",
+        "runtime.model_only_shadow.module_tree_sha256",
+    }
+
+
+def test_operational_consumer_imports_do_not_read_resource_and_cli_works_outside_checkout(tmp_path: Path) -> None:
+    code = """
+import importlib.resources
+def forbidden(_package):
+    raise AssertionError('compatibility resource read during import')
+importlib.resources.files = forbidden
+import scripts.prepare_selected_pair_clean_control_trial
+import scripts.run_context_target_schema_probe
+import scripts.run_sealed_source_record_jev
+import scripts.sanitize_model_only_shadow_preflight
+"""
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join((str(ROOT), str(ROOT / "src"), str(ROOT / "scripts"))),
+    }
+    for name in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "JEV_API_KEY", "JEV_BASE_URL", "JEV_MODEL"):
+        env.pop(name, None)
+    imported = subprocess.run(
+        [sys.executable, "-c", code], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=20
+    )
+    assert imported.returncode == 0, imported.stderr
+
+    for script in (
+        "prepare_selected_pair_clean_control_trial.py",
+        "run_sealed_source_record_jev.py",
+        "sanitize_model_only_shadow_preflight.py",
+    ):
+        completed = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / script), "--help"],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        assert completed.returncode == 0, completed.stderr
+
+    runner_temp = tmp_path / "runner-temp"
+    runner_temp.mkdir()
+    probe_env = {**env, "RUNNER_TEMP": str(runner_temp)}
+    rejected = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/run_context_target_schema_probe.py"), "--help"],
+        cwd=tmp_path,
+        env=probe_env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert rejected.returncode == 2
+    assert '"state":"REJECTED"' in rejected.stdout
 
 
 def test_no_adhoc_sha256_literals_outside_the_manifest():
@@ -425,6 +566,9 @@ def test_canonical_resource_preserves_both_pre_migration_manifests():
         "synth_001.preflight.request_descriptor_sha256",
         "synth_001.preflight.normalized_prepared_sha256",
         "synth_001.preflight.evidence_index_canonical_sha256",
+        "historical.pr305_context_target.task_input_sha256",
+        "historical.pr305_context_target.manifest_sha256",
+        "historical.pr305_context_target.legacy_provider_file_sha256",
     }
     assert canonical["value_refresh_history"] == previous_values.get("refresh_history", [])
     file_additions = {

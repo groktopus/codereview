@@ -72,6 +72,21 @@ def test_three_case_plan_binds_prepare_only_requests_and_shared_policy(tmp_path)
         assert next(row for row in plan["cases"] if row["case_id"] == case_id)["snapshot_hash"]
 
 
+def test_missing_pin_resource_refuses_before_creating_output(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import prepare_selected_pair_clean_control_trial as preparation
+
+    from pr_review_harness.compatibility_pins import CompatibilityPinError
+
+    def unavailable() -> None:
+        raise CompatibilityPinError("private resource detail")
+
+    monkeypatch.setattr(preparation.compatibility_pins, "pins", unavailable)
+    output = tmp_path / "not-created"
+    with pytest.raises(PreparationError, match="compatibility_pin_resource_unavailable"):
+        preparation.prepare_trial(output)
+    assert not output.exists()
+
+
 def test_request_descriptors_are_independent_of_temporary_paths(tmp_path):
     first = prepare_trial(tmp_path / "first")
     second = prepare_trial(tmp_path / "second")

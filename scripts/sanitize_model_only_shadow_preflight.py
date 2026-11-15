@@ -9,8 +9,15 @@ import json
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from pr_review_harness import compatibility_pins  # noqa: E402
 
 SUMMARY_KEYS = {"cases", "schema", "status"}
 CASE_KEYS = {
@@ -79,10 +86,27 @@ MANIFEST_KEYS = {
 MANIFEST_CASE_KEYS = CASE_KEYS | {"primary_request_receipts"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
+CASE_SNAPSHOT_PIN = "historical.pr464.case_snapshot_sha256"
+RUNTIME_TREE_PIN = "runtime.model_only_shadow.module_tree_sha256"
 
 
 class ReceiptError(ValueError):
     """Input is incomplete or outside the fixed sanitized receipt contract."""
+
+
+def _preflight_pin_values() -> dict[str, str]:
+    """Load fixed preflight identities before reading or writing receipt files."""
+    try:
+        entries = compatibility_pins.pins()
+        values = {
+            CASE_SNAPSHOT_PIN: entries[CASE_SNAPSHOT_PIN]["value"],
+            RUNTIME_TREE_PIN: entries[RUNTIME_TREE_PIN]["value"],
+        }
+        if any(not isinstance(value, str) for value in values.values()):
+            raise KeyError("invalid preflight pin")
+        return values
+    except (compatibility_pins.CompatibilityPinError, KeyError, TypeError):
+        raise ReceiptError("compatibility_pin_resource_unavailable") from None
 
 
 def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -142,12 +166,12 @@ def _hash(value: Any, field: str) -> str:
     return value
 
 
-def _case_summary(row: dict[str, Any]) -> dict[str, Any]:
+def _case_summary(row: dict[str, Any], snapshot_sha256: str) -> dict[str, Any]:
     if set(row) != CASE_KEYS or row.get("case_id") != "PR-464" or row.get("status") != "PREPARED_NOT_RUN":
         raise ReceiptError("case_receipt_invalid")
     if row.get("primary_calls") != 10 or row.get("primary_serialized_input_bytes") != 893359:
         raise ReceiptError("case_request_plan_mismatch")
-    if row.get("snapshot_hash") != "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663":
+    if row.get("snapshot_hash") != snapshot_sha256:
         raise ReceiptError("case_snapshot_mismatch")
     for field in (
         "checks_sha256",
@@ -167,6 +191,7 @@ def _case_summary(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def sanitize(summary_path: Path, manifest_path: Path, output_dir: Path) -> dict[str, Any]:
+    pin_values = _preflight_pin_values()
     summary, summary_bytes = _read_json(summary_path, 128_000)
     manifest, manifest_bytes = _read_json(manifest_path, 4_000_000)
     if set(summary) != SUMMARY_KEYS or summary.get("status") != "PREPARED_NOT_RUN":
@@ -187,7 +212,7 @@ def sanitize(summary_path: Path, manifest_path: Path, output_dir: Path) -> dict[
         raise ReceiptError("manifest_budget_invalid")
     if manifest.get("runtime_revision") != "5873c3f1b297a96c49b78cbcb7be674ab70b3cea":
         raise ReceiptError("manifest_runtime_invalid")
-    if manifest.get("runtime_module_tree_sha256") != "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4":
+    if manifest.get("runtime_module_tree_sha256") != pin_values[RUNTIME_TREE_PIN]:
         raise ReceiptError("manifest_runtime_hash_invalid")
     if not SHA40.fullmatch(str(manifest.get("runner_revision", ""))):
         raise ReceiptError("manifest_runner_revision_invalid")
@@ -197,7 +222,7 @@ def sanitize(summary_path: Path, manifest_path: Path, output_dir: Path) -> dict[
         raise ReceiptError("summary_cases_invalid")
     if not isinstance(manifest_cases, list) or len(manifest_cases) != 1 or not isinstance(manifest_cases[0], dict):
         raise ReceiptError("manifest_cases_invalid")
-    summary_case = _case_summary(summary_cases[0])
+    summary_case = _case_summary(summary_cases[0], pin_values[CASE_SNAPSHOT_PIN])
     manifest_case = manifest_cases[0]
     if set(manifest_case) != MANIFEST_CASE_KEYS or manifest_case.get("case_id") != "PR-464":
         raise ReceiptError("manifest_case_invalid")
