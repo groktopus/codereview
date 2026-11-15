@@ -82,6 +82,76 @@
         "reason": "Source capture digest recorded in the PR-464 check-evidence fixture provenance, not recomputed from the fixture body."
       }
     },
+    "fixture.seeded_writer_synth_001.base_auth_sha256": {
+      "value": "5b6887e35b020d0a59133071f284114f61b41c4de753a8292f2b05969eeaa361",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/seeded-writer-synth-001/base/auth.py",
+        "source_revision": "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3",
+        "recorded_at": "2026-09-28",
+        "reason": "SHA-256 of the immutable SYNTH-001 BASE-side auth source input."
+      }
+    },
+    "fixture.seeded_writer_synth_001.caller_sha256": {
+      "value": "8e3208e4ed04b30281e9e464cef834382f71ef1b44a8b567a64fc8023e344552",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/seeded-writer-synth-001/caller.py",
+        "source_revision": "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3",
+        "recorded_at": "2026-09-28",
+        "reason": "SHA-256 of the immutable SYNTH-001 visible caller input."
+      }
+    },
+    "fixture.seeded_writer_synth_001.contract_sha256": {
+      "value": "7465acc45428bfa7e8d433fac9bd853f44c51d4d0794a60355c16a887ac6b6b3",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/seeded-writer-synth-001/contract.md",
+        "source_revision": "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3",
+        "recorded_at": "2026-09-28",
+        "reason": "SHA-256 of the immutable SYNTH-001 visible contract input."
+      }
+    },
+    "fixture.seeded_writer_synth_001.head_auth_sha256": {
+      "value": "4117df17d8a7e46ecca375f671a0a24223c377ce085a378dafedc5e677d3a823",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/seeded-writer-synth-001/head/auth.py",
+        "source_revision": "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3",
+        "recorded_at": "2026-09-28",
+        "reason": "SHA-256 of the immutable SYNTH-001 HEAD-side auth source input."
+      }
+    },
+    "fixture.seeded_writer_synth_001.payload_sha256": {
+      "value": "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/seeded-writer-synth-001/truth.json",
+        "source_revision": "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3",
+        "recorded_at": "2026-09-28",
+        "reason": "Canonical SHA-256 of the SYNTH-001 visible payload assembled from the allowlisted source files and fixture metadata."
+      }
+    },
+    "fixture.seeded_writer_synth_001.seed_sha256": {
+      "value": "604bf9fa0ebd44002a6950e657c935ef122f3a755a7a4478dc83765d1084d743",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/seeded-writer-synth-001/seed.json",
+        "source_revision": "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3",
+        "recorded_at": "2026-09-28",
+        "reason": "SHA-256 of the immutable SYNTH-001 seed metadata file validated before materialization."
+      }
+    },
+    "fixture.seeded_writer_synth_001.truth_sha256": {
+      "value": "3453536603c7fb9d4c8f0dd24f36481cb5d51b1c6fbdb10b9a88bfe566bd9b5d",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/seeded-writer-synth-001/truth.json",
+        "source_revision": "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3",
+        "recorded_at": "2026-09-28",
+        "reason": "SHA-256 of the immutable SYNTH-001 truth metadata file used to authorize the seeded fixture contents."
+      }
+    },
     "historical.pr457.snapshot_sha256": {
       "value": "2add038206680ba879a3f6fd214131c59c91c08ed24af18a052a121a5db4be87",
       "kind": "historical-snapshot",

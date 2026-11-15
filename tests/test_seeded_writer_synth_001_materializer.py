@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).parents[1]
 FIXTURE = ROOT / "examples/evaluation/seeded-writer-synth-001"
@@ -14,13 +17,156 @@ SCRIPT = ROOT / "scripts/materialize_seeded_writer_synth_001.py"
 def _run(fixture: Path, target: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--fixture-dir", str(fixture), "--target-dir", str(target)],
+        cwd=target.parent,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
 
 
+def test_pin_consumers_import_without_reading_resource(tmp_path: Path):
+    verifier = ROOT / "scripts/verify_synth_001_preflight.py"
+    code = (
+        "import importlib.resources, runpy, unittest.mock\n"
+        "with unittest.mock.patch('importlib.resources.files', side_effect=AssertionError('resource read')):\n"
+        f"    runpy.run_path({str(SCRIPT)!r}, run_name='materializer_import_probe')\n"
+        f"    runpy.run_path({str(verifier)!r}, run_name='verifier_import_probe')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_cli_entrypoints_fail_closed_when_pin_resource_is_unavailable(tmp_path: Path):
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "sitecustomize.py").write_text(
+        "import importlib.resources\n"
+        "class UnavailableResource:\n"
+        "    def joinpath(self, _name): return self\n"
+        "    def read_text(self, **_kwargs): raise OSError('opaque resource sentinel')\n"
+        "importlib.resources.files = lambda _package: UnavailableResource()\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join((str(site_dir), str(ROOT / "src")))
+
+    target = tmp_path / "materialized-target"
+    materializer = subprocess.run(
+        [sys.executable, str(SCRIPT), "--fixture-dir", str(FIXTURE), "--target-dir", str(target)],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert materializer.returncode == 2
+    assert json.loads(materializer.stderr) == {
+        "schema": "seeded-writer-materialization.v1",
+        "error": "fixture_pin_resource_unavailable",
+    }
+    assert not target.exists()
+    assert "opaque resource sentinel" not in materializer.stderr
+
+    verifier = ROOT / "scripts/verify_synth_001_preflight.py"
+    verification = subprocess.run(
+        [
+            sys.executable,
+            str(verifier),
+            "--materialization",
+            str(tmp_path / "materialization.json"),
+            "--prepared",
+            str(tmp_path / "prepared.json"),
+            "--repo",
+            str(tmp_path / "repo"),
+            "--fixture-dir",
+            str(FIXTURE),
+            "--profile",
+            str(tmp_path / "profile.json"),
+            "--limits",
+            str(tmp_path / "limits.json"),
+            "--provider-config",
+            str(tmp_path / "provider.json"),
+        ],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert verification.returncode == 2
+    assert json.loads(verification.stderr) == {
+        "schema": "synth-001-preflight-verification.v1",
+        "result": "REJECTED",
+        "error": "fixture_pin_resource_unavailable",
+    }
+    assert "opaque resource sentinel" not in verification.stderr
+
+
+@pytest.mark.compatibility
+def test_synth_fixture_pins_match_immutable_artifact_bytes():
+    from pr_review_harness.compatibility_pins import pin, pins
+
+    artifact_paths = {
+        "fixture.seeded_writer_synth_001.truth_sha256": (
+            "truth.json",
+            pin("fixture.seeded_writer_synth_001.truth_sha256"),
+        ),
+        "fixture.seeded_writer_synth_001.seed_sha256": (
+            "seed.json",
+            pin("fixture.seeded_writer_synth_001.seed_sha256"),
+        ),
+        "fixture.seeded_writer_synth_001.contract_sha256": (
+            "contract.md",
+            pin("fixture.seeded_writer_synth_001.contract_sha256"),
+        ),
+        "fixture.seeded_writer_synth_001.caller_sha256": (
+            "caller.py",
+            pin("fixture.seeded_writer_synth_001.caller_sha256"),
+        ),
+        "fixture.seeded_writer_synth_001.base_auth_sha256": (
+            "base/auth.py",
+            pin("fixture.seeded_writer_synth_001.base_auth_sha256"),
+        ),
+        "fixture.seeded_writer_synth_001.head_auth_sha256": (
+            "head/auth.py",
+            pin("fixture.seeded_writer_synth_001.head_auth_sha256"),
+        ),
+    }
+    records = pins()
+    for name, (relative, recorded_hash) in artifact_paths.items():
+        artifact = FIXTURE / relative
+        assert recorded_hash == hashlib.sha256(artifact.read_bytes()).hexdigest()
+        provenance = records[name]["provenance"]
+        assert records[name]["kind"] == "evaluation-fixture"
+        assert provenance["artifact"] == f"examples/evaluation/seeded-writer-synth-001/{relative}"
+        assert provenance["source_revision"] == "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3"
+        assert provenance["recorded_at"] == "2026-09-28"
+
+    visible_files = {
+        relative: (FIXTURE / relative).read_text(encoding="utf-8")
+        for relative in ("contract.md", "caller.py", "base/auth.py", "head/auth.py")
+    }
+    payload = json.dumps(
+        {"fixture_id": "SYNTH-001", "seed": 457001, "files": visible_files},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    payload_key = "fixture.seeded_writer_synth_001.payload_sha256"
+    assert pin(payload_key) == hashlib.sha256(payload).hexdigest()
+    payload_provenance = records[payload_key]["provenance"]
+    assert records[payload_key]["kind"] == "evaluation-fixture"
+    assert payload_provenance["artifact"] == "examples/evaluation/seeded-writer-synth-001/truth.json"
+    assert payload_provenance["source_revision"] == "43ba7b9050c8c74f81eae9bcc714c967de8fa4b3"
+    assert payload_provenance["recorded_at"] == "2026-09-28"
+
+
+@pytest.mark.compatibility
 def test_materialization_is_deterministic_and_contains_only_review_inputs(tmp_path: Path):
     first = _run(FIXTURE, tmp_path / "first")
     second = _run(FIXTURE, tmp_path / "second")
@@ -29,8 +175,9 @@ def test_materialization_is_deterministic_and_contains_only_review_inputs(tmp_pa
     two = json.loads(second.stdout)
     assert one == two
     assert one["fixture_id"] == "SYNTH-001"
-    # vd3-non-pin: seeded SYNTH-001 payload digest is synthetic fixture data, not historical evidence.
-    assert one["payload_sha256"] == "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
+    from pr_review_harness.compatibility_pins import pin
+
+    assert one["payload_sha256"] == pin("fixture.seeded_writer_synth_001.payload_sha256")
     assert one["changed_path"] == "auth.py"
     assert one["base_sha"] != one["head_sha"]
     assert (
