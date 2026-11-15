@@ -205,9 +205,12 @@ records fail, including in newly added modules.
 
 The additive [declaration checker](scripts/check_declaration_annotations.py)
 scans every maintained `.py` and `.pyi` file under `scripts/`, `experiments/`,
-and `tests/`, using the same maintained-file inventory and immutable-fixture
-exclusions as the expanded lint checker. It checks declarations only; it does
-not run mypy or claim that these modules are fully typed. Run it with:
+and `tests/`, plus maintained `src/**/*.pyi` standalone stubs. It uses the same
+maintained-file inventory and immutable-fixture exclusions as the expanded
+lint checker. Source `.py` implementations remain covered by the separate
+strict implementation checker; the declaration checker does not expand that
+scope. It checks declarations only and does not run mypy or claim that the
+non-core modules are fully typed. Run it with:
 
 ```sh
 python scripts/check_declaration_annotations.py --json
@@ -234,10 +237,14 @@ comments fail closed. There are no inline suppression directives. Lambdas
 cannot carry inline parameter/return annotations and are outside this
 declaration rule; this is not a guarantee about every runtime callable.
 
-The reviewed initial inventory records **3,634 existing gaps in 3,633
-signature identities** in
+The initial reviewed inventory recorded **3,634 existing gaps in 3,633 signature
+identities** in
 [`declaration-annotations-baseline.v1.json`](scripts/declaration-annotations-baseline.v1.json).
-That baseline is a finite historical exception list, not a quality claim.
+Its policy additionally covers three maintained standalone source stubs, which
+currently have no missing declarations; their addition preserved every prior
+debt entry. The remaining SYNTH-001 pin migration retires three obsolete
+allowances after adding complete test signatures, leaving **3,631 gaps in 3,630
+identities**. The baseline is a finite historical exception list, not a quality claim.
 New signatures and newly added maintained files are scanned automatically;
 new gaps, increased counts, and stale/renamed/removed allowances fail. The
 checker and its own regression tests must remain at zero gaps. Do not refresh

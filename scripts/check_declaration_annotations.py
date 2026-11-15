@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ratchet missing annotations on maintained non-core Python declarations.
+"""Ratchet missing annotations on maintained declarations and source stubs.
 
 This checks declaration annotations only. The strict implementation mypy gate
 continues to own full type analysis for ``src``.
@@ -23,7 +23,9 @@ sys.path.insert(0, str(ROOT))
 from scripts.check_expanded_lint import EXCLUSIONS, PIN_MANIFEST, ROOTS, maintained_files  # noqa: E402
 
 SCHEMA = "pr-review-declaration-annotations-baseline.v1"
-NON_CORE_ROOTS = ("scripts", "experiments", "tests")
+DECLARATION_ROOTS = ("scripts", "experiments", "tests")
+SOURCE_STUB_ROOT = "src"
+SOURCE_STUB_GLOB = "src/**/*.pyi"
 OWN_FILES = ("scripts/check_declaration_annotations.py", "tests/test_declaration_annotation_guard.py")
 KEY_FIELDS = ("path", "qualname", "signature_sha256")
 HEX256 = frozenset("0123456789abcdef")
@@ -334,7 +336,12 @@ def declarations_for_source(path: str, source: str) -> list[Declaration]:
 def maintained_declarations(root: Path) -> tuple[Counter[Key], dict[Key, tuple[str, ...]], int]:
     counts: Counter[Key] = Counter()
     missing_by_key: dict[Key, tuple[str, ...]] = {}
-    files = [path for path in maintained_files(root) if path.relative_to(root).parts[0] in NON_CORE_ROOTS]
+    files = [
+        path
+        for path in maintained_files(root)
+        if path.relative_to(root).parts[0] in DECLARATION_ROOTS
+        or (path.relative_to(root).parts[0] == SOURCE_STUB_ROOT and path.suffix == ".pyi")
+    ]
     for path in files:
         relative = path.relative_to(root).as_posix()
         for declaration in declarations_for_source(relative, path.read_text(encoding="utf-8")):
@@ -349,12 +356,13 @@ def maintained_declarations(root: Path) -> tuple[Counter[Key], dict[Key, tuple[s
 
 def policy() -> dict[str, object]:
     return {
-        "roots": list(NON_CORE_ROOTS),
+        "roots": [*DECLARATION_ROOTS, SOURCE_STUB_GLOB],
         "maintained_roots": list(ROOTS),
         "immutable_exclusions": list(EXCLUSIONS),
         "pin_manifest": PIN_MANIFEST,
         "identity": "path+qualified-name+canonical-signature-shape.v1",
         "declaration_scope": "FunctionDef+AsyncFunctionDef; lambdas are not declarations with annotatable signatures",
+        "source_stub_scope": "maintained src/**/*.pyi only; src/**/*.py implementations remain owned by strict implementation typing",
         "receiver": "first-positional-parameter-of-direct-nonstatic-class-method",
         "implicit_init_return": "mypy-implicit-None-for-class-__init__-with-any-annotated-parameter",
         "function_type_comments": "parse-func_type; exact-arity-or-bound-receiver-omission; ellipsis-does-not-annotate-explicit-parameters",
@@ -423,9 +431,12 @@ def load_baseline(path: Path) -> tuple[Counter[Key], dict[Key, tuple[str, ...]]]
             not relative.parts
             or relative.is_absolute()
             or ".." in relative.parts
-            or relative.parts[0] not in NON_CORE_ROOTS
+            or not (
+                relative.parts[0] in DECLARATION_ROOTS
+                or (relative.parts[0] == SOURCE_STUB_ROOT and relative.suffix == ".pyi")
+            )
         ):
-            raise DeclarationError("baseline path is outside maintained non-core roots")
+            raise DeclarationError("baseline path is outside maintained declaration roots")
         if relative.suffix not in {".py", ".pyi"}:
             raise DeclarationError("baseline path is not a Python declaration file")
         if not isinstance(signature_hash, str) or len(signature_hash) != 64 or not set(signature_hash) <= HEX256:

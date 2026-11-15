@@ -10,8 +10,11 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
-- Move the remaining SYNTH-001 preflight and package identities into the canonical compatibility resource through lazy accessors. Preserve frozen artifacts and require prevalidated named runtime-tree and identity pins before pending finalization; the finalizer never refreshes the resource. Existing finalizer frozen verification remains idempotent.
-- Move the six active PR-457/PR-464 v3 shadow-plan and evidence identities into the canonical compatibility resource. Shared lazy case-policy accessors preserve plan bytes and receipts without import-time resource reads; pin changes remain subject to the provenance-aware refresh procedure.
+- Move the remaining SYNTH-001 preflight and package identities into the canonical compatibility resource through lazy accessors. Preserve frozen artifacts and require prevalidated named runtime-tree and identity pins before pending finalization; the finalizer never refreshes the resource. Existing finalizer frozen verification remains idempotent. Three obsolete declaration allowances are retired after the affected tests gained complete annotations.
+
+- Extend the VD-4 declaration annotation ratchet to maintained standalone `src/**/*.pyi` stubs while preserving the strict implementation typing scope for `src/**/*.py`. New untyped stubs fail the real checker CLI; the three existing source stubs have no missing declarations. The baseline policy records this scope change without changing its 3,634 historical gaps in 3,633 identities. This checks declarations rather than function-body typing and does not close VD-4.
+
+- Move the six active PR-457/PR-464 v3 shadow-plan and evidence identities into the canonical compatibility resource. Shared lazy case-policy accessors preserve plan bytes and receipts without import-time resource reads; the legacy finalizer remains frozen and rejects the committed policy before writing. Pin changes remain subject to the provenance-aware refresh procedure.
 
 - Revise the scoped complete RC-2 planning envelope from 2,400 to 3,100 additional source lines after measured draft growth and independent architectural reassessment. All retrieval roles, runtime caps, recovery and completion gates remain unchanged; identified draft correctness defects still block integration.
 - Move the seven SYNTH-001 fixture identities shared by the materializer and preflight verifier into the canonical compatibility resource. Explicit accessors preserve the original digests and fixture bytes without reading the resource at import time; standalone script invocation remains supported.
