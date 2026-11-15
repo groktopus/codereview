@@ -340,14 +340,16 @@ def test_built_wheel_contains_loadable_canonical_pin_resource(tmp_path: Path):
         text=True,
     )
     environment = dict(os.environ, PYTHONPATH=str(install_dir))
-    subprocess.run(
+    probe = "; ".join(
         [
-            sys.executable,
-            "-c",
-            "from pathlib import Path; import pr_review_harness.compatibility_pins as m; "
-            "assert Path(m.__file__).is_relative_to(Path.cwd() / 'installed'); "
+            "from pathlib import Path",
+            "import pr_review_harness.compatibility_pins as m",
+            "assert Path(m.__file__).is_relative_to(Path.cwd() / 'installed')",
             "assert m.load_manifest()['value_pins']",
-        ],
+        ]
+    )
+    subprocess.run(
+        [sys.executable, "-c", probe],
         cwd=tmp_path,
         env=environment,
         check=True,
