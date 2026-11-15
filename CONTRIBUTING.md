@@ -81,17 +81,19 @@ cannot hide debt. Core rules are enabled for correct unused-noqa context, but
 remain owned by the original hard lint gate, never grandfathered here.
 
 The versioned [baseline](scripts/expanded-lint-baseline.v1.json) inventories
-**548 remaining findings / 531 identities in 335 maintained Python files**:
+**548 findings / 531 identities in 335 maintained Python files at initial capture**:
 199 in source, 119 in scripts, 27 in experiments, and 203 in tests. Family totals
 are B 96, SIM 133, UP 123, C4 56, RUF 140, ASYNC 0. This is an inventory,
 **not a cleanup claim or permanent approval of unsafe code**. Prior diagnostics
 from older Ruff releases or scans including frozen fixtures are not this baseline.
-New checker/tests have zero expanded-rule debt.
+New checker/tests have zero expanded-rule debt. The canonical-pin migration retires
+one C420 allowance; its reviewed baseline contains 546 findings. The original
+initial-capture counts above remain historical.
 
 Scan roots are `src`, `scripts`, `experiments`, and `tests` (including `.pyi`).
 Historical `tests/fixtures/frozen-runtime-7d550b6/**` and
 `tests/fixtures/*-base.py` are excluded only when their exact paths and bytes match
-the existing [historical pin manifest](tests/fixtures/frozen-runtime-7d550b6/pins.json);
+the existing [historical pin manifest](src/pr_review_harness/compatibility-pins.v1.json);
 unregistered matching files and changed pins fail. Hashed, untrusted evaluation
 payloads under `examples/evaluation/adversarial-pairs-v1/fixtures/**` are explicitly
 outside this maintained-code scan; they retain their corpus hash checks. Other
@@ -314,9 +316,11 @@ python scripts/refresh_compatibility_pins.py \
   --source-revision <40-hex-commit>
 ```
 
-Review the reported old and new hashes, then re-run with `--confirm` to rewrite [`pins.json`](tests/fixtures/frozen-runtime-7d550b6/pins.json) atomically. The tool appends the changed file's `name`, `old_sha256`, `new_sha256`, `timestamp`, `reason`, and `source_revision` to `refresh_history` and updates `pins` plus `pin_revisions` only for changed files; it preserves the schema and historical revision. It refuses to run without a reason of at least 10 characters, a 40-hex source revision, and at least one changed pin, and it also refuses missing files or an unchanged pin set. Pins require reviewed provenance: never run `--confirm` merely to make a compatibility test pass.
+Review the reported old and new hashes, then re-run with `--confirm` to rewrite [`pins.json`](src/pr_review_harness/compatibility-pins.v1.json) atomically. The tool appends the changed file's `name`, `old_sha256`, `new_sha256`, `timestamp`, `reason`, and `source_revision` to `file_refresh_history` and updates `file_pins` plus `pin_revisions` only for changed files; it preserves the schema and historical revision. It refuses to run without a reason of at least 10 characters, a 40-hex source revision, and at least one changed pin, and it also refuses missing files or an unchanged pin set. Pins require reviewed provenance: never run `--confirm` merely to make a compatibility test pass.
 
-Scattered SHA-256 literals that pin historical evidence or contract artifacts are recorded as named entries in [`tests/compatibility-pins.v1.json`](tests/compatibility-pins.v1.json) and loaded in tests with `compatibility_pins.pin("<name>")`. Each entry carries its `kind` and `provenance` (`artifact`, `source_revision`, `recorded_at`, and a `reason`). Value pins are semantic identities (module-tree, snapshot, plan, or contract digests), not single-file bytes, so the reviewed replacement is supplied explicitly:
+Both file-byte and named value pins now share one installed, runtime-neutral resource. Its `file_pins` and `value_pins` sections preserve their separate meanings and histories; a refresh changes only the selected section. The canonical loader rejects missing, malformed, and duplicate-key resources. Historical fixture bytes are unchanged.
+
+Scattered SHA-256 literals that pin historical evidence or contract artifacts are recorded as named entries in [`src/pr_review_harness/compatibility-pins.v1.json`](src/pr_review_harness/compatibility-pins.v1.json) and loaded in tests with `compatibility_pins.pin("<name>")`. Each entry carries its `kind` and `provenance` (`artifact`, `source_revision`, `recorded_at`, and a `reason`). Value pins are semantic identities (module-tree, snapshot, plan, or contract digests), not single-file bytes, so the reviewed replacement is supplied explicitly:
 
 ```sh
 python scripts/refresh_compatibility_pins.py --value-pins \
@@ -325,7 +329,7 @@ python scripts/refresh_compatibility_pins.py --value-pins \
   --source-revision <40-hex-commit>
 ```
 
-The value-pin mode is also dry-run by default and prints the pin, artifact, old digest, and new digest without writing. Re-run with `--confirm` to update the `value` plus `provenance.source_revision`, `provenance.recorded_at`, and `provenance.reason` and to append `name`, `old_sha256`, `new_sha256`, `timestamp`, `reason`, and `source_revision` to `refresh_history`. It refuses a malformed `--set`, an unknown or ambiguous pin, a missing or invalid reason/source revision, an unchanged pin set, and any manifest entry without complete provenance. Tests that assert a historical value pin carry `@pytest.mark.compatibility` so the ordinary suite does not depend on historical evidence; a mismatch uses `compatibility_pins.assert_pin_value(...)`, whose error names the module, historical revision, and the exact refresh command.
+The value-pin mode is also dry-run by default and prints the pin, artifact, old digest, and new digest without writing. Re-run with `--confirm` to update the `value` plus `provenance.source_revision`, `provenance.recorded_at`, and `provenance.reason` and to append `name`, `old_sha256`, `new_sha256`, `timestamp`, `reason`, and `source_revision` to `value_refresh_history`. It refuses a malformed `--set`, an unknown or ambiguous pin, a missing or invalid reason/source revision, an unchanged pin set, and any manifest entry without complete provenance. Tests that assert a historical value pin carry `@pytest.mark.compatibility` so the ordinary suite does not depend on historical evidence; a mismatch uses `compatibility_pins.assert_pin_value(...)`, whose error names the module, historical revision, and the exact refresh command.
 
 **VD-3 remains open.** Production scripts and current-source capture still carry inline historical identity digests, so the single-manifest exit criterion is not yet met. These runtime surfaces must not import test fixtures; moving their authorities to a runtime-neutral canonical manifest is remaining implementation work, not an approved exception. Some historical comparisons still use bare assertions, and frozen tree-pin remediation needs a distinct reviewed migration procedure rather than the file-byte refresh command. Do not copy digests into new tests: add or reuse a named manifest entry instead.
 

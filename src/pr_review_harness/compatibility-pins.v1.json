@@ -1,0 +1,317 @@
+{
+  "schema": "pr-review-compatibility-pins.v1",
+  "description": "Canonical runtime-neutral compatibility pin registry. Historical values and file bytes retain their recorded provenance; refreshes append migration history.",
+  "value_pins": {
+    "contract.codereview_native_v1.profile_sha256": {
+      "value": "32d4b63ac84c51eb5919d5f467060d80036f2fa535a3dde354963ecaaaa0c712",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/codereview-native-v1-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked codereview-native-v1 candidate profile bound by the review-contract registry."
+      }
+    },
+    "contract.ordinary_review_limits_v2.sha256": {
+      "value": "39abcf19666c9f322364961577f08f8cff8a3c539e68d894693b6cb0fb5a75e9",
+      "kind": "contract-limits",
+      "provenance": {
+        "artifact": "profiles/ordinary-review-limits-v2.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked ordinary-review limits v2 artifact bound by the legacy-v14 contract."
+      }
+    },
+    "contract.ordinary_review_limits_v3.sha256": {
+      "value": "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6",
+      "kind": "contract-limits",
+      "provenance": {
+        "artifact": "profiles/ordinary-review-limits-v3.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked ordinary-review limits v3 artifact bound by the v16, v17, and native contracts."
+      }
+    },
+    "contract.slopsearx_v14.profile_sha256": {
+      "value": "5e83bc43c615f717df0d3d29722de08dd5990c84c8e69d1705c94f3918d49692",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/slopsearx-v14-jev-reconciliation-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked v14 candidate profile bound as the legacy-v14 review contract."
+      }
+    },
+    "contract.slopsearx_v16.profile_sha256": {
+      "value": "699f93fd7bc78d310de2455cad7402a1c3c8cf5ad61c3d4cbb77bb38da1189ed",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/slopsearx-v16-bounded-production-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked v16 bounded-production candidate profile bound by the review-contract registry."
+      }
+    },
+    "contract.slopsearx_v17.profile_sha256": {
+      "value": "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "profiles/slopsearx-v17-context-target-manifest-candidate.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the tracked v17 context-target-manifest candidate profile bound by the review-contract registry."
+      }
+    },
+    "fixture.clean_review_control_v1.manifest_sha256": {
+      "value": "b0e5c4117026659f0c5045db117fb54ffdbdcc9c1eff9c89f58ae59087b12d91",
+      "kind": "evaluation-fixture",
+      "provenance": {
+        "artifact": "examples/evaluation/clean-review-control-v1/fixture.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "SHA-256 of the clean-review control fixture manifest used as a fixed evaluation input."
+      }
+    },
+    "fixture.pr464_check_evidence.source_capture_sha256": {
+      "value": "989e65b14d1a43f37b4abaaf2be55b49c3b07ecf50d3e786eb99ff3f22f0450b",
+      "kind": "evidence-provenance",
+      "provenance": {
+        "artifact": "tests/fixtures/pr464-check-evidence.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Source capture digest recorded in the PR-464 check-evidence fixture provenance, not recomputed from the fixture body."
+      }
+    },
+    "historical.pr457.snapshot_sha256": {
+      "value": "2add038206680ba879a3f6fd214131c59c91c08ed24af18a052a121a5db4be87",
+      "kind": "historical-snapshot",
+      "provenance": {
+        "artifact": "docs/real-case-trial-v1/cases.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Frozen PR-457 snapshot hash recorded in the historical real-case trial cases; the snapshot body is not retained here."
+      }
+    },
+    "historical.pr464.capture_snapshot_sha256": {
+      "value": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+      "kind": "historical-snapshot",
+      "provenance": {
+        "artifact": "examples/evaluation/model-only-shadow-pr464-v2/manifest.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Frozen PR-464 capture snapshot digest shared by the historical model-only shadow plans and receipts."
+      }
+    },
+    "historical.pr464.case_snapshot_sha256": {
+      "value": "3fcb39bbe80bbc10d02fbfef98abc6f73f9f46b829776515a6c9f9df69787663",
+      "kind": "historical-snapshot",
+      "provenance": {
+        "artifact": "docs/real-case-trial-v1/cases.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Frozen PR-464 case snapshot hash recorded for the historical real-case trial and legacy budget."
+      }
+    },
+    "historical.pr464.selected_task_sha256": {
+      "value": "d5b567c9db558df6b5cf51f019004234be3e36efffd74427bd33574c9a3c5a3c",
+      "kind": "historical-capture",
+      "provenance": {
+        "artifact": "external: frozen PR-464 no-candidate capture selection receipt",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Selected-task digest from the frozen PR-464 no-candidate capture; the selected packet is not retained in this repository."
+      }
+    },
+    "historical.pr464.source_request_sha256": {
+      "value": "d89e8164d297e736a45d91572221ed6b2b0c4aee0ae567b8438cd9bda6592699",
+      "kind": "historical-capture",
+      "provenance": {
+        "artifact": "external: frozen PR-464 capture integration request",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Source-auditor request digest reconstructed from the frozen PR-464 capture; the raw request body is intentionally not retained."
+      }
+    },
+    "historical.real_case_trial.baseline_plan_sha256": {
+      "value": "5c98ea8d66723bae0092c16dd062cdc77640d6912da3ae90dde7ec5fc805baef",
+      "kind": "historical-plan",
+      "provenance": {
+        "artifact": "docs/real-case-trial-v1/cases.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Baseline real-case trial plan digest recorded with the frozen cases and their request descriptors."
+      }
+    },
+    "historical.selected_model_trial.observer_source_sha256": {
+      "value": "fce15c42bfbc7fe66f353e8322b11f5fff1ae44a10458bba234366509f75f328",
+      "kind": "historical-observer",
+      "provenance": {
+        "artifact": "docs/SELECTED-MODEL-CLAIM-TRIAL.md",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Observer source digest recorded for the selected-model provider trial's trusted runtime binding."
+      }
+    },
+    "runtime.context_followup_v2.module_tree_sha256": {
+      "value": "c5b7c4e43aeddfad55bbcfdcb9e07c4a89fd0b6a3a263a31f046c8852dd8838a",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "docs/real-case-trial-context-followup-v2/proofs/runtime-module-map.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Installed-module tree digest for the context-followup v2/v3 historical runtime revision 7c89ad17327b8f0ed4fc381bf5c93255fd4e548e."
+      }
+    },
+    "runtime.model_only_shadow.inventory_sha256": {
+      "value": "1c94fabdbd5419a2da5beeed1e6d72030af2af71531f3a58defe1bf0a34ff9c0",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "experiments/model-only-shadow-trial-v1.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Runtime inventory digest recorded for the historical model-only shadow runtime revision 5873c3f1b297a96c49b78cbcb7be674ab70b3cea."
+      }
+    },
+    "runtime.model_only_shadow.module_tree_sha256": {
+      "value": "d8bdb53517abb7d85fff59805224f457f296832e7e0074b1485c50691dae1ad4",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "experiments/model-only-shadow-trial-v1.json",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Runtime module tree digest for the historical model-only shadow runtime revision 5873c3f1b297a96c49b78cbcb7be674ab70b3cea, recorded by the trial budget and sanitizer."
+      }
+    },
+    "runtime.staged_pr464.module_tree_sha256": {
+      "value": "e21b1686bc3ccb485e389d6fc04f5aea0b0d4d6425e2809de570945b841258b3",
+      "kind": "historical-runtime",
+      "provenance": {
+        "artifact": "scripts/run_real_case_trial.py",
+        "source_revision": "7be8de37e5ee0c17b9e34eca9be3ae8b49b91f76",
+        "recorded_at": "2026-11-06",
+        "reason": "Module tree digest for the staged PR-464 real-case trial runtime revision ed7aa8b82f8d0c8deee03b6f99d8f4f599529301, recomputed from the canonical 28-module inventory."
+      }
+    }
+  },
+  "value_refresh_history": [],
+  "file_pins": {
+    "__init__.py": "584c05beebde577b39db1b3d1ee25a943f80ad6d814d887f8937c0a5c8801ab1",
+    "__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "actions_publication-pr170-base.py": "bd54034fa6bdb33d4ae3d88786297375cd34f9d1382e6553a40283796d900712",
+    "actions_runtime-pr170-base.py": "8469467a09c3e2c96bf3d8ec547af0f57f8794eb6affbf753a1c919ead58e482",
+    "artifact_intake-pr170-base.py": "1aeff8733b07a6c1c6d305530f7ea8d32c2eb0f78e1ef8a0c6b8a565cb1b0c5a",
+    "budget-pr170-base.py": "d061b7e6e81ec75b52fb11ae8e74accdcab3a2308bdeeaeb3a46290d6669ff41",
+    "checks.py": "726a71f16455c35616a5d8cf0317344203214570cba02d033d04bb3e319ce016",
+    "claim_assessment-pr214-base.py": "3fb2bef96ef3153099cebfe50c0817922f51a5a530867190dd4c485e66dd8886",
+    "claim_transport-pr214-base.py": "5ce502405081eb13a0b6f52b9b1b3cc00effcf3f4771c1fab868f57afc79ed9d",
+    "claim_triage.py": "af639d1126d50bc9cc228abc3fe6d611fbfac3d50a6b5d0e0c71a22604d16a6f",
+    "cli-pr170-base.py": "bd35045224e9cce112a6423dddc1c396274eef9683d72a1659791d989d0c1bc6",
+    "context_selector.py": "852d2ff0324b5a66123b8231757e7d19467de63aeade360106cf6cf0d7b3db7d",
+    "contracts-a0988f2-base.py": "5b23d6dc84bb7d4b684bb94326acf586796a4068426890f74f111690785201a3",
+    "cross_model.py": "1c16d501fb31dd0c4b3f1ebcf3dd88f7e04cf1821d864531066cc812e65b463f",
+    "cross_model_package.py": "c7cf85de88150f025ccb0152ddbff7df63e780887890bbf4464e0251e5f1494c",
+    "cross_model_v2.py": "3e76700bbea8bbf928d300d4fce77d878531dda4d03940f213ebd5c80252bac1",
+    "engine-pr170-base.py": "da5923ea3b1cf8902612e0c6d97ba4aef64cbe5af80da014a3615d6488656977",
+    "evaluation.py": "ce1b81cffbe9fbfaffb4f2a7e2bee67f2ac25ff0305213f3c302fca9234d4806",
+    "evidence-pr223-base.py": "4b6f7a3d7b1a9fe95fc2614395e153b36cc0c577b61e871933008ef847b86bfc",
+    "external_effect_observer-pr170-base.py": "1276e148dc32168512efdad8092d0cd734c841d127533c9b6bdb0d5bf50dd578",
+    "github-pr214-base.py": "23a67a4aaac619788ea8a23a9729460e8da6ffe212c473e082d2743f298000d1",
+    "injection_trials.py": "2f8aaffd0d56d67649a1c1bd4d0b8e74571cb1166b9fca98cfab90296fa21c22",
+    "planner-pr170-base.py": "82bc1851dc593ad5d17abf4f4ff2bb1185c33916051f1388813437db58a052ff",
+    "policy_inventory-pr214-base.py": "ea249dd3194f731d90ff6c943756b195ed0d7ebd4c9d78dd779ede83b7aea9b7",
+    "pr170-tree-model": "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3",
+    "pr170-tree-synthesis": "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991",
+    "private_capture.py": "b1efa05f5c0c684e93937b3afa4ec1dbe4b0e1247dfc7466f00af1a3be7a4a1e",
+    "providers-pr170-base.py": "1570abac8cff33ec5d2dbd672695ce5d6038ef236c25d74ca61db5d2a69f124c",
+    "publication_receipts-pr170-base.py": "c31cf6bddbd10e3ad5b663b79d0ead51046f6d8279561b7d6c0d84f831f3ab41",
+    "publisher-pr-actions-token-base.py": "5baa70200351cc580070c9d4cbe450a338b2e8ee4ee70eddd3e6483729390f8c",
+    "reconcile.py": "31263e76ce266a8fb60f003d24b2619c5eea2698ebc018436e5f6b2565da8872",
+    "recovery_inputs.py": "0d691c5ccd1bc5cc39ac1405791a452d0616ffc3205c74fb60199ac738ede250",
+    "report-pr170-base.py": "5c0f54aeb80f37c772b90c36f72d2b6cfffd8d86a93e6ac7fbb6effd3e01d1aa",
+    "selected_model_trial-pr170-base.py": "a2efc2c78368c7d18c6f678bd889a62c0425652529316bb0c9b8d8bf699d7664",
+    "shadow_audit-pr201-base.py": "0127db78abe8a1e460fac53c5df56cce9e6c0ac2ca2b88cec5ef14dd85bf77f2",
+    "shadow_audit.py": "2fd9f4dbb7fcf9fc5779933e6451cd1b00f5cf87a9872e7c06dc19ffd9711967",
+    "shadow_preflight.py": "35c95c402cc742f79e8523eb82835c79eede6edd58d41b4280470150f55795ec",
+    "snapshot-pr170-base.py": "68c621245d28af38f6cf5d9bf1d621d962ebe544174da50add6dda75570d3b5f"
+  },
+  "pin_files": {
+    "__init__.py": "tests/fixtures/frozen-runtime-7d550b6/__init__.py",
+    "__main__.py": "tests/fixtures/frozen-runtime-7d550b6/__main__.py",
+    "actions_publication-pr170-base.py": "tests/fixtures/actions_publication-pr170-base.py",
+    "actions_runtime-pr170-base.py": "tests/fixtures/actions_runtime-pr170-base.py",
+    "artifact_intake-pr170-base.py": "tests/fixtures/artifact_intake-pr170-base.py",
+    "budget-pr170-base.py": "tests/fixtures/budget-pr170-base.py",
+    "checks.py": "tests/fixtures/frozen-runtime-7d550b6/checks.py",
+    "claim_assessment-pr214-base.py": "tests/fixtures/claim_assessment-pr214-base.py",
+    "claim_transport-pr214-base.py": "tests/fixtures/claim_transport-pr214-base.py",
+    "claim_triage.py": "tests/fixtures/frozen-runtime-7d550b6/claim_triage.py",
+    "cli-pr170-base.py": "tests/fixtures/cli-pr170-base.py",
+    "context_selector.py": "tests/fixtures/frozen-runtime-7d550b6/context_selector.py",
+    "contracts-a0988f2-base.py": "tests/fixtures/contracts-a0988f2-base.py",
+    "cross_model.py": "tests/fixtures/frozen-runtime-7d550b6/cross_model.py",
+    "cross_model_package.py": "tests/fixtures/frozen-runtime-7d550b6/cross_model_package.py",
+    "cross_model_v2.py": "tests/fixtures/frozen-runtime-7d550b6/cross_model_v2.py",
+    "engine-pr170-base.py": "tests/fixtures/engine-pr170-base.py",
+    "evaluation.py": "tests/fixtures/frozen-runtime-7d550b6/evaluation.py",
+    "evidence-pr223-base.py": "tests/fixtures/evidence-pr223-base.py",
+    "external_effect_observer-pr170-base.py": "tests/fixtures/external_effect_observer-pr170-base.py",
+    "github-pr214-base.py": "tests/fixtures/github-pr214-base.py",
+    "injection_trials.py": "tests/fixtures/frozen-runtime-7d550b6/injection_trials.py",
+    "planner-pr170-base.py": "tests/fixtures/planner-pr170-base.py",
+    "policy_inventory-pr214-base.py": "tests/fixtures/policy_inventory-pr214-base.py",
+    "private_capture.py": "tests/fixtures/frozen-runtime-7d550b6/private_capture.py",
+    "providers-pr170-base.py": "tests/fixtures/providers-pr170-base.py",
+    "publication_receipts-pr170-base.py": "tests/fixtures/publication_receipts-pr170-base.py",
+    "publisher-pr-actions-token-base.py": "tests/fixtures/publisher-pr-actions-token-base.py",
+    "reconcile.py": "tests/fixtures/frozen-runtime-7d550b6/reconcile.py",
+    "recovery_inputs.py": "tests/fixtures/frozen-runtime-7d550b6/recovery_inputs.py",
+    "report-pr170-base.py": "tests/fixtures/report-pr170-base.py",
+    "selected_model_trial-pr170-base.py": "tests/fixtures/selected_model_trial-pr170-base.py",
+    "shadow_audit-pr201-base.py": "tests/fixtures/shadow_audit-pr201-base.py",
+    "shadow_audit.py": "tests/fixtures/frozen-runtime-7d550b6/shadow_audit.py",
+    "shadow_preflight.py": "tests/fixtures/frozen-runtime-7d550b6/shadow_preflight.py",
+    "snapshot-pr170-base.py": "tests/fixtures/snapshot-pr170-base.py"
+  },
+  "pin_revisions": {
+    "__init__.py": "46c8be2c7370f89a4c6718972fc49ae0ae7ecf92",
+    "__main__.py": "46c8be2c7370f89a4c6718972fc49ae0ae7ecf92",
+    "actions_publication-pr170-base.py": "2d8573bff1d73b671dffb8356abf69bdced56177",
+    "actions_runtime-pr170-base.py": "42594a0c6f3b688355e1850e3b600c589e48f908",
+    "artifact_intake-pr170-base.py": "2d8573bff1d73b671dffb8356abf69bdced56177",
+    "budget-pr170-base.py": "1cc941e0dc1fdc9d36bb6fe266c477a81fd2012f",
+    "checks.py": "46c8be2c7370f89a4c6718972fc49ae0ae7ecf92",
+    "claim_assessment-pr214-base.py": "180eaf7bff9b094441633f5669ce167d07b7ed87",
+    "claim_transport-pr214-base.py": "180eaf7bff9b094441633f5669ce167d07b7ed87",
+    "claim_triage.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "cli-pr170-base.py": "941ca6b0e634217b05c4a24b2b4126640e349380",
+    "context_selector.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "contracts-a0988f2-base.py": "12898aa8de6f0467f725b0132f14c1a4f89efaf3",
+    "cross_model.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "cross_model_package.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "cross_model_v2.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "engine-pr170-base.py": "1cc941e0dc1fdc9d36bb6fe266c477a81fd2012f",
+    "evaluation.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "evidence-pr223-base.py": "dd01a24976631c957a34f3ecc80dcb097948e450",
+    "external_effect_observer-pr170-base.py": "f3b4915a422bb38067ff50c057c028b71ac30d16",
+    "github-pr214-base.py": "180eaf7bff9b094441633f5669ce167d07b7ed87",
+    "injection_trials.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "planner-pr170-base.py": "1cc941e0dc1fdc9d36bb6fe266c477a81fd2012f",
+    "policy_inventory-pr214-base.py": "180eaf7bff9b094441633f5669ce167d07b7ed87",
+    "private_capture.py": "46c8be2c7370f89a4c6718972fc49ae0ae7ecf92",
+    "providers-pr170-base.py": "1b01e6fde2afa4ca1cd9a5ea29e4b700ae35cf9f",
+    "publication_receipts-pr170-base.py": "7eaddf7c549c8060045578bc1702e394a35dfa2d",
+    "publisher-pr-actions-token-base.py": "e850fb3f93251d2436e29b87fd44367ec6506bf0",
+    "reconcile.py": "46c8be2c7370f89a4c6718972fc49ae0ae7ecf92",
+    "recovery_inputs.py": "46c8be2c7370f89a4c6718972fc49ae0ae7ecf92",
+    "report-pr170-base.py": "62626d7dc7b4e7c888569649adf1e580855945be",
+    "selected_model_trial-pr170-base.py": "80a7d8e01c3caa6f70cd46dee1fa89fca486d8ad",
+    "shadow_audit-pr201-base.py": "5e4b751abe159ff698fc68d20f49e235ab0c2f23",
+    "shadow_audit.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "shadow_preflight.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
+    "snapshot-pr170-base.py": "ed178ba6a3bf39405bae8253081211c877296c3a"
+  },
+  "historical_revision": "7d550b61825defec8a8a0625511c914ba8efd5cb",
+  "file_refresh_history": [],
+  "fixture_set": "frozen-runtime-7d550b6",
+  "value_manifest_description": "Named SHA-256 value pins for historical evidence and contract artifacts exercised by tests. A reviewed migration is recorded with scripts/refresh_compatibility_pins.py --value-pins, which appends old/new digests, reason, source revision, and timestamp to refresh_history. Synthetic fixture and serialization-golden digests are not pins and stay in tests under an explicit '# vd3-non-pin:' marker. File-byte pins for the frozen runtime remain in tests/fixtures/frozen-runtime-7d550b6/pins.json."
+}

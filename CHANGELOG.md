@@ -8,6 +8,10 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ## [Unreleased]
 
+### Changed
+
+- Consolidate historical file-byte and named value pins into the installed `compatibility-pins.v1.json` resource. The compatibility helpers, frozen-runtime reconstruction, lint exclusions, and refresh tool share the resource; file and value refresh histories remain separate. Existing digests and historical fixture bytes are preserved. This migration does not yet remove all inline runtime/script pins or close VD-3.
+
 ### Added
 
 - VD-4 strict implementation typing ratchet: pinned mypy 1.15.0 checks all 42 source implementations plus the zero-debt checker/tests, preserving the strict boundary-stub checks. An explicit code/qualified-scope/AST-message fingerprint/count baseline inventories 1,072 existing errors and one existing suppression (907 identities); new/grown/stale debt fails. New modules are automatically checked; missing coverage, stub shadows, inline mypy directives, untyped/missing imports, changed tool/config identities, and new suppression debt fail closed. CI and an isolated Python 3.13 pre-commit hook run it; real mypy untyped/wrong-shape implementation probes verify rejection. No runtime source or dependency changes; historical debt and VD-4 remain open, and mypy 1.15 is not claimed to support a Python 3.14 host.

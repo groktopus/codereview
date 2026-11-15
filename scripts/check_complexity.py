@@ -21,7 +21,7 @@ Two modes are supported:
     of a focused change, while a changed function still gets the growth check.
 
 The default scan excludes the sha256-pinned historical compatibility fixtures
-under ``tests/fixtures`` (see ``tests/fixtures/frozen-runtime-7d550b6/pins.json``).
+under ``tests/fixtures`` (see ``src/pr_review_harness/compatibility-pins.v1.json``).
 Those files are immutable evidence (VD-3): they are not maintained code and
 reformatting or refactoring them would invalidate the pins.
 

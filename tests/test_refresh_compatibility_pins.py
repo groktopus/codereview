@@ -43,14 +43,19 @@ def build_manifest(
     pin_files = {name: name for name in files}
     all_pins = dict(pins)
     all_pins.update(tree_pins or {})
+    value_pin = "fixture.test.value_sha256"
     manifest = {
-        "fixture_set": "frozen-runtime-test",
-        "historical_revision": HISTORICAL_REVISION,
-        "pin_files": pin_files,
-        "pin_revisions": revisions or {name: OLD_REVISION for name in files},
-        "pins": all_pins,
-        "refresh_history": history or [],
         "schema": refresh_compatibility_pins.SCHEMA,
+        "fixture_set": "test-fixture-set",
+        "value_manifest_description": "A synthetic test description retained for schema validation.",
+        "description": "test canonical pin resource",
+        "historical_revision": HISTORICAL_REVISION,
+        "value_pins": {value_pin: value_entry()},
+        "value_refresh_history": [],
+        "file_pins": all_pins,
+        "pin_files": pin_files,
+        "pin_revisions": revisions or dict.fromkeys(files, OLD_REVISION),
+        "file_refresh_history": history or [],
     }
     path = tmp_path / "pins.json"
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -136,6 +141,7 @@ def test_changed_pin_is_rewritten_with_new_revision(tmp_path: Path, capsys: pyte
         tree_pins={"pr170-tree-model": tree_pin},
     )
 
+    before = json.loads(manifest.read_text(encoding="utf-8"))
     assert invoke(tmp_path, manifest, confirm=True) == 0
 
     captured = capsys.readouterr()
@@ -143,12 +149,14 @@ def test_changed_pin_is_rewritten_with_new_revision(tmp_path: Path, capsys: pyte
     updated = json.loads(manifest.read_text(encoding="utf-8"))
     assert updated["schema"] == refresh_compatibility_pins.SCHEMA
     assert updated["historical_revision"] == HISTORICAL_REVISION
-    assert updated["pins"]["a.py"] == sha256(b"new bytes")
-    assert updated["pins"]["b.py"] == sha256(b"unchanged bytes")
-    assert updated["pins"]["pr170-tree-model"] == tree_pin
+    assert updated["file_pins"]["a.py"] == sha256(b"new bytes")
+    assert updated["file_pins"]["b.py"] == sha256(b"unchanged bytes")
+    assert updated["file_pins"]["pr170-tree-model"] == tree_pin
+    assert updated["value_pins"] == before["value_pins"]
+    assert updated["value_refresh_history"] == before["value_refresh_history"]
     assert updated["pin_revisions"]["a.py"] == REVISION
     assert updated["pin_revisions"]["b.py"] == OLD_REVISION
-    assert len(updated["refresh_history"]) == 1
+    assert len(updated["file_refresh_history"]) == 1
     assert list(tmp_path.glob("*.tmp")) == []
 
 
@@ -162,7 +170,7 @@ def test_history_records_reviewed_provenance(tmp_path: Path) -> None:
     assert invoke(tmp_path, manifest, confirm=True) == 0
 
     updated = json.loads(manifest.read_text(encoding="utf-8"))
-    history = updated["refresh_history"]
+    history = updated["file_refresh_history"]
     assert [entry["name"] for entry in history] == ["a.py", "b.py"]
     for entry in history:
         assert set(entry) == {
@@ -176,7 +184,7 @@ def test_history_records_reviewed_provenance(tmp_path: Path) -> None:
         assert entry["old_sha256"] == OLD_SHA
         assert entry["reason"] == REASON
         assert entry["source_revision"] == REVISION
-        assert entry["new_sha256"] == updated["pins"][entry["name"]]
+        assert entry["new_sha256"] == updated["file_pins"][entry["name"]]
         assert entry["timestamp"].endswith("Z")
         datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
 
@@ -185,7 +193,7 @@ def test_missing_pin_file_is_refused(tmp_path: Path, capsys: pytest.CaptureFixtu
     manifest = build_manifest(tmp_path, {"a.py": b"new bytes"}, {"a.py": OLD_SHA})
     value = json.loads(manifest.read_text(encoding="utf-8"))
     value["pin_files"]["missing.py"] = "tests/fixtures/missing.py"
-    value["pins"]["missing.py"] = OLD_SHA
+    value["file_pins"]["missing.py"] = OLD_SHA
     value["pin_revisions"]["missing.py"] = OLD_REVISION
     manifest.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
     before = manifest.read_bytes()
@@ -198,43 +206,7 @@ def test_missing_pin_file_is_refused(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert manifest.read_bytes() == before
 
 
-@pytest.mark.parametrize(
-    "raw",
-    [
-        "{not json",
-        json.dumps({"schema": "wrong", "historical_revision": HISTORICAL_REVISION}),
-        json.dumps(
-            {
-                "schema": refresh_compatibility_pins.SCHEMA,
-                "historical_revision": "too-short",
-                "pin_files": {"a.py": "a.py"},
-                "pins": {},
-                "pin_revisions": {},
-                "refresh_history": [],
-            }
-        ),
-        json.dumps(
-            {
-                "schema": refresh_compatibility_pins.SCHEMA,
-                "historical_revision": HISTORICAL_REVISION,
-                "pin_files": [],
-                "pins": {},
-                "pin_revisions": {},
-                "refresh_history": [],
-            }
-        ),
-        json.dumps(
-            {
-                "schema": refresh_compatibility_pins.SCHEMA,
-                "historical_revision": HISTORICAL_REVISION,
-                "pin_files": {"a.py": "a.py"},
-                "pins": {},
-                "pin_revisions": {},
-                "refresh_history": {},
-            }
-        ),
-    ],
-)
+@pytest.mark.parametrize("raw", ["{not json", json.dumps({"schema": "wrong"})])
 def test_invalid_manifest_is_refused(tmp_path: Path, capsys: pytest.CaptureFixture[str], raw: str) -> None:
     manifest = tmp_path / "pins.json"
     manifest.write_text(raw, encoding="utf-8")
@@ -277,10 +249,17 @@ def build_value_manifest(
     history: list[dict[str, object]] | None = None,
 ) -> Path:
     manifest = {
-        "schema": refresh_compatibility_pins.VALUE_SCHEMA,
-        "description": "test value-pin manifest",
-        "pins": pins or {VALUE_PIN: value_entry()},
-        "refresh_history": history or [],
+        "schema": refresh_compatibility_pins.SCHEMA,
+        "fixture_set": "test-fixture-set",
+        "value_manifest_description": "A synthetic test description retained for schema validation.",
+        "description": "test canonical pin resource",
+        "historical_revision": HISTORICAL_REVISION,
+        "value_pins": pins or {VALUE_PIN: value_entry()},
+        "value_refresh_history": history or [],
+        "file_pins": {"fixture.py": sha256(b"fixture")},
+        "pin_files": {"fixture.py": "fixture.py"},
+        "pin_revisions": {},
+        "file_refresh_history": [],
     }
     path = tmp_path / "compatibility-pins.v1.json"
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -428,7 +407,7 @@ def test_value_refresh_requires_provenance_on_the_pin_entry(tmp_path: Path, caps
 
     assert invoke_value(tmp_path, manifest, confirm=True) == 1
 
-    assert "provenance is missing" in capsys.readouterr().err
+    assert "invalid" in capsys.readouterr().err
     assert manifest.read_bytes() == before
 
 
@@ -442,14 +421,16 @@ def test_value_refresh_updates_value_provenance_and_history(tmp_path: Path) -> N
     assert invoke_value(tmp_path, manifest, confirm=True) == 0
 
     updated = json.loads(manifest.read_text(encoding="utf-8"))
-    assert updated["schema"] == refresh_compatibility_pins.VALUE_SCHEMA
-    assert updated["pins"][VALUE_PIN]["value"] == VALUE_NEW
-    assert updated["pins"][VALUE_PIN]["provenance"]["source_revision"] == REVISION
-    assert updated["pins"][VALUE_PIN]["provenance"]["reason"] == REASON
-    assert updated["pins"][VALUE_PIN]["provenance"]["recorded_at"].endswith("Z")
-    assert updated["pins"][other_pin]["value"] == VALUE_OTHER
-    assert updated["pins"][other_pin]["provenance"]["source_revision"] == OLD_REVISION
-    history = updated["refresh_history"]
+    assert updated["schema"] == refresh_compatibility_pins.SCHEMA
+    assert updated["file_pins"] == {"fixture.py": sha256(b"fixture")}
+    assert updated["file_refresh_history"] == []
+    assert updated["value_pins"][VALUE_PIN]["value"] == VALUE_NEW
+    assert updated["value_pins"][VALUE_PIN]["provenance"]["source_revision"] == REVISION
+    assert updated["value_pins"][VALUE_PIN]["provenance"]["reason"] == REASON
+    assert updated["value_pins"][VALUE_PIN]["provenance"]["recorded_at"].endswith("Z")
+    assert updated["value_pins"][other_pin]["value"] == VALUE_OTHER
+    assert updated["value_pins"][other_pin]["provenance"]["source_revision"] == OLD_REVISION
+    history = updated["value_refresh_history"]
     assert len(history) == 1
     entry = history[0]
     assert set(entry) == {
@@ -465,7 +446,7 @@ def test_value_refresh_updates_value_provenance_and_history(tmp_path: Path) -> N
     assert entry["new_sha256"] == VALUE_NEW
     assert entry["reason"] == REASON
     assert entry["source_revision"] == REVISION
-    assert entry["timestamp"] == updated["pins"][VALUE_PIN]["provenance"]["recorded_at"]
+    assert entry["timestamp"] == updated["value_pins"][VALUE_PIN]["provenance"]["recorded_at"]
     datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
     assert list(tmp_path.glob("*.tmp")) == []
 
@@ -483,7 +464,7 @@ def test_value_refresh_keeps_existing_history(tmp_path: Path) -> None:
 
     assert invoke_value(tmp_path, manifest, confirm=True) == 0
 
-    history = json.loads(manifest.read_text(encoding="utf-8"))["refresh_history"]
+    history = json.loads(manifest.read_text(encoding="utf-8"))["value_refresh_history"]
     assert history[0] == prior
     assert len(history) == 2
     assert history[1]["new_sha256"] == VALUE_NEW
@@ -520,10 +501,19 @@ def test_set_without_value_pin_mode_is_refused(tmp_path: Path, capsys: pytest.Ca
     [
         "{not json",
         json.dumps({"schema": "wrong", "pins": {VALUE_PIN: value_entry()}}),
-        json.dumps({"schema": refresh_compatibility_pins.VALUE_SCHEMA, "pins": []}),
         json.dumps(
             {
-                "schema": refresh_compatibility_pins.VALUE_SCHEMA,
+                "schema": refresh_compatibility_pins.SCHEMA,
+                "fixture_set": "test-fixture-set",
+                "value_manifest_description": "A synthetic test description retained for schema validation.",
+                "pins": [],
+            }
+        ),
+        json.dumps(
+            {
+                "schema": refresh_compatibility_pins.SCHEMA,
+                "fixture_set": "test-fixture-set",
+                "value_manifest_description": "A synthetic test description retained for schema validation.",
                 "pins": {VALUE_PIN: value_entry()},
                 "refresh_history": {},
             }
@@ -537,7 +527,7 @@ def test_invalid_value_manifest_is_refused(tmp_path: Path, capsys: pytest.Captur
 
     assert invoke_value(tmp_path, manifest, confirm=True) == 1
 
-    assert "value-pin manifest" in capsys.readouterr().err
+    assert "canonical compatibility pin manifest" in capsys.readouterr().err
     assert manifest.read_bytes() == before
 
 

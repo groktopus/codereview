@@ -31,9 +31,9 @@
       "F",
       "I"
     ],
-    "immutable_pin_manifest": "tests/fixtures/frozen-runtime-7d550b6/pins.json"
+    "immutable_pin_manifest": "src/pr_review_harness/compatibility-pins.v1.json"
   },
-  "review_reason": "VD-4 maintained-code initial debt inventory; no cleanup claim or unsafe-fix approval; future changes require review",
+  "review_reason": "Canonical pin resource authority migration; retire one cleaned historical C420 allowance with no new debt",
   "entries": [
     {
       "path": "experiments/harness/actions_canary.py",
@@ -3470,13 +3470,6 @@
       "code": "UP022",
       "scope": "test_python_patch_reconstruction_has_scoped_function_and_class_headings.git",
       "fingerprint": "967632fb6cbc3ce589fd22efd41302e0059aafc08043dacfc646f141362ad5e8",
-      "count": 1
-    },
-    {
-      "path": "tests/test_refresh_compatibility_pins.py",
-      "code": "C420",
-      "scope": "build_manifest",
-      "fingerprint": "ccc6d4115941e7ca7e6652e2062eb5aad378caef3a46c6dfbad07e9f822fde0b",
       "count": 1
     },
     {
