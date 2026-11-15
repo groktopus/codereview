@@ -89,8 +89,9 @@ from older Ruff releases or scans including frozen fixtures are not this baselin
 New checker/tests have zero expanded-rule debt. The canonical-pin migration retires
 one C420 allowance; that reviewed baseline contains 546 findings. The subsequent
 installed runtime-pin migration retires one B007 finding, leaving 545 findings
-in 528 identities. The original
-initial-capture counts above remain historical.
+in 528 identities. The SYNTH-001 script-pin migration retires one obsolete
+RUF100 suppression and one UP022 test-helper finding, leaving 543 findings in
+526 identities. The original initial-capture counts above remain historical.
 
 Scan roots are `src`, `scripts`, `experiments`, and `tests` (including `.pyi`).
 Historical `tests/fixtures/frozen-runtime-7d550b6/**` and

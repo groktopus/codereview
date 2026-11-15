@@ -10,6 +10,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
+- Move the seven SYNTH-001 fixture identities shared by the materializer and preflight verifier into the canonical compatibility resource. Explicit accessors preserve the original digests and fixture bytes without reading the resource at import time; standalone script invocation remains supported.
+
 - Exercise untrusted artifact redirects through the stateless publication boundary, asserting `UNKNOWN`, the stable rejection reason, and zero review posts, receipt writes, or artifact downloads. The generated fault matrix records those assertions, and the signed-download test now observes real fake-transport calls. Mutation evidence summaries retain their measured scope and remaining gaps.
 
 - Consolidate historical file-byte and named value pins into the installed `compatibility-pins.v1.json` resource. The compatibility helpers, frozen-runtime reconstruction, lint exclusions, and refresh tool share the resource; file and value refresh histories remain separate. Existing digests and historical fixture bytes are preserved. This migration does not yet remove all inline runtime/script pins or close VD-3.
