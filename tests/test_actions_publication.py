@@ -138,8 +138,9 @@ class Provider:
 
 
 class FakeTransport:
-    def __init__(self, responder):
+    def __init__(self, responder, *, download_body=b"archive bytes"):
         self.responder = responder
+        self.download_body = download_body
         self.calls = []
         self.download_calls = []
 
@@ -149,7 +150,7 @@ class FakeTransport:
 
     def download(self, url, *, timeout_seconds, max_response_bytes):
         self.download_calls.append((url, timeout_seconds, max_response_bytes))
-        return HTTPResponse(200, {}, b"archive bytes")
+        return HTTPResponse(200, {}, self.download_body)
 
 
 def test_platform_bound_actions_token_flows_through_real_adapter_and_checks_effect_actor():
@@ -533,8 +534,7 @@ def test_artifact_redirect_uses_https_allowlist_and_download_never_receives_api_
             else response({})
         )
 
-    transport = FakeTransport(responder)
-    transport.download = lambda url, *, timeout_seconds, max_response_bytes: HTTPResponse(200, {}, archive)
+    transport = FakeTransport(responder, download_body=archive)
     client = GitHubActionsPublicationAdapter(make_policy(), Provider(), transport=transport)
     artifact = {
         "id": 456,
@@ -543,8 +543,9 @@ def test_artifact_redirect_uses_https_allowlist_and_download_never_receives_api_
         "digest": "sha256:" + hashlib.sha256(archive).hexdigest(),
         "expired": False,
     }
-    with pytest.raises(Exception, match="artifact_download_location_untrusted"):
+    with pytest.raises(GitHubPublicationError, match="artifact_download_location_untrusted"):
         client._download_artifact(artifact, 4, 1024)
+    assert transport.download_calls == []
 
     transport.responder = lambda method, url, body: HTTPResponse(
         302,
@@ -553,7 +554,12 @@ def test_artifact_redirect_uses_https_allowlist_and_download_never_receives_api_
     )
     downloaded = client._download_artifact(artifact, 4, 1024)
     assert downloaded.archive == archive
-    assert all(call[2] != "test-secret-token" for call in transport.download_calls)
+    assert len(transport.download_calls) == 1
+    download_url, download_timeout, download_cap = transport.download_calls[0]
+    assert download_url == "https://downloads.example.test/artifact?signature=opaque"
+    assert 0 < download_timeout <= 4
+    assert download_cap == 1024
+    assert all(call[2] == "test-secret-token" for call in transport.calls)
 
 
 @pytest.mark.parametrize(
@@ -762,6 +768,13 @@ class Uploader:
 
 GITHUB_FAULT_ACCEPTANCE = {
     "github_rate_limit": {"status": "UNKNOWN", "reason": "github_history_unavailable", "posts": 0, "receipts": 0},
+    "artifact_redirect": {
+        "status": "UNKNOWN",
+        "reason": "artifact_download_location_untrusted",
+        "posts": 0,
+        "receipts": 0,
+        "downloads": 0,
+    },
     "lost_post_history_unknown": {
         "status": "UNKNOWN",
         "reason": "submit_response_ambiguous",
@@ -793,6 +806,10 @@ def assert_github_fault_acceptance(
     assert outcome["reason"] == expected["reason"]
     assert len(post_bodies) == expected["posts"]
     assert len(uploader.calls) == expected["receipts"]
+    if "downloads" in expected:
+        assert len(transport.download_calls) == expected["downloads"]
+    if failure == "artifact_redirect":
+        assert all("untrusted.example.test" not in call[0] for call in transport.download_calls)
     if failure == "github_rate_limit":
         # Retry-After is not authority to retry, upload a receipt, or POST.
         assert all(method == "GET" for method, *_ in transport.calls)
@@ -808,6 +825,9 @@ def assert_github_fault_acceptance(
         (None, "CONFIRMED"),
         pytest.param(
             "github_rate_limit", GITHUB_FAULT_ACCEPTANCE["github_rate_limit"]["status"], id="github_rate_limit"
+        ),
+        pytest.param(
+            "artifact_redirect", GITHUB_FAULT_ACCEPTANCE["artifact_redirect"]["status"], id="artifact_redirect"
         ),
         ("artifact_digest", "UNKNOWN"),
         ("upstream_binding", "UNKNOWN"),
@@ -935,7 +955,13 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         if path.endswith("/actions/artifacts/123/zip"):
             return HTTPResponse(
                 302,
-                {"location": "https://downloads.example.test/result?signature=one-use"},
+                {
+                    "location": (
+                        "https://untrusted.example.test/result?signature=one-use"
+                        if failure == "artifact_redirect"
+                        else "https://downloads.example.test/result?signature=one-use"
+                    )
+                },
                 b"",
             )
         if path.endswith("/actions/artifacts/991/zip"):

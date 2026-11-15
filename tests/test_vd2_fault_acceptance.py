@@ -22,7 +22,6 @@ END = "<!-- END GENERATED VD2 FAULT ACCEPTANCE -->"
 PROVIDER_TEST = "test_provider_transport_fault_matrix_is_typed_and_makes_one_request"
 PUBLICATION_TEST = "test_se4_publication_effect_fault_matrix"
 GITHUB_TEST = "test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_posts_once"
-REDIRECT_TEST = "test_artifact_redirect_uses_https_allowlist_and_download_never_receives_api_token"
 
 
 @dataclass(frozen=True)
@@ -35,6 +34,7 @@ class AcceptanceRow:
     settlement: str
     posts: str
     receipts: str
+    downloads: str
 
 
 def acceptance_rows() -> tuple[AcceptanceRow, ...]:
@@ -50,6 +50,7 @@ def acceptance_rows() -> tuple[AcceptanceRow, ...]:
             settlement=common["settlement_status"],
             posts=f"{common['provider_posts']} provider; {common['publication_posts']} publication",
             receipts="not exercised",
+            downloads="not exercised",
         )
         for case in providers.FAULT_CASES
     ]
@@ -63,14 +64,22 @@ def acceptance_rows() -> tuple[AcceptanceRow, ...]:
             settlement="not exercised",
             posts=f"{case.posts} review",
             receipts=str(case.receipts),
+            downloads="not exercised",
         )
         for case in publication.FAULT_MATRIX
     )
     for failure, contract in actions.GITHUB_FAULT_ACCEPTANCE.items():
-        parameter_id = "github_rate_limit" if failure == "github_rate_limit" else f"{failure}-{contract['status']}"
+        parameter_id = {
+            "github_rate_limit": "github_rate_limit",
+            "artifact_redirect": "artifact_redirect",
+        }.get(failure, f"{failure}-{contract['status']}")
+        case_suffix = {
+            "github_rate_limit": "429",
+            "artifact_redirect": "REDIRECT",
+        }.get(failure, "503")
         rows.append(
             AcceptanceRow(
-                case_id=f"VD2-GITHUB-{'429' if failure == 'github_rate_limit' else '503'}",
+                case_id=f"VD2-GITHUB-{case_suffix}",
                 node_id=f"tests/test_actions_publication.py::{GITHUB_TEST}[{parameter_id}]",
                 layer="stateless publisher + fake GitHub adapter transport",
                 terminal=contract["status"],
@@ -78,28 +87,17 @@ def acceptance_rows() -> tuple[AcceptanceRow, ...]:
                 settlement="not exercised",
                 posts=f"{contract['posts']} review",
                 receipts=str(contract["receipts"]),
+                downloads=str(contract.get("downloads", "not asserted")),
             )
         )
-    rows.append(
-        AcceptanceRow(
-            case_id="VD2-GITHUB-REDIRECT",
-            node_id=f"tests/test_actions_publication.py::{REDIRECT_TEST}",
-            layer="artifact download adapter only",
-            terminal="not asserted (exception then allowed download)",
-            reason="artifact_download_location_untrusted",
-            settlement="not exercised",
-            posts="not asserted",
-            receipts="not asserted",
-        )
-    )
     return tuple(rows)
 
 
 def acceptance_table() -> str:
     lines = [
         START,
-        "| Case ID / existing pytest ID | Asserted layer | Terminal state | Reason | Settlement | POSTs | Receipt writes |",
-        "|---|---|---|---|---|---|---|",
+        "| Case ID / existing pytest ID | Asserted layer | Terminal state | Reason | Settlement | POSTs | Receipt writes | Artifact downloads |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for row in acceptance_rows():
         filename, test_id = row.node_id.split("::", 1)
@@ -107,7 +105,7 @@ def acceptance_table() -> str:
         reason = f"`{row.reason}`" if row.reason is not None else "none"
         lines.append(
             f"| {evidence} | {row.layer} | {row.terminal} | {reason} | "
-            f"{row.settlement} | {row.posts} | {row.receipts} |"
+            f"{row.settlement} | {row.posts} | {row.receipts} | {row.downloads} |"
         )
     lines.append(END)
     return "\n".join(lines)
@@ -135,7 +133,11 @@ def test_acceptance_index_preserves_required_cases_and_exact_pytest_ids() -> Non
         "VD2-PROVIDER-DUPLICATE",
     }
     assert {case.case_id for case in publication.FAULT_MATRIX} == {f"SE4-FM-{index:02d}" for index in range(1, 10)}
-    assert set(actions.GITHUB_FAULT_ACCEPTANCE) == {"github_rate_limit", "lost_post_history_unknown"}
+    assert set(actions.GITHUB_FAULT_ACCEPTANCE) == {
+        "github_rate_limit",
+        "artifact_redirect",
+        "lost_post_history_unknown",
+    }
     files = sorted({row.node_id.split("::", 1)[0] for row in rows})
     collected = subprocess.run(
         [sys.executable, "-m", "pytest", "--collect-only", "-q", *files],
