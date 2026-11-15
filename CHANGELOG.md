@@ -14,6 +14,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 - Consolidate historical file-byte and named value pins into the installed `compatibility-pins.v1.json` resource. The compatibility helpers, frozen-runtime reconstruction, lint exclusions, and refresh tool share the resource; file and value refresh histories remain separate. Existing digests and historical fixture bytes are preserved. This migration does not yet remove all inline runtime/script pins or close VD-3.
 
+- Move current-source capture and CLI shadow-policy SHA-256 pins into the installed canonical resource. Explicit typed accessors preserve the exact historical dictionaries without import-time resource reads; runtime inventory and installed-wheel checks cover the resource. Retire six typing diagnostics and one lint finding while retaining unchanged signature debt. Other script-family pin migrations remain open.
+
 ### Added
 
 - Add provider-free preparation for one frozen QM5 attack/benign pair: authenticate the committed corpus, create deterministic local synthetic Git snapshots, and record source provenance, byte identities, line anchors, and unchanged per-case caps in a separate artifact. Dirty development preparations are explicitly unverified; live execution remains unavailable.

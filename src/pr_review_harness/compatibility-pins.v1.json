@@ -152,6 +152,56 @@
         "reason": "Observer source digest recorded for the selected-model provider trial's trusted runtime binding."
       }
     },
+    "runtime.current_source_pr457.check_evidence_sha256": {
+      "value": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311",
+      "kind": "evidence-provenance",
+      "provenance": {
+        "artifact": "examples/evaluation/model-only-shadow-pr457-v3/manifest.json",
+        "source_revision": "44028bca81a0d779b8b74379527b496141b77321",
+        "recorded_at": "2026-09-29",
+        "reason": "Frozen PR-457 check-evidence digest recorded in the v3 model-only shadow identity manifest."
+      }
+    },
+    "runtime.current_source_pr457.evidence_index_sha256": {
+      "value": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95",
+      "kind": "evidence-index",
+      "provenance": {
+        "artifact": "examples/evaluation/model-only-shadow-pr457-v3/manifest.json",
+        "source_revision": "44028bca81a0d779b8b74379527b496141b77321",
+        "recorded_at": "2026-09-29",
+        "reason": "Frozen PR-457 evidence-index digest recorded in the v3 model-only shadow identity manifest."
+      }
+    },
+    "runtime.current_source_pr457.historical_checks_sha256": {
+      "value": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977",
+      "kind": "historical-checks",
+      "provenance": {
+        "artifact": "examples/evaluation/model-only-shadow-pr457-v3/manifest.json",
+        "source_revision": "44028bca81a0d779b8b74379527b496141b77321",
+        "recorded_at": "2026-09-29",
+        "reason": "Frozen PR-457 historical-checks digest recorded in the v3 model-only shadow identity manifest."
+      }
+    },
+    "runtime.current_source_pr457.profile_file_sha256": {
+      "value": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
+      "kind": "contract-profile",
+      "provenance": {
+        "artifact": "examples/evaluation/model-only-shadow-pr457-v3/manifest.json",
+        "source_revision": "44028bca81a0d779b8b74379527b496141b77321",
+        "recorded_at": "2026-09-29",
+        "reason": "Frozen PR-457 profile-file digest recorded in the v3 model-only shadow identity manifest."
+      }
+    },
+    "runtime.current_source_pr457.snapshot_sha256": {
+      "value": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
+      "kind": "historical-snapshot",
+      "provenance": {
+        "artifact": "examples/evaluation/model-only-shadow-pr457-v3/manifest.json",
+        "source_revision": "44028bca81a0d779b8b74379527b496141b77321",
+        "recorded_at": "2026-09-29",
+        "reason": "Frozen PR-457 snapshot digest recorded in the v3 model-only shadow identity manifest."
+      }
+    },
     "runtime.context_followup_v2.module_tree_sha256": {
       "value": "c5b7c4e43aeddfad55bbcfdcb9e07c4a89fd0b6a3a263a31f046c8852dd8838a",
       "kind": "historical-runtime",

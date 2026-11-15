@@ -12,8 +12,9 @@ import os
 import re
 import stat
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
+from .compatibility_pins import pin
 from .source_audit import SOURCE_AUDIT_SERIALIZER_CANONICAL
 
 PLAN_SCHEMA = "pr457-current-source-capture-plan.v3"
@@ -26,20 +27,40 @@ MAX_RUNTIME_ENTRIES = 1_024
 MAX_RUNTIME_FILE_BYTES = 2_000_000
 MAX_RUNTIME_TOTAL_BYTES = 8_000_000
 
-TARGET = {
-    "case_id": "PR-457",
-    "repository": "magnus919/SlopSearX",
-    "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
-    "head_sha": "595f143607961d21d162efe76518d86e416d2548",
-    "snapshot_id": "snap-24293f430e4f8006a52bac18",
-    "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
-    "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95",
-    "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
-    "profile_file_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
-    "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977",
-    "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311",
-    "scope_obligations": 14,
-}
+
+class _CurrentSourceTarget(TypedDict):
+    case_id: str
+    repository: str
+    base_sha: str
+    head_sha: str
+    snapshot_id: str
+    snapshot_sha256: str
+    evidence_index_sha256: str
+    profile_version: str
+    profile_file_sha256: str
+    historical_checks_sha256: str
+    check_evidence_sha256: str
+    scope_obligations: int
+
+
+def _current_source_target() -> _CurrentSourceTarget:
+    """Build the unchanged PR-457 target mapping from trusted named pins."""
+    return {
+        "case_id": "PR-457",
+        "repository": "magnus919/SlopSearX",
+        "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
+        "head_sha": "595f143607961d21d162efe76518d86e416d2548",
+        "snapshot_id": "snap-24293f430e4f8006a52bac18",
+        "snapshot_sha256": pin("runtime.current_source_pr457.snapshot_sha256"),
+        "evidence_index_sha256": pin("runtime.current_source_pr457.evidence_index_sha256"),
+        "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
+        "profile_file_sha256": pin("runtime.current_source_pr457.profile_file_sha256"),
+        "historical_checks_sha256": pin("runtime.current_source_pr457.historical_checks_sha256"),
+        "check_evidence_sha256": pin("runtime.current_source_pr457.check_evidence_sha256"),
+        "scope_obligations": 14,
+    }
+
+
 LIMITS = {
     "writer_exact_call_count": 6,
     "writer_max_provider_calls": 10,
@@ -484,14 +505,15 @@ def create_plan(
     scope = prepared.get("scope")
     if not isinstance(snapshot, dict) or not isinstance(checks, dict) or not isinstance(scope, dict):
         raise CurrentSourceCaptureError("prepared_identity_missing")
+    target = _current_source_target()
     expected_snapshot = {
-        "base_sha": TARGET["base_sha"],
-        "head_sha": TARGET["head_sha"],
-        "snapshot_id": TARGET["snapshot_id"],
-        "snapshot_hash": TARGET["snapshot_sha256"],
-        "evidence_index_sha256": TARGET["evidence_index_sha256"],
-        "profile_version": TARGET["profile_version"],
-        "profile_file_sha256": TARGET["profile_file_sha256"],
+        "base_sha": target["base_sha"],
+        "head_sha": target["head_sha"],
+        "snapshot_id": target["snapshot_id"],
+        "snapshot_hash": target["snapshot_sha256"],
+        "evidence_index_sha256": target["evidence_index_sha256"],
+        "profile_version": target["profile_version"],
+        "profile_file_sha256": target["profile_file_sha256"],
         "provider_identity_sha256": None,
     }
     identity_sha = snapshot.get("provider_identity_sha256")
@@ -503,11 +525,11 @@ def create_plan(
     hist = checks.get("historical_check_identity")
     obligations = scope.get("coverage_obligations")
     if (
-        checks.get("check_evidence_hash") != TARGET["check_evidence_sha256"]
+        checks.get("check_evidence_hash") != target["check_evidence_sha256"]
         or not isinstance(hist, dict)
-        or hist.get("check_document_sha256") != TARGET["historical_checks_sha256"]
+        or hist.get("check_document_sha256") != target["historical_checks_sha256"]
         or not isinstance(obligations, list)
-        or len(obligations) != TARGET["scope_obligations"]
+        or len(obligations) != target["scope_obligations"]
     ):
         raise CurrentSourceCaptureError("prepared_checks_or_scope_mismatch")
     requests = _requests(prepared)
@@ -525,7 +547,7 @@ def create_plan(
     plan = {
         "schema": PLAN_SCHEMA,
         "source_sha": source_sha,
-        "target": TARGET,
+        "target": target,
         "provider_identity_sha256": identity_sha,
         "source_audit_serializer": SOURCE_AUDIT_SERIALIZER,
         "runtime": {
@@ -570,7 +592,8 @@ def validate_plan(
         raise CurrentSourceCaptureError("plan_shape_invalid")
     if plan.get("schema") != PLAN_SCHEMA or plan.get("source_sha") != source_sha or not SHA40.fullmatch(source_sha):
         raise CurrentSourceCaptureError("plan_source_invalid")
-    if plan.get("target") != TARGET or plan.get("limits") != LIMITS:
+    target = _current_source_target()
+    if plan.get("target") != target or plan.get("limits") != LIMITS:
         raise CurrentSourceCaptureError("plan_contract_mismatch")
     if plan.get("source_audit_serializer") != SOURCE_AUDIT_SERIALIZER:
         raise CurrentSourceCaptureError("plan_source_audit_serializer_invalid")
@@ -657,7 +680,7 @@ def validate_plan(
         configured = CHECK_BINDINGS.get(obligation_id)
         expected_task_id = (
             "task-"
-            + hashlib.sha256(_canonical({"snapshot": TARGET["snapshot_id"], "obligation": obligation_id})).hexdigest()[
+            + hashlib.sha256(_canonical({"snapshot": target["snapshot_id"], "obligation": obligation_id})).hexdigest()[
                 :16
             ]
         )
@@ -721,8 +744,8 @@ def validate_plan(
         raise CurrentSourceCaptureError("receipt_binding_invalid")
     return pins, {
         "case_id": "PR-457",
-        "snapshot_id": TARGET["snapshot_id"],
-        "snapshot_sha256": TARGET["snapshot_sha256"],
+        "snapshot_id": target["snapshot_id"],
+        "snapshot_sha256": target["snapshot_sha256"],
         "audit_max_input_bytes_per_call": LIMITS["audit_max_input_bytes_per_call"],
         "source_audit_serializer": SOURCE_AUDIT_SERIALIZER,
         "provider_identity_sha256": expected_identity,

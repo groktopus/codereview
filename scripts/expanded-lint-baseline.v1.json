@@ -33,7 +33,7 @@
     ],
     "immutable_pin_manifest": "src/pr_review_harness/compatibility-pins.v1.json"
   },
-  "review_reason": "Canonical pin resource authority migration; retire one cleaned historical C420 allowance with no new debt",
+  "review_reason": "Retire the cleaned current-source capture B007 unused-loop-binding allowance; preserve all remaining findings without new debt",
   "entries": [
     {
       "path": "experiments/harness/actions_canary.py",
@@ -2784,13 +2784,6 @@
       "code": "C420",
       "scope": "test_provider_free_current_preparation_rejects_exact_request_descriptor_drift",
       "fingerprint": "5bf210588534c1f6a627ff61d387c9250a313e98304c498d127a09310353b153",
-      "count": 1
-    },
-    {
-      "path": "tests/test_current_source_capture.py",
-      "code": "B007",
-      "scope": "_prepared",
-      "fingerprint": "b0e0a0c8c1062bbf77c108bd5eca4a1af8aac12bdb83a796314b585de9b057e7",
       "count": 1
     },
     {

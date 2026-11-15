@@ -13,9 +13,10 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from .claim_reconciliation import validate_claim_reconciliation_policy
+from .compatibility_pins import pin
 from .engine import EnginePreflightError, _private_capture_profile_id
 from .private_capture import MAX_REQUEST_BYTES
 from .snapshot import SnapshotError, bind_repository_url, collect_snapshot, recent_commits
@@ -36,22 +37,34 @@ TRUSTED_CAPTURE_WORKFLOW_REFS = frozenset(
         TRUSTED_CURRENT_SOURCE_CAPTURE_WORKFLOW_REF,
     }
 )
-TRUSTED_SHADOW_PLANS = {
-    "PR-457": {
-        "path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
-        "calls": 6,
-        "snapshot_id": "snap-24293f430e4f8006a52bac18",
-        "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
-        "audit_max_input_bytes_per_call": 120_000,
-    },
-    "PR-464": {
-        "path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
-        "calls": 10,
-        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
-        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
-        "audit_max_input_bytes_per_call": 96_000,
-    },
-}
+
+
+class _TrustedShadowPlan(TypedDict):
+    path: str
+    calls: int
+    snapshot_id: str
+    snapshot_sha256: str
+    audit_max_input_bytes_per_call: int
+
+
+def _trusted_shadow_plans() -> dict[str, _TrustedShadowPlan]:
+    """Build the unchanged plain policy mappings from canonical named pins."""
+    return {
+        "PR-457": {
+            "path": "experiments/model-only-shadow-live-pr457-plan-v3.json",
+            "calls": 6,
+            "snapshot_id": "snap-24293f430e4f8006a52bac18",
+            "snapshot_sha256": pin("runtime.current_source_pr457.snapshot_sha256"),
+            "audit_max_input_bytes_per_call": 120_000,
+        },
+        "PR-464": {
+            "path": "experiments/model-only-shadow-live-pr464-plan-v3.json",
+            "calls": 10,
+            "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
+            "snapshot_sha256": pin("historical.pr464.capture_snapshot_sha256"),
+            "audit_max_input_bytes_per_call": 96_000,
+        },
+    }
 
 
 class _ArgumentError(Exception):
@@ -280,7 +293,7 @@ def _load_private_shadow_pins(
     receipt_path: str,
     *,
     current_source: bool = False,
-) -> tuple[dict[str, dict], dict[str, Any]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     plan, plan_hash = _read_private_json(plan_path, 128_000)
     receipt, _receipt_hash = _read_private_json(receipt_path, 16_384)
     if current_source:
@@ -296,7 +309,7 @@ def _load_private_shadow_pins(
         ):
             raise ValueError("current source capture requires the trusted main-branch workflow")
         try:
-            pins, snapshot_pin = validate_plan(
+            current_pins, snapshot_pin = validate_plan(
                 plan,
                 receipt,
                 source_sha=source_sha,
@@ -304,12 +317,12 @@ def _load_private_shadow_pins(
             )
         except CurrentSourceCaptureError as exc:
             raise ValueError("current source plan or receipt mismatch") from exc
-        return pins, snapshot_pin
+        return current_pins, snapshot_pin
     budget = plan.get("budget")
     case = plan.get("case")
     requests = plan.get("writer_requests")
     case_id = case.get("case_id") if isinstance(case, dict) else None
-    policy = TRUSTED_SHADOW_PLANS.get(case_id)
+    policy = _trusted_shadow_plans().get(case_id) if isinstance(case_id, str) else None
     if (
         receipt.get("schema") != "model-only-shadow-live-preflight-receipt.v1"
         or receipt.get("status") != "PLAN_MATCHED_PROVIDER_FREE"
@@ -341,7 +354,7 @@ def _load_private_shadow_pins(
         or not 1 <= audit_input_limit <= MAX_REQUEST_BYTES
     ):
         raise ValueError("private shadow audit request limit invalid")
-    pins: dict[str, dict] = {}
+    pins: dict[str, dict[str, Any]] = {}
     for row in requests:
         if (
             not isinstance(row, dict)
@@ -401,7 +414,7 @@ def _validate_trusted_private_plan_paths(
         return
     workspace = os.environ.get("GITHUB_WORKSPACE")
     runner_temp = os.environ.get("RUNNER_TEMP")
-    policy = TRUSTED_SHADOW_PLANS.get(case_id)
+    policy = _trusted_shadow_plans().get(case_id)
     if not workspace or not runner_temp or (policy is None and not current_source):
         raise ValueError("trusted private preflight paths unavailable")
     supplied_plan = _canonical_private_input_path(plan_path)
@@ -1236,7 +1249,7 @@ def _run_one(
                 serialize_source_audit_request,
             )
 
-            audit_limit = TRUSTED_SHADOW_PLANS[preflight_case_id]["audit_max_input_bytes_per_call"]
+            audit_limit = _trusted_shadow_plans()[preflight_case_id]["audit_max_input_bytes_per_call"]
             audit_limits = {
                 "max_input_bytes_per_task": audit_limit,
                 "max_output_bytes_per_task": 64_000,

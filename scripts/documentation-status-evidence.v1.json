@@ -3,8 +3,8 @@
   "documents": [
     {
       "document": "docs/STATUS-EVIDENCE.md",
-      "evidence_revision": "dfb42b0411beee267558e2bef0d26171f50b31ae",
-      "evidence_date": "2026-11-08",
+      "evidence_revision": "b00ebb831de85f60382cee35ae562890fb954ded",
+      "evidence_date": "2026-11-15",
       "source_paths": [
         "src/pr_review_harness/contract_registry.json",
         "src/pr_review_harness/cli.py",
