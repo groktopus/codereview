@@ -29,7 +29,13 @@ if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
     sys.path.insert(0, str(ROOT / "src"))
 
 import source_dispatch_accounting  # noqa: E402
-from shadow_case_policy import CASE_POLICY, case_for_plan_path, validate_plan_binding  # noqa: E402
+from shadow_case_policy import (  # noqa: E402
+    CASE_PLAN_PATHS,
+    case_for_plan_path,
+    known_case_for_plan_path,
+    policy_for_case,
+    validate_plan_binding,
+)
 
 from experiments.harness.shadow_audit import MAX_CASE_BYTES, run_shadow_audit  # noqa: E402
 from experiments.harness.shadow_preflight import AuditDispatchGuard  # noqa: E402
@@ -44,11 +50,17 @@ MAX_CAPTURE_MANIFEST_BYTES = 256_000
 MAX_RECEIPT_BYTES = 64_000
 AUDIT_ROLES = ("source_auditor", "jev", "claim_auditor")
 DISPATCH_STATES = {"guard_rejected", "post_guard_pretransport", "http_attempted", "unknown"}
-DEFAULT_PLAN = ROOT / CASE_POLICY["PR-464"]["plan_relative_path"]
 DEFAULT_LIMITS = ROOT / "experiments/model-only-shadow-audit-limits-v2.json"
-PROFILE_RELATIVE_PATH = CASE_POLICY["PR-464"]["profile_path"]
 EXPECTED_LLM = ("https://inference-api.nousresearch.com/v1", "openai/gpt-6-luna")
 EXPECTED_JEV = ("https://api.typesafe.ai/v1/systemone", "jev-latest")
+
+
+def default_plan_path() -> Path:
+    return ROOT / CASE_PLAN_PATHS["PR-464"]
+
+
+def profile_relative_path() -> str:
+    return policy_for_case("PR-464")["profile_path"]
 
 
 class PreDispatchFailure(ValueError):
@@ -381,6 +393,30 @@ def _predispatch_failure(receipt_path: Path, case_id: str, stage: str, code: str
     return PreDispatchFailure(stage, code)
 
 
+def _resolve_plan_selection(plan_path: Path | None, receipt_path: Path) -> tuple[Path, str]:
+    if plan_path is None:
+        try:
+            plan_path = default_plan_path()
+        except ValueError:
+            raise _predispatch_failure(
+                receipt_path, "PR-464", "plan_binding", "compatibility_pins_unavailable"
+            ) from None
+    try:
+        selected_case_id, _selected_policy = case_for_plan_path(plan_path, ROOT)
+    except ValueError as exc:
+        code = (
+            "compatibility_pins_unavailable" if str(exc) == "shadow_policy_unavailable" else "audit_plan_path_invalid"
+        )
+        if code == "compatibility_pins_unavailable":
+            try:
+                known_case_id = known_case_for_plan_path(plan_path, ROOT)
+            except ValueError:
+                raise ValueError("audit_plan_path_invalid") from None
+            raise _predispatch_failure(receipt_path, known_case_id, "plan_binding", code) from None
+        raise ValueError(code) from None
+    return plan_path, selected_case_id
+
+
 def _dispatch_accounting(roles: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Separate captured request attempts from evidence of an HTTP attempt."""
     output: dict[str, dict[str, Any]] = {}
@@ -511,7 +547,7 @@ def run(
     jev_config_path: Path | None,
     output_root: Path,
     receipt_path: Path,
-    plan_path: Path = DEFAULT_PLAN,
+    plan_path: Path | None = None,
     limits_path: Path = DEFAULT_LIMITS,
     *,
     source_only_no_candidate: bool = False,
@@ -524,18 +560,16 @@ def run(
     # also uses an exclusive create so a later collision cannot overwrite it.
     if receipt_path.exists() or receipt_path.is_symlink():
         raise ValueError("receipt_already_exists")
-    try:
-        selected_case_id, _selected_policy = case_for_plan_path(plan_path, ROOT)
-    except ValueError:
-        raise ValueError("audit_plan_path_invalid") from None
+    plan_path, selected_case_id = _resolve_plan_selection(plan_path, receipt_path)
     try:
         manifest, manifest_raw, packets = _packet_candidates(capture_root)
     except (OSError, ValueError, RecursionError):
         raise _predispatch_failure(receipt_path, selected_case_id, "capture_validation", "capture_invalid") from None
     try:
         packets, plan_budget = _task_order(plan_path, packets, manifest, include_budget=True)
-    except (OSError, TypeError, ValueError, RecursionError):
-        raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", "plan_binding_invalid") from None
+    except (OSError, TypeError, ValueError, RecursionError) as exc:
+        code = "compatibility_pins_unavailable" if str(exc) == "shadow_policy_unavailable" else "plan_binding_invalid"
+        raise _predispatch_failure(receipt_path, selected_case_id, "plan_binding", code) from None
     current_source_snapshot = None
     if current_source_plan_path is not None:
         if selected_case_id != "PR-457":
@@ -786,7 +820,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--jev-config", type=Path)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
-    parser.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
+    parser.add_argument("--plan", type=Path)
     parser.add_argument("--limits", type=Path, default=DEFAULT_LIMITS)
     parser.add_argument(
         "--source-only-no-candidate",

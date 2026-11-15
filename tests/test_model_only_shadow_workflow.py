@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from compatibility_pins import assert_pin_value, pin
 
+from scripts import verify_model_only_shadow_live_preflight
+
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "private-shadow-capture.yml"
 BUDGET = ROOT / "experiments" / "model-only-shadow-trial-v1.json"
@@ -265,7 +267,7 @@ def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():
     assert legacy["case"]["snapshot_sha256"] == historical_hash
     assert live["case"]["snapshot_sha256"] == capture_hash
     assert historical_hash in (ROOT / "scripts" / "sanitize_model_only_shadow_preflight.py").read_text()
-    assert capture_hash in (ROOT / "scripts" / "verify_model_only_shadow_live_preflight.py").read_text()
+    assert verify_model_only_shadow_live_preflight._case_contract("PR-464")["snapshot_sha256"] == capture_hash
 
 
 @pytest.mark.compatibility

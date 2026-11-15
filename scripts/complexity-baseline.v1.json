@@ -268,11 +268,6 @@
       "lines": 155
     },
     {
-      "path": "scripts/verify_model_only_shadow_live_preflight.py",
-      "qualname": "verify",
-      "lines": 181
-    },
-    {
       "path": "scripts/verify_synth_001_preflight.py",
       "qualname": "verify",
       "lines": 163

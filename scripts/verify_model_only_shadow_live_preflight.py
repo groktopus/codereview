@@ -19,27 +19,21 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
+    sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
-from shadow_case_policy import CASE_POLICY  # noqa: E402
+from shadow_case_policy import historical_model_tree_sha256, policy_for_case  # noqa: E402
 
 PLAN_MAX_BYTES = 128_000
 PREPARE_MAX_BYTES = 4_000_000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_MODULE_COUNT = 35
-EXPECTED_MODULE_TREE_SHA256 = "400e26f99f054a960d2622241462af02a4d67d1fa4dbbc467c4858b32b9f9ea3"
-EXPECTED_PLAN_SHA256 = {case_id: policy["plan_sha256"] for case_id, policy in CASE_POLICY.items()}
 CASE_CONTRACTS = {
     "PR-457": {
         "repository": "magnus919/SlopSearX",
         "base_sha": "53dbafd9207eed175228c594058af85ed8e9bd0e",
         "head_sha": "595f143607961d21d162efe76518d86e416d2548",
-        "snapshot_id": "snap-24293f430e4f8006a52bac18",
-        "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
-        "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95",
         "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
-        "profile_file_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
-        "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977",
-        "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311",
         "scope_obligations": 14,
         "request_count": 6,
         "request_bytes_total": 469539,
@@ -50,13 +44,7 @@ CASE_CONTRACTS = {
         "repository": "magnus919/SlopSearX",
         "base_sha": "20a743f0434a1843aa00068483f608f1e213b2af",
         "head_sha": "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
-        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
-        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
-        "evidence_index_sha256": "0b75fca3258bd3d75ed3d260467ec130f639f2afc59519e5f603f4d4a176e30c",
         "profile_version": "slopsearx-realcase-eval-v2-pr464-context240-window16k",
-        "profile_file_sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8",
-        "historical_checks_sha256": "7198ac6bf02d3887fb065205e4ffbd48d435657027d4d5fa73168bdc900c359f",
-        "check_evidence_sha256": "7187d1097d94930be5b3faf1a584cd409ecaae3f9f33789bfd6df78f5a451e7b",
         "scope_obligations": 22,
         "request_count": 10,
         "request_bytes_total": 893359,
@@ -70,6 +58,27 @@ PROVIDER_PATH = ROOT / "experiments" / "model-only-shadow-live-writer-provider-v
 
 class PreflightError(ValueError):
     """Input does not match the fixed provider-free plan."""
+
+
+def _case_contract(case_id: object, *, invalid_case_code: str = "plan_hash_mismatch") -> dict[str, Any]:
+    if not isinstance(case_id, str) or case_id not in CASE_CONTRACTS:
+        raise PreflightError(invalid_case_code)
+    try:
+        policy = policy_for_case(case_id)
+        module_tree = historical_model_tree_sha256()
+    except ValueError:
+        raise PreflightError("compatibility_pins_unavailable") from None
+    return {
+        **CASE_CONTRACTS[case_id],
+        "plan_sha256": policy["plan_sha256"],
+        "snapshot_id": policy["snapshot_id"],
+        "snapshot_sha256": policy["snapshot_sha256"],
+        "evidence_index_sha256": policy["evidence_index_sha256"],
+        "profile_file_sha256": policy["profile_sha256"],
+        "historical_checks_sha256": policy["historical_checks_sha256"],
+        "check_evidence_sha256": policy["check_evidence_sha256"],
+        "module_tree_sha256": module_tree,
+    }
 
 
 def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -127,11 +136,10 @@ def _integer(value: Any, *, minimum: int = 0) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
-def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
+def _plan_requests(plan: dict[str, Any], *, contract: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     case_id = plan.get("case", {}).get("case_id") if isinstance(plan.get("case"), dict) else None
-    contract = CASE_CONTRACTS.get(case_id)
     if contract is None:
-        raise PreflightError("plan_case_identity_invalid")
+        contract = _case_contract(case_id, invalid_case_code="plan_case_identity_invalid")
     if set(plan) != {
         "schema",
         "status",
@@ -212,7 +220,7 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
         raise PreflightError("plan_runtime_invalid")
     if (
         runtime.get("module_count") != EXPECTED_MODULE_COUNT
-        or runtime.get("module_tree_sha256") != EXPECTED_MODULE_TREE_SHA256
+        or runtime.get("module_tree_sha256") != contract["module_tree_sha256"]
     ):
         raise PreflightError("plan_runtime_invalid")
     for field in ("module_tree_sha256", "limits_sha256", "provider_identity_sha256", "writer_provider_config_sha256"):
@@ -284,72 +292,9 @@ def _plan_requests(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def verify(plan: dict[str, Any], prepared: dict[str, Any], *, plan_bytes: bytes) -> dict[str, Any]:
-    case_id = plan.get("case", {}).get("case_id") if isinstance(plan.get("case"), dict) else None
-    contract = CASE_CONTRACTS.get(case_id)
-    if contract is None or hashlib.sha256(plan_bytes).hexdigest() != EXPECTED_PLAN_SHA256[case_id]:
-        raise PreflightError("plan_hash_mismatch")
-    requests = _plan_requests(plan)
-    limits, limits_bytes = _read_json(LIMITS_PATH, 16_000)
-    provider_config, provider_bytes = _read_json(PROVIDER_PATH, 16_000)
-    if hashlib.sha256(limits_bytes).hexdigest() != plan["runtime"]["limits_sha256"]:
-        raise PreflightError("limits_file_hash_mismatch")
-    if hashlib.sha256(provider_bytes).hexdigest() != plan["runtime"]["writer_provider_config_sha256"]:
-        raise PreflightError("provider_config_hash_mismatch")
-    if set(limits) != {
-        "schema_version",
-        "deadline_seconds",
-        "max_concurrent_scopes",
-        "max_provider_calls",
-        "max_retries_per_task",
-        "max_context_bytes",
-        "max_snapshot_context_bytes",
-        "max_input_bytes_per_task",
-        "max_output_bytes_per_task",
-        "max_output_bytes",
-        "max_output_tokens",
-        "max_context_retrievals",
-        "max_followup_tasks",
-    } or limits != {
-        "schema_version": "1.0",
-        "deadline_seconds": 600,
-        "max_concurrent_scopes": 4,
-        "max_provider_calls": 10,
-        "max_retries_per_task": 0,
-        "max_context_bytes": 8_000_000,
-        "max_snapshot_context_bytes": 300_000,
-        "max_input_bytes_per_task": 128_000,
-        "max_output_bytes_per_task": 32_768,
-        "max_output_bytes": 2_097_152,
-        "max_output_tokens": 1800,
-        "max_context_retrievals": 8,
-        "max_followup_tasks": 0,
-    }:
-        raise PreflightError("limits_file_contract_invalid")
-    if provider_config != {
-        "kind": "openai_compatible",
-        "provider_id": "operator_openai_compatible",
-        "base_url": "https://inference-api.nousresearch.com/v1",
-        "model": "openai/gpt-6-luna",
-        "api_key_env": "LLM_API_KEY",
-        "timeout_seconds": 90,
-        "max_request_bytes": 128_000,
-        "max_response_bytes": 32_768,
-        "max_output_tokens": 1800,
-        "max_output_items": 100,
-    }:
-        raise PreflightError("provider_config_contract_invalid")
-    source_dir = ROOT / "src" / "pr_review_harness"
-    module_files = {
-        f"pr_review_harness/{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(source_dir.glob("*.py"))
-        if path.is_file()
-    }
-    module_tree = hashlib.sha256(
-        json.dumps(module_files, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    ).hexdigest()
-    if len(module_files) != EXPECTED_MODULE_COUNT or module_tree != plan["runtime"]["module_tree_sha256"]:
-        raise PreflightError("runtime_module_tree_mismatch")
+def _validate_prepared(
+    plan: dict[str, Any], prepared: dict[str, Any], contract: dict[str, Any], requests: list[dict[str, Any]]
+) -> None:
     if set(prepared) != {
         "capacity",
         "checks",
@@ -379,20 +324,23 @@ def verify(plan: dict[str, Any], prepared: dict[str, Any], *, plan_bytes: bytes)
             "base_sha": case["base_sha"],
             "head_sha": case["head_sha"],
             "snapshot_id": case["snapshot_id"],
-            "snapshot_hash": case["snapshot_sha256"],
-            "evidence_index_sha256": case["evidence_index_sha256"],
+            "snapshot_hash": contract["snapshot_sha256"],
+            "evidence_index_sha256": contract["evidence_index_sha256"],
             "profile_version": case["profile_version"],
-            "profile_file_sha256": case["profile_file_sha256"],
+            "profile_file_sha256": contract["profile_file_sha256"],
             "limits_sha256": plan["runtime"]["limits_sha256"],
             "provider_identity_sha256": plan["runtime"]["provider_identity_sha256"],
         }.items()
     ):
         raise PreflightError("prepare_snapshot_mismatch")
     checks = prepared.get("checks")
-    if not isinstance(checks, dict) or checks.get("check_evidence_hash") != case["check_evidence_sha256"]:
+    if not isinstance(checks, dict) or checks.get("check_evidence_hash") != contract["check_evidence_sha256"]:
         raise PreflightError("prepare_checks_mismatch")
     historical = checks.get("historical_check_identity")
-    if not isinstance(historical, dict) or historical.get("check_document_sha256") != case["historical_checks_sha256"]:
+    if (
+        not isinstance(historical, dict)
+        or historical.get("check_document_sha256") != contract["historical_checks_sha256"]
+    ):
         raise PreflightError("prepare_checks_mismatch")
     scope = prepared.get("scope")
     if (
@@ -451,11 +399,85 @@ def verify(plan: dict[str, Any], prepared: dict[str, Any], *, plan_bytes: bytes)
         observed = actual_by_id.get(expected["task_id"])
         if not isinstance(observed, dict) or any(observed.get(key) != expected[key] for key in request_fields):
             raise PreflightError("prepare_request_descriptor_mismatch")
+
+
+def verify(plan: dict[str, Any], prepared: dict[str, Any], *, plan_bytes: bytes) -> dict[str, Any]:
+    case_id = plan.get("case", {}).get("case_id") if isinstance(plan.get("case"), dict) else None
+    contract = _case_contract(case_id)
+    case = plan["case"]
+    if hashlib.sha256(plan_bytes).hexdigest() != contract["plan_sha256"]:
+        raise PreflightError("plan_hash_mismatch")
+    requests = _plan_requests(plan, contract=contract)
+    limits, limits_bytes = _read_json(LIMITS_PATH, 16_000)
+    provider_config, provider_bytes = _read_json(PROVIDER_PATH, 16_000)
+    if hashlib.sha256(limits_bytes).hexdigest() != plan["runtime"]["limits_sha256"]:
+        raise PreflightError("limits_file_hash_mismatch")
+    if hashlib.sha256(provider_bytes).hexdigest() != plan["runtime"]["writer_provider_config_sha256"]:
+        raise PreflightError("provider_config_hash_mismatch")
+    if set(limits) != {
+        "schema_version",
+        "deadline_seconds",
+        "max_concurrent_scopes",
+        "max_provider_calls",
+        "max_retries_per_task",
+        "max_context_bytes",
+        "max_snapshot_context_bytes",
+        "max_input_bytes_per_task",
+        "max_output_bytes_per_task",
+        "max_output_bytes",
+        "max_output_tokens",
+        "max_context_retrievals",
+        "max_followup_tasks",
+    } or limits != {
+        "schema_version": "1.0",
+        "deadline_seconds": 600,
+        "max_concurrent_scopes": 4,
+        "max_provider_calls": 10,
+        "max_retries_per_task": 0,
+        "max_context_bytes": 8_000_000,
+        "max_snapshot_context_bytes": 300_000,
+        "max_input_bytes_per_task": 128_000,
+        "max_output_bytes_per_task": 32_768,
+        "max_output_bytes": 2_097_152,
+        "max_output_tokens": 1800,
+        "max_context_retrievals": 8,
+        "max_followup_tasks": 0,
+    }:
+        raise PreflightError("limits_file_contract_invalid")
+    if provider_config != {
+        "kind": "openai_compatible",
+        "provider_id": "operator_openai_compatible",
+        "base_url": "https://inference-api.nousresearch.com/v1",
+        "model": "openai/gpt-6-luna",
+        "api_key_env": "LLM_API_KEY",
+        "timeout_seconds": 90,
+        "max_request_bytes": 128_000,
+        "max_response_bytes": 32_768,
+        "max_output_tokens": 1800,
+        "max_output_items": 100,
+    }:
+        raise PreflightError("provider_config_contract_invalid")
+    source_dir = ROOT / "src" / "pr_review_harness"
+    module_files = {
+        f"pr_review_harness/{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(source_dir.glob("*.py"))
+        if path.is_file()
+    }
+    module_tree = hashlib.sha256(
+        json.dumps(module_files, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    if (
+        len(module_files) != EXPECTED_MODULE_COUNT
+        or contract["module_tree_sha256"] != plan["runtime"]["module_tree_sha256"]
+        or module_tree != plan["runtime"]["module_tree_sha256"]
+    ):
+        raise PreflightError("runtime_module_tree_mismatch")
+    _validate_prepared(plan, prepared, contract, requests)
     return {
         "schema": "model-only-shadow-live-preflight-receipt.v1",
         "status": "PLAN_MATCHED_PROVIDER_FREE",
         "case_id": case["case_id"],
-        "snapshot_sha256": case["snapshot_sha256"],
+        "snapshot_sha256": contract["snapshot_sha256"],
         "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
         "writer_calls_planned": len(requests),
         "writer_request_bytes_total": sum(row["input_bytes"] for row in requests),
