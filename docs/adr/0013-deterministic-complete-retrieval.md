@@ -38,6 +38,12 @@ obligation completion or close RC-2. RC-2 remains open until completion is
 independently measured on the frozen corpus and the issue's exit criteria are
 met. Neither this acceptance nor the delivery target claims review quality.
 
+After the custom retrieval-index implementation was stopped as not clear in
+the pass-3 review, the coordinating root incorporated the read-only 2026-11-15
+contract reassessment into this record. This clarifies the static relationship
+contract; it does not resume or clear that implementation review, or claim
+implementation evidence.
+
 ## Decision
 
 Adopt the following complete contract for implementation in dependency-ordered, reviewable slices, within the bounded scope below. All selector authority is trusted configuration; repository content, compiler output, model output and persisted caller-supplied metadata are untrusted data.
@@ -50,7 +56,19 @@ Add opt-in `retrieval-compiler.v1`, a finite trusted policy containing:
 - explicit path, side and role allowlists; bounded scan/capture limits; and finite explicit requirement declarations;
 - a distinction between a candidate (optional) and a declared requirement (authoritative only because the trusted policy says so).
 
-Unknown roles, fields, paths, side values, bounds, ambiguous references, and malformed policy are rejected. No repository manifest or PR text can supply or widen this authority. Defaults remain opt-out. Heuristic misses remain optional unless an explicit trusted requirement applies. Existing required diff, source, context, policy, dependency and project-check contracts remain in force independently of this compiler.
+Unknown roles, fields, paths, side values, bounds, ambiguous references, and malformed policy are
+rejected. No repository manifest or PR text can supply or widen this authority. Defaults remain
+opt-out. Heuristic misses remain optional unless an explicit trusted requirement applies. Existing
+required diff, source, context, policy, dependency and project-check contracts remain in force
+independently of this compiler. Each explicit relation requirement names the relation-contract
+version, exact source side/revision, trusted bounded scan universe, selector and whether it requires
+named finite references or exhaustive coverage of that static relation within the universe. A named
+reference is satisfied only by its uniquely validated call-site/declaration association and complete
+required source evidence. An exhaustive requirement additionally requires complete supported
+scanning of its universe; one match or a truncated scan cannot satisfy it. Unresolved relations that
+may affect the required selector retain a gap unless deterministic analysis proves them irrelevant.
+A runtime relationship requirement is unsupported and remains incomplete; the compiler cannot
+substitute a syntactic requirement, make it optional or remove it from the denominator.
 
 Create one pure `PreparedReviewInputs` construction used by both CLI `prepare` and the engine before request identity is frozen. It takes the immutable original captured snapshot plus trusted compiler/profile configuration, derives and validates the selection and gaps, fixes task inputs and obligations, and returns a canonical plan. It performs no provider, network, target-code execution or Git mutation. The original snapshot remains immutable and is stored separately from the derived catalog; derived rows never replace, edit or masquerade as captured source rows. Fresh runs, CLI preview, dispatch validation and resume use the same constructor and validation logic.
 
@@ -74,7 +92,9 @@ A derived catalog stays separate and immutable from the capture catalog. Request
 
 ### 3. Deterministic bounded source analysis and byte preservation
 
-The compiler uses deterministic AST parsing and qualified definitions. It selects complete definition bodies for changed or explicitly required definitions and may resolve only direct statically resolvable caller/callee edges and statically associated tests/policy context. It does not execute target code, import target modules, run tests, or infer dynamic dispatch. Syntax errors, unsupported languages, binary content, ambiguous/over-limit scans and unresolved relationships become explicit gaps or optional omissions according to trusted requirements; they are not silently treated as complete.
+The compiler uses deterministic AST parsing and qualified definitions. It selects complete definition bodies for changed or explicitly required definitions and retrieves direct caller/callee, test and policy evidence through versioned finite static association rules. `static-direct-reference.v1` records a bare-name call site associated with one syntactic definition or explicit import declaration under the compiler's declared namespace, binding and expression-context rules. It asserts a source association, not runtime object identity, callability, execution or dynamic-dispatch resolution. It does not execute target code, import target modules or run tests. Dynamic call expressions, assignment aliases, competing or conditional bindings, unsupported scope mappings and other unsupported relations have explicit unresolved outcomes. Syntax errors, unsupported languages, binary content and over-limit scans have explicit scan gaps. Each gap is required or optional solely according to trusted requirements; no gap is silently treated as complete.
+
+The initial positive relation subset must cover unique bare-name references to same-module definitions, nested lexical definitions and explicit imported-name declarations, with correct local/global/free namespace classification and definition-header versus body context. Imported-name declarations are not claims about the executing object or its implementation file. Each supported scope/context and unresolved reason is enumerated in the compiler contract; unknown constructs fail closed for affected requirements. Static namespace facts do not prove absence of dynamic mutation: namespace access through aliases or arbitrary invoked code cannot be certified harmless by a finite spelling blacklist. Optional lexical candidates may still be retained with their limitations, but no static association may satisfy a requirement for stable runtime binding or runtime-complete callers/callees.
 
 Repository scans operate only over capture-time immutable Git trees/blobs, trusted path/role allowlists, and pinned revisions, with explicit file, byte, node/depth and candidate caps. No live worktree reads, network retrieval, submodules, or post-capture target execution occur. BASE/HEAD/merge-base identity is explicit, including rename sides and removals.
 
@@ -108,7 +128,7 @@ No configuration endpoint, provider account, secret binding, model call policy, 
 |---|---|---|
 | A. Canonical contract pins | Register only the exact schemas/versions after byte vectors and compatibility behavior are reviewed. | Tests for canonical normalization/hash, unknown fields, legacy v1/v2 unchanged with opt-out; installed wheel/import surface. |
 | B. Immutable derived rows | `PreparedReviewInputs` emits deterministic validated rows from the captured snapshot and trusted policy; captured catalog remains unchanged. | Tamper each identity component (parent ID, snapshot, side, path, revision, object format/ID, size, range, trust, bytes, digest); verify complete-file Git identity and partial-parent validation. |
-| C. Source selection | AST-qualified definitions and bounded direct static edges/tests/policy are selected within trusted caps. | CRLF, multibyte UTF-8, EOF newline/no-newline, exact range, BASE/HEAD union, rename/removal/merge-base, unsupported and ambiguous scans, exact cap and cap-plus-one. |
+| C. Source selection | AST-qualified definitions and bounded direct static edges/tests/policy are selected within trusted caps. | CRLF, multibyte UTF-8, EOF newline/no-newline, exact range, BASE/HEAD union, rename/removal/merge-base, unsupported and ambiguous scans, exact cap and cap-plus-one. Positive same-module, nested and imported-name caller/callee selection; named versus exhaustive required queries; scope/header/comprehension/global/nonlocal boundaries; direct and aliased dynamic namespace cases without runtime-certainty claims; unknown-scope and partial-universe gaps; normalized results across supported interpreter hosts. |
 | D. Admission and obligations | Required gaps skip only affected tasks before reservation; optional gaps omit; every required fragment is covered before its original obligation completes; blockers survive. | Large unit fragmented across requests, partial fragment coverage, malformed data, provider recorder proves zero calls/reservations on skip. |
 | E. Request identity and budget | Exact serializer bytes/hash, schemas, ordinary citations and selected content are frozen before budget reservation; optional rows drop first. | Recording-provider captures `serialize_review_request` output; exact cap/cap-plus-one; request identity changes on any selected content/authority/gap change. |
 | F. Recovery and scope | Resume recomputes from original capture and authenticates dynamic rows; child follow-up cannot inherit sibling enrichment. | Resume tamper/regeneration tests, sibling-unit follow-up regression, frozen legacy compatibility tests, installed-wheel execution. |
