@@ -201,10 +201,55 @@ CI retains coverage, environment identity, error totals, and violations; real
 mypy probes prove that new untyped functions and wrong-shape implementation
 records fail, including in newly added modules.
 
-**Remaining VD-4 work:** historical expanded lint and implementation typing debt
-still need incremental repair. Scripts/experiments/tests beyond this checker and
-its tests are not comprehensively type-checked. This finite no-new-debt slice does
-not close VD-4 or imply the existing typed contracts cover the runtime core.
+### Non-core declaration annotation ratchet
+
+The additive [declaration checker](scripts/check_declaration_annotations.py)
+scans every maintained `.py` and `.pyi` file under `scripts/`, `experiments/`,
+and `tests/`, using the same maintained-file inventory and immutable-fixture
+exclusions as the expanded lint checker. It checks declarations only; it does
+not run mypy or claim that these modules are fully typed. Run it with:
+
+```sh
+python scripts/check_declaration_annotations.py --json
+python -m pytest -q tests/test_declaration_annotation_guard.py
+```
+
+Ordinary and async functions must annotate every positional-only,
+positional-or-keyword, keyword-only, `*args`, and `**kwargs` parameter and the
+return. Explicit `Any` is accepted. A first positional parameter of a direct
+class method is treated as its receiver regardless of its name; instance and
+class methods receive this exemption, while static methods do not. The checker
+recognizes the builtin `staticmethod` decorator and direct `builtins` aliases
+that it can resolve syntactically. It does not execute decorators or infer the
+effects of custom/dynamic decorators. A class member named `__init__` may omit
+its return annotation when at least one parameter, including the receiver, has
+an inline annotation; this matches the pinned mypy rule. Other unannotated
+parameters remain findings, and an `__init__` with no annotated parameters
+still needs a return annotation.
+
+Valid Python function type comments are parsed as signatures and must match the
+declared arity (with or without the bound instance receiver). A bare ellipsis
+does not annotate explicit parameters; malformed, conflicting, or mismatched
+comments fail closed. There are no inline suppression directives. Lambdas
+cannot carry inline parameter/return annotations and are outside this
+declaration rule; this is not a guarantee about every runtime callable.
+
+The reviewed initial inventory records **3,634 existing gaps in 3,633
+signature identities** in
+[`declaration-annotations-baseline.v1.json`](scripts/declaration-annotations-baseline.v1.json).
+That baseline is a finite historical exception list, not a quality claim.
+New signatures and newly added maintained files are scanned automatically;
+new gaps, increased counts, and stale/renamed/removed allowances fail. The
+checker and its own regression tests must remain at zero gaps. Do not refresh
+the baseline merely to accept new code; candidate generation is explicit and
+requires review. CI and pre-commit run the same gate.
+
+**Remaining VD-4 work:** historical expanded lint, implementation typing, and
+declaration annotation debt still need incremental repair. The new non-core
+gate checks declaration annotations only; it does not type-check function
+bodies or establish comprehensive typing for scripts, experiments, or tests.
+This finite no-new-debt slice does not close VD-4 or imply the existing typed
+contracts cover the runtime core.
 
 ## Merge review evidence (GA-1)
 

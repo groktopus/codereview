@@ -23,6 +23,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Added
 
+- VD-4 non-core declaration annotation ratchet: a syntax-based gate scans maintained `scripts/`, `experiments/`, and `tests/` Python declarations, including newly added files, and rejects new, grown, or stale untyped-signature debt. The reviewed historical baseline records 3,634 gaps in 3,633 identities; the checker and its tests must remain gap-free. CI and pre-commit run the same gate. This checks declarations rather than function-body typing, and does not close VD-4.
+
 - Add provider-free preparation for one frozen QM5 attack/benign pair: authenticate the committed corpus, create deterministic local synthetic Git snapshots, and record source provenance, byte identities, line anchors, and unchanged per-case caps in a separate artifact. Dirty development preparations are explicitly unverified; live execution remains unavailable.
 
 - Record the accepted RC-2 retrieval design in ADR 0013: trusted requirements, immutable line-anchored evidence, deterministic admission and exact request accounting, with separate delivery and completion measurements. This is a design decision, not implementation or quality evidence; ADR 0012 and the stopped prior implementation remain historical.
