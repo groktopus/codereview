@@ -16,6 +16,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Added
 
+- Add provider-free preparation for one frozen QM5 attack/benign pair: authenticate the committed corpus, create deterministic local synthetic Git snapshots, and record source provenance, byte identities, line anchors, and unchanged per-case caps in a separate artifact. Dirty development preparations are explicitly unverified; live execution remains unavailable.
+
 - Record the accepted RC-2 retrieval design in ADR 0013: trusted requirements, immutable line-anchored evidence, deterministic admission and exact request accounting, with separate delivery and completion measurements. This is a design decision, not implementation or quality evidence; ADR 0012 and the stopped prior implementation remain historical.
 
 - Pin the artifact uploader's transitive `fast-xml-parser` dependency to patched version 5.12.0 for Dependabot alert #9. The installed-dependency smoke checks the resolved version and parses XML while retaining its no-network and no-upload guards.

@@ -50,6 +50,7 @@ implementation.
 
 | Document | What it records |
 |---|---|
+| [QM5 live-pair preparation](evidence/qm5-live-pair-preparation.md) | Provider-free preparation of one frozen adversarial pair, verified synthetic Git identities, provenance and unchanged per-case limits; no live evaluation result. |
 | [Typed boundaries](TYPED-BOUNDARIES.md) | Stable record contracts, typed stage interfaces, and the strict-check scope and migration limits. |
 | [Decision records (ADR index)](adr/README.md) | Status, owner, date, and evidence for each recorded decision, plus the safety-invariant change requirement and legacy-proposal reconciliation. |
 | [Ownership, review authority, and access record](OWNERSHIP.md) | GA-3: path ownership, module map, second-reviewer protocol and limits, publication incident/rollback ownership, credentials, and the honest bus-factor-1 fallback. |
