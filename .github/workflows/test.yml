@@ -107,6 +107,8 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/check_typing.py --json | tee implementation-typing-report.json
+      - name: Check non-core declaration annotations against historical debt
+        run: python scripts/check_declaration_annotations.py --json
       - name: Prove untyped and wrong-shape implementations fail
         run: python -m pytest -q tests/test_typing_guard.py
       - name: Retain implementation coverage and debt evidence
