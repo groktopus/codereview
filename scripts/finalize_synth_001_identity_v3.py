@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Freeze SYNTH-001 v3 runtime pins from one immutable runtime revision.
+"""Freeze SYNTH-001 v3 identity after canonical pins are reviewed.
 
-Run after the combined runtime source is final and committed. The selected
-revision must contain the same ``src/pr_review_harness/*.py`` tree as the
-working checkout. This updates only the v3 identity, its verifier constants,
-and the package route digest; v1/v2 artifacts are untouched.
+Run only after the selected revision, runtime-tree file pin, and finalized
+identity file pin have been prepared and reviewed. The selected revision must
+contain the same ``src/pr_review_harness/*.py`` tree as the working checkout.
+This updates the v3 identity and verifier routes, never the pin resource or
+historical v1/v2 artifacts. Existing FROZEN identities are verified read-only.
 """
 
 from __future__ import annotations
@@ -22,9 +23,17 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = str(ROOT / "src")
+if SOURCE_ROOT not in sys.path:
+    sys.path.insert(0, SOURCE_ROOT)
+from pr_review_harness.compatibility_pins import CompatibilityPinError, file_pin  # noqa: E402
+
 IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v3.json"
 VERIFIER_PATH = ROOT / "scripts/verify_synth_001_preflight.py"
 PACKAGE_PATH = ROOT / "scripts/package_synth_001_cross_model.py"
+PINS_PATH: Path | None = None
+IDENTITY_PIN_NAME = "synth-001-package-identity-v3"
+TREE_PIN_NAME = "pr170-tree-synthesis"
 MODULE_RELATIVE = "src/pr_review_harness"
 SHA1 = re.compile(r"[0-9a-f]{40}\Z")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -127,6 +136,14 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
     if _module_tree_worktree(root) != (count, tree_sha):
         raise FinalizeError("runtime_worktree_revision_mismatch")
 
+    try:
+        expected_tree_sha = file_pin(TREE_PIN_NAME, PINS_PATH)
+        expected_identity_sha = file_pin(IDENTITY_PIN_NAME, PINS_PATH)
+    except CompatibilityPinError:
+        raise FinalizeError("compatibility_pin_resource_unavailable") from None
+    if tree_sha != expected_tree_sha:
+        raise FinalizeError("runtime_tree_pin_not_prevalidated")
+
     identity_raw = IDENTITY_PATH.read_bytes()
     try:
         identity = json.loads(identity_raw.decode("utf-8"))
@@ -141,16 +158,17 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
     verifier_raw = VERIFIER_PATH.read_bytes()
     package_raw = PACKAGE_PATH.read_bytes()
     identity_sha = hashlib.sha256(identity_raw).hexdigest()
-    digest_match = re.findall(rb'^IDENTITY_SHA256 = "([0-9a-f]{64})"$', package_raw, flags=re.MULTILINE)
+    package_route = f'IDENTITY_PIN_NAME = "{IDENTITY_PIN_NAME}"'.encode()
+    tree_route = f'TREE_PIN_NAME = "{TREE_PIN_NAME}"'.encode()
+    if package_raw.count(package_route) != 1 or verifier_raw.count(tree_route) != 1:
+        raise FinalizeError("package_identity_route_mismatch")
     if configuration.get("runtime_pin_status") == "FROZEN":
         if (
             configuration.get("module_count") != count
             or configuration.get("module_tree_sha256") != tree_sha
             or configuration.get("source_revision") != revision
-            or len(digest_match) != 1
-            or digest_match[0].decode("ascii") != identity_sha
+            or identity_sha != expected_identity_sha
             or f"MODULE_COUNT = {count}".encode() not in verifier_raw
-            or f'MODULE_TREE_SHA256 = "{tree_sha}"'.encode() not in verifier_raw
             or f'SOURCE_REVISION = "{revision}"'.encode() not in verifier_raw
         ):
             raise FinalizeError("finalized_runtime_pin_mismatch")
@@ -171,8 +189,6 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
         or configuration.get("source_revision") is not None
     ):
         raise FinalizeError("identity_not_pending")
-    if len(digest_match) != 1 or digest_match[0].decode("ascii") != identity_sha:
-        raise FinalizeError("package_identity_route_mismatch")
     finalized_identity = json.loads(json.dumps(identity))
     finalized_configuration = finalized_identity["configuration"]
     finalized_configuration.update(
@@ -184,6 +200,8 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
         }
     )
     finalized_identity_raw = (json.dumps(finalized_identity, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    if hashlib.sha256(finalized_identity_raw).hexdigest() != expected_identity_sha:
+        raise FinalizeError("finalized_identity_pin_not_prevalidated")
     updated_verifier = _replace_once(
         verifier_raw,
         rb"^MODULE_COUNT = [0-9]+$",
@@ -192,28 +210,15 @@ def finalize(root: Path, revision: str) -> dict[str, Any]:
     )
     updated_verifier = _replace_once(
         updated_verifier,
-        rb'^MODULE_TREE_SHA256 = "[0-9a-f]{64}"$',
-        f'MODULE_TREE_SHA256 = "{tree_sha}"'.encode(),
-        "verifier_module_tree_route_invalid",
-    )
-    updated_verifier = _replace_once(
-        updated_verifier,
         rb'^SOURCE_REVISION = "[0-9a-f]{40}"$',
         f'SOURCE_REVISION = "{revision}"'.encode(),
         "verifier_revision_route_invalid",
     )
-    identity_sha = hashlib.sha256(finalized_identity_raw).hexdigest()
-    updated_package = _replace_once(
-        package_raw,
-        rb'^IDENTITY_SHA256 = "[0-9a-f]{64}"$',
-        f'IDENTITY_SHA256 = "{identity_sha}"'.encode(),
-        "package_digest_route_invalid",
-    )
-
-    # All contracts and bytes are computed before the first replacement.
+    # All contracts and bytes are computed before the first replacement. The
+    # canonical pin resource is prevalidated and is never modified here.
     _atomic_write(IDENTITY_PATH, finalized_identity_raw)
     _atomic_write(VERIFIER_PATH, updated_verifier)
-    _atomic_write(PACKAGE_PATH, updated_package)
+    identity_sha = hashlib.sha256(finalized_identity_raw).hexdigest()
     return {
         "schema": "synth-001-identity-v3-finalization.v1",
         "status": "FROZEN",

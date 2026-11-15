@@ -86,6 +86,16 @@ def test_missing_bundle_is_rejected(tmp_path):
         )
 
 
+def test_missing_pin_resource_fails_before_creating_preflight_work(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(runner, "PINS_PATH", tmp_path / "missing-pins.json")
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    with pytest.raises(RunnerError, match="compatibility_pin_resource_unavailable"):
+        runner.run_preflight()
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_tampered_prepared_receipt_is_rejected_before_consumption(monkeypatch, tmp_path):
     _result, work, repo = _receipt_paths(monkeypatch, tmp_path)
     prepared = work / "prepared.json"

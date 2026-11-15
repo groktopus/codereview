@@ -237,12 +237,14 @@ comments fail closed. There are no inline suppression directives. Lambdas
 cannot carry inline parameter/return annotations and are outside this
 declaration rule; this is not a guarantee about every runtime callable.
 
-The reviewed baseline records **3,634 existing gaps in 3,633 signature
+The initial reviewed inventory recorded **3,634 existing gaps in 3,633 signature
 identities** in
 [`declaration-annotations-baseline.v1.json`](scripts/declaration-annotations-baseline.v1.json).
 Its policy additionally covers three maintained standalone source stubs, which
 currently have no missing declarations; their addition preserved every prior
-debt entry. The baseline is a finite historical exception list, not a quality claim.
+debt entry. The remaining SYNTH-001 pin migration retires three obsolete
+allowances after adding complete test signatures, leaving **3,631 gaps in 3,630
+identities**. The baseline is a finite historical exception list, not a quality claim.
 New signatures and newly added maintained files are scanned automatically;
 new gaps, increased counts, and stale/renamed/removed allowances fail. The
 checker and its own regression tests must remain at zero gaps. Do not refresh
@@ -390,6 +392,6 @@ python scripts/refresh_compatibility_pins.py --value-pins \
 
 The value-pin mode is also dry-run by default and prints the pin, artifact, old digest, and new digest without writing. Re-run with `--confirm` to update the `value` plus `provenance.source_revision`, `provenance.recorded_at`, and `provenance.reason` and to append `name`, `old_sha256`, `new_sha256`, `timestamp`, `reason`, and `source_revision` to `value_refresh_history`. It refuses a malformed `--set`, an unknown or ambiguous pin, a missing or invalid reason/source revision, an unchanged pin set, and any manifest entry without complete provenance. Tests that assert a historical value pin carry `@pytest.mark.compatibility` so the ordinary suite does not depend on historical evidence; a mismatch uses `compatibility_pins.assert_pin_value(...)`, whose error names the module, historical revision, and the exact refresh command.
 
-Current-source capture, the CLI shadow policy, the SYNTH-001 fixture path, and the active PR-457/PR-464 v3 shadow policy now load named identities from the runtime-neutral resource through explicit lazy accessors. These runtime paths do not import test fixtures or read the resource at import time. The v3 finalizer is a legacy freeze tool: with the committed policy, its `PENDING_FINAL_V3_PLAN_SHA256` template marker is absent, so it rejects before writing; do not use it to refresh the canonical pins. Use the provenance-aware value-pin refresh command above only as a reviewed migration action. Other script families still contain inline identities, so VD-3 remains open. Some historical comparisons still use bare assertions, and frozen tree-pin remediation needs a distinct reviewed migration procedure rather than the file-byte refresh command. Do not copy digests into new tests: add or reuse a named manifest entry instead.
+Current-source capture, the CLI shadow policy, the SYNTH-001 fixture path, and the active PR-457/PR-464 v3 shadow policy load named identities from the runtime-neutral resource through explicit lazy accessors. These runtime paths do not import test fixtures or read the resource at import time. The SYNTH-001 v3 finalizer preserves idempotent verification of an already-frozen identity. For a pending identity, prepare and review canonical file pins for the exact candidate runtime tree and finalized identity bytes before invoking it. The finalizer refuses before writing when either selected named pin is absent or mismatched; it never changes the compatibility resource. A new runtime cohort requires dedicated named pins and provenance and must not refresh historical `pr170-tree-synthesis`. Use the provenance-aware value-pin refresh command above only as a reviewed migration action. Other script families still contain inline identities, so VD-3 remains open. Some historical comparisons still use bare assertions. Do not copy digests into new tests: add or reuse a named manifest entry instead.
 
 Synthetic fixture and serialization-golden digests are not compatibility pins: they are derived from local test data and may be regenerated with the test fixture. Keep those literals inline and put an explicit `# vd3-non-pin: <reason>` comment on the line directly above them. [`tests/test_compatibility_pins.py`](tests/test_compatibility_pins.py) fails when a 64-character hexadecimal literal appears in the test suite outside `tests/fixtures` without either a named manifest entry or that marker, and it also detects unreferenced manifest entries.

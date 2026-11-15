@@ -24,11 +24,14 @@ sys.path.insert(0, str(ROOT / "src"))
 from materialize_seeded_writer_synth_001 import materialize  # noqa: E402
 from verify_synth_001_preflight import verify  # noqa: E402
 
+from pr_review_harness.compatibility_pins import CompatibilityPinError, pin  # noqa: E402
+
 FIXTURE = ROOT / "examples/evaluation/seeded-writer-synth-001"
 PROFILE_PATH = ROOT / "experiments/synth-001-writer-profile-v1.json"
 LIMITS_PATH = ROOT / "experiments/synth-001-writer-limits-v1.json"
 PROVIDER_PATH = ROOT / "experiments/synth-001-writer-provider-v1.json"
-REQUEST_SHA256 = "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
+PINS_PATH: Path | None = None
+REQUEST_PIN_NAME = "synth_001.preflight.request_sha256"
 REQUEST_BYTES = 11_687
 OUTPUT_BYTES_CAP = 16_000
 OUTPUT_TOKENS_CAP = 1_200
@@ -36,6 +39,13 @@ OUTPUT_TOKENS_CAP = 1_200
 
 class RunnerError(ValueError):
     """A closed preflight failure."""
+
+
+def _request_sha256() -> str:
+    try:
+        return pin(REQUEST_PIN_NAME, PINS_PATH)
+    except CompatibilityPinError:
+        raise RunnerError("compatibility_pin_resource_unavailable") from None
 
 
 def _canonical(value: Any) -> bytes:
@@ -108,6 +118,7 @@ def validate_receipt_bundle(
     bundle_path: Path, materialization_path: Path, prepared_path: Path, verification_path: Path, repo: Path
 ) -> dict[str, Any]:
     """Verify artifact hashes and the canonical repository path before any consumer uses them."""
+    request_sha256 = _request_sha256()
     try:
         bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -120,7 +131,7 @@ def validate_receipt_bundle(
         "materialization_sha256": _sha_file(materialization_path),
         "prepared_sha256": _sha_file(prepared_path),
         "verification_sha256": _sha_file(verification_path),
-        "request_sha256": REQUEST_SHA256,
+        "request_sha256": request_sha256,
         "request_bytes": REQUEST_BYTES,
         "lens": "correctness",
         "output_bytes_cap": OUTPUT_BYTES_CAP,
@@ -144,6 +155,7 @@ def validate_receipt_bundle(
 
 
 def run_preflight() -> dict[str, Any]:
+    request_sha256 = _request_sha256()
     runner_temp = _runner_temp()
     nonce = secrets.token_hex(12)
     work = runner_temp / f"synth-001-preflight-{nonce}"
@@ -179,7 +191,7 @@ def run_preflight() -> dict[str, Any]:
         raise RunnerError("prepared_request_cardinality_mismatch")
     request = requests[0]
     if (
-        request.get("input_sha256") != REQUEST_SHA256
+        request.get("input_sha256") != request_sha256
         or request.get("input_bytes") != REQUEST_BYTES
         or request.get("lens") != "correctness"
         or request.get("output_bytes_cap") != OUTPUT_BYTES_CAP
@@ -195,7 +207,7 @@ def run_preflight() -> dict[str, Any]:
         "materialization_sha256": _sha_file(materialization_path),
         "prepared_sha256": _sha_file(prepared_path),
         "verification_sha256": _sha_file(verification_path),
-        "request_sha256": REQUEST_SHA256,
+        "request_sha256": request_sha256,
         "request_bytes": REQUEST_BYTES,
         "lens": "correctness",
         "output_bytes_cap": OUTPUT_BYTES_CAP,
@@ -224,7 +236,7 @@ def run_preflight() -> dict[str, Any]:
         "status": "MATCHED_PROVIDER_FREE_PREPARE",
         "fixture_id": "SYNTH-001",
         "job_nonce": validated["job_nonce"],
-        "request_sha256": REQUEST_SHA256,
+        "request_sha256": request_sha256,
         "request_bytes": REQUEST_BYTES,
         "provider_calls_before_live_stage": 0,
         "provider_calls_cap_for_future_live_stage": 1,

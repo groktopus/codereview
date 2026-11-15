@@ -91,6 +91,39 @@ def test_unknown_pin_fails_closed_with_the_available_names():
         compatibility_pins.pin("compatibility.not_a_real_pin")
 
 
+def test_unknown_file_pin_fails_closed_with_the_available_names() -> None:
+    with pytest.raises(compatibility_pins.CompatibilityPinError, match="unknown compatibility file pin"):
+        compatibility_pins.file_pin("synth-001.not-a-real-file-pin")
+
+
+@pytest.mark.compatibility
+def test_synth_001_values_and_file_pins_match_frozen_artifacts() -> None:
+    assert len(compatibility_pins.pin("synth_001.preflight.evidence_index_sha256")) == 64
+    assert len(compatibility_pins.pin("synth_001.preflight.provider_identity_sha256")) == 64
+    assert len(compatibility_pins.pin("synth_001.preflight.request_sha256")) == 64
+    assert len(compatibility_pins.pin("synth_001.preflight.request_descriptor_sha256")) == 64
+    assert len(compatibility_pins.pin("synth_001.preflight.normalized_prepared_sha256")) == 64
+    assert len(compatibility_pins.pin("synth_001.preflight.evidence_index_canonical_sha256")) == 64
+
+    file_names = (
+        "synth-001-writer-profile-v1",
+        "synth-001-writer-limits-v1",
+        "synth-001-writer-provider-v1",
+        "synth-001-package-identity-v3",
+    )
+    manifest = compatibility_pins.load_manifest()
+    for name in file_names:
+        artifact = ROOT / manifest["pin_files"][name]
+        assert compatibility_pins.file_pin(name) == hashlib.sha256(artifact.read_bytes()).hexdigest()
+
+
+def test_file_pin_uses_explicit_manifest_path(tmp_path: Path) -> None:
+    manifest = compatibility_pins.load_manifest()
+    path = tmp_path / "pins.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert compatibility_pins.file_pin("pr170-tree-synthesis", path) == manifest["file_pins"]["pr170-tree-synthesis"]
+
+
 @pytest.mark.compatibility
 def test_shadow_v3_policy_matches_named_pins_and_frozen_manifest_bytes():
     from scripts import shadow_case_policy
@@ -386,11 +419,33 @@ def test_canonical_resource_preserves_both_pre_migration_manifests():
         "runtime.model_only_shadow_live_pr464.profile_file_sha256",
         "runtime.model_only_shadow_live_pr464.historical_checks_sha256",
         "runtime.model_only_shadow_live_pr464.check_evidence_sha256",
+        "synth_001.preflight.evidence_index_sha256",
+        "synth_001.preflight.provider_identity_sha256",
+        "synth_001.preflight.request_sha256",
+        "synth_001.preflight.request_descriptor_sha256",
+        "synth_001.preflight.normalized_prepared_sha256",
+        "synth_001.preflight.evidence_index_canonical_sha256",
     }
     assert canonical["value_refresh_history"] == previous_values.get("refresh_history", [])
-    assert canonical["file_pins"] == previous_files["pins"]
-    assert canonical["pin_files"] == previous_files["pin_files"]
-    assert canonical["pin_revisions"] == previous_files["pin_revisions"]
+    file_additions = {
+        "synth-001-writer-profile-v1": "experiments/synth-001-writer-profile-v1.json",
+        "synth-001-writer-limits-v1": "experiments/synth-001-writer-limits-v1.json",
+        "synth-001-writer-provider-v1": "experiments/synth-001-writer-provider-v1.json",
+        "synth-001-package-identity-v3": "experiments/synth-001-package-identity-v3.json",
+    }
+    for name, relative in file_additions.items():
+        assert canonical["file_pins"][name] == hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+        assert canonical["pin_files"][name] == relative
+        assert canonical["pin_revisions"][name] == "bc278f85e8107e0861def5e0750710d1f6f99087"
+    assert {
+        key: value for key, value in canonical["file_pins"].items() if key in previous_files["pins"]
+    } == previous_files["pins"]
+    assert {
+        key: value for key, value in canonical["pin_files"].items() if key in previous_files["pin_files"]
+    } == previous_files["pin_files"]
+    assert {
+        key: value for key, value in canonical["pin_revisions"].items() if key in previous_files["pin_revisions"]
+    } == previous_files["pin_revisions"]
     assert canonical["file_refresh_history"] == previous_files["refresh_history"]
 
 

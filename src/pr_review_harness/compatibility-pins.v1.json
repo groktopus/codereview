@@ -371,6 +371,66 @@
         "recorded_at": "2026-09-29",
         "reason": "Frozen PR-464 check-evidence digest recorded in the v3 model-only shadow identity manifest."
       }
+    },
+    "synth_001.preflight.evidence_index_sha256": {
+      "value": "034fdbb66f32a5fdbedfacdce793d66c636ce93a961530ecb7827f967fc43bd5",
+      "kind": "synth-001-historical-evidence-index",
+      "provenance": {
+        "artifact": "experiments/synth-001-package-identity-v3.json",
+        "source_revision": "bc278f85e8107e0861def5e0750710d1f6f99087",
+        "recorded_at": "2026-11-15",
+        "reason": "Preserves the verifier historical evidence-index identity recorded in the frozen SYNTH-001 package identity; it does not newly authenticate provider execution."
+      }
+    },
+    "synth_001.preflight.provider_identity_sha256": {
+      "value": "767c2615b9e01ccff12c78a93d0c0f914d53ba2fbf4509567c7f9859a7d615a0",
+      "kind": "synth-001-historical-provider-identity",
+      "provenance": {
+        "artifact": "experiments/synth-001-package-identity-v3.json",
+        "source_revision": "bc278f85e8107e0861def5e0750710d1f6f99087",
+        "recorded_at": "2026-11-15",
+        "reason": "Preserves the verifier historical provider identity recorded in the frozen SYNTH-001 package identity; no provider was contacted or newly authenticated."
+      }
+    },
+    "synth_001.preflight.request_sha256": {
+      "value": "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d",
+      "kind": "synth-001-historical-request",
+      "provenance": {
+        "artifact": "tests/fixtures/synth-001-prepared-v1.json",
+        "source_revision": "bc278f85e8107e0861def5e0750710d1f6f99087",
+        "recorded_at": "2026-11-15",
+        "reason": "Preserves the serialized request identity in the immutable SYNTH-001 prepared fixture; the fixture was parsed only and no provider was dispatched."
+      }
+    },
+    "synth_001.preflight.request_descriptor_sha256": {
+      "value": "7c444c1d74564cfa2962ffec76141932101be55861c434b59c8f38181df8d10a",
+      "kind": "synth-001-derived-request-descriptor",
+      "provenance": {
+        "artifact": "tests/fixtures/synth-001-prepared-v1.json",
+        "source_revision": "bc278f85e8107e0861def5e0750710d1f6f99087",
+        "recorded_at": "2026-11-15",
+        "reason": "Canonical JSON digest of the request descriptor in the immutable prepared fixture; computed without executing target code or contacting a provider."
+      }
+    },
+    "synth_001.preflight.normalized_prepared_sha256": {
+      "value": "4f3679ee5c4bdc5772f6b52a98759ddddc917ef9513993864bfa197b4aa0f63b",
+      "kind": "synth-001-derived-normalized-prepared",
+      "provenance": {
+        "artifact": "tests/fixtures/synth-001-prepared-v1.json",
+        "source_revision": "bc278f85e8107e0861def5e0750710d1f6f99087",
+        "recorded_at": "2026-11-15",
+        "reason": "Canonical prepared JSON digest after replacing only the path-bound snapshot hash; derived from the immutable fixture without code or provider execution."
+      }
+    },
+    "synth_001.preflight.evidence_index_canonical_sha256": {
+      "value": "b52998a8d258e72f5b45f19a48825697330e3bcc629eab8a750e3784c9b86c82",
+      "kind": "synth-001-derived-canonical-evidence-index",
+      "provenance": {
+        "artifact": "tests/fixtures/synth-001-prepared-v1.json",
+        "source_revision": "bc278f85e8107e0861def5e0750710d1f6f99087",
+        "recorded_at": "2026-11-15",
+        "reason": "Canonical JSON digest of the evidence index in the immutable prepared fixture; computed without executing target code or contacting a provider."
+      }
     }
   },
   "value_refresh_history": [],
@@ -412,7 +472,11 @@
     "shadow_audit-pr201-base.py": "0127db78abe8a1e460fac53c5df56cce9e6c0ac2ca2b88cec5ef14dd85bf77f2",
     "shadow_audit.py": "2fd9f4dbb7fcf9fc5779933e6451cd1b00f5cf87a9872e7c06dc19ffd9711967",
     "shadow_preflight.py": "35c95c402cc742f79e8523eb82835c79eede6edd58d41b4280470150f55795ec",
-    "snapshot-pr170-base.py": "68c621245d28af38f6cf5d9bf1d621d962ebe544174da50add6dda75570d3b5f"
+    "snapshot-pr170-base.py": "68c621245d28af38f6cf5d9bf1d621d962ebe544174da50add6dda75570d3b5f",
+    "synth-001-writer-profile-v1": "d62a83f4ecbf0b807770c318bd3222c49c72311455eef19f15d6e3d2c7e1ad58",
+    "synth-001-writer-limits-v1": "1b3cf01229d00bd63e9dcf4140504108b1b697e886baf155a46d95e29536b432",
+    "synth-001-writer-provider-v1": "8f160c593f4d04d41dcfbc247eb5814c13ded5e88dd5bfdf95d3d78264634d5f",
+    "synth-001-package-identity-v3": "6a25df3d3fb7c4bd3ce5ae0b928956ac0e6539708742904892c5ce1ec9ac2631"
   },
   "pin_files": {
     "__init__.py": "tests/fixtures/frozen-runtime-7d550b6/__init__.py",
@@ -450,7 +514,11 @@
     "shadow_audit-pr201-base.py": "tests/fixtures/shadow_audit-pr201-base.py",
     "shadow_audit.py": "tests/fixtures/frozen-runtime-7d550b6/shadow_audit.py",
     "shadow_preflight.py": "tests/fixtures/frozen-runtime-7d550b6/shadow_preflight.py",
-    "snapshot-pr170-base.py": "tests/fixtures/snapshot-pr170-base.py"
+    "snapshot-pr170-base.py": "tests/fixtures/snapshot-pr170-base.py",
+    "synth-001-writer-profile-v1": "experiments/synth-001-writer-profile-v1.json",
+    "synth-001-writer-limits-v1": "experiments/synth-001-writer-limits-v1.json",
+    "synth-001-writer-provider-v1": "experiments/synth-001-writer-provider-v1.json",
+    "synth-001-package-identity-v3": "experiments/synth-001-package-identity-v3.json"
   },
   "pin_revisions": {
     "__init__.py": "46c8be2c7370f89a4c6718972fc49ae0ae7ecf92",
@@ -488,7 +556,11 @@
     "shadow_audit-pr201-base.py": "5e4b751abe159ff698fc68d20f49e235ab0c2f23",
     "shadow_audit.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
     "shadow_preflight.py": "d91cfe42185eb71bf6fb9376e2d14498d078794a",
-    "snapshot-pr170-base.py": "ed178ba6a3bf39405bae8253081211c877296c3a"
+    "snapshot-pr170-base.py": "ed178ba6a3bf39405bae8253081211c877296c3a",
+    "synth-001-writer-profile-v1": "bc278f85e8107e0861def5e0750710d1f6f99087",
+    "synth-001-writer-limits-v1": "bc278f85e8107e0861def5e0750710d1f6f99087",
+    "synth-001-writer-provider-v1": "bc278f85e8107e0861def5e0750710d1f6f99087",
+    "synth-001-package-identity-v3": "bc278f85e8107e0861def5e0750710d1f6f99087"
   },
   "historical_revision": "7d550b61825defec8a8a0625511c914ba8efd5cb",
   "file_refresh_history": [],

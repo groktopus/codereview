@@ -13,9 +13,9 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
+import verify_synth_001_preflight as verifier  # noqa: E402
 from frozen_runtime import build_frozen_runtime_root  # noqa: E402
 from materialize_seeded_writer_synth_001 import materialize  # noqa: E402
-from verify_synth_001_preflight import PYTHON_IDENTITY, SOURCE_REVISION, VerifyError, verify  # noqa: E402
 
 from pr_review_harness.cli import _read_limits  # noqa: E402
 from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
@@ -58,7 +58,7 @@ def _verify(
     document["snapshot"]["snapshot_hash"] = snapshot["snapshot_hash"]
     adjusted = receipt.parent / "prepared-at-current-path.json"
     adjusted.write_text(json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n")
-    return verify(
+    return verifier.verify(
         receipt,
         adjusted,
         repo,
@@ -74,7 +74,55 @@ def _verify(
 
 
 def test_live_verifier_default_remains_pinned_to_cpython_3147():
-    assert PYTHON_IDENTITY == {"implementation": "cpython", "version": "3.14.7"}
+    assert verifier.PYTHON_IDENTITY == {"implementation": "cpython", "version": "3.14.7"}
+
+
+@pytest.mark.parametrize("resource", [None, "not-json"])
+def test_invalid_pin_resource_is_sanitized(
+    resource: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "pins.json"
+    if resource is not None:
+        path.write_text(resource, encoding="utf-8")
+    monkeypatch.setattr(verifier, "PINS_PATH", path)
+    with pytest.raises(verifier.VerifyError, match="fixture_pin_resource_unavailable"):
+        verifier._load_pins()
+
+
+def test_missing_synth_pin_keeps_compatibility_specific_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    manifest_path = ROOT / "src/pr_review_harness/compatibility-pins.v1.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["value_pins"]["synth_001.preflight.request_sha256"]
+    path = tmp_path / "pins.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(verifier, "PINS_PATH", path)
+    with pytest.raises(verifier.VerifyError, match="compatibility_pin_resource_unavailable"):
+        verifier._load_pins()
+
+
+@pytest.mark.parametrize(
+    "script_name",
+    [
+        "verify_synth_001_preflight.py",
+        "run_synth_001_live_writer.py",
+        "package_synth_001_cross_model.py",
+        "finalize_synth_001_identity_v3.py",
+    ],
+)
+def test_synth_cli_help_works_outside_checkout_without_pythonpath(script_name: str, tmp_path: Path) -> None:
+    script = ROOT / "scripts" / script_name
+    environment = {"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"}
+    completed = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert completed.returncode == 0
+    assert completed.stdout.startswith("usage:")
 
 
 def test_exact_provider_free_plan_verifies_and_emits_bounded_hash_receipt(tmp_path: Path):
@@ -82,7 +130,7 @@ def test_exact_provider_free_plan_verifies_and_emits_bounded_hash_receipt(tmp_pa
     result = _verify(repo, receipt)
     assert result["result"] == "MATCHED_PROVIDER_FREE_PREPARE"
     assert result["fixture_id"] == "SYNTH-001"
-    assert result["source_revision"] == SOURCE_REVISION
+    assert result["source_revision"] == verifier.SOURCE_REVISION
     assert result["request_bytes"] == 11_687
     assert result["lens"] == "correctness"
     assert result["output_bytes_cap"] == 16_000
@@ -103,7 +151,7 @@ def test_verifier_rejects_missing_extra_or_changed_writer_request(tmp_path: Path
         prepared["primary_requests"][0]["input_bytes"] += 1
     altered = tmp_path / f"{mutation}.json"
     altered.write_text(json.dumps(prepared))
-    with pytest.raises(VerifyError):
+    with pytest.raises(verifier.VerifyError):
         _verify(repo, receipt, altered)
 
 
@@ -112,20 +160,20 @@ def test_verifier_rejects_tampered_receipt_and_config(tmp_path: Path):
     altered_receipt = json.loads(receipt.read_text())
     altered_receipt["head_sha"] = "0" * 40
     receipt.write_text(json.dumps(altered_receipt))
-    with pytest.raises(VerifyError, match="materialization_receipt_mismatch"):
+    with pytest.raises(verifier.VerifyError, match="materialization_receipt_mismatch"):
         _verify(repo, receipt)
 
     _, receipt = _setup(tmp_path / "second")
     changed_profile = tmp_path / "profile.json"
     changed_profile.write_bytes(PROFILE.read_bytes() + b"\n")
-    with pytest.raises(VerifyError, match="config_hash_mismatch"):
+    with pytest.raises(verifier.VerifyError, match="config_hash_mismatch"):
         _verify(repo, receipt, profile=changed_profile)
 
 
 def test_verifier_rejects_dirty_materialized_repository(tmp_path: Path):
     repo, receipt = _setup(tmp_path)
     (repo / "extra.py").write_text("# unexpected\n")
-    with pytest.raises(VerifyError, match="repository_worktree_not_clean"):
+    with pytest.raises(verifier.VerifyError, match="repository_worktree_not_clean"):
         _verify(repo, receipt)
 
 
@@ -191,8 +239,8 @@ def test_current_cli_output_is_stable_but_rejected_by_historical_prepare_pin(tmp
         assert len(request_hash) == 64
         request_hashes.append(request_hash)
         outputs.append(output)
-        with pytest.raises(VerifyError, match="prepared_capacity_mismatch"):
-            verify(
+        with pytest.raises(verifier.VerifyError, match="prepared_capacity_mismatch"):
+            verifier.verify(
                 receipt,
                 prepared_path,
                 repo,
@@ -215,7 +263,7 @@ def test_current_cli_output_is_stable_but_rejected_by_historical_prepare_pin(tmp
 
 def test_verifier_rejects_current_checkout_against_historical_runtime_pin(tmp_path: Path):
     repo, receipt = _setup(tmp_path)
-    with pytest.raises(VerifyError, match="runtime_tree_mismatch"):
+    with pytest.raises(verifier.VerifyError, match="runtime_tree_mismatch"):
         _verify(repo, receipt, source_root=ROOT)
 
 
@@ -225,8 +273,8 @@ def test_verifier_rejects_forged_path_bound_snapshot_hash(tmp_path: Path):
     prepared["snapshot"]["snapshot_hash"] = "0" * 64
     forged = tmp_path / "forged-snapshot-hash.json"
     forged.write_text(json.dumps(prepared, sort_keys=True, separators=(",", ":")) + "\n")
-    with pytest.raises(VerifyError, match="snapshot_identity_mismatch"):
-        verify(
+    with pytest.raises(verifier.VerifyError, match="snapshot_identity_mismatch"):
+        verifier.verify(
             receipt,
             forged,
             repo,
