@@ -33819,35 +33819,6 @@
     {
       "count": 1,
       "missing": [
-        "positional_or_keyword:monkeypatch",
-        "return"
-      ],
-      "path": "tests/test_synth_001_identity_v3.py",
-      "qualname": "test_finalizer_binds_identity_verifier_and_digest_to_one_runtime_revision",
-      "signature_sha256": "297f6d4f22a1ccc3cfec6609d37557a588da85d594ceb65f99fd4147362c25d4"
-    },
-    {
-      "count": 1,
-      "missing": [
-        "positional_or_keyword:monkeypatch",
-        "return"
-      ],
-      "path": "tests/test_synth_001_identity_v3.py",
-      "qualname": "test_finalizer_rejects_runtime_tree_that_differs_from_immutable_revision",
-      "signature_sha256": "fd7c8968e4a7e2efe5f33bade621801998024f4dee8130f51b17b6833960fb6c"
-    },
-    {
-      "count": 1,
-      "missing": [
-        "return"
-      ],
-      "path": "tests/test_synth_001_identity_v3.py",
-      "qualname": "test_v3_package_route_is_versioned_and_frozen_runtime_matches",
-      "signature_sha256": "0a23edd6931eae06474196ebc3e523032fe96793ab201b92f755312a4d981c4e"
-    },
-    {
-      "count": 1,
-      "missing": [
         "return"
       ],
       "path": "tests/test_synth_001_live_writer.py",

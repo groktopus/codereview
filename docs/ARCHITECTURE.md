@@ -113,15 +113,16 @@ measured with `find src -name '*.py' -exec wc -l {} + | tail -1`.
 | After bounded evidence waiver (ADR 0011) | 41 | 32,434 |
 | Delta at bounded-waiver checkpoint | −7 | −8,252 (−20.28%) |
 | After compatibility runtime consumers (PR #385) | 43 | 32,989 |
+| After remaining SYNTH-001 pin consumers | 43 | 32,999 |
 
 CA-2's 25% outcome was measured at merge. The original feature budget and
 subsequent scoped allowances are recorded in
 [ADR 0001](adr/0001-post-ca2-feature-budget.md),
 [ADR 0011](adr/0011-bounded-evidence-waiver.md), and the machine-readable
-[public surface](public-surface.json). After PR #385, the measured source and
-effective ceiling are both 32,989 lines; no general feature headroom remains.
-The SYNTH-001 script-pin migration adds resource entries but no installed Python
-source lines. These measurements do not revise the historical CA-2 result.
+[public surface](public-surface.json). After the remaining SYNTH-001 pin migration, the measured source and
+effective ceiling are both 32,999 lines; no general feature headroom remains.
+The earlier SYNTH-001 fixture-pin migration added no installed Python lines;
+the remaining consumer migration adds a ten-line named file-pin accessor. These measurements do not revise the historical CA-2 result.
 The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
 orchestrator, two are internal stages of it, and one is the guarded publication
 executor. The installed wheel contains no module from `experiments/`.

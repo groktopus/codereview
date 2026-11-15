@@ -10,7 +10,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
-- Move the six active PR-457/PR-464 v3 shadow-plan and evidence identities into the canonical compatibility resource. Shared lazy case-policy accessors preserve plan bytes and receipts without import-time resource reads; the legacy finalizer remains frozen and rejects the committed policy before writing. Pin changes remain subject to the provenance-aware refresh procedure.
+- Move the remaining SYNTH-001 preflight and package identities into the canonical compatibility resource through lazy accessors. Preserve frozen artifacts and require prevalidated named runtime-tree and identity pins before pending finalization; the finalizer never refreshes the resource. Existing finalizer frozen verification remains idempotent.
+- Move the six active PR-457/PR-464 v3 shadow-plan and evidence identities into the canonical compatibility resource. Shared lazy case-policy accessors preserve plan bytes and receipts without import-time resource reads; pin changes remain subject to the provenance-aware refresh procedure.
 
 - Revise the scoped complete RC-2 planning envelope from 2,400 to 3,100 additional source lines after measured draft growth and independent architectural reassessment. All retrieval roles, runtime caps, recovery and completion gates remain unchanged; identified draft correctness defects still block integration.
 - Move the seven SYNTH-001 fixture identities shared by the materializer and preflight verifier into the canonical compatibility resource. Explicit accessors preserve the original digests and fixture bytes without reading the resource at import time; standalone script invocation remains supported.

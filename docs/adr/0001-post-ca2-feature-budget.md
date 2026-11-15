@@ -202,3 +202,27 @@ separate follow-up work, so this slice does not close VD-3 or VD-4.
 
 Revert this consumer migration and its additional 36-line allowance together
 if the shared resource cannot preserve the existing case and policy identity.
+
+
+## Addendum: remaining SYNTH-001 pin consumers (2026-11-15)
+
+Under the same roadmap implementation authority, root records the measured
+ten-line `file_pin` accessor in the installed compatibility loader. The
+preflight, writer, package and finalizer scripts resolve named identities from
+the existing canonical resource at explicit use. All prior resource values
+remain unchanged; six semantic values and four file identities are added with
+provenance. The finalizer requires the selected pins to match before writes,
+never refreshes the canonical resource, and preserves frozen verification.
+
+The source total is 32,999 physical Python lines across 43 modules. The scoped
+compatibility allowance becomes 218 lines (208 previously measured plus ten
+for this accessor). This root implementation decision grants no general
+headroom and changes no provider limits or historical evidence. Acceptance
+requires original-value parity, missing or malformed resource rejection, lazy
+imports, standalone CLI checks and zero-write finalizer refusal tests, together
+with the required repository gates and independent review. Those are evidence
+requirements, not assertions that this decision alone satisfies them.
+
+Revert the accessor and its ten-line allowance together if the migration cannot
+preserve the named identities and finalizer boundaries. Other script families
+remain outside this slice; VD-3 is not complete.

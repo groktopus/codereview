@@ -23,31 +23,33 @@ if SOURCE_ROOT not in sys.path:
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from materialize_seeded_writer_synth_001 import MaterializeError, _validated_fixture  # noqa: E402
 
-from pr_review_harness.compatibility_pins import CompatibilityPinError, pin  # noqa: E402
+from pr_review_harness.compatibility_pins import CompatibilityPinError, file_pin, pin  # noqa: E402
 
 FIXTURE_ID = "SYNTH-001"
 BASE_SHA = "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1"
 HEAD_SHA = "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0"
-CONFIG_HASHES = {
-    "profile": "d62a83f4ecbf0b807770c318bd3222c49c72311455eef19f15d6e3d2c7e1ad58",
-    "limits": "1b3cf01229d00bd63e9dcf4140504108b1b697e886baf155a46d95e29536b432",
-    "provider": "8f160c593f4d04d41dcfbc247eb5814c13ded5e88dd5bfdf95d3d78264634d5f",
+PINS_PATH: Path | None = None
+CONFIG_FILE_PINS = {
+    "profile": "synth-001-writer-profile-v1",
+    "limits": "synth-001-writer-limits-v1",
+    "provider": "synth-001-writer-provider-v1",
 }
+VALUE_PINS = {
+    "evidence_index": "synth_001.preflight.evidence_index_sha256",
+    "provider_identity": "synth_001.preflight.provider_identity_sha256",
+    "request": "synth_001.preflight.request_sha256",
+    "request_descriptor": "synth_001.preflight.request_descriptor_sha256",
+    "normalized_prepared": "synth_001.preflight.normalized_prepared_sha256",
+    "evidence_index_canonical": "synth_001.preflight.evidence_index_canonical_sha256",
+}
+TREE_PIN_NAME = "pr170-tree-synthesis"
 SNAPSHOT_ID = "snap-a6c6ac33adda6c436e2cf3cf"
-EVIDENCE_INDEX_SHA256 = "034fdbb66f32a5fdbedfacdce793d66c636ce93a961530ecb7827f967fc43bd5"
-PROVIDER_IDENTITY_SHA256 = "767c2615b9e01ccff12c78a93d0c0f914d53ba2fbf4509567c7f9859a7d615a0"
-REQUEST_SHA256 = "a290fdffa94352ecc45d0f1b231883fbb4f73178a0a71599185811ed3ea98e1d"
-REQUEST_DESCRIPTOR_SHA256 = "7c444c1d74564cfa2962ffec76141932101be55861c434b59c8f38181df8d10a"
-NORMALIZED_PREPARED_SHA256 = "4f3679ee5c4bdc5772f6b52a98759ddddc917ef9513993864bfa197b4aa0f63b"
-EVIDENCE_INDEX_CANONICAL_SHA256 = "b52998a8d258e72f5b45f19a48825697330e3bcc629eab8a750e3784c9b86c82"
 REQUEST_BYTES = 11_687
 OUTPUT_BYTES_CAP = 16_000
 OUTPUT_TOKENS_CAP = 1_200
 MODULE_COUNT = 35
-# Interim provider-free preparation pin at PR #157 head. The v3 finalizer
-# rewrites these values from the exact immutable runtime revision selected for
-# the combined stack; until then, package identity v3 remains pending.
-MODULE_TREE_SHA256 = "75b3ead743048b4f1296bb132f4e135837224a1886e23693031d15c8e67e5991"
+# Interim provider-free preparation revision. The finalizer preserves this
+# route as pending until matching canonical identity and tree pins are prepared.
 SOURCE_REVISION = "f6fd5158c567a2ace10e1abd63465a23cd12fc51"
 PYTHON_IDENTITY = {"implementation": "cpython", "version": "3.14.7"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -59,15 +61,26 @@ class VerifyError(ValueError):
     """A materialization or prepare receipt does not match the pinned plan."""
 
 
-def _fixture_payload_sha256() -> str:
+def _fixture_payload_sha256(path: Path | None = None) -> str:
     try:
-        return pin("fixture.seeded_writer_synth_001.payload_sha256")
+        return pin("fixture.seeded_writer_synth_001.payload_sha256", path)
     except CompatibilityPinError:
         raise VerifyError("fixture_pin_resource_unavailable") from None
 
 
-def _read_materialization(path: Path) -> tuple[dict[str, Any], bytes, str]:
-    payload_sha256 = _fixture_payload_sha256()
+def _load_pins() -> dict[str, str]:
+    fixture_payload_sha256 = _fixture_payload_sha256(PINS_PATH)
+    try:
+        values = {key: pin(name, PINS_PATH) for key, name in VALUE_PINS.items()}
+        values.update({key: file_pin(name, PINS_PATH) for key, name in CONFIG_FILE_PINS.items()})
+        values["module_tree"] = file_pin(TREE_PIN_NAME, PINS_PATH)
+        values["fixture_payload"] = fixture_payload_sha256
+        return values
+    except CompatibilityPinError:
+        raise VerifyError("compatibility_pin_resource_unavailable") from None
+
+
+def _read_materialization(path: Path, payload_sha256: str) -> tuple[dict[str, Any], bytes, str]:
     materialization, raw = _document(path)
     return materialization, raw, payload_sha256
 
@@ -147,8 +160,8 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def _config_hash(path: Path, label: str) -> None:
-    if hashlib.sha256(_read(path, 32_000)).hexdigest() != CONFIG_HASHES[label]:
+def _config_hash(path: Path, label: str, pins: dict[str, str]) -> None:
+    if hashlib.sha256(_read(path, 32_000)).hexdigest() != pins[label]:
         raise VerifyError("config_hash_mismatch")
 
 
@@ -197,7 +210,8 @@ def verify(
     source_root: Path,
     expected_python_identity: dict[str, str] = PYTHON_IDENTITY,
 ) -> dict[str, Any]:
-    materialization, _, fixture_payload_sha256 = _read_materialization(materialization_path)
+    pins = _load_pins()
+    materialization, _, fixture_payload_sha256 = _read_materialization(materialization_path, pins["fixture_payload"])
     expected_materialization = {
         "schema": "seeded-writer-materialization.v1",
         "fixture_id": FIXTURE_ID,
@@ -215,9 +229,8 @@ def verify(
         raise VerifyError("fixture_identity_mismatch") from None
     if payload_sha != fixture_payload_sha256:
         raise VerifyError("fixture_identity_mismatch")
-    _config_hash(profile_path, "profile")
-    _config_hash(limits_path, "limits")
-    _config_hash(provider_path, "provider")
+    for config_path, kind in ((profile_path, "profile"), (limits_path, "limits"), (provider_path, "provider")):
+        _config_hash(config_path, kind, pins)
     _verify_repo(repo.resolve(strict=True), materialization)
 
     prepared, _prepared_raw = _document(prepared_path)
@@ -265,11 +278,11 @@ def verify(
     request_descriptor_hash = hashlib.sha256(
         json.dumps(request, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    if request_descriptor_hash != REQUEST_DESCRIPTOR_SHA256:
+    if request_descriptor_hash != pins["request_descriptor"]:
         raise VerifyError("primary_request_descriptor_mismatch")
     if (
         request.get("admitted") is not True
-        or request.get("input_sha256") != REQUEST_SHA256
+        or request.get("input_sha256") != pins["request"]
         or request.get("input_bytes") != REQUEST_BYTES
         or request.get("lens") != "correctness"
         or request.get("output_bytes_cap") != OUTPUT_BYTES_CAP
@@ -285,7 +298,7 @@ def verify(
     normalized_prepared_bytes = (
         json.dumps(normalized_prepared, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
     )
-    if hashlib.sha256(normalized_prepared_bytes).hexdigest() != NORMALIZED_PREPARED_SHA256:
+    if hashlib.sha256(normalized_prepared_bytes).hexdigest() != pins["normalized_prepared"]:
         raise VerifyError("prepared_artifact_mismatch")
     source_root = source_root.resolve(strict=True)
     added_source_path = str(source_root / "src") not in sys.path
@@ -312,18 +325,18 @@ def verify(
         or snapshot.get("head_sha") != HEAD_SHA
         or snapshot.get("snapshot_id") != SNAPSHOT_ID
         or snapshot.get("snapshot_hash") != expected_snapshot.get("snapshot_hash")
-        or snapshot.get("evidence_index_sha256") != EVIDENCE_INDEX_SHA256
+        or snapshot.get("evidence_index_sha256") != pins["evidence_index"]
         or hashlib.sha256(
             json.dumps(snapshot.get("evidence_index"), sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
-        != EVIDENCE_INDEX_CANONICAL_SHA256
-        or snapshot.get("profile_file_sha256") != CONFIG_HASHES["profile"]
-        or snapshot.get("limits_sha256") != CONFIG_HASHES["limits"]
-        or snapshot.get("provider_identity_sha256") != PROVIDER_IDENTITY_SHA256
+        != pins["evidence_index_canonical"]
+        or snapshot.get("profile_file_sha256") != pins["profile"]
+        or snapshot.get("limits_sha256") != pins["limits"]
+        or snapshot.get("provider_identity_sha256") != pins["provider_identity"]
     ):
         raise VerifyError("snapshot_identity_mismatch")
     count, tree_sha = _module_tree(source_root.resolve(strict=True))
-    if count != MODULE_COUNT or tree_sha != MODULE_TREE_SHA256:
+    if count != MODULE_COUNT or tree_sha != pins["module_tree"]:
         raise VerifyError("runtime_tree_mismatch")
     runtime = {"implementation": sys.implementation.name, "version": sys.version.split()[0]}
     if runtime != expected_python_identity:
@@ -339,7 +352,7 @@ def verify(
         "snapshot_id": SNAPSHOT_ID,
         "snapshot_hash": snapshot["snapshot_hash"],
         "repository_path_sha256": hashlib.sha256(os.fsencode(str(repo.resolve(strict=True)))).hexdigest(),
-        "request_sha256": REQUEST_SHA256,
+        "request_sha256": pins["request"],
         "request_bytes": REQUEST_BYTES,
         "lens": "correctness",
         "output_bytes_cap": OUTPUT_BYTES_CAP,

@@ -144,6 +144,16 @@ def pin(name: str, path: Path | None = None) -> str:
     return str(entries[name]["value"])
 
 
+def file_pin(name: str, path: Path | None = None) -> str:
+    """Return one named byte or derived-file pin from the canonical resource."""
+    entries = load_manifest(path)["file_pins"]
+    if name not in entries:
+        raise CompatibilityPinError(
+            f"unknown compatibility file pin {name!r}; available names: {', '.join(sorted(entries))}"
+        )
+    return str(entries[name])
+
+
 def pin_names(path: Path | None = None) -> tuple[str, ...]:
     return tuple(sorted(pins(path)))
 

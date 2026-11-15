@@ -13,6 +13,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
+import verify_synth_001_preflight as verifier  # noqa: E402
 from frozen_runtime import build_frozen_runtime_root  # noqa: E402
 from materialize_seeded_writer_synth_001 import materialize  # noqa: E402
 from verify_synth_001_preflight import PYTHON_IDENTITY, SOURCE_REVISION, VerifyError, verify  # noqa: E402
@@ -75,6 +76,54 @@ def _verify(
 
 def test_live_verifier_default_remains_pinned_to_cpython_3147():
     assert PYTHON_IDENTITY == {"implementation": "cpython", "version": "3.14.7"}
+
+
+@pytest.mark.parametrize("resource", [None, "not-json"])
+def test_invalid_pin_resource_is_sanitized(
+    resource: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "pins.json"
+    if resource is not None:
+        path.write_text(resource, encoding="utf-8")
+    monkeypatch.setattr(verifier, "PINS_PATH", path)
+    with pytest.raises(VerifyError, match="fixture_pin_resource_unavailable"):
+        verifier._load_pins()
+
+
+def test_missing_synth_pin_keeps_compatibility_specific_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    manifest_path = ROOT / "src/pr_review_harness/compatibility-pins.v1.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["value_pins"]["synth_001.preflight.request_sha256"]
+    path = tmp_path / "pins.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(verifier, "PINS_PATH", path)
+    with pytest.raises(VerifyError, match="compatibility_pin_resource_unavailable"):
+        verifier._load_pins()
+
+
+@pytest.mark.parametrize(
+    "script_name",
+    [
+        "verify_synth_001_preflight.py",
+        "run_synth_001_live_writer.py",
+        "package_synth_001_cross_model.py",
+        "finalize_synth_001_identity_v3.py",
+    ],
+)
+def test_synth_cli_help_works_outside_checkout_without_pythonpath(script_name: str, tmp_path: Path) -> None:
+    script = ROOT / "scripts" / script_name
+    environment = {"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"}
+    completed = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert completed.returncode == 0
+    assert completed.stdout.startswith("usage:")
 
 
 def test_exact_provider_free_plan_verifies_and_emits_bounded_hash_receipt(tmp_path: Path):

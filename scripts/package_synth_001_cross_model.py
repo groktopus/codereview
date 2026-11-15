@@ -27,10 +27,17 @@ from verify_synth_001_preflight import VerifyError, _document, _read, verify  # 
 
 from experiments.harness.cross_model_package import build_cross_model_package  # noqa: E402
 from experiments.harness.evaluation import EvaluationError  # noqa: E402
+from pr_review_harness.compatibility_pins import CompatibilityPinError, file_pin  # noqa: E402
 from pr_review_harness.contracts import MAX_ITEMS, MAX_TEXT_BYTES  # noqa: E402
 
 IDENTITY_PATH = ROOT / "experiments/synth-001-package-identity-v3.json"
-IDENTITY_SHA256 = "6a25df3d3fb7c4bd3ce5ae0b928956ac0e6539708742904892c5ce1ec9ac2631"
+PINS_PATH: Path | None = None
+IDENTITY_PIN_NAME = "synth-001-package-identity-v3"
+CONFIG_FILE_PINS = {
+    "profile_sha256": "synth-001-writer-profile-v1",
+    "limits_sha256": "synth-001-writer-limits-v1",
+    "provider_config_sha256": "synth-001-writer-provider-v1",
+}
 FIXTURE_DIR = ROOT / "examples/evaluation/seeded-writer-synth-001"
 PROFILE_PATH = ROOT / "experiments/synth-001-writer-profile-v1.json"
 LIMITS_PATH = ROOT / "experiments/synth-001-writer-limits-v1.json"
@@ -85,7 +92,11 @@ def _hash_file(path: Path, limit: int = 256_000) -> str:
 
 def _identity() -> dict[str, Any]:
     raw = _read(IDENTITY_PATH, 64_000)
-    if _sha(raw) != IDENTITY_SHA256:
+    try:
+        identity_sha256 = file_pin(IDENTITY_PIN_NAME, PINS_PATH)
+    except CompatibilityPinError:
+        _fail("compatibility_pin_resource_unavailable")
+    if _sha(raw) != identity_sha256:
         _fail("package_identity_contract_mismatch")
     value, _ = _document(IDENTITY_PATH)
     if value.get("schema") != "synth-001-cross-model-package-identity.v2":
@@ -217,7 +228,11 @@ def _check_configuration(contract: dict[str, Any], verification: dict[str, Any])
         "provider_config_sha256": PROVIDER_PATH,
     }
     for key, path in files.items():
-        if _hash_file(path, 32_000) != expected[key]:
+        try:
+            configured_sha256 = file_pin(CONFIG_FILE_PINS[key], PINS_PATH)
+        except CompatibilityPinError:
+            _fail("compatibility_pin_resource_unavailable")
+        if _hash_file(path, 32_000) != configured_sha256 or expected[key] != configured_sha256:
             _fail("package_configuration_mismatch")
     provider, _ = _document(PROVIDER_PATH)
     if provider.get("provider_id") != expected["provider_id"] or provider.get("model") != expected["model"]:
