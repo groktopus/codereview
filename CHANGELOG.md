@@ -16,6 +16,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Added
 
+- Record the accepted RC-2 retrieval design in ADR 0013: trusted requirements, immutable line-anchored evidence, deterministic admission and exact request accounting, with separate delivery and completion measurements. This is a design decision, not implementation or quality evidence; ADR 0012 and the stopped prior implementation remain historical.
+
 - Pin the artifact uploader's transitive `fast-xml-parser` dependency to patched version 5.12.0 for Dependabot alert #9. The installed-dependency smoke checks the resolved version and parses XML while retaining its no-network and no-upload guards.
 
 - VD-4 strict implementation typing ratchet: pinned mypy 1.15.0 checks all 42 source implementations plus the zero-debt checker/tests, preserving the strict boundary-stub checks. An explicit code/qualified-scope/AST-message fingerprint/count baseline inventories 1,072 existing errors and one existing suppression (907 identities); new/grown/stale debt fails. New modules are automatically checked; missing coverage, stub shadows, inline mypy directives, untyped/missing imports, changed tool/config identities, and new suppression debt fail closed. CI and an isolated Python 3.13 pre-commit hook run it; real mypy untyped/wrong-shape implementation probes verify rejection. No runtime source or dependency changes; historical debt and VD-4 remain open, and mypy 1.15 is not claimed to support a Python 3.14 host.
