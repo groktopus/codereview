@@ -22,21 +22,37 @@ FIXTURE_ID = "SYNTH-001"
 SEED = 457001
 EXPECTED_VISIBLE = ["contract.md", "caller.py", "base/auth.py", "head/auth.py"]
 EXPECTED_FILES = {"seed.json", "truth.json", "contract.md", "caller.py", "base/auth.py", "head/auth.py"}
-PINNED_TRUTH_SHA256 = "3453536603c7fb9d4c8f0dd24f36481cb5d51b1c6fbdb10b9a88bfe566bd9b5d"
-PINNED_HASHES = {
-    "seed.json": "604bf9fa0ebd44002a6950e657c935ef122f3a755a7a4478dc83765d1084d743",
-    "contract.md": "7465acc45428bfa7e8d433fac9bd853f44c51d4d0794a60355c16a887ac6b6b3",
-    "caller.py": "8e3208e4ed04b30281e9e464cef834382f71ef1b44a8b567a64fc8023e344552",
-    "base/auth.py": "5b6887e35b020d0a59133071f284114f61b41c4de753a8292f2b05969eeaa361",
-    "head/auth.py": "4117df17d8a7e46ecca375f671a0a24223c377ce085a378dafedc5e677d3a823",
-}
-PINNED_PAYLOAD_SHA256 = "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
 MAX_FILE_BYTES = 64_000
 SAFE_SHA = re.compile(r"^[0-9a-f]{40}$")
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = str(ROOT / "src")
+if SOURCE_ROOT not in sys.path:
+    sys.path.insert(0, SOURCE_ROOT)
+
+from pr_review_harness.compatibility_pins import CompatibilityPinError, pin  # noqa: E402
 
 
 class MaterializeError(ValueError):
     """The fixture or destination does not satisfy the pinned contract."""
+
+
+def _fixture_pin_values() -> tuple[str, dict[str, str], str]:
+    """Load frozen SYNTH-001 fixture identities on demand."""
+    try:
+        return (
+            pin("fixture.seeded_writer_synth_001.truth_sha256"),
+            {
+                "seed.json": pin("fixture.seeded_writer_synth_001.seed_sha256"),
+                "contract.md": pin("fixture.seeded_writer_synth_001.contract_sha256"),
+                "caller.py": pin("fixture.seeded_writer_synth_001.caller_sha256"),
+                "base/auth.py": pin("fixture.seeded_writer_synth_001.base_auth_sha256"),
+                "head/auth.py": pin("fixture.seeded_writer_synth_001.head_auth_sha256"),
+            },
+            pin("fixture.seeded_writer_synth_001.payload_sha256"),
+        )
+    except CompatibilityPinError:
+        raise MaterializeError("fixture_pin_resource_unavailable") from None
 
 
 def _read_regular(root: Path, relative: str) -> bytes:
@@ -108,16 +124,17 @@ def _json(raw: bytes) -> dict[str, Any]:
 
 
 def _validated_fixture(root: Path) -> tuple[dict[str, bytes], str]:
+    pinned_truth_sha256, pinned_hashes, pinned_payload_sha256 = _fixture_pin_values()
     files = _fixture_files(root)
     truth_raw = files["truth.json"]
-    if hashlib.sha256(truth_raw).hexdigest() != PINNED_TRUTH_SHA256:
+    if hashlib.sha256(truth_raw).hexdigest() != pinned_truth_sha256:
         raise MaterializeError("trusted_metadata_mismatch")
     truth = _json(truth_raw)
     if truth.get("fixture_id") != FIXTURE_ID or truth.get("model_input") is not False:
         raise MaterializeError("trusted_metadata_mismatch")
-    if truth.get("sha256") != PINNED_HASHES or truth.get("model_payload_sha256") != PINNED_PAYLOAD_SHA256:
+    if truth.get("sha256") != pinned_hashes or truth.get("model_payload_sha256") != pinned_payload_sha256:
         raise MaterializeError("trusted_metadata_mismatch")
-    for name, expected in PINNED_HASHES.items():
+    for name, expected in pinned_hashes.items():
         if hashlib.sha256(files[name]).hexdigest() != expected:
             raise MaterializeError("fixture_hash_mismatch")
     seed = _json(files["seed.json"])
@@ -133,7 +150,7 @@ def _validated_fixture(root: Path) -> tuple[dict[str, bytes], str]:
         {"fixture_id": FIXTURE_ID, "seed": SEED, "files": payload_files}, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     payload_sha = hashlib.sha256(payload).hexdigest()
-    if payload_sha != PINNED_PAYLOAD_SHA256:
+    if payload_sha != pinned_payload_sha256:
         raise MaterializeError("payload_identity_mismatch")
     return files, payload_sha
 

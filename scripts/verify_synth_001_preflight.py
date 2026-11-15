@@ -16,11 +16,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = str(ROOT / "src")
+if SOURCE_ROOT not in sys.path:
+    sys.path.insert(0, SOURCE_ROOT)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from materialize_seeded_writer_synth_001 import MaterializeError, _validated_fixture  # noqa: E402
 
+from pr_review_harness.compatibility_pins import CompatibilityPinError, pin  # noqa: E402
+
 FIXTURE_ID = "SYNTH-001"
-FIXTURE_PAYLOAD_SHA256 = "7aeae889a915e54aab796c84542529607e0cdd0f8035e3cb2cf5fde43eacb97f"
 BASE_SHA = "93f602c9ee0fff5f9ef11e0d476a2b40e6b005e1"
 HEAD_SHA = "810a92b13f7bd83f6e9c3fc55a71caea2bab86a0"
 CONFIG_HASHES = {
@@ -52,6 +57,19 @@ MAX_INPUT_BYTES = 256_000
 
 class VerifyError(ValueError):
     """A materialization or prepare receipt does not match the pinned plan."""
+
+
+def _fixture_payload_sha256() -> str:
+    try:
+        return pin("fixture.seeded_writer_synth_001.payload_sha256")
+    except CompatibilityPinError:
+        raise VerifyError("fixture_pin_resource_unavailable") from None
+
+
+def _read_materialization(path: Path) -> tuple[dict[str, Any], bytes, str]:
+    payload_sha256 = _fixture_payload_sha256()
+    materialization, raw = _document(path)
+    return materialization, raw, payload_sha256
 
 
 def _read(path: Path, limit: int = MAX_INPUT_BYTES) -> bytes:
@@ -179,12 +197,12 @@ def verify(
     source_root: Path,
     expected_python_identity: dict[str, str] = PYTHON_IDENTITY,
 ) -> dict[str, Any]:
-    materialization, _ = _document(materialization_path)
+    materialization, _, fixture_payload_sha256 = _read_materialization(materialization_path)
     expected_materialization = {
         "schema": "seeded-writer-materialization.v1",
         "fixture_id": FIXTURE_ID,
         "seed": "457001",
-        "payload_sha256": FIXTURE_PAYLOAD_SHA256,
+        "payload_sha256": fixture_payload_sha256,
         "base_sha": BASE_SHA,
         "head_sha": HEAD_SHA,
         "changed_path": "auth.py",
@@ -195,7 +213,7 @@ def verify(
         _, payload_sha = _validated_fixture(fixture_dir.resolve(strict=True))
     except (MaterializeError, OSError, RuntimeError):
         raise VerifyError("fixture_identity_mismatch") from None
-    if payload_sha != FIXTURE_PAYLOAD_SHA256:
+    if payload_sha != fixture_payload_sha256:
         raise VerifyError("fixture_identity_mismatch")
     _config_hash(profile_path, "profile")
     _config_hash(limits_path, "limits")
@@ -314,7 +332,7 @@ def verify(
         "schema": "synth-001-preflight-verification.v1",
         "result": "MATCHED_PROVIDER_FREE_PREPARE",
         "fixture_id": FIXTURE_ID,
-        "payload_sha256": FIXTURE_PAYLOAD_SHA256,
+        "payload_sha256": fixture_payload_sha256,
         "base_sha": BASE_SHA,
         "head_sha": HEAD_SHA,
         "changed_path": "auth.py",
