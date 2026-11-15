@@ -10,6 +10,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
+- Extend the VD-4 declaration annotation ratchet to maintained standalone `src/**/*.pyi` stubs while preserving the strict implementation typing scope for `src/**/*.py`. New untyped stubs fail the real checker CLI; the three existing source stubs have no missing declarations. The baseline policy records this scope change without changing its 3,634 historical gaps in 3,633 identities. This checks declarations rather than function-body typing and does not close VD-4.
+
 - Move the six active PR-457/PR-464 v3 shadow-plan and evidence identities into the canonical compatibility resource. Shared lazy case-policy accessors preserve plan bytes and receipts without import-time resource reads; the legacy finalizer remains frozen and rejects the committed policy before writing. Pin changes remain subject to the provenance-aware refresh procedure.
 
 - Revise the scoped complete RC-2 planning envelope from 2,400 to 3,100 additional source lines after measured draft growth and independent architectural reassessment. All retrieval roles, runtime caps, recovery and completion gates remain unchanged; identified draft correctness defects still block integration.

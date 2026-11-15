@@ -361,6 +361,59 @@ def test_cli_catches_untyped_declarations_in_every_noncore_root(tmp_path: Path, 
     )
 
 
+def test_cli_rejects_untyped_standalone_source_stub(tmp_path: Path) -> None:
+    prepare_synthetic_root(tmp_path)
+    accept_synthetic_baseline(tmp_path)
+    stub = tmp_path / "src/pr_review_harness/untyped_probe.pyi"
+    stub.write_text("def untyped_probe(value): ...\n", encoding="utf-8")
+    result = run_checker(tmp_path, "--json")
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    report = json.loads(result.stdout)
+    assert report["status"] == "FAIL"
+    assert any(
+        item["kind"] == "NEW_UNANNOTATED_DECLARATION" and item["path"] == "src/pr_review_harness/untyped_probe.pyi"
+        for item in report["findings"]
+    )
+
+
+def test_cli_accepts_typed_standalone_source_stub(tmp_path: Path) -> None:
+    prepare_synthetic_root(tmp_path)
+    accept_synthetic_baseline(tmp_path)
+    stub = tmp_path / "src/pr_review_harness/typed_probe.pyi"
+    stub.write_text("def typed_probe(value: int) -> str: ...\n", encoding="utf-8")
+    result = run_checker(tmp_path, "--json")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert json.loads(result.stdout)["status"] == "PASS"
+
+
+def test_existing_source_stubs_are_covered_by_the_real_cli() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--baseline",
+            "scripts/declaration-annotations-baseline.v1.json",
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+    report = json.loads(completed.stdout)
+    assert report["status"] == "PASS"
+    source_stubs = {path.relative_to(ROOT).as_posix() for path in (ROOT / "src").rglob("*.pyi")}
+    assert {
+        "src/pr_review_harness/typecheck_probe.pyi",
+        "src/pr_review_harness/typed_boundary_probe.pyi",
+        "src/pr_review_harness/typed_contracts.pyi",
+    } <= source_stubs
+    current, _missing, _file_count = guard.maintained_declarations(ROOT)
+    assert not any(path in source_stubs for path, _qualname, _signature in current)
+
+
 def test_baseline_rejects_duplicate_keys_and_overwrite(tmp_path: Path) -> None:
     prepare_synthetic_root(tmp_path)
     result = run_checker(tmp_path, "--write-candidate", "candidate.json", "--reason", "Synthetic test baseline reason")

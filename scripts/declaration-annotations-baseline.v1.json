@@ -36791,10 +36791,12 @@
     "roots": [
       "scripts",
       "experiments",
-      "tests"
+      "tests",
+      "src/**/*.pyi"
     ],
+    "source_stub_scope": "maintained src/**/*.pyi only; src/**/*.py implementations remain owned by strict implementation typing",
     "suppressions": "none; only reviewed historical baseline entries grandfather declarations"
   },
-  "review_reason": "Align constructor return allowance with pinned mypy 1.15 parameter annotation behavior",
+  "review_reason": "Extend to maintained source stubs while preserving existing debt entries",
   "schema": "pr-review-declaration-annotations-baseline.v1"
 }
