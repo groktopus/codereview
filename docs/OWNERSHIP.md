@@ -74,7 +74,7 @@ the default rule.
 
 ## Module map
 
-This table is the human-readable owner map for the 40 production modules in
+This table is the human-readable owner map for the 43 production modules in
 [`public-surface.json`](public-surface.json). The module names are the
 `production_modules` entries; the group must match the effective CODEOWNERS
 group for `src/pr_review_harness/<module>`. `scripts/check_ownership.py`
@@ -82,7 +82,7 @@ enforces the complete, duplicate-free partition and the effective group.
 
 | Group | Modules | Accountable owner |
 |---|---|---|
-| `core-review` | `__init__.py`, `__main__.py`, `budget.py`, `checks.py`, `claim_assessment.py`, `claim_reconciliation.py`, `claim_transport.py`, `cli.py`, `completeness.py`, `context_targets.py`, `contract_registry.py`, `contracts.py`, `cost.py`, `current_source_capture.py`, `dependency_context.py`, `engine.py`, `errors.py`, `evidence.py`, `github.py`, `metrics.py`, `planner.py`, `reconcile.py`, `recovery_inputs.py`, `report.py`, `retrieval_plan.py`, `review_stages.py`, `review_state.py`, `snapshot.py`, `source_audit.py`, `waiver.py` | `@magnus919` |
+| `core-review` | `__init__.py`, `__main__.py`, `budget.py`, `checks.py`, `claim_assessment.py`, `claim_reconciliation.py`, `claim_transport.py`, `cli.py`, `completeness.py`, `compatibility_pins.py`, `context_targets.py`, `contract_registry.py`, `contracts.py`, `cost.py`, `current_source_capture.py`, `dependency_context.py`, `engine.py`, `errors.py`, `evidence.py`, `github.py`, `metrics.py`, `planner.py`, `reconcile.py`, `recovery_inputs.py`, `report.py`, `retrieval_plan.py`, `review_stages.py`, `review_state.py`, `snapshot.py`, `source_audit.py`, `waiver.py` | `@magnus919` |
 | `publication-effects` | `actions_publication.py`, `actions_runtime.py`, `artifact_intake.py`, `external_effect_observer.py`, `protected_publication_runtime.py`, `publication_receipts.py`, `publisher.py` | `@magnus919` |
 | `security-credentials` | `github_actions_credentials.py`, `github_app_canary.py`, `github_app_credentials.py`, `private_capture.py`, `providers.py` | `@magnus919` |
 

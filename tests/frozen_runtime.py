@@ -8,6 +8,8 @@ import re
 import shutil
 from pathlib import Path
 
+from pr_review_harness.compatibility_pins import load_manifest
+
 ROOT = Path(__file__).resolve().parents[1]
 FROZEN_MODULE = Path(__file__).resolve().parent / "fixtures" / "selected_model_trial-pr170-base.py"
 FROZEN_ENGINE = Path(__file__).resolve().parent / "fixtures" / "engine-pr170-base.py"
@@ -43,7 +45,7 @@ FROZEN_GITHUB = Path(__file__).resolve().parent / "fixtures" / "github-pr214-bas
 FROZEN_POLICY_INVENTORY = Path(__file__).resolve().parent / "fixtures" / "policy_inventory-pr214-base.py"
 FROZEN_EVIDENCE = Path(__file__).resolve().parent / "fixtures" / "evidence-pr223-base.py"
 EXPECTED_MODULE_COUNT = 35
-PIN_MANIFEST = PINNED_RELOCATED / "pins.json"
+PIN_MANIFEST = ROOT / "src" / "pr_review_harness" / "compatibility-pins.v1.json"
 HISTORICAL_REVISION = "7d550b61825defec8a8a0625511c914ba8efd5cb"
 FILE_PIN_REFRESH_COMMAND = (
     "python scripts/refresh_compatibility_pins.py --reason '<reviewed reason>' "
@@ -52,19 +54,8 @@ FILE_PIN_REFRESH_COMMAND = (
 
 
 def _load_pins() -> dict[str, str]:
-    try:
-        manifest = json.loads(PIN_MANIFEST.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        raise AssertionError("historical compatibility pin manifest is unavailable or invalid") from None
-    if (
-        manifest.get("schema") != "pr-review-historical-pins.v1"
-        or manifest.get("historical_revision") != HISTORICAL_REVISION
-    ):
-        raise AssertionError("historical compatibility pin manifest schema or revision is invalid")
-    pins = manifest.get("pins")
-    if not isinstance(pins, dict):
-        raise AssertionError("historical compatibility pin manifest pins are invalid")
-    return pins
+    """Return the canonical immutable file-byte digest map."""
+    return load_manifest(PIN_MANIFEST)["file_pins"]
 
 
 def assert_frozen_runtime_pin(name: str, path: Path) -> None:
@@ -137,7 +128,7 @@ def _frozen_runtime_root_and_hashes(tmp_path: Path, *, verify: bool = True) -> t
     source_dir = ROOT / "src" / "pr_review_harness"
     module_names = _load_module_inventory()
     overlay_sources = {name: path for name, path, _pin in overlays}
-    manifest = json.loads(PIN_MANIFEST.read_text(encoding="utf-8"))
+    manifest = load_manifest(PIN_MANIFEST)
     for name in module_names:
         source = PINNED_RELOCATED / name
         if source.is_file():
@@ -166,7 +157,7 @@ def _frozen_runtime_root_and_hashes(tmp_path: Path, *, verify: bool = True) -> t
         if not source.is_file() or source.is_symlink():
             raise AssertionError("historical module inventory source is missing or unsafe")
         shutil.copyfile(source, module_dir / name)
-    manifest = json.loads(PIN_MANIFEST.read_text(encoding="utf-8"))
+    manifest = load_manifest(PIN_MANIFEST)
     for name, fixture, pin_name in overlays:
         assert_frozen_runtime_pin(pin_name, fixture)
         expected_path = manifest["pin_files"].get(pin_name)

@@ -24,7 +24,7 @@ REPORT_SCHEMA = "pr-review-expanded-lint-report.v1"
 RUFF_VERSION = "0.17.3"
 RULES = ("B", "SIM", "UP", "C4", "RUF", "ASYNC")
 CORE_RULES = ("E4", "E7", "E9", "F", "I")
-PIN_MANIFEST = "tests/fixtures/frozen-runtime-7d550b6/pins.json"
+PIN_MANIFEST = "src/pr_review_harness/compatibility-pins.v1.json"
 ROOTS = ("src", "scripts", "experiments", "tests")
 EXCLUSIONS = (
     "tests/fixtures/frozen-runtime-7d550b6/**",
@@ -48,8 +48,11 @@ KEY_FIELDS = ("path", "code", "scope", "fingerprint")
 
 def maintained_files(root: Path) -> list[Path]:
     """Do not inherit gitignore, Ruff ignores, or local virtual environments."""
-    manifest = json.loads((root / PIN_MANIFEST).read_text(encoding="utf-8"))
-    pins = {path: manifest["pins"][name] for name, path in manifest["pin_files"].items()}
+    sys.path.insert(0, str(root / "src"))
+    from pr_review_harness.compatibility_pins import load_manifest
+
+    manifest = load_manifest(root / PIN_MANIFEST)
+    pins = {path: manifest["file_pins"][name] for name, path in manifest["pin_files"].items()}
     for relative, digest in pins.items():
         path = root / relative
         if path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:

@@ -25,6 +25,8 @@
 /src/pr_review_harness/claim_transport.py @magnus919
 /src/pr_review_harness/cli.py @magnus919
 /src/pr_review_harness/completeness.py @magnus919
+/src/pr_review_harness/compatibility_pins.py @magnus919
+/src/pr_review_harness/compatibility-pins.v1.json @magnus919
 /src/pr_review_harness/context_targets.py @magnus919
 /src/pr_review_harness/contract_registry.py @magnus919
 /src/pr_review_harness/contracts.py @magnus919

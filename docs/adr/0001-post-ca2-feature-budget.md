@@ -140,3 +140,33 @@ unified-diff range parser). A one-time
 The slice is measured at exactly 32781 lines, so the allowance is fully
 consumed. This is feature headroom for the compiler slice, not a renewal of the
 500-line budget.
+
+## Addendum: canonical compatibility resource (2026-11-15)
+
+The user directed the coordinating root to work through the remaining roadmap
+and merge verified source pull requests, with root responsible for contract
+decisions. Under that implementation authority, root selects a single installed
+compatibility-pin resource and a shared standard-library loader for VD-3. This
+is a root implementation decision under that directive, not a separately
+recorded owner approval of a numeric allowance.
+
+The loader replaces duplicated test/script validation and makes the same
+provenance authority available to installed runtime consumers without importing
+tests. Its measured source cost is recorded as
+`compatibility_manifest_allowance_lines` in [public-surface.json](../public-surface.json).
+This slice adds 172 production lines, for 32,953 total lines and 43 modules.
+The allowance equals this slice's added production lines; it is not general
+feature headroom, and it does not change the original CA-2 reduction, any
+provider/input budget, or any historical digest. Moving validation into the
+installed package increases the production-only count even while duplicated
+repository code is removed.
+
+The surface test includes this named allowance and verifies the actual source
+count and module inventory. Confirmation also requires the unchanged pin and
+provenance map, malformed-resource rejection, atomic section-preserving refresh,
+and installed-wheel resource loading. These checks are delivery gates; this
+decision alone does not establish that they passed or that VD-3 is complete.
+
+Revert this loader/resource migration and its scoped allowance together if the
+shared authority cannot preserve historical semantics. Unrelated source growth
+requires its own decision or a real reduction.

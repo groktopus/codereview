@@ -22,12 +22,48 @@ SPEC.loader.exec_module(GUARD)
 BAD = "def seeded(items=[]):\n    return items\n"
 
 
+def write_canonical_manifest(manifest: Path, files: dict[str, Path]) -> None:
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema": "pr-review-compatibility-pins.v1",
+                "fixture_set": "test-fixture-set",
+                "value_manifest_description": "A synthetic test description retained for schema validation.",
+                "description": "synthetic canonical pins",
+                "historical_revision": "a" * 40,
+                "value_pins": {
+                    "fixture.test.sha256": {
+                        "value": "b" * 64,
+                        "kind": "test-fixture",
+                        "provenance": {
+                            "artifact": "tests/fixture.py",
+                            "source_revision": "a" * 40,
+                            "recorded_at": "2026-11-01",
+                            "reason": "Synthetic pin used to exercise the checker.",
+                        },
+                    }
+                },
+                "value_refresh_history": [],
+                "file_pins": {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in files.items()},
+                "pin_files": {name: path.relative_to(manifest.parents[2]).as_posix() for name, path in files.items()},
+                "pin_revisions": dict.fromkeys(files, "a" * 40),
+                "file_refresh_history": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def prepare(root: Path) -> Path:
     for name in GUARD.ROOTS:
         (root / name).mkdir()
     manifest = root / GUARD.PIN_MANIFEST
     manifest.parent.mkdir(parents=True)
-    manifest.write_text('{"pins": {}, "pin_files": {}}', encoding="utf-8")
+    frozen = root / "tests/fixtures/frozen-runtime-7d550b6/pinned.py"
+    frozen.parent.mkdir(parents=True)
+    frozen.write_text("# pinned fixture\n", encoding="utf-8")
+    write_canonical_manifest(manifest, {"frozen.py": frozen})
     path = root / "src/mod.py"
     path.write_text(BAD, encoding="utf-8")
     return path
@@ -112,13 +148,11 @@ def test_only_explicit_immutable_files_excluded(tmp_path: Path) -> None:
     base.write_text(BAD, encoding="utf-8")
     maintained = tmp_path / "tests/fixtures/maintained.py"
     maintained.write_text(BAD, encoding="utf-8")
-    manifest = {
-        "pin_files": {str(index): path.relative_to(tmp_path).as_posix() for index, path in enumerate((frozen, base))},
-        "pins": {
-            str(index): hashlib.sha256(path.read_bytes()).hexdigest() for index, path in enumerate((frozen, base))
-        },
-    }
-    (tmp_path / GUARD.PIN_MANIFEST).write_text(json.dumps(manifest), encoding="utf-8")
+    prepared = tmp_path / "tests/fixtures/frozen-runtime-7d550b6/pinned.py"
+    write_canonical_manifest(
+        tmp_path / GUARD.PIN_MANIFEST,
+        {str(index): path for index, path in enumerate((frozen, base, prepared))},
+    )
     files = {path.relative_to(tmp_path).as_posix() for path in GUARD.maintained_files(tmp_path)}
     assert files == {"src/mod.py", "tests/fixtures/maintained.py"}
     base.write_text("changed", encoding="utf-8")

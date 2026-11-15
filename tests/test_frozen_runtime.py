@@ -134,7 +134,7 @@ def test_modified_historical_module_bytes_are_rejected(tmp_path: Path):
 
 def test_manifest_pins_match_revision_source_bytes():
     manifest = json.loads(frozen_runtime.PIN_MANIFEST.read_text(encoding="utf-8"))
-    pins = manifest["pins"]
+    pins = manifest["file_pins"]
     files = manifest["pin_files"]
     revisions = manifest["pin_revisions"]
     for name, digest in pins.items():

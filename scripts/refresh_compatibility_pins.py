@@ -3,10 +3,10 @@
 
 Two manifests are supported:
 
-* File-byte pins (default): ``tests/fixtures/frozen-runtime-7d550b6/pins.json``.
+* File-byte pins (default): the installed canonical resource ``src/pr_review_harness/compatibility-pins.v1.json``.
   The tool recomputes the SHA-256 digest of every file listed in ``pin_files``
   and reports the changes it would make.
-* Named value pins (``--value-pins``): ``tests/compatibility-pins.v1.json``.
+* Named value pins (``--value-pins``): the same canonical resource.
   Value pins are semantic identities (module-tree, snapshot, plan, contract
   digests) that cannot be recomputed from a single tracked file, so the
   reviewed replacement value is supplied explicitly with ``--set``.
@@ -32,10 +32,11 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MANIFEST = Path("tests/fixtures/frozen-runtime-7d550b6/pins.json")
-DEFAULT_VALUE_MANIFEST = Path("tests/compatibility-pins.v1.json")
-SCHEMA = "pr-review-historical-pins.v1"
-VALUE_SCHEMA = "pr-review-compatibility-value-pins.v1"
+sys.path.insert(0, str(ROOT / "src"))
+DEFAULT_MANIFEST = Path("src/pr_review_harness/compatibility-pins.v1.json")
+DEFAULT_VALUE_MANIFEST = DEFAULT_MANIFEST
+SCHEMA = "pr-review-compatibility-pins.v1"
+VALUE_SCHEMA = SCHEMA
 REVISION_RE = re.compile(r"[0-9a-fA-F]{40}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 PIN_NAME_RE = re.compile(r"[a-z0-9]+(?:[._][a-z0-9]+)*")
@@ -77,88 +78,17 @@ def _sanitize(value: object, limit: int = MAX_REPORTED_TEXT) -> str:
 
 
 def _load_manifest(path: Path) -> dict[str, object]:
+    """Load the single canonical resource, rejecting duplicate JSON keys."""
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        raise PinRefreshError("manifest is unavailable or invalid") from None
-    if not isinstance(manifest, dict):
-        raise PinRefreshError("manifest root must be a JSON object")
-    if manifest.get("schema") != SCHEMA:
-        raise PinRefreshError("manifest schema is invalid")
-    revision = manifest.get("historical_revision")
-    if not isinstance(revision, str) or not REVISION_RE.fullmatch(revision):
-        raise PinRefreshError("manifest historical revision is invalid")
-    pin_files = manifest.get("pin_files")
-    pins = manifest.get("pins")
-    pin_revisions = manifest.get("pin_revisions")
-    history = manifest.get("refresh_history")
-    if not isinstance(pin_files, dict) or not pin_files:
-        raise PinRefreshError("manifest pin_files are invalid")
-    if not isinstance(pins, dict):
-        raise PinRefreshError("manifest pins are invalid")
-    if not isinstance(pin_revisions, dict):
-        raise PinRefreshError("manifest pin_revisions are invalid")
-    if not isinstance(history, list):
-        raise PinRefreshError("manifest refresh_history is invalid")
-    for name, relative in pin_files.items():
-        if not isinstance(name, str) or not name or not name.isprintable():
-            raise PinRefreshError("manifest pin name is invalid")
-        if not isinstance(relative, str) or not relative:
-            raise PinRefreshError("manifest pin path is invalid")
-        path = PurePosixPath(relative)
-        if path.is_absolute() or ".." in path.parts:
-            raise PinRefreshError("manifest pin path escapes the repository")
-        pinned = pins.get(name)
-        if pinned is not None and (not isinstance(pinned, str) or not SHA256_RE.fullmatch(pinned)):
-            raise PinRefreshError("manifest pin digest is invalid")
-        pinned_revision = pin_revisions.get(name)
-        if pinned_revision is not None and (
-            not isinstance(pinned_revision, str) or not REVISION_RE.fullmatch(pinned_revision)
-        ):
-            raise PinRefreshError("manifest pin revision is invalid")
-    return manifest
+        from pr_review_harness.compatibility_pins import load_manifest
+
+        return load_manifest(path)
+    except (OSError, ValueError, ImportError):
+        raise PinRefreshError("canonical compatibility pin manifest is unavailable or invalid") from None
 
 
 def _load_value_manifest(path: Path) -> dict[str, object]:
-    """Read and validate the named value-pin manifest."""
-    try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        raise PinRefreshError("value-pin manifest is unavailable or invalid") from None
-    if not isinstance(manifest, dict):
-        raise PinRefreshError("value-pin manifest root must be a JSON object")
-    if manifest.get("schema") != VALUE_SCHEMA:
-        raise PinRefreshError("value-pin manifest schema is invalid")
-    pins = manifest.get("pins")
-    if not isinstance(pins, dict) or not pins:
-        raise PinRefreshError("value-pin manifest pins are invalid")
-    history = manifest.get("refresh_history", [])
-    if not isinstance(history, list):
-        raise PinRefreshError("value-pin manifest refresh_history is invalid")
-    for name, entry in pins.items():
-        if not isinstance(name, str) or not PIN_NAME_RE.fullmatch(name):
-            raise PinRefreshError("value-pin name is invalid")
-        if not isinstance(entry, dict):
-            raise PinRefreshError(f"value pin {name!r} must be an object")
-        value = entry.get("value")
-        if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
-            raise PinRefreshError(f"value pin {name!r} digest is invalid")
-        if not isinstance(entry.get("kind"), str) or not entry["kind"]:
-            raise PinRefreshError(f"value pin {name!r} kind is missing")
-        provenance = entry.get("provenance")
-        if not isinstance(provenance, dict):
-            raise PinRefreshError(f"value pin {name!r} provenance is missing")
-        for field in PROVENANCE_FIELDS:
-            field_value = provenance.get(field)
-            if not isinstance(field_value, str) or not field_value.strip():
-                raise PinRefreshError(f"value pin {name!r} provenance.{field} is missing")
-        revision = provenance["source_revision"]
-        if not isinstance(revision, str) or not REVISION_RE.fullmatch(revision):
-            raise PinRefreshError(f"value pin {name!r} provenance.source_revision is invalid")
-        reason = provenance["reason"]
-        if not isinstance(reason, str) or len(reason.strip()) < MIN_REASON:
-            raise PinRefreshError(f"value pin {name!r} provenance.reason is too short")
-    return manifest
+    return _load_manifest(path)
 
 
 def _parse_value_assignments(raw_values: list[str]) -> dict[str, str]:
@@ -180,7 +110,7 @@ def _parse_value_assignments(raw_values: list[str]) -> dict[str, str]:
 
 
 def _plan_value_changes(manifest: dict[str, object], assignments: dict[str, str]) -> list[ValuePinChange]:
-    pins = manifest["pins"]
+    pins = manifest["value_pins"]
     assert isinstance(pins, dict)
     unknown = sorted(set(assignments) - set(pins))
     if unknown:
@@ -210,9 +140,9 @@ def _plan_value_changes(manifest: dict[str, object], assignments: dict[str, str]
 
 
 def _apply_value_changes(manifest: dict[str, object], changes: list[ValuePinChange], reason: str, revision: str) -> str:
-    pins = manifest["pins"]
+    pins = manifest["value_pins"]
     assert isinstance(pins, dict)
-    history = manifest.setdefault("refresh_history", [])
+    history = manifest["value_refresh_history"]
     assert isinstance(history, list)
     timestamp = _timestamp()
     for change in changes:
@@ -261,7 +191,7 @@ def _pin_target(root: Path, relative: str) -> tuple[Path, bool]:
 
 def _plan_changes(manifest: dict[str, object], root: Path) -> list[PinChange]:
     pin_files = manifest["pin_files"]
-    pins = manifest["pins"]
+    pins = manifest["file_pins"]
     assert isinstance(pin_files, dict) and isinstance(pins, dict)
     changes: list[PinChange] = []
     missing: list[str] = []
@@ -303,9 +233,9 @@ def _timestamp() -> str:
 
 
 def _apply_changes(manifest: dict[str, object], changes: list[PinChange], reason: str, revision: str) -> str:
-    pins = manifest["pins"]
+    pins = manifest["file_pins"]
     pin_revisions = manifest["pin_revisions"]
-    history = manifest["refresh_history"]
+    history = manifest["file_refresh_history"]
     assert isinstance(pins, dict) and isinstance(pin_revisions, dict) and isinstance(history, list)
     timestamp = _timestamp()
     for change in changes:
@@ -368,17 +298,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--reason", help=f"reviewed provenance for the refresh (at least {MIN_REASON} characters)")
     parser.add_argument("--source-revision", help="40-hex Git revision the refreshed pins come from")
     parser.add_argument(
-        "--manifest", type=Path, help=f"file-pin manifest path (default: {DEFAULT_MANIFEST.as_posix()})"
+        "--manifest", type=Path, help=f"canonical pin resource path (default: {DEFAULT_MANIFEST.as_posix()})"
     )
     parser.add_argument(
         "--value-pins",
         action="store_true",
-        help="refresh named value pins instead of frozen-runtime file pins",
+        help="refresh named value pins (default mode refreshes frozen-runtime file pins)",
     )
     parser.add_argument(
         "--value-manifest",
         type=Path,
-        help=f"value-pin manifest path (default: {DEFAULT_VALUE_MANIFEST.as_posix()})",
+        help=f"canonical resource path (default: {DEFAULT_VALUE_MANIFEST.as_posix()})",
     )
     parser.add_argument(
         "--set",
@@ -401,9 +331,9 @@ def main(argv: list[str] | None = None) -> int:
         reason, revision = _provenance(args.reason, args.source_revision)
         root = args.root.resolve()
         if args.value_pins:
-            if args.manifest is not None:
-                raise PinRefreshError("--manifest applies to file-byte pins; use --value-manifest with --value-pins")
-            manifest_path = args.value_manifest or DEFAULT_VALUE_MANIFEST
+            if args.manifest is not None and args.value_manifest is not None and args.manifest != args.value_manifest:
+                raise PinRefreshError("both modes must use the same canonical manifest path")
+            manifest_path = args.value_manifest or args.manifest or DEFAULT_VALUE_MANIFEST
             if not manifest_path.is_absolute():
                 manifest_path = root / manifest_path
             manifest = _load_value_manifest(manifest_path)
@@ -419,8 +349,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.values:
             raise PinRefreshError("--set requires --value-pins")
-        if args.value_manifest is not None:
-            raise PinRefreshError("--value-manifest requires --value-pins")
+        if args.value_manifest is not None and args.value_manifest != (args.manifest or DEFAULT_MANIFEST):
+            raise PinRefreshError("both modes must use the same canonical manifest path")
         manifest_path = args.manifest or DEFAULT_MANIFEST
         if not manifest_path.is_absolute():
             manifest_path = root / manifest_path

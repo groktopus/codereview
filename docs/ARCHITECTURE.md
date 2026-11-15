@@ -42,7 +42,7 @@ Production modules (`src/pr_review_harness/`, shipped in the wheel):
 
 | Group | Modules |
 |---|---|
-| Review path | `engine`, `review_stages`, `review_state`, `planner`, `budget`, `snapshot`, `evidence`, `checks`, `reconcile`, `report`, `completeness`, `providers`, `contracts`, `contract_registry`, `claim_assessment`, `claim_reconciliation`, `claim_transport`, `private_capture`, `context_targets`, `dependency_context`, `source_audit`, `current_source_capture`, `recovery_inputs`, `github` |
+| Review path | `engine`, `review_stages`, `review_state`, `planner`, `budget`, `snapshot`, `evidence`, `checks`, `reconcile`, `report`, `completeness`, `providers`, `contracts`, `contract_registry`, `compatibility_pins`, `claim_assessment`, `claim_reconciliation`, `claim_transport`, `private_capture`, `context_targets`, `dependency_context`, `source_audit`, `current_source_capture`, `recovery_inputs`, `github` |
 | CLI | `cli`, `__main__`, `__init__` |
 | Reusable instrumentation | `external_effect_observer` (out-of-process effect sampling used by trials and the CI self-check; not a review-path dependency) |
 | Guarded publication surface | `publisher`, `publication_receipts`, `protected_publication_runtime`, `actions_publication`, `actions_runtime` (official Actions artifact-upload bridge only), `artifact_intake`, `github_app_credentials`, `github_actions_credentials`, `github_app_canary` |
@@ -123,6 +123,14 @@ orchestrator, two are internal stages of it, and one is the guarded publication
 executor. The installed wheel contains no module from `experiments/`.
 
 ## Historical evidence
+
+The installed `compatibility_pins` support module loads the canonical
+`src/pr_review_harness/compatibility-pins.v1.json` package resource. Named
+semantic identities and historical file-byte identities share that resource,
+with separate provenance histories. Test helpers and repository checkers consume
+the same authority; the runtime never imports test fixtures. The loader performs
+no resource access at import time. Historical runtime/script inline identities
+still require migration before VD-3 can close.
 
 Relocating an inventory module must not change the archived runtime trees that
 evidence tests reconstruct. `tests/frozen_runtime.py` therefore reads each
