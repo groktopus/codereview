@@ -22,6 +22,8 @@ from sealed_source_record_integration import (  # noqa: E402
 )
 from source_record_decision import MAX_PAYLOAD_BYTES, SourceRecordTransport, SourceRecordTransportError  # noqa: E402
 
+from pr_review_harness import compatibility_pins  # noqa: E402
+
 MAX_CONFIG_BYTES = 16_000
 MAX_JEV_SECONDS = 90
 ADVISORY_SUMMARY_NAME = "source-record-jev-advisory-summary.json"
@@ -36,6 +38,19 @@ ARTIFACTS = {
     "source-auditor-response": "private/source-auditor.response.json",
     "source-audit-seal": "private/source-audit-seal.json",
 }
+CAPTURE_SNAPSHOT_PIN = "historical.pr464.capture_snapshot_sha256"
+
+
+def _capture_snapshot_pin_value() -> str:
+    """Resolve the fixed snapshot binding at each explicit validation use."""
+    try:
+        entries = compatibility_pins.pins()
+        value = entries[CAPTURE_SNAPSHOT_PIN]["value"]
+        if not isinstance(value, str):
+            raise KeyError(CAPTURE_SNAPSHOT_PIN)
+        return value
+    except (compatibility_pins.CompatibilityPinError, KeyError, TypeError):
+        raise SealedSourceIntegrationError("compatibility_pin_resource_unavailable") from None
 
 
 def _read_regular(path: Path, cap: int) -> bytes:
@@ -115,6 +130,7 @@ def _private_artifact_dir(path: Path) -> Path:
 def _sanitized_receipt(
     result: Mapping[str, Any],
     *,
+    capture_snapshot_sha256: str,
     jev_external_calls: int,
     jev_transport_invocations: int,
     jev_dispatch_state: str,
@@ -143,7 +159,7 @@ def _sanitized_receipt(
         "case_id": "PR-464",
         "subject_id_sha256": result.get("subject_id_sha256"),
         "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
-        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
+        "snapshot_sha256": capture_snapshot_sha256,
         "plan_sha256": result.get("plan_sha256"),
         "shadow_manifest_sha256": result.get("shadow_manifest_sha256"),
         "source_auditor_request_sha256": result.get("source_auditor_request_sha256"),
@@ -176,10 +192,11 @@ def _sanitized_receipt(
 
 def _private_advisory_summary(receipt: Mapping[str, Any], advisory_choice: Any) -> dict[str, Any]:
     """Project only bounded, hash-bound advisory state into a private summary."""
+    capture_snapshot_sha256 = _capture_snapshot_pin_value()
     if (
         receipt.get("case_id") != "PR-464"
         or receipt.get("snapshot_id") != "snap-e20deb18f2ac6cb39c6ebafd"
-        or receipt.get("snapshot_sha256") != "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868"
+        or receipt.get("snapshot_sha256") != capture_snapshot_sha256
     ):
         raise SealedSourceIntegrationError("advisory_summary_binding_invalid")
     plan_hash = receipt.get("plan_sha256")
@@ -307,6 +324,7 @@ def run_private_artifact_decision(
     write_advisory_summary: bool = False,
 ) -> dict[str, Any]:
     """Verify private source artifacts, make at most one Jev call, and write a hash-only receipt."""
+    capture_snapshot_sha256 = _capture_snapshot_pin_value()
     artifact_dir = _private_artifact_dir(artifact_dir)
     if (
         not isinstance(jev_config, Mapping)
@@ -361,6 +379,7 @@ def run_private_artifact_decision(
     )
     receipt = _sanitized_receipt(
         result,
+        capture_snapshot_sha256=capture_snapshot_sha256,
         jev_external_calls=len(external_calls),
         jev_transport_invocations=len(calls),
         jev_dispatch_state=dispatch_state[0],

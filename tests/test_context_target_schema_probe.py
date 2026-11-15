@@ -133,6 +133,27 @@ def test_probe_requests_differ_only_at_target_schema_and_fit_the_fixed_cap(monke
     assert hashlib.sha256(old_body).digest() != hashlib.sha256(new_body).digest()
 
 
+def test_probe_pin_resource_failure_precedes_runtime_or_provider_work(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pr_review_harness.compatibility_pins import CompatibilityPinError
+
+    def unavailable() -> None:
+        raise CompatibilityPinError("private resource detail")
+
+    monkeypatch.setattr(_PROBE.compatibility_pins, "pins", unavailable)
+    monkeypatch.setattr(_PROBE, "_require_runtime_context", lambda *_args: pytest.fail("runtime work must not run"))
+    monkeypatch.setattr(_PROBE, "_run_variant", lambda *_args, **_kwargs: pytest.fail("provider must not run"))
+    with pytest.raises(ValueError, match="probe_pin_resource_unavailable") as error:
+        _PROBE.run_probe(prepare_only=True)
+    assert "private resource detail" not in str(error.value)
+
+
+def test_historical_http_response_digest_remains_an_observation() -> None:
+    assert _PROBE.HISTORICAL_OLD_ERROR["status"] == 400
+    assert _PROBE.HISTORICAL_OLD_ERROR["response_bytes"] == 211
+    assert isinstance(_PROBE.HISTORICAL_OLD_ERROR["response_sha256"], str)
+    assert len(_PROBE.HISTORICAL_OLD_ERROR["response_sha256"]) == 64
+
+
 def test_probe_reads_real_provider_success_and_error_receipt_shapes_without_leaking_text(monkeypatch):
     provider = OpenAIProvider(
         {

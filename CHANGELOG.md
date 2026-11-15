@@ -10,6 +10,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
+- Move the clean-control fixture manifest, five context-target probe input/source identities, and sealed PR-464 snapshot/preflight identities to named compatibility pins. Existing names are reused where available; the two probe task/manifest values remain explicitly historical expectations because their original bytes are unavailable, while the archived provider source digest is checked against its immutable Git revision. The historical HTTP response digest remains an observed result. Lookups stay lazy and fail before preparation, receipt writes, or provider dispatch; the context probe retains its bounded `NOT_RUN` summary behavior.
+
 - Move the remaining SYNTH-001 preflight and package identities into the canonical compatibility resource through lazy accessors. Preserve frozen artifacts and require prevalidated named runtime-tree and identity pins before pending finalization; the finalizer never refreshes the resource. Existing finalizer frozen verification remains idempotent. Three obsolete declaration allowances are retired after the affected tests gained complete annotations.
 
 - Extend the VD-4 declaration annotation ratchet to maintained standalone `src/**/*.pyi` stubs while preserving the strict implementation typing scope for `src/**/*.py`. New untyped stubs fail the real checker CLI; the three existing source stubs have no missing declarations. The baseline policy records this scope change without changing its 3,634 historical gaps in 3,633 identities. This checks declarations rather than function-body typing and does not close VD-4.

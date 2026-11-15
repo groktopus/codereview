@@ -152,6 +152,36 @@
         "reason": "SHA-256 of the immutable SYNTH-001 truth metadata file used to authorize the seeded fixture contents."
       }
     },
+    "historical.pr305_context_target.legacy_provider_file_sha256": {
+      "value": "2044a9fed9fcbcab4846b842df3b725043f92ac37c85a05850976449de8ad4c8",
+      "kind": "historical-source-file",
+      "provenance": {
+        "artifact": "src/pr_review_harness/providers.py at b075e50db01154cbd996a5549afef62f065df2d9",
+        "source_revision": "b075e50db01154cbd996a5549afef62f065df2d9",
+        "recorded_at": "2026-10-07",
+        "reason": "SHA-256 independently matches git-show bytes for the archived provider source file at this exact immutable source revision."
+      }
+    },
+    "historical.pr305_context_target.manifest_sha256": {
+      "value": "6b342ead0b67b0ab9df1c100f249d12621d2d4894507dbc1ee82d1284c79f3e0",
+      "kind": "historical-expectation",
+      "provenance": {
+        "artifact": "scripts/run_context_target_schema_probe.py: MANIFEST_SHA256",
+        "source_revision": "816c3487b8ed5aaf608051400f08d48ca80e871a",
+        "recorded_at": "2026-10-07",
+        "reason": "Preserved expected manifest digest declared by the immutable probe controller source; original manifest bytes are not retained here and were not independently verified."
+      }
+    },
+    "historical.pr305_context_target.task_input_sha256": {
+      "value": "5e9d85b07e220c49103a13d2e20ef77e5e9c8da0f392e9db84b46260b9f94b73",
+      "kind": "historical-expectation",
+      "provenance": {
+        "artifact": "scripts/run_context_target_schema_probe.py: TASK_INPUT_SHA256",
+        "source_revision": "816c3487b8ed5aaf608051400f08d48ca80e871a",
+        "recorded_at": "2026-10-07",
+        "reason": "Preserved expected task-input digest declared by the immutable probe controller source; original task input bytes are not retained here and were not independently verified."
+      }
+    },
     "historical.pr457.snapshot_sha256": {
       "value": "2add038206680ba879a3f6fd214131c59c91c08ed24af18a052a121a5db4be87",
       "kind": "historical-snapshot",

@@ -11,27 +11,20 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from prepare_selected_pair_clean_control_trial import (  # noqa: E402
-    CASE_IDS,
-    CONTRACT,
-    PreparationError,
-    _assert_body_content,
-    _capture_primary_descriptors,
-    prepare_trial,
-)
+import prepare_selected_pair_clean_control_trial as preparation  # noqa: E402
 
 
 def test_three_case_plan_binds_prepare_only_requests_and_shared_policy(tmp_path):
-    result = prepare_trial(tmp_path / "prepared")
+    result = preparation.prepare_trial(tmp_path / "prepared")
     plan_path = Path(result["plan_path"])
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
 
     assert result["status"] == "PREPARED_PROVIDER_FREE"
     assert result["provider_calls"] == 0
-    assert plan["schema"] == CONTRACT
+    assert plan["schema"] == preparation.CONTRACT
     assert plan["execution"]["provider_calls"] == 0
     assert plan["execution"]["provider_dispatch"] == "NOT_RUN"
-    assert [row["case_id"] for row in plan["cases"]] == list(CASE_IDS)
+    assert [row["case_id"] for row in plan["cases"]] == list(preparation.CASE_IDS)
     assert {row["shared_policy_sha256"] for row in plan["cases"]} == {plan["shared_review_policy"]["sha256"]}
     assert {row["profile_sha256"] for row in plan["cases"]} == {plan["shared_review_policy"]["profile_sha256"]}
     assert {row["limits_sha256"] for row in plan["cases"]} == {plan["shared_review_policy"]["limits_sha256"]}
@@ -72,14 +65,27 @@ def test_three_case_plan_binds_prepare_only_requests_and_shared_policy(tmp_path)
         assert next(row for row in plan["cases"] if row["case_id"] == case_id)["snapshot_hash"]
 
 
+def test_missing_pin_resource_refuses_before_creating_output(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from pr_review_harness.compatibility_pins import CompatibilityPinError
+
+    def unavailable() -> None:
+        raise CompatibilityPinError("private resource detail")
+
+    monkeypatch.setattr(preparation.compatibility_pins, "pins", unavailable)
+    output = tmp_path / "not-created"
+    with pytest.raises(preparation.PreparationError, match="compatibility_pin_resource_unavailable"):
+        preparation.prepare_trial(output)
+    assert not output.exists()
+
+
 def test_request_descriptors_are_independent_of_temporary_paths(tmp_path):
-    first = prepare_trial(tmp_path / "first")
-    second = prepare_trial(tmp_path / "second")
+    first = preparation.prepare_trial(tmp_path / "first")
+    second = preparation.prepare_trial(tmp_path / "second")
     first_plan = json.loads(Path(first["plan_path"]).read_text(encoding="utf-8"))
     second_plan = json.loads(Path(second["plan_path"]).read_text(encoding="utf-8"))
 
-    assert [case["case_id"] for case in first_plan["cases"]] == list(CASE_IDS)
-    assert [case["case_id"] for case in second_plan["cases"]] == list(CASE_IDS)
+    assert [case["case_id"] for case in first_plan["cases"]] == list(preparation.CASE_IDS)
+    assert [case["case_id"] for case in second_plan["cases"]] == list(preparation.CASE_IDS)
     for first_case, second_case in zip(first_plan["cases"], second_plan["cases"], strict=True):
         assert first_case["primary_requests"] == second_case["primary_requests"]
         assert first_case["base_sha"] == second_case["base_sha"]
@@ -89,12 +95,12 @@ def test_request_descriptors_are_independent_of_temporary_paths(tmp_path):
 
 def test_descriptor_or_clean_body_mutation_is_rejected():
     body = b'{"messages":[{"role":"system","content":"review"},{"role":"user","content":"{}"}]}'
-    import prepare_selected_pair_clean_control_trial as preparation
-
     preparation._CAPTURED_BODIES["case"] = [body]
     descriptor = {"input_bytes": len(body), "input_sha256": hashlib.sha256(body).hexdigest(), "admitted": True}
-    with pytest.raises(PreparationError, match="serializer_descriptor_binding_mismatch"):
-        _capture_primary_descriptors("case", {"primary_requests": [{**descriptor, "input_sha256": "0" * 64}]})
+    with pytest.raises(preparation.PreparationError, match="serializer_descriptor_binding_mismatch"):
+        preparation._capture_primary_descriptors(
+            "case", {"primary_requests": [{**descriptor, "input_sha256": "0" * 64}]}
+        )
 
     clean_manifest = json.loads(
         (ROOT / "examples/evaluation/clean-review-control-v1/fixture.json").read_text(encoding="utf-8")
@@ -111,5 +117,5 @@ def test_descriptor_or_clean_body_mutation_is_rejected():
             ]
         }
     ).encode("utf-8")
-    with pytest.raises(PreparationError, match="clean_request_content_mismatch"):
-        _assert_body_content(CASE_IDS[2], [malformed], {}, clean_files)
+    with pytest.raises(preparation.PreparationError, match="clean_request_content_mismatch"):
+        preparation._assert_body_content(preparation.CASE_IDS[2], [malformed], {}, clean_files)

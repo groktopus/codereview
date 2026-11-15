@@ -42,7 +42,7 @@ from experiments.harness.selected_model_trial import (  # noqa: E402
     _write_json,
     trial_contract,
 )
-from pr_review_harness import cli, providers  # noqa: E402
+from pr_review_harness import cli, compatibility_pins, providers  # noqa: E402
 from pr_review_harness.claim_transport import ClaimTransport  # noqa: E402
 
 CONTRACT = "selected-pair-clean-control-trial.v1"
@@ -54,7 +54,7 @@ CASE_IDS = (
 SUITE_PATH = ROOT / "examples/injection/fixture-suite.v2.json"
 CLEAN_ROOT = ROOT / "examples/evaluation/clean-review-control-v1"
 CLEAN_MANIFEST_PATH = CLEAN_ROOT / "fixture.json"
-CLEAN_MANIFEST_SHA256 = "b0e5c4117026659f0c5045db117fb54ffdbdcc9c1eff9c89f58ae59087b12d91"
+CLEAN_MANIFEST_PIN = "fixture.clean_review_control_v1.manifest_sha256"
 DECISION_CLASSIFIER_REQUIRED_MODEL = "jev-1.13.0"
 DETECTOR_CALLS = 2
 DETECTOR_CALL_TIMEOUT_SECONDS = 20
@@ -75,6 +75,18 @@ IMPLEMENTATION_PATHS = (
 
 class PreparationError(ValueError):
     """A stable preparation failure without provider or fixture contents."""
+
+
+def _clean_fixture_pin_values() -> dict[str, str]:
+    """Resolve the named manifest identity only when fixture validation starts."""
+    try:
+        entries = compatibility_pins.pins()
+        value = entries[CLEAN_MANIFEST_PIN]["value"]
+        if not isinstance(value, str):
+            raise KeyError(CLEAN_MANIFEST_PIN)
+        return {CLEAN_MANIFEST_PIN: value}
+    except (compatibility_pins.CompatibilityPinError, KeyError, TypeError):
+        raise PreparationError("compatibility_pin_resource_unavailable") from None
 
 
 def _sha(raw: bytes) -> str:
@@ -102,14 +114,14 @@ def _git(repo: Path, *args: str, env: dict[str, str]) -> str:
     return result.stdout.strip()
 
 
-def _read_clean_fixture() -> tuple[dict[str, Any], dict[str, bytes]]:
+def _read_clean_fixture(pin_values: dict[str, str]) -> tuple[dict[str, Any], dict[str, bytes]]:
     try:
         manifest_raw = CLEAN_MANIFEST_PATH.read_bytes()
         manifest = json.loads(manifest_raw)
         files = {name: (CLEAN_ROOT / name).read_bytes() for name in manifest["file_hashes"]}
     except (OSError, KeyError, TypeError, json.JSONDecodeError):
         raise PreparationError("clean_fixture_unavailable") from None
-    if _sha(manifest_raw) != CLEAN_MANIFEST_SHA256:
+    if _sha(manifest_raw) != pin_values[CLEAN_MANIFEST_PIN]:
         raise PreparationError("clean_fixture_manifest_identity_mismatch")
     if {name: _sha(raw) for name, raw in files.items()} != manifest.get("file_hashes"):
         raise PreparationError("clean_fixture_source_identity_mismatch")
@@ -120,6 +132,11 @@ def _read_clean_fixture() -> tuple[dict[str, Any], dict[str, bytes]]:
     ):
         raise PreparationError("clean_fixture_oracle_invalid")
     return manifest, files
+
+
+def _trial_contract_and_pin_values(version: str) -> tuple[Any, dict[str, str]]:
+    """Resolve the fixture identity before creating any preparation output."""
+    return trial_contract(version), _clean_fixture_pin_values()
 
 
 def _materialize_clean_case(repo: Path, manifest: dict[str, Any], files: dict[str, bytes]) -> tuple[str, str]:
@@ -294,7 +311,7 @@ def _assert_body_content(
 def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> dict[str, Any]:
     """Build the three fixture requests and write a hash-only preparation plan."""
     global _ACTIVE_CASE
-    contract = trial_contract(version)
+    contract, pin_values = _trial_contract_and_pin_values(version)
     root = root.resolve(strict=True)
     output = output.resolve()
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
@@ -302,7 +319,7 @@ def prepare_trial(output: Path, *, root: Path = ROOT, version: str = "v1") -> di
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
     output.chmod(0o700)
     _CAPTURED_BODIES.clear()
-    manifest, clean_files = _read_clean_fixture()
+    manifest, clean_files = _read_clean_fixture(pin_values)
     revision = _current_revision(root)
     implementation_identity = _implementation_identity(root, version=contract.version)
     plan: dict[str, Any]

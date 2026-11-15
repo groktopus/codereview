@@ -266,7 +266,8 @@ def test_legacy_prepare_and_live_writer_keep_their_distinct_snapshot_pins():
     capture_hash = pin("historical.pr464.capture_snapshot_sha256")
     assert legacy["case"]["snapshot_sha256"] == historical_hash
     assert live["case"]["snapshot_sha256"] == capture_hash
-    assert historical_hash in (ROOT / "scripts" / "sanitize_model_only_shadow_preflight.py").read_text()
+    sanitizer_source = (ROOT / "scripts" / "sanitize_model_only_shadow_preflight.py").read_text()
+    assert 'CASE_SNAPSHOT_PIN = "historical.pr464.case_snapshot_sha256"' in sanitizer_source
     assert verify_model_only_shadow_live_preflight._case_contract("PR-464")["snapshot_sha256"] == capture_hash
 
 
@@ -372,3 +373,19 @@ def test_sanitizer_rejects_unreviewed_manifest_fields(tmp_path: Path):
     summary, manifest = _receipt_fixture(tmp_path, extra_manifest_key=True)
     with pytest.raises(sanitizer.ReceiptError, match="manifest_schema_invalid"):
         sanitizer.sanitize(summary, manifest, tmp_path / "sanitized")
+
+
+def test_sanitizer_pin_resource_failure_precedes_input_and_output_work(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from pr_review_harness.compatibility_pins import CompatibilityPinError
+
+    def unavailable() -> None:
+        raise CompatibilityPinError("private resource detail")
+
+    monkeypatch.setattr(sanitizer.compatibility_pins, "pins", unavailable)
+    output_dir = tmp_path / "not-created"
+    with pytest.raises(sanitizer.ReceiptError, match="compatibility_pin_resource_unavailable") as error:
+        sanitizer.sanitize(tmp_path / "missing-summary.json", tmp_path / "missing-manifest.json", output_dir)
+    assert "private resource detail" not in str(error.value)
+    assert not output_dir.exists()

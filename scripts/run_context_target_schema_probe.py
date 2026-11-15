@@ -23,23 +23,27 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from pr_review_harness import contracts
-from pr_review_harness.engine import _evidence_for, _hash, effective_task_input_ceiling, prepare_plan_tasks
-from pr_review_harness.planner import plan_review
-from pr_review_harness.providers import OpenAIProvider, ProviderError
-from pr_review_harness.snapshot import collect_snapshot
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from pr_review_harness import compatibility_pins, contracts  # noqa: E402
+from pr_review_harness.engine import _evidence_for, _hash, effective_task_input_ceiling, prepare_plan_tasks  # noqa: E402
+from pr_review_harness.planner import plan_review  # noqa: E402
+from pr_review_harness.providers import OpenAIProvider, ProviderError  # noqa: E402
+from pr_review_harness.snapshot import collect_snapshot  # noqa: E402
 
 REPOSITORY = "groktopus/codereview"
 TARGET_REPOSITORY = "magnus919/SlopSearX"
 BASE_SHA = "00accc58a42eaa470e12831498b572cab2483981"
 HEAD_SHA = "90165dd65be3595006171d7abef34a082c90a71d"
-PROFILE_SHA256 = "28725e806a87812386ff67f5c6e63320cc9f3f2b9c1a79c6942c7cf1be004dac"
-LIMITS_SHA256 = "ec191dcde1672b4f86aac24ee6412752cd9a08871d1aba1b332d11341b6fd2a6"
+PROFILE_PIN = "contract.slopsearx_v17.profile_sha256"
+LIMITS_PIN = "contract.ordinary_review_limits_v3.sha256"
 TASK_ID = "task-0151e9e9cad39a3b:chunk-1"
-TASK_INPUT_SHA256 = "5e9d85b07e220c49103a13d2e20ef77e5e9c8da0f392e9db84b46260b9f94b73"
-MANIFEST_SHA256 = "6b342ead0b67b0ab9df1c100f249d12621d2d4894507dbc1ee82d1284c79f3e0"
+TASK_INPUT_PIN = "historical.pr305_context_target.task_input_sha256"
+MANIFEST_PIN = "historical.pr305_context_target.manifest_sha256"
 LEGACY_PROVIDER_COMMIT = "b075e50db01154cbd996a5549afef62f065df2d9"
-LEGACY_PROVIDER_FILE_SHA256 = "2044a9fed9fcbcab4846b842df3b725043f92ac37c85a05850976449de8ad4c8"
+LEGACY_PROVIDER_FILE_PIN = "historical.pr305_context_target.legacy_provider_file_sha256"
 UNIT_IDS = [
     "unit-9ec6727d1355643feb4e",
     "unit-d857a6647fc0642fe459",
@@ -57,10 +61,24 @@ OUTPUT_NAME = "context-target-schema-probe-summary.json"
 PREPARATION_NAME = "context-target-schema-probe-preparation.json"
 
 
+def _context_probe_pin_values() -> dict[str, str]:
+    """Load all fixed probe identities at the start of an explicit probe use."""
+    names = (PROFILE_PIN, LIMITS_PIN, TASK_INPUT_PIN, MANIFEST_PIN, LEGACY_PROVIDER_FILE_PIN)
+    try:
+        entries = compatibility_pins.pins()
+        values = {name: entries[name]["value"] for name in names}
+        if any(not isinstance(value, str) for value in values.values()):
+            raise KeyError("invalid probe pin")
+        return values
+    except (compatibility_pins.CompatibilityPinError, KeyError, TypeError):
+        raise ValueError("probe_pin_resource_unavailable") from None
+
+
 def _legacy_request_from_archived_provider(
     root: Path, task: dict, evidence: list[dict], limits: dict, model: str
 ) -> bytes:
     """Run the actual archived provider implementation against the fresh task."""
+    pin_values = _context_probe_pin_values()
     provider_path = "src/pr_review_harness/providers.py"
     file_hash = subprocess.run(
         ["git", "-C", str(root), "show", f"{LEGACY_PROVIDER_COMMIT}:{provider_path}"],
@@ -68,7 +86,7 @@ def _legacy_request_from_archived_provider(
         timeout=20,
         check=True,
     ).stdout
-    if hashlib.sha256(file_hash).hexdigest() != LEGACY_PROVIDER_FILE_SHA256:
+    if hashlib.sha256(file_hash).hexdigest() != pin_values[LEGACY_PROVIDER_FILE_PIN]:
         raise ValueError("probe_legacy_provider_source_mismatch")
     with tempfile.TemporaryDirectory(prefix="context-target-legacy-provider-") as temp_name:
         temp = Path(temp_name)
@@ -213,7 +231,7 @@ def _run_variant(provider, *, system, user, schema, limits, body) -> dict:
         }
 
 
-def _require_runtime_context(prepare_only: bool = False) -> Path:
+def _require_runtime_context(prepare_only: bool = False, pin_values: dict[str, str] | None = None) -> Path:
     if not prepare_only and (
         os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
         or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY
@@ -221,10 +239,11 @@ def _require_runtime_context(prepare_only: bool = False) -> Path:
         or not re.fullmatch(r"[0-9a-f]{40}", os.environ.get("GITHUB_SHA", ""))
     ):
         raise ValueError("probe_dispatch_context_invalid")
-    root = Path(__file__).resolve().parents[1]
-    if hashlib.sha256((root / PROFILE_PATH).read_bytes()).hexdigest() != PROFILE_SHA256:
+    root = ROOT
+    pin_values = _context_probe_pin_values() if pin_values is None else pin_values
+    if hashlib.sha256((root / PROFILE_PATH).read_bytes()).hexdigest() != pin_values[PROFILE_PIN]:
         raise ValueError("probe_profile_hash_mismatch")
-    if hashlib.sha256((root / LIMITS_PATH).read_bytes()).hexdigest() != LIMITS_SHA256:
+    if hashlib.sha256((root / LIMITS_PATH).read_bytes()).hexdigest() != pin_values[LIMITS_PIN]:
         raise ValueError("probe_limits_hash_mismatch")
     source = Path(os.environ.get("TARGET_SOURCE_DIR", ""))
     if not source.is_dir():
@@ -330,7 +349,8 @@ def _offline_provider_config(limits: dict) -> dict:
 
 
 def run_probe(prepare_only: bool = False) -> dict:
-    root = _require_runtime_context(prepare_only)
+    pin_values = _context_probe_pin_values()
+    root = _require_runtime_context(prepare_only, pin_values)
     profile = json.loads((root / PROFILE_PATH).read_text(encoding="utf-8"))
     limits = json.loads((root / LIMITS_PATH).read_text(encoding="utf-8"))
     provider = OpenAIProvider(
@@ -372,8 +392,8 @@ def run_probe(prepare_only: bool = False) -> dict:
             "base_sha": BASE_SHA,
             "head_sha": HEAD_SHA,
             "snapshot_id": snapshot.get("snapshot_id"),
-            "profile_sha256": PROFILE_SHA256,
-            "limits_sha256": LIMITS_SHA256,
+            "profile_sha256": pin_values[PROFILE_PIN],
+            "limits_sha256": pin_values[LIMITS_PIN],
             "task_id": task.get("task_id"),
             "task_input_sha256": task_input_hash,
             "manifest_sha256": manifest.get("manifest_sha256"),
@@ -417,18 +437,18 @@ def run_probe(prepare_only: bool = False) -> dict:
         if re.fullmatch(r"[0-9a-f]{40}", os.environ.get("GITHUB_SHA", ""))
         else None,
         "snapshot_id": snapshot.get("snapshot_id"),
-        "profile_sha256": PROFILE_SHA256,
-        "limits_sha256": LIMITS_SHA256,
+        "profile_sha256": pin_values[PROFILE_PIN],
+        "limits_sha256": pin_values[LIMITS_PIN],
         "task_id": task.get("task_id"),
         "task_input_sha256": task_input_hash,
         "manifest_sha256": manifest.get("manifest_sha256"),
         "unit_ids": UNIT_IDS,
         "lens": TARGET_LENS,
         "historical_task_match": task.get("task_id") == TASK_ID,
-        "historical_manifest_match": manifest.get("manifest_sha256") == MANIFEST_SHA256,
-        "historical_task_input_match": task_input_hash == TASK_INPUT_SHA256,
+        "historical_manifest_match": manifest.get("manifest_sha256") == pin_values[MANIFEST_PIN],
+        "historical_task_input_match": task_input_hash == pin_values[TASK_INPUT_PIN],
         "legacy_provider_source_commit": LEGACY_PROVIDER_COMMIT,
-        "legacy_provider_file_sha256": LEGACY_PROVIDER_FILE_SHA256,
+        "legacy_provider_file_sha256": pin_values[LEGACY_PROVIDER_FILE_PIN],
         "retry_limit": 0,
         "provider_call_limit": 2,
         "request_diff_scope": "context_gap_proposals.items.properties.target only",
