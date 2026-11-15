@@ -796,6 +796,15 @@ def github_fault_history_response(failure, post_bodies, stored_reviews):
     return response(stored_reviews)
 
 
+def result_artifact_redirect_response(failure):
+    location = (
+        "https://untrusted.example.test/result?signature=one-use"
+        if failure == "artifact_redirect"
+        else "https://downloads.example.test/result?signature=one-use"
+    )
+    return HTTPResponse(302, {"location": location}, b"")
+
+
 def assert_github_fault_acceptance(
     failure, outcome, transport, uploader, post_bodies, receipt_archives, stored_reviews
 ):
@@ -953,17 +962,7 @@ def test_stateless_publication_end_to_end_admits_bundle_persists_receipt_then_po
         if path.endswith("/pulls/44/reviews") and method == "GET":
             return github_fault_history_response(failure, post_bodies, stored_reviews)
         if path.endswith("/actions/artifacts/123/zip"):
-            return HTTPResponse(
-                302,
-                {
-                    "location": (
-                        "https://untrusted.example.test/result?signature=one-use"
-                        if failure == "artifact_redirect"
-                        else "https://downloads.example.test/result?signature=one-use"
-                    )
-                },
-                b"",
-            )
+            return result_artifact_redirect_response(failure)
         if path.endswith("/actions/artifacts/991/zip"):
             return HTTPResponse(
                 302,
