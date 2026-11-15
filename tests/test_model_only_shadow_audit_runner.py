@@ -130,11 +130,11 @@ def _candidate_free_receipt(
 
 @pytest.fixture(autouse=True)
 def trusted_profile_file(tmp_path, monkeypatch):
-    path = tmp_path / RUNNER.PROFILE_RELATIVE_PATH
+    path = tmp_path / RUNNER.profile_relative_path()
     path.parent.mkdir(parents=True)
     path.write_bytes(_PROFILE_BYTES)
     monkeypatch.setattr(RUNNER, "ROOT", tmp_path)
-    policy = {**RUNNER.CASE_POLICY["PR-464"], "profile_sha256": _PROFILE_FILE_SHA256}
+    policy = {**RUNNER.policy_for_case("PR-464"), "profile_sha256": _PROFILE_FILE_SHA256}
     monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-464", policy))
     monkeypatch.setattr(RUNNER, "validate_plan_binding", lambda _plan, _raw: ("PR-464", policy))
 
@@ -172,7 +172,7 @@ def _plan(task_ids: list[str], *, budget: dict | None = None) -> dict:
             "profile_version": CASE_IDENTITY["profile_version"],
             "profile_file_sha256": _PROFILE_FILE_SHA256,
         },
-        "prepare_contract": {"profile_path": RUNNER.PROFILE_RELATIVE_PATH},
+        "prepare_contract": {"profile_path": RUNNER.profile_relative_path()},
         "writer_requests": [{"task_id": task_id} for task_id in task_ids],
     }
 
@@ -203,9 +203,9 @@ def _capture(root: Path, packets: list[dict], *, manifest_case_id: str = "writer
 
 
 def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
-    assert RUNNER.DEFAULT_PLAN == REPO_ROOT / "experiments/model-only-shadow-live-pr464-plan-v3.json"
+    assert RUNNER.default_plan_path() == Path(RUNNER.ROOT) / "experiments/model-only-shadow-live-pr464-plan-v3.json"
     assert RUNNER.DEFAULT_LIMITS == REPO_ROOT / "experiments/model-only-shadow-audit-limits-v2.json"
-    plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
+    plan_path = REPO_ROOT / RUNNER.policy_for_case("PR-457")["plan_relative_path"]
     plan_raw = plan_path.read_bytes()
     plan = json.loads(plan_raw)
     case_id, policy = POLICY_PATH_RESOLVER(plan_path, REPO_ROOT)
@@ -217,7 +217,7 @@ def test_default_plan_stays_pr464_and_pr457_plan_selects_its_frozen_profile():
 
 
 def test_current_pr457_plan_accepts_current_audit_limits():
-    plan_path = REPO_ROOT / RUNNER.CASE_POLICY["PR-457"]["plan_relative_path"]
+    plan_path = REPO_ROOT / RUNNER.policy_for_case("PR-457")["plan_relative_path"]
     plan, _ = RUNNER._read_json(plan_path, 256_000)
     plan_budget = RUNNER._plan_budget(plan)
     limits = RUNNER._load_limits(REPO_ROOT / "experiments/model-only-shadow-audit-limits-v3.json")
@@ -239,7 +239,7 @@ def test_pr457_v3_audit_limit_admits_measured_source_request_with_headroom():
 
 
 def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, monkeypatch):
-    policy = RUNNER.CASE_POLICY["PR-457"]
+    policy = RUNNER.policy_for_case("PR-457")
     monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-457", policy))
     receipt_path = tmp_path / "receipt" / "failure.json"
     with pytest.raises(RUNNER.PreDispatchFailure) as error:
@@ -257,6 +257,49 @@ def test_pr457_audit_failure_receipt_keeps_the_selected_case_identity(tmp_path, 
     output = tmp_path / "sanitized"
     SANITIZER.sanitize(receipt_path, output)
     assert json.loads((output / "shadow-audit-receipt.json").read_text())["case_id"] == "PR-457"
+
+
+def test_missing_canonical_pins_keep_known_pr457_failure_receipt_identity(tmp_path, monkeypatch):
+    from pr_review_harness.compatibility_pins import CompatibilityPinError
+
+    def unavailable():
+        raise CompatibilityPinError("do not expose resource contents")
+
+    monkeypatch.setattr(RUNNER.policy_for_case.__globals__["compatibility_pins"], "load_manifest", unavailable)
+    monkeypatch.setattr(RUNNER, "ROOT", REPO_ROOT)
+    monkeypatch.setattr(RUNNER, "case_for_plan_path", POLICY_PATH_RESOLVER)
+    receipt_path = tmp_path / "receipt" / "failure.json"
+    plan_path = REPO_ROOT / "experiments/model-only-shadow-live-pr457-plan-v3.json"
+    with pytest.raises(RUNNER.PreDispatchFailure) as error:
+        RUNNER.run(
+            tmp_path / "missing-capture",
+            tmp_path / "provider.json",
+            tmp_path / "jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            plan_path,
+        )
+    assert error.value.code == "compatibility_pins_unavailable"
+    assert json.loads(receipt_path.read_text())["case_id"] == "PR-457"
+    assert not (tmp_path / "raw-audit").exists()
+
+
+def test_unknown_plan_path_does_not_create_a_misattributed_failure_receipt(tmp_path, monkeypatch):
+    receipt_path = tmp_path / "receipt" / "failure.json"
+    monkeypatch.setattr(RUNNER, "ROOT", REPO_ROOT)
+    monkeypatch.setattr(RUNNER, "case_for_plan_path", POLICY_PATH_RESOLVER)
+    with pytest.raises(ValueError) as error:
+        RUNNER.run(
+            tmp_path / "missing-capture",
+            tmp_path / "provider.json",
+            tmp_path / "jev.json",
+            tmp_path / "raw-audit",
+            receipt_path,
+            plan_path=tmp_path / "unknown-plan.json",
+        )
+    assert type(error.value) is ValueError
+    assert str(error.value) == "audit_plan_path_invalid"
+    assert not receipt_path.exists()
 
 
 def test_packet_inventory_detects_missing_packet_from_multi_candidate_task(tmp_path):
@@ -1359,7 +1402,7 @@ def _write_audit_configs(tmp_path: Path, *, with_jev: bool) -> tuple[Path, Path 
 
 
 def _bind_pr457_runner(monkeypatch, audit_rows: dict[str, bytes]) -> None:
-    policy = {**RUNNER.CASE_POLICY["PR-464"], "profile_sha256": _PROFILE_FILE_SHA256}
+    policy = {**RUNNER.policy_for_case("PR-464"), "profile_sha256": _PROFILE_FILE_SHA256}
     monkeypatch.setattr(RUNNER, "case_for_plan_path", lambda _path, _root: ("PR-457", policy))
     monkeypatch.setattr(RUNNER, "validate_plan_binding", lambda _plan, _raw: ("PR-457", policy))
     monkeypatch.setattr(

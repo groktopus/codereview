@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import hashlib
+import importlib
 import json
 import re
 import subprocess
@@ -87,6 +89,82 @@ def test_manifest_loads_named_pins_with_provenance():
 def test_unknown_pin_fails_closed_with_the_available_names():
     with pytest.raises(compatibility_pins.CompatibilityPinError, match="unknown compatibility pin"):
         compatibility_pins.pin("compatibility.not_a_real_pin")
+
+
+@pytest.mark.compatibility
+def test_shadow_v3_policy_matches_named_pins_and_frozen_manifest_bytes():
+    from scripts import shadow_case_policy
+
+    policies = shadow_case_policy.case_policies()
+    expected_keys = {
+        ("PR-457", "plan_sha256"): "runtime.model_only_shadow_live_pr457.plan_sha256",
+        ("PR-464", "plan_sha256"): "runtime.model_only_shadow_live_pr464.plan_sha256",
+        ("PR-464", "evidence_index_sha256"): "runtime.model_only_shadow_live_pr464.evidence_index_sha256",
+        ("PR-464", "profile_sha256"): "runtime.model_only_shadow_live_pr464.profile_file_sha256",
+        ("PR-464", "historical_checks_sha256"): "runtime.model_only_shadow_live_pr464.historical_checks_sha256",
+        ("PR-464", "check_evidence_sha256"): "runtime.model_only_shadow_live_pr464.check_evidence_sha256",
+    }
+    assert policies["PR-457"]["plan_sha256"] == compatibility_pins.pin(
+        "runtime.model_only_shadow_live_pr457.plan_sha256"
+    )
+    assert policies["PR-464"]["plan_sha256"] == compatibility_pins.pin(
+        "runtime.model_only_shadow_live_pr464.plan_sha256"
+    )
+    assert policies["PR-464"]["evidence_index_sha256"] == compatibility_pins.pin(
+        "runtime.model_only_shadow_live_pr464.evidence_index_sha256"
+    )
+    assert policies["PR-464"]["profile_sha256"] == compatibility_pins.pin(
+        "runtime.model_only_shadow_live_pr464.profile_file_sha256"
+    )
+    assert policies["PR-464"]["historical_checks_sha256"] == compatibility_pins.pin(
+        "runtime.model_only_shadow_live_pr464.historical_checks_sha256"
+    )
+    assert policies["PR-464"]["check_evidence_sha256"] == compatibility_pins.pin(
+        "runtime.model_only_shadow_live_pr464.check_evidence_sha256"
+    )
+    for (case_id, field), name in expected_keys.items():
+        assert policies[case_id][field] == compatibility_pins.pin(name)
+
+    resource_entries = compatibility_pins.pins()
+    for name in expected_keys.values():
+        provenance = resource_entries[name]["provenance"]
+        assert provenance["source_revision"] == "44028bca81a0d779b8b74379527b496141b77321"
+        assert provenance["recorded_at"] == "2026-09-29"
+        assert provenance["artifact"].startswith(("examples/evaluation/", "experiments/"))
+        assert len(provenance["reason"]) >= MIN_EXCEPTION_REASON
+
+    for case_id in ("PR-457", "PR-464"):
+        plan_path = ROOT / policies[case_id]["plan_relative_path"]
+        manifest_path = ROOT / f"examples/evaluation/model-only-shadow-pr{case_id[3:]}-v3/manifest.json"
+        plan_raw = plan_path.read_bytes()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        policy = policies[case_id]
+        assert hashlib.sha256(plan_raw).hexdigest() == policy["plan_sha256"]
+        assert manifest["plan_sha256"] == policy["plan_sha256"]
+        assert manifest["snapshot_sha256"] == policy["snapshot_sha256"]
+        assert manifest["profile_sha256"] == policy["profile_sha256"]
+        assert manifest["evidence_index_sha256"] == policy["evidence_index_sha256"]
+        assert manifest["historical_checks_sha256"] == policy["historical_checks_sha256"]
+        assert manifest["check_evidence_sha256"] == policy["check_evidence_sha256"]
+    assert policies["PR-464"]["snapshot_sha256"] == compatibility_pins.pin("historical.pr464.capture_snapshot_sha256")
+
+    policies["PR-464"]["plan_sha256"] = "altered local copy"
+    assert shadow_case_policy.case_policies()["PR-464"]["plan_sha256"] == compatibility_pins.pin(
+        "runtime.model_only_shadow_live_pr464.plan_sha256"
+    )
+
+
+def test_shadow_policy_import_does_not_read_manifest(monkeypatch: pytest.MonkeyPatch):
+    from scripts import shadow_case_policy
+
+    def unavailable():
+        raise compatibility_pins.CompatibilityPinError("private resource detail")
+
+    monkeypatch.setattr(shadow_case_policy.compatibility_pins, "load_manifest", unavailable)
+    reloaded = importlib.reload(shadow_case_policy)
+    with pytest.raises(ValueError, match="shadow_policy_unavailable") as error:
+        reloaded.case_policies()
+    assert "private resource detail" not in str(error.value)
 
 
 def test_every_manifest_pin_is_referenced_by_a_test():
@@ -302,6 +380,12 @@ def test_canonical_resource_preserves_both_pre_migration_manifests():
         "fixture.seeded_writer_synth_001.base_auth_sha256",
         "fixture.seeded_writer_synth_001.head_auth_sha256",
         "fixture.seeded_writer_synth_001.payload_sha256",
+        "runtime.model_only_shadow_live_pr457.plan_sha256",
+        "runtime.model_only_shadow_live_pr464.plan_sha256",
+        "runtime.model_only_shadow_live_pr464.evidence_index_sha256",
+        "runtime.model_only_shadow_live_pr464.profile_file_sha256",
+        "runtime.model_only_shadow_live_pr464.historical_checks_sha256",
+        "runtime.model_only_shadow_live_pr464.check_evidence_sha256",
     }
     assert canonical["value_refresh_history"] == previous_values.get("refresh_history", [])
     assert canonical["file_pins"] == previous_files["pins"]

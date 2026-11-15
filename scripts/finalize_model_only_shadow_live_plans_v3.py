@@ -13,12 +13,19 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
+    sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
+from shadow_case_policy import policy_for_case  # noqa: E402
+
 SOURCE_DIR = ROOT / "src/pr_review_harness"
 POLICY_PATH = ROOT / "scripts/shadow_case_policy.py"
 VERIFIER_PATH = ROOT / "scripts/verify_model_only_shadow_live_preflight.py"
@@ -36,13 +43,7 @@ CASES: dict[str, dict[str, Any]] = {
         "request_total": 469539,
         "request_max": 118490,
         "audit_cap": 120000,
-        "snapshot_id": "snap-24293f430e4f8006a52bac18",
-        "snapshot_sha256": "14bd673c2c77ffc59875c957c095b32e262d534fb581f3ec38aaf94898a19fea",
-        "evidence_index_sha256": "10badb5f0c9325e55aa093788cfe6d2d45eaf8e66aef6c207a2dddc8a6bace95",
         "profile_version": "slopsearx-realcase-eval-v2-pr457-context240-window16k",
-        "profile_sha256": "c3b5f82b0d2d38e3173f836a06af1b39afd8b47b81609caab5bae0e842435918",
-        "historical_checks_sha256": "187bb52d825d1fa08872e4ef0b278fd0e6d9257721a459a6b6890ea8230a5977",
-        "check_evidence_sha256": "7daee7f1c2e89a49c37cda4b5b204d636cf6219720df436c300d778f9fab3311",
         "scope_obligations": 14,
     },
     "PR-464": {
@@ -56,13 +57,7 @@ CASES: dict[str, dict[str, Any]] = {
         "request_total": 893359,
         "request_max": 96462,
         "audit_cap": 96000,
-        "snapshot_id": "snap-e20deb18f2ac6cb39c6ebafd",
-        "snapshot_sha256": "e45e9327fcb1ad37d6c37155fb40499f3179fc8dfd73d16a8d261f3a18691868",
-        "evidence_index_sha256": "0b75fca3258bd3d75ed3d260467ec130f639f2afc59519e5f603f4d4a176e30c",
         "profile_version": "slopsearx-realcase-eval-v2-pr464-context240-window16k",
-        "profile_sha256": "66e65ad3eec3e9311ff9df820ec4eba85baea236a1d56256781475455c6e0ea8",
-        "historical_checks_sha256": "7198ac6bf02d3887fb065205e4ffbd48d435657027d4d5fa73168bdc900c359f",
-        "check_evidence_sha256": "7187d1097d94930be5b3faf1a584cd409ecaae3f9f33789bfd6df78f5a451e7b",
         "scope_obligations": 22,
     },
 }
@@ -175,6 +170,10 @@ def _plan(
     case_id: str, prepared: dict[str, Any], source_revision: str, module_count: int, module_tree: str
 ) -> dict[str, Any]:
     case = CASES[case_id]
+    try:
+        policy = policy_for_case(case_id)
+    except ValueError as exc:
+        raise FinalizeError(str(exc)) from None
     if (
         prepared.get("command") != "review"
         or prepared.get("status") != "PREPARED_ONLY"
@@ -196,17 +195,17 @@ def _plan(
         "head_sha": "595f143607961d21d162efe76518d86e416d2548"
         if case_id == "PR-457"
         else "bffc26f9e4bf95aca0c252e88a2396d03ece854c",
-        "snapshot_id": case["snapshot_id"],
-        "snapshot_hash": case["snapshot_sha256"],
-        "evidence_index_sha256": case["evidence_index_sha256"],
+        "snapshot_id": policy["snapshot_id"],
+        "snapshot_hash": policy["snapshot_sha256"],
+        "evidence_index_sha256": policy["evidence_index_sha256"],
         "profile_version": case["profile_version"],
-        "profile_file_sha256": case["profile_sha256"],
+        "profile_file_sha256": policy["profile_sha256"],
     }
     if any(snapshot.get(key) != value for key, value in expected_snapshot.items()):
         raise FinalizeError("prepare_snapshot_mismatch")
     if (
-        checks.get("historical_check_identity", {}).get("check_document_sha256") != case["historical_checks_sha256"]
-        or checks.get("check_evidence_hash") != case["check_evidence_sha256"]
+        checks.get("historical_check_identity", {}).get("check_document_sha256") != policy["historical_checks_sha256"]
+        or checks.get("check_evidence_hash") != policy["check_evidence_sha256"]
         or len(scope.get("coverage_obligations", [])) != case["scope_obligations"]
     ):
         raise FinalizeError("prepare_case_evidence_mismatch")
@@ -265,13 +264,13 @@ def _plan(
         "repository": "magnus919/SlopSearX",
         "base_sha": expected_snapshot["base_sha"],
         "head_sha": expected_snapshot["head_sha"],
-        "snapshot_id": case["snapshot_id"],
-        "snapshot_sha256": case["snapshot_sha256"],
-        "evidence_index_sha256": case["evidence_index_sha256"],
+        "snapshot_id": policy["snapshot_id"],
+        "snapshot_sha256": policy["snapshot_sha256"],
+        "evidence_index_sha256": policy["evidence_index_sha256"],
         "profile_version": case["profile_version"],
-        "profile_file_sha256": case["profile_sha256"],
-        "historical_checks_sha256": case["historical_checks_sha256"],
-        "check_evidence_sha256": case["check_evidence_sha256"],
+        "profile_file_sha256": policy["profile_sha256"],
+        "historical_checks_sha256": policy["historical_checks_sha256"],
+        "check_evidence_sha256": policy["check_evidence_sha256"],
         "scope_obligations": case["scope_obligations"],
     }
     budget = {
@@ -355,7 +354,7 @@ def finalize(prepared_paths: dict[str, Path], *, revision: str) -> dict[str, Any
     verifier = VERIFIER_PATH.read_text(encoding="utf-8")
     for case_id in ("PR-457", "PR-464"):
         sha = plan_results[case_id][2]
-        marker = f'"{case_id}": {{\n        "plan_relative_path": "{CASES[case_id]["plan"].replace("/", "/")}"'
+        marker = f'"{case_id}": {{'
         # Update the first placeholder after this case's active plan path.
         start = policy.find(marker)
         if start < 0:

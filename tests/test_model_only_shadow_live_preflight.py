@@ -105,7 +105,7 @@ def test_exact_preflight_matches_ten_pinned_writer_requests_without_dispatch(fro
         "status": "PLAN_MATCHED_PROVIDER_FREE",
         "case_id": "PR-464",
         "snapshot_sha256": pin("historical.pr464.capture_snapshot_sha256"),
-        "plan_sha256": preflight.EXPECTED_PLAN_SHA256["PR-464"],
+        "plan_sha256": preflight.policy_for_case("PR-464")["plan_sha256"],
         "writer_calls_planned": 10,
         "writer_request_bytes_total": 893359,
         "writer_request_bytes_max": 96462,
@@ -124,7 +124,7 @@ def test_exact_preflight_matches_six_pr457_writer_requests_without_dispatch(froz
         "status": "PLAN_MATCHED_PROVIDER_FREE",
         "case_id": "PR-457",
         "snapshot_sha256": plan["case"]["snapshot_sha256"],
-        "plan_sha256": preflight.EXPECTED_PLAN_SHA256["PR-457"],
+        "plan_sha256": preflight.policy_for_case("PR-457")["plan_sha256"],
         "writer_calls_planned": 6,
         "writer_request_bytes_total": 469539,
         "writer_request_bytes_max": 118490,
@@ -175,6 +175,12 @@ def test_over_budget_plan_and_dispatch_state_are_rejected(frozen_preflight_root:
     with pytest.raises(preflight.PreflightError, match="plan_hash_mismatch"):
         preflight.verify(bad_plan, _prepared(plan), plan_bytes=bad_raw)
 
+    unknown_case_plan = copy.deepcopy(plan)
+    unknown_case_plan["case"]["case_id"] = "PR-999"
+    unknown_case_raw = json.dumps(unknown_case_plan, sort_keys=True).encode("utf-8")
+    with pytest.raises(preflight.PreflightError, match="plan_hash_mismatch"):
+        preflight.verify(unknown_case_plan, _prepared(plan), plan_bytes=unknown_case_raw)
+
 
 def test_injection_text_in_untrusted_preparation_metadata_is_not_returned(
     frozen_preflight_root: Path,
@@ -224,6 +230,29 @@ def test_current_module_tree_cannot_substitute_for_the_historical_pin():
     plan, raw = _plan()
     with pytest.raises(preflight.PreflightError, match="runtime_module_tree_mismatch"):
         preflight.verify(plan, _prepared(plan), plan_bytes=raw)
+
+
+def test_preflight_entrypoint_reports_unavailable_pins_without_writing_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    from pr_review_harness.compatibility_pins import CompatibilityPinError
+    from scripts import shadow_case_policy
+
+    plan, _raw = _plan()
+    plan_path = tmp_path / "plan.json"
+    prepared_path = tmp_path / "prepared.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    prepared_path.write_text(json.dumps(_prepared(plan)), encoding="utf-8")
+
+    def unavailable():
+        raise CompatibilityPinError("do not expose resource contents")
+
+    monkeypatch.setattr(shadow_case_policy.compatibility_pins, "load_manifest", unavailable)
+    assert preflight.main(["--plan", str(plan_path), "--prepared", str(prepared_path)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err) == {"ok": False, "error_code": "compatibility_pins_unavailable"}
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["plan.json", "prepared.json"]
 
 
 def test_tampered_historical_fixture_module_fails_the_pinned_tree_check(
