@@ -109,3 +109,50 @@ def test_v3_plan_finalizer_rejects_dispatch_and_over_cap_source_prepares():
     prepared["capacity"]["source_audit_preflight"]["requests"][0]["input_bytes"] = 120_001
     with pytest.raises(finalizer.FinalizeError, match="source_audit_request_invalid"):
         finalizer._plan("PR-457", prepared, "a" * 40, 35, "b" * 64)
+
+
+def test_frozen_finalizer_rejects_current_policy_before_writing_anything(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    prepared_paths = {}
+    for case_id in ("PR-457", "PR-464"):
+        path = tmp_path / f"{case_id}.json"
+        path.write_text(json.dumps(_prepared(case_id)), encoding="utf-8")
+        prepared_paths[case_id] = path
+
+    isolated_root = tmp_path / "isolated-repository"
+    isolated_scripts = isolated_root / "scripts"
+    isolated_experiments = isolated_root / "experiments"
+    isolated_scripts.mkdir(parents=True)
+    isolated_experiments.mkdir()
+    policy_path = isolated_scripts / "shadow_case_policy.py"
+    verifier_path = isolated_scripts / "verify_model_only_shadow_live_preflight.py"
+    limits_path = isolated_experiments / "model-only-shadow-live-writer-limits-v1.json"
+    provider_path = isolated_experiments / "model-only-shadow-live-writer-provider-v1.json"
+    policy_path.write_bytes(finalizer.POLICY_PATH.read_bytes())
+    verifier_path.write_bytes(finalizer.VERIFIER_PATH.read_bytes())
+    limits_path.write_bytes(finalizer.LIMITS_PATH.read_bytes())
+    provider_path.write_bytes(finalizer.PROVIDER_PATH.read_bytes())
+
+    monkeypatch.setattr(finalizer, "ROOT", isolated_root)
+    monkeypatch.setattr(finalizer, "POLICY_PATH", policy_path)
+    monkeypatch.setattr(finalizer, "VERIFIER_PATH", verifier_path)
+    monkeypatch.setattr(finalizer, "LIMITS_PATH", limits_path)
+    monkeypatch.setattr(finalizer, "PROVIDER_PATH", provider_path)
+    monkeypatch.setattr(finalizer, "_source_identity", lambda _revision: (35, "b" * 64))
+
+    outputs = [policy_path, verifier_path]
+    for case in finalizer.CASES.values():
+        outputs.extend(isolated_root / case[key] for key in ("plan", "corpus", "manifest"))
+    outputs.extend(
+        isolated_root / f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v3-evidence.json"
+        for case_id in ("PR-457", "PR-464")
+    )
+    before_exists = {path: path.exists() for path in outputs}
+    before = {path: path.read_bytes() for path in outputs if path.exists()}
+
+    with pytest.raises(finalizer.FinalizeError, match="case_policy_pin_placeholder_missing"):
+        finalizer.finalize(prepared_paths, revision="a" * 40)
+
+    assert {path: path.read_bytes() for path in outputs if path.exists()} == before
+    assert {path: path.exists() for path in outputs} == before_exists

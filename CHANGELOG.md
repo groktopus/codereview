@@ -10,6 +10,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
+- Move the six active PR-457/PR-464 v3 shadow-plan and evidence identities into the canonical compatibility resource. Shared lazy case-policy accessors preserve plan bytes and receipts without import-time resource reads; the legacy finalizer remains frozen and rejects the committed policy before writing. Pin changes remain subject to the provenance-aware refresh procedure.
+
 - Move the seven SYNTH-001 fixture identities shared by the materializer and preflight verifier into the canonical compatibility resource. Explicit accessors preserve the original digests and fixture bytes without reading the resource at import time; standalone script invocation remains supported.
 
 - Exercise untrusted artifact redirects through the stateless publication boundary, asserting `UNKNOWN`, the stable rejection reason, and zero review posts, receipt writes, or artifact downloads. The generated fault matrix records those assertions, and the signed-download test now observes real fake-transport calls. Mutation evidence summaries retain their measured scope and remaining gaps.
