@@ -832,7 +832,9 @@ def _run_with_native_claim_choices(
                 "endpoint": f"http://127.0.0.1:{server.server_port}/v1/systemone",
                 "api_key_env": "CLAIM_ENGINE_TEST_KEY",
                 "model": "jev-latest",
-                "timeout_seconds": 2,
+                # Allow spawned-worker startup/import overhead; no retries. The
+                # engine's hard 8-second dispatch cap remains authoritative.
+                "timeout_seconds": 10,
                 "max_request_bytes": 64_000,
                 "max_response_bytes": 64_000,
             }
