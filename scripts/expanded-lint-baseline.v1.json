@@ -33,7 +33,7 @@
     ],
     "immutable_pin_manifest": "src/pr_review_harness/compatibility-pins.v1.json"
   },
-  "review_reason": "Retire the cleaned current-source capture B007 unused-loop-binding allowance; preserve all remaining findings without new debt",
+  "review_reason": "SYNTH001 lazy pin migration removes an obsolete import suppression and uses capture_output in the subprocess test helper; retire exactly two stale identities",
   "entries": [
     {
       "path": "experiments/harness/actions_canary.py",
@@ -975,13 +975,6 @@
     },
     {
       "path": "scripts/verify_release_artifacts.py",
-      "code": "RUF100",
-      "scope": "<module>",
-      "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
-      "count": 1
-    },
-    {
-      "path": "scripts/verify_synth_001_preflight.py",
       "code": "RUF100",
       "scope": "<module>",
       "fingerprint": "80457ba5e74ace711a725b730a7cb6e30f285ca2dfb02fc4ecb52a85c2bd75da",
@@ -3505,13 +3498,6 @@
       "code": "UP022",
       "scope": "_git",
       "fingerprint": "a2ec6b48d24cd39df5ae139726dd5d3395216362f92c6c116eafcb38fa155278",
-      "count": 1
-    },
-    {
-      "path": "tests/test_seeded_writer_synth_001_materializer.py",
-      "code": "UP022",
-      "scope": "_run",
-      "fingerprint": "ccf82c56c01cc883b542342e3826479324b23b876030c31cd7efd2c88b2122d2",
       "count": 1
     },
     {

@@ -111,14 +111,18 @@ measured with `find src -name '*.py' -exec wc -l {} + | tail -1`.
 | After OE-2 cost model | 40 | 30,870 |
 | After VD-4 canonical formatting | 40 | 31,725 |
 | After bounded evidence waiver (ADR 0011) | 41 | 32,434 |
-| Delta vs base | −7 | −8,252 (−20.28%) |
+| Delta at bounded-waiver checkpoint | −7 | −8,252 (−20.28%) |
+| After compatibility runtime consumers (PR #385) | 43 | 32,989 |
 
-CA-2's 25% outcome was measured at merge. A documented 500-line post-CA-2
-feature budget, a one-time 855-line VD-4 formatter allowance, and a separate
-one-time 565-line bounded-waiver feature allowance (see
-[ADR 0001](adr/0001-post-ca2-feature-budget.md) and
-[ADR 0011](adr/0011-bounded-evidence-waiver.md)) keep new features from silently
-erasing it; the current effective ceiling is 32,434 lines and none remains. The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
+CA-2's 25% outcome was measured at merge. The original feature budget and
+subsequent scoped allowances are recorded in
+[ADR 0001](adr/0001-post-ca2-feature-budget.md),
+[ADR 0011](adr/0011-bounded-evidence-waiver.md), and the machine-readable
+[public surface](public-surface.json). After PR #385, the measured source and
+effective ceiling are both 32,989 lines; no general feature headroom remains.
+The SYNTH-001 script-pin migration adds resource entries but no installed Python
+source lines. These measurements do not revise the historical CA-2 result.
+The `def run_` count in `src/` fell from 11 to 4; of those four, one is the review
 orchestrator, two are internal stages of it, and one is the guarded publication
 executor. The installed wheel contains no module from `experiments/`.
 
@@ -129,8 +133,9 @@ The installed `compatibility_pins` support module loads the canonical
 semantic identities and historical file-byte identities share that resource,
 with separate provenance histories. Test helpers and repository checkers consume
 the same authority; the runtime never imports test fixtures. The loader performs
-no resource access at import time. Historical runtime/script inline identities
-still require migration before VD-3 can close.
+no resource access at import time. Current-source capture, CLI shadow policies,
+and the SYNTH-001 materializer/preflight verifier use explicit accessors. Other
+script-family inline identities still require migration before VD-3 can close.
 
 Relocating an inventory module must not change the archived runtime trees that
 evidence tests reconstruct. `tests/frozen_runtime.py` therefore reads each
