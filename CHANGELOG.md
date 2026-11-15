@@ -10,6 +10,7 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
+- Revise the scoped complete RC-2 planning envelope from 2,400 to 3,100 additional source lines after measured draft growth and independent architectural reassessment. All retrieval roles, runtime caps, recovery and completion gates remain unchanged; identified draft correctness defects still block integration.
 - Move the seven SYNTH-001 fixture identities shared by the materializer and preflight verifier into the canonical compatibility resource. Explicit accessors preserve the original digests and fixture bytes without reading the resource at import time; standalone script invocation remains supported.
 
 - Exercise untrusted artifact redirects through the stateless publication boundary, asserting `UNKNOWN`, the stable rejection reason, and zero review posts, receipt writes, or artifact downloads. The generated fault matrix records those assertions, and the signed-download test now observes real fake-transport calls. Mutation evidence summaries retain their measured scope and remaining gaps.
