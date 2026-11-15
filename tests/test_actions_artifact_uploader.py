@@ -46,11 +46,17 @@ syncBuiltinESMExports();
     guard.write_text(network_guard)
     runner = r"""
 import assert from 'node:assert/strict';
-import {lstatSync} from 'node:fs';
+import {lstatSync, readFileSync} from 'node:fs';
 import {DefaultArtifactClient} from '@actions/artifact';
+import {XMLParser} from 'fast-xml-parser';
 import utils from 'archiver-utils';
 import {createZipUploadStream} from './node_modules/@actions/artifact/lib/internal/upload/zip.js';
 const root = process.argv[1];
+// Guard the transitive Azure XML parser at the first fixed upstream release.
+const parserVersion = JSON.parse(readFileSync('./node_modules/fast-xml-parser/package.json', 'utf8')).version;
+const [parserMajor, parserMinor, parserPatch] = parserVersion.split('.').map(Number);
+assert.ok(parserMajor > 5 || (parserMajor === 5 && (parserMinor > 12 || (parserMinor === 12 && parserPatch >= 0))));
+assert.deepEqual(new XMLParser().parse('<root><value>ok</value></root>'), {root: {value: 'ok'}});
 const matches = utils.file.expand({cwd: root, nodir: true}, ['*.{json,txt}', '!*.txt', '!excluded.json']);
 assert.deepEqual(matches, ['receipt.json']);
 const client = new DefaultArtifactClient();
