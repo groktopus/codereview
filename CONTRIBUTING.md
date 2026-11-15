@@ -87,7 +87,9 @@ are B 96, SIM 133, UP 123, C4 56, RUF 140, ASYNC 0. This is an inventory,
 **not a cleanup claim or permanent approval of unsafe code**. Prior diagnostics
 from older Ruff releases or scans including frozen fixtures are not this baseline.
 New checker/tests have zero expanded-rule debt. The canonical-pin migration retires
-one C420 allowance; its reviewed baseline contains 546 findings. The original
+one C420 allowance; that reviewed baseline contains 546 findings. The subsequent
+installed runtime-pin migration retires one B007 finding, leaving 545 findings
+in 528 identities. The original
 initial-capture counts above remain historical.
 
 Scan roots are `src`, `scripts`, `experiments`, and `tests` (including `.pyi`).
@@ -162,6 +164,12 @@ New errors, per-identity count growth, and stale/renamed/removed debt fail. New
 implementation modules are automatically included and must have zero debt; a
 missing inventoried module or a `.pyi` shadowing an implementation fails closed.
 The checker/test implementations cannot acquire baseline allowances.
+
+The installed runtime-pin migration retires six CLI diagnostics, leaving 1,067
+existing diagnostics in 901 identities, including the existing suppression.
+Two `_run_one` signature-debt fingerprints change because their containing
+function body changes; all seven corresponding diagnostics retain their prior
+counts and the signature is unchanged. The reviewed candidate adds no debt.
 
 All source implementations are passed explicitly. Imported experiment/tooling
 modules are followed for types with `follow_imports=silent`, but diagnostics in

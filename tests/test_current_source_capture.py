@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,10 +12,10 @@ import pytest
 import pr_review_harness.current_source_capture as capture
 from pr_review_harness.current_source_capture import (
     LIMITS,
-    TARGET,
     TASK_LENSES,
     CurrentSourceCaptureError,
     _canonical,
+    _current_source_target,
     create_plan,
     installed_module_inventory,
     validate_plan,
@@ -41,6 +44,7 @@ def _request(task_id: str, index: int) -> dict:
 
 
 def _prepared() -> dict:
+    target = _current_source_target()
     requests = [_request(task_id, index) for index, task_id in enumerate(TASK_LENSES)]
     source_rows = [
         {
@@ -65,11 +69,11 @@ def _prepared() -> dict:
     ]
     coverage_obligations = [
         {"obligation_id": f"other:{index}"}
-        for index in range(TARGET["scope_obligations"] - len(capture.CHECK_BINDINGS))
+        for index in range(target["scope_obligations"] - len(capture.CHECK_BINDINGS))
     ]
     evidence_index = []
     check_results = {}
-    for obligation_id, (check_id, binding_id) in capture.CHECK_BINDINGS.items():
+    for obligation_id, (_check_id, binding_id) in capture.CHECK_BINDINGS.items():
         evidence_hash = hashlib.sha256(f"evidence:{binding_id}".encode()).hexdigest()
         evidence_id = "check-" + evidence_hash[:24]
         evidence_index.append(
@@ -92,7 +96,7 @@ def _prepared() -> dict:
         )
         task_id = (
             "task-"
-            + hashlib.sha256(_canonical({"snapshot": TARGET["snapshot_id"], "obligation": obligation_id})).hexdigest()[
+            + hashlib.sha256(_canonical({"snapshot": target["snapshot_id"], "obligation": obligation_id})).hexdigest()[
                 :16
             ]
         )
@@ -114,19 +118,19 @@ def _prepared() -> dict:
         "no_provider_calls": True,
         "no_target_code_execution": True,
         "snapshot": {
-            "base_sha": TARGET["base_sha"],
-            "head_sha": TARGET["head_sha"],
-            "snapshot_id": TARGET["snapshot_id"],
-            "snapshot_hash": TARGET["snapshot_sha256"],
-            "evidence_index_sha256": TARGET["evidence_index_sha256"],
-            "profile_version": TARGET["profile_version"],
-            "profile_file_sha256": TARGET["profile_file_sha256"],
+            "base_sha": target["base_sha"],
+            "head_sha": target["head_sha"],
+            "snapshot_id": target["snapshot_id"],
+            "snapshot_hash": target["snapshot_sha256"],
+            "evidence_index_sha256": target["evidence_index_sha256"],
+            "profile_version": target["profile_version"],
+            "profile_file_sha256": target["profile_file_sha256"],
             "provider_identity_sha256": "a" * 64,
             "evidence_index": evidence_index,
         },
         "checks": {
-            "check_evidence_hash": TARGET["check_evidence_sha256"],
-            "historical_check_identity": {"check_document_sha256": TARGET["historical_checks_sha256"]},
+            "check_evidence_hash": target["check_evidence_sha256"],
+            "historical_check_identity": {"check_document_sha256": target["historical_checks_sha256"]},
             "check_results": check_results,
         },
         "scope": {"coverage_obligations": coverage_obligations, "planned_task_scopes": check_descriptors},
@@ -154,6 +158,53 @@ def _plan(prepared: dict | None = None):
     return create_plan(prepared, source_sha="1" * 40, module_inventory=installed_module_inventory(), prepared_raw=raw)
 
 
+@pytest.mark.compatibility
+def test_current_source_target_reads_named_values_and_preserves_contract_shape():
+    from pr_review_harness.compatibility_pins import pin
+
+    target = _current_source_target()
+
+    assert set(target) == {
+        "case_id",
+        "repository",
+        "base_sha",
+        "head_sha",
+        "snapshot_id",
+        "snapshot_sha256",
+        "evidence_index_sha256",
+        "profile_version",
+        "profile_file_sha256",
+        "historical_checks_sha256",
+        "check_evidence_sha256",
+        "scope_obligations",
+    }
+    assert target["snapshot_sha256"] == pin("runtime.current_source_pr457.snapshot_sha256")
+    assert target["evidence_index_sha256"] == pin("runtime.current_source_pr457.evidence_index_sha256")
+    assert target["profile_file_sha256"] == pin("runtime.current_source_pr457.profile_file_sha256")
+    assert target["historical_checks_sha256"] == pin("runtime.current_source_pr457.historical_checks_sha256")
+    assert target["check_evidence_sha256"] == pin("runtime.current_source_pr457.check_evidence_sha256")
+
+
+def test_runtime_modules_import_without_reading_the_pin_resource():
+    source_root = Path(__file__).resolve().parents[1] / "src"
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join([str(source_root), environment.get("PYTHONPATH", "")]).rstrip(
+        os.pathsep
+    )
+    program = """
+import importlib.resources
+
+def fail_if_resource_is_read(*_args, **_kwargs):
+    raise AssertionError("pin resource read during module import")
+
+importlib.resources.files = fail_if_resource_is_read
+import pr_review_harness.current_source_capture
+import pr_review_harness.cli
+"""
+
+    subprocess.run([sys.executable, "-c", program], check=True, env=environment, capture_output=True, text=True)
+
+
 def test_current_source_plan_binds_fixed_target_runtime_requests_and_receipt():
     plan, receipt = _plan()
     pins, snapshot = validate_plan(
@@ -164,10 +215,16 @@ def test_current_source_plan_binds_fixed_target_runtime_requests_and_receipt():
     )
     assert len(pins) == 6
     assert len(snapshot["deterministic_check_tasks"]) == 2
+    inventory = installed_module_inventory()
+    pin_resource = Path(capture.__file__).resolve().parent / "compatibility-pins.v1.json"
+    assert (
+        inventory["pr_review_harness/compatibility-pins.v1.json"]
+        == hashlib.sha256(pin_resource.read_bytes()).hexdigest()
+    )
     assert {key: value for key, value in snapshot.items() if key != "deterministic_check_tasks"} == {
         "case_id": "PR-457",
-        "snapshot_id": TARGET["snapshot_id"],
-        "snapshot_sha256": TARGET["snapshot_sha256"],
+        "snapshot_id": _current_source_target()["snapshot_id"],
+        "snapshot_sha256": _current_source_target()["snapshot_sha256"],
         "audit_max_input_bytes_per_call": LIMITS["audit_max_input_bytes_per_call"],
         "source_audit_serializer": capture.SOURCE_AUDIT_SERIALIZER,
         "provider_identity_sha256": "a" * 64,

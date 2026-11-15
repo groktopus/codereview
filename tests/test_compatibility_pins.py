@@ -288,7 +288,14 @@ def test_canonical_resource_preserves_both_pre_migration_manifests():
     assert canonical["fixture_set"] == previous_files["fixture_set"]
     assert canonical["value_manifest_description"] == previous_values["description"]
     assert canonical["historical_revision"] == previous_files["historical_revision"]
-    assert canonical["value_pins"] == previous_values["pins"]
+    assert all(canonical["value_pins"].get(name) == entry for name, entry in previous_values["pins"].items())
+    assert set(canonical["value_pins"]) == set(previous_values["pins"]) | {
+        "runtime.current_source_pr457.snapshot_sha256",
+        "runtime.current_source_pr457.evidence_index_sha256",
+        "runtime.current_source_pr457.profile_file_sha256",
+        "runtime.current_source_pr457.historical_checks_sha256",
+        "runtime.current_source_pr457.check_evidence_sha256",
+    }
     assert canonical["value_refresh_history"] == previous_values.get("refresh_history", [])
     assert canonical["file_pins"] == previous_files["pins"]
     assert canonical["pin_files"] == previous_files["pin_files"]

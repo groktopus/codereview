@@ -962,13 +962,6 @@
     {
       "code": "arg-type",
       "count": 1,
-      "fingerprint": "f5b49d53183e0a5d8a3f621d625b1f95349ec37e96f2babf1fbc15de1636ae62",
-      "path": "src/pr_review_harness/cli.py",
-      "qualname": "_load_private_shadow_pins"
-    },
-    {
-      "code": "arg-type",
-      "count": 1,
       "fingerprint": "1fe7686e4263ffd1687a91f3f724efe386ed14e02cbf88d37c2df5ebd6cd5a2c",
       "path": "src/pr_review_harness/cli.py",
       "qualname": "_run_one"
@@ -1063,13 +1056,6 @@
       "fingerprint": "8c6ff4b606300c330dad3d293181d762fe0caa00da089984c1180e9af48e86f7",
       "path": "src/pr_review_harness/cli.py",
       "qualname": "_event_file_input"
-    },
-    {
-      "code": "no-redef",
-      "count": 1,
-      "fingerprint": "81ebe1b7634dd69766690259c32742169df08c1b43738a723129a1be410e8379",
-      "path": "src/pr_review_harness/cli.py",
-      "qualname": "_load_private_shadow_pins"
     },
     {
       "code": "no-untyped-def",
@@ -1179,7 +1165,7 @@
     {
       "code": "no-untyped-def",
       "count": 1,
-      "fingerprint": "8e68abf16a410c3c4b40c5fef3658eac8b3497ec90e9f09ac294888bc014fedb",
+      "fingerprint": "63309062c373d9c94a7d6363e13ebfc207f55eb2358a9acc743a344dccaec18e",
       "path": "src/pr_review_harness/cli.py",
       "qualname": "_run_one"
     },
@@ -1203,20 +1189,6 @@
       "fingerprint": "91dd2cf11f0629ad47026220d544fa2964c9f2888917102b168f4a8de2959975",
       "path": "src/pr_review_harness/cli.py",
       "qualname": "main"
-    },
-    {
-      "code": "operator",
-      "count": 1,
-      "fingerprint": "89bea075a88dab20e8821814a13708491583c788ffdcc94b9b8e2ce8cb1a727c",
-      "path": "src/pr_review_harness/cli.py",
-      "qualname": "_run_one"
-    },
-    {
-      "code": "operator",
-      "count": 1,
-      "fingerprint": "41fabc18528e6383ae463256a05a0261e9c697023d3a32c93287ef671000b94d",
-      "path": "src/pr_review_harness/cli.py",
-      "qualname": "_validate_trusted_private_plan_paths"
     },
     {
       "code": "return-value",
@@ -1305,20 +1277,6 @@
     {
       "code": "type-arg",
       "count": 1,
-      "fingerprint": "32f27f14f56f4b24bdb0ce93d2fa896ff47c13d0933460dfad9297b2da65bd10",
-      "path": "src/pr_review_harness/cli.py",
-      "qualname": "_load_private_shadow_pins"
-    },
-    {
-      "code": "type-arg",
-      "count": 1,
-      "fingerprint": "ddf4e71c4a720bece46880489930f1e2a3bea156d5683fd39bbaecdd1f9926c7",
-      "path": "src/pr_review_harness/cli.py",
-      "qualname": "_load_private_shadow_pins"
-    },
-    {
-      "code": "type-arg",
-      "count": 1,
       "fingerprint": "7b97f1b806c2a0642dedcdf0f4bd800b8a2416fd4b26428e1e9e2266ea61f1ca",
       "path": "src/pr_review_harness/cli.py",
       "qualname": "_price_table"
@@ -1361,7 +1319,7 @@
     {
       "code": "type-arg",
       "count": 6,
-      "fingerprint": "1816cdcfd14c5978f467543029fa60a747fd6628dc54e82b988f2e4994bbf3d7",
+      "fingerprint": "6097a75def3ada2ca532e4f1b5fdc28b81916b093438ff816f0f2485321b0556",
       "path": "src/pr_review_harness/cli.py",
       "qualname": "_run_one"
     },
@@ -6359,8 +6317,8 @@
       "pytest": "9.2.0",
       "typing-extensions": "4.16.0"
     },
-    "platform": "darwin",
-    "python": "3.13.15"
+    "platform": "linux",
+    "python": "3.13.5"
   },
   "implementation_files": [
     "src/pr_review_harness/__init__.py",
@@ -6374,6 +6332,7 @@
     "src/pr_review_harness/claim_reconciliation.py",
     "src/pr_review_harness/claim_transport.py",
     "src/pr_review_harness/cli.py",
+    "src/pr_review_harness/compatibility_pins.py",
     "src/pr_review_harness/completeness.py",
     "src/pr_review_harness/context_targets.py",
     "src/pr_review_harness/contract_registry.py",
@@ -6433,6 +6392,6 @@
       "tests/test_typing_guard.py"
     ]
   },
-  "review_reason": "Initial finite strict implementation debt inventory at 8e47742; no source changes or debt cleanup",
+  "review_reason": "Canonical runtime-pin migration: retire six resolved CLI diagnostics; preserve seven unchanged _run_one signature diagnostics with reviewed AST identity changes; no new debt or suppression",
   "schema": "pr-review-typing-baseline.v1"
 }
