@@ -132,9 +132,9 @@ No configuration endpoint, provider account, secret binding, model call policy, 
 | D. Admission and obligations | Required gaps skip only affected tasks before reservation; optional gaps omit; every required fragment is covered before its original obligation completes; blockers survive. | Large unit fragmented across requests, partial fragment coverage, malformed data, provider recorder proves zero calls/reservations on skip. |
 | E. Request identity and budget | Exact serializer bytes/hash, schemas, ordinary citations and selected content are frozen before budget reservation; optional rows drop first. | Recording-provider captures `serialize_review_request` output; exact cap/cap-plus-one; request identity changes on any selected content/authority/gap change. |
 | F. Recovery and scope | Resume recomputes from original capture and authenticates dynamic rows; child follow-up cannot inherit sibling enrichment. | Resume tamper/regeneration tests, sibling-unit follow-up regression, frozen legacy compatibility tests, installed-wheel execution. |
-| G. Evaluation and source envelope | Keep frozen corpus (41: 18 development, 13 held-out, 10 challenge) and identities unchanged; add separately identified RC-2 artifacts. The proposed acceptance target is at least 90% required-context delivery measured per obligation; issue #240 still requires at least 90% required-context obligations complete on the frozen corpus. Report delivery and semantic completion separately; delivery does not establish completion. Keep additional source for the scoped complete RC-2 path within a 2,400-line planning bound, measured at each slice; retire any unused allowance rather than removing working code to meet a smaller count. | Frozen-corpus identity check, separate raw/waived/unmeasured reporting, per-obligation delivery and completion denominators and observed numerators, source-line accounting by slice. |
+| G. Evaluation and source envelope | Keep frozen corpus (41: 18 development, 13 held-out, 10 challenge) and identities unchanged; add separately identified RC-2 artifacts. The proposed acceptance target is at least 90% required-context delivery measured per obligation; issue #240 still requires at least 90% required-context obligations complete on the frozen corpus. Report delivery and semantic completion separately; delivery does not establish completion. Keep additional source for the scoped complete RC-2 path within the initial 2,400-line planning bound (superseded by the measured-envelope addendum below), measured at each slice; retire any unused allowance rather than removing working code to meet a smaller count. | Frozen-corpus identity check, separate raw/waived/unmeasured reporting, per-obligation delivery and completion denominators and observed numerators, source-line accounting by slice. |
 
-These are acceptance conditions, not completed checks. The 90% delivery target measures delivery only; it is distinct from semantic completion and the frozen-corpus completion exit criterion, and does not mean 90% correctness or a quality grade. Delivery at 90% alone cannot close RC-2. The 2,400-line envelope is a planning bound for this scoped RC-2 path, not permission to grow unrelated code; unused allowance is retired, and working code is not removed just to hit a lower count. Any required check not run or any failed, pending, skipped-required or unknown gate blocks the corresponding PR's completion under normal review policy.
+These are acceptance conditions, not completed checks. The 90% delivery target measures delivery only; it is distinct from semantic completion and the frozen-corpus completion exit criterion, and does not mean 90% correctness or a quality grade. Delivery at 90% alone cannot close RC-2. The initial 2,400-line envelope, revised by the measured-envelope addendum below, is a planning bound for this scoped RC-2 path, not permission to grow unrelated code; unused allowance is retired, and working code is not removed just to hit a lower count. Any required check not run or any failed, pending, skipped-required or unknown gate blocks the corresponding PR's completion under normal review policy.
 
 ## Consequences
 
@@ -150,3 +150,86 @@ These are acceptance conditions, not completed checks. The 90% delivery target m
 - Requirement brief: [issue #240 local brief](../issues/01-review-completeness.md).
 - Project-specific proposal authority, canonical ADR acceptance workflow, safety invariants and review receipts remain governed by `docs/adr/README.md`, `docs/adr/safety-invariants.json`, `docs/OWNERSHIP.md` and `docs/REVIEW-EVIDENCE.md`.
 - Acceptance authority is recorded above. Acceptance authorizes implementation of this bounded design; it is not implementation evidence, quality evidence, a review receipt, or a claim of deployment or RC-2 closure.
+
+
+## Addendum: measured complete-path planning envelope (2026-11-15)
+
+**Decision authority:** The coordinating root accepts this bounded planning
+revision within the user-directed roadmap delivery task. This records a root
+implementation and contract decision, not a separate repository-owner approval
+of the number. Independent GPT-6.1 Sol reassessment informed the decision; it
+neither authorized it nor cleared implementation.
+
+The original **2,400 additional physical Python source lines** above is retained
+as the initial estimate. It is superseded for planning by a provisional **3,100
+additional lines for the complete RC-2 path**, measured from the accepted
+`0ede601637721f57f9444e8fbc788d75d174a712` checkpoint. The 36-line compatibility
+consumer migration is separate and is not charged to this envelope. No RC-2
+implementation from this work has landed at the inspected main checkpoint
+`d0ef89561745ee55924a3ef967e77b9e6796e49f`.
+
+The first isolated source-fact draft measured 842 lines against its estimated
+300–430. Its SHA-256 was
+`ea17826949934d0b8698bbe6a7ac9304eb1577cc604f43591ef9b250fee91294`;
+its 186-line test draft was
+`561c999eb0379bc81e8c175ead5009be851fed81f38edb3cf1d6822c12358be5`.
+These identify unintegrated draft bytes, not a reviewed source release. The
+reassessment found necessary scope, byte-identity, binding and failure-handling
+work rather than a demonstrated 400-line surplus. Its complete-path forecast is:
+
+| Scoped work | Additional physical source lines |
+|---|---:|
+| Measured fact draft, still requiring correction | 842 |
+| Fact identity, phase, binder and host-normalization corrections | 70–170 |
+| Single static association owner | 160–240 |
+| Trusted requirements and complete role selection | 240–360 |
+| Derived rows, fragments and canonical plan | 220–330 |
+| Coverage, admission, exact serialization and validation | 300–430 |
+| Resume authentication and child-scope reconstruction | 220–330 |
+| Shared preparation wiring and contract registration | 100–160 |
+| Capture-universe/full-parent and interface contingency | 80–160 |
+| **Whole-path forecast** | **2,232–3,022** |
+
+The revised ceiling rounds that forecast's upper end to the next 100 lines.
+Neither the forecast nor the ceiling proves that the implementation will fit.
+Count added physical Python lines under `src`, including changes to existing
+modules. Moving production code into experiments, deleting unrelated working
+code, or compressing formatting cannot offset growth. Measure the cumulative
+scoped delta after each slice. Retire unused allowance; stop and reassess any
+further conflict. This addendum creates no general feature headroom and does not
+change the installed source ratchet: any integrated slice still needs its
+measured surface accounting and independent source review.
+
+### Correctness gates before integrating the fact draft
+
+Independent synthetic AST probes on CPython 3.13.5 found parent-unbound scope
+and declaration IDs, missing star-import/escaping-walrus binder facts, incorrect
+generator phase, loss of enclosing inert-annotation context, and unnormalized
+host comprehension mapping. These direct fact-contract defects block
+integration regardless of source size. No target text was executed. The
+author-reported 17 passing tests do not establish correctness; the other
+supported interpreter hosts were not exercised by that assessment.
+
+Correct the fact/association interface before further integration: source-bound
+identity must flow through all descendants; enclosing postponed/nonexecuted
+annotation context must remain distinct from inner evaluation phase; exceptional
+binders must identify their affected namespace; and one association owner must
+apply uniqueness, ordering and barriers without duplicating provisional
+fact-stage decisions. A fact-stage `reason=None` is not a resolved association.
+Keep exact original token bytes separate from NFKC-normalized compiler names.
+
+Run normalized scope, binding, phase and gap vectors on Python 3.11–3.14 before
+claiming host equivalence. Preserve same-module, nested and imported-name
+positive cases and explicit failures for unsupported or ambiguous relations.
+The earlier stopped index, this failed draft and their failure evidence remain
+preserved; this decision does not clear either implementation.
+
+All accepted behavior and evidence requirements remain: every retrieval role,
+named versus exhaustive requirements, original obligations and denominator,
+immutable source sides and bytes, existing capture/request/provider caps,
+exact-cap admission, required-gap rejection before reservation, blocker
+preservation, resume regeneration and child isolation. The frozen 41-case
+corpus and 18/13/10 split stay unchanged. At least 90% required-context
+obligations must still be measured complete; delivery alone is not completion.
+No quality, readiness, replacement or issue-closure claim follows from this
+planning decision.

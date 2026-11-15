@@ -12,6 +12,7 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 - Move the six active PR-457/PR-464 v3 shadow-plan and evidence identities into the canonical compatibility resource. Shared lazy case-policy accessors preserve plan bytes and receipts without import-time resource reads; the legacy finalizer remains frozen and rejects the committed policy before writing. Pin changes remain subject to the provenance-aware refresh procedure.
 
+- Revise the scoped complete RC-2 planning envelope from 2,400 to 3,100 additional source lines after measured draft growth and independent architectural reassessment. All retrieval roles, runtime caps, recovery and completion gates remain unchanged; identified draft correctness defects still block integration.
 - Move the seven SYNTH-001 fixture identities shared by the materializer and preflight verifier into the canonical compatibility resource. Explicit accessors preserve the original digests and fixture bytes without reading the resource at import time; standalone script invocation remains supported.
 
 - Exercise untrusted artifact redirects through the stateless publication boundary, asserting `UNKNOWN`, the stable rejection reason, and zero review posts, receipt writes, or artifact downloads. The generated fault matrix records those assertions, and the signed-download test now observes real fake-transport calls. Mutation evidence summaries retain their measured scope and remaining gaps.
@@ -21,6 +22,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 - Move current-source capture and CLI shadow-policy SHA-256 pins into the installed canonical resource. Explicit typed accessors preserve the exact historical dictionaries without import-time resource reads; runtime inventory and installed-wheel checks cover the resource. Retire six typing diagnostics and one lint finding while retaining unchanged signature debt. Other script-family pin migrations remain open.
 
 ### Added
+
+- Add provider-free preparation for one frozen QM5 attack/benign pair: authenticate the committed corpus, create deterministic local synthetic Git snapshots, and record source provenance, byte identities, line anchors, and unchanged per-case caps in a separate artifact. Dirty development preparations are explicitly unverified; live execution remains unavailable.
 
 - Record the accepted RC-2 retrieval design in ADR 0013: trusted requirements, immutable line-anchored evidence, deterministic admission and exact request accounting, with separate delivery and completion measurements. This is a design decision, not implementation or quality evidence; ADR 0012 and the stopped prior implementation remain historical.
 
