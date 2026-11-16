@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+FINALIZER_SCRIPT = ROOT / "scripts/finalize_model_only_shadow_live_plans_v3.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 import finalize_model_only_shadow_live_plans_v3 as finalizer  # noqa: E402
 
@@ -156,3 +159,134 @@ def test_frozen_finalizer_rejects_current_policy_before_writing_anything(
 
     assert {path: path.read_bytes() for path in outputs if path.exists()} == before
     assert {path: path.exists() for path in outputs} == before_exists
+
+
+def _isolated_finalizer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, verifier_source: str
+) -> tuple[dict[str, Path], list[Path], Path]:
+    isolated_root = tmp_path / "isolated-finalizer"
+    isolated_scripts = isolated_root / "scripts"
+    isolated_experiments = isolated_root / "experiments"
+    isolated_scripts.mkdir(parents=True)
+    isolated_experiments.mkdir()
+    policy_path = isolated_scripts / "shadow_case_policy.py"
+    verifier_path = isolated_scripts / "verify_model_only_shadow_live_preflight.py"
+    limits_path = isolated_experiments / "model-only-shadow-live-writer-limits-v1.json"
+    provider_path = isolated_experiments / "model-only-shadow-live-writer-provider-v1.json"
+    policy_path.write_text(
+        '"PR-457": {\n  "plan_sha256": "PENDING_FINAL_V3_PLAN_SHA256"\n}\n'
+        '"PR-464": {\n  "plan_sha256": "PENDING_FINAL_V3_PLAN_SHA256"\n}\n',
+        encoding="utf-8",
+    )
+    verifier_path.write_text(verifier_source, encoding="utf-8")
+    limits_path.write_text("{}", encoding="utf-8")
+    provider_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(finalizer, "ROOT", isolated_root)
+    monkeypatch.setattr(finalizer, "POLICY_PATH", policy_path)
+    monkeypatch.setattr(finalizer, "VERIFIER_PATH", verifier_path)
+    monkeypatch.setattr(finalizer, "LIMITS_PATH", limits_path)
+    monkeypatch.setattr(finalizer, "PROVIDER_PATH", provider_path)
+    monkeypatch.setattr(finalizer, "_source_identity", lambda _revision: (35, "b" * 64))
+    monkeypatch.setattr(finalizer, "_identity_copy", lambda _case, _plan, _sha: (b"{}\n", b"{}\n"))
+
+    prepared_paths: dict[str, Path] = {}
+    for case_id in ("PR-457", "PR-464"):
+        prepared_path = tmp_path / f"prepared-{case_id}.json"
+        prepared_path.write_text(json.dumps(_prepared(case_id)), encoding="utf-8")
+        prepared_paths[case_id] = prepared_path
+    outputs = [policy_path, verifier_path]
+    for case in finalizer.CASES.values():
+        outputs.extend(isolated_root / case[key] for key in ("plan", "corpus", "manifest"))
+    outputs.extend(
+        isolated_root / f"experiments/model-only-shadow-live-pr{case_id[3:]}-plan-v3-evidence.json"
+        for case_id in ("PR-457", "PR-464")
+    )
+    return prepared_paths, outputs, verifier_path
+
+
+def _verifier_with_old_assignment(assignment: str) -> str:
+    return (
+        "EXPECTED_MODULE_COUNT = 35\n"
+        f"{assignment}\n"
+        'if runtime.get("plan_generated_from_revision") != "' + "c" * 40 + '":\n    pass\n'
+    )
+
+
+def test_finalizer_replaces_the_exact_historical_module_tree_assignment_in_isolated_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assignment = finalizer._old_module_tree_assignment()
+    prepared_paths, outputs, verifier_path = _isolated_finalizer(
+        monkeypatch, tmp_path, _verifier_with_old_assignment(assignment)
+    )
+    result = finalizer.finalize(prepared_paths, revision="a" * 40)
+    assert result["module_tree_sha256"] == "b" * 64
+    assert 'EXPECTED_MODULE_TREE_SHA256 = "' + "b" * 64 + '"' in verifier_path.read_text(encoding="utf-8")
+    assert all(path.exists() for path in outputs)
+
+
+@pytest.mark.parametrize("assignment_mode", ["wrong", "duplicate"])
+def test_finalizer_rejects_wrong_or_duplicate_historical_assignment_without_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, assignment_mode: str
+) -> None:
+    exact = finalizer._old_module_tree_assignment()
+    assignment = exact if assignment_mode == "duplicate" else exact.replace("3a891f5c", "0a891f5c")
+    source = _verifier_with_old_assignment(assignment)
+    if assignment_mode == "duplicate":
+        source += exact + "\n"
+    prepared_paths, outputs, _verifier_path = _isolated_finalizer(monkeypatch, tmp_path, source)
+    before_exists = {path: path.exists() for path in outputs}
+    before = {path: path.read_bytes() for path in outputs if path.exists()}
+
+    with pytest.raises(finalizer.FinalizeError, match="module_tree_constant_invalid"):
+        finalizer.finalize(prepared_paths, revision="a" * 40)
+
+    assert {path: path.exists() for path in outputs} == before_exists
+    assert {path: path.read_bytes() for path in outputs if path.exists()} == before
+
+
+def test_finalizer_pin_resource_failure_precedes_identity_work_and_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exact = finalizer._old_module_tree_assignment()
+    prepared_paths, outputs, _verifier_path = _isolated_finalizer(
+        monkeypatch, tmp_path, _verifier_with_old_assignment(exact)
+    )
+    broken_resource = tmp_path / "bad-compatibility-pins.json"
+    broken_resource.write_text("not-json", encoding="utf-8")
+    original_pin = finalizer.compatibility_pins.pin
+
+    def invalid_resource_pin(name: str) -> str:
+        return original_pin(name, path=broken_resource)
+
+    monkeypatch.setattr(finalizer.compatibility_pins, "pin", invalid_resource_pin)
+    monkeypatch.setattr(finalizer, "_source_identity", lambda _revision: pytest.fail("identity work ran"))
+    before_exists = {path: path.exists() for path in outputs}
+    before = {path: path.read_bytes() for path in outputs if path.exists()}
+
+    with pytest.raises(finalizer.FinalizeError, match="module_tree_pin_unavailable"):
+        finalizer.finalize(prepared_paths, revision="a" * 40)
+
+    assert {path: path.exists() for path in outputs} == before_exists
+    assert {path: path.read_bytes() for path in outputs if path.exists()} == before
+
+
+def test_finalizer_imports_and_loads_named_pin_from_source_checkout_without_pythonpath(tmp_path: Path) -> None:
+    code = (
+        "import runpy; namespace = runpy.run_path("
+        f"{str(FINALIZER_SCRIPT)!r}, "
+        "run_name='standalone_import'); "
+        "assert namespace['_old_module_tree_assignment']() == "
+        f"{finalizer._old_module_tree_assignment()!r}"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-S", "-c", code],
+        cwd=tmp_path,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")},
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert completed.returncode == 0, completed.stderr
