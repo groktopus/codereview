@@ -376,6 +376,30 @@ def test_assert_pin_value_refuses_unknown_names(tmp_path: Path):
 
 
 @pytest.mark.compatibility
+def test_finalizer_old_module_tree_assignment_uses_named_historical_pin() -> None:
+    from scripts import finalize_model_only_shadow_live_plans_v3 as finalizer
+
+    pin_name = "historical.finalizer.model_only_shadow_live_v3.old_verifier_module_tree_assignment_sha256"
+    value = compatibility_pins.pin(
+        "historical.finalizer.model_only_shadow_live_v3.old_verifier_module_tree_assignment_sha256"
+    )
+    entry = compatibility_pins.pins()[pin_name]
+    assert finalizer._old_module_tree_assignment() == f'EXPECTED_MODULE_TREE_SHA256 = "{value}"'
+    assert entry["provenance"]["artifact"] == "scripts/verify_model_only_shadow_live_preflight.py"
+    revision = entry["provenance"]["source_revision"]
+    artifact = entry["provenance"]["artifact"]
+    assert revision == "f4136ded39824904eb31a6277443d09dd5aebb7b"
+    source = subprocess.run(
+        ["git", "show", f"{revision}:{artifact}"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert f'EXPECTED_MODULE_TREE_SHA256 = "{value}"'.encode() in source
+    assert "textual migration precondition" in entry["provenance"]["reason"]
+
+
+@pytest.mark.compatibility
 def test_canonical_resource_preserves_both_pre_migration_manifests():
     canonical = compatibility_pins.load_manifest()
     previous_values = json.loads(
@@ -425,6 +449,7 @@ def test_canonical_resource_preserves_both_pre_migration_manifests():
         "synth_001.preflight.request_descriptor_sha256",
         "synth_001.preflight.normalized_prepared_sha256",
         "synth_001.preflight.evidence_index_canonical_sha256",
+        "historical.finalizer.model_only_shadow_live_v3.old_verifier_module_tree_assignment_sha256",
     }
     assert canonical["value_refresh_history"] == previous_values.get("refresh_history", [])
     file_additions = {

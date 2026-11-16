@@ -26,6 +26,8 @@ if os.environ.get("PR457_CURRENT_SOURCE_RUNTIME") != "1":
 sys.path.insert(0, str(ROOT / "scripts"))
 from shadow_case_policy import policy_for_case  # noqa: E402
 
+from pr_review_harness import compatibility_pins as compatibility_pins  # noqa: E402
+
 SOURCE_DIR = ROOT / "src/pr_review_harness"
 POLICY_PATH = ROOT / "scripts/shadow_case_policy.py"
 VERIFIER_PATH = ROOT / "scripts/verify_model_only_shadow_live_preflight.py"
@@ -333,6 +335,21 @@ def _identity_copy(case_id: str, plan: dict[str, Any], plan_sha: str) -> tuple[b
     return corpus_raw, manifest_raw
 
 
+_OLD_MODULE_TREE_ASSIGNMENT_PIN = (
+    "historical.finalizer.model_only_shadow_live_v3.old_verifier_module_tree_assignment_sha256"
+)
+
+
+def _old_module_tree_assignment() -> str:
+    try:
+        value = compatibility_pins.pin(_OLD_MODULE_TREE_ASSIGNMENT_PIN)
+    except compatibility_pins.CompatibilityPinError:
+        raise FinalizeError("module_tree_pin_unavailable") from None
+    if not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise FinalizeError("module_tree_pin_unavailable")
+    return f'EXPECTED_MODULE_TREE_SHA256 = "{value}"'
+
+
 def _replace_once(raw: str, old: str, new: str, error: str) -> str:
     if raw.count(old) != 1:
         raise FinalizeError(error)
@@ -340,6 +357,7 @@ def _replace_once(raw: str, old: str, new: str, error: str) -> str:
 
 
 def finalize(prepared_paths: dict[str, Path], *, revision: str) -> dict[str, Any]:
+    old_module_tree_assignment = _old_module_tree_assignment()
     module_count, module_tree = _source_identity(revision)
     if module_count != 35:
         raise FinalizeError("runtime_module_count_unexpected")
@@ -375,7 +393,7 @@ def finalize(prepared_paths: dict[str, Path], *, revision: str) -> dict[str, Any
     )
     verifier = _replace_once(
         verifier,
-        'EXPECTED_MODULE_TREE_SHA256 = "3a891f5c35efb120555502880139945284040c7a35c9a262149687872edf4986"',
+        old_module_tree_assignment,
         f'EXPECTED_MODULE_TREE_SHA256 = "{module_tree}"',
         "module_tree_constant_invalid",
     )

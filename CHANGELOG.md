@@ -10,6 +10,8 @@ See [RELEASING.md](docs/RELEASING.md) for the release procedure.
 
 ### Changed
 
+- Move the frozen v3 plan finalizer's exact prior verifier-tree assignment precondition to a named, provenance-carrying compatibility pin. The loader resolves it only when finalization is called; exact-once matching and the frozen policy rejection remain fail-closed before writes. This does not enable regeneration against the current repository.
+
 - Move the remaining SYNTH-001 preflight and package identities into the canonical compatibility resource through lazy accessors. Preserve frozen artifacts and require prevalidated named runtime-tree and identity pins before pending finalization; the finalizer never refreshes the resource. Existing finalizer frozen verification remains idempotent. Three obsolete declaration allowances are retired after the affected tests gained complete annotations.
 
 - Extend the VD-4 declaration annotation ratchet to maintained standalone `src/**/*.pyi` stubs while preserving the strict implementation typing scope for `src/**/*.py`. New untyped stubs fail the real checker CLI; the three existing source stubs have no missing declarations. The baseline policy records this scope change without changing its 3,634 historical gaps in 3,633 identities. This checks declarations rather than function-body typing and does not close VD-4.

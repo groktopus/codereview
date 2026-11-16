@@ -431,6 +431,16 @@
         "recorded_at": "2026-11-15",
         "reason": "Canonical JSON digest of the evidence index in the immutable prepared fixture; computed without executing target code or contacting a provider."
       }
+    },
+    "historical.finalizer.model_only_shadow_live_v3.old_verifier_module_tree_assignment_sha256": {
+      "value": "3a891f5c35efb120555502880139945284040c7a35c9a262149687872edf4986",
+      "kind": "historical-expectation",
+      "provenance": {
+        "artifact": "scripts/verify_model_only_shadow_live_preflight.py",
+        "source_revision": "f4136ded39824904eb31a6277443d09dd5aebb7b",
+        "recorded_at": "2026-09-29",
+        "reason": "Preserves the exact EXPECTED_MODULE_TREE_SHA256 assignment matched by the frozen v3 finalizer before replacement; this is a textual migration precondition, not a current runtime-tree pin."
+      }
     }
   },
   "value_refresh_history": [],
